@@ -1,7 +1,7 @@
 # ADR-011a: Clerk provider and Australian data residency
 
-- **Status:** Proposed. Awaiting product-owner approval, recorded on [AI-01 (MAT-54)](https://linear.app/materia-web/issue/MAT-54).
-- **Date:** 2026-10-03
+- **Status:** Accepted for the MVP: **Anthropic API (first party)**. The product owner approved on [AI-01 (MAT-54)](https://linear.app/materia-web/issue/MAT-54) on 2026-10-03: "I don't really care about data sovereignty at this stage when it comes to AI. The solution to this will be just to be able to hook up an Anthropic API key and use their models from that." This is the explicit sign-off that ADR-011 requires for the Anthropic API route. The Bedrock `AU` analysis below stays as the documented path if Australian processing becomes a requirement.
+- **Date:** 2026-10-03 (proposed); 2026-10-03 (accepted, route changed by the owner)
 - **Ticket:** [AI-01](https://linear.app/materia-web/issue/MAT-54)
 - **Refines:** [ADR-011: Clerk (AI)](011-clerk-ai.md)
 
@@ -53,13 +53,12 @@ The research below was done on 2026-10-03, from Anthropic's live platform docume
 
 ### Latency benchmark
 
-`tools/scripts/clerk-bench.ts` runs a 20k-token fictional prompt through one route (5 runs) and prints TTFT and output tokens per second. **It hasn't been run against a real provider yet**, because no provider credentials exist (see Human steps). The offline dry run (`--provider fake`) checks the script and the table format. Paste the real results here:
+`tools/scripts/clerk-bench.ts` runs a 20k-token fictional prompt through one route (5 runs) and prints TTFT and output tokens per second. **It hasn't been run against a real provider yet**, because no API key exists yet; follow-up AI-01b runs it with `--provider anthropic`. The offline dry run (`--provider fake`) checks the script and the table format. Paste the real results here:
 
 | Route | Region | Median TTFT (ms) | Median output tok/s | Runs | Date |
 | -- | -- | -- | -- | -- | -- |
-| Bedrock, in-region | `ap-southeast-4` | _pending_ | _pending_ | 5 | |
-| Bedrock, AU profile | `ap-southeast-2` | _pending_ | _pending_ | 5 | |
-| Vertex, global (reference only) | `global` | _pending_ | _pending_ | 5 | |
+| **Anthropic API (chosen)** | `global` | _pending (AI-01b)_ | _pending_ | 5 | |
+| Bedrock, AU profile (future path) | `ap-southeast-2` | not run | not run | | |
 
 Run it from a dev Cloud Function or Cloud Shell in `australia-southeast1`, so network distance matches production.
 
@@ -90,53 +89,54 @@ The MVP features (chat, suggestions, classification) come to about $316/month. T
 - **Monitoring:** CloudWatch metrics and CloudTrail for the AWS side. The gateway's own metadata-only logs (ids, token counts, latency, stop reason) feed Cloud Monitoring (ADR-018). Bedrock model-invocation logging stays **off**, so prompts are never stored.
 - **Cost of the second cloud:** one AWS account in `ap-southeast-2`/`ap-southeast-4`, Terraform-managed alongside the GCP projects (FND-03), with budgets and alerts.
 
-## Decision (proposed)
+## Decision (accepted for the MVP)
 
-1. **Primary route:** Claude `claude-opus-5-5` on **Amazon Bedrock (Claude in Amazon Bedrock, Mantle Messages endpoint)**, called from Cloud Functions in `australia-southeast1` through `@anthropic-ai/bedrock-sdk` (`AnthropicBedrockMantle`), using the **`AU` geography inference profile** so inference stays in Sydney or Melbourne. Where strict single-region residency is wanted, use **`ap-southeast-4` in-region**; it's a config change.
-2. **Never** route Clerk traffic to the `global` endpoint, Vertex, Claude Platform on AWS or the 1P API automatically: each sends data outside Australia. Changing route needs a new ADR and owner sign-off.
-3. **Embeddings** stay on Vertex AI in `australia-southeast1` (ADR-012), at 768 dimensions.
-4. `ClerkModelPort` keeps the provider swappable (Vertex and 1P adapters remain possible for tests and future residency changes). The MVP default is the **fake model**, with `clerk.enabled` off, until the hello call passes.
+1. **Route:** Claude `claude-opus-5-5` through the **Anthropic API (first party)**, called only from Cloud Functions (`australia-southeast1`) with the official `@anthropic-ai/sdk` client.
+2. **Credentials:** an Anthropic API key in **Secret Manager**, read with `defineSecret('ANTHROPIC_API_KEY')`. It is never in code, Firestore, the client bundle or logs. Each environment (dev, prod) has its own key in its own Anthropic workspace, so usage and spend can be capped per environment in the Console.
+3. **Inference geography:** the workspace default (`global`). The owner has accepted processing outside Australia for the MVP. `inference_geo: "us"` is available (at 1.1×) if a US-only posture is ever preferred; no Australian option exists on this route.
+4. **Embeddings** stay on Vertex AI in `australia-southeast1` (ADR-012), at 768 dimensions. This is unaffected by the Claude route.
+5. `ClerkModelPort` keeps the provider swappable. The **Bedrock `AU` route** (the findings above) is the documented migration path if Australian processing becomes a requirement (for example, once more firms onboard). That swap is a config change plus an eval run, recorded in a superseding ADR.
+6. Until the API key exists in Secret Manager, Clerk runs against the **fake model** with `clerk.enabled` off (handbook MVP fallback).
 
 ## Fallback strategy
 
-All fallbacks stay on the Bedrock `AU` route. Server-side `fallbacks` aren't available on Bedrock, so the gateway implements them.
+The first-party API supports the server-side `fallbacks` parameter, so refusals are handled by the API itself. The gateway handles availability errors.
 
 | Trigger | Action |
 | -- | -- |
-| `stop_reason: "refusal"` | Show the refusal honestly. For proposal-type features only, retry once on the **secondary model**, `anthropic.claude-opus-5`, on the same route, as a **fresh branch** (preserved thinking: Opus 5 can't read Opus 5.5's thinking blocks) |
-| HTTP 529 (overloaded), 5xx, or a stream timeout | Up to 2 retries with exponential backoff and jitter, then the **secondary model**. If that also fails, the **tertiary model**, `anthropic.claude-sonnet-5-5`; then "Clerk is unavailable", with the manual path |
+| `stop_reason: "refusal"` | Send every request with `betas: ["server-side-fallback-2026-07-01"]` and `fallbacks: "default"`, so the API reroutes by refusal category without us maintaining a model list. If the final response is still a refusal, show it honestly (Clerk doc). Fallback turns are a **fresh branch**: thinking blocks are bound to the model (preserved thinking) |
+| HTTP 529 (overloaded), 5xx, or a stream timeout | SDK retries (`maxRetries: 2`, exponential backoff), then the gateway retries once on the **secondary model**, `claude-opus-5`, then the **tertiary model**, `claude-sonnet-5-5`; then "Clerk is unavailable", with the manual path |
 | HTTP 429 (rate limited) | No model switch. Show "Clerk is busy" and back off per `retry-after` |
 | Secondary-model share above 20% of calls, or a gateway error rate above 5%, over 15 min | Alert (FND-21). An owner may flip `clerk.enabled` off per org or globally |
-| Region-wide Bedrock outage | Clerk degrades to manual paths. No automatic cross-geography failover (decision 2) |
-
-Whether `claude-opus-5` and `claude-sonnet-5-5` are offered on the `AU` profile **(verify in the Bedrock console)** goes into `infra/MANUAL.md`. If either isn't, the fallback list shrinks to what is.
+| Anthropic API outage | Clerk degrades to manual paths (the app never depends on Clerk). Switching to another provider is a deliberate config change, not automatic |
 
 ## Consequences
 
-- Australian processing for Clerk, which supports the APP 8 position and client expectations.
-- A second cloud (AWS) to run: an account, IAM, budgets, and Terraform state.
-- Batches, Files API, server-side fallbacks, and (pending verification) native structured outputs are unavailable, so the gateway owns these concerns. Prompt caching, citations, PDF input and streaming, which Clerk needs most, are available.
-- About a 10% price premium over global endpoints.
+- The full first-party feature set: structured outputs (`output_config.format`), citations, PDF input, prompt caching, streaming, server-side fallbacks, Message Batches and the Files API. The Bedrock structured-output gap doesn't apply.
+- No second cloud to run: just one secret per environment.
+- Clerk prompts (matter context and document excerpts) are processed by Anthropic outside Australia. This must be disclosed in the privacy policy and the sub-processor list (SEC-01), and in the Clerk data-use disclosure (AI-13).
+- Standard (global) pricing: about **US$355/month** at the volumes above, with no regional premium.
+- Recommended follow-up (not blocking): ask Anthropic for **zero data retention** on the Materia organisation. Opus 5.5 is available under ZDR, unlike Fable 5.1, which requires 30-day retention. Record the outcome in `infra/MANUAL.md`.
 
 ## Alternatives considered
 
-- **Vertex AI (global or `us`):** same cloud and IAM as Firebase, no extra account. Rejected: Opus 5.5 can't be pinned to Australia.
-- **Claude Platform on AWS:** full API parity (fallbacks, batches, Files). Rejected: inference and storage are US or global only.
-- **Anthropic API with ZDR:** simplest, and ZDR is available for Opus 5.5. Rejected as the default, because processing would be in the US or global. ADR-011 allows it only with an explicit privacy sign-off.
+- **Amazon Bedrock, `AU` profile:** the only route with Australian inference (see Findings). Deferred: it adds an AWS account, cross-cloud IAM and a structured-output workaround, and the owner doesn't need Australian processing for the MVP. It remains the documented path.
+- **Vertex AI (global or `us`):** same cloud as Firebase, but no Australian endpoint for Opus 5.5 and no server-side fallbacks, Batches or Files API. No residency advantage over the first-party API.
+- **Claude Platform on AWS:** first-party parity, but it needs AWS billing and IAM for no residency gain (US or global only).
 
 ## Sub-processor input for SEC-01
 
 | Sub-processor | Service | Data | Location |
 | -- | -- | -- | -- |
-| Amazon Web Services | Amazon Bedrock (Claude inference) | Clerk prompts: matter context and document excerpts | Australia (`ap-southeast-2`, `ap-southeast-4`) |
+| Anthropic | Claude API (Clerk inference) | Clerk prompts: matter context and document excerpts | Outside Australia (global routing; workspace data stored in the US) |
 | Google Cloud | Firebase (Firestore, Storage, Functions, Auth), Vertex AI embeddings | All application data; document text for embeddings | Australia (`australia-southeast1`, backups `australia-southeast2`) |
-| Anthropic | Model developer. No processing role on the Bedrock route: AWS runs inference, and Anthropic has no operator access | None | n/a |
 
 ## Human steps (owner)
 
-- [ ] Create or choose an AWS account for Materia. Enable Claude Opus 5.5 (plus Opus 5 and Sonnet 5.5 for fallback) in Bedrock model access, in `ap-southeast-2` and `ap-southeast-4`, and accept the terms.
-- [ ] Confirm in the console that Opus 5.5 is offered on the `AU` profile and in-region in `ap-southeast-4`, and whether structured outputs are accepted. Record the model and profile ids.
-- [ ] Request quota if the default 2M input TPM isn't granted. Keep model-invocation logging off.
-- [ ] Record the agreement, retention settings and ids in `infra/MANUAL.md`.
-- [ ] Provide credentials for the hello call: an IAM role that a GCP service account can assume (or, temporarily, short-lived dev credentials), once FND-03 has created the dev project.
-- [ ] Approve or reject this ADR on MAT-54.
+- [x] Approve the route (done on MAT-54, 2026-10-03).
+- [ ] Create an Anthropic Console organisation with workspaces for `dev` and `prod`; set spend limits.
+- [ ] Create an API key per workspace and add it to Secret Manager as `ANTHROPIC_API_KEY` in the matching GCP project (once FND-03 has created the projects). Never paste keys into tickets, chat or code.
+- [ ] Optional: request zero data retention from Anthropic.
+- [ ] Record the workspace names, spend limits and retention setting (not the keys) in `infra/MANUAL.md`.
+
+The hello call and the latency benchmark (`clerk-bench.ts --provider anthropic`) move to follow-up ticket **AI-01b** ([MAT-120](https://linear.app/materia-web/issue/MAT-120)), which runs once the key is in the dev project's Secret Manager.
