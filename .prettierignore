@@ -10,3 +10,5 @@ pnpm-lock.yaml
 /design
 # Generated permissions table (libs/domain permissions-readme.spec.ts)
 /libs/domain/README.md
+# Generated from design/ by `materia-scripts sync-design` (FND-07)
+/libs/ui/src/generated

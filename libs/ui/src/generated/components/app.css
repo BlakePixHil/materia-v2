@@ -1,0 +1,2 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-app). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-app { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100%; background: var(--bg-canvas); }

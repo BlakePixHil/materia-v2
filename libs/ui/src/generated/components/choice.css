@@ -1,0 +1,11 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-choice). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-choice { display: inline-flex; align-items: flex-start; gap: var(--space-8); font: 400 14px/20px var(--font-sans); color: var(--text-primary); cursor: pointer; }
+.mt-choice .mt-desc { display: block; font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
+.mt-choice[data-disabled] { color: var(--text-disabled); cursor: not-allowed; }
+.mt-choice-card { display: flex; align-items: flex-start; gap: var(--space-12); padding: var(--space-16); border-radius: var(--radius-lg); border: 1px solid var(--border-default); background: var(--bg-surface); cursor: pointer; }
+.mt-choice-card[data-hover] { border-color: var(--border-strong); }
+.mt-choice-card[data-selected] { border-color: var(--border-focus); box-shadow: 0 0 0 1px var(--border-focus); background: var(--bg-selected); }
+.mt-choice-card .tt { font: 500 14px/20px var(--font-sans); color: var(--text-primary); }
+.mt-choice-card .ts { font: 400 13px/18px var(--font-sans); color: var(--text-secondary); margin-top: 2px; }
+.mt-choice-card .glyph { width: 36px; height: 36px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-sunken); color: var(--icon-default); flex: none; }
+.mt-choice-card[data-selected] .glyph { background: var(--bg-brand); color: var(--text-on-brand); }

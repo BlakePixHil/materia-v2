@@ -1,0 +1,88 @@
+/* Layout for the Foundations stories only (not shipped in the app). */
+.fd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-32);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+.fd h2 {
+  font: 600 18px/24px var(--font-sans);
+  letter-spacing: -0.015em;
+}
+.fd h3 {
+  font: 500 11px/14px var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-block-end: var(--space-12);
+}
+.fd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-12);
+}
+.fd-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.fd-chip {
+  block-size: 48px;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+.fd-name {
+  font: 500 12px/16px var(--font-mono);
+}
+.fd-meta {
+  font: 400 12px/16px var(--font-sans);
+  color: var(--text-secondary);
+}
+.fd-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+.fd-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: var(--space-16);
+  align-items: baseline;
+}
+.fd-bar {
+  block-size: 12px;
+  background: var(--bg-brand);
+  border-radius: 2px;
+}
+.fd-box {
+  inline-size: 64px;
+  block-size: 64px;
+  background: var(--bg-surface);
+  box-shadow: inset 0 0 0 1px var(--border-default);
+}
+.fd-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-16);
+}
+.fd-panel {
+  padding: var(--space-20);
+  border-radius: var(--radius-lg);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+.fd-card {
+  padding: var(--space-16);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow:
+    var(--shadow-card),
+    inset 0 0 0 1px var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}

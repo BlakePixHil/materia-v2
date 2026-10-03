@@ -1,0 +1,7 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-order). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-order { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: var(--space-12); align-items: start; padding: var(--space-10, 10px) 0; border-top: 1px solid var(--border-subtle); }
+.mt-order:first-child { border-top: 0; }
+.mt-order .no { font: 500 11px/18px var(--font-mono); color: var(--text-tertiary); text-align: right; }
+.mt-order .txt { font: 400 13px/18px var(--font-sans); color: var(--text-primary); }
+.mt-order .then { display: flex; align-items: center; gap: var(--space-6); margin-top: var(--space-4); font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
+.mt-order[data-flag] { background: var(--bg-warning-subtle); border-radius: var(--radius-md); padding-inline: var(--space-8); border-top-color: transparent; }

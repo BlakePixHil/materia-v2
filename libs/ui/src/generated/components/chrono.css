@@ -1,0 +1,12 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-chrono). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-chrono { display: flex; flex-direction: column; }
+.mt-chrono-year { padding: var(--space-12) 0 var(--space-4); font: 500 11px/14px var(--font-mono); letter-spacing: .04em; color: var(--text-tertiary); }
+.mt-chrono-item { display: grid; grid-template-columns: 76px 12px minmax(0, 1fr); column-gap: var(--space-12); position: relative; padding-bottom: var(--space-12); }
+.mt-chrono-item::before { content: ""; position: absolute; left: 93.5px; top: 14px; bottom: -2px; width: 1px; background: var(--border-default); }
+.mt-chrono-item .d { font: 500 12px/18px var(--font-mono); color: var(--text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
+.mt-chrono-item .pin { width: 9px; height: 9px; margin: 5px 0 0 1.5px; border-radius: 50%; background: var(--bg-surface); border: 1.5px solid var(--border-control); position: relative; z-index: 1; }
+.mt-chrono-item[data-key] .pin { background: var(--bg-brand); border-color: var(--bg-brand); }
+.mt-chrono-item .tt { font: 400 14px/20px var(--font-sans); color: var(--text-primary); }
+.mt-chrono-item[data-key] .tt { font-weight: 500; }
+.mt-chrono-item .meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); margin-top: var(--space-6); }
+.mt-chrono-gap { margin: 0 0 var(--space-12) 100px; }

@@ -1,0 +1,7 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-composer). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-composer { border-radius: var(--radius-lg); border: 1px solid var(--border-ai); background: var(--bg-surface); box-shadow: var(--ai-glow); padding: var(--space-8); display: flex; flex-direction: column; gap: var(--space-6); }
+.mt-composer[data-focus] { border-color: var(--icon-ai); }
+.mt-composer .ctx { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--space-6); height: 22px; padding: 0 var(--space-6); border-radius: var(--radius-xs); background: var(--bg-sunken); font: 500 12px/16px var(--font-sans); color: var(--text-secondary); }
+.mt-composer .ctx .mt-i { width: 12px; height: 12px; }
+.mt-composer .field { padding: var(--space-4) var(--space-4) var(--space-8); font: 400 14px/20px var(--font-sans); color: var(--text-tertiary); min-height: 40px; }
+.mt-composer .bar { display: flex; align-items: center; gap: var(--space-4); }

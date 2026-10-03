@@ -1,0 +1,13 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-tl). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-tl { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; column-gap: var(--space-12); position: relative; padding-bottom: var(--space-16); }
+.mt-tl::before { content: ""; position: absolute; left: 9.5px; top: 24px; bottom: 4px; width: 1px; background: var(--border-default); }
+.mt-tl:last-child { padding-bottom: 0; } .mt-tl:last-child::before { display: none; }
+.mt-tl .node { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-surface); border: 1px solid var(--border-strong); color: var(--icon-muted); }
+.mt-tl .node .mt-i { width: 11px; height: 11px; stroke-width: 2; }
+.mt-tl[data-state="done"] .node { background: var(--bg-success-subtle); border-color: transparent; color: var(--status-success); }
+.mt-tl[data-state="next"] .node { background: var(--bg-brand); border-color: transparent; color: var(--text-on-brand); box-shadow: 0 0 0 3px var(--bg-brand-subtle); }
+.mt-tl[data-state="overdue"] .node { background: var(--bg-danger-subtle); border-color: transparent; color: var(--status-danger); }
+.mt-tl .tt { font: 500 13px/18px var(--font-sans); color: var(--text-primary); }
+.mt-tl[data-state="done"] .tt { color: var(--text-secondary); }
+.mt-tl .rule { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); margin-top: 2px; }
+.mt-tl .rule code { font: 500 11px/14px var(--font-mono); color: var(--text-secondary); }

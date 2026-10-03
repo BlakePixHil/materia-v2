@@ -1,0 +1,24 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-btn). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-btn { --h: var(--control-md); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-6); height: var(--h); padding: 0 var(--space-12); border-radius: var(--radius-sm); border: 1px solid transparent; font: 500 13px/18px var(--font-sans); white-space: nowrap; cursor: pointer; background: none; color: var(--text-primary); user-select: none; outline: none; transition: background-color .12s, border-color .12s, color .12s, box-shadow .12s; }
+.mt-btn[data-size="sm"] { --h: var(--control-sm); padding: 0 var(--space-8); gap: var(--space-4); font-size: 12px; }
+.mt-btn[data-size="lg"] { --h: var(--control-lg); padding: 0 var(--space-16); }
+.mt-btn .mt-kbd { margin-left: var(--space-2); }
+.mt-btn[data-variant="primary"] { background: var(--bg-brand); color: var(--text-on-brand); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), var(--shadow-control); }
+.mt-btn[data-variant="primary"][data-hover] { background: var(--bg-brand-hover); }
+.mt-btn[data-variant="primary"] .mt-kbd { background: rgba(255,255,255,.16); border-color: transparent; box-shadow: none; color: var(--text-on-brand); }
+.mt-btn[data-variant="secondary"] { background: var(--bg-surface); border-color: var(--border-default); box-shadow: var(--shadow-control); }
+.mt-btn[data-variant="secondary"][data-hover] { background: var(--bg-hover); border-color: var(--border-strong); }
+.mt-btn[data-variant="ghost"] { color: var(--text-secondary); }
+.mt-btn[data-variant="ghost"][data-hover] { background: var(--bg-hover); color: var(--text-primary); }
+.mt-btn[data-variant="danger"] { background: var(--bg-danger); color: var(--text-on-brand); }
+.mt-btn[data-variant="danger"][data-hover] { filter: brightness(.92); }
+.mt-btn[data-variant="ai"] { background: var(--bg-ai-subtle); border-color: var(--border-ai); color: var(--text-ai); }
+.mt-btn[data-variant="ai"][data-hover] { background: var(--bg-ai-subtle-hover); }
+.mt-btn[data-variant="ai"] .mt-i { color: var(--icon-ai); }
+.mt-btn[data-press] { transform: translateY(.5px); }
+.mt-btn[data-variant="secondary"][data-press], .mt-btn[data-variant="ghost"][data-press] { background: var(--bg-pressed); }
+.mt-btn[data-focus-visible] { box-shadow: var(--focus-ring); }
+.mt-btn[data-disabled] { background: var(--bg-disabled); border-color: transparent; color: var(--text-disabled); box-shadow: none; cursor: not-allowed; transform: none; filter: none; }
+.mt-btn[data-variant="ghost"][data-disabled] { background: none; }
+.mt-btn[data-disabled] .mt-i { color: var(--icon-muted); }
+.mt-btn[data-loading] .mt-i:first-child { animation: mt-spin .8s linear infinite; }

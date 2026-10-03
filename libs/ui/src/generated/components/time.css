@@ -1,0 +1,10 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-time). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-time { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-8) var(--space-12); border-radius: var(--radius-md); border: 1px solid var(--border-default); background: var(--bg-surface); }
+.mt-time[data-source="captured"] { border-style: dashed; border-color: var(--border-ai); }
+.mt-time .src { width: 28px; height: 28px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--bg-sunken); color: var(--icon-default); flex: none; }
+.mt-time[data-source="captured"] .src { background: var(--bg-ai-subtle); color: var(--icon-ai); }
+.mt-time .tt { font: 400 14px/20px var(--font-sans); }
+.mt-time .ts { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
+.mt-time[data-source="captured"] .ts { color: var(--text-ai); }
+.mt-time .amt { display: flex; flex-direction: column; align-items: flex-end; font: 400 13px/18px var(--font-mono); font-variant-numeric: tabular-nums; }
+.mt-time .amt span + span { font-size: 11px; line-height: 14px; color: var(--text-tertiary); }

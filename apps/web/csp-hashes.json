@@ -1,0 +1,6 @@
+{
+  "$comment": "CSP hashes of the inline scripts in apps/web/src/index.html (FND-07). FND-22 adds them to script-src. tools/scripts/src/csp-hashes.spec.ts keeps them in sync.",
+  "scripts": {
+    "theme-boot": "sha256-mXEGwC2Ija9ZvhNECS+6gtIMRwMp0dL7viIsLlQdeS4="
+  }
+}

@@ -1,0 +1,6 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-stat). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-stat { padding: var(--space-16); display: flex; flex-direction: column; gap: var(--space-6); }
+.mt-stat .k { font: 500 12px/16px var(--font-sans); color: var(--text-tertiary); display: flex; align-items: center; gap: var(--space-6); }
+.mt-stat .v { font: 600 28px/32px var(--font-sans); letter-spacing: -.02em; font-variant-numeric: proportional-nums; color: var(--text-primary); }
+.mt-stat .v small { font: 500 14px/20px var(--font-sans); letter-spacing: 0; color: var(--text-tertiary); margin-left: 2px; }
+.mt-stat .f { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); display: flex; align-items: center; gap: var(--space-8); }

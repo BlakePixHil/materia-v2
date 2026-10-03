@@ -1,0 +1,9 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-hbars). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-hbars { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; gap: 10px 12px; align-items: center; font: 400 13px/18px var(--font-sans); }
+.mt-hbars .k { display: flex; align-items: center; gap: var(--space-6); color: var(--text-secondary); white-space: nowrap; }
+.mt-hbars .track { height: 14px; display: flex; align-items: center; }
+.mt-hbars .fill { height: 14px; border-radius: 0 4px 4px 0; background: var(--icon-brand); min-width: 2px; }
+.mt-hbars .v { font: 500 13px/18px var(--font-sans); font-variant-numeric: tabular-nums; text-align: right; color: var(--text-primary); }
+.mt-hbars [data-tip] { cursor: default; outline: none; border-radius: 4px; }
+.mt-hbars [data-tip][data-hover] .fill, .mt-hbars [data-tip]:focus-visible .fill { filter: brightness(1.12); }
+.mt-hbars [data-tip]:focus-visible { box-shadow: var(--focus-ring); }

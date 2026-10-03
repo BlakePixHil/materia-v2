@@ -1,0 +1,10 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-msg). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-msg { display: flex; flex-direction: column; gap: var(--space-8); font: 400 14px/22px var(--font-sans); }
+.mt-msg[data-role="user"] { align-self: flex-end; max-width: 85%; padding: var(--space-8) var(--space-12); border-radius: var(--radius-lg) var(--radius-lg) var(--radius-xs) var(--radius-lg); background: var(--bg-sunken); }
+.mt-msg[data-role="clerk"] { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: var(--space-12); }
+.mt-msg[data-role="clerk"] > .mt-avatar { margin-top: 1px; }
+.mt-msg .body { display: flex; flex-direction: column; gap: var(--space-8); }
+.mt-msg p { margin: 0; }
+.mt-msg ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: var(--space-4); color: var(--text-secondary); }
+.mt-msg b { font-weight: 600; }
+.mt-msg sup { font: 500 10px/1 var(--font-mono); color: var(--text-ai); margin-left: 1px; }

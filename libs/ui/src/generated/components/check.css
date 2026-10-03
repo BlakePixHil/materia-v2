@@ -1,0 +1,10 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-check). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-check, .mt-radio { width: 16px; height: 16px; margin-top: 2px; flex: none; display: inline-grid; place-items: center; border: 1px solid var(--border-control); background: var(--bg-surface); color: var(--text-on-brand); outline: none; transition: background-color .12s, border-color .12s; }
+.mt-check { border-radius: var(--radius-xs); }
+.mt-check .mt-i { width: 12px; height: 12px; stroke-width: 2.4; opacity: 0; }
+.mt-check[data-checked] .mt-i, .mt-check[data-indeterminate] .mt-i { opacity: 1; }
+.mt-check[data-checked], .mt-check[data-indeterminate], .mt-radio[data-checked] { background: var(--bg-brand); border-color: var(--bg-brand); }
+.mt-check[data-hover], .mt-radio[data-hover] { border-color: var(--text-secondary); }
+.mt-check[data-checked][data-hover], .mt-check[data-indeterminate][data-hover], .mt-radio[data-checked][data-hover] { background: var(--bg-brand-hover); border-color: var(--bg-brand-hover); }
+.mt-check[data-focus-visible], .mt-radio[data-focus-visible], .mt-switch[data-focus-visible] { box-shadow: var(--focus-ring); }
+.mt-check[data-disabled], .mt-radio[data-disabled] { background: var(--bg-disabled); border-color: var(--border-default); color: var(--icon-muted); }

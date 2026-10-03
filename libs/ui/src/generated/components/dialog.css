@@ -1,0 +1,6 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-dialog). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-dialog { width: 480px; max-width: 100%; border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-dialog); display: flex; flex-direction: column; overflow: hidden; }
+.mt-dialog-h { display: flex; align-items: flex-start; gap: var(--space-12); padding: var(--space-20) var(--space-20) 0; }
+.mt-dialog-h h2 { margin: 0; font: 600 16px/24px var(--font-sans); letter-spacing: -.01em; }
+.mt-dialog-b { padding: var(--space-12) var(--space-20) var(--space-20); display: flex; flex-direction: column; gap: var(--space-16); color: var(--text-secondary); font: 400 14px/20px var(--font-sans); }
+.mt-dialog-f { display: flex; justify-content: flex-end; gap: var(--space-8); padding: var(--space-12) var(--space-20); border-top: 1px solid var(--border-default); background: var(--bg-canvas); }

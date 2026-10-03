@@ -1,0 +1,4 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-mrow). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-mrow { display: flex; align-items: center; gap: var(--space-12); min-height: 56px; padding: var(--space-8) 0; border-bottom: 1px solid var(--border-subtle); }
+.mt-mrow .tt { font: 500 15px/20px var(--font-sans); color: var(--text-primary); }
+.mt-mrow .ts { font: 400 13px/18px var(--font-sans); color: var(--text-tertiary); }

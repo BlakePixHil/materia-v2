@@ -1,0 +1,7 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-bundle). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-bundle td:nth-child(2) { white-space: normal; }
+.mt-bundle td.tab { width: 52px; font: 500 12px/16px var(--font-mono); color: var(--text-tertiary); }
+.mt-bundle td.pages { width: 96px; text-align: right; font: 400 12px/16px var(--font-mono); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.mt-bundle tr[data-excluded] td { color: var(--text-tertiary); background: repeating-linear-gradient(135deg, transparent 0 6px, var(--bg-sunken) 6px 7px); }
+.mt-bundle tr[data-excluded] .title { text-decoration: line-through; text-decoration-color: var(--border-strong); color: var(--text-tertiary); }
+.mt-bundle tr.section td { height: 32px; background: var(--bg-canvas); font: 600 12px/16px var(--font-sans); color: var(--text-primary); border-bottom: 1px solid var(--border-default); }

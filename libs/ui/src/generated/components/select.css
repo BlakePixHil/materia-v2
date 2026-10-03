@@ -1,0 +1,4 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-select). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-select { cursor: pointer; }
+.mt-select .mt-i:last-child { color: var(--icon-default); margin-left: auto; }
+.mt-select[data-open] { border-color: var(--border-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-focus) 22%, transparent); }

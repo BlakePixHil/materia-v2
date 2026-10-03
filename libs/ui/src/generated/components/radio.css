@@ -1,0 +1,4 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-radio). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-radio { border-radius: var(--radius-full); }
+.mt-radio[data-checked]::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-on-brand); }
+.mt-radio[data-disabled]::after { background: var(--icon-muted); }

@@ -1,0 +1,2 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-avatars). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-avatars { display: inline-flex; } .mt-avatars .mt-avatar + .mt-avatar { margin-left: -5px; }

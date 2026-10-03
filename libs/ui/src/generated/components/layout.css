@@ -1,0 +1,8 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-layout). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-row { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
+.mt-col { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
+.mt-wrap { flex-wrap: wrap; }
+.mt-grow { flex: 1; min-width: 0; }
+.mt-ml { margin-left: auto; }
+.mt-ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-divider { height: 1px; background: var(--border-default); border: 0; margin: 0; }

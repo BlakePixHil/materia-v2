@@ -26,6 +26,9 @@ importers:
       '@angular/router':
         specifier: ~22.2.1
         version: 22.2.1(@angular/common@22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(@angular/platform-browser@22.2.1(@angular/common@22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2)))(rxjs@7.8.2)
+      '@lucide/angular':
+        specifier: ^1.51.0
+        version: 1.51.0(@angular/common@22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))
       '@noble/hashes':
         specifier: ^2.4.0
         version: 2.4.0
@@ -150,12 +153,15 @@ importers:
       '@schematics/angular':
         specifier: ~22.2.1
         version: 22.2.1(chokidar@5.0.0)
+      '@storybook/addon-a11y':
+        specifier: ~10.6.1
+        version: 10.6.1(storybook@10.6.1(prettier@3.9.9)(react@19.3.0))
       '@storybook/angular':
         specifier: ^10.5.0
         version: 10.6.1(ad7b151721f3d7e8f0bf0f1a72cbc414)
       '@storybook/test-runner':
-        specifier: ^0.24.0
-        version: 0.24.5(@swc/helpers@0.5.23)(@types/node@22.20.5)(babel-plugin-macros@3.1.0)(storybook@10.6.1(prettier@3.9.9)(react@19.3.0))(ts-node@10.9.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(@types/node@22.20.5)(typescript@6.0.3))
+        specifier: ^0.26.0
+        version: 0.26.0(@swc/helpers@0.5.23)(@types/node@22.20.5)(babel-plugin-macros@3.1.0)(storybook@10.6.1(prettier@3.9.9)(react@19.3.0))(ts-node@10.9.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(@types/node@22.20.5)(typescript@6.0.3))
       '@swc/helpers':
         specifier: ~0.5.18
         version: 0.5.23
@@ -3271,6 +3277,12 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@lucide/angular@1.51.0':
+    resolution: {integrity: sha512-R3zCQwfEW3fp/wfuVqrnd2YPkT97VmABQcFzAocXyIafmAJBrNHrP1NVbtgBz3hN+oDXXPoWiosBS0c4rLy4EQ==}
+    peerDependencies:
+      '@angular/common': '>=17.0.0'
+      '@angular/core': '>=17.0.0'
+
   '@modelcontextprotocol/core@2.0.0':
     resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
     engines: {node: '>=20'}
@@ -4739,6 +4751,11 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@storybook/addon-a11y@10.6.1':
+    resolution: {integrity: sha512-73wx4xyOMBbFIF4DnlfHy5o/c5sWjawn/tb+zq/GAKXkYCuBziE5aa3WDzRDhdxN259p5kTDyJcRi1SlUEUexg==}
+    peerDependencies:
+      storybook: ^10.6.1
+
   '@storybook/angular@10.6.1':
     resolution: {integrity: sha512-exrgW4wZIZ+jvkub3IlTr+kDh5Ag0AS1g/jqtFHrrRHRoxncy6J6k9oDgqwv1/OmuubCaLyhyzXI3qGbYvuDCw==}
     peerDependencies:
@@ -4787,12 +4804,12 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@storybook/test-runner@0.24.5':
-    resolution: {integrity: sha512-U8ib6parBD+wA4z5ZW/JnsR3KkEXoP+sHP8WJdDZeh0GwfTlcWjhbeR6Ij/gxNFEA1bdpBa/P8qYTOs+LKIN1g==}
+  '@storybook/test-runner@0.26.0':
+    resolution: {integrity: sha512-q/B3Mf5QQuYAQ99AKcxTnNzPBso2OctLy13mEA23kYM8vW+Sz3WysdZIiQvNQ0bQFI9MDRkcLQVGIBcnnkaZXA==}
     engines: {node: '>=20.0.0'}
     hasBin: true
     peerDependencies:
-      storybook: ^0.0.0-0 || ^10.0.0 || ^10.0.0-0 || ^10.1.0-0 || ^10.2.0-0 || ^10.3.0-0 || ^10.4.0-0 || ^10.5.0-0 || ^10.6.0-0 || ^11.0.0-0
+      storybook: ^0.0.0-0 || ^10.0.0 || ^10.0.0-0 || ^10.1.0-0 || ^10.2.0-0 || ^10.3.0-0 || ^10.4.0-0 || ^10.5.0-0 || ^10.6.0-0 || ^11.0.0-0 || >=11
 
   '@swc/core-darwin-arm64@1.16.13':
     resolution: {integrity: sha512-JrMH2h7ohd4mOIneNRx/diqTmCDSdWfp9uOdQ8VJ2V2CA7jOJ1jWb+qp8RoZLqgiVmwDDC7eySKB1kbvZ+jVXQ==}
@@ -14910,6 +14927,12 @@ snapshots:
   '@lmdb/lmdb-win32-x64@3.5.6':
     optional: true
 
+  '@lucide/angular@1.51.0(@angular/common@22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))':
+    dependencies:
+      '@angular/common': 22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2)
+      '@angular/core': 22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2)
+      tslib: 2.8.1
+
   '@modelcontextprotocol/core@2.0.0':
     dependencies:
       zod: 4.6.5
@@ -16326,6 +16349,12 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@storybook/addon-a11y@10.6.1(storybook@10.6.1(prettier@3.9.9)(react@19.3.0))':
+    dependencies:
+      '@storybook/global': 5.0.0
+      axe-core: 4.13.0
+      storybook: 10.6.1(prettier@3.9.9)(react@19.3.0)
+
   '@storybook/angular@10.6.1(ad7b151721f3d7e8f0bf0f1a72cbc414)':
     dependencies:
       '@angular-devkit/architect': 0.2202.1(chokidar@5.0.0)
@@ -16420,7 +16449,7 @@ snapshots:
     dependencies:
       react: 19.3.0
 
-  '@storybook/test-runner@0.24.5(@swc/helpers@0.5.23)(@types/node@22.20.5)(babel-plugin-macros@3.1.0)(storybook@10.6.1(prettier@3.9.9)(react@19.3.0))(ts-node@10.9.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(@types/node@22.20.5)(typescript@6.0.3))':
+  '@storybook/test-runner@0.26.0(@swc/helpers@0.5.23)(@types/node@22.20.5)(babel-plugin-macros@3.1.0)(storybook@10.6.1(prettier@3.9.9)(react@19.3.0))(ts-node@10.9.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(@types/node@22.20.5)(typescript@6.0.3))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/generator': 7.29.8

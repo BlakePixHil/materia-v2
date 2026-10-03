@@ -1,0 +1,2 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-phone). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-phone { width: 390px; height: 844px; flex: none; position: relative; border-radius: 48px; background: var(--bg-surface); box-shadow: 0 0 0 1px var(--border-default), 0 0 0 10px var(--slate-900), var(--shadow-dialog); overflow: hidden; display: flex; flex-direction: column; font-size: 15px; }

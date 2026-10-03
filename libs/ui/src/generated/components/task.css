@@ -1,0 +1,7 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-task). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-task { display: flex; align-items: center; gap: var(--space-12); min-height: var(--row); padding: var(--space-6) var(--space-8); border-radius: var(--radius-sm); }
+.mt-task[data-hover] { background: var(--bg-hover); }
+.mt-task .tt { font: 400 14px/20px var(--font-sans); color: var(--text-primary); }
+.mt-task .ts { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
+.mt-task[data-done] .tt { color: var(--text-tertiary); text-decoration: line-through; text-decoration-color: var(--border-strong); }
+.mt-task .mt-check { margin-top: 0; }

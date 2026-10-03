@@ -1,0 +1,4 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-cite). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-cite { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: var(--space-4); height: 20px; padding: 0 var(--space-6); border-radius: var(--radius-xs); background: var(--bg-sunken); border: 1px solid var(--border-subtle); font: 500 11px/14px var(--font-mono); color: var(--text-secondary); white-space: nowrap; cursor: pointer; text-decoration: none; }
+.mt-cite .n { color: var(--text-ai); }
+.mt-cite[data-hover] { border-color: var(--border-ai); color: var(--text-primary); }

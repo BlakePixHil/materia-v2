@@ -1,0 +1,4 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-settings). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-settings-section { display: flex; flex-direction: column; }
+.mt-settings-section > h3 { margin: 0 0 var(--space-4); font: 600 14px/20px var(--font-sans); }
+.mt-settings-section > p { margin: 0 0 var(--space-8); font: 400 13px/18px var(--font-sans); color: var(--text-tertiary); }

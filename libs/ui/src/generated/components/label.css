@@ -1,0 +1,3 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-label). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-label { font: 500 13px/18px var(--font-sans); color: var(--text-primary); display: flex; align-items: center; gap: var(--space-6); }
+.mt-label .mt-opt { font-weight: 400; color: var(--text-tertiary); }

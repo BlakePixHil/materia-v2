@@ -1,0 +1,8 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-priority). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-priority { display: inline-flex; align-items: flex-end; gap: 1.5px; width: 14px; height: 14px; padding: 2px 1px; flex: none; }
+.mt-priority i { flex: 1; border-radius: 1px; background: var(--border-strong); }
+.mt-priority i:nth-child(1) { height: 40%; } .mt-priority i:nth-child(2) { height: 70%; } .mt-priority i:nth-child(3) { height: 100%; }
+.mt-priority[data-level="low"] i:nth-child(-n+1), .mt-priority[data-level="medium"] i:nth-child(-n+2), .mt-priority[data-level="high"] i { background: var(--icon-default); }
+.mt-priority[data-level="urgent"] { width: 14px; height: 14px; padding: 0; border-radius: 3px; background: var(--status-danger); color: #FFFFFF; font: 700 10px/14px var(--font-sans); justify-content: center; align-items: center; }
+.mt-priority[data-level="urgent"]::after { content: "!"; }
+.mt-priority[data-level="urgent"] i { display: none; }

@@ -1,0 +1,5 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-meter). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-meter { position: relative; height: 8px; border-radius: var(--radius-full); background: var(--bg-brand-subtle); }
+.mt-meter > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; background: var(--bg-brand); }
+.mt-meter[data-tone="warning"] { background: var(--bg-warning-subtle); } .mt-meter[data-tone="warning"] > i { background: var(--status-warning); }
+.mt-meter > b { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text-primary); }

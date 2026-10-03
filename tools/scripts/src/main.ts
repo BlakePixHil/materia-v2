@@ -4,6 +4,7 @@ const COMMANDS = {
   env: 'Write apps/web environment files from Terraform outputs (FND-03)',
   'bundle-size': 'Check the apps/web gzip bundle budgets (FND-04)',
   'ci-summary': 'Render the coverage and bundle PR comment (FND-04)',
+  'sync-design': 'Sync design tokens, component CSS and fonts into libs/ui (FND-07)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -29,6 +30,7 @@ export async function run(argv: string[]): Promise<number> {
       env: () => import('./env.ts'),
       'bundle-size': () => import('./bundle-size.ts'),
       'ci-summary': () => import('./ci-summary.ts'),
+      'sync-design': () => import('./sync-design.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);

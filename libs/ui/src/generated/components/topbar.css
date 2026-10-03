@@ -1,0 +1,2 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-topbar). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-topbar { display: flex; align-items: center; gap: var(--space-8); height: var(--topbar); padding: 0 var(--space-12) 0 var(--space-20); border-bottom: 1px solid var(--border-default); flex: none; }

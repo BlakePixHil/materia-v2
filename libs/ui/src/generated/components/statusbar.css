@@ -1,0 +1,4 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-statusbar). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-statusbar { height: 50px; flex: none; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 32px 8px; font: 600 15px/1 var(--font-sans); color: var(--text-primary); }
+.mt-statusbar .ind { display: flex; gap: 6px; align-items: center; }
+.mt-statusbar .ind i { display: block; background: var(--text-primary); border-radius: 2px; }

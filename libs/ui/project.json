@@ -15,7 +15,14 @@
         "port": 4400,
         "configDir": "libs/ui/.storybook",
         "browserTarget": "ui:build-storybook",
-        "compodoc": false
+        "compodoc": false,
+        "styles": [
+          "libs/ui/src/generated/tokens.css",
+          "libs/ui/src/generated/components/base.css",
+          "libs/ui/src/generated/components/layout.css",
+          "libs/ui/src/styles/base.css",
+          "libs/ui/src/foundations/foundations.css"
+        ]
       },
       "configurations": {
         "ci": {
@@ -30,7 +37,14 @@
         "outputDir": "dist/storybook/ui",
         "configDir": "libs/ui/.storybook",
         "browserTarget": "ui:build-storybook",
-        "compodoc": false
+        "compodoc": false,
+        "styles": [
+          "libs/ui/src/generated/tokens.css",
+          "libs/ui/src/generated/components/base.css",
+          "libs/ui/src/generated/components/layout.css",
+          "libs/ui/src/styles/base.css",
+          "libs/ui/src/foundations/foundations.css"
+        ]
       },
       "configurations": {
         "ci": {
@@ -41,7 +55,7 @@
     "test-storybook": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "test-storybook -c libs/ui/.storybook --url=http://localhost:4400"
+        "command": "test-storybook -c libs/ui/.storybook --url=http://127.0.0.1:4400"
       }
     },
     "static-storybook": {
