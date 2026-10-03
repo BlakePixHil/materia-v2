@@ -11,6 +11,3 @@ export const CURRENCY = 'AUD';
 
 /** Time is stored in integer minutes and billed in 6-minute units (0.1 h). */
 export const BILLING_UNIT_MINUTES = 6;
-
-// FND-04 demo (reverted): a type error that only `typecheck` should catch.
-export const DEMO_TYPE_ERROR: number = 'not a number' as unknown as string;
