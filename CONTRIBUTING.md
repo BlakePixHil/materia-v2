@@ -25,7 +25,7 @@ Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `build`, `ci`, `perf`
 ## Pull requests
 
 - Title: `[KEY] Title`, matching the Linear ticket, for example `[FND-04] CI pipeline in GitHub Actions`.
-- Link the Linear issue in the description so the integration links the PR to the ticket.
+- Put `Closes MAT-N` (the Linear issue id, not the plan key) in the description, plus the issue link. Linear's GitHub integration links PRs by the `MAT-N` id.
 - Fill in every section of the [PR template](.github/pull_request_template.md). The **Acceptance criteria → evidence** table must cover every box on the ticket.
 - CI must be green. Never skip, disable or `.only` a test.
 - Merge with **squash** only. The branch is deleted on merge.
