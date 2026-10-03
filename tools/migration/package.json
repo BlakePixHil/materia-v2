@@ -1,0 +1,10 @@
+{
+  "name": "@materia/migration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Legacy materia to v2 migration CLI (export, transform, load, verify, rollback).",
+  "bin": {
+    "materia-migrate": "./bin/materia-migrate.mjs"
+  }
+}

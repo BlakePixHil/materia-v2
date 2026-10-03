@@ -10,22 +10,29 @@ v2 replaces the legacy app (`BlakePixHil/materia-web-app`).
 
 ## Repository layout
 
-| Path | What |
-| -- | -- |
-| `docs/` | Mirror of the Linear reference documents, plus `docs/adr/` (architecture decisions) and `docs/runbooks/` |
-| `design/` | The design system source (tokens, components, screens). Rebuild with `python3 design/system/build.py` |
-| `apps/`, `libs/`, `tools/`, `infra/`, `firebase/` | Added by later tickets (FND-02 onwards). See [`docs/01-architecture-and-adrs.md`](docs/01-architecture-and-adrs.md) |
+| Path        | What                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------- |
+| `docs/`     | Mirror of the Linear reference documents, plus `docs/adr/` (architecture decisions) and `docs/runbooks/` |
+| `design/`   | The design system source (tokens, components, screens). Rebuild with `python3 design/system/build.py`    |
+| `apps/`     | `web` (Angular), `web-e2e` (Playwright), `functions` (Firebase Functions v2), `jobs` (Cloud Run jobs)    |
+| `libs/`     | `ui`, `data-access`, `domain`, `deadlines`, `clerk`, `test-utils`                                        |
+| `tools/`    | `scripts` and `migration` CLIs                                                                           |
+| `firebase/` | `firebase.json`, rules, indexes and project aliases                                                      |
+| `infra/`    | Terraform (FND-03) and `MANUAL.md`                                                                       |
 
 ## Quickstart
 
-> Placeholder. FND-02 scaffolds the Nx monorepo and FND-06 adds the local emulator environment; this section is filled in then.
-
-Requirements: Node 22 (see `.nvmrc`), pnpm, Python 3 (design build only).
+Requirements: Node 22 (see `.nvmrc`), pnpm 10, Java 21+ (Firebase emulators), Python 3 (design build only).
 
 ```sh
-# Regenerate the design system output (should leave git status clean)
-python3 design/system/build.py
+pnpm install
+pnpm nx run-many -t lint,typecheck,test,build   # everything CI checks
+pnpm dev                                         # web app on http://localhost:4200/health
+pnpm nx run functions:serve                      # Functions emulator with the platform-ping callable
+pnpm storybook                                   # libs/ui Storybook on http://localhost:4400
 ```
+
+All commands are listed in [`AGENTS.md`](AGENTS.md#commands). FND-06 adds the full emulator suite and seed data.
 
 ## Branch protection and CI
 

@@ -5,11 +5,11 @@
  * provider route, and reports time to first token (TTFT) and output tokens per second. Run it from
  * the same region as Cloud Functions (australia-southeast1) so the numbers match production.
  *
- * Usage (after FND-02 installs the workspace dependencies):
- *   pnpm tsx tools/scripts/clerk-bench.ts --provider bedrock [--runs 5] [--prompt-tokens 20000]
- *   pnpm tsx tools/scripts/clerk-bench.ts --provider vertex
- *   pnpm tsx tools/scripts/clerk-bench.ts --provider anthropic
- *   pnpm tsx tools/scripts/clerk-bench.ts --provider fake        # offline dry run, no credentials
+ * Usage:
+ *   pnpm materia-scripts clerk-bench --provider anthropic [--runs 5] [--prompt-tokens 20000]
+ *   pnpm materia-scripts clerk-bench --provider bedrock
+ *   pnpm materia-scripts clerk-bench --provider vertex
+ *   pnpm materia-scripts clerk-bench --provider fake        # offline dry run, no credentials
  *
  * Provider configuration (environment only; never commit credentials):
  *   bedrock    AWS credential chain (role, SSO or env). BENCH_AWS_REGION (default ap-southeast-4,
@@ -23,11 +23,13 @@
  * The prompt is synthetic and fictional. Never point this script at real client documents.
  * Output: a Markdown table on stdout, ready to paste into docs/adr/ADR-011a-clerk-provider.md.
  */
-import Anthropic from '@anthropic-ai/sdk';
-import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
-import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
 import { performance } from 'node:perf_hooks';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+
+import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
+import Anthropic from '@anthropic-ai/sdk';
+import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
 
 type Provider = 'bedrock' | 'vertex' | 'anthropic' | 'fake';
 
@@ -47,14 +49,6 @@ type StreamParams = Parameters<Anthropic['messages']['stream']>[0];
 
 const PROVIDERS: readonly Provider[] = ['bedrock', 'vertex', 'anthropic', 'fake'];
 const CHARS_PER_TOKEN = 4; // rough English estimate; the API's usage block reports the real count
-
-const { values } = parseArgs({
-  options: {
-    provider: { type: 'string', default: 'fake' },
-    runs: { type: 'string', default: '5' },
-    'prompt-tokens': { type: 'string', default: '20000' },
-  },
-});
 
 /** Builds deterministic fictional estate-file text of roughly `tokens` tokens. */
 export function buildPrompt(tokens: number, nonce: string): string {
@@ -80,14 +74,19 @@ function makeClient(provider: Exclude<Provider, 'fake'>): { client: StreamingCli
   switch (provider) {
     case 'bedrock':
       return {
-        client: new AnthropicBedrockMantle({ awsRegion: env['BENCH_AWS_REGION'] ?? 'ap-southeast-4' }) as unknown as StreamingClient,
+        client: new AnthropicBedrockMantle({
+          awsRegion: env['BENCH_AWS_REGION'] ?? 'ap-southeast-4',
+        }) as unknown as StreamingClient,
         model: env['BENCH_MODEL'] ?? 'anthropic.claude-opus-5-5',
       };
     case 'vertex': {
       const projectId = env['BENCH_GCP_PROJECT'];
       if (!projectId) throw new Error('BENCH_GCP_PROJECT is required for --provider vertex');
       return {
-        client: new AnthropicVertex({ projectId, region: env['BENCH_GCP_REGION'] ?? 'global' }) as unknown as StreamingClient,
+        client: new AnthropicVertex({
+          projectId,
+          region: env['BENCH_GCP_REGION'] ?? 'global',
+        }) as unknown as StreamingClient,
         model: env['BENCH_MODEL'] ?? 'claude-opus-5-5',
       };
     }
@@ -152,12 +151,16 @@ async function fakeRun(promptTokens: number, run: number): Promise<RunResult> {
 function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : Math.round(((s[mid - 1] + s[mid]) / 2) * 10) / 10;
+  const upper = s[mid] ?? 0;
+  if (s.length % 2) return upper;
+  const lower = s[mid - 1] ?? upper;
+  return Math.round(((lower + upper) / 2) * 10) / 10;
 }
 
 export function toMarkdown(provider: string, model: string, results: RunResult[]): string {
   const rows = results.map(
-    (r) => `| ${r.run} | ${r.ttftMs} | ${r.totalMs} | ${r.inputTokens} | ${r.outputTokens} | ${r.tokensPerSecond} | ${r.stopReason} |`,
+    (r) =>
+      `| ${r.run} | ${r.ttftMs} | ${r.totalMs} | ${r.inputTokens} | ${r.outputTokens} | ${r.tokensPerSecond} | ${r.stopReason} |`,
   );
   return [
     `**${provider}** · \`${model}\` · ${new Date().toISOString()}`,
@@ -169,7 +172,15 @@ export function toMarkdown(provider: string, model: string, results: RunResult[]
   ].join('\n');
 }
 
-async function main(): Promise<void> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      provider: { type: 'string', default: 'fake' },
+      runs: { type: 'string', default: '5' },
+      'prompt-tokens': { type: 'string', default: '20000' },
+    },
+  });
   const provider = values.provider as Provider;
   if (!PROVIDERS.includes(provider)) throw new Error(`--provider must be one of ${PROVIDERS.join(', ')}`);
   const runs = Number(values.runs);
@@ -191,7 +202,10 @@ async function main(): Promise<void> {
   console.log(toMarkdown(provider, model, results));
 }
 
-main().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.message : err);
-  process.exitCode = 1;
-});
+// Run only when executed directly, not when imported (tests, the materia-scripts dispatcher).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err: unknown) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exitCode = 1;
+  });
+}

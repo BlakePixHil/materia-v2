@@ -2,10 +2,10 @@
 
 ADR-004: everything is provisioned with Terraform, except where Terraform has no support. Each manual change is recorded here: what, where, who, when, and why it can't be in Terraform.
 
-| Date | Who | Environment | Change | Why manual |
-| -- | -- | -- | -- | -- |
+| Date      | Who   | Environment       | Change                                                                                                          | Why manual                                                        |
+| --------- | ----- | ----------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | _pending_ | owner | Anthropic Console | Create the organisation and the `dev` and `prod` workspaces with spend limits; create one API key per workspace | The Anthropic Console has no Terraform provider (AI-01, ADR-011a) |
-| _pending_ | owner | GCP dev, prod | Add the matching key to Secret Manager as `ANTHROPIC_API_KEY` | Secret values are never committed or held in Terraform state |
+| _pending_ | owner | GCP dev, prod     | Add the matching key to Secret Manager as `ANTHROPIC_API_KEY`                                                   | Secret values are never committed or held in Terraform state      |
 
 ## Clerk provider (AI-01, ADR-011a)
 

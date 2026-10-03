@@ -1,0 +1,10 @@
+rules_version = '2';
+
+// Placeholder: deny everything. FND-14 writes the real rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

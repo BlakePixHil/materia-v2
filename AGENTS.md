@@ -8,12 +8,12 @@ Materia v2: a practice tool for Australian Wills & Estates lawyers (launching in
 
 ## Read before you start
 
-| Always | When relevant |
-| -- | -- |
-| [Agent handbook](docs/00-agent-handbook.md) | [Domain model](docs/02-domain-model.md): data, rules, functions |
-| [Architecture & ADRs](docs/01-architecture-and-adrs.md) | [Design system & UI](docs/03-design-system-and-ui.md): anything visual |
-| [Testing strategy](docs/05-testing-strategy.md) | [Environments, CI/CD](docs/04-environments-cicd-release.md): infra, deploys, secrets |
-| [Edge-case register](docs/10-edge-case-register.md) | [Deadline engine](docs/06-deadline-engine.md), [Clerk](docs/07-clerk-ai.md), [Migration](docs/08-legacy-migration-plan.md), [Security](docs/09-security-privacy-compliance.md) |
+| Always                                                  | When relevant                                                                                                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Agent handbook](docs/00-agent-handbook.md)             | [Domain model](docs/02-domain-model.md): data, rules, functions                                                                                                                |
+| [Architecture & ADRs](docs/01-architecture-and-adrs.md) | [Design system & UI](docs/03-design-system-and-ui.md): anything visual                                                                                                         |
+| [Testing strategy](docs/05-testing-strategy.md)         | [Environments, CI/CD](docs/04-environments-cicd-release.md): infra, deploys, secrets                                                                                           |
+| [Edge-case register](docs/10-edge-case-register.md)     | [Deadline engine](docs/06-deadline-engine.md), [Clerk](docs/07-clerk-ai.md), [Migration](docs/08-legacy-migration-plan.md), [Security](docs/09-security-privacy-compliance.md) |
 
 ## Ticket workflow
 
@@ -42,13 +42,30 @@ Materia v2: a practice tool for Australian Wills & Estates lawyers (launching in
 
 ## Commands
 
-| Command | What |
-| -- | -- |
-| `python3 design/system/build.py` | Regenerate the design system output. `git status` must stay clean afterwards |
-| `pnpm install` | Install dependencies (from FND-02) |
-| `pnpm nx affected -t lint test build` | Lint, test and build what changed (from FND-02) |
+| Command                                             | What                                                                                                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`                                      | Install dependencies (Node 22, pnpm 10). Also installs the husky git hooks                                                                              |
+| `pnpm nx run-many -t lint,typecheck,test,build`     | Everything CI checks (FND-04 runs it with `nx affected`)                                                                                                |
+| `pnpm nx affected -t lint,typecheck,test,build`     | The same, for projects changed against `main`                                                                                                           |
+| `pnpm nx test <project>` / `pnpm nx lint <project>` | One project. Projects: `web`, `web-e2e`, `functions`, `jobs`, `ui`, `data-access`, `domain`, `deadlines`, `clerk`, `test-utils`, `scripts`, `migration` |
+| `pnpm dev`                                          | Serve the web app at http://localhost:4200 (`nx run web:serve`)                                                                                         |
+| `pnpm e2e`                                          | Playwright e2e against the dev server. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use a pre-installed Chromium                                        |
+| `pnpm nx run functions:serve`                       | Build Functions and run them in the emulator (project `demo-materia`)                                                                                   |
+| `pnpm emulators`                                    | All Firebase emulators (FND-06 adds seed data)                                                                                                          |
+| `pnpm storybook`                                    | Storybook for `libs/ui` at http://localhost:4400                                                                                                        |
+| `pnpm format` / `pnpm format:check`                 | Prettier (skips `docs/` and `design/`)                                                                                                                  |
+| `pnpm materia-scripts <command>`                    | Ops scripts (`clerk-bench`, …)                                                                                                                          |
+| `pnpm materia-migrate <step>`                       | Legacy migration CLI (MIG-02 onwards)                                                                                                                   |
+| `python3 design/system/build.py`                    | Regenerate the design system output. `git status` must stay clean afterwards                                                                            |
 
-Later tickets add emulator, rules-test and e2e commands; update this table when they do.
+### Workspace rules
+
+- **Path aliases:** `@materia/ui`, `@materia/data-access`, `@materia/domain`, `@materia/deadlines`, `@materia/clerk`, `@materia/test-utils` (in `tsconfig.base.json`). Never import across projects with relative paths.
+- **Module boundaries** are enforced by `@nx/enforce-module-boundaries` (root `eslint.config.mjs`). Tags: `type:app|ui|data-access|domain|util` and `scope:web|functions|shared|tools`. `ui` can't import `data-access`; `domain`/`deadlines` can't import Angular, Firebase or RxJS; `apps/web` can't import `firebase/firestore` directly. `tools/scripts/src/module-boundaries.spec.ts` proves it.
+- **One version policy:** all dependencies live in the root `package.json`. `tools/*` are pnpm workspace packages only to expose their bins.
+- **Zoneless Angular:** the app uses `provideZonelessChangeDetection()` and doesn't ship `zone.js`. Don't add libraries that need zone.js.
+- **Functions deploy artefact:** `nx build functions` bundles workspace libs into `dist/apps/functions/main.js` and writes a `package.json` with external dependencies only (no `workspace:` deps). Firebase config lives in `firebase/` (`--config firebase/firebase.json`).
+- **TypeScript is pinned to 6.0.x** (Angular 22's supported range). Don't upgrade to TypeScript 7 until Angular and Nx support it.
 
 ## Definition of done
 

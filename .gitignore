@@ -59,3 +59,9 @@ Thumbs.db
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+.angular
+
+__screenshots__/
+
+vitest.config.*.timestamp*

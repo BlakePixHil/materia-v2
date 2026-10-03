@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "demo-materia",
+    "dev": "materia-v2-dev",
+    "staging": "materia-v2-staging",
+    "prod": "materia-v2-prod"
+  }
+}

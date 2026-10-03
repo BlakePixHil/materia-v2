@@ -1,6 +1,6 @@
 name: Bug report
 description: Something in Materia v2 is broken. Feature requests and planned work live in Linear.
-labels: ["bug"]
+labels: ['bug']
 body:
   - type: markdown
     attributes:
