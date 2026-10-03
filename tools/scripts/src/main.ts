@@ -2,6 +2,8 @@
 const COMMANDS = {
   'clerk-bench': 'Clerk provider latency benchmark (AI-01)',
   env: 'Write apps/web environment files from Terraform outputs (FND-03)',
+  'bundle-size': 'Check the apps/web gzip bundle budgets (FND-04)',
+  'ci-summary': 'Render the coverage and bundle PR comment (FND-04)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -22,7 +24,13 @@ export async function run(argv: string[]): Promise<number> {
     return command === undefined || command === '--help' ? 0 : 1;
   }
   try {
-    const { main } = command === 'env' ? await import('./env.ts') : await import('./clerk-bench.ts');
+    const modules = {
+      'clerk-bench': () => import('./clerk-bench.ts'),
+      env: () => import('./env.ts'),
+      'bundle-size': () => import('./bundle-size.ts'),
+      'ci-summary': () => import('./ci-summary.ts'),
+    } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
+    const { main } = await modules[command]();
     await main(rest);
     return 0;
   } catch (err: unknown) {

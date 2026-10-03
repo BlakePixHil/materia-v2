@@ -62,8 +62,8 @@ export function renderEnvironment(env: EnvName, config: FirebaseWebConfig): stri
   ].join('\n');
 }
 
-export function environmentPath(env: EnvName): string {
-  return path.join(WORKSPACE_ROOT, 'apps/web/src/environments', `environment.${env}.ts`);
+export function environmentPath(env: EnvName, outDir = path.join(WORKSPACE_ROOT, 'apps/web/src/environments')): string {
+  return path.join(outDir, `environment.${env}.ts`);
 }
 
 function isEnv(value: string | undefined): value is EnvName {
@@ -77,6 +77,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       env: { type: 'string' },
       from: { type: 'string' },
       'tf-dir': { type: 'string', default: path.join(WORKSPACE_ROOT, 'infra/terraform') },
+      'out-dir': { type: 'string' },
     },
   });
   if (!isEnv(values.env)) throw new Error(`--env must be one of ${ENVS.join(', ')}`);
@@ -84,7 +85,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const raw = values.from
     ? readFileSync(values.from, 'utf8')
     : execFileSync('terraform', ['output', '-json'], { cwd: values['tf-dir'], encoding: 'utf8' });
-  const file = environmentPath(values.env);
+  const file = environmentPath(values.env, values['out-dir']);
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, renderEnvironment(values.env, parseTerraformOutputs(raw)));
   console.log(`Wrote ${path.relative(WORKSPACE_ROOT, file)}`);

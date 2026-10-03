@@ -33,7 +33,7 @@ These are the full FND-01 settings. In **MVP mode** the only branch-protection r
 MVP mode (agents squash-merge their own PRs once CI is green):
 
 - [ ] Require a pull request before merging (0 approvals in MVP mode).
-- [ ] Require status checks to pass: **TODO (FND-04)**, add the CI jobs once the workflow exists.
+- [ ] Require status checks to pass: add **`ci-ok`** (the only required check; it aggregates every CI job, FND-04). Tick "Require branches to be up to date before merging".
 - [ ] Require linear history.
 - [ ] Block force pushes; restrict deletions.
 

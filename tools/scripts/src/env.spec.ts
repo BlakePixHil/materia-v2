@@ -44,3 +44,22 @@ describe('env script', () => {
     expect(renderEnvironment('dev', parseTerraformOutputs(outputs))).toBe(file);
   });
 });
+
+describe('env main', () => {
+  it('writes the environment file from a saved terraform output', async () => {
+    const { mkdtempSync, readFileSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const path = await import('node:path');
+    const { main } = await import('./env.ts');
+    const dir = mkdtempSync(path.join(tmpdir(), 'materia-env-'));
+    const from = path.join(dir, 'out.json');
+    writeFileSync(from, outputs);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await main(['--env', 'dev', '--from', from, '--out-dir', dir]);
+
+    expect(readFileSync(path.join(dir, 'environment.dev.ts'), 'utf8')).toContain("name: 'dev',");
+    log.mockRestore();
+    await expect(main(['--env', 'qa'])).rejects.toThrow('--env must be one of');
+  });
+});

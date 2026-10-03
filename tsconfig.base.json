@@ -24,7 +24,8 @@
       "@materia/clerk": ["./libs/clerk/src/index.ts"],
       "@materia/test-utils": ["./libs/test-utils/src/index.ts"],
       "@materia/ui": ["./libs/ui/src/index.ts"],
-      "@materia/data-access": ["./libs/data-access/src/index.ts"]
+      "@materia/data-access": ["./libs/data-access/src/index.ts"],
+      "@materia/test-utils/e2e": ["./libs/test-utils/e2e/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

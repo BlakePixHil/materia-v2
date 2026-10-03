@@ -37,7 +37,7 @@ All commands are listed in [`AGENTS.md`](AGENTS.md#commands). FND-06 adds the fu
 ## Branch protection and CI
 
 - Merges go through pull requests into `main`, squash-only.
-- **TODO (FND-04):** add the CI workflow's jobs as required status checks on `main`. See [`docs/runbooks/repo-setup.md`](docs/runbooks/repo-setup.md).
+- CI (`.github/workflows/ci.yml`, FND-04) gates every PR. **`ci-ok` is the only required status check** on `main`: it passes when every job succeeded or was skipped. The owner applies the setting (FND-01a); see [`docs/runbooks/repo-setup.md`](docs/runbooks/repo-setup.md).
 
 ## Licence
 

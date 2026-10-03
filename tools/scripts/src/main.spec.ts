@@ -44,3 +44,15 @@ describe('clerk-bench', () => {
     expect(table).toContain('| **Median** | **200** | 2000 | | | **6** | |');
   });
 });
+
+describe('materia-scripts dispatch', () => {
+  it('runs a command and reports its failures as exit code 1', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(await run(['clerk-bench', '--provider', 'fake', '--runs', '1'])).toBe(0);
+    expect(await run(['env', '--env', 'qa'])).toBe(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('--env must be one of'));
+    log.mockRestore();
+    error.mockRestore();
+  });
+});

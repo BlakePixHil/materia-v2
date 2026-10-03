@@ -14,5 +14,6 @@
         "command": "tsc --noEmit -p apps/web-e2e/tsconfig.json"
       }
     }
-  }
+  },
+  "tags": ["type:app", "scope:web"]
 }
