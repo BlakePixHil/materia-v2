@@ -1,6 +1,7 @@
 /** `materia-scripts <command> [options]`: dispatches to the ops scripts in this package. */
 const COMMANDS = {
   'clerk-bench': 'Clerk provider latency benchmark (AI-01)',
+  env: 'Write apps/web environment files from Terraform outputs (FND-03)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -21,7 +22,7 @@ export async function run(argv: string[]): Promise<number> {
     return command === undefined || command === '--help' ? 0 : 1;
   }
   try {
-    const { main } = await import('./clerk-bench.ts');
+    const { main } = command === 'env' ? await import('./env.ts') : await import('./clerk-bench.ts');
     await main(rest);
     return 0;
   } catch (err: unknown) {

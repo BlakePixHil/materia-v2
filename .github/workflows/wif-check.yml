@@ -1,0 +1,28 @@
+# Proves keyless GitHub → GCP authentication through Workload Identity Federation (FND-03).
+# Run it manually after `terraform apply`. Set these repository variables first
+# (Settings → Secrets and variables → Actions → Variables), from the Terraform outputs:
+#   GCP_PROJECT_DEV, GCP_WIF_PROVIDER_DEV, GCP_DEPLOYER_SA_DEV
+name: wif-check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # mint the GitHub OIDC token that WIF exchanges
+
+jobs:
+  describe-project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud (no JSON key)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA_DEV }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Describe the dev project
+        run: gcloud projects describe "${{ vars.GCP_PROJECT_DEV }}" --format="value(projectId,lifecycleState)"
