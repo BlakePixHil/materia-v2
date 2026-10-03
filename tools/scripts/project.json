@@ -1,0 +1,21 @@
+{
+  "name": "scripts",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/scripts/src",
+  "projectType": "application",
+  "tags": ["type:util", "scope:tools"],
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": { "command": "tsc --noEmit -p tools/scripts/tsconfig.json" }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": { "command": "node tools/scripts/bin/materia-scripts.mjs --help" }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@materia/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ops scripts (seed, codegen, benchmarks). Run with pnpm materia-scripts <command>.",
+  "bin": {
+    "materia-scripts": "./bin/materia-scripts.mjs"
+  }
+}

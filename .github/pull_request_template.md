@@ -4,7 +4,7 @@
 
 Closes MAT-
 
-Linear: 
+Linear:
 
 ## Summary
 
@@ -15,8 +15,8 @@ Linear:
 <!-- One row per acceptance criterion on the ticket. Evidence: a test name, a screenshot, a log line or a command output. -->
 
 | Acceptance criterion | Evidence |
-| -- | -- |
-|  |  |
+| -------------------- | -------- |
+|                      |          |
 
 ## Screenshots
 

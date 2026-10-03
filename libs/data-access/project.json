@@ -1,0 +1,21 @@
+{
+  "name": "data-access",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/data-access/src",
+  "prefix": "mt",
+  "projectType": "library",
+  "tags": ["type:data-access", "scope:web"],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": {
+        "command": "tsc --noEmit -p libs/data-access/tsconfig.lib.json && tsc --noEmit -p libs/data-access/tsconfig.spec.json"
+      }
+    }
+  }
+}

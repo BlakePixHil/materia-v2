@@ -1,0 +1,108 @@
+{
+  "name": "jobs",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/jobs/src",
+  "projectType": "application",
+  "tags": ["type:app", "scope:functions"],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "platform": "node",
+        "outputPath": "dist/apps/jobs",
+        "format": ["cjs"],
+        "bundle": false,
+        "main": "apps/jobs/src/main.ts",
+        "tsConfig": "apps/jobs/tsconfig.app.json",
+        "assets": ["apps/jobs/src/assets"],
+        "generatePackageJson": true,
+        "esbuildOptions": {
+          "sourcemap": true,
+          "outExtension": {
+            ".js": ".js"
+          }
+        }
+      },
+      "configurations": {
+        "development": {},
+        "production": {
+          "generateLockfile": true,
+          "esbuildOptions": {
+            "sourcemap": false,
+            "outExtension": {
+              ".js": ".js"
+            }
+          }
+        }
+      }
+    },
+    "prune-lockfile": {
+      "dependsOn": ["build"],
+      "cache": true,
+      "executor": "@nx/js:prune-lockfile",
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/pnpm-workspace.yaml",
+        "{workspaceRoot}/package.json",
+        {
+          "runtime": "node -e \"try{console.log('pnpm major '+require('child_process').execSync('pnpm --version',{stdio:['ignore','pipe','ignore']}).toString().trim().split('.')[0])}catch{console.log('pnpm major unavailable')}\""
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/apps/jobs/package.json",
+        "{workspaceRoot}/dist/apps/jobs/pnpm-lock.yaml",
+        "{workspaceRoot}/dist/apps/jobs/pnpm-workspace.yaml",
+        "{workspaceRoot}/dist/apps/jobs/patches",
+        "{workspaceRoot}/dist/apps/jobs/local_path_modules"
+      ],
+      "options": {
+        "buildTarget": "build"
+      }
+    },
+    "copy-workspace-modules": {
+      "dependsOn": ["build"],
+      "cache": true,
+      "outputs": ["{workspaceRoot}/dist/apps/jobs/workspace_modules"],
+      "executor": "@nx/js:copy-workspace-modules",
+      "options": {
+        "buildTarget": "build"
+      }
+    },
+    "prune": {
+      "dependsOn": ["prune-lockfile", "copy-workspace-modules"],
+      "executor": "nx:noop"
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "jobs:build",
+        "runBuildTargetDependencies": false
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "jobs:build:development"
+        },
+        "production": {
+          "buildTarget": "jobs:build:production"
+        }
+      }
+    },
+    "docker:build": {
+      "dependsOn": ["build", "prune"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": {
+        "command": "tsc --noEmit -p apps/jobs/tsconfig.app.json && tsc --noEmit -p apps/jobs/tsconfig.spec.json"
+      }
+    }
+  }
+}

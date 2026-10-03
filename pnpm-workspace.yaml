@@ -1,0 +1,14 @@
+packages:
+  - 'tools/migration'
+  - 'tools/scripts'
+
+# pnpm 10 blocks dependency build scripts unless they are listed here.
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@swc/core'
+  - esbuild
+  - lmdb
+  - msgpackr-extract
+  - nx
+  - protobufjs
+  - unrs-resolver

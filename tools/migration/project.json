@@ -1,0 +1,21 @@
+{
+  "name": "migration",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/migration/src",
+  "projectType": "application",
+  "tags": ["type:util", "scope:tools"],
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": { "command": "tsc --noEmit -p tools/migration/tsconfig.json" }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": { "command": "node tools/migration/bin/materia-migrate.mjs --help" }
+    }
+  }
+}

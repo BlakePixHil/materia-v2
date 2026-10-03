@@ -53,7 +53,7 @@ The research below was done on 2026-10-03, from Anthropic's live platform docume
 
 ### Latency benchmark
 
-`tools/scripts/clerk-bench.ts` runs a 20k-token fictional prompt through one route (5 runs) and prints TTFT and output tokens per second. **It hasn't been run against a real provider yet**, because no API key exists yet; follow-up AI-01b runs it with `--provider anthropic`. The offline dry run (`--provider fake`) checks the script and the table format. Paste the real results here:
+`tools/scripts/src/clerk-bench.ts` (run it with `pnpm materia-scripts clerk-bench --provider <route>`) runs a 20k-token fictional prompt through one route (5 runs) and prints TTFT and output tokens per second. **It hasn't been run against a real provider yet**, because no API key exists yet; follow-up AI-01b runs it with `--provider anthropic`. The offline dry run (`--provider fake`) checks the script and the table format. Paste the real results here:
 
 | Route | Region | Median TTFT (ms) | Median output tok/s | Runs | Date |
 | -- | -- | -- | -- | -- | -- |
@@ -139,4 +139,4 @@ The first-party API supports the server-side `fallbacks` parameter, so refusals 
 - [ ] Optional: request zero data retention from Anthropic.
 - [ ] Record the workspace names, spend limits and retention setting (not the keys) in `infra/MANUAL.md`.
 
-The hello call and the latency benchmark (`clerk-bench.ts --provider anthropic`) move to follow-up ticket **AI-01b** ([MAT-120](https://linear.app/materia-web/issue/MAT-120)), which runs once the key is in the dev project's Secret Manager.
+The hello call and the latency benchmark (`pnpm materia-scripts clerk-bench --provider anthropic`) move to follow-up ticket **AI-01b** ([MAT-120](https://linear.app/materia-web/issue/MAT-120)), which runs once the key is in the dev project's Secret Manager.
