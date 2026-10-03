@@ -32,6 +32,9 @@ emulator-data/
 *.tfstate.*
 *.tfvars
 !*.example.tfvars
+# Per-environment settings are committed; they hold no secrets (billing account and emails
+# go in a gitignored *.auto.tfvars or TF_VAR_* variables).
+!infra/terraform/envs/*.tfvars
 crash.log
 
 # Environment and secrets
@@ -65,3 +68,5 @@ pnpm-debug.log*
 __screenshots__/
 
 vitest.config.*.timestamp*
+# Generated per environment by `pnpm materia-scripts env` (FND-03); CD regenerates them.
+apps/web/src/environments/environment.*.ts

@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+billing_account     = "000000-000000-000000"
+org_id              = null
+folder_id           = null
+admin_project_id    = "materia-v2-admin"
+state_bucket_suffix = "changeme"

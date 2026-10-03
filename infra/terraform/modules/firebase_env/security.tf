@@ -1,0 +1,77 @@
+# Identity Platform, KMS and Secret Manager.
+
+resource "google_identity_platform_config" "this" {
+  project = google_project.this.project_id
+
+  sign_in {
+    allow_duplicate_emails = false
+
+    email {
+      enabled           = true
+      password_required = true
+    }
+  }
+
+  # FND-16 turns on TOTP MFA, Google sign-in and the password policy.
+  mfa {
+    state = var.auth_mfa_state
+  }
+
+  authorized_domains = concat(
+    ["localhost", "${var.project_id}.firebaseapp.com", "${var.project_id}.web.app"],
+    var.auth_authorized_domains,
+  )
+
+  depends_on = [google_firebase_project.this]
+}
+
+resource "google_kms_key_ring" "materia" {
+  project    = google_project.this.project_id
+  name       = "materia"
+  location   = var.region
+  depends_on = [time_sleep.services_ready]
+}
+
+# OAuth refresh tokens for integrations (ADR-019, INT-01).
+resource "google_kms_crypto_key" "oauth_tokens" {
+  name            = "oauth-tokens"
+  key_ring        = google_kms_key_ring.materia.id
+  rotation_period = "7776000s" # 90 days
+  labels          = local.labels
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Migration bucket CMEK (MIG-02).
+resource "google_kms_crypto_key" "migration" {
+  name            = "migration"
+  key_ring        = google_kms_key_ring.materia.id
+  rotation_period = "7776000s" # 90 days
+  labels          = local.labels
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Secret containers only. Values are added by the owner (`gcloud secrets versions add`) and never
+# appear in Terraform state or code. Replicated only in Australia.
+resource "google_secret_manager_secret" "this" {
+  for_each = toset(["ANTHROPIC_API_KEY"])
+
+  project   = google_project.this.project_id
+  secret_id = each.value
+  labels    = local.labels
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  depends_on = [time_sleep.services_ready]
+}
