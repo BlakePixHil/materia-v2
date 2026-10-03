@@ -13,7 +13,7 @@
 
 ## Refinements
 
-- [ADR-011a: Clerk provider and Australian data residency](ADR-011a-clerk-provider.md) (proposed).
+- [ADR-011a: Clerk provider and Australian data residency](ADR-011a-clerk-provider.md) (accepted for the MVP: Anthropic API).
 
 ## Changing this decision
 

@@ -18,14 +18,14 @@ Clerk is Materia's AI assistant. It reads the matter, drafts, extracts and sugge
   - Adaptive thinking (`thinking: {type: "adaptive"}`).
   - Effort `medium` by default. Use `high` for will extraction and chronology, and `low` for the brief and classification.
   - Stream whenever output may be long.
-- **Provider: [ADR-011a](adr/ADR-011a-clerk-provider.md)** (proposed, awaiting owner approval): **Amazon Bedrock, `AU` inference profile** (Sydney and Melbourne). Vertex, Claude Platform on AWS and the 1P API can't keep Opus 5.5 inference in Australia. Candidates evaluated:
+- **Provider: [ADR-011a](adr/ADR-011a-clerk-provider.md)** (accepted for the MVP): the **Anthropic API (1P)**, with the key in Secret Manager (`defineSecret('ANTHROPIC_API_KEY')`) and refusals handled by server-side `fallbacks: "default"`. The owner accepted processing outside Australia for the MVP. Bedrock's `AU` profile is the only route with Australian inference, and is the documented path if that's needed later. Candidates evaluated:
   1. **Claude on Google Vertex AI** (`AnthropicVertex` client). It is the same GCP org and IAM as Firebase, with no API key. Check that the model is available in an Australian region and what regional versus global endpoint pricing applies.
   2. **Claude Platform on AWS / Amazon Bedrock in `ap-southeast-2`** (Sydney).
   3. **Anthropic API (1P)** with `inference_geo` / data-residency controls if they cover Australia, and a zero-data-retention agreement.
 - Platform differences to respect, per the Claude platform-availability table:
   - The Message Batches and Files APIs are 1P/P-AWS only.
   - Server-side `fallbacks` are 1P/P-AWS only. On Vertex or Bedrock, implement fallback in the gateway: retry, then fall back to a configured secondary model.
-  - Citations, PDF input, prompt caching and adaptive thinking are available on all of them. **Structured outputs (`output_config.format`) are listed as not supported on Claude in Amazon Bedrock** (to be verified in the AI-01 hello call), so the gateway needs a fallback: schema-in-prompt JSON, zod validation, and one repair attempt.
+  - Citations, PDF input, prompt caching and adaptive thinking are available on all of them. Structured outputs (`output_config.format`) work on the chosen 1P route. They are listed as not supported on Claude in Amazon Bedrock, so a future move to Bedrock needs a schema-in-prompt plus zod-repair fallback.
 - **The gateway hides the provider.** Swapping providers is a config change plus an eval run.
 
 ### `claude-opus-5-5` API facts every Clerk ticket must respect
