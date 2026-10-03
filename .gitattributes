@@ -1,0 +1,23 @@
+# Normalise line endings to LF in the repository.
+* text=auto eol=lf
+
+# Binary assets
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
+*.eot    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.webp   binary
+*.pdf    binary
+*.docx   binary
+*.zip    binary
+
+# Generated design-system output: collapse in diffs
+design/system/project/** linguist-generated=true
+design/tokens/**         linguist-generated=true
+design/mockups/**        linguist-generated=true

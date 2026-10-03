@@ -1,0 +1,65 @@
+# AGENTS.md
+
+Instructions for any agent, human or AI, working in this repository. This is a condensed version of the [Agent handbook](docs/00-agent-handbook.md). **If this file, `docs/` and Linear disagree, Linear wins**; fix the repo copy in your PR.
+
+## What this is
+
+Materia v2: a practice tool for Australian Wills & Estates lawyers (launching in Victoria), with Clerk, an AI assistant that proposes and never commits. Stack and decisions: [Architecture & ADRs](docs/01-architecture-and-adrs.md) and [`docs/adr/`](docs/adr/). Don't re-litigate an ADR inside a feature PR; write a superseding ADR instead.
+
+## Read before you start
+
+| Always | When relevant |
+| -- | -- |
+| [Agent handbook](docs/00-agent-handbook.md) | [Domain model](docs/02-domain-model.md): data, rules, functions |
+| [Architecture & ADRs](docs/01-architecture-and-adrs.md) | [Design system & UI](docs/03-design-system-and-ui.md): anything visual |
+| [Testing strategy](docs/05-testing-strategy.md) | [Environments, CI/CD](docs/04-environments-cicd-release.md): infra, deploys, secrets |
+| [Edge-case register](docs/10-edge-case-register.md) | [Deadline engine](docs/06-deadline-engine.md), [Clerk](docs/07-clerk-ai.md), [Migration](docs/08-legacy-migration-plan.md), [Security](docs/09-security-privacy-compliance.md) |
+
+## Ticket workflow
+
+1. Tickets live in Linear (team **Materia**). Each title starts with a stable key such as `[FND-04]`, and the body is a runnable prompt with acceptance criteria.
+2. Only pick a ticket whose **blocked by** tickets are all Done. Move it to **In Progress** and assign it to yourself.
+3. Branch from `main` as `<key-lowercase>-<slug>` (for example `core-10-deadlines-feature`), or the branch name your session or Linear gives you.
+4. Reuse before you build: grep for the entities and components the ticket mentions.
+5. A decision not covered by the ticket or an ADR gets a short ADR in `docs/adr/` (from [`0000-template.md`](docs/adr/0000-template.md)) in the same PR.
+6. Open a PR titled `[KEY] Title` that links the Linear issue, and fill in the [PR template](.github/pull_request_template.md): map **every** acceptance criterion to evidence.
+7. Keep CI green. **Never** skip, disable or `.only` a test.
+8. Squash-merge, then move the ticket to **Done**. Follow-ups become new Linear tickets in the same format; don't widen your PR.
+
+## Non-negotiables
+
+- **Tenancy:** everything lives under `orgs/{orgId}/…` (except `users/{uid}` and global reference data). Every query is org-scoped; every function checks the org claim.
+- **No secrets** in code or Firestore. Use Secret Manager via `defineSecret`.
+- **Legal dates** are `DateOnly` strings (`YYYY-MM-DD`) in the org timezone (default `Australia/Melbourne`). Never a JS `Date` at midnight UTC.
+- **Money** is integer cents (AUD). **Time** is integer minutes, shown as 6-minute units.
+- **Clerk never writes domain data.** It creates `suggestions` that a human accepts.
+- **Privileged material** (`privileged: true`) is never exported, emailed or sent to an integration without an explicit human action, and never shown to read-only roles.
+- **Accessibility:** WCAG 2.2 AA, keyboard-first; every chart has a table view.
+- **Data residency:** `australia-southeast1` (backups `australia-southeast2`).
+- **No PII in logs.** Log ids, not names, emails or document text.
+- **No real client data** in code, tests, fixtures or logs. Fictional data only.
+- **Legal rules** carry the `Practitioner review` label, store the rule citation and rule-set version with every computed deadline, and ship behind a feature flag until signed off.
+
+## Commands
+
+| Command | What |
+| -- | -- |
+| `python3 design/system/build.py` | Regenerate the design system output. `git status` must stay clean afterwards |
+| `pnpm install` | Install dependencies (from FND-02) |
+| `pnpm nx affected -t lint test build` | Lint, test and build what changed (from FND-02) |
+
+Later tickets add emulator, rules-test and e2e commands; update this table when they do.
+
+## Definition of done
+
+- [ ] Acceptance criteria met, with evidence in the PR.
+- [ ] Unit tests added; rules tests if rules changed; e2e tests if a user flow changed.
+- [ ] Lint, typecheck, tests, build and the bundle budget pass in CI.
+- [ ] No new axe violations; keyboard operable.
+- [ ] Docs updated (`docs/`, plus the Linear doc if a contract changed).
+- [ ] Feature-flagged if incomplete for users or awaiting practitioner review.
+- [ ] Audit-log entry written for any new mutation of matter data.
+
+## Labels
+
+`Blocked on human` (waiting on a must-do human item; checklist in the ticket's latest comment), `Needs human` (a step an agent can't do), `Practitioner review` (legal logic needing lawyer sign-off).

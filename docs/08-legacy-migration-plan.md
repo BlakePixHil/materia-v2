@@ -1,0 +1,129 @@
+# Legacy migration plan (single user)
+
+**Goal:** move one designated user's legacy materia data into Materia v2 with nothing lost, everything reviewable, and the ability to re-run or roll back at any point. **Nothing writes to the legacy project.**
+
+- **Legacy:** repo `BlakePixHil/materia-web-app`. Firebase prod project `matt-r-1fe15`; dev project `materia-dev-26bf0`. Domains `app.materia.au` and `app.mattr.com.au`.
+- **Target:** the Materia v2 prod org created for the user (staging for rehearsals).
+- **Tooling:** `tools/migration`, a Node CLI using the Admin SDK. Commands: `export`, `transform`, `load`, `verify`, `delta`, `rollback` and `report`.
+
+## Legacy model (source facts)
+
+These facts come from a code audit of the legacy repo; ticket MIG-01 confirms them against real data.
+
+- **Timestamps** are ISO-8601 **strings** (`createdOn`, `updatedOn`); there are no Firestore Timestamps. `billable.billingDate` is `YYYY-MM-DD`.
+- **Collections:**
+  - `profiles/{uid}`, with `integrations/*` and `dashboard-checklist-items/*`;
+  - `workspaces/{id}`;
+  - `workflows/{id}` (boards, with **swimlanes embedded**), with `cards/{cardId}` (matters, holding **checklists, comments and history embedded**), `cards/{id}/attachments/*` and `checklist-templates/*`;
+  - `workflow-invites`, `notifications`, `referrers` (scoped per user through `uids`), `feedback`.
+- **Membership** is `workflow.uids[]` plus `workflow.users[uid].roles`. There are no custom claims.
+- **Storage:**
+  - `profile-images/{uid}.png`;
+  - `workflows/{wf}/cards/{card}/attachments/{attId}{ext}`, with a 25 MB limit. The stored `downloadUrl` is token-bound and must not be reused.
+- **Rich text** (card descriptions and comments) is **HTML** from ngx-quill (`ql-*` classes). Mentions are `<span class="mention" data-id="{uid}" data-value="Name" data-denotation-char="@">`. History descriptions contain `<strong>` and frozen display names.
+- **AI suggestions** were never persisted (only localStorage dismissals). The roadmap was UI state only. Calendar tokens were in localStorage. **None of these migrate.**
+
+## Mapping
+
+| Legacy | v2 | Notes |
+|---|---|---|
+| Auth user | Identity Platform user, **same uid** | `auth:export` → filter to the one uid → `auth:import` with the legacy scrypt hash params (a human fetches them from the console). Google and Microsoft providerData are preserved. MFA enrolment is prompted on first sign-in if the org requires it |
+| `profiles/{U}` | `users/{U}` + `orgs/{O}` (new) + `orgs/{O}/members/{U}` (role `owner`) | Org name: `companyName`, else "{displayName}'s practice". The user confirms it in MIG-07 |
+| profile budgets (`currentFinancialYearBudget`, `budgetFinancialYear`, `previous*`) | `members/{U}.budgets[fyStartYear] = cents` | Values assumed to be whole dollars; MIG-01 confirms. Apply the legacy rollover rule at transform time |
+| `profile-images/{U}.png` | `users/{U}/avatar.png` (Storage) | Optional |
+| `profiles/{U}/integrations/*` | not migrated | The user reconnects. The report lists the providers that were connected |
+| `profiles/{U}/dashboard-checklist-items/*` | `orgs/{O}/members/{U}/tasks/*` (personal tasks) | Priority map: 0→none, 1→high, 2→medium, 3→low. `dueDate` ISO → `DateOnly` in Australia/Melbourne. `checked` → status `done`, with `completedAt` from `doneOnDate` |
+| `workspaces/{id}` (prime) | merged into the org | Non-prime workspaces: list them in the report (none expected) |
+| `workflows/{id}` (where `uids` contains U, or legacy `owner == U`) | Matter label `board:{name}`, plus a per-workflow **mapping profile** | The mapping profile sets the default `matterType` and maps each swimlane → `{status, stageId}`. `isDoneSwimlane` → `closed`. The user confirms the mapping profile in MIG-01 |
+| `workflow.labels[]` | matter `labels[]` (by name) | Colours are CSS vars (`var(--mr-label-N-rgb)`) → nearest v2 tag tone. Cosmetic |
+| `cards/{cardId}` | `orgs/{O}/matters/{M}` | See the next table |
+| `cards/*/attachments/*` | `matters/{M}/documents/{D}` + an object copy to `orgs/{O}/matters/{M}/documents/{D}/v1` | sha256 is verified after the copy. `source: 'migration'`, `category: 'other'`; Clerk reclassifies after load (MIG-09) |
+| `workflows/*/checklist-templates/*` | `orgs/{O}/templates/*` (`source: 'org'`, tasks only, no deadline rules) | The doc id is authoritative (the legacy `id` field is wrong) |
+| `referrers/*` (where `uids` contains U) | `contacts` with `isReferrer: true` | Phones normalised to E.164. Dedupe against other imported contacts |
+| other users referenced (workflow members, assignees, comment authors, mention targets) | contacts tagged `legacy-collaborator` | Their profile names are read from legacy `profiles` (read-only). They are not members, and they are not invited automatically |
+| `notifications`, `workflow-invites`, `feedback`, `workflows/*/invites` | not migrated | Counted in the report |
+
+### Card → matter
+
+| Card field | Matter field | Rule |
+|---|---|---|
+| `title` | `title` | trim; empty → "Untitled matter (imported)" + needsReview |
+| `matterReference` | `externalRef` | `null` / `''` → none. A v2 `number` is always allocated, unless the MIG-01 decision says to adopt references |
+| `description` (HTML) | pinned note "Description (imported)" | sanitise → Markdown (turndown). Mentions → `@[uid]`, or plain `@Name` for non-members. `<p></p>` / `''` → no note |
+| `priority` 0–3 | `priority` | 0→none, 1→high, 2→medium, 3→low |
+| `assignee` (`''` / null / uid) | `responsibleUid` | U → U. Another uid → U, with an `originalAssignee` note. Empty → U |
+| `swimlaneId` | `status` + `stageId` | through the mapping profile. An unknown swimlane id → status `open`, needsReview |
+| `archived: true` | `status: 'archived'` | `closedAt` = `updatedOn` |
+| `labelIds[]` | `labels[]` | resolved through `workflow.labels`. Unknown ids are dropped and reported |
+| `referrerId` (`''` = none) | `referrerContactId` | through the referrer id map. A missing referrer → reported |
+| `linkedCardIds[]` | `relatedMatterIds[]` | only if the target was migrated. Otherwise dropped and reported |
+| `checklists[].items[]` | `tasks` (`group` = checklist title) | `name`→`title`, `checked`→`done`, `dueDate` ISO → `DateOnly` (Melbourne), `doneOnDate`→`completedAt`, priority 1→high and 0→none |
+| `checklistItem.calendarSyncByUser` | `tasks.legacyCalendar` (informational) | The report warns that legacy calendar events still exist in the user's calendar, to avoid duplicates after INT-02 |
+| `comments[]` | `notes` (`source: 'migration'`) | author → uid or `legacyAuthor {name}`. `date`→`createdAt`. `edited`/`editDate` preserved |
+| `history[]` | `activity` (`source: 'migration'`) | HTML stripped. Display names kept as text |
+| `fee {billingType, value, billedFees, splitFees, ownershipPercentage}` | `fee` | fixed→fixed, hourly→hourly, nowin→conditional, folio→hourly + note (MIG-01 decides), ''→unset + needsReview. `value` dollars → cents. Also kept raw in `legacy.fee` |
+| `billable {status, billingText, billingTotal, applyTrust, postType, paymentTerms, billingDate, notes}` | `legacyBilling` (read-only on the matter) | **Not turned into v2 invoices**, which would break gapless numbering. Insights can include `billingTotal` by `billingDate` as historical billed |
+| `dueDate` (always `''`), `hoursEstimate`, `actualHours` | dropped | Unused in legacy |
+| `createdOn` / `updatedOn` | `createdAt` / `updatedAt` | ISO → Timestamp. Invalid → load time + a warning |
+| — | `migration: {runId, legacyPath}`, `needsReview?: string[]` | on every migrated document |
+
+## Hazards (must be handled and tested)
+
+- **Type inconsistencies:**
+  - `assignee` can be `''`, `null` or a uid; `referrerId` can be `''`; `matterReference` can be null or `''`; `fee.billingType` can be `''`; `fee.value` can be 0.
+  - Checklist priority is 0/1 only, while card priority is 0–3.
+- **Old field names:** `fee.realisedFees` (→ `billedFees`), `fee.hasDisbursements` and `fee.disbursements` (→ disbursement records, needsReview), a single `checklistItem.calendarSync`, `workflows.owner`.
+- **Missing fields:** workflows may lack `order`, `labels`, `swimlanes` or `users`. Referrers lack timestamps.
+- **Dates:**
+  - `dueDate` values are full ISO datetimes, often local midnight stored as UTC. Convert to `DateOnly` **in Australia/Melbourne**: `2025-03-13T13:00:00.000Z` → `2025-03-14`.
+  - All-day calendar dates are normalised differently.
+- **Ids:**
+  - Card ids are Firestore auto-ids; everything else uses UUIDs.
+  - Checklist-template doc id ≠ `id` field.
+  - `templateExists` may be persisted inside card checklists, so drop it.
+- **Membership drift:** `uids` can have duplicates and differ from `users`. De-duplicate, and treat the union as "referenced users".
+- **Orphans:**
+  - attachments whose Storage object is missing, which are reported, not fatal;
+  - Storage objects with no Firestore doc, which are listed;
+  - `linkedCardIds` pointing at deleted workflows.
+- **Sanitisation:** HTML must be sanitised before conversion, against script and style injection and tracking pixels.
+- **Size:** attachments up to 25 MB, so copy with streaming and verify the hash.
+- **Version drift:** profiles from before commit `64b3316` lack FY budget fields.
+
+## Process
+
+1. **Access (human):**
+   - Create a read-only service account in `matt-r-1fe15` with `roles/datastore.viewer`, `roles/storage.objectViewer` and `roles/firebaseauth.viewer`.
+   - Grant it to the migration runner identity through WIF or short-lived impersonation. No keys on laptops.
+   - Fetch the password-hash parameters.
+2. **Export:** query by uid, then write JSONL to `gs://<v2-env>-migration/runs/{runId}/raw/` (australia-southeast1, CMEK, uniform access, 90-day lifecycle after cutover), with a `manifest.json` of counts and sha256s.
+3. **Transform:**
+   - Pure functions (`tools/migration/src/transform/*`) produce v2 entities validated by the `libs/domain` zod schemas.
+   - Deterministic v2 ids: `base62(sha256(namespace + legacyPath))[0..20]`.
+   - Outputs: `transformed/*.jsonl` and `report.json` (warnings per item, with stable codes such as `MIG_W_ASSIGNEE_FOREIGN`).
+4. **Load:**
+   - BulkWriter with upserts by deterministic id.
+   - A document is skipped and reported if the v2 doc's `updatedAt` is later than its `migration.loadedAt` (the user edited it after load).
+   - `--dry-run` writes nothing and prints the plan.
+5. **Verify:**
+   - counts per entity, legacy versus v2;
+   - attachment hashes;
+   - 20 random cards diffed field by field;
+   - a rules check that the user can read everything as themselves;
+   - deadline recompute proposals generated into a review queue (MIG-09).
+6. **Delta:** re-export items with `updatedOn > lastRunAt`, then transform and load. The run is idempotent.
+7. **Rollback:** `rollback --run {runId}` deletes every v2 document with `migration.runId == runId`, plus the Storage prefix. It refuses on prod without `--confirm-prod`, and writes an audit entry.
+
+## Rehearsal & cutover
+
+- **Rehearsal:** at least 2 full rehearsals on staging using a fresh export. The user reviews the result in staging through the MIG-08 review screen.
+- **Cutover runbook (MIG-07):**
+  1. Agree a date with the user.
+  2. The user stops editing in legacy. Optionally, a human deploys read-only rules to legacy.
+  3. Final delta.
+  4. Verify.
+  5. Switch the user's bookmark or domain.
+  6. The user signs in to v2 and works through the review queue.
+- **After cutover:**
+  - Legacy stays readable for 90 days. The bucket export is then archived to coldline for the retention period, and the legacy project is decommissioned by a separate human-approved ticket.
+  - The user reconnects their calendar. Legacy calendar events are listed so they can delete them or let v2 adopt them.

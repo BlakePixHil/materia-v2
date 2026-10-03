@@ -1,0 +1,1 @@
+The existing materia marks, copied unchanged from the legacy app. Pillar mark and wordmark ink: logo blue #0364B8 (black-logo: blue on light; white-logo: white wordmark for dark grounds). The square app icons are #323232 (m_ terminal mark) and white with a blue pillar.

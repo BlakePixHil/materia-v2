@@ -1,0 +1,81 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Cover</title>
+<style>
+  html, body { margin: 0; background: var(--bg-surface); }
+  .cv { position: relative; width: 960px; height: 288px; overflow: hidden; font-family: var(--font-sans); }
+  .cv svg { position: absolute; inset: 0; }
+  .brand { fill: var(--blue-500); } .ink { fill: var(--bg-inverse); } .clerk { fill: var(--violet-500); }
+  .tint { fill: var(--blue-100); } .spark { fill: var(--orange-400); } .dot { fill: var(--blue-300); }
+  .r-lg { rx: var(--radius-lg); } .r-md { rx: var(--radius-md); } .r-full { rx: 16px; }
+  .txt { position: absolute; left: 40px; bottom: 36px; max-width: 440px; }
+  .name { font-family: var(--font-sans); font-size: 96px; line-height: .92; font-weight: 600; letter-spacing: -0.045em; color: var(--text-primary); }
+  .tag { margin-top: 16px; font-size: 14px; line-height: 20px; color: var(--text-tertiary); }
+</style></head>
+<body>
+<div class="cv">
+<svg viewBox="0 0 960 288" width="960" height="288" aria-hidden="true">
+  <!-- blocks: blue-500 256x192 (brand), bg-inverse 128x248 (ink, flips in dark), violet-500 128x96 (Clerk), blue-100 176x64 (tint), orange-400 32 disc (Clerk gradient end)
+       arrangement: a staggered modular stack right of x=480, brand slab bleeding off the top, ink slab bleeding off the right and bottom, like the inset panel beside the sidebar
+       pattern: "precise, technical, mono, a 4px grid" -> a 7x7 dot grid at space-16 pitch cut into the ink slab, the README's keyboard-first, Linear-like tone
+       scales: space-16 pitch and gaps, space-32 offsets, radius-lg slabs, radius-md tint, radius-full disc -->
+  <rect class="brand r-lg" x="560" y="-12" width="256" height="196"/>
+  <rect class="ink r-lg" x="832" y="48" width="140" height="252"/>
+  <rect class="clerk r-lg" x="688" y="200" width="128" height="100"/>
+  <rect class="tint r-md" x="496" y="200" width="176" height="64"/>
+  <rect class="spark r-full" x="832" y="0" width="32" height="32"/>
+  <circle class="dot" cx="856" cy="80" r="1.6"/>
+  <circle class="dot" cx="872" cy="80" r="1.6"/>
+  <circle class="dot" cx="888" cy="80" r="1.6"/>
+  <circle class="dot" cx="904" cy="80" r="1.6"/>
+  <circle class="dot" cx="920" cy="80" r="1.6"/>
+  <circle class="dot" cx="936" cy="80" r="1.6"/>
+  <circle class="dot" cx="952" cy="80" r="1.6"/>
+  <circle class="dot" cx="856" cy="96" r="1.6"/>
+  <circle class="dot" cx="872" cy="96" r="1.6"/>
+  <circle class="dot" cx="888" cy="96" r="1.6"/>
+  <circle class="dot" cx="904" cy="96" r="1.6"/>
+  <circle class="dot" cx="920" cy="96" r="1.6"/>
+  <circle class="dot" cx="936" cy="96" r="1.6"/>
+  <circle class="dot" cx="952" cy="96" r="1.6"/>
+  <circle class="dot" cx="856" cy="112" r="1.6"/>
+  <circle class="dot" cx="872" cy="112" r="1.6"/>
+  <circle class="dot" cx="888" cy="112" r="1.6"/>
+  <circle class="dot" cx="904" cy="112" r="1.6"/>
+  <circle class="dot" cx="920" cy="112" r="1.6"/>
+  <circle class="dot" cx="936" cy="112" r="1.6"/>
+  <circle class="dot" cx="952" cy="112" r="1.6"/>
+  <circle class="dot" cx="856" cy="128" r="1.6"/>
+  <circle class="dot" cx="872" cy="128" r="1.6"/>
+  <circle class="dot" cx="888" cy="128" r="1.6"/>
+  <circle class="dot" cx="904" cy="128" r="1.6"/>
+  <circle class="dot" cx="920" cy="128" r="1.6"/>
+  <circle class="dot" cx="936" cy="128" r="1.6"/>
+  <circle class="dot" cx="952" cy="128" r="1.6"/>
+  <circle class="dot" cx="856" cy="144" r="1.6"/>
+  <circle class="dot" cx="872" cy="144" r="1.6"/>
+  <circle class="dot" cx="888" cy="144" r="1.6"/>
+  <circle class="dot" cx="904" cy="144" r="1.6"/>
+  <circle class="dot" cx="920" cy="144" r="1.6"/>
+  <circle class="dot" cx="936" cy="144" r="1.6"/>
+  <circle class="dot" cx="952" cy="144" r="1.6"/>
+  <circle class="dot" cx="856" cy="160" r="1.6"/>
+  <circle class="dot" cx="872" cy="160" r="1.6"/>
+  <circle class="dot" cx="888" cy="160" r="1.6"/>
+  <circle class="dot" cx="904" cy="160" r="1.6"/>
+  <circle class="dot" cx="920" cy="160" r="1.6"/>
+  <circle class="dot" cx="936" cy="160" r="1.6"/>
+  <circle class="dot" cx="952" cy="160" r="1.6"/>
+  <circle class="dot" cx="856" cy="176" r="1.6"/>
+  <circle class="dot" cx="872" cy="176" r="1.6"/>
+  <circle class="dot" cx="888" cy="176" r="1.6"/>
+  <circle class="dot" cx="904" cy="176" r="1.6"/>
+  <circle class="dot" cx="920" cy="176" r="1.6"/>
+  <circle class="dot" cx="936" cy="176" r="1.6"/>
+  <circle class="dot" cx="952" cy="176" r="1.6"/>
+</svg>
+<div class="txt"><div class="name">materia</div><div class="tag">Practice software for Wills &amp; Estates lawyers, with Clerk built in.</div></div>
+</div>
+</body>
+</html>
