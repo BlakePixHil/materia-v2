@@ -11,6 +11,10 @@
 - Clerk outputs structured proposals with citations, never direct writes.
 - See the Clerk doc.
 
+## Refinements
+
+- [ADR-011a: Clerk provider and Australian data residency](ADR-011a-clerk-provider.md) (proposed).
+
 ## Changing this decision
 
 Write a superseding ADR in `docs/adr/` (copy [`0000-template.md`](0000-template.md)), link it from the Linear doc, and get it approved in review. Do not change this decision inside a feature PR.

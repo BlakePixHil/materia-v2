@@ -22,7 +22,7 @@ Materia v2: a practice tool for Australian Wills & Estates lawyers (launching in
 3. Branch from `main` as `<key-lowercase>-<slug>` (for example `core-10-deadlines-feature`), or the branch name your session or Linear gives you.
 4. Reuse before you build: grep for the entities and components the ticket mentions.
 5. A decision not covered by the ticket or an ADR gets a short ADR in `docs/adr/` (from [`0000-template.md`](docs/adr/0000-template.md)) in the same PR.
-6. Open a PR titled `[KEY] Title` that links the Linear issue, and fill in the [PR template](.github/pull_request_template.md): map **every** acceptance criterion to evidence.
+6. Open a PR titled `[KEY] Title` whose description says `Closes MAT-N` (Linear links PRs by that id) and links the issue. Fill in the [PR template](.github/pull_request_template.md): map **every** acceptance criterion to evidence.
 7. Keep CI green. **Never** skip, disable or `.only` a test.
 8. Squash-merge, then move the ticket to **Done**. Follow-ups become new Linear tickets in the same format; don't widen your PR.
 

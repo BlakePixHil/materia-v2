@@ -54,4 +54,4 @@ gh api repos/BlakePixHil/materia-v2/branches/main/protection
 - [ ] In Linear: **Settings → Integrations → GitHub**, connect the `BlakePixHil` account and give it access to `materia-v2`.
 - [ ] Enable linking by issue id in PR titles and descriptions, and the workflow automation (PR opened → In Progress, PR merged → Done) for team **Materia**.
 
-PRs are titled `[KEY] Title` and their description links the Linear issue URL (`https://linear.app/materia-web/issue/MAT-N`); once the integration is on, the PR appears on the ticket.
+PRs are titled `[KEY] Title`, and their description carries `Closes MAT-N` plus the issue URL. The integration is connected (it saw PR #1), but it links PRs by the `MAT-N` id, not by the `[KEY]` plan key, so `Closes MAT-N` is required.

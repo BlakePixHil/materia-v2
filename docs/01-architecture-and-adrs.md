@@ -110,6 +110,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - The provider is chosen by the AI-01 spike. Order of preference: Claude on Vertex AI in an Australian region → Claude Platform/Bedrock in Sydney → Anthropic API with zero data retention, but only with an explicit privacy sign-off.
 - Clerk outputs structured proposals with citations, never direct writes.
 - See the Clerk doc.
+- **Provider: see [ADR-011a](adr/ADR-011a-clerk-provider.md)** (proposed, awaiting owner approval): Claude on Amazon Bedrock with the `AU` inference profile, because no other route can keep Opus 5.5 inference in Australia.
 
 **ADR-012: Retrieval.**
 - Document text is chunked into `orgs/{orgId}/matters/{matterId}/documents/{docId}/chunks/{n}`, with embeddings from Vertex AI text embeddings in `australia-southeast1`.

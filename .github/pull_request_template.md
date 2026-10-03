@@ -1,6 +1,8 @@
 ## Ticket
 
-<!-- Link the Linear issue, e.g. https://linear.app/materia-web/issue/MAT-5 . Title this PR "[KEY] Title". -->
+<!-- Title this PR "[KEY] Title". Keep the "Closes MAT-N" line: Linear links the PR by its MAT id, not by the [KEY]. -->
+
+Closes MAT-
 
 Linear: 
 
