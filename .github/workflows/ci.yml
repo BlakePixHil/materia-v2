@@ -267,18 +267,29 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: gitleaks (commits in this change)
         run: gitleaks git --redact --no-banner --log-opts="$NX_BASE..$NX_HEAD" .
+      # CodeQL takes ~2.5 min and has nothing to analyse when only docs changed, so docs-only PRs skip
+      # it (FND-04: docs-only CI under 3 min). Pushes to main always run it.
+      - name: Detect code changes
+        id: scope
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          code_files="$(git diff --name-only "$NX_BASE" "$NX_HEAD" | grep -Ev '(^docs/|^design/|^LICENSE$|\.md$)' || true)"
+          if [ -n "$code_files" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; else echo "code=false" >> "$GITHUB_OUTPUT"; echo "Docs-only change: skipping CodeQL."; fi
       - name: CodeQL init
+        if: steps.scope.outputs.code == 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
           queries: security-extended
       - name: CodeQL analyze
+        if: steps.scope.outputs.code == 'true'
         uses: github/codeql-action/analyze@v3
         with:
           # Uploading needs GitHub Advanced Security on private repos; the gate below works without it.
           upload: never
           output: sarif-results
       - name: Fail on high-severity CodeQL findings
+        if: steps.scope.outputs.code == 'true'
         run: |
           node -e '
             const fs = require("fs"), path = require("path");
@@ -298,7 +309,7 @@ jobs:
             console.log("No high-severity CodeQL findings.");
           '
       - name: Upload CodeQL SARIF
-        if: always()
+        if: always() && steps.scope.outputs.code == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: codeql-sarif
