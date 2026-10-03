@@ -1,5 +1,7 @@
 # Materia v2
 
+[![ci](https://github.com/BlakePixHil/materia-v2/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/BlakePixHil/materia-v2/actions/workflows/ci.yml)
+
 Materia is an AI-native practice tool for **Wills & Estates lawyers in Australia**, launching in Victoria. It covers matters (wills, powers of attorney and enduring guardianship, probate, letters of administration, estate administration, family provision claims, will disputes and testamentary trusts), deadlines computed from legal rules, tasks, documents, time and billing, litigation support for contested estates, and **Clerk**, an assistant on Claude that proposes changes and never commits them.
 
 v2 replaces the legacy app (`BlakePixHil/materia-web-app`).
