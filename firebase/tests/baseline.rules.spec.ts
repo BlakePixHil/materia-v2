@@ -1,4 +1,4 @@
-import { assertFails, assertSucceeds, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
+import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getBytes, ref, uploadString } from 'firebase/storage';
 
@@ -25,12 +25,6 @@ describe('baseline rules (deny all)', () => {
   it('denies Firestore access to signed-in users without a matching rule', async () => {
     const db = env.authenticatedContext('user-test-1', { orgId: 'org-test-1', role: 'owner' }).firestore();
     await assertFails(getDoc(doc(db, 'orgs/org-test-1/matters/matter-test-1')));
-  });
-
-  // FND-04 demo (reverted): a failing rules test.
-  it('demo: expects a denied read to succeed', async () => {
-    const db = env.unauthenticatedContext().firestore();
-    await assertSucceeds(getDoc(doc(db, 'orgs/org-test-1')));
   });
 
   it('denies Storage reads and writes', async () => {
