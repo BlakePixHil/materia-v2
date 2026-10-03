@@ -1,0 +1,58 @@
+name: Setup
+description: Node 22 + pnpm with caches, Nx base/head SHAs, the Nx cache and (optionally) Java for the Firebase emulators.
+
+inputs:
+  java:
+    description: Install a Java runtime for the Firebase emulators.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    # Corepack provides the pnpm version pinned in package.json (packageManager).
+    - name: Enable corepack
+      shell: bash
+      run: corepack enable
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    # Equivalent of nx-set-shas: PRs compare with the base commit, pushes with the previous head.
+    # When no usable base exists (first commit, force-push), fall back to the root commit: run all.
+    - name: Set Nx base and head
+      shell: bash
+      env:
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PUSH_BEFORE: ${{ github.event.before }}
+      run: |
+        base="${PR_BASE:-$PUSH_BEFORE}"
+        if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+          base="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          echo "No usable base commit; running everything from the root commit."
+        fi
+        echo "NX_BASE=$base" >> "$GITHUB_ENV"
+        echo "NX_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+    - name: Restore the Nx cache
+      uses: actions/cache@v4
+      with:
+        path: .nx/cache
+        key: nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}
+        restore-keys: |
+          nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-
+          nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+
+    - name: Set up Java (Firebase emulators)
+      if: inputs.java == 'true'
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'

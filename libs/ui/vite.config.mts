@@ -18,6 +18,9 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: '../../coverage/libs/ui',
       provider: 'v8' as const,
+      reporter: ['text-summary', 'json-summary'],
+      // Testing & quality strategy: 70% for this project.
+      thresholds: { statements: 70, branches: 70, functions: 70, lines: 70 },
     },
   },
 }));

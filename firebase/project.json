@@ -1,0 +1,25 @@
+{
+  "name": "firebase",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "firebase",
+  "tags": ["type:util", "scope:shared"],
+  "implicitDependencies": ["domain", "test-utils"],
+  "targets": {
+    "test-rules": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "firebase emulators:exec --only firestore,storage --project demo-materia --config firebase/firebase.json \"vitest run --config firebase/vitest.rules.config.mts\"",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": { "command": "tsc --noEmit -p firebase/tsconfig.json" }
+    }
+  }
+}

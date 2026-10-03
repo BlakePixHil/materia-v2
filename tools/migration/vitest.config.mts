@@ -11,5 +11,12 @@ export default defineConfig(() => ({
     environment: 'node',
     include: ['src/**/*.spec.ts'],
     reporters: ['default'],
+    coverage: {
+      reportsDirectory: '../../coverage/tools/migration',
+      provider: 'v8' as const,
+      reporter: ['text-summary', 'json-summary'],
+      // Testing & quality strategy: 70% for this project.
+      thresholds: { statements: 70, branches: 70, functions: 70, lines: 70 },
+    },
   },
 }));

@@ -1,0 +1,377 @@
+# CI (FND-04). Every job runs `nx affected`, so unchanged projects are skipped.
+# `ci-ok` is the only required check on main: it passes when every job succeeded or was skipped.
+# Reproduce any job locally with the commands in AGENTS.md → "CI jobs locally".
+#
+# Third-party code: only GitHub-owned actions are used (actions/*, github/codeql-action). CLI tools
+# are pinned versions, verified against their published checksums.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Nx Cloud is optional and never required (fork PRs have no secrets).
+  NX_NO_CLOUD: 'true'
+  NX_DAEMON: 'false'
+  FORCE_COLOR: '1'
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - id: filter
+        name: Detect affected areas
+        run: |
+          affected="$(pnpm -s nx show projects --affected --base="$NX_BASE" --head="$NX_HEAD")"
+          echo "Affected projects:"; echo "$affected"
+          if git diff --name-only "$NX_BASE" "$NX_HEAD" | grep -q '^infra/'; then echo "infra=true" >> "$GITHUB_OUTPUT"; else echo "infra=false" >> "$GITHUB_OUTPUT"; fi
+          if echo "$affected" | grep -qx 'web-e2e'; then echo "e2e=true" >> "$GITHUB_OUTPUT"; else echo "e2e=false" >> "$GITHUB_OUTPUT"; fi
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm exec prettier --check .
+      - run: pnpm nx affected -t lint --base="$NX_BASE" --head="$NX_HEAD"
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm nx affected -t typecheck --base="$NX_BASE" --head="$NX_HEAD"
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      # Coverage thresholds live in each project's Vitest config (Testing & quality strategy).
+      - run: pnpm nx affected -t test --base="$NX_BASE" --head="$NX_HEAD" --coverage
+      - name: Upload coverage summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage/**/coverage-summary.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  rules:
+    name: rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+        with:
+          java: 'true'
+      # The firebase project depends implicitly on libs/domain and libs/test-utils, so changes to
+      # firebase/**, libs/domain/** or libs/test-utils/** run the rules suite in the emulators.
+      - run: pnpm nx affected -t test-rules --base="$NX_BASE" --head="$NX_HEAD"
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: changes
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm nx affected -t build --base="$NX_BASE" --head="$NX_HEAD" --configuration=production
+      - name: Check gzip bundle budgets
+        id: bundle
+        run: |
+          if [ -f dist/apps/web/browser/index.html ]; then
+            pnpm -s materia-scripts bundle-size --dist dist/apps/web/browser --json bundle-report.json
+          else
+            echo "apps/web not affected; no bundle to check."
+          fi
+      - name: Upload bundle report
+        if: always() && hashFiles('bundle-report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-report
+          path: bundle-report.json
+          retention-days: 30
+      - name: Build the e2e web app (emulator environment)
+        if: needs.changes.outputs.e2e == 'true'
+        run: pnpm nx build web --configuration=e2e
+      - name: Upload the e2e web app
+        if: needs.changes.outputs.e2e == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-dist
+          path: dist/apps/web/browser
+          retention-days: 3
+
+  e2e:
+    name: e2e (${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [changes, build]
+    if: needs.changes.outputs.e2e == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+        with:
+          java: 'true'
+      - name: Download the e2e web app
+        uses: actions/download-artifact@v4
+        with:
+          name: web-e2e-dist
+          path: dist/apps/web/browser
+      - name: Build functions for the emulator
+        run: pnpm nx build functions
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Install Playwright system dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium webkit
+      - name: Run e2e against the emulators (project demo-materia)
+        env:
+          BASE_URL: http://127.0.0.1:5000
+          CI: 'true'
+        run: >-
+          pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting
+          --project demo-materia --config firebase/firebase.json
+          "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --shard=${{ matrix.shard }}/2"
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.shard }}
+          path: dist/.playwright/apps/web-e2e
+          retention-days: 7
+
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    env:
+      TERRAFORM_VERSION: 1.16.5
+      TFLINT_VERSION: 0.55.0
+      CHECKOV_VERSION: 3.3.22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Terraform (checksum-verified)
+        run: |
+          cd "$RUNNER_TEMP"
+          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+          curl -fsSLO "$base/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          curl -fsSLO "$base/terraform_${TERRAFORM_VERSION}_SHA256SUMS"
+          sha256sum -c --ignore-missing "terraform_${TERRAFORM_VERSION}_SHA256SUMS"
+          unzip -q "terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -d "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Install tflint (checksum-verified)
+        run: |
+          cd "$RUNNER_TEMP"
+          base="https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}"
+          curl -fsSLO "$base/tflint_linux_amd64.zip"
+          curl -fsSLO "$base/checksums.txt"
+          sha256sum -c --ignore-missing checksums.txt
+          unzip -q -o tflint_linux_amd64.zip -d "$RUNNER_TEMP/bin"
+      - name: Install checkov
+        run: pipx install "checkov==${CHECKOV_VERSION}"
+      - name: fmt
+        run: terraform -chdir=infra/terraform fmt -check -recursive
+      - name: validate
+        run: |
+          for dir in infra/terraform infra/terraform/bootstrap; do
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+          done
+      - name: tflint
+        run: tflint --chdir=infra/terraform --recursive
+      - name: checkov
+        run: checkov -d infra/terraform --framework terraform --compact --quiet
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read # CodeQL reads the workflow run's metadata
+    env:
+      GITLEAKS_VERSION: 8.24.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: pnpm audit (production dependencies)
+        run: pnpm audit --prod --audit-level=high
+      - name: Install gitleaks (checksum-verified)
+        run: |
+          cd "$RUNNER_TEMP"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl -fsSLO "$base/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLO "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          sha256sum -c --ignore-missing "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          tar -xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: gitleaks (commits in this change)
+        run: gitleaks git --redact --no-banner --log-opts="$NX_BASE..$NX_HEAD" .
+      - name: CodeQL init
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: CodeQL analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          # Uploading needs GitHub Advanced Security on private repos; the gate below works without it.
+          upload: never
+          output: sarif-results
+      - name: Fail on high-severity CodeQL findings
+        run: |
+          node -e '
+            const fs = require("fs"), path = require("path");
+            const dir = "sarif-results";
+            const findings = [];
+            for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".sarif"))) {
+              const sarif = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+              for (const run of sarif.runs) {
+                const rules = Object.fromEntries((run.tool.driver.rules || []).map((r) => [r.id, r]));
+                for (const result of run.results || []) {
+                  const severity = Number(rules[result.ruleId]?.properties?.["security-severity"] ?? 0);
+                  if (severity >= 7) findings.push(`${result.ruleId} (${severity}): ${result.locations?.[0]?.physicalLocation?.artifactLocation?.uri}`);
+                }
+              }
+            }
+            if (findings.length) { console.error("High-severity CodeQL findings:\n" + findings.join("\n")); process.exit(1); }
+            console.log("No high-severity CodeQL findings.");
+          '
+      - name: Upload CodeQL SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif
+          path: sarif-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+  summary:
+    name: summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [unit, build]
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Download this run's reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+          pattern: '{coverage-summary,bundle-report}'
+        continue-on-error: true
+      - name: Download the latest main baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --event push --status success --limit 1 --json databaseId -q '.[0].databaseId' || true)"
+          if [ -n "$run_id" ]; then
+            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n coverage-summary -D base/coverage || true
+            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n bundle-report -D base/bundle || true
+          fi
+      - name: Render the summary
+        run: |
+          args=(--coverage reports/coverage-summary --out summary.md)
+          [ -d base/coverage ] && args+=(--base-coverage base/coverage)
+          [ -f reports/bundle-report/bundle-report.json ] && args+=(--bundle reports/bundle-report/bundle-report.json)
+          [ -f base/bundle/bundle-report.json ] && args+=(--base-bundle base/bundle/bundle-report.json)
+          pnpm -s materia-scripts ci-summary "${args[@]}"
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Post or update the PR comment
+        # Fork PRs get a read-only token; the job summary above still shows the report.
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('summary.md', 'utf8');
+            const marker = '<!-- materia-ci-summary -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.user.type === 'Bot' && c.body.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+  ci-ok:
+    name: ci-ok
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes, lint, typecheck, unit, rules, build, e2e, terraform, security]
+    if: always()
+    steps:
+      - name: Every job succeeded or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | node -e '
+            const needs = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const bad = Object.entries(needs).filter(([, v]) => !["success", "skipped"].includes(v.result));
+            for (const [job, v] of Object.entries(needs)) console.log(`${job}: ${v.result}`);
+            if (bad.length) { console.error(`Failed: ${bad.map(([j]) => j).join(", ")}`); process.exit(1); }
+          '

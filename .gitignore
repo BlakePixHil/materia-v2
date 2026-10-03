@@ -70,3 +70,4 @@ __screenshots__/
 vitest.config.*.timestamp*
 # Generated per environment by `pnpm materia-scripts env` (FND-03); CD regenerates them.
 apps/web/src/environments/environment.*.ts
+!apps/web/src/environments/environment.e2e.ts

@@ -44,7 +44,7 @@ interface RunResult {
 }
 
 /** The slice of the SDK client this script uses; every provider client exposes it. */
-type StreamingClient = Pick<Anthropic, 'messages'>;
+export type StreamingClient = Pick<Anthropic, 'messages'>;
 type StreamParams = Parameters<Anthropic['messages']['stream']>[0];
 
 const PROVIDERS: readonly Provider[] = ['bedrock', 'vertex', 'anthropic', 'fake'];
@@ -69,7 +69,7 @@ export function buildPrompt(tokens: number, nonce: string): string {
   return parts.join('\n');
 }
 
-function makeClient(provider: Exclude<Provider, 'fake'>): { client: StreamingClient; model: string } {
+export function makeClient(provider: Exclude<Provider, 'fake'>): { client: StreamingClient; model: string } {
   const env = process.env;
   switch (provider) {
     case 'bedrock':
@@ -95,7 +95,12 @@ function makeClient(provider: Exclude<Provider, 'fake'>): { client: StreamingCli
   }
 }
 
-async function runOnce(client: StreamingClient, model: string, promptTokens: number, run: number): Promise<RunResult> {
+export async function runOnce(
+  client: StreamingClient,
+  model: string,
+  promptTokens: number,
+  run: number,
+): Promise<RunResult> {
   // A unique nonce per run defeats prompt caching, so every run measures a cold 20k-token prompt.
   const prompt = buildPrompt(promptTokens, `${Date.now()}-${run}`);
   const params: StreamParams = {
