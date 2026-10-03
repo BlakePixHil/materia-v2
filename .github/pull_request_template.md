@@ -1,0 +1,33 @@
+## Ticket
+
+<!-- Link the Linear issue, e.g. https://linear.app/materia-web/issue/MAT-5 . Title this PR "[KEY] Title". -->
+
+Linear: 
+
+## Summary
+
+<!-- What changed and why, in a few sentences. Note any ADR added. -->
+
+## Acceptance criteria → evidence
+
+<!-- One row per acceptance criterion on the ticket. Evidence: a test name, a screenshot, a log line or a command output. -->
+
+| Acceptance criterion | Evidence |
+| -- | -- |
+|  |  |
+
+## Screenshots
+
+<!-- UI changes: before/after, light and dark. Fictional data only. Delete if not applicable. -->
+
+## Test plan
+
+<!-- Tests added or changed, and how you ran them. -->
+
+- [ ] Unit tests
+- [ ] Rules tests (if rules changed)
+- [ ] e2e + axe (if a user flow changed)
+
+## Risk / rollback
+
+<!-- What could go wrong, feature flags involved, and how to roll back. Note any MVP fallbacks used and follow-up tickets. -->

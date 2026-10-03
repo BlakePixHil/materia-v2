@@ -1,0 +1,1 @@
+Lucide line icons (ISC licence) at 24px with a 1.6 stroke, rendered at 16px in the UI. These files use slate-600 #5A5F6C as their single ink; in the app, icons are inline SVG with `stroke: currentColor` so they take `icon-*` tokens.

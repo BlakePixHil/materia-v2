@@ -1,0 +1,16 @@
+{
+  "00-agent-handbook.md": {"title": "Agent handbook (start here)", "id": "8895c5da-1c91-409e-8c4c-8455e9cc7cd3", "url": "https://linear.app/materia-web/document/agent-handbook-start-here-34f0d0fd1e34"},
+  "01-architecture-and-adrs.md": {"title": "Architecture & ADRs", "id": "2a6e3ab3-60ae-4857-937b-585555049905", "url": "https://linear.app/materia-web/document/architecture-and-adrs-b15e1eb322dc"},
+  "02-domain-model.md": {"title": "Domain model & Firestore schema", "id": "39b522ce-d676-493b-bae5-aa58a0a8a6c1", "url": "https://linear.app/materia-web/document/domain-model-and-firestore-schema-5c071ddbb86c"},
+  "03-design-system-and-ui.md": {"title": "Design system & UI conventions", "id": "c2591389-b56f-4202-bd6b-5dd9b2f25384", "url": "https://linear.app/materia-web/document/design-system-and-ui-conventions-754620de0acf"},
+  "04-environments-cicd-release.md": {"title": "Environments, CI/CD & release", "id": "3a9143e7-5724-4bd5-af49-bb0644150c44", "url": "https://linear.app/materia-web/document/environments-cicd-and-release-2eee4f34b308"},
+  "05-testing-strategy.md": {"title": "Testing & quality strategy", "id": "19b49132-12ff-4795-853c-0d731691a4d7", "url": "https://linear.app/materia-web/document/testing-and-quality-strategy-9fab5594b3ef"},
+  "06-deadline-engine.md": {"title": "Deadline engine & legal rules", "id": "1df8e6ac-321d-46b7-8913-99e915107f3f", "url": "https://linear.app/materia-web/document/deadline-engine-and-legal-rules-18f6ae577197"},
+  "07-clerk-ai.md": {"title": "Clerk (AI) architecture & guardrails", "id": "5faa1f82-f022-40ff-8570-64f91d7ab743", "url": "https://linear.app/materia-web/document/clerk-ai-architecture-and-guardrails-342716d551f4"},
+  "08-legacy-migration-plan.md": {"title": "Legacy migration plan", "id": "4cee4c1e-247b-4c78-938a-875270e8d8a4", "url": "https://linear.app/materia-web/document/legacy-migration-plan-d314cc38b969"},
+  "09-security-privacy-compliance.md": {"title": "Security, privacy & compliance", "id": "b6e6750d-f6a6-49b6-81d0-4ba6e7d8195a", "url": "https://linear.app/materia-web/document/security-privacy-and-compliance-bf0936f47d33"},
+  "10-edge-case-register.md": {"title": "Edge-case register", "id": "20829235-6b45-49b3-9fda-de10965380c6", "url": "https://linear.app/materia-web/document/edge-case-register-570e3b4ada45"},
+  "11-roadmap.md": {"title": "Roadmap & release phases", "id": "4e943e70-5bef-4cea-a5a4-aa52861beb8d", "url": "https://linear.app/materia-web/document/roadmap-and-release-phases-058e444e7801"},
+  "12-ticket-map.md": {"title": "Ticket map & dependency graph", "id": "9791cd8e-3237-4cf3-97df-d8ec71bfa72c", "url": "https://linear.app/materia-web/document/ticket-map-and-dependency-graph-6a3d199c5773"},
+  "13-kickoff-prompt.md": {"title": "Kickoff prompt (build loop)", "id": "248548a2-bc6c-4884-aa9f-e2749725c96d", "url": "https://linear.app/materia-web/document/kickoff-prompt-build-loop-d3fbd85da9bf"}
+}

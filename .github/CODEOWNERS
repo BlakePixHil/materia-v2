@@ -1,0 +1,4 @@
+# Infrastructure, security rules and repository automation need the owner's review.
+/infra/     @BlakePixHil
+/firebase/  @BlakePixHil
+/.github/   @BlakePixHil

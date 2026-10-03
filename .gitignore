@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Nx and build output
+dist/
+tmp/
+out-tsc/
+coverage/
+.nx/cache/
+.nx/workspace-data/
+.angular/
+storybook-static/
+playwright-report/
+test-results/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+*-debug.log
+.runtimeconfig.json
+emulator-data/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.example.tfvars
+crash.log
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+service-account*.json
+*-sa-key.json
+
+# Python (design build)
+__pycache__/
+*.pyc
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
