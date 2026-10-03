@@ -246,6 +246,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read # CodeQL reads the workflow run's metadata
     env:
       GITLEAKS_VERSION: 8.24.0
     steps:
