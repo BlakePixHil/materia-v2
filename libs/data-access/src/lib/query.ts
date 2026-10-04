@@ -65,9 +65,18 @@ export interface CollectionDriver {
   getDoc(id: string): Promise<RawDoc | null>;
   count(spec: QuerySpec): Promise<number>;
   create(data: Record<string, unknown>, meta: WriteMeta): Promise<string>;
-  update(id: string, patch: Record<string, unknown>, meta: WriteMeta): Promise<void>;
+  /** Merges `patch`; `remove` lists fields to delete (`deleteField()`), for clearing optional values. */
+  update(id: string, patch: Record<string, unknown>, meta: WriteMeta, remove?: readonly string[]): Promise<void>;
   softDelete(id: string, meta: WriteMeta): Promise<void>;
 }
 
-/** Opens a driver for a collection path (`orgs/org-1/members`). */
-export type DriverFactory = (path: string) => CollectionDriver;
+export interface DriverOptions {
+  /**
+   * A collection-group query: `path` is a collection id (`parties`) and reads span every collection
+   * with that id. Read-only: writes and `watchDoc` reject. Rows sort by full document path on ties.
+   */
+  group?: boolean;
+}
+
+/** Opens a driver for a collection path (`orgs/org-1/members`), or a collection group (`parties`). */
+export type DriverFactory = (path: string, options?: DriverOptions) => CollectionDriver;

@@ -7,7 +7,7 @@ Two entry points:
 | Import                            | What                                                                                                                                                  | Where it can go                                   |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `@materia/data-access`            | `OrgContext`, `ListenerRegistry`, `FirestoreClient`, `CallableClient`, `DataLifecycle`, `optimistic`, `can`, `toDomainError`, tenancy and job sources | Anywhere, including `main` (it's small)           |
-| `@materia/data-access/repository` | `repo()`, the query resources, the Firestore driver, `membersRepository()`, the in-memory test driver                                                 | Lazily loaded features only, to keep `main` small |
+| `@materia/data-access/repository` | `repo()`, `groupRepo()`, the query resources, the Firestore driver, `membersRepository()`, the contacts repositories, the in-memory test driver       | Lazily loaded features only, to keep `main` small |
 
 The Firestore SDK itself loads on the first query, as two lazy chunks (ADR-024), never on the sign-in screens.
 
@@ -31,7 +31,17 @@ const matters = repo((orgId) => `orgs/${orgId}/matters`, Matter);
 | `count(spec)`                    | `getCountFromServer`, cached 60 s per path and spec             |
 | `create`, `update`, `softDelete` | Validated writes; soft delete sets `deletedAt` / `deletedBy`    |
 
+`update(id, patch, { remove: ['dateOfDeath'] })` also deletes fields (`deleteField()`), for clearing an optional value; removed fields must be in the update whitelist too.
+
 Queries hide soft-deleted documents unless `includeDeleted: true`. A query with `where` plus `orderBy` on another field needs a composite index in `firebase/firestore.indexes.json`.
+
+## Collection groups
+
+`groupRepo('parties', entity)` reads one collection id across every matter: `query`, `watchQuery` and `count` only (writes stay with the owning collection's repository). Every query gets `orgId == <active org>` added, so the group's documents must carry a server-owned `orgId`, and the query needs a collection-group index or field override in `firebase/firestore.indexes.json`. Ties sort by full document path, as in Firestore. `contactPartiesRepository()` (a contact's roles on matters, CORE-01) is the first user; the in-memory driver supports groups too (`fs.driver('parties', { group: true })`).
+
+## Contacts (CORE-01)
+
+`contactsRepository()` lists `orgs/{orgId}/contacts` with `contactListQuery(filters)` (ordered by the server-maintained `sortName`; one Firestore filter: the search token, kind, referrer or tag) and `contactMatchesFilters(row, filters)` for the rest (and to hide merged tombstones). Edits are client-direct through `Contact.update`; creates, deletes and merges go through the `contacts-*` callables. `matterSummariesRepository()` reads a matter's number and title.
 
 ## Lists: watchQuery and paging
 

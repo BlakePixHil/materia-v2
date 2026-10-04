@@ -49,6 +49,17 @@ export interface WatchQueryOptions extends WatchOptions {
   live?: boolean;
 }
 
+export interface UpdateOptions {
+  /** Fields to delete from the document. */
+  remove?: readonly string[];
+}
+
+/**
+ * Read-only access to a collection group across the active org (`parties` on every matter). Every
+ * query is scoped with `orgId == <active org>`, so group documents must carry `orgId`.
+ */
+export type GroupRepository<T> = Pick<Repository<T>, 'query' | 'watchQuery' | 'count'>;
+
 /** A query, or a function of signals returning one (`null` waits). */
 export type QueryInput<T> = QuerySpec<T> | (() => QuerySpec<T> | null);
 
@@ -68,8 +79,11 @@ export interface Repository<T> {
   count(spec?: QuerySpec<T>): Promise<number>;
   /** A client-direct create, only where the rules allow one (most creates go through callables). */
   create(data: Partial<T> | Record<string, unknown>): Promise<string>;
-  /** A client-direct update of whitelisted fields; `updatedAt`/`updatedBy` are stamped. */
-  update(id: string, patch: Partial<T> | Record<string, unknown>): Promise<void>;
+  /**
+   * A client-direct update of whitelisted fields; `updatedAt`/`updatedBy` are stamped. `remove`
+   * deletes optional fields (clearing a date, say); they must be in the update whitelist too.
+   */
+  update(id: string, patch: Partial<T> | Record<string, unknown>, options?: UpdateOptions): Promise<void>;
   softDelete(id: string): Promise<void>;
 }
 
@@ -100,6 +114,36 @@ export function repo<T>(
   entity: EntityDef<T>,
   options: RepositoryOptions = {},
 ): Repository<T> {
+  return createRepository(path, entity, options, false);
+}
+
+/**
+ * A collection-group repository (`parties` across every matter of the active org). Call it in an
+ * injection context:
+ *
+ * ```ts
+ * const parties = groupRepo('parties', Party);
+ * parties.watchQuery({ where: [['contactId', '==', id]] }); // + orgId == active org
+ * ```
+ *
+ * The group's documents must carry `orgId` (server-owned), and the query needs a collection-group
+ * index (or field override) in `firebase/firestore.indexes.json`.
+ */
+export function groupRepo<T>(
+  collectionId: string,
+  entity: EntityDef<T>,
+  options: RepositoryOptions = {},
+): GroupRepository<T> {
+  const { query, watchQuery, count } = createRepository(() => collectionId, entity, options, true);
+  return { query, watchQuery, count };
+}
+
+function createRepository<T>(
+  path: (orgId: string) => string,
+  entity: EntityDef<T>,
+  options: RepositoryOptions,
+  group: boolean,
+): Repository<T> {
   const context = inject(OrgContext);
   const registry = inject(ListenerRegistry);
   const drivers = inject(FIRESTORE_DRIVER);
@@ -116,14 +160,18 @@ export function repo<T>(
     ...converter.fromFirestore(doc.snapshot, { serverTimestamps: 'estimate' }),
     id: doc.id,
   });
-  const driverFor = (orgId: string): CollectionDriver => drivers(path(orgId));
+  const driverFor = (orgId: string): CollectionDriver =>
+    group ? drivers(path(orgId), { group: true }) : drivers(path(orgId));
   const driver = () => driverFor(context.requireOrgId());
+  /** Group queries span every org's collections: keep them to the active org's documents. */
+  const scope = (spec: QuerySpec, orgId: string): QuerySpec =>
+    group ? { ...spec, where: [['orgId', '==', orgId], ...(spec.where ?? [])] } : spec;
   const engine = (orgId: string): EngineContext<T> => ({
     driver: driverFor(orgId),
     convert,
     online,
     track: (stop, label) => registry.add(stop, { label }),
-    label: path(orgId),
+    label: group ? `group:${path(orgId)}` : path(orgId),
     onAccessRevoked: accessRevoked,
   });
   const meta = () => ({ uid: context.requireUid(), schemaVersion: entity.version });
@@ -173,7 +221,13 @@ export function repo<T>(
 
     query: (spec = {}) =>
       guard(async () => {
-        const page = await driver().fetch({ spec, after: null, end: null, limit: spec.pageSize ?? null });
+        const orgId = context.requireOrgId();
+        const page = await driverFor(orgId).fetch({
+          spec: scope(spec as QuerySpec, orgId),
+          after: null,
+          end: null,
+          limit: spec.pageSize ?? null,
+        });
         const rows = page.docs.map(convert);
         return spec.includeDeleted ? rows : rows.filter((row) => !(row as { deletedAt?: unknown }).deletedAt);
       }, 'read'),
@@ -190,7 +244,7 @@ export function repo<T>(
             current.set(null);
             return;
           }
-          const query = new PagedQuery(engine(orgId), spec as QuerySpec, live);
+          const query = new PagedQuery(engine(orgId), scope(spec as QuerySpec, orgId), live);
           untracked(() => query.start());
           current.set(query);
           onCleanup(() => query.stop());
@@ -217,10 +271,10 @@ export function repo<T>(
 
     count(spec = {}) {
       const orgId = context.requireOrgId();
-      const key = `${path(orgId)}|${JSON.stringify(spec)}`;
+      const key = `${orgId}|${path(orgId)}|${JSON.stringify(spec)}`;
       const cached = counts.get(key);
       if (cached && now() - cached.at < COUNT_CACHE_MS) return cached.value;
-      const value = guard(() => driverFor(orgId).count(spec), 'read');
+      const value = guard(() => driverFor(orgId).count(scope(spec as QuerySpec, orgId)), 'read');
       counts.set(key, { at: now(), value });
       value.catch(() => counts.delete(key));
       return value;
@@ -232,10 +286,13 @@ export function repo<T>(
         return driver().create(toFirestoreValue(input) as Record<string, unknown>, meta());
       }, 'write'),
 
-    update: (id, patch) =>
+    update: (id, patch, updateOptions = {}) =>
       guard(async () => {
+        const remove = updateOptions.remove ?? [];
         const input = entity.update ? entity.update.parse(patch) : patch;
-        await driver().update(id, toFirestoreValue(input) as Record<string, unknown>, meta());
+        // Removed fields must be updatable too: the strict update schema rejects any other key.
+        if (entity.update && remove.length) entity.update.parse(Object.fromEntries(remove.map((f) => [f, undefined])));
+        await driver().update(id, toFirestoreValue(input) as Record<string, unknown>, meta(), remove);
       }, 'write'),
 
     softDelete: (id) => guard(() => driver().softDelete(id, meta()), 'write'),
