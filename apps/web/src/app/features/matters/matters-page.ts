@@ -171,7 +171,7 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
         <mt-search-field
           #search
           label="Filter matters"
-          placeholder="Filter by number, title or client"
+          placeholder="Number, title or client"
           shortcut="/"
           [ngModel]="query()"
           (queryChange)="query.set($event)"
@@ -467,7 +467,9 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
       height: 13px;
     }
     .mt-matters-search {
-      width: 300px;
+      flex: 1 1 160px;
+      min-width: 0;
+      max-width: 260px;
     }
     .mt-matters-notice {
       display: flex;
