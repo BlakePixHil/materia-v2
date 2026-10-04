@@ -201,11 +201,25 @@ describe('privileged material', () => {
     await assertSucceeds(updateDoc(lawyer, stamped({ privileged: false }, uidFor('lawyer'))));
   });
 
-  it('a matter’s privileged flag is set at creation: no client changes it (CORE-03)', async () => {
+  it('a lawyer can toggle a matter’s privileged flag; a paralegal cannot (CORE-06)', async () => {
     await seed(specFor('matters'));
     for (const role of ROLES) {
-      await assertFails(updateDoc(doc(db(env, role), MATTER), stamped({ privileged: true }, uidFor(role))));
+      const update = updateDoc(doc(db(env, role), MATTER), stamped({ privileged: true }, uidFor(role)));
+      await (allows(role, 'matter.edit') && allows(role, 'privileged.view')
+        ? assertSucceeds(update)
+        : assertFails(update));
+      await seed(specFor('matters'));
     }
+    const lawyer = doc(db(env, 'lawyer'), MATTER);
+    await assertSucceeds(updateDoc(lawyer, stamped({ privileged: true }, uidFor('lawyer'))));
+    await assertSucceeds(updateDoc(lawyer, stamped({ privileged: false }, uidFor('lawyer'))));
+    // The paralegal can still edit the matter, just not the flag.
+    const paralegal = doc(db(env, 'paralegal'), MATTER);
+    await assertFails(updateDoc(paralegal, stamped({ privileged: true }, uidFor('paralegal'))));
+    await assertSucceeds(
+      updateDoc(paralegal, stamped({ title: 'Estate of Fictional Whitfield' }, uidFor('paralegal'))),
+    );
+    await seed(specFor('matters'));
   });
 
   it('readonly can query non-privileged matters only', async () => {
@@ -617,8 +631,14 @@ describe('matters (CORE-03)', () => {
           responsibleUid: uidFor('lawyer'),
           teamUids: [uidFor('paralegal')],
           externalRef: 'LEG-0042',
-          stageId: 'grant',
-          estate: { grossValueCents: 100 },
+          estate: { grossValueCents: 100, grantDate: '2026-05-01', grantNo: 'S PRB 2026 0042' },
+          facts: { willDate: '2019-03-14', courtFileNo: 'S ECI 2026 01234' },
+          deceased: {
+            contactId: 'contact-2',
+            dateOfDeath: '2026-01-02',
+            domicile: 'VIC',
+            lastAddress: 'Geelong VIC',
+          },
         },
         uid,
       ),
@@ -640,6 +660,9 @@ describe('matters (CORE-03)', () => {
       { lastActivityAt: serverTimestamp() },
       { type: 'will' },
       { clientContactIds: ['contact-2'] },
+      // The stage moves through matters-changeStage (CORE-06).
+      { stageId: 'grant_issued' },
+      { title: 'Allowed', stageId: 'grant_issued' },
       { title: 'Allowed', status: 'archived' },
     ]) {
       await assertFails(updateDoc(ref, stamped(change, uid)));
@@ -685,6 +708,67 @@ describe('matters (CORE-03)', () => {
     await assertSucceeds(list(db(env, 'readonly'), where('privileged', '==', false)));
     await assertFails(list(db(env, 'readonly')));
     await assertFails(list(db(env, 'owner', OTHER_ORG)));
+  });
+
+  it('clients record key facts and the deceased directly (CORE-06)', async () => {
+    const paralegal = doc(db(env, 'paralegal'), MATTER);
+    const uid = uidFor('paralegal');
+    await assertSucceeds(updateDoc(paralegal, stamped({ facts: { willDate: '2019-03-14' } }, uid)));
+    await assertSucceeds(updateDoc(paralegal, stamped({ facts: { courtFileNo: 'S ECI 2026 01234' } }, uid)));
+    await assertSucceeds(
+      updateDoc(
+        paralegal,
+        stamped(
+          {
+            deceased: {
+              contactId: 'contact-2',
+              dateOfDeath: '2026-01-02',
+              domicile: 'VIC',
+              lastAddress: 'Geelong VIC',
+            },
+          },
+          uid,
+        ),
+      ),
+    );
+    await assertSucceeds(updateDoc(paralegal, stamped({ estate: { grantDate: '2026-05-01' } }, uid)));
+    const readonly = doc(db(env, 'readonly'), MATTER);
+    await assertFails(updateDoc(readonly, stamped({ facts: { willDate: '2019-03-14' } }, uidFor('readonly'))));
+  });
+
+  it.each(EVERYONE)('stageId and clientContactIds are refused as %s (CORE-06)', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, MATTER);
+    await assertFails(updateDoc(ref, stamped({ stageId: 'grant_application' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ clientContactIds: ['contact-1', 'contact-2'] }, uid)));
+  });
+
+  describe('parties (CORE-06)', () => {
+    const PARTY = `${MATTER}/parties/client-contact-1`;
+    beforeEach(() =>
+      seedAdmin(env, (f) =>
+        setDoc(doc(f, PARTY), { ...seedData(specFor('parties')), contactId: 'contact-1', role: 'client' }),
+      ),
+    );
+
+    it.each(ROLES)('share and notes follow matter.edit, as %s', async (role) => {
+      const update = updateDoc(
+        doc(db(env, role), PARTY),
+        stamped({ share: 'One half', notes: 'Prefers email' }, uidFor(role)),
+      );
+      await (allows(role, 'matter.edit') ? assertSucceeds(update) : assertFails(update));
+    });
+
+    it.each(ROLES)('role, contact and soft delete go through the callables, as %s', async (role) => {
+      const ref = doc(db(env, role), PARTY);
+      const uid = uidFor(role);
+      await assertFails(updateDoc(ref, stamped({ role: 'beneficiary' }, uid)));
+      await assertFails(updateDoc(ref, stamped({ contactId: 'contact-2' }, uid)));
+      await assertFails(updateDoc(ref, stamped({ addedFrom: 'clerk' }, uid)));
+      await assertFails(
+        updateDoc(ref, { deletedAt: serverTimestamp(), deletedBy: uid, updatedAt: serverTimestamp(), updatedBy: uid }),
+      );
+    });
   });
 
   it.each(ROLES)('counters and number reservations are server-only, as %s', async (role) => {
