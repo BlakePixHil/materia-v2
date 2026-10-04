@@ -63,6 +63,11 @@ export const ERROR_CODES = {
   MATTER_STAGE_REQUIREMENTS: 'failed-precondition',
   /** A matter must keep at least one client party (CORE-06). */
   LAST_CLIENT: 'failed-precondition',
+  /**
+   * Publishing a template version drops stages that matters are in: map each to a stage of the new
+   * version (`details.stages` lists them, CORE-07).
+   */
+  TEMPLATE_STAGE_MAPPING_REQUIRED: 'failed-precondition',
   INTERNAL: 'internal',
 } as const;
 

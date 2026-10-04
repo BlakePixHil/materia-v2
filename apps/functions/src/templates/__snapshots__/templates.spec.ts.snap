@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`matters-createMatter with templates > creates a probate matter with a known date of death: its tasks and due dates 1`] = `
+[
+  {
+    "assigneeUid": "user-lawyer",
+    "dueDate": "2026-10-06",
+    "duePending": null,
+    "group": "Instructions",
+    "id": "tpl-take_instructions",
+    "order": 1,
+    "priority": "high",
+    "title": "Take the executor’s instructions",
+  },
+  {
+    "assigneeUid": "user-lawyer",
+    "dueDate": "2026-10-09",
+    "duePending": null,
+    "group": "Instructions",
+    "id": "tpl-send_costs_disclosure",
+    "order": 2,
+    "priority": "high",
+    "title": "Send the costs disclosure and engagement letter",
+  },
+  {
+    "assigneeUid": "user-para",
+    "dueDate": "2026-10-18",
+    "duePending": null,
+    "group": "Instructions",
+    "id": "tpl-obtain_death_certificate",
+    "order": 3,
+    "priority": "medium",
+    "title": "Obtain the death certificate",
+  },
+  {
+    "assigneeUid": "user-para",
+    "dueDate": "2026-10-11",
+    "duePending": null,
+    "group": "Instructions",
+    "id": "tpl-retrieve_original_will",
+    "order": 4,
+    "priority": "medium",
+    "title": "Retrieve the original will from safe custody",
+  },
+  {
+    "assigneeUid": "user-para",
+    "dueDate": "2026-08-29",
+    "duePending": null,
+    "group": "Instructions",
+    "id": "tpl-notify_centrelink",
+    "order": 5,
+    "priority": "low",
+    "title": "Notify Centrelink and stop pensions or benefits",
+  },
+  {
+    "assigneeUid": "user-lawyer",
+    "dueDate": "2026-10-30",
+    "duePending": null,
+    "group": "Statutory (s 33) notice published",
+    "id": "tpl-engage_tax_accountant",
+    "order": 17,
+    "priority": "medium",
+    "title": "Engage an accountant for the date-of-death tax return",
+  },
+]
+`;

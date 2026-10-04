@@ -32,6 +32,7 @@ import {
   Invoice,
   CreditNote,
   MatterTemplate,
+  MatterTemplateVersion,
   DocTemplate,
   Metrics,
   AuditEntry,
@@ -158,6 +159,9 @@ export const CreditNoteUpdateSchema = CreditNote.update;
 export const MatterTemplateSchema = MatterTemplate.schema;
 export const MatterTemplateCreateSchema = MatterTemplate.create;
 export const MatterTemplateUpdateSchema = MatterTemplate.update;
+export const MatterTemplateVersionSchema = MatterTemplateVersion.schema;
+export const MatterTemplateVersionCreateSchema = MatterTemplateVersion.create;
+export const MatterTemplateVersionUpdateSchema = MatterTemplateVersion.update;
 export const DocTemplateSchema = DocTemplate.schema;
 export const DocTemplateCreateSchema = DocTemplate.create;
 export const DocTemplateUpdateSchema = DocTemplate.update;

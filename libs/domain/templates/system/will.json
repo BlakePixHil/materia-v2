@@ -1,0 +1,179 @@
+{
+  "id": "system-will",
+  "source": "system",
+  "version": 1,
+  "published": true,
+  "publishedAt": "2026-10-04",
+  "matterType": "will",
+  "name": "Will",
+  "stages": [
+    {
+      "id": "instructions",
+      "name": "Instructions",
+      "order": 10,
+      "criteria": "Instructions taken and the fixed-fee quote accepted"
+    },
+    {
+      "id": "draft",
+      "name": "Draft",
+      "order": 20,
+      "criteria": "Draft will prepared and checked",
+      "entryRequires": {
+        "tasksDone": ["take_instructions"]
+      }
+    },
+    {
+      "id": "client_review",
+      "name": "Client review",
+      "order": 30,
+      "criteria": "Draft sent to the client and approved",
+      "entryRequires": {
+        "tasksDone": ["prepare_draft"]
+      }
+    },
+    {
+      "id": "execution",
+      "name": "Execution",
+      "order": 40,
+      "criteria": "Will signed and witnessed",
+      "entryRequires": {
+        "tasksDone": ["record_client_approval"]
+      }
+    },
+    {
+      "id": "safe_custody",
+      "name": "Safe custody",
+      "order": 50,
+      "criteria": "Original will in safe custody and a copy sent",
+      "entryRequires": {
+        "facts": ["willDate"],
+        "tasksDone": ["supervise_execution"]
+      }
+    },
+    {
+      "id": "closed",
+      "name": "Closed",
+      "order": 60,
+      "criteria": "Reporting letter sent and the file closed",
+      "entryRequires": {
+        "tasksDone": ["register_safe_custody"]
+      },
+      "terminal": true
+    }
+  ],
+  "tasks": [
+    {
+      "key": "take_instructions",
+      "title": "Take will instructions",
+      "stageId": "instructions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 3
+      },
+      "priority": "high",
+      "checklist": [
+        "Family and dependants",
+        "Assets, including jointly held assets and super",
+        "Executors and guardians",
+        "Capacity and independence considered (file note)"
+      ]
+    },
+    {
+      "key": "send_engagement",
+      "title": "Send the engagement letter and fixed-fee quote",
+      "stageId": "instructions",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 2
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "prepare_draft",
+      "title": "Prepare the draft will",
+      "stageId": "draft",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 5
+      },
+      "priority": "high"
+    },
+    {
+      "key": "send_draft",
+      "title": "Send the draft will to the client",
+      "stageId": "client_review",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 1
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "record_client_approval",
+      "title": "Record the client’s approval or changes",
+      "stageId": "client_review",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "book_signing",
+      "title": "Book the signing appointment",
+      "stageId": "execution",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 3
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "supervise_execution",
+      "title": "Supervise signing and witnessing",
+      "stageId": "execution",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "high",
+      "checklist": [
+        "Two adult witnesses present together",
+        "Each page initialled",
+        "Attestation clause complete",
+        "File note of execution"
+      ]
+    },
+    {
+      "key": "register_safe_custody",
+      "title": "Register the original will in safe custody",
+      "stageId": "safe_custody",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 2
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "send_copy_to_client",
+      "title": "Send a certified copy and reporting letter to the client",
+      "stageId": "safe_custody",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 5
+      },
+      "priority": "low"
+    },
+    {
+      "key": "close_file",
+      "title": "Close the file",
+      "stageId": "closed",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 7
+      },
+      "priority": "low"
+    }
+  ],
+  "deadlineRuleIds": []
+}

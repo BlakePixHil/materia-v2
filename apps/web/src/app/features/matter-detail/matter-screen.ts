@@ -5,10 +5,10 @@ import {
   MEMBER_LIST_QUERY,
   matterCallables,
   matterDetailRepository,
-  matterTemplatesRepository,
+  matterTemplateStagesLoader,
   membersRepository,
 } from '@materia/data-access/repository';
-import { matterStages, type KeyFactId } from '@materia/domain';
+import { matterStages, type KeyFactId, type TemplateStageLike } from '@materia/domain';
 
 import { recentUpdateText, type MatterRecord } from './matter-view';
 import { CALLABLES } from '../../core/data/callables';
@@ -62,9 +62,9 @@ export class MatterScreen {
   /** Bumped to ask the Parties tab to open "Add party" (the `p` shortcut). */
   readonly addPartyRequest = signal(0);
 
-  // The template's stages (CORE-07), read once per template; the type's defaults otherwise.
-  private readonly templates = matterTemplatesRepository();
-  private readonly templateStages = signal<{ id: string; title: string }[] | null>(null);
+  // The template version's stages (CORE-07), read once per template version; the type's defaults otherwise.
+  private readonly loadTemplateStages = matterTemplateStagesLoader();
+  private readonly templateStages = signal<TemplateStageLike[] | null>(null);
   readonly stages = computed(() => {
     const matter = this.matter.value();
     return matter ? matterStages(matter.type, this.templateStages() ?? undefined) : [];
@@ -81,11 +81,13 @@ export class MatterScreen {
     let loadedFor: string | null = null;
     effect(() => {
       const templateId = this.matter.value()?.templateId ?? null;
-      if (templateId === loadedFor) return;
-      loadedFor = templateId;
+      const version = this.matter.value()?.templateVersion ?? null;
+      const key = templateId ? `${templateId}@${version ?? ''}` : null;
+      if (key === loadedFor) return;
+      loadedFor = key;
       untracked(() => {
         this.templateStages.set(null);
-        if (templateId) void this.loadTemplate(templateId);
+        if (templateId) void this.loadTemplate(templateId, version);
       });
     });
     // Titles and breadcrumbs show the matter's number once it's known.
@@ -113,11 +115,12 @@ export class MatterScreen {
     return this.matter.value();
   }
 
-  private async loadTemplate(templateId: string): Promise<void> {
+  private async loadTemplate(templateId: string, version: number | null): Promise<void> {
     try {
-      const template = await this.templates.get(templateId);
-      if (template && untracked(() => this.matter.value()?.templateId) === templateId) {
-        this.templateStages.set(template.stages);
+      const stages = await this.loadTemplateStages(templateId, version);
+      const current = untracked(() => this.matter.value());
+      if (stages && current?.templateId === templateId && (current.templateVersion ?? null) === version) {
+        this.templateStages.set(stages);
       }
     } catch {
       // No template (deleted, or not readable): the type's default stages stand.

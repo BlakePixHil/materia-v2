@@ -1,3 +1,4 @@
+import { inject, Injector, runInInjectionContext } from '@angular/core';
 import { z } from 'zod';
 
 import {
@@ -5,7 +6,10 @@ import {
   Deadline,
   Matter,
   MatterTemplate,
+  MatterTemplateVersion,
   Party,
+  StageEntryRequiresSchema,
+  systemTemplate,
   SoftDeleteShape,
   Task,
   type ChangeMatterStageInput,
@@ -16,6 +20,7 @@ import {
   type PartyResult,
   type RemovePartyInput,
   type TaskStatus,
+  type TemplateStageLike,
   type UpsertPartyInput,
 } from '@materia/domain';
 
@@ -39,6 +44,7 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   status: matter.status,
   stageId: matter.stageId,
   templateId: matter.templateId,
+  templateVersion: matter.templateVersion,
   jurisdiction: matter.jurisdiction,
   responsibleUid: matter.responsibleUid,
   teamUids: matter.teamUids,
@@ -185,19 +191,64 @@ export function matterActivityRepository(matterId: () => string | null): Reposit
 
 const template = MatterTemplate.schema.shape;
 
+/**
+ * A template stage as the stepper reads it: CORE-07 stages (`name`, `criteria`, `entryRequires`,
+ * `terminal`) and CORE-06 ones (`title`) both parse; other fields are dropped.
+ */
+export const MatterTemplateStageSchema = /* @__PURE__ */ z.object({
+  id: z.string().min(1),
+  name: z.string().optional(),
+  title: z.string().optional(),
+  criteria: z.string().optional(),
+  entryRequires: StageEntryRequiresSchema.optional(),
+  terminal: z.boolean().optional(),
+});
+
 export const MatterTemplateStagesSchema = /* @__PURE__ */ z.object({
   name: template.name,
   matterType: template.matterType,
-  stages: template.stages,
+  stages: z.array(MatterTemplateStageSchema),
 });
 export type MatterTemplateStages = z.infer<typeof MatterTemplateStagesSchema>;
 
-/** Matter templates (`orgs/{orgId}/templates`, CORE-07), read for their stages. */
+/** Matter templates (`orgs/{orgId}/templates`, CORE-07): the org's drafts, read for their stages. */
 export function matterTemplatesRepository(): Repository<MatterTemplateStages> {
   return repo((orgId) => `orgs/${orgId}/templates`, {
     schema: MatterTemplateStagesSchema,
     version: MatterTemplate.version,
   });
+}
+
+/** A template's published versions (`orgs/{orgId}/templates/{id}/versions/{n}`, CORE-07), immutable. */
+export function matterTemplateVersionsRepository(templateId: string): Repository<MatterTemplateStages> {
+  return repo((orgId) => `orgs/${orgId}/templates/${templateId}/versions`, {
+    schema: MatterTemplateStagesSchema,
+    version: MatterTemplateVersion.version,
+  });
+}
+
+/**
+ * Reads a matter's template stages (CORE-07), as `matters-changeStage` does: the bundled system
+ * template (`system-{type}`), the matter's published version, else the template document; null
+ * when there is none (the type's default stages apply). Create it in an injection context.
+ */
+export function matterTemplateStagesLoader(): (
+  templateId: string,
+  version?: number | null,
+) => Promise<TemplateStageLike[] | null> {
+  const injector = inject(Injector);
+  const drafts = matterTemplatesRepository();
+  return async (templateId, version) => {
+    const system = systemTemplate(templateId);
+    if (system) return system.stages;
+    if (version) {
+      const versions = runInInjectionContext(injector, () => matterTemplateVersionsRepository(templateId));
+      const found = await versions.get(String(version));
+      if (found?.stages.length) return found.stages;
+    }
+    const draft = await drafts.get(templateId);
+    return draft?.stages.length ? draft.stages : null;
+  };
 }
 
 // ---------- callables ----------
@@ -209,7 +260,7 @@ type Input<T> = Omit<T, 'requestId'>;
 export interface MatterCallables {
   /** `matters-changeStatus` (matter.status). */
   changeStatus(input: Input<ChangeMatterStatusInput>): Promise<ChangeMatterStatusResult>;
-  /** `matters-changeStage` (matter.edit); `MATTER_STAGE_REQUIREMENTS` lists missing key facts. */
+  /** `matters-changeStage` (matter.edit); `MATTER_STAGE_REQUIREMENTS` lists missing key facts (and, CORE-07, events and tasks). */
   changeStage(input: Input<ChangeMatterStageInput>): Promise<ChangeMatterStageResult>;
   /** `matters-upsertParty` (matter.edit): add a contact in a role, or edit a party row. */
   upsertParty(input: Input<UpsertPartyInput>): Promise<PartyResult>;

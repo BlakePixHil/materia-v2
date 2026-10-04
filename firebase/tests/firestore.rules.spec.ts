@@ -839,6 +839,45 @@ describe('conflict checks (CORE-02)', () => {
   );
 });
 
+describe('matter templates (CORE-07)', () => {
+  const TEMPLATE = `orgs/${ORG}/templates/template-1`;
+  const VERSION = `${TEMPLATE}/versions/1`;
+
+  beforeAll(() =>
+    seedAdmin(env, async (f) => {
+      await setDoc(doc(f, TEMPLATE), seedData(specFor('templates')));
+      await setDoc(doc(f, VERSION), seedData(specFor('versions (templates)')));
+    }),
+  );
+
+  it.each(EVERYONE)('a template and its versions are read by members only, as %s', async (who) => {
+    const { firestore } = firestoreOf(who);
+    for (const path of [TEMPLATE, VERSION]) {
+      const read = getDoc(doc(firestore, path));
+      await (isMember(who) ? assertSucceeds(read) : assertFails(read));
+    }
+  });
+
+  it('lists templates and versions for members; other orgs are refused', async () => {
+    const list = (firestore: Firestore, path: string) => getDocs(query(collection(firestore, path), limit(10)));
+    await assertSucceeds(list(db(env, 'readonly'), `orgs/${ORG}/templates`));
+    await assertSucceeds(list(db(env, 'paralegal'), `${TEMPLATE}/versions`));
+    await assertFails(list(db(env, 'owner', OTHER_ORG), `orgs/${ORG}/templates`));
+    await assertFails(list(db(env, 'owner', OTHER_ORG), `${TEMPLATE}/versions`));
+  });
+
+  it.each(EVERYONE)('templates are never written by a client, even an owner, as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    await assertFails(setDoc(doc(firestore, `orgs/${ORG}/templates/template-new`), seedData(specFor('templates'))));
+    await assertFails(updateDoc(doc(firestore, TEMPLATE), stamped({ name: 'Renamed' }, uid)));
+    await assertFails(updateDoc(doc(firestore, TEMPLATE), stamped({ published: true, version: 9 }, uid)));
+    await assertFails(deleteDoc(doc(firestore, TEMPLATE)));
+    await assertFails(setDoc(doc(firestore, `${TEMPLATE}/versions/2`), seedData(specFor('versions (templates)'))));
+    await assertFails(updateDoc(doc(firestore, VERSION), stamped({ name: 'Rewritten' }, uid)));
+    await assertFails(deleteDoc(doc(firestore, VERSION)));
+  });
+});
+
 describe('saved views (CORE-03)', () => {
   const viewsOf = (uid: string) => `users/${uid}/views`;
   /** A new view as the client writes it. */

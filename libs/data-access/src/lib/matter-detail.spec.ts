@@ -14,6 +14,7 @@ import {
   matterPartiesRepository,
   matterTasksRepository,
   matterTemplatesRepository,
+  matterTemplateStagesLoader,
   OPEN_DEADLINES_QUERY,
   OPEN_TASKS_QUERY,
   RECENT_ACTIVITY_QUERY,
@@ -165,6 +166,45 @@ describe('a matter’s records', () => {
     });
     const found = await TestBed.runInInjectionContext(() => matterTemplatesRepository()).get('tpl-1');
     expect(found?.stages).toEqual([{ id: 'intake', title: 'Getting started' }]);
+  });
+
+  it('loads a matter’s template stages: system bundle, published version, else the draft (CORE-07)', async () => {
+    const fs = setup();
+    const draft = { name: 'Fictional wills', matterType: 'will', tasks: [], deadlineRuleIds: [], ...meta };
+    fs.set('orgs/org-a/templates/tpl-2', {
+      ...draft,
+      version: 1,
+      published: true,
+      source: 'org',
+      stages: [{ id: 'start', name: 'Draft start', order: 1 }],
+    });
+    fs.set('orgs/org-a/templates/tpl-2/versions/1', {
+      ...draft,
+      templateId: 'tpl-2',
+      version: 1,
+      published: true,
+      source: 'org',
+      stages: [
+        { id: 'start', name: 'Start', order: 1 },
+        { id: 'end', name: 'End', order: 2, entryRequires: { facts: ['willDate'] }, terminal: true },
+      ],
+    });
+    const load = TestBed.runInInjectionContext(() => matterTemplateStagesLoader());
+    expect((await load('system-will'))?.map((s) => s.id)).toEqual([
+      'instructions',
+      'draft',
+      'client_review',
+      'execution',
+      'safe_custody',
+      'closed',
+    ]);
+    expect(await load('tpl-2', 1)).toEqual([
+      { id: 'start', name: 'Start' },
+      { id: 'end', name: 'End', entryRequires: { facts: ['willDate'] }, terminal: true },
+    ]);
+    expect(await load('tpl-2', 7)).toEqual([{ id: 'start', name: 'Draft start' }]);
+    expect(await load('tpl-2')).toEqual([{ id: 'start', name: 'Draft start' }]);
+    expect(await load('tpl-missing')).toBeNull();
   });
 });
 

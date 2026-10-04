@@ -1,0 +1,221 @@
+{
+  "id": "system-contest",
+  "source": "system",
+  "version": 1,
+  "published": true,
+  "publishedAt": "2026-10-04",
+  "matterType": "contest",
+  "name": "Will contest (VIC)",
+  "stages": [
+    {
+      "id": "instructions",
+      "name": "Instructions",
+      "order": 10,
+      "criteria": "Instructions and grounds recorded, costs disclosure sent"
+    },
+    {
+      "id": "will_grant_search",
+      "name": "Will & grant search",
+      "order": 20,
+      "criteria": "Will, grant status and medical records requested",
+      "entryRequires": {
+        "tasksDone": ["take_instructions"]
+      }
+    },
+    {
+      "id": "caveat_lodged",
+      "name": "Caveat lodged",
+      "order": 30,
+      "criteria": "Caveat against the grant lodged",
+      "entryRequires": {
+        "events": ["caveat_lodged"],
+        "tasksDone": ["search_for_grant"]
+      }
+    },
+    {
+      "id": "proceedings_filed",
+      "name": "Proceedings filed",
+      "order": 40,
+      "criteria": "Proceedings filed in the Supreme Court",
+      "entryRequires": {
+        "facts": ["courtFileNo"]
+      }
+    },
+    {
+      "id": "directions",
+      "name": "Directions",
+      "order": 50,
+      "criteria": "First directions hearing held",
+      "entryRequires": {
+        "tasksDone": ["serve_proceedings"]
+      }
+    },
+    {
+      "id": "mediation",
+      "name": "Mediation",
+      "order": 60,
+      "criteria": "Mediation held"
+    },
+    {
+      "id": "hearing",
+      "name": "Hearing",
+      "order": 70,
+      "criteria": "Matter heard"
+    },
+    {
+      "id": "orders",
+      "name": "Orders",
+      "order": 80,
+      "criteria": "Orders made or settlement signed",
+      "entryRequires": {
+        "events": ["order_made"]
+      }
+    },
+    {
+      "id": "closed",
+      "name": "Closed",
+      "order": 90,
+      "criteria": "Orders complied with, costs settled and the file closed",
+      "terminal": true
+    }
+  ],
+  "tasks": [
+    {
+      "key": "take_instructions",
+      "title": "Take instructions on the grounds of challenge",
+      "stageId": "instructions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 2
+      },
+      "priority": "high",
+      "checklist": ["Capacity", "Knowledge and approval", "Undue influence", "Formal validity", "Earlier wills"]
+    },
+    {
+      "key": "send_costs_disclosure",
+      "title": "Send the costs disclosure and costs agreement",
+      "stageId": "instructions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 5
+      },
+      "priority": "high",
+      "checklist": [
+        "Estimate of total legal costs",
+        "Rights to negotiate and to receive itemised bills",
+        "Client signed and returned the agreement"
+      ]
+    },
+    {
+      "key": "search_for_grant",
+      "title": "Search for a grant or a pending application",
+      "stageId": "will_grant_search",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 1
+      },
+      "priority": "urgent"
+    },
+    {
+      "key": "request_medical_records",
+      "title": "Request the will-maker’s medical records",
+      "stageId": "will_grant_search",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "high"
+    },
+    {
+      "key": "request_will_file",
+      "title": "Request the will file from the drafting solicitor",
+      "stageId": "will_grant_search",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "prepare_proceedings",
+      "title": "Prepare the originating process and supporting affidavit",
+      "stageId": "caveat_lodged",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "high"
+    },
+    {
+      "key": "serve_proceedings",
+      "title": "Serve the proceedings",
+      "stageId": "proceedings_filed",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 7
+      },
+      "priority": "high"
+    },
+    {
+      "key": "prepare_for_directions",
+      "title": "Prepare for the directions hearing",
+      "stageId": "directions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 7
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "mediation_position_paper",
+      "title": "Prepare the mediation position paper",
+      "stageId": "mediation",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "high"
+    },
+    {
+      "key": "brief_counsel",
+      "title": "Brief counsel for the hearing",
+      "stageId": "hearing",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "high"
+    },
+    {
+      "key": "prepare_court_book",
+      "title": "Prepare the court book",
+      "stageId": "hearing",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "high"
+    },
+    {
+      "key": "report_on_orders",
+      "title": "Report to the client on the orders or settlement",
+      "stageId": "orders",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 3
+      },
+      "priority": "high"
+    },
+    {
+      "key": "close_file",
+      "title": "Settle costs and close the file",
+      "stageId": "closed",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 30
+      },
+      "priority": "low"
+    }
+  ],
+  "deadlineRuleIds": ["vic.caveat.expiry", "vic.fp.limitation", "vic.offer.o26_expiry", "vic.order.compliance"]
+}

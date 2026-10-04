@@ -13,6 +13,7 @@ import { matterSearch } from './shared';
 import { clearRetentionCache } from '../audit/retention';
 import { runCallable, type CallableDeps } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
+import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
 import type { TriggerChange, TriggerContext } from '../core/trigger';
 import { memoryFirestore } from '../orgs/testing';
@@ -106,7 +107,11 @@ const failureOf = async (promise: Promise<unknown>) => {
   throw new Error('expected a failure');
 };
 
-beforeEach(() => clearRetentionCache());
+beforeEach(() => {
+  clearRetentionCache();
+  setRemoteFlagLoader(async () => ({}));
+});
+afterEach(() => clearFlagCaches());
 
 describe('matters-createMatter', () => {
   it('numbers matters in sequence from the year’s counter and writes the matter, parties and reservation', async () => {

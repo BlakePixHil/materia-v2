@@ -39,6 +39,8 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   MATTER_INVALID_TRANSITION: 'The matter can’t move to that status from where it is now.',
   MATTER_STAGE_REQUIREMENTS: 'Record the missing key facts before moving the matter to that stage.',
   LAST_CLIENT: 'A matter needs at least one client. Add another client before removing this one.',
+  TEMPLATE_STAGE_MAPPING_REQUIRED:
+    'Some matters are in a stage this version removes. Choose where those matters should move, then publish again.',
   ALREADY_MEMBER: 'This person is already a member of the practice.',
   LAST_OWNER: 'A practice needs at least one owner. Make someone else an owner first.',
   EMAIL_NOT_VERIFIED: 'Confirm your email first, then try again.',
