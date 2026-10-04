@@ -15,4 +15,5 @@ html, body { background: var(--bg-surface); }
 @keyframes mt-spin { to { transform: rotate(360deg); } }
 @keyframes mt-pulse { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 @keyframes mt-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes mt-caret { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .mt-working .dots i, .mt-shimmer, .mt-btn[data-loading] .mt-i:first-child { animation: none; } .mt-shimmer { color: var(--text-ai); background: none; } * { transition: none !important; } }

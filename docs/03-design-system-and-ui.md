@@ -151,6 +151,26 @@ Formatting pipes, all `en-AU` and the org timezone (`MT_ORG_TIMEZONE`, default `
 - Large tables: from `virtualThreshold` rows (200) only the visible rows render, between spacer rows, with `aria-rowcount`/`aria-rowindex`. Row heights are fixed per density.
 - Empty: an `[mtTableEmpty]` element is shown when there are no rows.
 
+### Clerk components and charts (FND-11)
+
+Every Clerk component renders the Clerk mark (`<mt-clerk-mark>`, the violet sparkle avatar), so AI content is always marked; a spec checks it.
+
+| Component | Use |
+| -- | -- |
+| `<mt-clerk-message [content] [citations] state (retry) (citationOpen)>`, `<mt-user-message>` | An answer. `content` is Markdown, parsed by `parseMarkdown()` into a tree that templates render: never `innerHTML`, raw HTML stays text, links are http(s)/mailto only, images are never loaded. While `state="streaming"`, half-finished syntax (`**bold`, `[1`, an open fence) renders tolerantly and a caret shows. `stopped` and `error` (with Retry) states. `[n]` markers map to the Citation chips. Actions are projected and appear when done |
+| `<mt-citation [citation] (open)>` | Source chip (`CitationVm`). Hover/focus previews the quote; `open` emits `{documentId, page, quote}` for the citation viewer (AI-05). `removed` and `restricted` ("Restricted source", no preview) states |
+| `<mt-clerk-brief label title [items] (action)>` | Clerk's summary card (`BriefItemVm`) |
+| `<mt-clerk-working label steps current progress reducedMotion>` | Working state, announced politely; motion stops under `prefers-reduced-motion` |
+| `<mt-suggestion [suggestion] stale busy (accept) (edit) (dismiss)>` | A proposal (Clerk proposes, a person accepts). Project a preview/diff. `stale`: "Data changed since suggested", and Accept becomes Review |
+| `<mt-composer scope [(value)] commands streaming (send) (stop) (attach)>` | Grows with its text, ⌘↵/Ctrl+Enter sends, Stop and Escape while streaming, `/` lists commands (↑/↓, Enter or Tab inserts) |
+
+**Charts.** `<mt-bar-chart>` and `<mt-line-chart>` are SVG computed from `ChartDatum[]` (`label`, `value`, `meta`), following the dataviz rules: one brand hue, no dual axes, bars at most 24px with a 4px rounded data end and a square baseline end, a zero baseline (negative values below it), and solid neutral reference lines. Inputs: `label` (the start of the generated `aria-label` summary), `format`/`tickFormat`, `categoryLabel`/`valueLabel` (table headers), `loading` and `emptyText`.
+
+- **BarChart** also takes `orientation` (auto switches to horizontal past 24 bars), `highlight` (other bars mute), `target` and `labelPoints`.
+- **LineChart** also takes `comparison` (the same measure for another period, neutral and dashed, never a second hue) and `reference`.
+- **Interaction:** every data point is focusable (one tab stop; arrows, Home and End move) with a tooltip on hover and focus. "View as table" shows the same data as a table. The width follows the container.
+- **Helpers:** `niceDomain`, `fittedDomain`, `linearScale`, `bandScale`, `verticalBarPath`, `horizontalBarPath` and `chartSummary` are exported for ScenarioBars (LIT-01).
+
 ### Storybook
 
 `pnpm storybook` (port 4400). The toolbar has a Light/Dark theme switch; backgrounds are the `bg-*` tokens; the a11y addon reports violations as errors. `Foundations/Colours`, `Type`, `Spacing` and `Theme` are rendered from `tokens.ts`. CI builds Storybook and runs the test-runner over every story (play functions and a11y): `pnpm nx run ui:test-storybook` against a running Storybook locally.
