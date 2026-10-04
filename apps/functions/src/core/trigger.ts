@@ -1,0 +1,137 @@
+import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import {
+  onDocumentCreated,
+  onDocumentDeleted,
+  onDocumentUpdated,
+  onDocumentWritten,
+  type Change,
+  type DocumentSnapshot,
+  type FirestoreEvent,
+} from 'firebase-functions/v2/firestore';
+
+import { REGION } from '../config';
+import type { Clock, Ports } from '../ports';
+import { adminDb } from './admin';
+import { createLog, functionsSink, type Log, type LogSink } from './log';
+import { ports, systemClock } from '../ports/container';
+
+const GUARD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type TriggerKind = 'written' | 'created' | 'updated' | 'deleted';
+
+export interface TriggerContext {
+  eventId: string;
+  params: Record<string, string>;
+  log: Log;
+  clock: Clock;
+  db: Firestore;
+  ports: Ports;
+}
+
+/** What the handler gets: before/after snapshots (either may be undefined). */
+export interface TriggerChange {
+  before: DocumentSnapshot | undefined;
+  after: DocumentSnapshot | undefined;
+}
+
+export interface TriggerDefinition {
+  name: string;
+  /** Document path pattern, e.g. `orgs/{orgId}/matters/{matterId}`. */
+  document: string;
+  on: TriggerKind;
+  handler: (change: TriggerChange, ctx: TriggerContext) => void | Promise<void>;
+}
+
+export interface TriggerDeps {
+  db: () => Firestore;
+  clock: Clock;
+  ports: () => Ports;
+  sink: LogSink;
+}
+
+/** The parts of a Firestore event the wrapper reads. */
+export interface TriggerEvent {
+  id: string;
+  params: Record<string, string>;
+  change: TriggerChange;
+}
+
+/**
+ * Runs a trigger handler once per event id: `eventGuards/{eventId}` is created first, so a
+ * redelivered event is skipped. Retries are off; a failure is logged as a dead letter (with ids
+ * only) and not rethrown.
+ */
+export async function runTrigger(
+  def: TriggerDefinition,
+  event: TriggerEvent,
+  deps: TriggerDeps,
+): Promise<'ran' | 'duplicate' | 'failed'> {
+  const log = createLog({ fn: def.name, eventId: event.id, orgId: event.params['orgId'] ?? null }, deps.sink);
+  const db = deps.db();
+  try {
+    await db.doc(`eventGuards/${event.id}`).create({
+      fn: def.name,
+      expiresAt: Timestamp.fromMillis(deps.clock.now().getTime() + GUARD_TTL_MS),
+    });
+  } catch (error) {
+    if ((error as { code?: number | string }).code === 6 || (error as { code?: string }).code === 'already-exists') {
+      log.info('duplicate event skipped');
+      return 'duplicate';
+    }
+    throw error;
+  }
+  try {
+    await def.handler(event.change, {
+      eventId: event.id,
+      params: event.params,
+      log,
+      clock: deps.clock,
+      db,
+      ports: deps.ports(),
+    });
+    log.info('ok');
+    return 'ran';
+  } catch (error) {
+    log.error('dead-letter', {
+      deadLetter: true,
+      document: def.document,
+      params: event.params,
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return 'failed';
+  }
+}
+
+const triggerDeps = (): TriggerDeps => ({ db: adminDb, clock: systemClock, ports, sink: functionsSink });
+
+type AnyEvent = FirestoreEvent<Change<DocumentSnapshot> | DocumentSnapshot | undefined, Record<string, string>>;
+
+export function toChange(kind: TriggerKind, data: AnyEvent['data']): TriggerChange {
+  if (!data) return { before: undefined, after: undefined };
+  if (kind === 'created') return { before: undefined, after: data as DocumentSnapshot };
+  if (kind === 'deleted') return { before: data as DocumentSnapshot, after: undefined };
+  const change = data as Change<DocumentSnapshot>;
+  return {
+    before: change.before.exists ? change.before : undefined,
+    after: change.after.exists ? change.after : undefined,
+  };
+}
+
+/** A Firestore trigger with logging, an event-id idempotency guard, no retries and a dead-letter log. */
+export function defineTrigger(def: TriggerDefinition) {
+  const options = { document: def.document, region: REGION, retry: false };
+  const run = (event: AnyEvent) =>
+    runTrigger(def, { id: event.id, params: event.params, change: toChange(def.on, event.data) }, triggerDeps()).then(
+      () => undefined,
+    );
+  switch (def.on) {
+    case 'created':
+      return onDocumentCreated(options, run);
+    case 'updated':
+      return onDocumentUpdated(options, run);
+    case 'deleted':
+      return onDocumentDeleted(options, run);
+    default:
+      return onDocumentWritten(options, run);
+  }
+}

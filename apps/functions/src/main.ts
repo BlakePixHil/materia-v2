@@ -4,5 +4,5 @@ import { REGION } from './config';
 
 setGlobalOptions({ region: REGION, maxInstances: 10 });
 
-// Each export group becomes a function-name prefix: `platform.ping` deploys as `platform-ping`.
-export * as platform from './platform/index';
+// Each export group becomes a function-name prefix: `system.echo` deploys as `system-echo`.
+export * as system from './system/index';

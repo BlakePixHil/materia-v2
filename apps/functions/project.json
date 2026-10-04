@@ -53,6 +53,14 @@
       "options": {
         "command": "tsc --noEmit -p apps/functions/tsconfig.app.json && tsc --noEmit -p apps/functions/tsconfig.spec.json"
       }
+    },
+    "test-integration": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "firebase emulators:exec --only auth,firestore,functions --project demo-materia --config firebase/firebase.json \"vitest run --config apps/functions/vitest.integration.config.mts\"",
+        "cwd": "{workspaceRoot}"
+      }
     }
   }
 }

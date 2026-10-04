@@ -17,6 +17,8 @@
     "src/**/*.spec.js",
     "src/**/*.test.jsx",
     "src/**/*.spec.jsx",
-    "src/**/*.d.ts"
+    "src/**/*.d.ts",
+    "vitest.integration.config.mts",
+    "tests/**/*.ts"
   ]
 }
