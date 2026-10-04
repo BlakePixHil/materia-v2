@@ -22,6 +22,8 @@ export interface TestAccountOptions {
   claims?: Record<string, unknown>;
   emailVerified?: boolean;
   displayName?: string;
+  /** Defaults to a unique fictional address. */
+  email?: string;
 }
 
 /** A unique fictional email for this test. */
@@ -33,7 +35,7 @@ export async function createTestAccount(
   request: APIRequestContext,
   options: TestAccountOptions = {},
 ): Promise<TestAccount> {
-  const email = uniqueEmail();
+  const email = options.email ?? uniqueEmail();
   const created = await request.post(
     `${AUTH_EMULATOR}/identitytoolkit.googleapis.com/v1/projects/${EMULATOR_PROJECT}/accounts`,
     {
@@ -57,7 +59,67 @@ export async function createTestAccount(
     },
   );
   expect(updated.ok(), await updated.text()).toBe(true);
+  // The rules check the member document as well as the claim (FND-17), so an org claim needs an
+  // active membership (written after the org's name, which auth-syncClaims copies into the claim).
+  if (typeof claims['orgId'] === 'string') {
+    const orgId = claims['orgId'];
+    if (typeof claims['orgName'] === 'string')
+      await writeFields(request, `orgs/${orgId}`, { name: { stringValue: claims['orgName'] } });
+    await writeFields(request, `orgs/${orgId}/members/${localId}`, {
+      role: { stringValue: String(claims['role'] ?? 'lawyer') },
+      status: { stringValue: 'active' },
+      email: { stringValue: email },
+      displayName: { stringValue: options.displayName ?? 'Jordan Price' },
+    });
+  }
   return { uid: localId, email, password: TEST_PASSWORD };
+}
+
+/** Sets fields on a document through the Firestore emulator's admin access, leaving other fields alone. */
+async function writeFields(request: APIRequestContext, path: string, fields: Record<string, unknown>): Promise<void> {
+  const mask = Object.keys(fields)
+    .map((field) => `updateMask.fieldPaths=${encodeURIComponent(field)}`)
+    .join('&');
+  const response = await request.patch(
+    `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/${path}?${mask}`,
+    { headers: ADMIN, data: { fields } },
+  );
+  expect(response.ok(), await response.text()).toBe(true);
+}
+
+/**
+ * The link in the latest invite email the emulator "sent" to this address (FND-17): the Functions
+ * emulator writes mail to `emulatorOutbox` instead of sending it.
+ */
+export async function latestInviteLink(request: APIRequestContext, email: string): Promise<string> {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const response = await request.post(
+      `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents:runQuery`,
+      {
+        headers: ADMIN,
+        data: {
+          structuredQuery: {
+            from: [{ collectionId: 'emulatorOutbox' }],
+            where: { fieldFilter: { field: { fieldPath: 'to' }, op: 'EQUAL', value: { stringValue: email } } },
+          },
+        },
+      },
+    );
+    const rows = (await response.json()) as {
+      document?: {
+        fields: {
+          sentAt: { timestampValue: string };
+          model: { mapValue: { fields: { link: { stringValue: string } } } };
+        };
+      };
+    }[];
+    const latest = rows
+      .flatMap((row) => (row.document ? [row.document.fields] : []))
+      .sort((a, b) => b.sentAt.timestampValue.localeCompare(a.sentAt.timestampValue))[0];
+    if (latest) return latest.model.mapValue.fields.link.stringValue;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`No invite email for ${email}`);
 }
 
 /** Signs in through the sign-in page (email, then password). */

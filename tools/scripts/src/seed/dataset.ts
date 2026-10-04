@@ -538,6 +538,7 @@ export function buildDataset(options: {
         ...meta,
         role: account.role,
         status: 'active',
+        email: account.email,
         displayName: account.displayName,
         initials: `${firstName[0] ?? ''}${lastName[0] ?? ''}`,
         title: member.title,
@@ -557,6 +558,7 @@ export function buildDataset(options: {
         lastName,
         orgIds: [org],
         activeOrgId: org,
+        memberships: { [org]: { role: account.role, name: 'Harbour & Vine Legal' } },
       }),
     );
   }

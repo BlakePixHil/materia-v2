@@ -15,7 +15,11 @@ import {
 export const Org = withMeta(
   {
     name: NonEmptyString,
-    abn: z.string().regex(/^\d{11}$/, { message: 'ABN is 11 digits' }),
+    /** Optional at onboarding (FND-17); set later in org settings. */
+    abn: z
+      .string()
+      .regex(/^\d{11}$/, { message: 'ABN is 11 digits' })
+      .optional(),
     acn: z
       .string()
       .regex(/^\d{9}$/)
@@ -71,6 +75,11 @@ export const Member = withMeta(
   {
     role: RoleSchema,
     status: MemberStatusSchema,
+    /** Lower-case sign-in email, shown in the team list to tell apart members with the same name (FND-17). */
+    email: z
+      .email()
+      .transform((value) => value.toLowerCase())
+      .optional(),
     displayName: NonEmptyString,
     initials: z.string().min(1).max(3),
     title: z.string(),
@@ -81,7 +90,12 @@ export const Member = withMeta(
     budgets: z.record(z.string().regex(/^\d{4}$/), CentsSchema).default({}),
     supervisorUid: DocIdSchema.optional(),
   },
-  { path: 'orgs/{orgId}/members' },
+  {
+    path: 'orgs/{orgId}/members',
+    // Role and status change only through the orgs-* callables, which keep the last-owner invariant
+    // and the custom claims in step (FND-17).
+    serverOwned: ['role', 'status', 'email'],
+  },
 );
 
 /** `orgs/{orgId}/invites/{inviteId}`. The raw token is never stored, only its hash. */
@@ -93,8 +107,15 @@ export const Invite = withMeta(
     expiresAt: InstantSchema,
     status: InviteStatusSchema,
     invitedBy: DocIdSchema,
+    /** Who accepted it and when (FND-17); accepting again is a no-op for them. */
+    acceptedBy: DocIdSchema.optional(),
+    acceptedAt: InstantSchema.optional(),
   },
-  { path: 'orgs/{orgId}/invites', serverOwned: ['tokenHash', 'status', 'invitedBy', 'expiresAt'], updatable: ['role'] },
+  {
+    path: 'orgs/{orgId}/invites',
+    serverOwned: ['tokenHash', 'status', 'invitedBy', 'expiresAt', 'acceptedBy', 'acceptedAt'],
+    updatable: ['role'],
+  },
 );
 
 /** `users/{uid}`: profile and preferences (user-scoped, not org-scoped). */
@@ -107,6 +128,11 @@ export const User = withMeta(
     orgIds: z.array(DocIdSchema),
     activeOrgId: DocIdSchema.nullable(),
     claimsVersion: z.number().int().min(0).default(0),
+    /**
+     * Active memberships with the org name, for the org switcher (FND-17). Mirrors the `orgs` claim,
+     * which carries roles only; written by `auth-syncClaims`.
+     */
+    memberships: z.record(DocIdSchema, z.object({ role: RoleSchema, name: z.string() })).default({}),
     prefs: z.object({
       theme: ThemeSchema,
       density: z.enum(['comfortable', 'compact']),
@@ -121,8 +147,9 @@ export const User = withMeta(
   },
   {
     path: 'users',
-    serverOwned: ['orgIds', 'claimsVersion', 'legacy'],
-    updatable: ['displayName', 'firstName', 'lastName', 'activeOrgId', 'prefs'],
+    // The active org changes only through `orgs-switchActiveOrg`, which also sets the claims.
+    serverOwned: ['orgIds', 'activeOrgId', 'claimsVersion', 'memberships', 'legacy'],
+    updatable: ['displayName', 'firstName', 'lastName', 'prefs'],
   },
 );
 

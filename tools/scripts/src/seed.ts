@@ -211,10 +211,12 @@ export async function main(argv: string[]): Promise<void> {
         displayName: account.displayName,
         emailVerified: true,
       });
+      // The claims auth-syncClaims computes from the member documents (FND-17).
       await auth.setCustomUserClaims(account.uid, {
         orgId: SEED_ORG_ID,
         role: account.role,
         orgName: 'Harbour & Vine Legal',
+        orgs: { [SEED_ORG_ID]: account.role },
       });
     }
     await writeDocs(db, dataset.docs);

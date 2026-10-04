@@ -123,6 +123,7 @@ Export it from the group's `index.ts` and the group from `main.ts` (`export * as
 - External services go through `ports()` (`apps/functions/src/ports`). Fakes are used in the emulator and with `MATERIA_FAKES=1`.
 - Background work: `defineQueue` (with retry config) plus `enqueue(name, payload, { dedupeKey })`. Firestore triggers: `defineTrigger`, which has no retries, an event-id guard and a dead-letter log.
 - Never use `console.*` in functions (lint error). Log through `ctx.log`.
+- Someone acting before they have a claim for the org (onboarding, accepting an invite, switching org) uses `defineUserCallable` instead, with `idempotent: true` (records in `users/{uid}/requests`). Member roles and statuses change only through the `orgs-*` callables, which keep at least one active owner and resync the claims (FND-17, [ADR-021](docs/adr/021-membership-checked-on-every-org-read.md)). In the emulator, emails land in the server-only `emulatorOutbox` collection (`latestInviteLink` in `@materia/test-utils/e2e` reads invite links from it).
 
 ## Run locally
 
@@ -141,7 +142,7 @@ Test accounts (emulator only; password `materia-local-dev` for all). Sign in at 
 | paralegal | `paralegal@harbourvine.example` | Daniel Kim   |
 | readonly  | `readonly@harbourvine.example`  | Sam Lee      |
 
-Each account carries the `orgId` and `role` custom claims the security rules check. The sign-in screen arrives with the auth tickets; until then, sign in from the Emulator UI or the Auth emulator REST API.
+Each account carries the `orgId` and `role` custom claims, and the rules also check its active member document (FND-17). The sign-in screen arrives with the auth tickets; until then, sign in from the Emulator UI or the Auth emulator REST API.
 
 ## Definition of done
 

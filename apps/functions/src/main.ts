@@ -7,3 +7,4 @@ export * as audit from './audit/index';
 export * as auth from './auth/index';
 export * as flags from './flags/index';
 export * as clerk from './clerk/index';
+export * as orgs from './orgs/index';

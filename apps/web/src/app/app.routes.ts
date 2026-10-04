@@ -114,6 +114,12 @@ const shellRoutes: Route[] = [
     path: 'settings',
     data: { crumb: 'Settings' },
     children: [
+      {
+        path: 'team',
+        title: 'Team',
+        data: { crumb: 'Team' },
+        loadComponent: () => import('./pages/orgs/team').then((m) => m.TeamPage),
+      },
       planned('**', 'Settings', {
         ticket: 'CORE-21',
         icon: 'settings',
@@ -194,13 +200,27 @@ export const appRoutes: Route[] = [
   {
     path: 'onboarding',
     loadComponent: minimalLayout,
-    // Signed in and verified, with MFA where required; FND-17 builds the page.
+    // Signed in and verified, with MFA where required. MIG-08 adds the import step.
     canActivate: [mfaGuard],
     children: [
-      planned('**', 'Set up your firm', {
-        ticket: 'FND-17',
-        description: 'Create your firm, invite your team and import matters.',
-      }),
+      {
+        path: '',
+        title: 'Set up your practice',
+        loadComponent: () => import('./pages/orgs/onboarding').then((m) => m.OnboardingPage),
+      },
+      { path: '**', redirectTo: '' },
+    ],
+  },
+  // Invite links (FND-17): works signed out too; the page asks the person to sign in first.
+  {
+    path: 'invite/:id',
+    loadComponent: minimalLayout,
+    children: [
+      {
+        path: '',
+        title: 'Join your practice',
+        loadComponent: () => import('./pages/orgs/invite').then((m) => m.InvitePage),
+      },
     ],
   },
   // The shell needs a signed-in, verified person with an active org (and MFA where required).
