@@ -85,12 +85,12 @@ export function refusingReferences(error: unknown): ContactReference[] | null {
       list-style: none;
       display: flex;
       flex-direction: column;
-      gap: var(--space-2, 8px);
+      gap: var(--space-8);
     }
     .mt-contact-refs li {
       display: flex;
       justify-content: space-between;
-      gap: var(--space-3, 12px);
+      gap: var(--space-12);
     }
     .mt-contact-refs .caption {
       color: var(--text-secondary);

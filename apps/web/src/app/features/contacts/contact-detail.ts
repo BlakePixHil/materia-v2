@@ -161,8 +161,8 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
     }
   `,
   styles: `
-    .mt-contact-detail {
-      gap: var(--space-4, 16px);
+    :host {
+      gap: var(--space-16);
       min-width: 0;
     }
     .mt-contact-muted {
@@ -172,14 +172,14 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
     .mt-contact-cards {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: var(--space-4, 16px);
+      gap: var(--space-16);
       align-items: start;
     }
     .mt-contact-card {
       display: flex;
       flex-direction: column;
-      gap: var(--space-3, 12px);
-      padding: var(--space-4, 16px);
+      gap: var(--space-12);
+      padding: var(--space-16);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-lg, 10px);
       background: var(--bg-surface);
@@ -188,7 +188,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
     .mt-contact-card h2 {
       display: flex;
       align-items: center;
-      gap: var(--space-2, 8px);
+      gap: var(--space-8);
       margin: 0;
       font: 600 13px/18px var(--font-sans);
       color: var(--text-primary);
@@ -207,9 +207,9 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
     }
     .mt-contact-matters li {
       display: flex;
-      gap: var(--space-3, 12px);
+      gap: var(--space-12);
       align-items: baseline;
-      padding: var(--space-2, 8px) 0;
+      padding: var(--space-8) 0;
       border-top: 1px solid var(--border-subtle);
     }
     .mt-contact-matters li:first-child {
@@ -219,7 +219,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
       color: var(--text-primary);
     }
     .mt-contact-activity li {
-      padding: var(--space-1, 4px) 0;
+      padding: var(--space-4) 0;
       font: 400 13px/18px var(--font-sans);
       color: var(--text-secondary);
     }

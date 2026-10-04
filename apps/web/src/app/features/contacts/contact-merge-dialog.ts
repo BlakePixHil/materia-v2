@@ -104,7 +104,7 @@ export interface ContactMergeDialogResult {
     .mt-merge-list {
       display: flex;
       flex-direction: column;
-      gap: var(--space-1, 4px);
+      gap: var(--space-4);
       max-height: 280px;
       overflow: auto;
     }
@@ -113,7 +113,7 @@ export interface ContactMergeDialogResult {
       flex-direction: column;
       align-items: flex-start;
       gap: 2px;
-      padding: var(--space-2, 8px) var(--space-3, 12px);
+      padding: var(--space-8) var(--space-12);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-md, 8px);
       background: var(--bg-surface);

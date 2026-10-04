@@ -196,7 +196,7 @@ async function open(url: string, session: AuthSession, options: Options = {}) {
     await stable();
   };
   const listNames = () =>
-    [...body.querySelectorAll('mt-table tbody tr[data-index] .label')].map((n) => n.textContent?.trim());
+    [...body.querySelectorAll('mt-table tbody tr[data-index] .mt-contacts-name')].map((n) => n.textContent?.trim());
   const detail = () => body.querySelector('mt-contact-detail')?.textContent?.replace(/\s+/g, ' ') ?? '';
   return {
     port,
@@ -286,14 +286,17 @@ describe('contacts list', () => {
     await page.type('Search contacts', '');
     await page.stable(250);
 
-    await page.choose('Show', 'Organisations');
+    const chip = async (text: string) => {
+      page.buttons(text)[0]?.click();
+      await page.stable();
+    };
+    await chip('Organisations');
     expect(page.listNames()).toEqual(['Coastal Fictional Accounting']);
-    await page.choose('Show', 'Everyone');
+    await chip('All');
     await page.choose('Tag', 'executor');
     expect(page.listNames()).toEqual(['Bram Ostler']);
     await page.choose('Tag', 'Any tag');
-    page.body.querySelector<HTMLElement>('mt-checkbox button')?.click();
-    await page.stable();
+    await chip('Referrers');
     expect(page.listNames()).toEqual(['Coastal Fictional Accounting']);
   });
 

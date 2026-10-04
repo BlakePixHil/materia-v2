@@ -331,24 +331,24 @@ export function duplicateReasons(match: Pick<DuplicateMatch, 'reasons'>): string
   `,
   styles: `
     .mt-contact-form {
-      gap: var(--space-4, 16px);
+      gap: var(--space-16);
     }
     .mt-contact-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: var(--space-3, 12px);
+      gap: var(--space-12);
     }
     .mt-contact-row {
       display: flex;
-      gap: var(--space-2, 8px);
+      gap: var(--space-8);
       align-items: flex-end;
       flex-wrap: wrap;
     }
     .mt-contact-address {
       display: flex;
       flex-direction: column;
-      gap: var(--space-2, 8px);
-      padding: var(--space-3, 12px);
+      gap: var(--space-8);
+      padding: var(--space-12);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-md, 8px);
     }
@@ -367,13 +367,13 @@ export function duplicateReasons(match: Pick<DuplicateMatch, 'reasons'>): string
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: var(--space-2, 8px);
+      gap: var(--space-8);
     }
     .mt-contact-dupes li {
       display: flex;
       align-items: center;
-      gap: var(--space-3, 12px);
-      padding: var(--space-3, 12px);
+      gap: var(--space-12);
+      padding: var(--space-12);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-md, 8px);
     }

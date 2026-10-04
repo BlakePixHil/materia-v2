@@ -27,7 +27,6 @@ import {
   DialogService,
   MtAvatar,
   MtButton,
-  MtCheckbox,
   MtEmptyState,
   MtNote,
   MtSearchField,
@@ -51,7 +50,7 @@ import { MtPageActions } from '../../shell/page-header';
 type Row = WithId<ContactListItem>;
 
 const KIND_FILTERS: MtOption<string>[] = [
-  { value: '', label: 'Everyone' },
+  { value: '', label: 'All' },
   { value: 'person', label: 'People' },
   { value: 'organisation', label: 'Organisations' },
 ];
@@ -69,7 +68,6 @@ const KIND_FILTERS: MtOption<string>[] = [
     FormsModule,
     MtAvatar,
     MtButton,
-    MtCheckbox,
     MtEmptyState,
     MtNote,
     MtPageActions,
@@ -97,14 +95,29 @@ const KIND_FILTERS: MtOption<string>[] = [
           shortcut="/"
           (queryChange)="query.set($event)"
         />
-        <div class="mt-contacts-filter-row">
-          <mt-select
-            label="Show"
-            [native]="true"
-            [options]="kindFilters"
-            [ngModel]="kind()"
-            (ngModelChange)="kind.set($event ?? '')"
-          />
+        <div class="mt-contacts-chips" role="group" aria-label="Show">
+          @for (option of kindFilters; track option.value) {
+            <button
+              type="button"
+              class="mt-chip"
+              [attr.data-selected]="kind() === option.value && !referrersOnly() ? '' : null"
+              [attr.aria-pressed]="kind() === option.value && !referrersOnly()"
+              (click)="kind.set(option.value); referrersOnly.set(false)"
+            >
+              {{ option.label }}
+            </button>
+          }
+          <button
+            type="button"
+            class="mt-chip"
+            [attr.data-selected]="referrersOnly() ? '' : null"
+            [attr.aria-pressed]="referrersOnly()"
+            (click)="referrersOnly.set(!referrersOnly())"
+          >
+            Referrers
+          </button>
+        </div>
+        @if (tagOptions().length > 1) {
           <mt-select
             label="Tag"
             [native]="true"
@@ -112,93 +125,96 @@ const KIND_FILTERS: MtOption<string>[] = [
             [ngModel]="tag()"
             (ngModelChange)="tag.set($event ?? '')"
           />
-        </div>
-        <mt-checkbox label="Referrers only" [ngModel]="referrersOnly()" (ngModelChange)="referrersOnly.set(!!$event)" />
+        }
       </div>
 
-      @switch (listState()) {
-        @case ('error') {
-          <mt-note tone="danger">
-            {{ listError() }}
-            <button mtButton size="sm" (click)="contacts.refresh()">Try again</button>
-          </mt-note>
+      <div class="mt-contacts-rows">
+        @switch (listState()) {
+          @case ('error') {
+            <mt-note tone="danger">
+              {{ listError() }}
+              <button mtButton size="sm" (click)="contacts.refresh()">Try again</button>
+            </mt-note>
+          }
+          @case ('offline') {
+            <mt-note role="status">
+              {{
+                rows().length
+                  ? 'You’re offline. These are your contacts as they were when you were last connected.'
+                  : 'You’re offline. Contacts will load when you reconnect.'
+              }}
+            </mt-note>
+          }
+          @case ('loading') {
+            <p role="status" class="mt-contacts-muted">Loading contacts…</p>
+          }
         }
-        @case ('offline') {
-          <mt-note role="status">
-            {{
-              rows().length
-                ? 'You’re offline. These are your contacts as they were when you were last connected.'
-                : 'You’re offline. Contacts will load when you reconnect.'
-            }}
-          </mt-note>
+        @if (contacts.newItems(); as count) {
+          <button mtButton size="sm" (click)="contacts.refresh()">
+            {{ count === 1 ? '1 new contact' : count + ' new contacts' }}
+          </button>
         }
-        @case ('loading') {
-          <p role="status" class="mt-contacts-muted">Loading contacts…</p>
-        }
-      }
-      @if (contacts.newItems(); as count) {
-        <button mtButton size="sm" (click)="contacts.refresh()">
-          {{ count === 1 ? '1 new contact' : count + ' new contacts' }}
-        </button>
-      }
-      @if (listState() !== 'loading' && listState() !== 'error') {
-        <mt-table
-          #table
-          label="Contacts"
-          density="compact"
-          [rows]="rows()"
-          [columns]="columns"
-          [rowKey]="rowKey"
-          [rowLabel]="rowLabel"
-          [selection]="selection()"
-          (open)="select($event.id)"
-          (focusin)="onRowFocus($event)"
-        >
-          <ng-template mtCell="name" let-cell>
-            @let row = asRow(cell);
-            <span class="mt-contacts-cell">
-              <mt-avatar
-                size="sm"
-                [name]="label(row)"
-                [colorKey]="row.id"
-                [kind]="row.kind === 'organisation' ? 'org' : 'person'"
-              />
-              <span class="mt-col" style="min-width: 0">
-                <span class="label mt-ell">{{ label(row) }}{{ row.dateOfDeath ? ' (dec.)' : '' }}</span>
-                @if (caption(row); as text) {
-                  <span class="caption mt-ell mt-contacts-muted">{{ text }}</span>
-                }
+        @if (listState() !== 'loading' && listState() !== 'error') {
+          <mt-table
+            #table
+            label="Contacts"
+            density="compact"
+            [rows]="rows()"
+            [columns]="columns"
+            [rowKey]="rowKey"
+            [rowLabel]="rowLabel"
+            [selection]="selection()"
+            (open)="select($event.id)"
+            (focusin)="onRowFocus($event)"
+          >
+            <ng-template mtCell="name" let-cell>
+              @let row = asRow(cell);
+              <span class="mt-contacts-cell">
+                <mt-avatar
+                  size="sm"
+                  [name]="label(row)"
+                  [colorKey]="row.id"
+                  [kind]="row.kind === 'organisation' ? 'org' : 'person'"
+                />
+                <span class="mt-col" style="min-width: 0">
+                  <span class="mt-contacts-name mt-ell">{{ label(row) }}{{ row.dateOfDeath ? ' (dec.)' : '' }}</span>
+                  @if (caption(row); as text) {
+                    <span class="mt-contacts-caption mt-ell">{{ text }}</span>
+                  }
+                </span>
               </span>
-            </span>
-          </ng-template>
-          <div mtTableEmpty>
-            @if (filtered()) {
-              <mt-empty-state
-                title="No contacts match"
-                description="Try another name, or clear the filters."
-                icon="search"
-                [headingLevel]="2"
-              />
-            } @else {
-              <mt-empty-state
-                title="No contacts yet"
-                description="Clients, executors, beneficiaries and referrers you add show here."
-                icon="contacts"
-                [headingLevel]="2"
-              >
-                @if (canEdit()) {
-                  <button mtButton variant="primary" size="sm" iconStart="plus" (click)="create()">New contact</button>
-                }
-              </mt-empty-state>
-            }
-          </div>
-        </mt-table>
-      }
-      @if (contacts.hasMore()) {
-        <button mtButton size="sm" [loading]="contacts.loadingMore()" (click)="contacts.loadMore()">
-          Show more contacts
-        </button>
-      }
+            </ng-template>
+            <div mtTableEmpty>
+              @if (filtered()) {
+                <mt-empty-state
+                  title="No contacts match"
+                  description="Try another name, or clear the filters."
+                  icon="search"
+                  [headingLevel]="2"
+                />
+              } @else {
+                <mt-empty-state
+                  title="No contacts yet"
+                  description="Clients, executors, beneficiaries and referrers you add show here."
+                  icon="contacts"
+                  [headingLevel]="2"
+                >
+                  @if (canEdit()) {
+                    <button mtButton variant="primary" size="sm" iconStart="plus" (click)="create()">
+                      New contact
+                    </button>
+                  }
+                </mt-empty-state>
+              }
+            </div>
+          </mt-table>
+        }
+        @if (contacts.hasMore()) {
+          <button mtButton size="sm" [loading]="contacts.loadingMore()" (click)="contacts.loadMore()">
+            Show more contacts
+          </button>
+        }
+      </div>
     </section>
 
     <section class="mt-contacts-detail" aria-label="Contact details">
@@ -221,52 +237,124 @@ const KIND_FILTERS: MtOption<string>[] = [
     </section>
   `,
   styles: `
-    .mt-contacts {
+    /* Full-bleed two panes, as the design's Contacts screen: the list beside the detail. */
+    :host {
       display: flex;
-      gap: var(--space-5, 24px);
       flex: 1;
       min-height: 0;
-      align-items: flex-start;
+      /* Cancels the page padding, and the page's gap after the router outlet. */
+      margin: calc(-1 * (var(--space-24) + var(--space-20))) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
     }
     .mt-contacts-list {
       flex: none;
-      width: 400px;
+      width: 380px;
       display: flex;
       flex-direction: column;
-      gap: var(--space-3, 12px);
-      min-width: 0;
+      min-height: 0;
+      border-right: 1px solid var(--border-default);
     }
     .mt-contacts-filters {
       display: flex;
       flex-direction: column;
-      gap: var(--space-2, 8px);
+      gap: 10px;
+      padding: var(--space-12);
+      border-bottom: 1px solid var(--border-default);
     }
-    .mt-contacts-filter-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--space-2, 8px);
+    .mt-contacts-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-6);
+    }
+    .mt-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-default);
+      background: var(--bg-surface);
+      font: 500 12px/16px var(--font-sans);
+      color: var(--text-secondary);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .mt-chip:hover {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+    .mt-chip[data-selected] {
+      background: var(--bg-selected);
+      border-color: var(--border-focus);
+      color: var(--text-brand);
+    }
+    .mt-chip:focus-visible {
+      box-shadow: var(--focus-ring);
+      outline: none;
+    }
+    .mt-contacts-rows {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: var(--space-8);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .mt-contacts-name {
+      font: 500 13px/18px var(--font-sans);
+      color: var(--text-primary);
+    }
+    .mt-contacts-caption {
+      font: 400 12px/16px var(--font-sans);
+      color: var(--text-tertiary);
+    }
+    /* The list reads as rows of people, as in the design: no header line or cell borders. */
+    .mt-contacts-rows ::ng-deep thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    .mt-contacts-rows ::ng-deep .mt-table td {
+      height: auto;
+      padding: var(--space-8) var(--space-12);
+      border-bottom: 0;
+    }
+    .mt-contacts-rows ::ng-deep .mt-table td:first-child {
+      border-radius: 6px 0 0 6px;
+    }
+    .mt-contacts-rows ::ng-deep .mt-table td:last-child {
+      border-radius: 0 6px 6px 0;
     }
     .mt-contacts-detail {
       flex: 1;
       min-width: 0;
+      overflow-y: auto;
+      padding: var(--space-24) var(--space-32) var(--space-32);
     }
     .mt-contacts-cell {
       display: flex;
       align-items: center;
-      gap: var(--space-2, 8px);
+      gap: 10px;
       min-width: 0;
+      padding: 2px 0;
     }
     .mt-contacts-muted {
       margin: 0;
       color: var(--text-tertiary);
     }
     @media (max-width: 900px) {
-      .mt-contacts {
+      :host {
         flex-direction: column;
-        align-items: stretch;
+        margin: 0;
       }
       .mt-contacts-list {
         width: auto;
+        border-right: 0;
+      }
+      .mt-contacts-detail {
+        padding: var(--space-16) 0 0;
       }
     }
   `,
@@ -319,15 +407,7 @@ export class ContactsPage {
     return id ? [id] : [];
   });
 
-  protected readonly columns: MtTableColumn<Row>[] = [
-    { id: 'name', header: 'Name' },
-    {
-      id: 'kind',
-      header: 'Kind',
-      width: '108px',
-      value: (row) => (row.kind === 'organisation' ? 'Organisation' : 'Person'),
-    },
-  ];
+  protected readonly columns: MtTableColumn<Row>[] = [{ id: 'name', header: 'Name', headerHidden: true }];
   protected readonly rowKey = (row: Row) => row.id;
   protected readonly rowLabel = (row: Row) => contactDisplayName(row);
 
