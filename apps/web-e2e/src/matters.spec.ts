@@ -1,96 +1,25 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-import { contactSearchTokens, matterSearchTokens } from '@materia/domain';
 import {
   createTestAccount,
   expectNoA11yViolations,
-  setEmulatorDocument,
   setEmulatorDocuments,
   signInAsTestUser,
 } from '@materia/test-utils/e2e';
 
+import { matterDoc, seedClient, table, uniqueOrg } from './support/matters';
+
 /**
  * The Matters list (CORE-03) against the emulators: filter, save a view (it survives a reload),
- * bulk assign, open a matter from the keyboard, and the first paint with 500 matters. Matters are
+ * bulk assign and open a matter from the keyboard (the 500-matter first paint is in load/). Matters are
  * seeded through the emulator as the server keeps them (`deletedAt: null`, search tokens and last
  * activity from matters-denormalise), each test in its own fictional practice. No callables are
  * called: bulk assign is a client update.
  */
 
-const table = (page: Page) => page.getByRole('table', { name: 'Matters' });
 const bar = (page: Page) => page.getByRole('group', { name: 'View and filters' });
 const dialog = (page: Page) => page.getByRole('dialog');
 const toasts = (page: Page) => page.getByRole('region', { name: /Notifications/ });
-
-function uniqueOrg(): string {
-  return `org-matters-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-}
-
-const DAY = 86_400_000;
-
-interface SeedMatter {
-  id: string;
-  number: string;
-  title: string;
-  type?: string;
-  status?: string;
-  responsibleUid: string;
-  jurisdiction?: string;
-  labels?: string[];
-  daysAgo: number;
-}
-
-function meta(uid: string) {
-  return { createdAt: new Date(), createdBy: uid, updatedAt: new Date(), updatedBy: uid, schemaVersion: 1 };
-}
-
-/** A stored matter as the server keeps it. */
-function matterDoc(orgId: string, uid: string, matter: SeedMatter, client = 'Bram Fictional') {
-  return {
-    path: `orgs/${orgId}/matters/${matter.id}`,
-    data: {
-      number: matter.number,
-      title: matter.title,
-      type: matter.type ?? 'probate',
-      status: matter.status ?? 'open',
-      jurisdiction: matter.jurisdiction ?? 'VIC',
-      responsibleUid: matter.responsibleUid,
-      teamUids: [matter.responsibleUid],
-      clientContactIds: ['c-client'],
-      privileged: false,
-      priority: 'none',
-      labels: matter.labels ?? [],
-      relatedMatterIds: [],
-      openTaskCount: 0,
-      wipCents: 120_000,
-      recomputeVersion: 0,
-      fee: { arrangement: 'hourly', history: [] },
-      costsDisclosure: { status: 'sent' },
-      conflictCheck: { status: 'clear' },
-      search: matterSearchTokens({ number: matter.number, title: matter.title, clientNames: [client] }),
-      lastActivityAt: new Date(Date.now() - matter.daysAgo * DAY),
-      deletedAt: null,
-      ...meta(uid),
-    },
-  };
-}
-
-async function seedClient(request: APIRequestContext, orgId: string, uid: string): Promise<void> {
-  await setEmulatorDocument(request, `orgs/${orgId}/contacts/c-client`, {
-    kind: 'person',
-    givenNames: 'Bram',
-    familyName: 'Fictional',
-    sortName: 'fictional bram',
-    emails: [],
-    phones: [],
-    addresses: [],
-    tags: [],
-    isReferrer: false,
-    search: contactSearchTokens({ givenNames: 'Bram', familyName: 'Fictional' }),
-    deletedAt: null,
-    ...meta(uid),
-  });
-}
 
 /** Picks an item from a filter chip's menu. */
 async function pick(page: Page, chip: string | RegExp, item: string): Promise<void> {
@@ -217,61 +146,5 @@ test.describe('matters', () => {
     await expect(table(page).locator('tbody tr[data-index="0"]')).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/matters\/m-marsh(\/|$)/);
-  });
-
-  test('with 500 matters the first rows paint within a second, and scrolling loads more', async ({ page, request }) => {
-    test.setTimeout(120_000);
-    const orgId = uniqueOrg();
-    const account = await signInAsTestUser(page, request, {
-      claims: { orgId, role: 'lawyer', orgName: 'Fictional Busy Practice' },
-      displayName: 'Jordan Fictional',
-    });
-    await seedClient(request, orgId, account.uid);
-    const surnames = ['Abernathy', 'Blackwood', 'Corrigan', 'Delacroix', 'Ellery', 'Fairweather', 'Galloway', 'Hollis'];
-    await setEmulatorDocuments(
-      request,
-      Array.from({ length: 500 }, (_, i) =>
-        matterDoc(orgId, account.uid, {
-          id: `m-${String(i + 1).padStart(4, '0')}`,
-          number: `M-2026-${String(i + 1).padStart(4, '0')}`,
-          title: `Estate of ${surnames[i % surnames.length]} ${i + 1}`,
-          type: i % 3 === 0 ? 'will' : 'probate',
-          responsibleUid: account.uid,
-          daysAgo: i / 10,
-        }),
-      ),
-    );
-
-    // Warm-up visit (loads the route's code once, as a returning user would have it cached).
-    await page.goto('/matters');
-    await expect(table(page).locator('tbody tr[data-index]').first()).toBeVisible();
-    await page.goto('/today');
-    await expect(page).toHaveURL(/\/today$/);
-
-    // From the click on Matters to the first painted row.
-    const firstPaint = page.evaluate(
-      () =>
-        new Promise<number>((resolve) => {
-          let start = 0;
-          document.addEventListener('click', () => (start = performance.now()), { capture: true, once: true });
-          const observer = new MutationObserver(() => {
-            if (!start || !document.querySelector('mt-table tbody tr[data-index]')) return;
-            observer.disconnect();
-            requestAnimationFrame(() => resolve(performance.now() - start));
-          });
-          observer.observe(document.body, { childList: true, subtree: true });
-        }),
-    );
-    await page.locator('nav a[href="/matters"]').first().click();
-    const elapsed = await firstPaint;
-    test.info().annotations.push({ type: 'first rows painted (ms)', description: elapsed.toFixed(0) });
-    expect(elapsed).toBeLessThan(1000);
-
-    // The first page is 50 rows, most recently active first; scrolling to the end loads the next.
-    const rows = table(page).locator('tbody tr[data-index]');
-    await expect(rows).toHaveCount(50);
-    await expect(rows.first()).toContainText('M-2026-0001');
-    await rows.last().scrollIntoViewIfNeeded();
-    await expect(rows).toHaveCount(100);
   });
 });
