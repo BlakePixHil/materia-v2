@@ -19,6 +19,7 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   CONFLICT: 'Someone else changed this while you were editing. Reload to see the latest version.',
   REQUEST_IN_PROGRESS: 'Still working on your last request. Try again in a moment.',
   FAILED_PRECONDITION: 'This can’t be done in the current state.',
+  FEATURE_DISABLED: 'This feature isn’t turned on for your practice yet.',
   RATE_LIMITED: 'Too many requests. Wait a minute and try again.',
   UNAVAILABLE: 'This service is temporarily unavailable. Try again shortly.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',

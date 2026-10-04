@@ -18,12 +18,12 @@ test.describe('desktop shell', () => {
     await expect(page).toHaveTitle('Today · Materia');
     await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
     const nav = sidebar(page).getByRole('navigation', { name: 'Main' });
+    // Disputes is behind the litigation flag, off by default (FND-23).
     await expect(nav.getByRole('link')).toHaveText([
       'Today',
       'Inbox',
       'Matters',
       'Deadlines',
-      'Disputes',
       'Contacts',
       'Time & billing',
       'Insights',

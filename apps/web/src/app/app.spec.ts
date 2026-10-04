@@ -10,9 +10,10 @@ import { appRoutes } from './app.routes';
 import type { AuthSession } from './core/auth/auth-port';
 import { provideFakeAuth, testSession } from './core/auth/testing';
 import { GlobalErrorHandler } from './core/error-handler';
+import { provideTestFlags } from './core/flags/testing';
 import { MateriaTitleStrategy } from './core/title-strategy';
 
-async function setup(url: string, session: AuthSession | null = testSession()) {
+async function setup(url: string, session: AuthSession | null = testSession(), orgFlags: Record<string, unknown> = {}) {
   TestBed.configureTestingModule({
     imports: [App],
     providers: [
@@ -21,6 +22,7 @@ async function setup(url: string, session: AuthSession | null = testSession()) {
       { provide: ErrorHandler, useClass: GlobalErrorHandler },
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
       ...provideFakeAuth(session).providers,
+      ...provideTestFlags({}, { 'org-harbour-vine': orgFlags }),
     ],
   });
   const fixture = TestBed.createComponent(App);
@@ -48,12 +50,12 @@ describe('app routes', () => {
     expect(el.textContent).toContain('Coming in CORE-14');
     expect(crumbs()).toEqual(['Today']);
     const nav = [...el.querySelectorAll('aside nav a')].map((a) => a.textContent?.trim());
+    // Disputes is behind the litigation flag (off by default).
     expect(nav).toEqual([
       'Today',
       'Inbox',
       'Matters',
       'Deadlines',
-      'Disputes',
       'Contacts',
       'Time & billing',
       'Insights',
@@ -73,7 +75,6 @@ describe('app routes', () => {
     ['/inbox', 'Inbox', 'CORE-22'],
     ['/matters', 'Matters', 'CORE-03'],
     ['/deadlines', 'Deadlines', 'CORE-10'],
-    ['/disputes', 'Disputes', 'LIT-02'],
     ['/contacts', 'Contacts', 'CORE-01'],
     ['/billing', 'Time & billing', 'BILL-03'],
     ['/insights', 'Insights', 'INS-02'],
@@ -83,6 +84,16 @@ describe('app routes', () => {
     expect(el.querySelector('h1')?.textContent).toContain(heading);
     expect(el.textContent).toContain(`Coming in ${ticket}`);
     expect(title()).toBe(`${heading} · Materia`);
+  });
+
+  it('shows Disputes only while the litigation flag is on for the org', async () => {
+    const off = await setup('/disputes');
+    expect(off.router.url).toBe('/today');
+    TestBed.resetTestingModule();
+    const on = await setup('/disputes', testSession(), { 'litigation.enabled': true });
+    expect(on.router.url).toBe('/disputes');
+    expect(on.el.textContent).toContain('Coming in LIT-02');
+    expect([...on.el.querySelectorAll('aside nav a')].map((a) => a.textContent?.trim())).toContain('Disputes');
   });
 
   it('titles a matter as "Matter · <number> · Materia" with breadcrumbs', async () => {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { DomainError, PERMISSIONS } from '@materia/domain';
 
 import { defineCallable, type CallableDefinition } from '../core/callable';
+import { requireFlag } from '../core/flags';
 import { enqueue } from '../core/tasks';
 
 export const EchoInput = z.object({
@@ -32,7 +33,9 @@ export const echoDefinition = {
   input: EchoInput,
   roles: PERMISSIONS['matter.edit'],
   idempotent: true,
-  handler: async ({ input, uid, orgId, role, requestId, clock, log }): Promise<EchoResult> => {
+  handler: async ({ input, uid, orgId, role, requestId, clock, log, db }): Promise<EchoResult> => {
+    // The server-side check for a server-enforced flag (FND-23).
+    await requireFlag({ orgId, db, clock }, 'system.echo');
     if (input.fail === 'domain')
       throw new DomainError('FAILED_PRECONDITION', 'Echo was asked to fail', { reason: 'requested' });
     // An unexpected error whose message contains personal data: the client must see none of it.

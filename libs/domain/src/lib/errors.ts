@@ -21,6 +21,8 @@ export const ERROR_CODES = {
   /** Another call with the same idempotency key is still running: retry shortly. */
   REQUEST_IN_PROGRESS: 'aborted',
   FAILED_PRECONDITION: 'failed-precondition',
+  /** A server-enforced feature flag is off for this org (FND-23). */
+  FEATURE_DISABLED: 'failed-precondition',
   RATE_LIMITED: 'resource-exhausted',
   UNAVAILABLE: 'unavailable',
   INTERNAL: 'internal',

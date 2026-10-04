@@ -12,6 +12,7 @@ import { appRoutes } from '../../app.routes';
 import { AuthFlowError, type AuthSession } from '../../core/auth/auth-port';
 import { AUTH_PORT } from '../../core/auth/auth-port';
 import { FakeAuthPort, testSession } from '../../core/auth/testing';
+import { provideTestFlags } from '../../core/flags/testing';
 
 const settle = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -24,6 +25,7 @@ async function open(url: string, session: AuthSession | null, configure?: (port:
       provideRouter(appRoutes),
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
       { provide: AUTH_PORT, useValue: port },
+      ...provideTestFlags(),
     ],
   });
   const fixture = TestBed.createComponent(App);

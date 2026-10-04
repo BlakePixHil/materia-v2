@@ -40,6 +40,7 @@ import { PageHeader } from './page-header';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { AuthState } from '../core/auth/auth-state';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
+import { FeatureFlagService } from '../core/flags/feature-flags';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { routeCrumbs } from '../core/title-strategy';
 
@@ -293,8 +294,11 @@ export class AppShellComponent {
 
   protected readonly settings = SETTINGS_ITEM;
   protected readonly tabBarItems = TAB_BAR_ITEMS;
-  protected readonly primaryNav = signal(NAV_ITEMS.filter((i) => !i.section));
-  protected readonly workspaceNav = signal(NAV_ITEMS.filter((i) => i.section === 'workspace'));
+  private readonly flags = inject(FeatureFlagService);
+  /** Nav items whose flag (if any) is on. */
+  private readonly visibleNav = computed(() => NAV_ITEMS.filter((item) => this.isVisible(item)));
+  protected readonly primaryNav = computed(() => this.visibleNav().filter((i) => !i.section));
+  protected readonly workspaceNav = computed(() => this.visibleNav().filter((i) => i.section === 'workspace'));
 
   protected readonly userId = computed(() => this.auth.user()?.uid ?? 'anonymous');
   protected readonly userName = computed(() => this.auth.user()?.displayName ?? 'Account');
@@ -388,12 +392,17 @@ export class AppShellComponent {
     this.document.getElementById('main')?.focus();
   }
 
+  private isVisible(item: NavEntry): boolean {
+    return !item.flag || this.flags.isOn(item.flag);
+  }
+
   private registerShortcuts(): (() => void)[] {
     const go = (item: NavEntry) =>
       this.shortcuts.register({
         combo: `g ${item.key}`,
         description: `Go to ${item.label}`,
         group: 'Navigation',
+        ...(item.flag ? { when: () => this.isVisible(item) } : {}),
         handler: () => void this.router.navigateByUrl(item.link),
       });
     return [
@@ -434,6 +443,7 @@ export class AppShellComponent {
       icon: item.icon,
       keywords: [item.label],
       shortcut: `g ${item.key}`,
+      ...(item.flag ? { when: () => this.isVisible(item) } : {}),
       run: () => void this.router.navigateByUrl(item.link),
     }));
     const general: Command[] = [

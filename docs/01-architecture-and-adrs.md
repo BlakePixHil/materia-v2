@@ -134,6 +134,14 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 **ADR-016: Feature flags.**
 - Remote Config, read through `FeatureFlagService`.
 - Every incomplete or practitioner-review feature ships dark.
+- How it works (FND-23):
+  - **Registry.** `FLAGS` in `libs/domain/src/lib/flags.ts` is the only list. Each flag has a key, description, owning ticket, type, default and `serverEnforced`. Unknown keys fail typecheck on the web and in functions.
+  - **Never authorisation.** Flags hide or reveal features. Roles and rules decide who may do what. A `serverEnforced` flag is also checked by its callables with `requireFlag(ctx, key)`, which throws `FEATURE_DISABLED`.
+  - **Precedence:** local override (dev builds only, `materia.flags.local` in localStorage, edited at `/__dev/flags`) > org override (`orgs/{orgId}.flags`) > Remote Config > registry default.
+  - **Remote Config keys** can't contain dots: `clerk.features.brief` is the parameter `clerk_features_brief` (`remoteConfigKey`). Create parameters in the dev or prod console only when a flag must differ from its default for everyone. The client fetches at most hourly in prod and each minute in dev; functions cache the server template for 60 s.
+  - **Org overrides** are written only by the `flags-setOrgOverride` callable, which requires the `platformAdmin` claim. Grant it with `pnpm materia-scripts platform-admin --project <id> --uid <uid>` (add `--revoke` to remove). Each change writes a `flag.override_set` or `flag.override_cleared` audit entry in that org.
+  - **Web:** `FeatureFlagService.flag(key)` gives a signal, `*mtFlag="key"` renders while on, `flagGuard(key)` keeps a route behind its flag, and nav items carry `flag`.
+  - **Removal.** When a flag is fully on everywhere, set `fullyOnSince`. The CI flag report (`pnpm materia-scripts flags-report`) warns once that is over 90 days, and the owning ticket removes the flag.
 
 **ADR-017: Testing stack.**
 - Vitest for unit tests in libs and functions.

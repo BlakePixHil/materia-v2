@@ -125,3 +125,20 @@ export async function createInvite(request: APIRequestContext, email: string, or
   );
   expect(response.ok(), await response.text()).toBe(true);
 }
+
+/** Sets an org's feature flag overrides through the Firestore emulator (what `flags-setOrgOverride` writes). */
+export async function setOrgFlags(
+  request: APIRequestContext,
+  orgId: string,
+  flags: Record<string, boolean>,
+): Promise<void> {
+  const fields = Object.fromEntries(Object.entries(flags).map(([key, value]) => [key, { booleanValue: value }]));
+  const response = await request.patch(
+    `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/orgs/${orgId}`,
+    {
+      headers: ADMIN,
+      data: { fields: { name: { stringValue: 'Fictional e2e practice' }, flags: { mapValue: { fields } } } },
+    },
+  );
+  expect(response.ok(), await response.text()).toBe(true);
+}

@@ -8,12 +8,13 @@ import {
 
 import { REGION } from '../config';
 import { adminDb } from '../core/admin';
+import { flagValue } from '../core/flags';
 import { createLog, functionsSink, type LogSink } from '../core/log';
 
 /**
- * Projects with open sign-up: anyone may create an account (to create an org). On for dev; off for
- * prod and the emulator (`demo-materia`) until the owner decides. FND-23 moves this to the
- * `auth.openSignup` Remote Config flag.
+ * Projects with open sign-up when Remote Config doesn't set `auth_openSignup` (the
+ * `auth.openSignup` flag, FND-23): anyone may create an account (to create an org). On for dev; off
+ * for prod and the emulator (`demo-materia`) until the owner decides.
  */
 export const OPEN_SIGNUP_PROJECTS: readonly string[] = ['materia-v2-dev'];
 
@@ -26,7 +27,7 @@ export const SIGNUP_CLOSED_MESSAGE = 'SIGNUP_CLOSED: Sign-up is by invitation on
 
 export interface BlockingDeps {
   db: () => Firestore;
-  openSignup: () => boolean;
+  openSignup: () => boolean | Promise<boolean>;
   now: () => Date;
   sink: LogSink;
 }
@@ -50,7 +51,7 @@ export async function checkSignUp(
   deps: BlockingDeps,
 ): Promise<void> {
   const log = createLog({ fn: 'auth-beforeCreate', eventId: event.eventId, uid: event.data?.uid ?? null }, deps.sink);
-  if (deps.openSignup()) return;
+  if (await deps.openSignup()) return;
   const email = event.data?.email;
   if (email && (await hasPendingInvite(deps.db(), email, deps.now()))) {
     log.info('sign-up allowed by invite');
@@ -82,7 +83,10 @@ export async function stampSignIn(
 
 const deps = (): BlockingDeps => ({
   db: adminDb,
-  openSignup: () => openSignupFor(process.env['GCLOUD_PROJECT']),
+  // The Remote Config flag when set (no org applies before sign-up), else the project list.
+  openSignup: async () =>
+    (await flagValue({ db: adminDb(), clock: { now: () => new Date() } }, 'auth.openSignup')) ||
+    openSignupFor(process.env['GCLOUD_PROJECT']),
   now: () => new Date(),
   sink: functionsSink,
 });

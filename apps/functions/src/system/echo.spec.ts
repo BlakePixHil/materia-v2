@@ -3,6 +3,7 @@ import type { CallableRequest, HttpsError } from 'firebase-functions/v2/https';
 
 import { echo, echoDefinition } from './echo';
 import { runCallable, type CallableDeps } from '../core/callable';
+import { setRemoteFlagLoader } from '../core/flags';
 import { FakeClock, fakePorts } from '../ports/fakes';
 
 const enqueue = vi.hoisted(() => vi.fn(async () => undefined));
@@ -10,8 +11,19 @@ vi.mock('../core/tasks', () => ({ enqueue }));
 
 const REQUEST_ID = '6f1c1c2e-8a43-4b8e-9d0e-0a3f5b1d2c4e';
 
+/** The org document's flag overrides, read by the `system.echo` check. */
+let orgFlags: Record<string, unknown> = {};
+const db = {
+  doc: () => ({ get: async () => ({ get: (field: string) => (field === 'flags' ? orgFlags : undefined) }) }),
+};
+
+beforeEach(() => {
+  orgFlags = {};
+  setRemoteFlagLoader(async () => ({}));
+});
+
 const deps = (): CallableDeps => ({
-  db: () => ({}) as Firestore,
+  db: () => db as unknown as Firestore,
   clock: new FakeClock(),
   ports: () => fakePorts(),
   memberLookup: async () => true,
@@ -31,6 +43,13 @@ const call = (data: Record<string, unknown>) =>
   );
 
 describe('system-echo', () => {
+  it('is stopped server-side when its flag is off for the org (FEATURE_DISABLED)', async () => {
+    orgFlags = { 'system.echo': false };
+    const error = (await call({ message: 'hello' }).catch((e: unknown) => e)) as HttpsError;
+    expect(error.details).toMatchObject({ code: 'FEATURE_DISABLED', flag: 'system.echo' });
+    expect(error.code).toBe('failed-precondition');
+  });
+
   it('echoes the message with the caller context', async () => {
     await expect(call({ message: 'hello' })).resolves.toEqual({
       message: 'hello',

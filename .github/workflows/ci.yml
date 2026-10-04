@@ -61,6 +61,8 @@ jobs:
       # FND-07: libs/ui/src/generated and the web fonts must match design/ (needs python3, preinstalled).
       - name: Design outputs in sync
         run: pnpm materia-scripts sync-design --check
+      - name: Feature flag report (owners, keys, flags fully on for over 90 days)
+        run: pnpm materia-scripts flags-report
 
   typecheck:
     name: typecheck
