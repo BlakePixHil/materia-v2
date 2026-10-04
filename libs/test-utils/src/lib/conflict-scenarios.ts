@@ -75,6 +75,7 @@ export const CONFLICT_MATTERS = {
 const C = CONFLICT_CONTACTS;
 const M = CONFLICT_MATTERS;
 const TIDEWATER_ABN = '51824753556';
+const DAY = 86_400_000;
 
 const CONTACTS: ContactSpec[] = [
   { id: C.juniper, given: 'Juniper', family: 'Ashdown' },
@@ -305,17 +306,20 @@ export function buildConflictFixture(options: ConflictFixtureOptions): ConflictF
     });
   }
 
-  for (const spec of MATTERS) {
+  MATTERS.forEach((spec, index) => {
     const number = D.formatMatterNumber(format, year, seq++);
+    // Opened a few days apart, before `now`; parties are written with their matter.
+    const at = new Date(now.getTime() - (index + 1) * 3 * DAY);
+    const matterMeta = { createdAt: at, createdBy: uid, updatedAt: at, updatedBy: uid };
     const closed = spec.status === 'closed' || spec.status === 'archived';
     const clientName = names.get(spec.client);
     add(
       `orgs/${orgId}/matterNumbers/${D.matterNumberKey(number)}`,
-      makeMatterNumber({ ...meta, number, matterId: spec.id, year }),
+      makeMatterNumber({ ...matterMeta, number, matterId: spec.id, year }),
     );
     add(`orgs/${orgId}/matters/${spec.id}`, {
       ...makeMatter({
-        ...meta,
+        ...matterMeta,
         number,
         title: spec.title,
         type: spec.type,
@@ -327,19 +331,19 @@ export function buildConflictFixture(options: ConflictFixtureOptions): ConflictF
         deceased: undefined,
         fee: { arrangement: 'hourly', history: [] },
         costsDisclosure: { status: 'sent' },
-        conflictCheck: { status: 'clear', checkedAt: now, checkedBy: uid },
+        conflictCheck: { status: 'clear', checkedAt: at, checkedBy: uid },
         search: D.matterSearchTokens({ number, title: spec.title, clientNames: clientName ? [clientName] : [] }),
-        lastActivityAt: now,
-        ...(closed ? { closedAt: now, closeReason: 'Matter completed' } : {}),
+        lastActivityAt: at,
+        ...(closed ? { closedAt: at, closeReason: 'Matter completed' } : {}),
       }),
       deletedAt: null,
     });
     spec.parties.forEach(([contactId, role], i) =>
       add(
         `orgs/${orgId}/matters/${spec.id}/parties/${spec.id}-p-${i + 1}`,
-        makeParty({ ...meta, orgId, matterId: spec.id, contactId, role }),
+        makeParty({ ...matterMeta, orgId, matterId: spec.id, contactId, role }),
       ),
     );
-  }
+  });
   return { docs, scenarios: [...CONFLICT_SCENARIOS], nextSeq: seq };
 }
