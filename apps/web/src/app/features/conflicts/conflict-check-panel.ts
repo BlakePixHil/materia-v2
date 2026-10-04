@@ -256,8 +256,13 @@ function toSubject(group: SubjectGroup): ConflictSubject {
               <article class="hit" [attr.data-adverse]="hasAdverse(hit.matters) ? '' : null">
                 <div class="hit-h">
                   <span class="label">{{ hit.displayName }}</span>
-                  <mt-badge [tone]="hit.score >= 0.9 ? 'danger' : 'warning'">{{ score(hit.score) }} match</mt-badge>
-                  <span class="caption t-2">{{ reasons(hit.reasons) }}</span>
+                  @if (hit.self) {
+                    <mt-badge tone="neutral">This contact</mt-badge>
+                    <span class="caption t-2">Their other matters</span>
+                  } @else {
+                    <mt-badge [tone]="hit.score >= 0.9 ? 'danger' : 'warning'">{{ score(hit.score) }} match</mt-badge>
+                    <span class="caption t-2">{{ reasons(hit.reasons) }}</span>
+                  }
                 </div>
                 @if (hit.viaMergedContactId) {
                   <p class="caption t-3 merged">Matched a contact that has since been merged into this one.</p>
