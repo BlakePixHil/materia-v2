@@ -98,7 +98,9 @@ describe('system-echo through the emulators', () => {
   it('denies a suspended member', async () => {
     await signInAs('suspended');
     const error = await failure(echo({ requestId: randomUUID(), message: 'hi' }));
-    expect(detailCode(error)).toBe('MEMBER_INACTIVE');
+    // auth-syncClaims (FND-17) clears a suspended member's org claim; until it has run, the
+    // callable's member lookup denies the stale claim. Either way the call is refused.
+    expect(['MEMBER_INACTIVE', 'ORG_CLAIM_MISSING']).toContain(detailCode(error));
   });
 
   it('rejects invalid input with field paths', async () => {
