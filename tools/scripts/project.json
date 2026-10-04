@@ -9,13 +9,31 @@
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", "^default"],
-      "options": { "command": "tsc --noEmit -p tools/scripts/tsconfig.json" }
+      "options": {
+        "command": "tsc --noEmit -p tools/scripts/tsconfig.json"
+      }
     },
     "build": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", "^default"],
-      "options": { "command": "node tools/scripts/bin/materia-scripts.mjs --help" }
+      "options": {
+        "command": "node tools/scripts/bin/materia-scripts.mjs --help"
+      }
+    },
+    "test-seed": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/firebase/firebase.json",
+        "{workspaceRoot}/libs/test-utils/fixtures/**/*"
+      ],
+      "options": {
+        "command": "firebase emulators:exec --only auth,firestore,storage --project demo-materia --config firebase/firebase.json \"node tools/scripts/bin/materia-scripts.mjs seed && node tools/scripts/bin/materia-scripts.mjs seed --verify\"",
+        "cwd": "{workspaceRoot}"
+      }
     }
   }
 }

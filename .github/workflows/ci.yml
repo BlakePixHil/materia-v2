@@ -131,6 +131,9 @@ jobs:
       # FND-15: the callable wrapper and Cloud Tasks, through the auth, firestore and functions
       # emulators (builds functions first).
       - run: pnpm nx affected -t test-integration --base="$NX_BASE" --head="$NX_HEAD"
+      # FND-06: seed the emulators with the fictional practice, then validate every seeded document
+      # against its domain schema and sign in as each test account.
+      - run: pnpm nx affected -t test-seed --base="$NX_BASE" --head="$NX_HEAD"
 
   build:
     name: build
