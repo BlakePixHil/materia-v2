@@ -72,6 +72,19 @@ describe('firestore.indexes.json', () => {
     expect(parties?.fields.map((f) => f.fieldPath)).toEqual(['orgId', 'contactId']);
   });
 
+  it('indexes every Matters list query in MATTER_INDEXED_QUERIES, with and without privileged (CORE-03)', () => {
+    const key = (fields: IndexField[]) => fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(',');
+    const matters = file.indexes.filter((i) => i.collectionGroup === 'matters');
+    for (const index of matters) expect(index.queryScope).toBe('COLLECTION');
+    const expected = domain.MATTER_INDEXED_QUERIES.flatMap((query) =>
+      [false, true].map((withPrivileged) => key(domain.matterIndexFields(query, withPrivileged))),
+    );
+    // Exactly the list's queries: nothing missing, nothing stale.
+    expect(matters.map((index) => key(index.fields)).sort()).toEqual([...expected].sort());
+    // Every one starts with the live-matter filter.
+    for (const index of matters) expect(index.fields[0]?.fieldPath).toBe('deletedAt');
+  });
+
   it('the chunks vector index is flat, 768 dimensions, with orgId and matterId pre-filters', () => {
     const vector = file.indexes.find((i) => i.collectionGroup === 'chunks');
     expect(vector?.fields.map((f) => f.fieldPath)).toEqual(['orgId', 'matterId', 'embedding']);

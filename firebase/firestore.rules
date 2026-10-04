@@ -83,6 +83,14 @@ service cloud.firestore {
     function privilegedFlagOk(orgId) {
       return unchanged(['privileged']) || canViewPrivileged(orgId);
     }
+    // Soft delete only (no client restore): the document is live and the caller stamps the delete.
+    function softDeleteOnly() {
+      return resource.data.get('deletedAt', null) == null
+        && onlyChanged(['deletedAt', 'deletedBy', 'updatedAt', 'updatedBy'])
+        && validMeta()
+        && request.resource.data.deletedAt == request.time
+        && request.resource.data.deletedBy == uid();
+    }
     // Standard rule for org records: update whitelisted fields, or soft delete.
     function editable(orgId, action, fields) {
       return can(orgId, action) && (clientUpdate(fields) || softDelete());
@@ -110,6 +118,29 @@ service cloud.firestore {
       // Server-only: MFA recovery code hashes and sign-in stamps (FND-16). Not even the owner reads them.
       match /private/{docId} {
         allow read, write: if false;
+      }
+
+      // Saved Matters list views (CORE-03): private to their user, created, edited and deleted by the
+      // client. Each names the org it was saved in, which must be the caller's current org.
+      match /views/{viewId} {
+        function isSelf() {
+          return isSignedIn() && uid() == userId;
+        }
+        function validView(data) {
+          return data.orgId == claimOrg() && inOrg(claimOrg())
+            && data.list == 'matters'
+            && data.name is string && data.name.size() > 0 && data.name.size() <= 60
+            && data.filters is map && data.sort is map
+            && data.groupBy in ['none', 'status', 'type', 'responsible'];
+        }
+        allow read, delete: if isSelf();
+        allow create: if isSelf()
+          && request.resource.data.keys().hasOnly(fieldsSavedView().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+          && request.resource.data.keys().hasAll(fieldsSavedView().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt == request.time
+          && validMeta() && request.resource.data.schemaVersion == 1
+          && validView(request.resource.data);
+        allow update: if isSelf() && clientUpdate(fieldsSavedView()) && validView(request.resource.data);
       }
     }
 
@@ -143,10 +174,14 @@ service cloud.firestore {
             || can(orgId, 'contact.delete') && softDelete());
       }
 
+      // Matters (CORE-03): created (numbered), moved between statuses and restored through the
+      // matters-* callables. Clients edit whitelisted fields of a live matter and soft delete it;
+      // a deleted matter is frozen until an owner or admin restores it (matters-restore, 30 days).
       match /matters/{matterId} {
         allow read: if inOrg(orgId) && visible(orgId, resource.data);
         allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
-          && (can(orgId, 'matter.edit') && clientUpdate(fieldsMatter()) || can(orgId, 'matter.delete') && softDelete());
+          && resource.data.get('deletedAt', null) == null
+          && (can(orgId, 'matter.edit') && clientUpdate(fieldsMatter()) || can(orgId, 'matter.delete') && softDeleteOnly());
 
         // Server-written feed.
         match /activity/{activityId} {
@@ -332,6 +367,10 @@ service cloud.firestore {
       match /counters/{counterId} {
         allow read, write: if false;
       }
+      // Matter number reservations (CORE-03), written with the matter by matters-createMatter.
+      match /matterNumbers/{numberKey} {
+        allow read, write: if false;
+      }
     }
 
     // ---------- collection groups ----------
@@ -363,6 +402,7 @@ service cloud.firestore {
         'matter.delete': ['owner', 'admin', 'lawyer'],
         'matter.close': ['owner', 'admin', 'lawyer'],
         'matter.status': ['owner', 'admin', 'lawyer'],
+        'matter.restore': ['owner', 'admin'],
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'contact.delete': ['owner', 'admin', 'lawyer'],
         'contact.merge': ['owner', 'admin'],
@@ -397,6 +437,7 @@ service cloud.firestore {
     function fieldsClerkMessage() { return ['stopRequested']; }
     function fieldsClerkThread() { return ['title', 'ownerUid', 'matterId', 'shared']; }
     function fieldsContact() { return ['kind', 'givenNames', 'familyName', 'preferredName', 'dateOfBirth', 'dateOfDeath', 'orgName', 'abn', 'emails', 'phones', 'addresses', 'tags', 'isReferrer', 'referrerMeta', 'notes']; }
+    function fieldsCounter() { return []; }
     function fieldsCourtBook() { return ['title', 'tabs', 'status']; }
     function fieldsCourtEvent() { return ['proceedingId', 'kind', 'date', 'time', 'location', 'outcome', 'ordersDocumentId']; }
     function fieldsCourtOrder() { return ['courtEventId', 'orderNo', 'text', 'requiresAction', 'dueDate', 'deadlineId', 'responsiblePartyRole', 'status']; }
@@ -415,6 +456,7 @@ service cloud.firestore {
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'stageId', 'externalRef', 'estate']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted']; }
     function fieldsMatterEvent() { return ['kind', 'date', 'time', 'label', 'meta', 'sourceDocumentId']; }
+    function fieldsMatterNumber() { return []; }
     function fieldsMatterTemplate() { return ['name', 'matterType', 'version', 'stages', 'tasks', 'deadlineRuleIds', 'published', 'source']; }
     function fieldsMember() { return ['displayName', 'initials', 'title', 'admissionNo', 'defaultRateCents', 'rates', 'colour', 'budgets', 'supervisorUid']; }
     function fieldsMetrics() { return ['period', 'values']; }

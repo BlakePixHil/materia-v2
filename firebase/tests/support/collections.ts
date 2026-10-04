@@ -26,6 +26,8 @@ export interface CollectionSpec {
   ownerUid?: string;
   /** A whitelisted field change that `update` roles may make (defaults to the first whitelist key). */
   change?: Record<string, unknown>;
+  /** For 'owner' specs: the owner also creates and hard deletes (saved views); others still can't. */
+  ownerCreatesAndDeletes?: boolean;
 }
 
 const OWNER = uidFor('lawyer');
@@ -66,6 +68,18 @@ export const COLLECTIONS: CollectionSpec[] = [
     seed: { codes: [{ salt: 'aa', hash: 'bb', usedAt: null }], failedAttempts: 0 },
     read: 'none',
     update: 'none',
+  },
+
+  // Saved Matters list views (CORE-03): the user's own, created and deleted by the client.
+  {
+    collection: 'views',
+    docPath: `users/${OWNER}/views/view-1`,
+    entity: 'SavedView',
+    seed: { orgId: ORG },
+    read: 'owner',
+    update: 'owner',
+    change: { name: 'Renamed view' },
+    ownerCreatesAndDeletes: true,
   },
 
   // Organisation.
@@ -197,7 +211,22 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'none',
     update: 'none',
   },
-  { collection: 'counters', docPath: `orgs/${ORG}/counters/matters`, seed: { next: 42 }, read: 'none', update: 'none' },
+  {
+    collection: 'counters',
+    docPath: `orgs/${ORG}/counters/matter-2026`,
+    entity: 'Counter',
+    seed: { next: 42 },
+    read: 'none',
+    update: 'none',
+  },
+  // Matter number reservations (CORE-03): server-only.
+  {
+    collection: 'matterNumbers',
+    docPath: `orgs/${ORG}/matterNumbers/M-2026-0042`,
+    entity: 'MatterNumber',
+    read: 'none',
+    update: 'none',
+  },
 
   // Personal tasks live under the member.
   {
