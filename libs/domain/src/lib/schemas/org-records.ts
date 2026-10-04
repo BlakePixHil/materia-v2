@@ -23,6 +23,16 @@ const PaymentSchema = z.object({
 });
 
 /** `invoices/{id}`. Numbers are gapless and never reused; issued invoices are never edited. */
+/**
+ * `orgs/{orgId}/counters/{name}`: a sequence (`matter-2026` for matter numbers, CORE-03). `next`
+ * is the next value to hand out. Server-only: written in transactions by functions.
+ */
+export const Counter = withMeta(
+  { next: z.number().int().min(1) },
+  { path: `${ORG}/counters`, migratable: false, serverOwned: ['next'] },
+);
+export type Counter = z.infer<typeof Counter.schema>;
+
 export const Invoice = withMeta(
   {
     number: z.string(),
