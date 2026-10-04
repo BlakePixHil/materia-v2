@@ -45,3 +45,28 @@ export async function setEmulatorDocument(
   );
   expect(response.ok(), await response.text()).toBe(true);
 }
+
+/** Most writes one emulator commit takes. */
+const COMMIT_LIMIT = 500;
+
+/**
+ * Writes (replaces) many documents through the Firestore emulator's admin access, in commits of up
+ * to 500: for seeding a large fictional practice, such as 500 matters for a list's performance
+ * check. Rules and the request-per-document cost of `setEmulatorDocument` are both skipped.
+ */
+export async function setEmulatorDocuments(
+  request: APIRequestContext,
+  documents: readonly { path: string; data: Record<string, unknown> }[],
+): Promise<void> {
+  const root = `projects/${EMULATOR_PROJECT}/databases/(default)/documents`;
+  for (let start = 0; start < documents.length; start += COMMIT_LIMIT) {
+    const writes = documents.slice(start, start + COMMIT_LIMIT).map(({ path, data }) => ({
+      update: { name: `${root}/${path}`, fields: toFirestoreRestFields(data) },
+    }));
+    const response = await request.post(`${FIRESTORE_EMULATOR}/v1/${root}:commit`, {
+      headers: ADMIN,
+      data: { writes },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+  }
+}

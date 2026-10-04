@@ -7,10 +7,14 @@ import {
   compareCells,
   MtTable,
   MtTableCell,
+  MtTableGroupHeader,
   type MtSort,
   type MtTableColumn,
+  type MtTableGroup,
+  groupRows,
   nextSort,
   sortRows,
+  tableItems,
   virtualWindow,
 } from './table';
 
@@ -247,5 +251,102 @@ describe('MtTable', () => {
     await userEvent.keyboard('{Home}');
     await fixture.whenStable();
     expect(document.activeElement).toHaveAttribute('data-index', '0');
+  });
+});
+
+@Component({
+  imports: [MtTable, MtTableGroupHeader],
+  template: `
+    <mt-table
+      label="Matters"
+      [rows]="rows()"
+      [columns]="columns"
+      [rowKey]="key"
+      [groupBy]="group()"
+      [(sort)]="sort"
+      [maxHeight]="'200px'"
+      (endReached)="ends = ends + 1"
+    >
+      @if (custom()) {
+        <ng-template mtTableGroup let-group>
+          <strong>{{ group.label }} ({{ group.count }})</strong>
+        </ng-template>
+      }
+    </mt-table>
+  `,
+})
+class GroupHost {
+  readonly rows = signal<readonly Row[]>(ROWS);
+  readonly columns = COLUMNS;
+  readonly key = (row: Row) => row.id;
+  readonly byWip = (row: Row): MtTableGroup =>
+    row.wip === null ? { key: 'none', label: 'No WIP' } : { key: 'some', label: 'Has WIP' };
+  readonly group = signal<((row: Row) => MtTableGroup) | null>(this.byWip);
+  readonly custom = signal(false);
+  readonly sort = signal<MtSort | null>(null);
+  ends = 0;
+}
+
+describe('MtTable groups and infinite scroll', () => {
+  it('builds group lines and orders rows by group', () => {
+    const byFirst = (row: Row): MtTableGroup => ({ key: row.name[0] ?? '', label: row.name[0] ?? '' });
+    expect(tableItems(ROWS, null).map((item) => item.kind)).toEqual(['row', 'row', 'row']);
+    const rows = groupRows([...ROWS, { id: 'd', ref: 'WE-1', name: 'Estate of Ivy', wip: 1 }], byFirst);
+    expect(rows.map((r) => r.id)).toEqual(['a', 'd', 'b', 'c']);
+    expect(
+      tableItems(rows, byFirst).map((item) =>
+        item.kind === 'group' ? `${item.group.label}:${item.group.count}` : item.index,
+      ),
+    ).toEqual(['E:2', 0, 1, 'N:1', 2, 'H:1', 3]);
+  });
+
+  it('renders a header row per group, sorts within groups, and keeps row indexes for the keyboard', async () => {
+    const { fixture } = await render(GroupHost);
+    const headers = () => screen.getAllByRole('row').filter((row) => row.classList.contains('group'));
+    expect(headers().map((row) => row.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Has WIP2', 'No WIP1']);
+    expect(bodyRows().map((row) => row.getAttribute('data-index'))).toEqual(['0', '1', '2']);
+    await userEvent.click(screen.getByRole('button', { name: /WIP/ }));
+    await userEvent.click(screen.getByRole('button', { name: /WIP/ }));
+    expect(bodyRows().map((row) => within(row).getAllByRole('cell')[1]?.textContent?.trim())).toEqual([
+      'Nguyen v Nguyen',
+      'Estate of Margaret Whitfield',
+      'Harriet and Paul Okafor',
+    ]);
+    fixture.componentInstance.custom.set(true);
+    fixture.detectChanges();
+    expect(headers()[0]?.textContent?.trim()).toBe('Has WIP (2)');
+    fixture.componentInstance.group.set(null);
+    fixture.detectChanges();
+    expect(headers()).toHaveLength(0);
+  });
+
+  it('virtualises over group headers and reports reaching the end', async () => {
+    const { fixture } = await render(GroupHost);
+    const many = Array.from({ length: 400 }, (_, i) => ({
+      id: `r${i}`,
+      ref: `WE-${i}`,
+      name: `M ${i}`,
+      wip: i % 2 ? i : null,
+    }));
+    fixture.componentInstance.rows.set(many);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const table = screen.getByRole('table');
+    expect(table).toHaveAttribute('aria-rowcount', '403');
+    const scroller = table.parentElement as HTMLElement;
+    Object.defineProperty(scroller, 'clientHeight', { value: 200 });
+    Object.defineProperty(scroller, 'scrollHeight', { value: 402 * 40 });
+    Object.defineProperty(scroller, 'scrollTop', { value: 1000, writable: true });
+    scroller.dispatchEvent(new Event('scroll'));
+    expect(fixture.componentInstance.ends).toBe(0);
+    scroller.scrollTop = 402 * 40 - 300;
+    scroller.dispatchEvent(new Event('scroll'));
+    expect(fixture.componentInstance.ends).toBe(1);
+    // The last row sits below both group headers.
+    fixture.detectChanges();
+    (bodyRows()[0] as HTMLElement).focus();
+    await userEvent.keyboard('{End}');
+    await fixture.whenStable();
+    expect(document.activeElement).toHaveAttribute('data-index', '399');
   });
 });

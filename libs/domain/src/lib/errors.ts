@@ -57,6 +57,8 @@ export const ERROR_CODES = {
   LAST_OWNER: 'failed-precondition',
   /** The account's email must be verified first. */
   EMAIL_NOT_VERIFIED: 'failed-precondition',
+  /** The matter can't move from its current status to the requested one (CORE-03). */
+  MATTER_INVALID_TRANSITION: 'failed-precondition',
   INTERNAL: 'internal',
 } as const;
 

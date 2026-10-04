@@ -9,6 +9,8 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -46,6 +48,18 @@ const stamped = (change: Record<string, unknown>, uid: string) => ({
   updatedAt: serverTimestamp(),
   updatedBy: uid,
 });
+
+/** Every role in the org, someone from another org, and a suspended lawyer. */
+type Who = Role | 'outsider' | 'suspended';
+const EVERYONE: Who[] = [...ROLES, 'outsider', 'suspended'];
+const firestoreOf = (who: Who): { firestore: Firestore; uid: string } => {
+  if (who === 'outsider') return { firestore: db(env, 'owner', OTHER_ORG), uid: uidFor('owner', OTHER_ORG) };
+  if (who === 'suspended') return { firestore: db(env, 'lawyer', ORG, SUSPENDED_UID), uid: SUSPENDED_UID };
+  return { firestore: db(env, who), uid: uidFor(who) };
+};
+const isMember = (who: Who): who is Role => who !== 'outsider' && who !== 'suspended';
+const allows = (who: Who, action: keyof typeof PERMISSIONS) =>
+  isMember(who) && (PERMISSIONS[action] as readonly Role[]).includes(who);
 
 async function seed(spec: CollectionSpec) {
   await seedAdmin(env, (firestore) => setDoc(doc(firestore, spec.docPath), seedData(spec)));
@@ -142,7 +156,8 @@ describe.each(COLLECTIONS)('$collection', (spec) => {
   });
 
   it('denies client creates and hard deletes', async () => {
-    const role = writerFor(spec);
+    // Saved views: their owner creates and deletes them (tested below); anyone else is still refused.
+    const role = spec.ownerCreatesAndDeletes ? 'owner' : writerFor(spec);
     const firestore = db(env, role);
     await assertFails(setDoc(doc(firestore, `${spec.docPath}-new`), seedData(spec)));
     await assertFails(deleteDoc(doc(firestore, spec.docPath)));
@@ -176,12 +191,21 @@ describe('privileged material', () => {
     await assertFails(getDoc(doc(suspended, `${MATTER}/notes/privileged-note`)));
   });
 
-  it('a paralegal cannot mark a matter privileged; a lawyer can', async () => {
-    const paralegal = doc(db(env, 'paralegal'), MATTER);
+  it('a paralegal cannot mark a document privileged; a lawyer can', async () => {
+    const DOCUMENT = `${MATTER}/documents/doc-1`;
+    await seed(specFor('documents'));
+    const paralegal = doc(db(env, 'paralegal'), DOCUMENT);
     await assertFails(updateDoc(paralegal, stamped({ privileged: true }, uidFor('paralegal'))));
-    const lawyer = doc(db(env, 'lawyer'), MATTER);
+    const lawyer = doc(db(env, 'lawyer'), DOCUMENT);
     await assertSucceeds(updateDoc(lawyer, stamped({ privileged: true }, uidFor('lawyer'))));
     await assertSucceeds(updateDoc(lawyer, stamped({ privileged: false }, uidFor('lawyer'))));
+  });
+
+  it('a matter’s privileged flag is set at creation: no client changes it (CORE-03)', async () => {
+    await seed(specFor('matters'));
+    for (const role of ROLES) {
+      await assertFails(updateDoc(doc(db(env, role), MATTER), stamped({ privileged: true }, uidFor(role))));
+    }
   });
 
   it('readonly can query non-privileged matters only', async () => {
@@ -446,17 +470,9 @@ describe('contacts (CORE-01)', () => {
   const CONTACT = `orgs/${ORG}/contacts/contact-1`;
   const TOMBSTONE = `orgs/${ORG}/contacts/contact-tombstone`;
 
-  /** Every role in the org, someone from another org, and a suspended lawyer. */
-  type Who = Role | 'outsider' | 'suspended';
-  const EVERYONE: Who[] = [...ROLES, 'outsider', 'suspended'];
-  const firestoreOf = (who: Who): { firestore: Firestore; uid: string } => {
-    if (who === 'outsider') return { firestore: db(env, 'owner', OTHER_ORG), uid: uidFor('owner', OTHER_ORG) };
-    if (who === 'suspended') return { firestore: db(env, 'lawyer', ORG, SUSPENDED_UID), uid: SUSPENDED_UID };
-    return { firestore: db(env, who), uid: uidFor(who) };
-  };
-  const inOrg = (who: Who): who is Role => who !== 'outsider' && who !== 'suspended';
-  const canEdit = (who: Who) => inOrg(who) && (PERMISSIONS['contact.edit'] as readonly Role[]).includes(who);
-  const canDelete = (who: Who) => inOrg(who) && (PERMISSIONS['contact.delete'] as readonly Role[]).includes(who);
+  const inOrg = isMember;
+  const canEdit = (who: Who) => allows(who, 'contact.edit');
+  const canDelete = (who: Who) => allows(who, 'contact.delete');
   const softDeleteBy = (uid: string) => ({
     deletedAt: serverTimestamp(),
     deletedBy: uid,
@@ -557,6 +573,212 @@ describe('contacts (CORE-01)', () => {
       await assertFails(byContact(firestore, OTHER_ORG));
       await assertFails(getDocs(query(collectionGroup(firestore, 'parties'), where('contactId', '==', 'contact-1'))));
     });
+  });
+});
+
+describe('matters (CORE-03)', () => {
+  const DELETED = `orgs/${ORG}/matters/matter-deleted`;
+  const deleteBy = (uid: string) => ({
+    deletedAt: serverTimestamp(),
+    deletedBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+
+  beforeEach(() =>
+    seedAdmin(env, async (f) => {
+      await setDoc(doc(f, MATTER), {
+        ...seedData(specFor('matters')),
+        deletedAt: null,
+        lastActivityAt: Timestamp.now(),
+      });
+      await setDoc(doc(f, DELETED), {
+        ...seedData(specFor('matters')),
+        deletedAt: Timestamp.now(),
+        deletedBy: uidFor('lawyer'),
+      });
+    }),
+  );
+
+  it.each(EVERYONE)('read as %s', async (who) => {
+    const read = getDoc(doc(firestoreOf(who).firestore, MATTER));
+    await (isMember(who) ? assertSucceeds(read) : assertFails(read));
+  });
+
+  it.each(EVERYONE)('whitelisted update as %s follows matter.edit', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const update = updateDoc(
+      doc(firestore, MATTER),
+      stamped(
+        {
+          title: 'Estate of Fictional Whitfield',
+          labels: ['urgent'],
+          priority: 'high',
+          responsibleUid: uidFor('lawyer'),
+          teamUids: [uidFor('paralegal')],
+          externalRef: 'LEG-0042',
+          stageId: 'grant',
+          estate: { grossValueCents: 100 },
+        },
+        uid,
+      ),
+    );
+    await (allows(who, 'matter.edit') ? assertSucceeds(update) : assertFails(update));
+  });
+
+  it.each(EVERYONE)('status, number and server-owned fields are refused as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, MATTER);
+    for (const change of [
+      { status: 'closed' },
+      { number: 'M-2026-9999' },
+      { conflictCheck: { status: 'potential' } },
+      { closedAt: serverTimestamp() },
+      { search: ['zz'] },
+      { lastActivityAt: serverTimestamp() },
+      { type: 'will' },
+      { clientContactIds: ['contact-2'] },
+      { title: 'Allowed', status: 'archived' },
+    ]) {
+      await assertFails(updateDoc(ref, stamped(change, uid)));
+    }
+  });
+
+  it.each(EVERYONE)('soft delete as %s follows matter.delete', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const remove = updateDoc(doc(firestore, MATTER), deleteBy(uid));
+    await (allows(who, 'matter.delete') ? assertSucceeds(remove) : assertFails(remove));
+  });
+
+  it.each(EVERYONE)('a deleted matter is frozen; only matters-restore restores it (as %s)', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, DELETED);
+    await assertFails(
+      updateDoc(ref, { deletedAt: null, deletedBy: null, updatedAt: serverTimestamp(), updatedBy: uid }),
+    );
+    await assertFails(updateDoc(ref, stamped({ title: 'Edited while deleted' }, uid)));
+    await assertFails(updateDoc(ref, deleteBy(uid)));
+  });
+
+  it('a soft delete must be stamped by the caller and change nothing else', async () => {
+    const ref = doc(db(env, 'lawyer'), MATTER);
+    await assertFails(updateDoc(ref, { ...deleteBy(uidFor('lawyer')), deletedBy: 'someone-else' }));
+    await assertFails(updateDoc(ref, { ...deleteBy(uidFor('lawyer')), deletedAt: Timestamp.fromMillis(0) }));
+    await assertFails(updateDoc(ref, { ...deleteBy(uidFor('lawyer')), title: 'And a rename' }));
+  });
+
+  it('the list query (live, by status, newest activity first) is allowed; readonly must exclude privileged', async () => {
+    const list = (firestore: Firestore, ...filters: ReturnType<typeof where>[]) =>
+      getDocs(
+        query(
+          collection(firestore, `orgs/${ORG}/matters`),
+          where('deletedAt', '==', null),
+          where('status', 'in', ['open', 'on_hold']),
+          ...filters,
+          orderBy('lastActivityAt', 'desc'),
+          limit(50),
+        ),
+      );
+    await assertSucceeds(list(db(env, 'lawyer')));
+    await assertSucceeds(list(db(env, 'readonly'), where('privileged', '==', false)));
+    await assertFails(list(db(env, 'readonly')));
+    await assertFails(list(db(env, 'owner', OTHER_ORG)));
+  });
+
+  it.each(ROLES)('counters and number reservations are server-only, as %s', async (role) => {
+    const firestore = db(env, role);
+    await assertFails(getDoc(doc(firestore, `orgs/${ORG}/counters/matter-2026`)));
+    await assertFails(getDoc(doc(firestore, `orgs/${ORG}/matterNumbers/M-2026-0042`)));
+    await assertFails(setDoc(doc(firestore, `orgs/${ORG}/counters/matter-2027`), { next: 1 }));
+    await assertFails(
+      setDoc(doc(firestore, `orgs/${ORG}/matterNumbers/M-2027-0001`), { number: 'M-2027-0001', matterId: 'x' }),
+    );
+  });
+});
+
+describe('saved views (CORE-03)', () => {
+  const viewsOf = (uid: string) => `users/${uid}/views`;
+  /** A new view as the client writes it. */
+  const newView = (uid: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    orgId: ORG,
+    list: 'matters',
+    name: 'My urgent probates',
+    filters: { status: ['open'], type: ['probate'], responsible: 'me' },
+    sort: { field: 'lastActivity', dir: 'desc' },
+    groupBy: 'none',
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+
+  it.each(EVERYONE)('create, read, rename and delete my own view as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, `${viewsOf(uid)}/mine`);
+    const create = setDoc(ref, newView(uid));
+    // Every member (readonly included) saves views in their org; the outsider's claim names another
+    // org, and a suspended member is out of the org.
+    if (!isMember(who)) {
+      await assertFails(create);
+      return;
+    }
+    await assertSucceeds(create);
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(getDocs(collection(firestore, viewsOf(uid))));
+    await assertSucceeds(updateDoc(ref, stamped({ name: 'Renamed', groupBy: 'status' }, uid)));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it.each(ROLES)("someone else's views are off limits, as %s", async (role) => {
+    const other = role === 'lawyer' ? uidFor('owner') : uidFor('lawyer');
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, `${viewsOf(other)}/theirs`), { ...seedData(specFor('views')), createdBy: other }),
+    );
+    const firestore = db(env, role);
+    const ref = doc(firestore, `${viewsOf(other)}/theirs`);
+    await assertFails(getDoc(ref));
+    await assertFails(getDocs(collection(firestore, viewsOf(other))));
+    await assertFails(updateDoc(ref, stamped({ name: 'Mine now' }, uidFor(role))));
+    await assertFails(deleteDoc(ref));
+    await assertFails(setDoc(doc(firestore, `${viewsOf(other)}/planted`), newView(uidFor(role))));
+  });
+
+  it('refuses an invalid view', async () => {
+    const uid = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), `${viewsOf(uid)}/bad`);
+    for (const bad of [
+      { orgId: OTHER_ORG },
+      { list: 'contacts' },
+      { name: '' },
+      { name: 'x'.repeat(61) },
+      { name: 42 },
+      { filters: 'open' },
+      { sort: 'newest' },
+      { groupBy: 'colour' },
+      { createdBy: 'someone-else' },
+      { updatedBy: 'someone-else' },
+      { createdAt: Timestamp.fromMillis(0) },
+      { schemaVersion: 2 },
+      { shared: true },
+    ]) {
+      await assertFails(setDoc(ref, newView(uid, bad)));
+    }
+    const incomplete = newView(uid);
+    delete incomplete['groupBy'];
+    await assertFails(setDoc(ref, incomplete));
+  });
+
+  it('an update keeps the view valid, in my org, with only whitelisted fields', async () => {
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), `${viewsOf(uid)}/view-1`);
+    await seed(specFor('views'));
+    await assertFails(updateDoc(ref, stamped({ orgId: OTHER_ORG }, uid)));
+    await assertFails(updateDoc(ref, stamped({ name: '' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ createdBy: 'someone-else' }, uid)));
+    await assertFails(updateDoc(ref, { name: 'No meta' }));
+    await assertSucceeds(updateDoc(ref, stamped({ filters: { label: 'urgent' } }, uid)));
   });
 });
 

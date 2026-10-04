@@ -73,7 +73,7 @@ describe('app routes', () => {
 
   it.each([
     ['/inbox', 'Inbox', 'CORE-22'],
-    ['/matters', 'Matters', 'CORE-03'],
+    ['/matters/new', 'New matter', 'CORE-05'],
     ['/deadlines', 'Deadlines', 'CORE-10'],
     ['/billing', 'Time & billing', 'BILL-03'],
     ['/insights', 'Insights', 'INS-02'],

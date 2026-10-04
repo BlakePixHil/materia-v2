@@ -11,7 +11,16 @@ export type AuditActor = { uid: string } | 'system' | 'clerk';
 export type DocData = Record<string, unknown>;
 
 /** Collections the trigger never audits: its own output, derived data and operational records. */
-export const EXCLUDED_COLLECTIONS = new Set(['audit', 'metrics', 'activity', 'chunks', 'requests', 'counters']);
+export const EXCLUDED_COLLECTIONS = new Set([
+  'audit',
+  'metrics',
+  'activity',
+  'chunks',
+  'requests',
+  'counters',
+  // Matter number reservations (CORE-03): written with the matter, which is audited.
+  'matterNumbers',
+]);
 
 /**
  * Denormalised or ordering fields: an update that changes only these (plus meta) is noise, such as
@@ -83,10 +92,18 @@ export function sameValue(a: unknown, b: unknown, depth = 0): boolean {
   );
 }
 
-/** Top-level fields that differ between two versions of a document (meta fields excluded), sorted. */
+const isNullish = (value: unknown) => value === undefined || value === null;
+
+/**
+ * Top-level fields that differ between two versions of a document (meta fields excluded), sorted.
+ * A missing field and `null` are the same (a live matter gains `deletedAt: null`, CORE-03).
+ */
 export function changedFields(before: DocData | undefined, after: DocData | undefined): string[] {
   const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
-  return [...keys].filter((key) => !META_FIELDS.has(key) && !sameValue(before?.[key], after?.[key])).sort();
+  return [...keys]
+    .filter((key) => !META_FIELDS.has(key))
+    .filter((key) => !(isNullish(before?.[key]) && isNullish(after?.[key])) && !sameValue(before?.[key], after?.[key]))
+    .sort();
 }
 
 const isDeleted = (data: DocData | undefined) => data?.['deletedAt'] !== undefined && data?.['deletedAt'] !== null;

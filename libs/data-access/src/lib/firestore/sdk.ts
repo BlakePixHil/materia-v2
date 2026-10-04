@@ -8,6 +8,7 @@ export {
   collection,
   collectionGroup,
   connectFirestoreEmulator,
+  deleteDoc,
   deleteField,
   doc,
   endAt,

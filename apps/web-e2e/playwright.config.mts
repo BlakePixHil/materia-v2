@@ -47,11 +47,21 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /\/load\//,
       use: { ...devices['Desktop Chrome'], ...(executablePath ? { launchOptions: { executablePath } } : {}) },
     },
     {
       name: 'webkit-mobile',
+      testIgnore: /\/load\//,
       use: { ...devices['iPhone 13'] },
+    },
+    // Tests that flood the emulators (src/load) run once everything else has finished. Locally:
+    // `--project=chromium-load --no-deps`.
+    {
+      name: 'chromium-load',
+      testMatch: /\/load\/.*\.spec\.ts$/,
+      dependencies: ['chromium', 'webkit-mobile'],
+      use: { ...devices['Desktop Chrome'], ...(executablePath ? { launchOptions: { executablePath } } : {}) },
     },
   ],
 });

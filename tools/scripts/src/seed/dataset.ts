@@ -19,11 +19,14 @@ const F = unwrap(TestUtilsNs);
 const deadlines = unwrap(DeadlinesNs);
 
 const {
+  buildLoadMatters,
   makeContact,
+  makeCounter,
   makeDeadline,
   makeMatter,
   makeMatterDocument,
   makeMatterEvent,
+  makeMatterNumber,
   makeMember,
   makeNote,
   makeOrg,
@@ -39,8 +42,18 @@ export const SEED_ORG_ID = 'org-harbour-vine';
 /** Password for every seeded account. Emulator-only and deliberately public. */
 export const SEED_PASSWORD = 'materia-local-dev';
 
-export type SeedScenario = 'default' | 'minimal' | 'empty';
-export const SEED_SCENARIOS: readonly SeedScenario[] = ['default', 'minimal', 'empty'];
+/**
+ * `default` (the practice), `minimal` (2 matters), `empty` (org and accounts only), and `load`:
+ * the default practice plus LOAD_MATTER_COUNT generated matters for list performance (CORE-03).
+ */
+export type SeedScenario = 'default' | 'minimal' | 'empty' | 'load';
+export const SEED_SCENARIOS: readonly SeedScenario[] = ['default', 'minimal', 'empty', 'load'];
+
+/** Extra matters in the `load` scenario. */
+export const LOAD_MATTER_COUNT = 500;
+
+/** The seeded org's matter number format (CORE-03). */
+export const SEED_MATTER_NUMBER_FORMAT = 'HV-{YYYY}-{seq:4}';
 
 export type FixtureName = 'will' | 'death-certificate' | 'court-order';
 
@@ -485,17 +498,6 @@ const FIXTURE_FILES: Record<FixtureName, { name: string; category: D.MatterDocum
   'court-order': { name: 'Orders (fictional sample).pdf', category: 'court_document' },
 };
 
-/** Prefix search tokens (2–10 characters) for each word, as the server would write them. */
-export function searchTokens(...values: (string | undefined)[]): string[] {
-  const tokens = new Set<string>();
-  for (const value of values) {
-    for (const word of (value ?? '').toLowerCase().split(/[^a-z0-9-]+/)) {
-      for (let n = 3; n <= Math.min(word.length, 10); n++) tokens.add(word.slice(0, n));
-    }
-  }
-  return [...tokens].slice(0, 200);
-}
-
 /** Builds the dataset for a scenario. Pure: the same anchor and fixtures give the same output. */
 export function buildDataset(options: {
   scenario?: SeedScenario;
@@ -523,7 +525,7 @@ export function buildDataset(options: {
       primaryJurisdiction: 'VIC',
       timezone: 'Australia/Melbourne',
       holidayLocality: 'VIC_GREATER_GEELONG',
-      matterNumberFormat: 'HV-{YYYY}-{seq:4}',
+      matterNumberFormat: SEED_MATTER_NUMBER_FORMAT,
       security: { mfaRequired: false, sessionIdleMinutes: 60 },
       settings: { clerk: { enabled: true } },
     }),
@@ -591,6 +593,15 @@ export function buildDataset(options: {
   );
   const contacts = scenario === 'minimal' ? CONTACTS.filter((c) => contactIds.has(c.id)) : CONTACTS;
   const contactById = new Map(CONTACTS.map((c) => [c.id, c]));
+  const nameOf = (id: string) => {
+    const c = contactById.get(id);
+    return c ? domain.contactDisplayName({ givenNames: c.given, familyName: c.family, orgName: c.org }) : undefined;
+  };
+  // Numbers as matters-createMatter allocates them: this year (in Melbourne) from 1, reserved, with
+  // the counter past them so new matters don't collide.
+  const year = domain.matterNumberYear(now, 'Australia/Melbourne');
+  const HOUR = 3_600_000;
+  let nextSeq = 1;
 
   for (const spec of contacts) {
     const person = !spec.org;
@@ -638,7 +649,7 @@ export function buildDataset(options: {
 
   matters.forEach((spec, index) => {
     const base = `orgs/${org}/matters/${spec.id}`;
-    const number = `HV-2026-${String(index + 1).padStart(4, '0')}`;
+    const number = domain.formatMatterNumber(SEED_MATTER_NUMBER_FORMAT, year, nextSeq++);
     const deceased = spec.deceased ? contactById.get(spec.deceased) : undefined;
     const openTasks = spec.tasks.filter(([, status]) => status !== 'done' && status !== 'cancelled');
     const upcoming = spec.deadlines
@@ -657,9 +668,11 @@ export function buildDataset(options: {
     }, 0);
     const closed = spec.status === 'closed' || spec.status === 'archived';
 
-    add(
-      base,
-      makeMatter({
+    add(`orgs/${org}/matterNumbers/${domain.matterNumberKey(number)}`, {
+      ...makeMatterNumber({ ...meta, number, matterId: spec.id, year }),
+    });
+    add(base, {
+      ...makeMatter({
         ...meta,
         number,
         title: spec.title,
@@ -690,18 +703,26 @@ export function buildDataset(options: {
           ...(spec.type === 'will' ? {} : { sentOn: rel(-30) }),
         },
         conflictCheck: { status: spec.status === 'lead' ? 'pending' : 'clear' },
-        search: searchTokens(spec.title, number),
+        search: domain.matterSearchTokens({
+          number,
+          title: spec.title,
+          clientNames: spec.clients.map(nameOf).filter((name): name is string => !!name),
+          ...(spec.deceased && nameOf(spec.deceased) ? { deceasedName: nameOf(spec.deceased) as string } : {}),
+        }),
         nextDeadline: upcoming
           ? { id: upcoming.id, dueDate: upcoming.dueDate, title: upcoming.title, critical: upcoming.critical }
           : undefined,
         openTaskCount: openTasks.length,
         wipCents: wip as D.Cents,
-        lastActivityAt: now,
+        // Most recent first in the order above, a few hours apart.
+        lastActivityAt: new Date(now.getTime() - index * 5 * HOUR),
         closedAt: closed ? new Date(now.getTime() - 30 * 86_400_000) : undefined,
         closeReason: closed ? 'Matter completed' : undefined,
-        labels: [],
+        labels: spec.priority === 'urgent' ? ['urgent'] : [],
       }),
-    );
+      // Live matters carry deletedAt: null (the Matters list filters on it).
+      deletedAt: null,
+    });
 
     spec.parties.forEach(([contactId, role], i) =>
       add(
@@ -805,6 +826,23 @@ export function buildDataset(options: {
       files.push({ storagePath, fixture });
     });
   });
+
+  if (scenario === 'load') {
+    const load = buildLoadMatters({
+      orgId: org,
+      count: LOAD_MATTER_COUNT,
+      now,
+      format: SEED_MATTER_NUMBER_FORMAT,
+      year,
+      firstSeq: nextSeq,
+      uids: [PRIYA, JORDAN, DANIEL],
+      clientContactIds: contacts.filter((c) => !c.org && c.dateOfDeath === undefined).map((c) => c.id),
+      contactNames: Object.fromEntries(contacts.map((c) => [c.id, nameOf(c.id) ?? ''])),
+    });
+    for (const doc of [...load.matters, ...load.reservations]) add(doc.path, doc.data);
+    nextSeq = load.nextSeq;
+  }
+  add(`orgs/${org}/counters/${domain.matterCounterId(year)}`, makeCounter({ ...meta, next: nextSeq }));
 
   return { accounts: [...SEED_ACCOUNTS], docs, files };
 }

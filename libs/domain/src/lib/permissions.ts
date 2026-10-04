@@ -11,6 +11,8 @@ export const PERMISSIONS = {
   'matter.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
   'matter.delete': ['owner', 'admin', 'lawyer'],
   'matter.close': ['owner', 'admin', 'lawyer'],
+  'matter.status': ['owner', 'admin', 'lawyer'],
+  'matter.restore': ['owner', 'admin'],
   'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
   'contact.delete': ['owner', 'admin', 'lawyer'],
   'contact.merge': ['owner', 'admin'],
