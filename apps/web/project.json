@@ -98,7 +98,9 @@
           "branches": 70,
           "functions": 70,
           "lines": 70
-        }
+        },
+        "coverageInclude": ["apps/web/src/**/*.ts"],
+        "coverageExclude": ["apps/web/src/**/*.spec.ts", "apps/web/src/environments/**"]
       }
     },
     "serve-static": {
