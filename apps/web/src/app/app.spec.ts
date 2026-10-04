@@ -58,17 +58,20 @@ function walk(routes: Route[], visit: (route: Route) => void): void {
 
 describe('app routes', () => {
   it('opens Today in the shell from the root path', async () => {
-    const { router, el, title, crumbs } = await setup('/');
+    const { router, el, title, crumbs } = await setup('/', testSession(), {}, new InMemoryFirestore());
     expect(router.url).toBe('/today');
     expect(title()).toBe('Today · Materia');
     expect(el.querySelector('h1')?.textContent).toContain('Today');
-    expect(el.textContent).toContain('Coming in CORE-14');
+    // My tasks due this week (CORE-08); the rest of Today comes with CORE-14.
+    expect(el.textContent).toContain('Nothing due this week');
+    expect(el.textContent).toContain('More coming in CORE-14');
     expect(crumbs()).toEqual(['Today']);
     const nav = [...el.querySelectorAll('aside nav a')].map((a) => a.textContent?.trim());
     // Disputes is behind the litigation flag (off by default).
     expect(nav).toEqual([
       'Today',
       'Inbox',
+      'My tasks',
       'Matters',
       'Deadlines',
       'Contacts',
