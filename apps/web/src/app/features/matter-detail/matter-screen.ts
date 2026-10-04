@@ -48,6 +48,12 @@ export class MatterScreen {
       .filter((member) => member.status === 'active' && member.role !== 'readonly')
       .map((member) => ({ uid: member.id, name: member.displayName })),
   );
+  /** Every member with their status and role, for task assignees (CORE-08: former members). */
+  readonly memberList = computed(() =>
+    this.members
+      .value()
+      .map((member) => ({ uid: member.id, name: member.displayName, status: member.status, role: member.role })),
+  );
   readonly me = this.context.uid;
 
   // Permissions (hiding controls is a courtesy; the rules and callables enforce the same matrix).

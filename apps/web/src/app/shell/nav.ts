@@ -17,6 +17,7 @@ export interface NavEntry {
 export const NAV_ITEMS: readonly NavEntry[] = [
   { id: 'today', label: 'Today', icon: 'today', link: '/today', key: 't' },
   { id: 'inbox', label: 'Inbox', icon: 'inbox', link: '/inbox', key: 'i' },
+  { id: 'tasks', label: 'My tasks', icon: 'check-circle', link: '/tasks', key: 'k' },
   { id: 'matters', label: 'Matters', icon: 'matters', link: '/matters', key: 'm', section: 'workspace' },
   { id: 'deadlines', label: 'Deadlines', icon: 'calendar', link: '/deadlines', key: 'd', section: 'workspace' },
   {

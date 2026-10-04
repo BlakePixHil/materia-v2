@@ -26,12 +26,12 @@ export interface QuickAddTask {
   dueDate?: DateOnly;
 }
 
-type Parse = (typeof import('@materia/domain/quick-add'))['parseQuickAdd'];
+type Parse = (typeof import('./quick-add-parser'))['parseQuickAdd'];
 
 /** The parser brings chrono-node, so it loads on first use, in its own chunk. */
 let parser: Promise<Parse> | null = null;
 function loadParser(): Promise<Parse> {
-  parser ??= import('@materia/domain/quick-add').then((m) => m.parseQuickAdd);
+  parser ??= import('./quick-add-parser').then((m) => m.parseQuickAdd);
   return parser;
 }
 
@@ -68,7 +68,7 @@ interface Segment {
         [value]="text()"
         (input)="onInput($event)"
         (keydown.enter)="$event.preventDefault(); save()"
-        (keydown.escape)="$event.preventDefault(); $event.stopPropagation(); cancel.emit()"
+        (keydown.escape)="$event.preventDefault(); $event.stopPropagation(); closed.emit()"
       />
     </div>
     @if (text()) {
@@ -150,8 +150,8 @@ export class TaskQuickAdd {
   readonly label = input('New task');
   readonly placeholder = input('Task title, @name, !priority, due date');
 
-  readonly save$ = output<QuickAddTask>({ alias: 'save' });
-  readonly cancel = output();
+  readonly saved = output<QuickAddTask>();
+  readonly closed = output();
 
   private static next = 0;
   protected readonly ids = (() => {
@@ -211,7 +211,8 @@ export class TaskQuickAdd {
       const person = this.members().find((m) => m.uid === result.assigneeUid);
       parts.push(`Assigned to ${person?.name ?? 'them'}`);
     }
-    if (result.priority) parts.push(`${PRIORITY_NAMES[result.priority]}${result.priority === 'none' ? '' : ' priority'}`);
+    if (result.priority)
+      parts.push(`${PRIORITY_NAMES[result.priority]}${result.priority === 'none' ? '' : ' priority'}`);
     if (result.dueDate) parts.push(`Due ${formatDateOnly(result.dueDate, this.timeZone)}`);
     return parts.length ? parts.join(' · ') : '';
   });
@@ -255,7 +256,7 @@ export class TaskQuickAdd {
     if (result.assigneeUid && !this.personal()) task.assigneeUid = result.assigneeUid;
     if (result.priority) task.priority = result.priority;
     if (result.dueDate) task.dueDate = result.dueDate;
-    this.save$.emit(task);
+    this.saved.emit(task);
     this.text.set('');
     this.field().nativeElement.value = '';
   }

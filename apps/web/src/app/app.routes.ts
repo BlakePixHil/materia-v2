@@ -39,9 +39,10 @@ function planned(
   return { path, title, loadComponent: placeholder, data: { placeholder: { heading: title, ...data } }, ...extra };
 }
 
-/** The matter tabs built so far (CORE-06); the others show a placeholder. */
+/** The matter tabs built so far (CORE-06, CORE-08); the others show a placeholder. */
 const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
   overview: () => import('./features/matter-detail/matter-overview').then((m) => m.MatterOverview),
+  tasks: () => import('./features/matter-detail/matter-tasks').then((m) => m.MatterTasks),
   parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
 };
 
@@ -95,11 +96,19 @@ const matterRoutes: Route[] = [
 /** The shell's pages (FND-12). Every feature is lazily loaded (ADR-002). */
 const shellRoutes: Route[] = [
   { path: '', pathMatch: 'full', redirectTo: 'today' },
-  planned('today', 'Today', {
-    ticket: 'CORE-14',
-    icon: 'today',
-    description: "Your day: what's due, what changed and what Clerk suggests.",
-  }),
+  // Today: my tasks due this week for now (CORE-08); CORE-14 builds the rest.
+  {
+    path: 'today',
+    title: 'Today',
+    loadComponent: () => import('./features/tasks/today-page').then((m) => m.TodayPage),
+  },
+  // My tasks across matters, and personal tasks (CORE-08).
+  {
+    path: 'tasks',
+    title: 'My tasks',
+    data: { crumb: 'My tasks' },
+    loadComponent: () => import('./features/tasks/tasks-page').then((m) => m.TasksPage),
+  },
   planned('inbox', 'Inbox', {
     ticket: 'CORE-22',
     icon: 'inbox',

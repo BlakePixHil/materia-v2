@@ -80,7 +80,7 @@ function storedGroupBy(): GroupBy {
       </span>
     </div>
     @if (adding()) {
-      <mt-task-quick-add [members]="screen.assignees()" (save)="create($event)" (cancel)="closeQuickAdd()" />
+      <mt-task-quick-add [members]="screen.assignees()" (saved)="create($event)" (closed)="closeQuickAdd()" />
     }
     @switch (tasks.status()) {
       @case ('loading') {
@@ -94,13 +94,20 @@ function storedGroupBy(): GroupBy {
       }
       @default {
         @if (sections().length) {
-          <mt-task-list [sections]="sections()" [reorderable]="canEdit()" [headingLevel]="3" [(selection)]="selection" />
+          <mt-task-list
+            [sections]="sections()"
+            [reorderable]="canEdit()"
+            [headingLevel]="3"
+            [(selection)]="selection"
+          />
         } @else {
           <mt-empty-state
             icon="check-circle"
             [title]="tasks.value().length ? 'Every task is done' : 'No tasks yet'"
             [description]="
-              canEdit() ? 'Press c to add one: a title, then @name, !priority or a due date.' : 'Tasks on this matter show here.'
+              canEdit()
+                ? 'Press c to add one: a title, then @name, !priority or a due date.'
+                : 'Tasks on this matter show here.'
             "
             [headingLevel]="3"
           />
@@ -198,7 +205,9 @@ export class MatterTasks {
       .map((task) => taskEntry(task, { members, canEdit, note: duePendingText(task) }));
   });
   protected readonly sections = computed(() =>
-    this.groupBy() === 'stage' ? sectionsByStage(this.entries(), this.screen.stages()) : sectionsByGroup(this.entries()),
+    this.groupBy() === 'stage'
+      ? sectionsByStage(this.entries(), this.screen.stages())
+      : sectionsByGroup(this.entries()),
   );
   protected readonly selectedEntries = computed(() => {
     const keys = new Set(this.selection());
@@ -251,9 +260,11 @@ export class MatterTasks {
   /** Adds the task at the end of the list. Not awaited: offline, it's saved when back online. */
   protected create(task: QuickAddTask): void {
     const order = orderAfterLast(this.tasks.value());
-    this.repo.create({ ...task, status: 'todo', order }).catch((error: unknown) =>
-      this.toasts.show({ title: 'The task didn’t save', description: errorCopy(error), tone: 'danger' }),
-    );
+    this.repo
+      .create({ ...task, status: 'todo', order })
+      .catch((error: unknown) =>
+        this.toasts.show({ title: 'The task didn’t save', description: errorCopy(error), tone: 'danger' }),
+      );
     this.actions.announcement.set(`Added ${task.title}.`);
   }
 

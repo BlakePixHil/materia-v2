@@ -203,9 +203,7 @@ export function usesBulkCallable(count: number): boolean {
 
 /** How a bulk change is written to one task directly; null when there's nothing to write. */
 export type ClientWrite =
-  | { kind: 'update'; patch: Record<string, unknown>; remove: string[] }
-  | { kind: 'delete' }
-  | null;
+  { kind: 'update'; patch: Record<string, unknown>; remove: string[] } | { kind: 'delete' } | null;
 
 /** The direct write for one task (≤ `TASK_CLIENT_BATCH_MAX` selected), as `tasks-bulkUpdate` would do it. */
 export function clientWrite(task: TaskRecord, change: BulkTaskChange): ClientWrite {

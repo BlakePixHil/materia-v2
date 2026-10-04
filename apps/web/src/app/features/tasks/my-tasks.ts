@@ -77,7 +77,12 @@ const TODAY_SECTIONS = new Set(['overdue', 'today', 'this_week']);
   template: `
     @if (!compact()) {
       <div class="bar" role="group" aria-label="Filters">
-        <button type="button" class="mt-chip" [attr.data-selected]="types().length ? '' : null" [mtMenuTrigger]="typeMenu">
+        <button
+          type="button"
+          class="mt-chip"
+          [attr.data-selected]="types().length ? '' : null"
+          [mtMenuTrigger]="typeMenu"
+        >
           {{ typeText() }}<mt-icon name="chevron-down" />
         </button>
         <button
@@ -109,8 +114,8 @@ const TODAY_SECTIONS = new Set(['overdue', 'today', 'this_week']);
           [personal]="true"
           label="New personal task"
           placeholder="Task title, !priority, due date"
-          (save)="create($event)"
-          (cancel)="closeQuickAdd()"
+          (saved)="create($event)"
+          (closed)="closeQuickAdd()"
         />
       }
     }
@@ -141,7 +146,9 @@ const TODAY_SECTIONS = new Set(['overdue', 'today', 'this_week']);
             icon="check-circle"
             [title]="compact() ? 'Nothing due this week' : 'Nothing assigned to you'"
             [description]="
-              compact() ? 'Tasks due later or without a date are in My tasks.' : 'Open tasks assigned to you, and your personal tasks, show here.'
+              compact()
+                ? 'Tasks due later or without a date are in My tasks.'
+                : 'Open tasks assigned to you, and your personal tasks, show here.'
             "
             [headingLevel]="headingLevel()"
           >
@@ -252,10 +259,7 @@ export class MyTasks {
   private readonly personal = personalTaskRepository();
   private readonly mattersRepo = matterDetailRepository();
 
-  private readonly members = membersRepository().watchQuery(
-    { ...MEMBER_LIST_QUERY, pageSize: 200 },
-    { live: false },
-  );
+  private readonly members = membersRepository().watchQuery({ ...MEMBER_LIST_QUERY, pageSize: 200 }, { live: false });
   private readonly memberList = computed(() =>
     this.members.value().map((m) => ({ uid: m.id, name: m.displayName, status: m.status, role: m.role })),
   );
@@ -274,7 +278,7 @@ export class MyTasks {
   protected readonly priorityNames = PRIORITY_NAMES;
   protected readonly types = signal<readonly TypeFilter[]>([]);
   protected readonly priorities = signal<readonly Priority[]>([]);
-  protected readonly filtered = computed(() => !this.compact() && (this.types().length + this.priorities().length > 0));
+  protected readonly filtered = computed(() => !this.compact() && this.types().length + this.priorities().length > 0);
   protected readonly adding = signal(false);
   protected readonly selection = signal<readonly string[]>([]);
 
@@ -327,9 +331,14 @@ export class MyTasks {
 
   constructor() {
     effect(() => {
-      const ids = [...new Set(this.tasks.value().map((task) => task.matterId).filter((id): id is string => !!id))].filter(
-        (id) => !this.requested.has(id),
-      );
+      const ids = [
+        ...new Set(
+          this.tasks
+            .value()
+            .map((task) => task.matterId)
+            .filter((id): id is string => !!id),
+        ),
+      ].filter((id) => !this.requested.has(id));
       if (!ids.length) return;
       ids.forEach((id) => this.requested.add(id));
       untracked(() => void this.loadMatters(ids));

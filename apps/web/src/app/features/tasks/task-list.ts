@@ -38,8 +38,18 @@ const FOLLOW_MS = 1500;
   selector: 'mt-task-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [CdkDrag, CdkDragHandle, CdkDropList, CdkDropListGroup, MtIcon, MtIconButton, MtTaskRow, RouterLink, TaskDetails],
-  host: { class: 'mt-task-list' },
+  imports: [
+    CdkDrag,
+    CdkDragHandle,
+    CdkDropList,
+    CdkDropListGroup,
+    MtIcon,
+    MtIconButton,
+    MtTaskRow,
+    RouterLink,
+    TaskDetails,
+  ],
+  host: { class: 'mt-task-list', '(keydown)': 'onHostKey($event)' },
   template: `
     <div cdkDropListGroup class="sections">
       @for (section of sections(); track section.id) {
@@ -56,7 +66,7 @@ const FOLLOW_MS = 1500;
             (cdkDropListDropped)="dropped($event)"
             [attr.aria-labelledby]="headingId(section)"
           >
-            @for (entry of section.entries; track entry.key; let i = $index) {
+            @for (entry of section.entries; track entry.key) {
               <li
                 class="row"
                 cdkDrag
@@ -64,7 +74,6 @@ const FOLLOW_MS = 1500;
                 [cdkDragDisabled]="!reorderable() || !entry.editable"
                 [attr.data-key]="entry.key"
                 [attr.data-selected]="selected().has(entry.key) ? '' : null"
-                (keydown)="onKey($event, section, entry, i)"
               >
                 <div class="line">
                   @if (reorderable()) {
@@ -91,7 +100,9 @@ const FOLLOW_MS = 1500;
                     <a
                       class="matter caption"
                       [routerLink]="['/matters', matter.id, 'tasks']"
-                      [attr.aria-label]="matter.number ? 'Open ' + matter.number + ' ' + matter.title : 'Open the matter'"
+                      [attr.aria-label]="
+                        matter.number ? 'Open ' + matter.number + ' ' + matter.title : 'Open the matter'
+                      "
                       >{{ matter.number || 'Open the matter' }}</a
                     >
                   }
@@ -293,7 +304,22 @@ export class TaskList {
     });
   }
 
-  protected onKey(event: KeyboardEvent, section: TaskSectionVm, entry: TaskEntry, index: number): void {
+  /** Keys pressed inside a task's row (they bubble up from its title, checkbox or buttons). */
+  protected onHostKey(event: KeyboardEvent): void {
+    const row = (event.target as HTMLElement | null)?.closest?.<HTMLElement>('li.row');
+    const key = row?.dataset['key'];
+    if (!key) return;
+    for (const section of this.sections()) {
+      const index = section.entries.findIndex((e) => e.key === key);
+      const entry = section.entries[index];
+      if (entry) {
+        this.onKey(event, section, entry, index);
+        return;
+      }
+    }
+  }
+
+  private onKey(event: KeyboardEvent, section: TaskSectionVm, entry: TaskEntry, index: number): void {
     if (event.isComposing || isEditable(event.target)) return;
     const { key } = event;
     if (event.altKey && !event.ctrlKey && !event.metaKey && (key === 'ArrowUp' || key === 'ArrowDown')) {

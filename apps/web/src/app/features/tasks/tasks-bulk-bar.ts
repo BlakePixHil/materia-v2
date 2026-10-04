@@ -16,7 +16,14 @@ import { PRIORITY_NAMES, PRIORITY_ORDER, TASK_STATUS_LABELS, TASK_STATUS_ORDER, 
   host: { role: 'region', 'aria-label': 'Selected tasks' },
   template: `
     <span class="label" role="status">{{ count() === 1 ? '1 selected' : count() + ' selected' }}</span>
-    <button mtButton variant="ghost" size="sm" iconStart="check-circle" [mtMenuTrigger]="statusMenu" [disabled]="busy()">
+    <button
+      mtButton
+      variant="ghost"
+      size="sm"
+      iconStart="check-circle"
+      [mtMenuTrigger]="statusMenu"
+      [disabled]="busy()"
+    >
       Status
     </button>
     @if (people().length) {
