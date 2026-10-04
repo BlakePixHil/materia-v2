@@ -393,10 +393,12 @@ export class ContactsPage {
     ];
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
 
-    // Open the first contact when none is chosen, as the design shows.
+    // Open the first contact when none is chosen, as the design shows. Not while a dialog is open:
+    // selecting navigates, and navigating closes the dialog (a new contact can reach the list
+    // before contacts-create returns).
     effect(() => {
       const first = this.rows()[0];
-      if (first && !this.selectedId()) untracked(() => this.select(first.id));
+      if (first && !this.selectedId() && !this.dialogOpen()) untracked(() => this.select(first.id));
     });
   }
 

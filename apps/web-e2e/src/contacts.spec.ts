@@ -44,7 +44,10 @@ test.describe('contacts', () => {
 
     // Create: the first contact goes straight through (nothing to match).
     await createPerson(page, 'Marlowe', 'Testperson', '0412 555 018');
-    await expect(page.getByText('Contact created').first()).toBeVisible();
+    // The first call cold-starts the Functions emulator, so allow it longer than the default.
+    await expect(page.getByRole('region', { name: /Notifications/ }).getByText('Contact created')).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(detail(page).getByRole('heading', { level: 1, name: 'Marlowe Testperson' })).toBeVisible();
     await expect(detail(page)).toContainText('0412 555 018');
     const contactId = new URL(page.url()).searchParams.get('contact');
