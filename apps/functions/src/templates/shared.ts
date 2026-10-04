@@ -180,6 +180,8 @@ export function planTemplateTasks(template: Template, ctx: AnchorContext, option
       ...templateTaskFields(template, task, ctx, options),
       orgId: options.orgId,
       matterId: options.matterId,
+      // Counted in openTaskCount by createMissingTasks (CORE-08: tasks-onWrite leaves it alone).
+      countedOpen: true,
       createdAt: options.now,
       createdBy: options.uid,
       updatedAt: options.now,

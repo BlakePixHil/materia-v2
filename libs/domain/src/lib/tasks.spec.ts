@@ -59,7 +59,15 @@ describe('task schema (CORE-08)', () => {
 
   it('client create inputs add org and matter, and only manual tasks', () => {
     const task = MatterTaskCreateInput.parse({ orgId: 'o', matterId: 'm', title: 'Call', status: 'todo', order: 1 });
-    expect(task).toMatchObject({ orgId: 'o', matterId: 'm', source: 'manual', priority: 'none', checklist: [] });
+    expect(task).toMatchObject({
+      orgId: 'o',
+      matterId: 'm',
+      source: 'manual',
+      priority: 'none',
+      checklist: [],
+      countedOpen: false,
+    });
+    expect(() => MatterTaskCreateInput.parse({ ...task, countedOpen: true })).toThrow();
     expect(() => MatterTaskCreateInput.parse({ ...task, source: 'template' })).toThrow();
     expect(() => MatterTaskCreateInput.parse({ ...task, completedAt: new Date() })).toThrow();
     const personal = PersonalTaskCreateInput.parse({

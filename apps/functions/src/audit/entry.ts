@@ -29,6 +29,9 @@ export const EXCLUDED_COLLECTIONS = new Set([
 export const NOISE_FIELDS = new Set([
   'nextDeadline',
   'openTaskCount',
+  // Tasks (CORE-08): written by tasks-onWrite after a status change, which is audited itself.
+  'countedOpen',
+  'completedAt',
   'wipCents',
   'lastActivityAt',
   'search',

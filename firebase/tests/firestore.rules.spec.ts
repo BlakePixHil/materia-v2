@@ -1114,6 +1114,7 @@ describe('tasks (CORE-08)', () => {
     checklist: [{ id: 'c1', text: 'Fictional Bank', done: false }],
     order: 1024,
     source: 'manual',
+    countedOpen: false,
     orgId: ORG,
     matterId,
     createdAt: serverTimestamp(),
@@ -1165,6 +1166,8 @@ describe('tasks (CORE-08)', () => {
     await attempt('template', { source: 'template' });
     await attempt('completed', { completedAt: serverTimestamp() });
     await attempt('counted', { countedOpen: true });
+    const { countedOpen: _counted, ...unmarked } = newTask(uid);
+    await assertFails(setDoc(doc(firestore, `${MATTER}/tasks/unmarked`), unmarked));
     await attempt('tpl-key', { templateTaskKey: 'obtain_death_certificate' });
     await attempt('blank', { title: '   ' });
     await attempt('long', { title: 'x'.repeat(501) });

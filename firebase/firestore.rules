@@ -100,7 +100,7 @@ service cloud.firestore {
     // Fields a client may write when creating a task: `MatterTaskCreateInput` in libs/domain (the
     // rules tests check the two agree), plus the meta fields.
     function taskCreateFields() {
-      return ['title', 'descriptionMd', 'status', 'priority', 'assigneeUid', 'dueDate', 'deadlineId', 'group', 'checklist', 'order', 'source', 'orgId', 'matterId'];
+      return ['title', 'descriptionMd', 'status', 'priority', 'assigneeUid', 'dueDate', 'deadlineId', 'group', 'checklist', 'order', 'source', 'orgId', 'matterId', 'countedOpen'];
     }
     // The values a task may hold after a client write.
     function validTask(data) {
@@ -114,13 +114,13 @@ service cloud.firestore {
         && (!('group' in data) || data.group is string && data.group.size() <= 120);
     }
     // A client-created task: a manual task at this path (`matterId` null for a personal task),
-    // created and stamped by the caller, without server-owned fields (completedAt, countedOpen…).
+    // created and stamped by the caller, without server-owned fields (completedAt, template keys).
     function newTask(orgId, matterId) {
       let data = request.resource.data;
       return data.keys().hasOnly(taskCreateFields().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
         && data.keys().hasAll(['title', 'status', 'priority', 'checklist', 'order', 'source', 'orgId', 'matterId', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
         && data.orgId == orgId && data.matterId == matterId
-        && data.source == 'manual'
+        && data.source == 'manual' && data.get('countedOpen', false) == false
         && data.createdBy == uid() && data.createdAt == request.time && validMeta() && data.schemaVersion == 1
         && validTask(data);
     }
@@ -266,7 +266,8 @@ service cloud.firestore {
             return can(orgId, 'task.edit') && visible(orgId, taskMatter()) && taskMatter().get('deletedAt', null) == null;
           }
           allow read: if inOrg(orgId) && visible(orgId, taskMatter());
-          allow create: if canEditTasks() && newTask(orgId, matterId);
+          // `countedOpen: false` says the task isn't in openTaskCount yet (tasks-onWrite counts it).
+          allow create: if canEditTasks() && newTask(orgId, matterId) && request.resource.data.countedOpen == false;
           allow update: if canEditTasks()
             && (clientUpdate(fieldsTask()) && validTask(request.resource.data) || softDelete());
         }

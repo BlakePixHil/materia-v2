@@ -61,12 +61,15 @@ export const personalTaskPath = (orgId: string, uid: string, taskId?: string) =>
 /**
  * What a client writes to create a matter task (CORE-08), besides the meta fields the repository
  * stamps: the create fields plus `orgId` and `matterId` matching the path (the rules check both).
- * `source` is always `manual`; completion fields and template keys are the server's.
+ * `source` is always `manual`; completion fields and template keys are the server's. `countedOpen`
+ * is always `false`: the task isn't in the matter's `openTaskCount` until `tasks-onWrite` counts it
+ * (a task written without the field is one counted before CORE-08).
  */
 export const MatterTaskCreateInput = /* @__PURE__ */ Task.create.extend({
   orgId: DocIdSchema,
   matterId: DocIdSchema,
   source: z.literal('manual').default('manual'),
+  countedOpen: z.literal(false).default(false),
 });
 export type MatterTaskCreateInput = z.input<typeof MatterTaskCreateInput>;
 
