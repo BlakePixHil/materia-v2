@@ -178,7 +178,11 @@ async function open(url: string, session: AuthSession = LAWYER, options: Options
     port.calls.push({ name, data });
     const input = data as Seed;
     if (name === 'conflicts-run') {
-      return { checkId: 'chk-1', hits: options.hits ?? HITS } satisfies RunConflictCheckResult as T;
+      return {
+        checkId: 'chk-1',
+        hits: options.hits ?? HITS,
+        adverseRolesChecked: true,
+      } satisfies RunConflictCheckResult as T;
     }
     if (name === 'conflicts-determine') {
       if (options.determine) return options.determine(input, firestore) as T;
