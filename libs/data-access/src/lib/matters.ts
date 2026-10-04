@@ -285,6 +285,8 @@ export const MATTER_CALLABLES = {
   upsertParty: 'matters-upsertParty',
   /** `RemovePartyInput` → `PartyResult` (matter.edit). */
   removeParty: 'matters-removeParty',
+  /** `UpgradeMatterTemplateInput` → `UpgradeMatterTemplateResult` (matter.edit, CORE-07). */
+  upgradeTemplate: 'matters-upgradeTemplate',
 } as const;
 
 // ---------- saved views ----------

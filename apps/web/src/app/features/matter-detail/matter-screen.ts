@@ -5,13 +5,16 @@ import {
   MEMBER_LIST_QUERY,
   matterCallables,
   matterDetailRepository,
-  matterTemplateStagesLoader,
+  matterTemplateLoader,
+  matterTemplatesRepository,
   membersRepository,
+  type MatterTemplateOutline,
 } from '@materia/data-access/repository';
-import { matterStages, type KeyFactId, type TemplateStageLike } from '@materia/domain';
+import { isSystemTemplateId, matterStages, type KeyFactId } from '@materia/domain';
 
 import { recentUpdateText, type MatterRecord } from './matter-view';
 import { CALLABLES } from '../../core/data/callables';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { MatterRefs } from '../../core/title-strategy';
 
 /** How often "Updated by … just now" is re-checked. */
@@ -25,6 +28,7 @@ const CLOCK_TICK_MS = 15_000;
 @Injectable()
 export class MatterScreen {
   private readonly context = inject(OrgContext);
+  private readonly flags = inject(FeatureFlagService);
 
   /** The matter's id (from the route). */
   readonly id = signal<string | null>(null);
@@ -62,12 +66,32 @@ export class MatterScreen {
   /** Bumped to ask the Parties tab to open "Add party" (the `p` shortcut). */
   readonly addPartyRequest = signal(0);
 
-  // The template version's stages (CORE-07), read once per template version; the type's defaults otherwise.
-  private readonly loadTemplateStages = matterTemplateStagesLoader();
-  private readonly templateStages = signal<TemplateStageLike[] | null>(null);
+  /** Matter templates are on (CORE-07): stage entry requirements, moving back with a reason, upgrades. */
+  readonly templatesOn = computed(() => this.flags.isOn('templates.system'));
+
+  // The template version's stages and task names (CORE-07), read once per template version; the
+  // type's default stages otherwise.
+  private readonly loadTemplate = matterTemplateLoader();
+  private readonly template = signal<MatterTemplateOutline | null>(null);
   readonly stages = computed(() => {
     const matter = this.matter.value();
-    return matter ? matterStages(matter.type, this.templateStages() ?? undefined) : [];
+    return matter ? matterStages(matter.type, this.template()?.stages) : [];
+  });
+  /** A template task's title by its key ("Take will instructions"); the key when unknown. */
+  taskTitle(key: string): string {
+    return this.template()?.tasks.find((task) => task.key === key)?.title ?? key.replace(/_/g, ' ');
+  }
+
+  // The org template the matter is on (system templates have one version), watched for newer versions.
+  private readonly orgTemplate = matterTemplatesRepository().watch(() => {
+    const templateId = this.templatesOn() ? this.matter.value()?.templateId : null;
+    return templateId && !isSystemTemplateId(templateId) ? templateId : null;
+  });
+  /** The newer published version of the matter's template it can upgrade to, or null. */
+  readonly upgradeVersion = computed(() => {
+    const latest = this.orgTemplate.value()?.version ?? 0;
+    const current = this.matter.value()?.templateVersion ?? 0;
+    return this.templatesOn() && current >= 1 && latest > current ? latest : null;
   });
 
   /** Ticks so "just now" goes stale. */
@@ -86,8 +110,8 @@ export class MatterScreen {
       if (key === loadedFor) return;
       loadedFor = key;
       untracked(() => {
-        this.templateStages.set(null);
-        if (templateId) void this.loadTemplate(templateId, version);
+        this.template.set(null);
+        if (templateId) void this.readTemplate(templateId, version);
       });
     });
     // Titles and breadcrumbs show the matter's number once it's known.
@@ -115,12 +139,12 @@ export class MatterScreen {
     return this.matter.value();
   }
 
-  private async loadTemplate(templateId: string, version: number | null): Promise<void> {
+  private async readTemplate(templateId: string, version: number | null): Promise<void> {
     try {
-      const stages = await this.loadTemplateStages(templateId, version);
+      const template = await this.loadTemplate(templateId, version);
       const current = untracked(() => this.matter.value());
-      if (stages && current?.templateId === templateId && (current.templateVersion ?? null) === version) {
-        this.templateStages.set(stages);
+      if (template && current?.templateId === templateId && (current.templateVersion ?? null) === version) {
+        this.template.set(template);
       }
     } catch {
       // No template (deleted, or not readable): the type's default stages stand.

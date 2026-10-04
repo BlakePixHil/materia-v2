@@ -30,7 +30,7 @@ import {
 } from '@materia/ui';
 
 import { MatterScreen } from './matter-screen';
-import { LONG_TITLE, statusChoices, statusLabel, type StatusChoice } from './matter-view';
+import { LONG_TITLE, matterErrorCopy, statusChoices, statusLabel, type StatusChoice } from './matter-view';
 import { errorCopy } from '../../core/error-copy';
 import { CONFLICT_STATUS_TONES, conflictBadgeText } from '../conflicts/conflict-view';
 import { MatterNameDialog, type MatterNameDialogData } from '../matters/matter-name-dialog';
@@ -243,6 +243,11 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
         <mt-menu aria-label="Matter actions">
           <button mtMenuItem icon="copy" kbd="y" (click)="copyNumber()">Copy matter number</button>
           <button mtMenuItem icon="external" (click)="openInNewTab()">Open in new tab</button>
+          @if (upgradeTo(); as version) {
+            <button mtMenuItem icon="arrow-up-right" (click)="upgradeTemplate(version)">
+              Upgrade matter to v{{ version }}…
+            </button>
+          }
           @if (canClose()) {
             <button mtMenuItem icon="archive" (click)="closeMatter()">Close matter…</button>
           }
@@ -342,6 +347,8 @@ export class MatterHeader {
     const matter = this.screen.value();
     return matter ? statusChoices(matter.status, conflictAllowsOpening(matter.conflictCheck?.status)) : [];
   });
+  /** A newer published version of the matter's template (CORE-07), for those who may edit the matter. */
+  protected readonly upgradeTo = computed(() => (this.screen.editable() ? this.screen.upgradeVersion() : null));
   protected readonly canClose = computed(
     () => this.statusEditable() && this.choices().some((choice) => choice.to === 'closed'),
   );
@@ -476,6 +483,35 @@ export class MatterHeader {
       this.toasts.show({ title: `Copied ${number}`, tone: 'success' });
     } catch {
       this.toasts.show({ title: 'Couldn’t copy the matter number', tone: 'danger' });
+    }
+  }
+
+  /**
+   * Moves the matter to a newer version of its template (`matters-upgradeTemplate`): its stage
+   * carries over (mapped when the version dropped it) and missing tasks are added; nothing is removed.
+   */
+  protected async upgradeTemplate(version: number): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter || !this.screen.editable()) return;
+    const confirmed = await this.dialogs.confirm({
+      title: `Upgrade ${matter.number} to v${version}?`,
+      body: `The matter moves to version ${version} of its template. Only tasks it doesn’t have yet are added; existing tasks, dates and the matter’s stage stay as they are.`,
+      confirmLabel: `Upgrade to v${version}`,
+    });
+    if (!confirmed) return;
+    this.busy.set(true);
+    try {
+      const result = await this.screen.api.upgradeTemplate({ matterId: matter.id, version });
+      const added = result.createdTaskIds.length;
+      this.toasts.show({
+        title: `Upgraded to v${result.version}`,
+        description: added === 0 ? 'No tasks were added.' : added === 1 ? '1 task added.' : `${added} tasks added.`,
+        tone: 'success',
+      });
+    } catch (error) {
+      this.toasts.show({ title: 'Couldn’t upgrade the matter', description: matterErrorCopy(error), tone: 'danger' });
+    } finally {
+      this.busy.set(false);
     }
   }
 

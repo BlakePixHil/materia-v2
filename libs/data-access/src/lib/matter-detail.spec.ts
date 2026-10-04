@@ -14,6 +14,7 @@ import {
   matterPartiesRepository,
   matterTasksRepository,
   matterTemplatesRepository,
+  matterTemplateLoader,
   matterTemplateStagesLoader,
   OPEN_DEADLINES_QUERY,
   OPEN_TASKS_QUERY,
@@ -206,6 +207,31 @@ describe('a matter’s records', () => {
     expect(await load('tpl-2')).toEqual([{ id: 'start', name: 'Draft start' }]);
     expect(await load('tpl-missing')).toBeNull();
   });
+
+  it('loads a matter’s template outline with its tasks’ names (CORE-07)', async () => {
+    const fs = setup();
+    fs.set('orgs/org-a/templates/tpl-3/versions/2', {
+      name: 'Fictional probate',
+      matterType: 'probate',
+      templateId: 'tpl-3',
+      version: 2,
+      published: true,
+      source: 'org',
+      deadlineRuleIds: [],
+      stages: [{ id: 'start', name: 'Start', order: 1 }],
+      tasks: [{ key: 'call_client', title: 'Call the client', stageId: 'start', assignTo: null, priority: 'low' }],
+      ...meta,
+    });
+    const load = TestBed.runInInjectionContext(() => matterTemplateLoader());
+    expect(await load('tpl-3', 2)).toEqual({
+      stages: [{ id: 'start', name: 'Start' }],
+      tasks: [{ key: 'call_client', title: 'Call the client' }],
+    });
+    expect((await load('system-will'))?.tasks[0]).toEqual({
+      key: 'take_instructions',
+      title: 'Take will instructions',
+    });
+  });
 });
 
 describe('matterCallables', () => {
@@ -227,11 +253,13 @@ describe('matterCallables', () => {
     await api.upsertParty({ matterId: 'm-1', contactId: 'c-3', role: 'beneficiary', share: 'One half' });
     await api.removeParty({ matterId: 'm-1', partyId: 'beneficiary-c-3' });
     await api.changeStatus({ matterId: 'm-1', to: 'closed', reason: 'Estate finalised' });
+    await api.upgradeTemplate({ matterId: 'm-1', version: 2 });
     expect(calls.map((c) => c.name)).toEqual([
       'matters-changeStage',
       'matters-upsertParty',
       'matters-removeParty',
       'matters-changeStatus',
+      'matters-upgradeTemplate',
     ]);
     expect(calls[0]?.data).toEqual({
       matterId: 'm-1',

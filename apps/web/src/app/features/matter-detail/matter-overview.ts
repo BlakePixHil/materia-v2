@@ -14,7 +14,7 @@ import { formatRelativeDate, MT_TODAY, MtClerkMark, MtDeadlineChip, MtEmptyState
 
 import { MatterKeyFacts } from './matter-key-facts';
 import { MatterScreen } from './matter-screen';
-import { effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
+import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
 
 /** How many open tasks the overview lists (the count shows them all). */
 const TASKS_SHOWN = 5;
@@ -89,6 +89,8 @@ const TASKS_SHOWN = 5;
                 }
                 @if (task.dueDate; as due) {
                   <span class="caption t-2">{{ relative(due) }}</span>
+                } @else if (pending(task); as text) {
+                  <span class="caption t-3 pending">{{ text }}</span>
                 }
               </li>
             } @empty {
@@ -169,6 +171,7 @@ export class MatterOverview {
   protected readonly upcoming = computed(() => nextDeadlines(this.deadlines.value()));
   protected readonly openTasks = computed(() => sortOpenTasks(this.tasks.value()).slice(0, TASKS_SHOWN));
   protected readonly due = effectiveDue;
+  protected readonly pending = duePendingText;
 
   protected relative(value: MtDateInput): string {
     return formatRelativeDate(value, this.today());

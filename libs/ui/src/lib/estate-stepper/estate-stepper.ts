@@ -16,6 +16,11 @@ export interface StageVm {
   title: string;
   /** What finishes the stage, shown in the stage's tooltip ("Grant received from the court"). */
   description?: string | undefined;
+  /**
+   * Why this stage can't be chosen (interactive steppers only): the stage stays focusable with
+   * `aria-disabled`, its tooltip says why, and choosing it emits nothing.
+   */
+  locked?: string | undefined;
 }
 
 export type MtStepState = 'done' | 'current' | 'upcoming';
@@ -42,13 +47,18 @@ export function stepStates(
  * EstateStepper (`mt-estate-stepper`): a matter's stages from its template, as a segmented track. The
  * current stage is marked `aria-current="step"`. With `interactive`, each stage is a button that emits
  * `stageSelect` (moving a matter's stage is the feature's job). A stage's `description` (its
- * completion criteria) is the button's tooltip.
+ * completion criteria) is the button's tooltip; a `locked` stage says why it can't be chosen.
  */
 @Component({
   selector: 'mt-estate-stepper',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrl: '../../generated/components/stepper.css',
+  styles: `
+    .mt-stepper-btn[aria-disabled='true'] {
+      cursor: not-allowed;
+    }
+  `,
   imports: [MtTooltip],
   host: { style: 'display: block' },
   template: `
@@ -62,9 +72,10 @@ export function stepStates(
             <button
               type="button"
               class="mt-stepper-btn"
-              [mtTooltip]="stage.description ?? ''"
-              [mtTooltipDisabled]="!stage.description"
-              (click)="stageSelect.emit(stage)"
+              [attr.aria-disabled]="stage.locked ? 'true' : null"
+              [mtTooltip]="tooltip(stage)"
+              [mtTooltipDisabled]="!tooltip(stage)"
+              (click)="choose(stage)"
             >
               {{ stage.title }}<span class="mt-sr">{{ stateText(states()[i]) }}</span>
             </button>
@@ -91,6 +102,14 @@ export class MtEstateStepper {
   readonly stageSelect = output<StageVm>();
 
   protected readonly states = computed(() => stepStates(this.stages(), this.current(), this.completed()));
+
+  protected tooltip(stage: StageVm): string {
+    return [stage.description, stage.locked].filter(Boolean).join('. ');
+  }
+
+  protected choose(stage: StageVm): void {
+    if (!stage.locked) this.stageSelect.emit(stage);
+  }
 
   protected stateText(state: MtStepState | undefined): string {
     return state === 'done' ? ', complete' : state === 'current' ? ', current' : '';

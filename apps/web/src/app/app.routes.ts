@@ -1,6 +1,6 @@
 import { Route } from '@angular/router';
 
-import { authGuard, mfaGuard, orgScopedGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
+import { authGuard, mfaGuard, orgScopedGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
 import { MATTER_TABS } from './pages/matter-tabs';
 import type { PlaceholderData } from './pages/placeholder';
@@ -140,6 +140,26 @@ const shellRoutes: Route[] = [
         title: 'Team',
         data: { crumb: 'Team' },
         loadComponent: () => import('./pages/orgs/team').then((m) => m.TeamPage),
+      },
+      // Matter templates (CORE-07): owners and admins (`org.settings`), while `templates.system` is on.
+      {
+        path: 'templates',
+        data: { crumb: 'Templates' },
+        canActivate: [flagGuard('templates.system'), roleGuard(['owner', 'admin'])],
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            title: 'Matter templates',
+            loadComponent: () => import('./features/templates/templates-page').then((m) => m.TemplatesPage),
+          },
+          {
+            path: ':id',
+            title: 'Edit template',
+            data: { crumb: 'Edit' },
+            loadComponent: () => import('./features/templates/template-editor-page').then((m) => m.TemplateEditorPage),
+          },
+        ],
       },
       planned('**', 'Settings', {
         ticket: 'CORE-21',
