@@ -304,6 +304,12 @@ service cloud.firestore {
         allow update: if inOrg(orgId) && resource.data.recipientUid == uid() && clientUpdate(fieldsNotification());
       }
 
+      // Background jobs (FND-24): written by functions and the Cloud Run job; the member who
+      // started a job watches its progress.
+      match /jobs/{jobId} {
+        allow read: if inOrg(orgId) && resource.data.createdBy == uid();
+      }
+
       // Server-only collections.
       // Append-only audit log (FND-18): written by functions, read through the audit-query callable.
       match /audit/{entryId} {
@@ -391,6 +397,7 @@ service cloud.firestore {
     function fieldsInvite() { return ['role']; }
     function fieldsInvoice() { return ['lines', 'dueDate']; }
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
+    function fieldsJob() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }
     function fieldsMatter() { return ['title', 'type', 'status', 'stageId', 'templateId', 'templateVersion', 'jurisdiction', 'responsibleUid', 'teamUids', 'clientContactIds', 'deceased', 'testator', 'referrerContactId', 'referralSource', 'fee', 'costsDisclosure', 'conflictCheck', 'estate', 'dispute', 'privileged', 'priority', 'externalRef', 'boardOrder', 'labels', 'relatedMatterIds', 'closeReason', 'destroyAfter']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted']; }

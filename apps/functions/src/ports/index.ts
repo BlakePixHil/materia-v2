@@ -120,9 +120,15 @@ export interface TranscriptionPort {
   transcribe(bucket: string, objectPath: string): Promise<{ text: string; durationSeconds: number }>;
 }
 
-export interface PdfRenderPort {
-  /** Renders HTML to a PDF in Storage and returns its path. */
-  render(html: string, outputPath: string): Promise<{ path: string; pages: number }>;
+/** A Cloud Run job image (ADR-014). `pdf` runs `pdf.render` and `pdf.merge` (FND-24). */
+export type CloudRunJobName = 'pdf';
+
+/**
+ * Starts a Cloud Run job execution for one job document, `orgs/{orgId}/jobs/{jobId}` (FND-24). The
+ * execution reads everything else from that document.
+ */
+export interface JobRunnerPort {
+  start(job: CloudRunJobName, params: { orgId: string; jobId: string }): Promise<{ executionId: string }>;
 }
 
 export interface Ports {
@@ -134,5 +140,5 @@ export interface Ports {
   xero: XeroPort;
   malwareScan: MalwareScanPort;
   transcription: TranscriptionPort;
-  pdfRender: PdfRenderPort;
+  jobs: JobRunnerPort;
 }

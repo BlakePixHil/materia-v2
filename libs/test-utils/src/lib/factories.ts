@@ -596,6 +596,22 @@ export const makeCalendar = (o: Partial<D.Calendar> = {}) =>
     o,
   );
 
+export const makeJob = (o: Partial<D.Job> = {}) =>
+  build(
+    D.Job,
+    {
+      type: 'pdf.merge',
+      input: { inputs: [{ storagePath: `orgs/${TEST_ORG_ID}/matters/${TEST_MATTER_ID}/documents/doc-1/v1` }] },
+      target: { kind: 'matter', matterId: TEST_MATTER_ID, name: 'Court book draft', category: 'court_document' },
+      status: 'running',
+      progress: { done: 2, total: 5, stage: 'merging' },
+      attempts: 1,
+      startedAt: FIXED_INSTANT,
+      heartbeatAt: FIXED_INSTANT,
+    },
+    o,
+  );
+
 /** Every factory with its entity, for exhaustive tests (schema coverage, converter round-trips). */
 export const ENTITY_FACTORIES = {
   Org: [D.Org, makeOrg],
@@ -642,4 +658,5 @@ export const ENTITY_FACTORIES = {
   MigrationRun: [D.MigrationRun, makeMigrationRun],
   RuleSetVersion: [D.RuleSetVersion, makeRuleSetVersion],
   Calendar: [D.Calendar, makeCalendar],
+  Job: [D.Job, makeJob],
 } as const;

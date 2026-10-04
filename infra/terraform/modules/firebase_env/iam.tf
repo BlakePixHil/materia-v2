@@ -52,6 +52,7 @@ locals {
     "roles/logging.logWriter",
     "roles/monitoring.metricWriter",
     "roles/aiplatform.user", # embeddings (ADR-012)
+    "roles/run.invoker",      # starts Cloud Run job executions with overrides (FND-24)
   ]
 
   jobs_runtime_roles = [

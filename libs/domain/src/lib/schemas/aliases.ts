@@ -1,5 +1,6 @@
 import { Suggestion, ClerkThread, ClerkMessage } from './clerk';
 import { Contact, Matter } from './contacts-matters';
+import { Job } from './jobs';
 import {
   Proceeding,
   CourtEvent,
@@ -181,3 +182,6 @@ export const RuleSetVersionUpdateSchema = RuleSetVersion.update;
 export const CalendarSchema = Calendar.schema;
 export const CalendarCreateSchema = Calendar.create;
 export const CalendarUpdateSchema = Calendar.update;
+export const JobSchema = Job.schema;
+export const JobCreateSchema = Job.create;
+export const JobUpdateSchema = Job.update;

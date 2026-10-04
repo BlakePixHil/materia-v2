@@ -33,6 +33,7 @@ jobs:
       infra: ${{ steps.filter.outputs.infra }}
       e2e: ${{ steps.filter.outputs.e2e }}
       storybook: ${{ steps.filter.outputs.storybook }}
+      jobs: ${{ steps.filter.outputs.jobs }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,6 +47,7 @@ jobs:
           if git diff --name-only "$NX_BASE" "$NX_HEAD" | grep -q '^infra/'; then echo "infra=true" >> "$GITHUB_OUTPUT"; else echo "infra=false" >> "$GITHUB_OUTPUT"; fi
           if echo "$affected" | grep -qx 'web-e2e'; then echo "e2e=true" >> "$GITHUB_OUTPUT"; else echo "e2e=false" >> "$GITHUB_OUTPUT"; fi
           if echo "$affected" | grep -qx 'ui'; then echo "storybook=true" >> "$GITHUB_OUTPUT"; else echo "storybook=false" >> "$GITHUB_OUTPUT"; fi
+          if echo "$affected" | grep -qx 'jobs'; then echo "jobs=true" >> "$GITHUB_OUTPUT"; else echo "jobs=false" >> "$GITHUB_OUTPUT"; fi
 
   lint:
     name: lint
@@ -136,6 +138,29 @@ jobs:
       # FND-06: seed the emulators with the fictional practice, then validate every seeded document
       # against its domain schema and sign in as each test account.
       - run: pnpm nx affected -t test-seed --base="$NX_BASE" --head="$NX_HEAD"
+
+  # FND-24: builds the Cloud Run jobs image exactly as deploy.yml does, then runs the PDF job inside
+  # it (no network) against fixture PDFs: merge, stamp, bookmarks, determinism, bad inputs and the
+  # 500-page budget. qpdf on the runner only inspects the outputs.
+  jobs-container:
+    name: jobs container
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: changes
+    if: needs.changes.outputs.jobs == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install qpdf
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qpdf
+      - name: Build the bundle and the image
+        run: |
+          pnpm nx build jobs
+          docker build -f apps/jobs/Dockerfile -t materia-jobs:ci dist/apps/jobs
+      - name: Run the PDF job in the image
+        env:
+          JOBS_IMAGE: materia-jobs:ci
+        run: pnpm exec vitest run -c apps/jobs/vitest.integration.config.mts
 
   build:
     name: build
@@ -442,7 +467,8 @@ jobs:
     name: ci-ok
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, lint, typecheck, unit, rules, integration, build, e2e, storybook, terraform, security]
+    needs:
+      [changes, lint, typecheck, unit, rules, integration, jobs-container, build, e2e, storybook, terraform, security]
     if: always()
     steps:
       - name: Every job succeeded or was skipped

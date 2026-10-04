@@ -160,6 +160,15 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'owner',
   },
   {
+    // Background job progress (FND-24): only the member who started the job reads it.
+    collection: 'jobs',
+    docPath: `orgs/${ORG}/jobs/job-1`,
+    entity: 'Job',
+    seed: { createdBy: OWNER },
+    read: 'owner',
+    update: 'none',
+  },
+  {
     collection: 'audit',
     docPath: `orgs/${ORG}/audit/entry-1`,
     entity: 'AuditEntry',

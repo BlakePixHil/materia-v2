@@ -6,7 +6,7 @@ import type {
   MailMessage,
   MailPort,
   MalwareScanPort,
-  PdfRenderPort,
+  JobRunnerPort,
   Ports,
   TranscriptionPort,
   XeroPort,
@@ -76,11 +76,14 @@ export const fakeTranscription: TranscriptionPort = {
   },
 };
 
-export const fakePdfRender: PdfRenderPort = {
-  async render(_html, outputPath) {
-    return { path: outputPath, pages: 1 };
-  },
-};
+/** Records job starts; nothing runs (run the job image with `--local` to try a job by hand). */
+export class FakeJobRunner implements JobRunnerPort {
+  readonly started: { job: string; orgId: string; jobId: string }[] = [];
+  async start(job: string, params: { orgId: string; jobId: string }) {
+    this.started.push({ job, ...params });
+    return { executionId: `fake-execution-${this.started.length}` };
+  }
+}
 
 export function fakePorts(overrides: Partial<Ports> = {}): Ports {
   return {
@@ -92,7 +95,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     xero: fakeXero,
     malwareScan: fakeMalwareScan,
     transcription: fakeTranscription,
-    pdfRender: fakePdfRender,
+    jobs: new FakeJobRunner(),
     ...overrides,
   };
 }

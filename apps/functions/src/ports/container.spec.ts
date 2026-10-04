@@ -26,7 +26,7 @@ describe('ports container', () => {
     const p = ports();
     expect(p.clock.now()).toBeInstanceOf(Date);
     await expect(p.mail.send({ to: 'x', template: 't', model: {} })).rejects.toBeInstanceOf(DomainError);
-    await expect(p.pdfRender.render('<p></p>', 'out.pdf')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    await expect(p.xero.pushInvoice('o', 'i')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
   });
 
   it('can be replaced in tests', () => {

@@ -5,6 +5,7 @@ import type { Ports } from './index';
 import { anthropicModel } from '../clerk/providers/anthropic';
 import { useFakes } from '../core/env';
 import { ANTHROPIC_API_KEY } from '../core/secrets';
+import { cloudRunJobs } from '../jobs/cloud-run';
 
 export const systemClock = { now: () => new Date() };
 
@@ -30,7 +31,7 @@ function realPorts(): Ports {
     xero: notConfigured('XeroPort'), // BILL-08
     malwareScan: notConfigured('MalwareScanPort'), // CORE-12
     transcription: notConfigured('TranscriptionPort'), // MOB-03
-    pdfRender: notConfigured('PdfRenderPort'), // FND-24
+    jobs: cloudRunJobs(), // FND-24
   };
 }
 

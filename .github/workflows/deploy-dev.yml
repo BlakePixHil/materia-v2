@@ -94,6 +94,13 @@ jobs:
           pnpm nx build web --configuration=prod --skip-nx-cache
           mv dist/apps/web/browser dist/release/web-prod
 
+      # The bundle only; deploy.yml builds the image from it with apps/jobs/Dockerfile (FND-24).
+      - name: Build the Cloud Run jobs bundle
+        run: |
+          pnpm nx build jobs --skip-nx-cache
+          mv dist/apps/jobs dist/release/jobs
+          cp apps/jobs/Dockerfile dist/release/jobs/Dockerfile
+
       - name: Build functions
         run: |
           pnpm nx build functions --skip-nx-cache
