@@ -137,7 +137,12 @@ export async function syncClaims(deps: ClaimsDeps, uid: string, options: SyncOpt
   if (userSnap.exists && userSnap.get('email') !== undefined) {
     await userRef.update({ ...mirror, ...(changed ? { claimsVersion: FieldValue.increment(1) } : {}) });
   } else {
-    await userRef.set({ ...newUserDoc(record, now), ...mirror, claimsVersion: changed ? 1 : 0 }, { merge: true });
+    // increment(0) keeps a version a concurrent sync already bumped (createOrg and the members
+    // trigger can both get here before the user document exists); a plain 0 would reset it.
+    await userRef.set(
+      { ...newUserDoc(record, now), ...mirror, claimsVersion: FieldValue.increment(changed ? 1 : 0) },
+      { merge: true },
+    );
   }
   return { claims, activeOrgId, memberships, changed };
 }
