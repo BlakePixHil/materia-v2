@@ -20,4 +20,4 @@ export function handlePing(now: Date = new Date()): PingResult {
 }
 
 /** `system-ping`: health check with the release version and SHA. Public: uptime checks call it (FND-21). */
-export const ping = onCall({ region: REGION }, () => handlePing());
+export const ping = onCall({ region: REGION, invoker: 'public' }, () => handlePing());
