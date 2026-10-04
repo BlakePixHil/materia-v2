@@ -20,13 +20,23 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 Refs: FND-04
 ```
 
-Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `build`, `ci`, `perf`. Scopes follow the repo layout (`web`, `functions`, `domain`, `ui`, `deadlines`, `clerk`, `infra`, `design`, `docs`, …). PRs are squash-merged, so the PR title becomes the commit on `main`.
+Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `build`, `ci`, `perf`. Scopes follow the repo layout (`web`, `functions`, `domain`, `ui`, `deadlines`, `clerk`, `infra`, `design`, `docs`, …). PRs are squash-merged, so the PR title (`[KEY] Title`) becomes the commit on `main`. release-please can't read that title, so the PR body carries the Conventional Commit for the changelog (below).
 
 ## Pull requests
 
 - Title: `[KEY] Title`, matching the Linear ticket, for example `[FND-04] CI pipeline in GitHub Actions`.
 - Put `Closes MAT-N` (the Linear issue id, not the plan key) in the description, plus the issue link. Linear's GitHub integration links PRs by the `MAT-N` id.
 - Fill in every section of the [PR template](.github/pull_request_template.md). The **Acceptance criteria → evidence** table must cover every box on the ticket.
+- End the description with the PR's Conventional Commit, which release-please uses for the version bump and the changelog (`release.yml`, [deploy runbook](docs/runbooks/deploy.md)):
+
+  ```
+  BEGIN_COMMIT_OVERRIDE
+  feat(functions): system ping reports the release
+  END_COMMIT_OVERRIDE
+  ```
+
+  `feat` releases a minor version, `fix` a patch; other types don't release. Add `BREAKING CHANGE: …` on the next line for breaking changes.
+
 - CI must be green. Never skip, disable or `.only` a test.
 - Merge with **squash** only. The branch is deleted on merge.
 

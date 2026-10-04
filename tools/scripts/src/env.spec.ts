@@ -62,4 +62,22 @@ describe('env main', () => {
     log.mockRestore();
     await expect(main(['--env', 'qa'])).rejects.toThrow('--env must be one of');
   });
+
+  it('accepts the raw web_app_config JSON (a CI variable) and rejects an empty one', async () => {
+    const { mkdtempSync, readFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const path = await import('node:path');
+    const { main } = await import('./env.ts');
+    const dir = mkdtempSync(path.join(tmpdir(), 'materia-env-'));
+    const raw = (JSON.parse(outputs) as { web_app_config: { value: string } }).web_app_config.value;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await main(['--env', 'prod', '--web-config', raw, '--out-dir', dir]);
+
+    expect(readFileSync(path.join(dir, 'environment.prod.ts'), 'utf8')).toContain('"apiKey": "test-api-key"');
+    log.mockRestore();
+    await expect(main(['--env', 'prod', '--web-config', ' ', '--out-dir', dir])).rejects.toThrow(
+      '--web-config is empty',
+    );
+  });
 });

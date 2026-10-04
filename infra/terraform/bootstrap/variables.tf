@@ -31,3 +31,21 @@ variable "region" {
   type        = string
   default     = "australia-southeast1"
 }
+
+variable "terraform_service_account_email" {
+  description = "Service account infra.yml runs Terraform as (created by hand, infra/MANUAL.md)."
+  type        = string
+  default     = "terraform-agent@materia-v2-admin.iam.gserviceaccount.com"
+}
+
+variable "github_repository_id" {
+  description = "Immutable numeric id of the repository allowed to run Terraform (BlakePixHil/materia-v2)."
+  type        = string
+  default     = "1403644575"
+}
+
+variable "github_repository_owner_id" {
+  description = "Immutable numeric id of the repository owner."
+  type        = string
+  default     = "19206943"
+}

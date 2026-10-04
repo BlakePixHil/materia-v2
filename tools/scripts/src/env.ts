@@ -1,9 +1,12 @@
 /**
- * `materia-scripts env --env <dev|staging|prod>`: writes apps/web/src/environments/environment.<env>.ts
+ * `materia-scripts env --env <dev|prod>`: writes apps/web/src/environments/environment.<env>.ts
  * from the Terraform outputs of that environment (FND-03). The Firebase web config is not secret.
  *
  *   pnpm materia-scripts env --env dev                    # runs `terraform output -json` in infra/terraform
  *   pnpm materia-scripts env --env dev --from out.json    # or reads a saved `terraform output -json`
+ *   pnpm materia-scripts env --env dev --web-config "$JSON"  # or the value of `terraform output -raw web_app_config`
+ *
+ * The deploy workflows (FND-05) use `--web-config` with the FIREBASE_WEB_CONFIG_<ENV> variable.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -76,15 +79,21 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     options: {
       env: { type: 'string' },
       from: { type: 'string' },
+      'web-config': { type: 'string' },
       'tf-dir': { type: 'string', default: path.join(WORKSPACE_ROOT, 'infra/terraform') },
       'out-dir': { type: 'string' },
     },
   });
   if (!isEnv(values.env)) throw new Error(`--env must be one of ${ENVS.join(', ')}`);
 
-  const raw = values.from
-    ? readFileSync(values.from, 'utf8')
-    : execFileSync('terraform', ['output', '-json'], { cwd: values['tf-dir'], encoding: 'utf8' });
+  const webConfig = values['web-config'];
+  if (webConfig !== undefined && !webConfig.trim())
+    throw new Error('--web-config is empty (is the FIREBASE_WEB_CONFIG_<ENV> variable set?)');
+  const raw = webConfig
+    ? JSON.stringify({ web_app_config: { value: webConfig } })
+    : values.from
+      ? readFileSync(values.from, 'utf8')
+      : execFileSync('terraform', ['output', '-json'], { cwd: values['tf-dir'], encoding: 'utf8' });
   const file = environmentPath(values.env, values['out-dir']);
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, renderEnvironment(values.env, parseTerraformOutputs(raw)));

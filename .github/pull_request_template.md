@@ -33,3 +33,11 @@ Linear:
 ## Risk / rollback
 
 <!-- What could go wrong, feature flags involved, and how to roll back. Note any MVP fallbacks used and follow-up tickets. -->
+
+## Release note
+
+<!-- The Conventional Commit for release-please (it can't read the "[KEY]" title). feat = minor, fix = patch; chore/docs/test/ci/refactor don't release. -->
+
+BEGIN_COMMIT_OVERRIDE
+type(scope): summary
+END_COMMIT_OVERRIDE

@@ -1,0 +1,151 @@
+# Reusable deploy (FND-05), called by deploy-dev.yml and deploy-prod.yml. It deploys a release
+# artifact built once by deploy-dev.yml (no rebuild), in a fixed order, then runs the @smoke
+# Playwright tests against the deployed site. Order: Firestore indexes → rules (Firestore and
+# Storage) → functions (codebase `core`) → hosting. A failure stops the run loudly; nothing is
+# retried automatically (docs/runbooks/deploy.md covers partial deploys).
+#
+# Settings come from variables named <NAME>_<DEV|PROD> (repository or environment variables):
+# GCP_PROJECT_*, GCP_WIF_PROVIDER_* and GCP_DEPLOYER_SA_*. No JSON keys anywhere.
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment (dev or production). production has required reviewers.
+        required: true
+        type: string
+      suffix:
+        description: Variable suffix, DEV or PROD.
+        required: true
+        type: string
+      sha:
+        description: Commit being deployed (checked against the artifact's release.json).
+        required: true
+        type: string
+      artifact-run-id:
+        description: Run that uploaded the release-<sha> artifact.
+        required: true
+        type: string
+      web-dir:
+        description: Web bundle inside the artifact (web-dev or web-prod).
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: ${{ inputs.environment }}
+      url: https://${{ vars[format('GCP_PROJECT_{0}', inputs.suffix)] }}.web.app
+    permissions:
+      contents: read
+      actions: read # download the artifact from another run
+      id-token: write # GitHub OIDC token for Workload Identity Federation
+    env:
+      PROJECT: ${{ vars[format('GCP_PROJECT_{0}', inputs.suffix)] }}
+      REGION: australia-southeast1
+    steps:
+      - name: Check the environment's variables
+        env:
+          WIF_PROVIDER: ${{ vars[format('GCP_WIF_PROVIDER_{0}', inputs.suffix)] }}
+          DEPLOYER_SA: ${{ vars[format('GCP_DEPLOYER_SA_{0}', inputs.suffix)] }}
+        run: |
+          missing=""
+          [ -n "$PROJECT" ] || missing="$missing GCP_PROJECT_${{ inputs.suffix }}"
+          [ -n "$WIF_PROVIDER" ] || missing="$missing GCP_WIF_PROVIDER_${{ inputs.suffix }}"
+          [ -n "$DEPLOYER_SA" ] || missing="$missing GCP_DEPLOYER_SA_${{ inputs.suffix }}"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing variables:$missing (docs/runbooks/deploy.md, one-time setup)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - uses: ./.github/actions/setup
+
+      - name: Download the release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-${{ inputs.sha }}
+          path: dist/release
+          run-id: ${{ inputs.artifact-run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Unpack the release into the paths firebase.json deploys
+        env:
+          SHA: ${{ inputs.sha }}
+          WEB_DIR: ${{ inputs.web-dir }}
+        run: |
+          node -e '
+            const r = require("./dist/release/release.json");
+            if (r.sha !== process.env.SHA) { console.error(`release.json is for ${r.sha}, not ${process.env.SHA}`); process.exit(1); }
+            console.log(`Release ${r.version} (${r.sha})`);
+          '
+          if [ ! -d "dist/release/$WEB_DIR" ]; then
+            echo "::error::The artifact has no $WEB_DIR bundle. For web-prod, set FIREBASE_WEB_CONFIG_PROD and re-run deploy-dev for this commit."
+            exit 1
+          fi
+          rm -rf dist/apps/web/browser dist/apps/functions
+          mkdir -p dist/apps/web
+          mv "dist/release/$WEB_DIR" dist/apps/web/browser
+          mv dist/release/functions dist/apps/functions
+          echo "VERSION=$(node -p 'require("./dist/release/release.json").version')" >> "$GITHUB_ENV"
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation, no key)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', inputs.suffix)] }}
+          service_account: ${{ vars[format('GCP_DEPLOYER_SA_{0}', inputs.suffix)] }}
+
+      # --non-interactive makes the CLI fail instead of prompting (for example before deleting a
+      # function). Functions are never deployed with --force.
+      - name: Deploy Firestore indexes
+        run: pnpm exec firebase deploy --only firestore:indexes --project "$PROJECT" --config firebase/firebase.json --non-interactive
+
+      - name: Deploy Firestore and Storage rules
+        run: pnpm exec firebase deploy --only firestore:rules,storage --project "$PROJECT" --config firebase/firebase.json --non-interactive
+
+      # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
+      # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
+      - name: Deploy functions (codebase core)
+        run: pnpm exec firebase deploy --only functions:core --project "$PROJECT" --config firebase/firebase.json --non-interactive
+
+      - name: Deploy hosting
+        run: pnpm exec firebase deploy --only hosting --project "$PROJECT" --config firebase/firebase.json --non-interactive --message "$VERSION ${{ inputs.sha }}"
+
+      - name: Install Chromium for the smoke tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Smoke tests against the deployed site (read-only)
+        env:
+          BASE_URL: https://${{ env.PROJECT }}.web.app
+          FUNCTIONS_URL: https://${{ env.REGION }}-${{ env.PROJECT }}.cloudfunctions.net
+          EXPECTED_SHA: ${{ inputs.sha }}
+          CI: 'true'
+        run: pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --grep @smoke --project=chromium
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report-${{ inputs.environment }}
+          path: dist/.playwright/apps/web-e2e
+          retention-days: 14
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed $VERSION to ${{ inputs.environment }}"
+            echo ""
+            echo "- Commit: \`${{ inputs.sha }}\`"
+            echo "- Site: https://$PROJECT.web.app/health"
+            echo "- Rollback: docs/runbooks/rollback.md"
+          } >> "$GITHUB_STEP_SUMMARY"

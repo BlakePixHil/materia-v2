@@ -1,0 +1,108 @@
+# PR previews (FND-05). Each pull request from a branch of this repository gets the web app on
+# the Hosting channel pr-<number> of materia-v2-dev (expires after 7 days), and a comment with
+# the URL. Functions are not deployed per PR: previews call the dev project's functions, which
+# come from main, so a PR that changes a callable shows the old behaviour until it merges.
+# Fork PRs get no preview (they have no access to the deploy identity).
+name: preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+      pull-requests: write # the preview comment
+    env:
+      PROJECT: ${{ vars.GCP_PROJECT_DEV }}
+      CHANNEL: pr-${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check the dev variables
+        id: ready
+        env:
+          WEB_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG_DEV }}
+          WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          DEPLOYER_SA: ${{ vars.GCP_DEPLOYER_SA_DEV }}
+        run: |
+          if [ -z "$WEB_CONFIG" ] || [ -z "$PROJECT" ] || [ -z "$WIF_PROVIDER" ] || [ -z "$DEPLOYER_SA" ]; then
+            echo "::notice::Preview skipped: set FIREBASE_WEB_CONFIG_DEV, GCP_PROJECT_DEV, GCP_WIF_PROVIDER_DEV and GCP_DEPLOYER_SA_DEV (docs/runbooks/deploy.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ready == 'true'
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: ./.github/actions/setup
+        if: steps.ready.outputs.ready == 'true'
+
+      - name: Build the web app for dev
+        if: steps.ready.outputs.ready == 'true'
+        env:
+          WEB_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG_DEV }}
+        run: |
+          pnpm materia-scripts env --env dev --web-config "$WEB_CONFIG"
+          pnpm materia-scripts stamp --target web --version "$CHANNEL" --sha "$SHA"
+          pnpm nx build web --configuration=dev --skip-nx-cache
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation, no key)
+        if: steps.ready.outputs.ready == 'true'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA_DEV }}
+
+      - name: Deploy the preview channel
+        id: deploy
+        if: steps.ready.outputs.ready == 'true'
+        run: |
+          pnpm exec firebase hosting:channel:deploy "$CHANNEL" --expires 7d \
+            --project "$PROJECT" --config firebase/firebase.json --non-interactive --json > "$RUNNER_TEMP/channel.json"
+          url="$(node -e '
+            const out = require(process.argv[1]);
+            if (out.status !== "success") { console.error(JSON.stringify(out)); process.exit(1); }
+            const sites = Object.values(out.result);
+            console.log(sites[0].url);
+          ' "$RUNNER_TEMP/channel.json")"
+          expires="$(node -p 'Object.values(require(process.argv[1]).result)[0].expireTime' "$RUNNER_TEMP/channel.json")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "expires=$expires" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the preview URL
+        if: steps.ready.outputs.ready == 'true'
+        uses: actions/github-script@v7
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+          EXPIRES: ${{ steps.deploy.outputs.expires }}
+        with:
+          script: |
+            const marker = '<!-- materia-preview -->';
+            const body = [
+              marker,
+              `**Preview:** ${process.env.URL}/health`,
+              '',
+              `Commit \`${process.env.SHA.slice(0, 7)}\`, expires ${process.env.EXPIRES}.`,
+              'Previews call the dev project\'s functions from `main`; callable changes in this PR are not live here.',
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.user.type === 'Bot' && c.body.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });

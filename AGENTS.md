@@ -85,6 +85,7 @@ CI (`.github/workflows/ci.yml`) runs every job with `nx affected`; `ci-ok` is th
 - **One version policy:** all dependencies live in the root `package.json`. `tools/*` are pnpm workspace packages only to expose their bins.
 - **Zoneless Angular:** the app uses `provideZonelessChangeDetection()` and doesn't ship `zone.js`. Don't add libraries that need zone.js.
 - **Functions deploy artefact:** `nx build functions` bundles workspace libs into `dist/apps/functions/main.js` and writes a `package.json` with external dependencies only (no `workspace:` deps). Firebase config lives in `firebase/` (`--config firebase/firebase.json`).
+- **Deploys (FND-05)** run only in GitHub Actions: merges to `main` deploy to dev (`deploy-dev.yml`), release tags promote the same build to prod after approval (`deploy-prod.yml`). Never deploy from a session or a laptop. Runbooks: [deploy](docs/runbooks/deploy.md), [rollback](docs/runbooks/rollback.md), [hotfix](docs/runbooks/hotfix.md). Keep `@smoke` e2e tests read-only: they run against prod.
 - **TypeScript is pinned to 6.0.x** (Angular 22's supported range). Don't upgrade to TypeScript 7 until Angular and Nx support it.
 
 ### How to add a callable
