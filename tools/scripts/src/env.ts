@@ -27,6 +27,15 @@ export interface FirebaseWebConfig {
   measurementId?: string;
 }
 
+/**
+ * reCAPTCHA Enterprise site keys for App Check (FND-22), from `infra/scripts/app-check.sh`. Public,
+ * like the web config. An environment without one builds without App Check, and its callables
+ * reject every call until it has one.
+ */
+export const APP_CHECK_SITE_KEYS: Partial<Record<EnvName, string>> = {
+  dev: '6LfSi94tAAAAAJZhgbCgnAsWt0jUojZe0ex-7aoQ',
+};
+
 const REQUIRED_KEYS = ['projectId', 'appId', 'apiKey', 'authDomain', 'storageBucket', 'messagingSenderId'] as const;
 const WORKSPACE_ROOT = path.resolve(import.meta.dirname, '../../..');
 
@@ -60,6 +69,7 @@ export function renderEnvironment(env: EnvName, config: FirebaseWebConfig): stri
     `  name: '${env}',`,
     `  useEmulators: false,`,
     `  firebase: ${firebase},`,
+    ...(APP_CHECK_SITE_KEYS[env] ? [`  appCheckSiteKey: '${APP_CHECK_SITE_KEYS[env]}',`] : []),
     '} as const;',
     '',
   ].join('\n');

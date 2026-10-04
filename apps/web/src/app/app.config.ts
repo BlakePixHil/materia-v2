@@ -43,8 +43,7 @@ export const appConfig: ApplicationConfig = {
     {
       provide: FIREBASE_SETUP,
       useValue: {
-        app: () =>
-          import('firebase/app').then((m) => (m.getApps().length ? m.getApp() : m.initializeApp(environment.firebase))),
+        app: () => import('./core/firebase-app').then((m) => m.firebaseApp()),
         useEmulators: environment.useEmulators,
       },
     },

@@ -1,4 +1,4 @@
-import { FirebaseError, getApp, getApps, initializeApp } from 'firebase/app';
+import { FirebaseError } from 'firebase/app';
 import {
   applyActionCode,
   browserSessionPersistence,
@@ -46,6 +46,7 @@ import {
   type SignInOutcome,
 } from './auth-port';
 import { environment } from '../../../environments/environment';
+import { firebaseApp } from '../firebase-app';
 
 const REGION = 'australia-southeast1';
 const ISSUER = 'Materia';
@@ -119,7 +120,7 @@ async function toSession(user: User): Promise<AuthSession> {
 
 /** The Identity Platform implementation of AuthPort (FND-16), connected to the emulators locally. */
 export function createFirebaseAuthPort(): AuthPort {
-  const app = getApps().length ? getApp() : initializeApp(environment.firebase);
+  const app = firebaseApp();
   const auth: Auth = getAuth(app);
   const functions = getFunctions(app, REGION);
   if (environment.useEmulators) {
