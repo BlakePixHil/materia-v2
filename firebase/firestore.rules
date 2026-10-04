@@ -300,8 +300,9 @@ service cloud.firestore {
       }
 
       // Server-only collections.
+      // Append-only audit log (FND-18): written by functions, read through the audit-query callable.
       match /audit/{entryId} {
-        allow read: if can(orgId, 'audit.view') && isActiveMember(orgId);
+        allow read, write: if false;
       }
       match /metrics/{metricId} {
         allow read: if can(orgId, 'billing.view');

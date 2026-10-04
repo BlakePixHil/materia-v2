@@ -27,6 +27,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   deadlines: domain.Deadline,
   timeEntries: domain.TimeEntry,
   chunks: domain.Chunk,
+  audit: domain.AuditEntry,
 } as never;
 
 describe('firestore.indexes.json', () => {
@@ -41,7 +42,8 @@ describe('firestore.indexes.json', () => {
     expect(['COLLECTION', 'COLLECTION_GROUP']).toContain(index.queryScope);
     const shape = ENTITY_FOR[index.collectionGroup]?.schema.shape;
     expect(shape, `schema for ${index.collectionGroup}`).toBeDefined();
-    for (const field of index.fields) expect(Object.keys(shape ?? {})).toContain(field.fieldPath);
+    // Nested fields (`entity.matterId`) are checked by their top-level field.
+    for (const field of index.fields) expect(Object.keys(shape ?? {})).toContain(field.fieldPath.split('.')[0]);
   });
 
   it('collection-group indexes exist for tasks, deadlines and timeEntries (Domain doc)', () => {
@@ -74,5 +76,22 @@ describe('firestore.indexes.json', () => {
       );
       expect(ttl?.fieldPath, group).toBe('expiresAt');
     }
+  });
+
+  it('audit entries expire through TTL on expireAt, and the audit-query filters are indexed (FND-18)', () => {
+    const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
+      (o) => o.collectionGroup === 'audit' && o.ttl,
+    );
+    expect(ttl?.fieldPath).toBe('expireAt');
+    const audit = file.indexes
+      .filter((i) => i.collectionGroup === 'audit')
+      .map((i) => i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(','));
+    expect(audit).toEqual([
+      'entity.matterId:ASCENDING,at:DESCENDING',
+      'entity.path:ASCENDING,at:DESCENDING',
+      'actor.uid:ASCENDING,at:DESCENDING',
+      'entity.matterId:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
+      'entity.path:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
+    ]);
   });
 });

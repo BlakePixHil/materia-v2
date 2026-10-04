@@ -42,6 +42,16 @@ describe('runTrigger', () => {
     expect(handler.mock.calls[0]?.[1]).toMatchObject({ eventId: 'e1', params: { orgId: 'org-a' } });
   });
 
+  it('passes the event time, or the clock when the event has none', async () => {
+    const { deps } = setup();
+    const handler = vi.fn();
+    const def = { name: 'x-onWrite', document: 'a/{b}', on: 'written' as const, handler };
+    await runTrigger(def, { ...event('t1'), time: '2026-10-04T01:02:03.000Z' }, deps);
+    await runTrigger(def, event('t2'), deps);
+    expect(handler.mock.calls[0]?.[1].time).toEqual(new Date('2026-10-04T01:02:03.000Z'));
+    expect(handler.mock.calls[1]?.[1].time).toEqual(deps.clock.now());
+  });
+
   it('logs a failure as a dead letter with ids only, and does not rethrow', async () => {
     const { deps, logs } = setup();
     const def = {
