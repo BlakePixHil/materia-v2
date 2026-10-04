@@ -35,7 +35,7 @@ tools/
   scripts/             seed, codegen, ops scripts
 infra/
   terraform/           projects, APIs, IAM, buckets, WIF, budgets, alerts
-firebase/              firestore.rules, storage.rules, firestore.indexes.json, firebase.json
+firebase/              firestore.rules, storage.rules, firestore.indexes.json (firebase.json is at the root)
 docs/                  mirror of Linear docs + docs/adr/*
 ```
 

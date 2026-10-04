@@ -74,7 +74,7 @@ jobs:
         run: |
           # --json sends errors to stdout too, so show the file when the CLI fails.
           if ! pnpm exec firebase hosting:channel:deploy "$CHANNEL" --expires 7d \
-            --project "$PROJECT" --config firebase/firebase.json --non-interactive --json > "$RUNNER_TEMP/channel.json"; then
+            --project "$PROJECT" --config firebase.json --non-interactive --json > "$RUNNER_TEMP/channel.json"; then
             cat "$RUNNER_TEMP/channel.json"
             exit 1
           fi

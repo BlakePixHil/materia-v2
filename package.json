@@ -16,7 +16,7 @@
     "lint": "nx run-many -t lint",
     "typecheck": "nx run-many -t typecheck",
     "e2e": "nx run web-e2e:e2e",
-    "emulators": "nx run functions:build && firebase emulators:start --project demo-materia --config firebase/firebase.json",
+    "emulators": "nx run functions:build && firebase emulators:start --project demo-materia --config firebase.json",
     "storybook": "nx run ui:storybook",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
