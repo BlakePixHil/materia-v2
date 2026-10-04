@@ -1,3 +1,4 @@
+import { runtimeServiceAccount } from './global-options';
 import * as main from './main';
 
 interface EndpointLike {
@@ -28,5 +29,15 @@ describe('functions entry point', () => {
   it.each(endpoints)('%s runs as fn-runtime with the global instance cap', (_name, fn) => {
     expect(fn.__endpoint.serviceAccountEmail).toBe('fn-runtime@');
     expect(fn.__endpoint.maxInstances).toBe(10);
+  });
+});
+
+describe('runtimeServiceAccount', () => {
+  it('uses the full email once the project is known', () => {
+    expect(runtimeServiceAccount('materia-v2-dev')).toBe('fn-runtime@materia-v2-dev.iam.gserviceaccount.com');
+  });
+
+  it('keeps the short form without a project', () => {
+    expect(runtimeServiceAccount(undefined)).toBe('fn-runtime@');
   });
 });
