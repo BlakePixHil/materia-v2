@@ -30,6 +30,8 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   audit: domain.AuditEntry,
   invites: domain.Invite,
   members: domain.Member,
+  contacts: domain.Contact,
+  parties: domain.Party,
 } as never;
 
 describe('firestore.indexes.json', () => {
@@ -53,6 +55,21 @@ describe('firestore.indexes.json', () => {
     for (const group of ['tasks', 'deadlines', 'timeEntries', 'chunks']) expect(groups).toContain(group);
     // The sign-up gate finds a pending invite for an email across orgs (FND-16).
     expect(groups).toContain('invites');
+  });
+
+  it('contacts sort by sortName under each list filter, and parties are found by contact (CORE-01)', () => {
+    const contacts = file.indexes
+      .filter((i) => i.collectionGroup === 'contacts')
+      .map((i) => i.fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(','));
+    expect(contacts).toEqual([
+      'kind:ASCENDING,sortName:ASCENDING',
+      'isReferrer:ASCENDING,sortName:ASCENDING',
+      'tags:CONTAINS,sortName:ASCENDING',
+      'search:CONTAINS,sortName:ASCENDING',
+    ]);
+    const parties = file.indexes.find((i) => i.collectionGroup === 'parties');
+    expect(parties?.queryScope).toBe('COLLECTION_GROUP');
+    expect(parties?.fields.map((f) => f.fieldPath)).toEqual(['orgId', 'contactId']);
   });
 
   it('the chunks vector index is flat, 768 dimensions, with orgId and matterId pre-filters', () => {
