@@ -47,7 +47,7 @@ import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
 import { OfflineError, OrgService } from '../core/orgs/org-service';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
-import { routeCrumbs } from '../core/title-strategy';
+import { MatterRefs, routeCrumbs } from '../core/title-strategy';
 
 /** Where the collapsed-sidebar choice is kept, per user. */
 export const SIDEBAR_STORAGE_PREFIX = 'materia.shell.sidebar-collapsed.';
@@ -353,9 +353,10 @@ export class AppShellComponent {
     ),
     { initialValue: this.router.url },
   );
+  private readonly matterRefs = inject(MatterRefs);
   protected readonly crumbs = computed(() => {
     this.url();
-    return routeCrumbs(this.router.routerState.snapshot.root);
+    return routeCrumbs(this.router.routerState.snapshot.root, (id) => this.matterRefs.label(id));
   });
 
   private paletteOpen = false;

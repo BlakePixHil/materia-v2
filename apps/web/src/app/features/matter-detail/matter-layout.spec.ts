@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Title } from '@angular/platform-browser';
 
 import { cleanUpOverlays, LAWYER, MATTER, ME, openMatter, PARALEGAL, PRIYA, READONLY } from './testing';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
@@ -33,6 +34,13 @@ describe('matter header', () => {
       'Notes',
       'Activity',
     ]);
+  });
+
+  it('titles the page and breadcrumbs with the matter’s number, not its id', async () => {
+    const page = await openMatter('/matters/m-whitfield/parties');
+    expect(TestBed.inject(Title).getTitle()).toBe('Matter · M-2026-0142 · Parties · Materia');
+    const crumbs = [...page.body.querySelectorAll('.mt-crumbs li')].map((li) => page.text(li));
+    expect(crumbs).toEqual(['Matters', 'M-2026-0142', 'Parties']);
   });
 
   it('shows the Litigation tab for disputes only, and sends its URL elsewhere to the overview', async () => {

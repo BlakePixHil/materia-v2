@@ -5,8 +5,7 @@ import { keyFactValue, stageIndex, type KeyFactId } from '@materia/domain';
 import { MtButton, MtEstateStepper, MtIconButton, MtNote, ToastService, type StageVm } from '@materia/ui';
 
 import { MatterScreen } from './matter-screen';
-import { keyFactLabel, stageRequirementsOf } from './matter-view';
-import { errorCopy } from '../../core/error-copy';
+import { keyFactLabel, matterErrorCopy, stageRequirementsOf } from './matter-view';
 
 /** A refused move: the stage asked for and the key facts it needs. */
 interface Blocked {
@@ -31,7 +30,7 @@ interface Blocked {
       <mt-estate-stepper
         [stages]="stages()"
         [current]="current()"
-        [interactive]="screen.editable() && !moving()"
+        [interactive]="movable() && !moving()"
         (stageSelect)="move($event)"
       />
     }
@@ -72,6 +71,11 @@ export class MatterStages {
   private readonly route = inject(ActivatedRoute);
 
   protected readonly moving = signal(false);
+  /** Stages move while the matter is live and not closed or archived. */
+  protected readonly movable = computed(() => {
+    const status = this.screen.value()?.status;
+    return this.screen.editable() && status !== 'closed' && status !== 'archived';
+  });
   protected readonly blocked = signal<Blocked | null>(null);
   protected readonly factLabel = keyFactLabel;
 
@@ -113,7 +117,7 @@ export class MatterStages {
 
   private async changeStage(stageId: string, title: string): Promise<void> {
     const matter = this.screen.value();
-    if (!matter || this.moving() || !this.screen.editable()) return;
+    if (!matter || this.moving() || !this.movable()) return;
     this.moving.set(true);
     try {
       await this.screen.api.changeStage({ matterId: matter.id, stageId });
@@ -122,7 +126,8 @@ export class MatterStages {
     } catch (error) {
       const facts = stageRequirementsOf(error);
       if (facts) this.blocked.set({ stageId, title, facts });
-      else this.toasts.show({ title: 'Couldn’t change the stage', description: errorCopy(error), tone: 'danger' });
+      else
+        this.toasts.show({ title: 'Couldn’t change the stage', description: matterErrorCopy(error), tone: 'danger' });
     } finally {
       this.moving.set(false);
     }

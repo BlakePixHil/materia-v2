@@ -12,6 +12,7 @@ import { matterStages, type KeyFactId } from '@materia/domain';
 
 import { recentUpdateText, type MatterRecord } from './matter-view';
 import { CALLABLES } from '../../core/data/callables';
+import { MatterRefs } from '../../core/title-strategy';
 
 /** How often "Updated by … just now" is re-checked. */
 const CLOCK_TICK_MS = 15_000;
@@ -86,6 +87,13 @@ export class MatterScreen {
         this.templateStages.set(null);
         if (templateId) void this.loadTemplate(templateId);
       });
+    });
+    // Titles and breadcrumbs show the matter's number once it's known.
+    const refs = inject(MatterRefs);
+    effect(() => {
+      const id = this.id();
+      const number = this.matter.value()?.number;
+      if (id && number) untracked(() => refs.set(id, number));
     });
     // A new matter (another id in the URL) starts with nothing being edited.
     effect(() => {

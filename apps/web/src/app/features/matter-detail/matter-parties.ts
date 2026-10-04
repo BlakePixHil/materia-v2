@@ -17,12 +17,12 @@ import {
   type MatterParty,
   type WithId,
 } from '@materia/data-access/repository';
-import { contactDisplayName, type PartyResult } from '@materia/domain';
+import { contactDisplayName } from '@materia/domain';
 import { DialogService, MtButton, MtEmptyState, MtIconButton, MtNote, ToastService } from '@materia/ui';
 
 import { MatterScreen } from './matter-screen';
 import { groupParties, partyRoleLabel } from './matter-view';
-import { PartyDialog, type PartyDialogData } from './party-dialog';
+import { PartyDialog, type PartyDialogData, type PartyDialogResult } from './party-dialog';
 import { errorCopy } from '../../core/error-copy';
 
 type PartyRow = WithId<MatterParty>;
@@ -182,13 +182,13 @@ export class MatterParties {
     });
   }
 
-  private async open(data: Omit<PartyDialogData, 'api' | 'matterId'>): Promise<PartyResult | undefined> {
+  private async open(data: Omit<PartyDialogData, 'api' | 'matterId'>): Promise<PartyDialogResult | undefined> {
     const matterId = this.id();
     if (!matterId || !this.screen.editable() || this.dialogOpen) return undefined;
     this.dialogOpen = true;
     try {
-      return await this.dialogs.open<PartyDialogData, PartyResult | undefined>(PartyDialog, {
-        data: { ...data, matterId, api: this.screen.api },
+      return await this.dialogs.open<PartyDialogData, PartyDialogResult | undefined>(PartyDialog, {
+        data: { ...data, matterId, api: this.screen.api, deceasedMissing: !this.screen.value()?.deceased },
       }).result;
     } finally {
       this.dialogOpen = false;
@@ -196,8 +196,26 @@ export class MatterParties {
   }
 
   async add(): Promise<void> {
-    const result = await this.open({});
-    if (result) this.toasts.show({ title: 'Party added', tone: 'success' });
+    const saved = await this.open({});
+    if (!saved) return;
+    this.toasts.show({ title: 'Party added', tone: 'success' });
+    if (saved.dateOfDeath) await this.recordDeceased(saved.contactId, saved.dateOfDeath);
+  }
+
+  /**
+   * A deceased added to a matter without one becomes the matter's deceased (a client-direct edit of
+   * the whitelisted `deceased`), so the date of death shows in the key facts.
+   */
+  private async recordDeceased(contactId: string, dateOfDeath: string): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter || matter.deceased) return;
+    try {
+      await this.screen.repo.update(matter.id, {
+        deceased: { contactId, dateOfDeath, domicile: matter.jurisdiction, lastAddress: '' },
+      });
+    } catch (error) {
+      this.toasts.show({ title: 'The date of death didn’t save', description: errorCopy(error), tone: 'danger' });
+    }
   }
 
   protected async edit(party: PartyRow): Promise<void> {
@@ -207,6 +225,7 @@ export class MatterParties {
         contactId: party.contactId,
         role: party.role,
         share: party.share,
+        notes: party.notes,
         name: this.name(party.contactId),
       },
     });

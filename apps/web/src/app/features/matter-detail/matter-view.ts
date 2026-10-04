@@ -14,10 +14,28 @@ import {
 } from '@materia/domain';
 import { formatAud, formatDateOnly } from '@materia/ui';
 
+import { errorCopy } from '../../core/error-copy';
 import { formatDateInput, parseDateInput, PARTY_ROLE_LABELS } from '../contacts/contact-form';
 
 /** The matter on the screen. */
 export type MatterRecord = WithId<MatterDetail>;
+
+/**
+ * What the matter screen's callables refused, in words: a closed matter's stage, or the field the
+ * server named (a contact who already has that role), else the code's copy.
+ */
+export function matterErrorCopy(error: unknown): string {
+  const details = error instanceof DomainError ? error.details : undefined;
+  if (details?.['reason'] === 'matter_closed') return 'Reopen the matter before changing its stage.';
+  const fields = details?.['fields'];
+  if (error instanceof DomainError && error.code === 'INVALID_ARGUMENT' && fields && typeof fields === 'object') {
+    const messages = Object.values(fields as Record<string, unknown>).flatMap((value) =>
+      Array.isArray(value) ? value.map(String) : [],
+    );
+    if (messages.length) return `${messages.join('. ')}.`;
+  }
+  return errorCopy(error);
+}
 
 /** "Updated by Priya Shah just now" shows for this long after someone else's change. */
 export const RECENT_UPDATE_MS = 2 * 60_000;

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, TitleStrategy } from '@angular/router';
 
 import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
@@ -21,6 +21,7 @@ import { AUTH_PORT, type AuthSession } from '../../core/auth/auth-port';
 import { FakeAuthPort, testSession } from '../../core/auth/testing';
 import { provideTestFlags } from '../../core/flags/testing';
 import { FakeTenancyPort } from '../../core/orgs/testing';
+import { MateriaTitleStrategy } from '../../core/title-strategy';
 
 /**
  * The matter screen's specs (CORE-06): a fictional practice in the in-memory Firestore and fake
@@ -230,6 +231,7 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
     imports: [App],
     providers: [
       provideRouter(appRoutes),
+      { provide: TitleStrategy, useClass: MateriaTitleStrategy },
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
       { provide: MT_TODAY, useValue: () => TODAY },
       { provide: AUTH_PORT, useValue: port },

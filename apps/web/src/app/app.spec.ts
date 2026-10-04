@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import { provideRouter, type Route, Router, TitleStrategy } from '@angular/router';
 
+import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
 import { MT_KEYBOARD_PLATFORM } from '@materia/ui';
 
 import { App } from './app';
@@ -12,8 +13,14 @@ import { provideFakeAuth, testSession } from './core/auth/testing';
 import { GlobalErrorHandler } from './core/error-handler';
 import { provideTestFlags } from './core/flags/testing';
 import { MateriaTitleStrategy } from './core/title-strategy';
+import { matterDoc, ORG } from './features/matter-detail/testing';
 
-async function setup(url: string, session: AuthSession | null = testSession(), orgFlags: Record<string, unknown> = {}) {
+async function setup(
+  url: string,
+  session: AuthSession | null = testSession(),
+  orgFlags: Record<string, unknown> = {},
+  firestore?: InMemoryFirestore,
+) {
   TestBed.configureTestingModule({
     imports: [App],
     providers: [
@@ -23,6 +30,7 @@ async function setup(url: string, session: AuthSession | null = testSession(), o
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
       ...provideFakeAuth(session).providers,
       ...provideTestFlags({}, { 'org-harbour-vine': orgFlags }),
+      ...(firestore ? [provideInMemoryFirestore(firestore)] : []),
     ],
   });
   const fixture = TestBed.createComponent(App);
@@ -32,6 +40,13 @@ async function setup(url: string, session: AuthSession | null = testSession(), o
   const el = fixture.nativeElement as HTMLElement;
   const crumbs = () => [...el.querySelectorAll('.mt-crumbs li')].map((li) => li.textContent?.trim());
   return { fixture, router, el, title: () => TestBed.inject(Title).getTitle(), crumbs };
+}
+
+/** A fictional matter stored under its number, for the matter routes. */
+function withMatter(): InMemoryFirestore {
+  const firestore = new InMemoryFirestore();
+  firestore.set(`orgs/${ORG}/matters/M-2026-0142`, matterDoc());
+  return firestore;
 }
 
 function walk(routes: Route[], visit: (route: Route) => void): void {
@@ -96,7 +111,7 @@ describe('app routes', () => {
   });
 
   it('titles a matter as "Matter · <number> · Materia" with breadcrumbs', async () => {
-    const { router, title, crumbs, el } = await setup('/matters/M-2026-0142');
+    const { router, title, crumbs, el } = await setup('/matters/M-2026-0142', testSession(), {}, withMatter());
     expect(router.url).toBe('/matters/M-2026-0142/overview');
     expect(title()).toBe('Matter · M-2026-0142 · Materia');
     expect(crumbs()).toEqual(['Matters', 'M-2026-0142', 'Overview']);
@@ -105,7 +120,7 @@ describe('app routes', () => {
   });
 
   it('adds the tab to the title on other matter tabs', async () => {
-    const { title, crumbs, el } = await setup('/matters/M-2026-0142/deadlines');
+    const { title, crumbs, el } = await setup('/matters/M-2026-0142/deadlines', testSession(), {}, withMatter());
     expect(title()).toBe('Matter · M-2026-0142 · Deadlines · Materia');
     expect(crumbs()).toEqual(['Matters', 'M-2026-0142', 'Deadlines']);
     expect(el.textContent).toContain('Coming in CORE-10');

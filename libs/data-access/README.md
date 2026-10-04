@@ -46,7 +46,7 @@ Queries hide soft-deleted documents unless `includeDeleted: true`. A query with 
 
 ## Matters and saved views (CORE-03)
 
-`mattersRepository()` reads `orgs/{orgId}/matters` as `MatterListItem` and edits the whitelisted fields client-direct (`Matter.update`: title, responsible, team, labels, priority, stage, external reference, estate). Number and status change only through the callables in `MATTER_CALLABLES` (`matters-createMatter`, `matters-changeStatus`, `matters-restore`), called through `CALLABLES` like any other.
+`mattersRepository()` reads `orgs/{orgId}/matters` as `MatterListItem` and edits the whitelisted fields client-direct (`Matter.update`: title, responsible, team, labels, priority, external reference, estate, deceased, key facts, and `privileged` for roles with `privileged.view`). Updates write only the fields in the patch, never the update schema's defaults. Number, status, stage and parties change only through the callables in `MATTER_CALLABLES` (`matters-createMatter`, `matters-changeStatus`, `matters-restore`, `matters-changeStage`, `matters-upsertParty`, `matters-removeParty`), called through `CALLABLES` like any other.
 
 `matterQueryPlan(filters, sort, { viewerUid, privilegedVisible })` is the one place that decides how a list view reads, against the domain's `MATTER_INDEXED_QUERIES` (the composite indexes in `firebase/firestore.indexes.json`). Every query reads live matters (`deletedAt == null`), plus `privileged == false` for roles without `privileged.view`, as the rules require. A combination Firestore can serve is `paged` (50 rows a page, cursor paging); anything else is `capped`: the largest indexed subset of the filters, most recently active first, at most 500 rows, with the rest filtered and sorted in the browser and a `notice` to show. `matterMatchesFilters(row, filters, { today, now })` applies every filter to loaded rows (overdue, recently closed and multi-word searches always run there).
 
@@ -55,6 +55,10 @@ Queries hide soft-deleted documents unless `includeDeleted: true`. A query with 
 ## Conflict checks (CORE-02)
 
 `matterConflictsRepository()` reads a matter for its check (`MatterConflict`: number, title, status, the client, deceased and testator contact ids, `conflictCheck` and the server's optional `conflictAlert`); it has no writes. Checks run and determinations are recorded through the callables in `CONFLICT_CALLABLES` (`conflicts-run`, `conflicts-determine`), called through `CALLABLES`. `matters-changeStatus` refuses `lead → open` with `FAILED_PRECONDITION` and `details.reason: 'conflict_check_not_clear'` until the determination is `clear` or `potential`.
+
+## The matter screen (CORE-06)
+
+`matterDetailRepository()` reads one matter as `MatterDetail` (header, conflict and key-fact fields; `deceased`, `estate` and `facts` are read whole because an update replaces them whole) and writes key facts with the domain's `keyFactPatch`. `matterPartiesRepository(id)`, `matterTasksRepository(id)`, `matterDeadlinesRepository(id)` and `matterActivityRepository(id)` read a matter's collections (`id` is a signal; `forMatter(id, spec)` waits while it is null), with `MATTER_PARTIES_QUERY`, `OPEN_TASKS_QUERY`, `OPEN_DEADLINES_QUERY` (`in` filters only, so no composite index) and `RECENT_ACTIVITY_QUERY`. `matterTemplatesRepository()` reads a template's stages. `matterCallables(client)` types `changeStatus`, `changeStage`, `upsertParty` and `removeParty` (idempotent); `upsertParty` sends the row's full state (an omitted share or note clears it).
 
 ## Lists: watchQuery and paging
 

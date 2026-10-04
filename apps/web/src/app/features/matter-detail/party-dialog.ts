@@ -22,8 +22,9 @@ import {
   MtTextField,
 } from '@materia/ui';
 
-import { PARTY_ROLE_OPTIONS } from './matter-view';
+import { matterErrorCopy, PARTY_ROLE_OPTIONS } from './matter-view';
 import { errorCopy } from '../../core/error-copy';
+import { formatDateInput, parseDateInput } from '../contacts/contact-form';
 
 /** The party being edited. */
 export interface EditedParty {
@@ -31,6 +32,8 @@ export interface EditedParty {
   contactId: string;
   role: PartyRole;
   share?: string | undefined;
+  /** Kept as is: the callable treats share and notes as the row's whole state. */
+  notes?: string | undefined;
   name: string;
 }
 
@@ -39,6 +42,19 @@ export interface PartyDialogData {
   api: Pick<MatterCallables, 'upsertParty'>;
   /** Edit this party's role or share; absent to add a party. */
   party?: EditedParty;
+  /**
+   * The matter has no deceased recorded: adding one asks for the date of death, which the matter
+   * screen then records on the matter (`deceased`), so the key fact can be edited.
+   */
+  deceasedMissing?: boolean;
+}
+
+/** What the dialog saved. `dateOfDeath` is set when a deceased was added to a matter without one. */
+export interface PartyDialogResult {
+  result: PartyResult;
+  contactId: string;
+  role: PartyRole;
+  dateOfDeath?: string;
 }
 
 /** Contacts listed for a search. */
@@ -115,6 +131,16 @@ const RESULTS = 8;
             (ngModelChange)="share.set($event ?? '')"
           />
         }
+        @if (askDateOfDeath()) {
+          <mt-text-field
+            name="dateOfDeath"
+            label="Date of death"
+            placeholder="DD/MM/YYYY"
+            [error]="dateError() ?? undefined"
+            [ngModel]="dateOfDeath()"
+            (ngModelChange)="dateOfDeath.set($event ?? ''); dateError.set(null)"
+          />
+        }
         @if (error(); as message) {
           <mt-note tone="danger">{{ message }}</mt-note>
         }
@@ -144,7 +170,7 @@ const RESULTS = 8;
   `,
 })
 export class PartyDialog {
-  protected readonly ref = injectDialogRef<PartyDialogData, PartyResult | undefined>();
+  protected readonly ref = injectDialogRef<PartyDialogData, PartyDialogResult | undefined>();
   protected readonly data = this.ref.data;
   private readonly contacts = contactsRepository();
   private readonly dialogs = inject(DialogService);
@@ -153,6 +179,11 @@ export class PartyDialog {
   protected readonly role = signal<PartyRole>(this.data.party?.role ?? 'beneficiary');
   protected readonly share = signal(this.data.party?.share ?? '');
   protected readonly contact = signal<{ id: string; name: string } | null>(null);
+  protected readonly dateOfDeath = signal('');
+  protected readonly dateError = signal<string | null>(null);
+  protected readonly askDateOfDeath = computed(
+    () => !this.data.party && !!this.data.deceasedMissing && this.role() === 'deceased',
+  );
   protected readonly query = signal('');
   protected readonly results = signal<WithId<ContactListItem>[]>([]);
   protected readonly searching = signal(false);
@@ -191,6 +222,7 @@ export class PartyDialog {
 
   protected choose(row: WithId<ContactListItem>): void {
     this.contact.set({ id: row.id, name: contactDisplayName(row) });
+    if (row.dateOfDeath && !this.dateOfDeath()) this.dateOfDeath.set(formatDateInput(row.dateOfDeath));
     this.contactError.set(null);
   }
 
@@ -203,6 +235,7 @@ export class PartyDialog {
     if (!result) return;
     const created = await this.contacts.get(result.contactId).catch(() => null);
     this.contact.set({ id: result.contactId, name: created ? contactDisplayName(created) : 'New contact' });
+    if (created?.dateOfDeath && !this.dateOfDeath()) this.dateOfDeath.set(formatDateInput(created.dateOfDeath));
     this.contactError.set(null);
   }
 
@@ -214,6 +247,15 @@ export class PartyDialog {
     }
     if (this.saving()) return;
     const share = this.role() === 'beneficiary' ? this.share().trim() : '';
+    const notes = this.data.party?.notes;
+    let dateOfDeath: string | undefined;
+    if (this.askDateOfDeath()) {
+      dateOfDeath = parseDateInput(this.dateOfDeath()) ?? undefined;
+      if (!dateOfDeath) {
+        this.dateError.set('Enter the date of death, like 22/07/2026.');
+        return;
+      }
+    }
     this.saving.set(true);
     this.error.set(null);
     try {
@@ -223,10 +265,11 @@ export class PartyDialog {
         role: this.role(),
         ...(this.data.party ? { partyId: this.data.party.id } : {}),
         ...(share ? { share } : {}),
+        ...(notes ? { notes } : {}),
       });
-      void this.ref.close(result);
+      void this.ref.close({ result, contactId, role: this.role(), ...(dateOfDeath ? { dateOfDeath } : {}) });
     } catch (error) {
-      this.error.set(errorCopy(error));
+      this.error.set(matterErrorCopy(error));
     } finally {
       this.saving.set(false);
     }
