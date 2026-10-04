@@ -41,6 +41,7 @@ import { NAV_ITEMS, type NavEntry, SETTINGS_ITEM, TAB_BAR_ITEMS } from './nav';
 import { PageHeader } from './page-header';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { AuthState } from '../core/auth/auth-state';
+import { ClerkPanel } from '../core/clerk/clerk-panel';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
@@ -244,10 +245,20 @@ export const MOBILE_QUERY = '(max-width: 767px)';
       </main>
 
       @if (clerkOpen() && !mobile()) {
-        <aside class="mt-clerk-panel" id="clerk-panel" aria-label="Clerk">
+        <aside
+          class="mt-clerk-panel"
+          id="clerk-panel"
+          aria-label="Clerk"
+          [attr.data-scope]="clerkScope() ? clerkScope()?.kind + ':' + clerkScope()?.id : null"
+        >
           <header>
             <mt-clerk-mark size="xs" />
-            <span class="mt-grow">Clerk</span>
+            <span class="mt-grow"
+              >Clerk
+              @if (clerkScope(); as scope) {
+                <span class="t-3"> · {{ scope.label }}</span>
+              }
+            </span>
             <button
               mtIconButton
               icon="x"
@@ -329,7 +340,10 @@ export class AppShellComponent {
   );
 
   readonly collapsed = signal(false);
-  readonly clerkOpen = signal(false);
+  private readonly clerk = inject(ClerkPanel);
+  readonly clerkOpen = this.clerk.open;
+  /** The page's subject Clerk is asked about (a matter), if any. */
+  protected readonly clerkScope = this.clerk.scope;
   readonly mobile = signal(false);
 
   private readonly url = toSignal(
@@ -374,7 +388,7 @@ export class AppShellComponent {
   }
 
   toggleClerk(): void {
-    this.clerkOpen.update((value) => !value);
+    this.clerk.toggle();
   }
 
   /**

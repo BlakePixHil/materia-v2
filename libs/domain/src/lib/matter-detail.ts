@@ -44,8 +44,15 @@ export function keyFactsFor(type: MatterType): KeyFactDefinition[] {
  */
 export interface FactMatter {
   deceased?: { contactId: string; dateOfDeath: string; domicile: string; lastAddress: string } | undefined;
-  estate?: { grantDate?: string; grantNo?: string; grossValueCents?: number; [key: string]: unknown } | undefined;
-  facts?: { willDate?: string; courtFileNo?: string } | undefined;
+  estate?:
+    | {
+        grantDate?: string | undefined;
+        grantNo?: string | undefined;
+        grossValueCents?: number | undefined;
+        [key: string]: unknown;
+      }
+    | undefined;
+  facts?: { willDate?: string | undefined; courtFileNo?: string | undefined } | undefined;
 }
 
 /** A key fact's value: an ISO date, cents, or text; undefined when not recorded. */

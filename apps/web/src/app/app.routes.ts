@@ -39,6 +39,12 @@ function planned(
   return { path, title, loadComponent: placeholder, data: { placeholder: { heading: title, ...data } }, ...extra };
 }
 
+/** The matter tabs built so far (CORE-06); the others show a placeholder. */
+const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
+  overview: () => import('./features/matter-detail/matter-overview').then((m) => m.MatterOverview),
+  parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
+};
+
 const matterRoutes: Route[] = [
   {
     path: '',
@@ -58,11 +64,13 @@ const matterRoutes: Route[] = [
     loadComponent: () => import('./pages/matter-layout').then((m) => m.MatterLayout),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'overview' },
+      // `/matters/:id/:tab` (CORE-06): the overview and parties are built; the rest are placeholders
+      // until their tickets. Each tab reads only its own collections while it's shown.
       ...MATTER_TABS.map((tab): Route => ({
         path: tab.path,
         // The overview is the matter itself (`Matter · M-2026-0142 · Materia`); other tabs add their name.
         ...(tab.path === 'overview' ? {} : { title: tab.label }),
-        loadComponent: placeholder,
+        loadComponent: MATTER_TAB_PAGES[tab.path] ?? placeholder,
         data: {
           crumb: tab.label,
           embedded: true,

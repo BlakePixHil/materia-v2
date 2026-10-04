@@ -33,4 +33,17 @@ describe('EstateStepper', () => {
     expect(select).toHaveBeenCalledWith(STAGES[2]);
     expect(screen.getByRole('button', { name: 'Intake, complete' })).toBeInTheDocument();
   });
+
+  it('describes each stage’s completion criteria', async () => {
+    const stages = [
+      { id: 'intake', title: 'Intake', description: 'Client recorded' },
+      { id: 'grant', title: 'Grant issued', description: 'Grant received from the court' },
+    ];
+    const { rerender } = await render(MtEstateStepper, { inputs: { stages, current: 'intake' } });
+    expect(screen.getByText('. Grant received from the court')).toHaveClass('mt-sr');
+    await rerender({ inputs: { stages, current: 'intake', interactive: true } });
+    const button = screen.getByRole('button', { name: 'Grant issued' });
+    await userEvent.hover(button);
+    expect(await screen.findByText('Grant received from the court', {}, { timeout: 2000 })).toBeInTheDocument();
+  });
 });
