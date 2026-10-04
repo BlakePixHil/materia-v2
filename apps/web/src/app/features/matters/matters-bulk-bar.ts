@@ -13,7 +13,8 @@ export interface MatterAssignee {
 
 /**
  * The floating bar for the selected matters (CORE-03), as in the design's Matters list: assign,
- * add a label (`matter.edit`) and change status (`matter.status`).
+ * add a label (`matter.edit`) and change status (`matter.status`). With one lead selected, "Run conflict
+ * check" (`conflict.run`, CORE-02) opens its check.
  */
 @Component({
   selector: 'mt-matters-bulk-bar',
@@ -22,6 +23,11 @@ export interface MatterAssignee {
   host: { role: 'region', 'aria-label': 'Bulk actions' },
   template: `
     <span class="label" role="status">{{ count() === 1 ? '1 selected' : count() + ' selected' }}</span>
+    @if (canCheckConflicts()) {
+      <button mtButton variant="ghost" size="sm" iconStart="search" [disabled]="busy()" (click)="checkConflicts.emit()">
+        Run conflict check
+      </button>
+    }
     @if (canEdit()) {
       <button mtButton variant="ghost" size="sm" iconStart="user" [mtMenuTrigger]="assignMenu" [disabled]="busy()">
         Assign
@@ -91,11 +97,14 @@ export class MattersBulkBar {
   readonly canEdit = input(false);
   readonly canChangeStatus = input(false);
   readonly busy = input(false);
+  /** One lead is selected and the person may run conflict checks. */
+  readonly canCheckConflicts = input(false);
 
   readonly assign = output<string>();
   readonly addLabel = output();
   readonly changeStatus = output<MatterStatus>();
   readonly clear = output();
+  readonly checkConflicts = output();
 
   protected readonly statuses = STATUS_ORDER;
   protected readonly statusLabels = MATTER_STATUS_LABELS;

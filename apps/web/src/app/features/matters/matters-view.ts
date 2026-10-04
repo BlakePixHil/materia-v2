@@ -1,6 +1,7 @@
 import type { MatterListFilters, MatterListItem, SavedViewItem, WithId } from '@materia/data-access/repository';
 import {
   DEFAULT_MATTER_VIEWS,
+  DomainError,
   MATTER_STATUS_LABELS,
   type Jurisdiction,
   type MatterGroupBy,
@@ -11,6 +12,8 @@ import {
   type MatterViewSort,
 } from '@materia/domain';
 import { MATTER_TYPE_LABELS, type MtSort, type MtTableGroup } from '@materia/ui';
+
+import { errorCopy } from '../../core/error-copy';
 
 /** The Matters list's rows. */
 export type MatterRow = WithId<MatterListItem>;
@@ -151,4 +154,19 @@ export function bulkStatusSummary(
     description: reasons,
     tone: moved ? 'neutral' : 'danger',
   };
+}
+
+/**
+ * Why `matters-changeStatus` refused, in words. A lead opens only once a lawyer has recorded the
+ * conflict check as clear or waived (`FAILED_PRECONDITION`, `details.reason: 'conflict_check_not_clear'`).
+ */
+export function changeStatusErrorCopy(error: unknown): string {
+  const details =
+    error instanceof DomainError ? error.details : (error as { details?: Record<string, unknown> })?.details;
+  if (details?.['reason'] === 'conflict_check_not_clear') {
+    return details['conflictStatus'] === 'conflict'
+      ? 'The conflict check found a conflict, so the matter can’t open.'
+      : 'The conflict check needs a lawyer’s determination before the matter can open.';
+  }
+  return errorCopy(error);
 }
