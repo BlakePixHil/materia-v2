@@ -57,6 +57,13 @@ Client personal information is often sensitive: health information in capacity d
 - Client error reports are scrubbed (emails, phone numbers, names in URLs).
 - Audit log for every mutation, retained 7 years.
 
+**Authentication (FND-16)** (`apps/web/src/app/core/auth/`, `apps/functions/src/auth/`)
+- **Methods:** Identity Platform with email and password (minimum 12 characters, email-enumeration protection) and Google sign-in. Microsoft is deferred (infra/MANUAL.md).
+- **MFA:** optional TOTP authenticator apps; per-org enforcement comes in SEC-04 (`AuthState.mfaRequired`).
+- **Recovery codes:** ten single-use codes from `auth-generateRecoveryCodes`, which needs a sign-in in the last five minutes. They are stored as scrypt hashes in `users/{uid}/private/recovery`, which no client can read. `auth-useRecoveryCode` removes the authenticator so the person can enrol again. It allows five failed attempts per 15 minutes, gives unknown emails the same answer as wrong codes, and is audited.
+- **Sign-up gate:** `auth-beforeCreate` refuses sign-up without a pending invite, except in projects with open sign-up (dev). `auth-beforeSignIn` stamps `users/{uid}/private/session`.
+- **Web:** `AuthState` exposes a status (`signedOut`, `needsVerification`, `needsMfa`, `needsOrg`, `ready`), and the guards send people to the missing step. Sign-out runs the feature clean-ups, deletes Firestore's IndexedDB caches and per-user storage, then signs out. "This is a shared computer" uses session persistence.
+
 **Audit log (FND-18)** (`apps/functions/src/audit/`)
 - **Capture:** two Firestore triggers record every org write. `audit-onOrgWrite` covers `orgs/{orgId}/{collection}/{docId}` and `audit-onMatterWrite` covers matter subcollections. Each write becomes one `orgs/{orgId}/audit/{eventId}` entry; the event id is the entry id, so a redelivered event adds nothing.
 - **Contents:** `at` (event time), `actor` (`updatedBy`, or `deletedBy` for deletes; `system`/`clerk` as themselves), `action` (`create`, `update`, `delete`, `soft_delete`, `restore`), `entity`, `changedFields`, and `source` (`client`, `callable` when `_requestId` is present, `trigger`, or `migration` with `runId`).

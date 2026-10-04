@@ -16,6 +16,25 @@ Fill in after setup. **Never record key values here.**
 - Data retention (standard or zero data retention) and the date agreed: _pending_
 - Secret Manager secret: `ANTHROPIC_API_KEY` in dev (_pending_) and prod (_pending_)
 
+## Identity Platform (FND-16)
+
+MVP mode: **email and password with TOTP MFA, plus Google sign-in** (Firebase-native). Microsoft SSO is deferred. If the legacy user signs in with Microsoft (MIG-01 will tell), it becomes a must-do item: an Azure app registration (multi-tenant `organizations`) with a redirect URI per auth domain.
+
+Terraform (`modules/firebase_env/security.tf`) manages the following. It ignores `blocking_functions`, which the Firebase CLI registers on deploy:
+- email/password sign-in;
+- no duplicate emails;
+- MFA `ENABLED` with the TOTP provider (SMS off);
+- authorized domains.
+
+| #   | When                         | Step                                                                                                                                                                                                                       | Why manual                                                                                  | Status  |
+| --- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------- |
+| 1   | After `terraform apply`      | Run `infra/scripts/auth-policy.sh materia-v2-dev`, then `materia-v2-prod`. It sets the password policy (minimum 12 characters, enforced) and email-enumeration protection                                                  | Not in the Terraform provider (google 8.5)                                                  | Pending |
+| 2   | Once per environment         | Firebase console → Authentication → Sign-in method → **Google** → Enable. Set the support email; the console creates the OAuth client                                                                                     | Google's OAuth client for Firebase can only be created in the console (or with a secret in Terraform state, which ADR-004 avoids) | Pending |
+| 3   | Once per environment         | Firebase console → Authentication → Templates: set the **action URL** for the verification and password-reset emails to `https://<hosting domain>/auth/action`                                                             | Email templates aren't in the provider                                                      | Pending |
+| 4   | After the first deploy       | Check that the blocking functions `auth-beforeCreate` and `auth-beforeSignIn` appear under Authentication → Settings → Blocking functions                                                                                 | Verification of a CLI-managed setting                                                       | Pending |
+| 5   | Before opening prod sign-up  | Decide whether prod sign-up opens without an invite. Today only `materia-v2-dev` allows it (`OPEN_SIGNUP_PROJECTS` in `apps/functions/src/auth/blocking.ts`); FND-23 moves it to the `auth.openSignup` flag | Owner decision                                                                              | Pending |
+| 6   | Acceptance                   | On dev, try every flow with a real Google account and a real email: sign-up via invite, verify, sign-in, password reset, TOTP enrolment, challenge and a recovery code. Record the screen recording on MAT-21              | The emulators don't support TOTP; real providers need real accounts                         | Pending |
+
 ## GCP and Firebase (FND-03)
 
 MVP mode: **dev and prod only** (staging deferred). **No organisation or folder**: confirmed by the owner on 2026-10-03, so `org_id` and `folder_id` stay `null` and the `gcp.resourceLocations` org policy is not set. Location is enforced in Terraform instead: every regional resource uses `var.region` (`australia-southeast1`) and backups use `var.backup_region` (`australia-southeast2`).

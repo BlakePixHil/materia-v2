@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { expectNoA11yViolations } from '@materia/test-utils/e2e';
+import { expectNoA11yViolations, signInAsTestUser } from '@materia/test-utils/e2e';
 
 /** App shell (FND-12): sidebar, ⌘K palette, shortcuts and the phone TabBar. */
 
@@ -8,6 +8,9 @@ const sidebar = (page: Page) => page.getByRole('complementary', { name: 'Sidebar
 
 test.describe('desktop shell', () => {
   test.skip(({ isMobile }) => isMobile, 'The sidebar and keyboard shortcuts are desktop features');
+  test.beforeEach(async ({ page, request }) => {
+    await signInAsTestUser(page, request);
+  });
 
   test('opens Today in the shell with the main navigation', async ({ page }) => {
     await page.goto('/');
@@ -116,6 +119,9 @@ test.describe('desktop shell', () => {
 
 test.describe('phone shell', () => {
   test.use({ viewport: { width: 390, height: 844 } });
+  test.beforeEach(async ({ page, request }) => {
+    await signInAsTestUser(page, request);
+  });
 
   test('shows the TabBar instead of the sidebar', async ({ page }) => {
     await page.goto('/today');

@@ -28,6 +28,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   timeEntries: domain.TimeEntry,
   chunks: domain.Chunk,
   audit: domain.AuditEntry,
+  invites: domain.Invite,
 } as never;
 
 describe('firestore.indexes.json', () => {
@@ -49,6 +50,8 @@ describe('firestore.indexes.json', () => {
   it('collection-group indexes exist for tasks, deadlines and timeEntries (Domain doc)', () => {
     const groups = file.indexes.filter((i) => i.queryScope === 'COLLECTION_GROUP').map((i) => i.collectionGroup);
     for (const group of ['tasks', 'deadlines', 'timeEntries', 'chunks']) expect(groups).toContain(group);
+    // The sign-up gate finds a pending invite for an email across orgs (FND-16).
+    expect(groups).toContain('invites');
   });
 
   it('the chunks vector index is flat, 768 dimensions, with orgId and matterId pre-filters', () => {

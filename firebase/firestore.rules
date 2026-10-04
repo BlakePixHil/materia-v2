@@ -104,6 +104,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn() && uid() == userId;
       allow update: if isSignedIn() && uid() == userId && clientUpdate(fieldsUser());
+
+      // Server-only: MFA recovery code hashes and sign-in stamps (FND-16). Not even the owner reads them.
+      match /private/{docId} {
+        allow read, write: if false;
+      }
     }
 
     // ---------- organisations ----------

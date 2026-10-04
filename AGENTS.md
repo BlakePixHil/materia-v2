@@ -132,7 +132,7 @@ Export it from the group's `index.ts` and the group from `main.ts` (`export * as
 - The seed is **Harbour & Vine Legal**, a fictional wills and estates firm in Geelong (VIC, `Australia/Melbourne`). It has 25 contacts and 12 matters covering every matter type and status, with parties, events, tasks, static deadlines (computed once CORE-09 lands), notes, time entries and sample PDFs from `libs/test-utils/fixtures/pdfs/`. Dates are relative to the day you seed, so something is always due today. Everything is invented; never add real client data. `--minimal` (2 matters) and `--scenario=empty` (org and accounts only) are smaller.
 - The dev container (`.devcontainer/`) has Node 22, pnpm, Java 21, Playwright's Chromium, gcloud and Terraform; run `pnpm dev` inside it.
 
-Test accounts (emulator only; password `materia-local-dev` for all):
+Test accounts (emulator only; password `materia-local-dev` for all). Sign in at http://localhost:4200/auth/sign-in. Sign-up in the emulator is invitation-only, as in prod (FND-16), so use these accounts:
 
 | Role      | Email                           | Name         |
 | --------- | ------------------------------- | ------------ |

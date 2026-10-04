@@ -59,6 +59,14 @@ export const COLLECTIONS: CollectionSpec[] = [
   },
 
   { collection: 'users', docPath: `users/${OWNER}`, entity: 'User', read: 'owner', update: 'owner' },
+  // MFA recovery code hashes and sign-in stamps: server-only, even for their owner (FND-16).
+  {
+    collection: 'private',
+    docPath: `users/${OWNER}/private/recovery`,
+    seed: { codes: [{ salt: 'aa', hash: 'bb', usedAt: null }], failedAttempts: 0 },
+    read: 'none',
+    update: 'none',
+  },
 
   // Organisation.
   { collection: 'orgs', docPath: `orgs/${ORG}`, entity: 'Org', read: 'members', update: 'org.settings' },
