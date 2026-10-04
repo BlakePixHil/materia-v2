@@ -105,7 +105,8 @@ export async function qpdfJson(path: string, keys: string[]): Promise<QpdfJson> 
 
 /** Decompressed PDF text, to look for fonts and ToUnicode entries. */
 export async function uncompressed(path: string): Promise<string> {
-  const out = `${path}.qdf`;
+  // Not next to the output: in the image, the job's folders belong to the container's user.
+  const out = join(await mkdtemp(join(tmpdir(), 'qdf-')), 'out.qdf');
   await exec('qpdf', ['--qdf', '--object-streams=disable', path, out]);
   return (await readFile(out)).toString('latin1');
 }
