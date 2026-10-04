@@ -1,9 +1,12 @@
+import type { Firestore } from 'firebase-admin/firestore';
+
 import { DomainError } from '@materia/domain';
 
 import { fakePorts } from './fakes';
-import type { Ports } from './index';
+import type { MailPort, Ports } from './index';
 import { anthropicModel } from '../clerk/providers/anthropic';
-import { useFakes } from '../core/env';
+import { adminDb } from '../core/admin';
+import { isEmulator, useFakes } from '../core/env';
 import { ANTHROPIC_API_KEY } from '../core/secrets';
 import { cloudRunJobs } from '../jobs/cloud-run';
 
@@ -37,9 +40,26 @@ function realPorts(): Ports {
 
 let current: Ports | undefined;
 
+/**
+ * The emulator's mail: each message is written to `emulatorOutbox/{id}` (server-only), so e2e tests
+ * and developers can open the links an email would carry (FND-17 invites).
+ */
+export function emulatorOutboxMail(db: () => Firestore): MailPort {
+  return {
+    async send(message) {
+      const ref = await db()
+        .collection('emulatorOutbox')
+        .add({ ...message, sentAt: new Date() });
+      return { id: ref.id };
+    },
+  };
+}
+
 /** Fakes in the emulator or with MATERIA_FAKES=1, real adapters otherwise. */
 export function ports(): Ports {
-  current ??= useFakes() ? { ...fakePorts(), clock: systemClock } : realPorts();
+  current ??= useFakes()
+    ? { ...fakePorts(), clock: systemClock, ...(isEmulator() ? { mail: emulatorOutboxMail(adminDb) } : {}) }
+    : realPorts();
   return current;
 }
 

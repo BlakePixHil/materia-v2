@@ -30,6 +30,14 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   PDF_ENCRYPTED: 'One of the PDFs is password-protected. Remove the password and upload it again.',
   PDF_INVALID: 'One of the PDFs is damaged or isn’t a PDF. Upload a fresh copy and try again.',
   JOB_TIMEOUT: 'This took too long and was stopped. Try again.',
+  INVITE_EMAIL_MISMATCH:
+    'This invite was sent to a different email. Sign in with the invited email, or ask for a new invite.',
+  INVITE_EXPIRED: 'This invite has expired. Ask for a new invite.',
+  INVITE_INVALID: 'This invite link isn’t valid any more. Ask for a new invite.',
+  INVITE_LIMIT: 'Your practice has 50 pending invites. Revoke some before sending more.',
+  ALREADY_MEMBER: 'This person is already a member of the practice.',
+  LAST_OWNER: 'A practice needs at least one owner. Make someone else an owner first.',
+  EMAIL_NOT_VERIFIED: 'Confirm your email first, then try again.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 

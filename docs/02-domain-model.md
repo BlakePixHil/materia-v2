@@ -11,11 +11,11 @@ Types used below: `DateOnly` = `YYYY-MM-DD`; `Cents` = integer AUD cents; `Minut
 | Path | Purpose | Key fields |
 |---|---|---|
 | `orgs/{orgId}` | Firm | `name`, `abn`, `acn?`, `practiceType`, `jurisdictions: ('NSW'\|'VIC'\|'QLD'\|'WA'\|'SA'\|'TAS'\|'ACT'\|'NT')[]`, `primaryJurisdiction`, `timezone` (default `Australia/Melbourne`), `holidayLocality` (e.g. `VIC_GREATER_GEELONG`), `billing: {unitMinutes:6, rounding:'up'\|'nearest', gstRegistered, defaultRateCents, invoicePrefix, paymentTermsDays}`, `matterNumberFormat` (e.g. `M-{YYYY}-{seq:4}`), `fy: {startMonth:7}`, `retentionYears` (default 7), `plan`, `security: {mfaRequired, sessionIdleMinutes}` |
-| `orgs/{orgId}/members/{uid}` | Membership | `role: 'owner'\|'admin'\|'lawyer'\|'paralegal'\|'readonly'`, `status: 'active'\|'suspended'\|'removed'`, `displayName`, `initials`, `title`, `admissionNo?`, `defaultRateCents`, `colour`, `budgets: {[fyStartYear]: Cents}`, `supervisorUid?` |
-| `orgs/{orgId}/invites/{inviteId}` | Pending invites | `email` (lower-case), `role`, `tokenHash`, `expiresAt`, `status: 'pending'\|'accepted'\|'revoked'\|'expired'`, `invitedBy` |
+| `orgs/{orgId}/members/{uid}` | Membership | `role: 'owner'\|'admin'\|'lawyer'\|'paralegal'\|'readonly'`, `status: 'active'\|'suspended'\|'removed'` (both server-owned: only the orgs callables change them), `email` (lower-case, to tell apart same names), `displayName`, `initials`, `title`, `admissionNo?`, `defaultRateCents`, `colour`, `budgets: {[fyStartYear]: Cents}`, `supervisorUid?` |
+| `orgs/{orgId}/invites/{inviteId}` | Pending invites | `email` (lower-case), `role`, `tokenHash`, `expiresAt`, `status: 'pending'\|'accepted'\|'revoked'\|'expired'`, `invitedBy`, `acceptedBy?`, `acceptedAt?`. The token is sent in the link and only its SHA-256 is stored |
 | `orgs/{orgId}/members/{uid}/tasks/{taskId}` | Personal tasks not tied to a matter (the legacy dashboard checklist). Same shape as matter tasks, without `matterId` |
 | `orgs/{orgId}/counters/{name}` | Sequence allocation | `next: number`. Written only in transactions by functions |
-| `users/{uid}` (**user**) | Profile and preferences | `email`, `displayName`, `firstName`, `lastName`, `orgIds: string[]`, `activeOrgId`, `prefs: {theme:'system'\|'light'\|'dark', density, shortcuts, notifications:{email, push, digestHour}}`, `legacy?: {uid, migratedAt}` |
+| `users/{uid}` (**user**) | Profile and preferences | `email`, `displayName`, `firstName`, `lastName`, `orgIds: string[]`, `activeOrgId`, `memberships: {[orgId]: {role, name}}` (all three server-owned, mirrored by `auth-syncClaims`), `prefs: {theme:'system'\|'light'\|'dark', density, shortcuts, notifications:{email, push, digestHour}}`, `legacy?: {uid, migratedAt}` |
 
 ## Contacts
 
@@ -152,6 +152,8 @@ Migrated documents also carry `migration: {runId, legacyPath, loadedAt}`, `needs
 | `users/{uid}/timer/current` | The single running timer (BILL-02) |
 | `users/{uid}/briefs/{date}` | Clerk daily brief (AI-09) |
 | `users/{uid}/private/recovery` | **Server-only.** Hashed MFA recovery codes (FND-16) |
+| `users/{uid}/requests/{requestId}` | **Server-only.** Idempotency records for person-level callables (onboarding, accepting an invite, switching org), 24 h TTL (FND-17) |
+| `emulatorOutbox/{id}` | **Emulator only.** Emails the Functions emulator would have sent (invite links for e2e and local testing) |
 | `orgs/{orgId}/requests/{requestId}` | **Server-only.** Callable idempotency records, 24 h TTL (FND-15) |
 | `orgs/{orgId}/conflictChecks/{id}` | Conflict-check runs and hits (CORE-02) |
 | `orgs/{orgId}/jobs/{jobId}` | Cloud Run job status and progress (FND-24) |

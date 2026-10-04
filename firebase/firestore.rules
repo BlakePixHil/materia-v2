@@ -24,8 +24,12 @@ service cloud.firestore {
     function claimRole() {
       return request.auth.token.role;
     }
+    // The claim names the org, and the member document must still be active: a suspended or removed
+    // member loses access on their next request, without waiting for their token to refresh (FND-17,
+    // ADR-021). Rules cache the get() within a request, so it costs one read per request.
     function inOrg(orgId) {
-      return isSignedIn() && claimOrg() == orgId;
+      return isSignedIn() && claimOrg() == orgId
+        && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(uid())).data.status == 'active';
     }
     function hasRole(orgId, roles) {
       return inOrg(orgId) && claimRole() in roles;
@@ -33,11 +37,9 @@ service cloud.firestore {
     function can(orgId, action) {
       return hasRole(orgId, perm(action));
     }
-    // One get() on members/{uid}, for sensitive paths: a suspended member loses access at once,
-    // without waiting for the claim refresh.
+    // Kept at sensitive paths for clarity; inOrg() already checks the member document.
     function isActiveMember(orgId) {
-      return inOrg(orgId)
-        && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(uid())).data.status == 'active';
+      return inOrg(orgId);
     }
     function canViewPrivileged(orgId) {
       return can(orgId, 'privileged.view') && isActiveMember(orgId);
@@ -333,14 +335,14 @@ service cloud.firestore {
     // Cross-matter queries ("my tasks", "deadlines this week", timesheets). Personal tasks share the
     // `tasks` group name, so reading one through the group needs to be its assignee.
     match /{path=**}/tasks/{taskId} {
-      allow read: if isSignedIn() && resource.data.orgId == claimOrg()
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg())
         && (resource.data.get('matterId', null) != null || resource.data.assigneeUid == uid());
     }
     match /{path=**}/deadlines/{deadlineId} {
-      allow read: if isSignedIn() && resource.data.orgId == claimOrg();
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
     }
     match /{path=**}/timeEntries/{entryId} {
-      allow read: if isSignedIn() && resource.data.orgId == claimOrg();
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
     }
 
     // ---------- generated from libs/domain ----------
@@ -403,7 +405,7 @@ service cloud.firestore {
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted']; }
     function fieldsMatterEvent() { return ['kind', 'date', 'time', 'label', 'meta', 'sourceDocumentId']; }
     function fieldsMatterTemplate() { return ['name', 'matterType', 'version', 'stages', 'tasks', 'deadlineRuleIds', 'published', 'source']; }
-    function fieldsMember() { return ['role', 'status', 'displayName', 'initials', 'title', 'admissionNo', 'defaultRateCents', 'rates', 'colour', 'budgets', 'supervisorUid']; }
+    function fieldsMember() { return ['displayName', 'initials', 'title', 'admissionNo', 'defaultRateCents', 'rates', 'colour', 'budgets', 'supervisorUid']; }
     function fieldsMetrics() { return ['period', 'values']; }
     function fieldsMigrationRun() { return []; }
     function fieldsNote() { return ['bodyMd', 'pinned', 'privileged', 'source']; }
@@ -419,7 +421,7 @@ service cloud.firestore {
     function fieldsSuggestion() { return ['status']; }
     function fieldsTask() { return ['title', 'descriptionMd', 'status', 'priority', 'assigneeUid', 'dueDate', 'deadlineId', 'group', 'checklist', 'order', 'source']; }
     function fieldsTimeEntry() { return ['uid', 'date', 'minutes', 'rateCents', 'narrative', 'billable', 'status', 'source', 'taskId']; }
-    function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'activeOrgId', 'prefs']; }
+    function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs']; }
     // </generated:rules-sync>
 
     // Everything else is denied.

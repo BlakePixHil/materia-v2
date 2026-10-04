@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { getAuth, type Auth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
 import type { SecretParam } from 'firebase-functions/params';
 import { onCall, type CallableFunction, type CallableRequest } from 'firebase-functions/v2/https';
@@ -10,7 +11,7 @@ import { DomainError, ROLES, type Role } from '@materia/domain';
 
 import { REGION } from '../config';
 import type { Clock, Ports } from '../ports';
-import { adminDb } from './admin';
+import { adminApp, adminDb } from './admin';
 import { isEmulator } from './env';
 import { toHttpsError } from './errors';
 import { firestoreIdempotency, type IdempotencyStore } from './idempotency';
@@ -24,11 +25,15 @@ export interface CallableContext<TInput> {
   uid: string;
   orgId: string;
   role: Role;
+  /** The decoded ID token (for `requireRecentLogin` and other claims). */
+  token: Record<string, unknown>;
   requestId: string;
   log: Log;
   clock: Clock;
   db: Firestore;
   ports: Ports;
+  /** The Admin Auth client, created on first use (claims, token revocation). */
+  auth: () => Auth;
 }
 
 export interface CallableDefinition<TSchema extends z.ZodType, TOutput> {
@@ -57,6 +62,8 @@ export interface CallableDeps {
   memberLookup: MemberLookup;
   idempotency: IdempotencyStore;
   sink: LogSink;
+  /** Admin Auth; handlers that never touch Auth don't need it (unit tests omit it). */
+  auth?: () => Auth;
 }
 
 /** The request fields the wrapper reads (a subset of `CallableRequest`). */
@@ -123,11 +130,16 @@ export async function runCallable<TSchema extends z.ZodType, TOutput>(
       uid,
       orgId,
       role,
+      token,
       requestId,
       log,
       clock: deps.clock,
       db: deps.db(),
       ports: deps.ports(),
+      auth: () => {
+        if (!deps.auth) throw new Error('No Auth client in the callable dependencies');
+        return deps.auth();
+      },
     });
     let output: TOutput = result;
     if (def.output) {
@@ -161,6 +173,7 @@ export function callableDeps(): CallableDeps {
     memberLookup: cachedMemberLookup(adminDb, systemClock),
     idempotency: firestoreIdempotency(adminDb, systemClock),
     sink: functionsSink,
+    auth: () => getAuth(adminApp()),
   };
   return defaultDeps;
 }

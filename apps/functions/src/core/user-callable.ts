@@ -13,6 +13,7 @@ import type { Clock } from '../ports';
 import { adminApp, adminDb } from './admin';
 import { isEmulator } from './env';
 import { toHttpsError } from './errors';
+import { firestoreIdempotency, userRequestPath, type IdempotencyStore } from './idempotency';
 import { createLog, functionsSink, type Log, type LogSink } from './log';
 import { systemClock } from '../ports/container';
 
@@ -43,6 +44,8 @@ export interface UserCallableDefinition<TSchema extends z.ZodType, TOutput> {
   auth?: 'required' | 'optional';
   /** Require a sign-in within this many minutes (`auth_time`), for sensitive actions. */
   recentLoginMinutes?: number;
+  /** Requires a UUID `requestId` in the input; a repeat call by the same person returns the stored result. */
+  idempotent?: boolean;
   appCheck?: boolean;
   handler: (ctx: UserCallableContext<z.output<TSchema>>) => TOutput | Promise<TOutput>;
 }
@@ -52,6 +55,8 @@ export interface UserCallableDeps {
   auth: () => Auth;
   clock: Clock;
   sink: LogSink;
+  /** Per-person idempotency (`users/{uid}/requests`); required by `idempotent` definitions. */
+  idempotency?: IdempotencyStore;
 }
 
 export interface UserCallableRequest {
@@ -75,9 +80,12 @@ export async function runUserCallable<TSchema extends z.ZodType, TOutput>(
   request: UserCallableRequest,
   deps: UserCallableDeps,
 ): Promise<TOutput> {
-  const requestId = randomUUID();
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const suppliedId = typeof data['requestId'] === 'string' ? data['requestId'] : undefined;
+  const requestId = suppliedId ?? randomUUID();
   const uid = request.auth?.uid ?? null;
   const log = createLog({ fn: def.name, requestId, uid }, deps.sink);
+  let claimed: { uid: string; store: IdempotencyStore } | undefined;
   try {
     if ((def.auth ?? 'required') === 'required' && !uid) throw new DomainError('UNAUTHENTICATED', 'Sign in required');
     const token = (request.auth?.token as AuthToken | undefined) ?? null;
@@ -85,6 +93,20 @@ export async function runUserCallable<TSchema extends z.ZodType, TOutput>(
       requireRecentLogin(token, deps.clock.now().getTime(), def.recentLoginMinutes);
     const parsed = def.input.safeParse(request.data ?? {});
     if (!parsed.success) throw parsed.error;
+    if (def.idempotent) {
+      if (!uid || !deps.idempotency) throw new Error(`${def.name}: idempotent user callables need a uid and a store`);
+      if (!suppliedId) {
+        throw new DomainError('REQUEST_ID_REQUIRED', 'requestId (a UUID) is required', {
+          fields: { requestId: ['Required UUID'] },
+        });
+      }
+      const begun = await deps.idempotency.begin(uid, requestId, def.name);
+      if (begun.replay) {
+        log.info('replayed');
+        return begun.result as TOutput;
+      }
+      claimed = { uid, store: deps.idempotency };
+    }
     const result = await def.handler({
       input: parsed.data,
       uid,
@@ -95,9 +117,11 @@ export async function runUserCallable<TSchema extends z.ZodType, TOutput>(
       db: deps.db(),
       auth: deps.auth(),
     });
+    if (claimed) await claimed.store.complete(claimed.uid, requestId, result);
     log.info('ok');
     return result;
   } catch (error) {
+    if (claimed) await claimed.store.abandon(claimed.uid, requestId).catch(() => undefined);
     const httpsError = toHttpsError(error, log);
     if (httpsError.code !== 'internal') log.warn('rejected', { code: (httpsError.details as { code?: string })?.code });
     throw httpsError;
@@ -109,6 +133,7 @@ const userCallableDeps = (): UserCallableDeps => ({
   auth: () => getAuth(adminApp()),
   clock: systemClock,
   sink: functionsSink,
+  idempotency: firestoreIdempotency(adminDb, systemClock, userRequestPath),
 });
 
 export function defineUserCallable<TSchema extends z.ZodType, TOutput>(

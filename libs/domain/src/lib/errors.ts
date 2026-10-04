@@ -41,6 +41,20 @@ export const ERROR_CODES = {
   PDF_INVALID: 'invalid-argument',
   /** A background job ran out of time; it can be retried (FND-24). */
   JOB_TIMEOUT: 'deadline-exceeded',
+  /** The invite was sent to a different email than the signed-in account's verified email (FND-17). */
+  INVITE_EMAIL_MISMATCH: 'permission-denied',
+  /** The invite is older than seven days: ask for a new one. */
+  INVITE_EXPIRED: 'failed-precondition',
+  /** The invite link is wrong, revoked or already used by someone else. */
+  INVITE_INVALID: 'not-found',
+  /** The org already has the maximum number of pending invites. */
+  INVITE_LIMIT: 'resource-exhausted',
+  /** The person is already a member of the org. */
+  ALREADY_MEMBER: 'already-exists',
+  /** The change would leave the org without an active owner. */
+  LAST_OWNER: 'failed-precondition',
+  /** The account's email must be verified first. */
+  EMAIL_NOT_VERIFIED: 'failed-precondition',
   INTERNAL: 'internal',
 } as const;
 

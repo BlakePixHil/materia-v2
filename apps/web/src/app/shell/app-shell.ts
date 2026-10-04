@@ -31,6 +31,7 @@ import {
   MtNavItem,
   MtTabBar,
   ThemeService,
+  ToastService,
 } from '@materia/ui';
 
 import { CommandPaletteDialog } from './command-palette-dialog';
@@ -40,7 +41,9 @@ import { PageHeader } from './page-header';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { AuthState } from '../core/auth/auth-state';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
+import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { OfflineError, OrgService } from '../core/orgs/org-service';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { routeCrumbs } from '../core/title-strategy';
 
@@ -268,7 +271,19 @@ export const MOBILE_QUERY = '(max-width: 767px)';
 
     <ng-template #orgMenu>
       <mt-menu>
-        <button mtMenuItem icon="check">{{ orgName() }}</button>
+        @for (org of orgChoices(); track org.orgId) {
+          <button
+            mtMenuItem
+            [icon]="org.active ? 'check' : undefined"
+            [attr.aria-current]="org.active ? 'true' : null"
+            (click)="switchOrg(org.orgId, org.active)"
+          >
+            {{ org.name }}
+          </button>
+        }
+        <mt-menu-separator />
+        <a mtMenuItem icon="user-plus" routerLink="/settings/team">Team</a>
+        <a mtMenuItem icon="plus" routerLink="/onboarding">Create a practice</a>
       </mt-menu>
     </ng-template>
     <ng-template #userMenu>
@@ -290,7 +305,11 @@ export class AppShellComponent {
   private readonly dialogs = inject(DialogService);
   private readonly theme = inject(ThemeService);
   private readonly document = inject(DOCUMENT);
+  private readonly orgs = inject(OrgService);
+  private readonly toasts = inject(ToastService);
   protected readonly header = inject(PageHeader);
+  /** The org switcher (FND-17). */
+  protected readonly orgChoices = this.orgs.orgs;
 
   protected readonly settings = SETTINGS_ITEM;
   protected readonly tabBarItems = TAB_BAR_ITEMS;
@@ -360,6 +379,19 @@ export class AppShellComponent {
   async signOut(): Promise<void> {
     await this.auth.signOut();
     await this.router.navigateByUrl('/auth/sign-in');
+  }
+
+  /** Switches the active org; the page then reloads on Today (FND-17). Blocked while offline. */
+  async switchOrg(orgId: string, active: boolean): Promise<void> {
+    if (active) return;
+    try {
+      await this.orgs.switchOrg(orgId);
+    } catch (error) {
+      this.toasts.show({
+        title: error instanceof OfflineError ? error.message : errorCopy(error),
+        tone: 'danger',
+      });
+    }
   }
 
   toggleTheme(): void {
