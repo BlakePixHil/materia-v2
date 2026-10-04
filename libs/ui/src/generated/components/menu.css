@@ -1,9 +1,12 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-menu). Regenerate with `pnpm materia-scripts sync-design`. */
-.mt-menu { min-width: 220px; padding: var(--space-4); border-radius: var(--radius-md); background: var(--bg-raised); box-shadow: var(--shadow-popover); display: flex; flex-direction: column; gap: 1px; font: 400 13px/18px var(--font-sans); }
-.mt-menu-item { display: flex; align-items: center; gap: var(--space-8); height: 30px; padding: 0 var(--space-8); border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; outline: none; }
+.mt-menu { z-index: var(--layer-popover); min-width: 220px; padding: var(--space-4); border-radius: var(--radius-md); background: var(--bg-raised); box-shadow: var(--shadow-popover); display: flex; flex-direction: column; gap: 1px; font: 400 13px/18px var(--font-sans); }
+.mt-menu[data-overlay] { position: absolute; top: 0; left: 0; }
+.mt-menu[data-overlay][role="listbox"] { min-width: max(220px, var(--ngp-select-width, 0px)); max-height: min(320px, var(--ngp-select-available-height, 320px)); overflow-y: auto; }
+.mt-menu-item { appearance: none; border: 0; background: none; width: 100%; font: inherit; text-align: left; text-decoration: none; display: flex; align-items: center; gap: var(--space-8); height: 30px; padding: 0 var(--space-8); border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; outline: none; }
 .mt-menu-item .mt-i { color: var(--icon-default); }
 .mt-menu-item .hint { margin-left: auto; display: flex; gap: 2px; color: var(--text-tertiary); font: 500 11px/14px var(--font-mono); }
-.mt-menu-item[data-highlighted], .mt-menu-item[data-active] { background: var(--bg-hover); }
+.mt-menu-item[data-highlighted], .mt-menu-item[data-active], .mt-menu-item[data-hover], .mt-menu-item[data-focus-visible] { background: var(--bg-hover); }
+.mt-menu-item:focus-visible { box-shadow: none; }
 .mt-menu-item[data-selected] .check { color: var(--icon-brand); }
 .mt-menu-item[data-disabled] { color: var(--text-disabled); cursor: not-allowed; }
 .mt-menu-item[data-tone="danger"] { color: var(--text-danger); } .mt-menu-item[data-tone="danger"] .mt-i { color: var(--text-danger); }

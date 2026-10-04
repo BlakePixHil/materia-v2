@@ -309,6 +309,13 @@
   --sidebar: 240px;
   --icon-sm: 14px;
   --icon: 16px;
+  --layer-sticky: 100;
+  --layer-dropdown: 1000;
+  --layer-overlay: 1100;
+  --layer-modal: 1200;
+  --layer-popover: 1300;
+  --layer-toast: 1400;
+  --layer-tooltip: 1500;
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }

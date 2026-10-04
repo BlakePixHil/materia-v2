@@ -10,6 +10,8 @@ html, body { background: var(--bg-surface); }
 .mt-i[data-size="sm"] { width: var(--icon-sm); height: var(--icon-sm); }
 .mt-i[data-size="lg"] { width: 20px; height: 20px; }
 .mt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes mt-pop-in { from { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes mt-toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes mt-spin { to { transform: rotate(360deg); } }
 @keyframes mt-pulse { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 @keyframes mt-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }

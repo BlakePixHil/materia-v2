@@ -5,11 +5,15 @@ import { MtIconButton } from './icon-button';
 
 describe('MtIconButton', () => {
   it('is named by its label, which is also the tooltip by default', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     await render(`<button mtIconButton icon="more" label="More actions"></button>`, { imports: [MtIconButton] });
     const button = screen.getByRole('button', { name: 'More actions' });
     expect(button).toHaveClass('mt-ibtn');
     expect(button).toHaveAttribute('data-variant', 'ghost');
-    expect(button).toHaveAttribute('title', 'More actions');
+    button.focus();
+    await vi.advanceTimersByTimeAsync(450);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('More actions');
+    vi.useRealTimers();
     expect(button).toHaveAttribute('type', 'button');
     expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
   });
@@ -23,7 +27,10 @@ describe('MtIconButton', () => {
     const button = screen.getByRole('button', { name: 'Ask Clerk' });
     expect(button).toHaveAttribute('data-variant', 'ai');
     expect(button).toHaveAttribute('data-size', 'sm');
-    expect(button).not.toHaveAttribute('title');
+    button.focus();
+    await new Promise((r) => setTimeout(r, 450));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    button.blur();
     button.focus();
     await userEvent.keyboard('{Enter}');
     expect(clicked).toHaveBeenCalledTimes(1);
