@@ -19,7 +19,7 @@ v2 replaces the legacy app (`BlakePixHil/materia-web-app`).
 | `apps/`     | `web` (Angular), `web-e2e` (Playwright), `functions` (Firebase Functions v2), `jobs` (Cloud Run jobs)    |
 | `libs/`     | `ui`, `data-access`, `domain`, `deadlines`, `clerk`, `test-utils`                                        |
 | `tools/`    | `scripts` and `migration` CLIs                                                                           |
-| `firebase/` | `firebase.json`, rules, indexes and project aliases                                                      |
+| `firebase/` | Rules, indexes and rules tests (`firebase.json` and `.firebaserc` are at the root)                       |
 | `infra/`    | Terraform (FND-03) and `MANUAL.md`                                                                       |
 
 ## Quickstart

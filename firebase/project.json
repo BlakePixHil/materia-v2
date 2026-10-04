@@ -11,7 +11,7 @@
       "cache": true,
       "inputs": ["default", "^production"],
       "options": {
-        "command": "firebase emulators:exec --only firestore,storage --project demo-materia --config firebase/firebase.json \"vitest run --config firebase/vitest.rules.config.mts\"",
+        "command": "firebase emulators:exec --only firestore,storage --project demo-materia --config firebase.json \"vitest run --config firebase/vitest.rules.config.mts\"",
         "cwd": "{workspaceRoot}"
       },
       "outputs": ["{workspaceRoot}/dist/rules-coverage"]

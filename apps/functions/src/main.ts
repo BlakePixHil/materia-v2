@@ -1,10 +1,5 @@
-import { setGlobalOptions } from 'firebase-functions/v2';
-
-import { REGION } from './config';
-
-// Deployed functions run as fn-runtime (FND-03), not the default compute service account.
-// The trailing @ means "in this project". The emulator ignores it.
-setGlobalOptions({ region: REGION, maxInstances: 10, serviceAccount: 'fn-runtime@' });
+// Must be first: it sets the global options (service account, max instances) before any function is defined.
+import './global-options';
 
 // Each export group becomes a function-name prefix: `system.echo` deploys as `system-echo`.
 export * as system from './system/index';

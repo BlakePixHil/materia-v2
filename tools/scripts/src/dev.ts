@@ -16,7 +16,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 
 const ROOT = path.resolve(import.meta.dirname, '../../..');
-const FIREBASE_CONFIG = path.join(ROOT, 'firebase/firebase.json');
+const FIREBASE_CONFIG = path.join(ROOT, 'firebase.json');
 const EXPORT_DIR = path.join(ROOT, '.emulator-data');
 const PROJECT_ID = 'demo-materia';
 const WEB_PORT = 4200;

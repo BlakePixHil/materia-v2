@@ -108,18 +108,18 @@ jobs:
       # --non-interactive makes the CLI fail instead of prompting (for example before deleting a
       # function). Functions are never deployed with --force.
       - name: Deploy Firestore indexes
-        run: pnpm exec firebase deploy --only firestore:indexes --project "$PROJECT" --config firebase/firebase.json --non-interactive
+        run: pnpm exec firebase deploy --only firestore:indexes --project "$PROJECT" --config firebase.json --non-interactive
 
       - name: Deploy Firestore and Storage rules
-        run: pnpm exec firebase deploy --only firestore:rules,storage --project "$PROJECT" --config firebase/firebase.json --non-interactive
+        run: pnpm exec firebase deploy --only firestore:rules,storage --project "$PROJECT" --config firebase.json --non-interactive
 
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
       - name: Deploy functions (codebase core)
-        run: pnpm exec firebase deploy --only functions:core --project "$PROJECT" --config firebase/firebase.json --non-interactive
+        run: pnpm exec firebase deploy --only functions:core --project "$PROJECT" --config firebase.json --non-interactive
 
       - name: Deploy hosting
-        run: pnpm exec firebase deploy --only hosting --project "$PROJECT" --config firebase/firebase.json --non-interactive --message "$VERSION ${{ inputs.sha }}"
+        run: pnpm exec firebase deploy --only hosting --project "$PROJECT" --config firebase.json --non-interactive --message "$VERSION ${{ inputs.sha }}"
 
       - name: Install Chromium for the smoke tests
         run: pnpm exec playwright install --with-deps chromium
