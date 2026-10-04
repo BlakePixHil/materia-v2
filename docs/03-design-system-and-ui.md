@@ -63,7 +63,7 @@ The `lint` CI job runs `sync-design --check`.
 
 ### Icons
 
-`<mt-icon name="matters" />` renders a design-system icon (any key of `MT_ICONS`) or any Lucide component (`[name]="LucideHouse"`) from `@lucide/angular`, at 14, 16 (default) or 20px with the brand-book 1.6 stroke. Icons are decorative unless you pass `label`. The custom status and priority glyph sources are in `libs/ui/src/icons/custom.ts`; their components come later.
+`<mt-icon name="matters" />` renders a design-system icon (any key of `MT_ICONS`) or any Lucide icon node from the data-only `lucide` package (`import { House } from 'lucide'`, then `[name]="House"`), at 14, 16 (default) or 20px with the brand-book 1.6 stroke. It renders the SVG itself: Angular icon libraries ship every icon as a compiled component, which made builds slow and memory-hungry. Icons are decorative unless you pass `label`. The custom status and priority glyph sources are in `libs/ui/src/icons/custom.ts`; their components come later.
 
 ### Storybook
 

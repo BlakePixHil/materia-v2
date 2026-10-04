@@ -89,8 +89,8 @@ describe('sync-design', () => {
       icons: { search: '<circle cx="11" cy="11" r="8"/>' },
       status: { draft: '<svg class="mt-status"></svg>' },
     });
-    expect(icons).toContain('"name": "mt-search"');
-    expect(icons).toContain('satisfies Record<string, LucideIconData>');
+    expect(icons).toContain('"search": [');
+    expect(icons).toContain('as const satisfies Record<string, MtIconNode>');
     expect(icons).toContain('export type MtStatusKind');
   });
 

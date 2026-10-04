@@ -6,7 +6,7 @@
  *  3. splits components/bundle.css into libs/ui/src/generated/components/<name>.css by `mt-<name>` prefix;
  *  4. writes libs/ui/src/generated/tokens.ts (typed token map) from tokens.json;
  *  5. writes libs/ui/src/generated/icons.ts: the design system's Lucide icons (by Materia name) as
- *     Lucide icon data, plus the custom status glyph SVGs, read from design/system/icons.py;
+ *     icon nodes, plus the custom status glyph SVGs, read from design/system/icons.py;
  *  6. copies the Geist variable fonts to apps/web/public/fonts/.
  * `--check` writes nothing and exits 1 if any output would change (CI drift check). Python 3.11+ is
  * needed in every mode (the icons are read from icons.py).
@@ -164,15 +164,16 @@ export function renderIconsTs(dump: IconsDump): string {
   const icons = Object.fromEntries(
     Object.keys(dump.icons)
       .sort()
-      .map((name) => [name, { name: `mt-${name}`, node: svgToNodes(dump.icons[name] ?? '') }]),
+      .map((name) => [name, svgToNodes(dump.icons[name] ?? '')]),
   );
   const status = Object.fromEntries(STATUS_KINDS.map((kind) => [kind, dump.status[kind] ?? '']));
   return [
     HEADER('design/system/icons.py').trimEnd(),
-    "import type { LucideIconData } from '@lucide/angular';",
+    '/** An SVG icon as [tag, attributes] pairs: the Lucide icon-node format (24px grid). */',
+    'export type MtIconNode = readonly (readonly [tag: string, attrs: Readonly<Record<string, string | number | undefined>>])[];',
     '',
-    '/** Lucide icons (ISC licence) under their Materia names, in the Lucide icon data format. */',
-    `export const MT_ICONS = ${JSON.stringify(icons, null, 2)} satisfies Record<string, LucideIconData>;`,
+    '/** Lucide icons (ISC licence) under their Materia names. */',
+    `export const MT_ICONS = ${JSON.stringify(icons, null, 2)} as const satisfies Record<string, MtIconNode>;`,
     '',
     'export type MtIconName = keyof typeof MT_ICONS;',
     '',

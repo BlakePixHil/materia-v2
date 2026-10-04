@@ -98,10 +98,10 @@
     "@angular/forms": "~22.2.1",
     "@angular/platform-browser": "~22.2.1",
     "@angular/router": "~22.2.1",
-    "@lucide/angular": "^1.51.0",
     "@noble/hashes": "^2.4.0",
     "firebase-admin": "^14.5.0",
     "firebase-functions": "^7.4.0",
+    "lucide": "^1.51.0",
     "rxjs": "~7.8.0",
     "zod": "^4.6.5"
   }

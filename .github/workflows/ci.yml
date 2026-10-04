@@ -386,9 +386,6 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
       - name: Build Storybook
-        # Storybook's webpack build needs more than Node's default heap on the 16 GB runners.
-        env:
-          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm nx run ui:build-storybook
       - name: Playwright version
         id: pw
