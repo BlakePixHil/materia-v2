@@ -77,8 +77,11 @@ export interface Repository<T> {
   watchQuery(spec: QueryInput<T>, options?: WatchQueryOptions): QueryResource<T>;
   /** `getCountFromServer`, cached for a minute per query (for badges). */
   count(spec?: QuerySpec<T>): Promise<number>;
-  /** A client-direct create, only where the rules allow one (most creates go through callables). */
-  create(data: Partial<T> | Record<string, unknown>): Promise<string>;
+  /**
+   * A client-direct create, only where the rules allow one (most creates go through callables).
+   * `id` names the document (a client-made id, such as an intake draft's); otherwise it gets a new one.
+   */
+  create(data: Partial<T> | Record<string, unknown>, options?: { id?: string }): Promise<string>;
   /**
    * A client-direct update of whitelisted fields; `updatedAt`/`updatedBy` are stamped. `remove`
    * deletes optional fields (clearing a date, say); they must be in the update whitelist too.
@@ -287,10 +290,10 @@ function createRepository<T>(
       return value;
     },
 
-    create: (data) =>
+    create: (data, createOptions = {}) =>
       guard(async () => {
         const input = entity.create ? entity.create.parse(data) : data;
-        return driver().create(toFirestoreValue(input) as Record<string, unknown>, meta());
+        return driver().create(toFirestoreValue(input) as Record<string, unknown>, meta(), createOptions.id);
       }, 'write'),
 
     update: (id, patch, updateOptions = {}) =>

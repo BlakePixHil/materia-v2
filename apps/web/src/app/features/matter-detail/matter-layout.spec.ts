@@ -249,6 +249,7 @@ describe('Clerk and shortcuts', () => {
         'e Edit the matter title',
         'y Copy the matter number',
         'p Add a party',
+        'c New matter',
         '1 Go to the overview (tab 1)',
         '6 Go to tab 6',
       ]),

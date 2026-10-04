@@ -16,6 +16,7 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { filter, map } from 'rxjs';
 
 import { DataLifecycle } from '@materia/data-access';
+import { can } from '@materia/domain';
 import {
   DialogService,
   MtAvatar,
@@ -522,6 +523,20 @@ export class AppShellComponent {
       run: () => void this.router.navigateByUrl(item.link),
     }));
     const general: Command[] = [
+      // New matter (CORE-05), from anywhere; `c` opens it on the matter screens.
+      {
+        id: 'matters.new',
+        title: 'New matter',
+        group: 'Matters',
+        icon: 'plus',
+        keywords: ['intake', 'open', 'estate', 'will', 'probate'],
+        shortcut: 'c',
+        when: () => {
+          const role = this.orgs.role();
+          return !!role && can(role, 'matter.create');
+        },
+        run: () => void this.router.navigateByUrl('/matters/new'),
+      },
       {
         id: 'theme.toggle',
         title: 'Toggle theme',

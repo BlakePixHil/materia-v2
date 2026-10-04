@@ -64,7 +64,8 @@ export interface CollectionDriver {
   ): () => void;
   getDoc(id: string): Promise<RawDoc | null>;
   count(spec: QuerySpec): Promise<number>;
-  create(data: Record<string, unknown>, meta: WriteMeta): Promise<string>;
+  /** Creates a document with a new id, or with `id` when given (a client-made id, such as a draft's). */
+  create(data: Record<string, unknown>, meta: WriteMeta, id?: string): Promise<string>;
   /** Merges `patch`; `remove` lists fields to delete (`deleteField()`), for clearing optional values. */
   update(id: string, patch: Record<string, unknown>, meta: WriteMeta, remove?: readonly string[]): Promise<void>;
   softDelete(id: string, meta: WriteMeta): Promise<void>;

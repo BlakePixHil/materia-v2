@@ -52,11 +52,13 @@ const matterRoutes: Route[] = [
     title: 'Matters',
     loadComponent: () => import('./features/matters/matters-page').then((m) => m.MattersPage),
   },
-  planned('new', 'New matter', {
-    ticket: 'CORE-05',
-    icon: 'matters',
-    description: 'Matter intake: the client, the deceased or testator, conflicts and costs disclosure.',
-  }),
+  // New matter intake (CORE-05).
+  {
+    path: 'new',
+    title: 'New matter',
+    data: { crumb: 'New matter' },
+    loadComponent: () => import('./features/intake/intake-page').then((m) => m.IntakePage),
+  },
   {
     path: ':id',
     title: 'Matter',

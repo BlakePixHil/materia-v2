@@ -163,6 +163,7 @@ describe('AppShellComponent', () => {
         'sidebar.toggle',
         'shortcuts.open',
         'clerk.toggle',
+        'matters.new',
       ]),
     );
     const theme = TestBed.inject(ThemeService);

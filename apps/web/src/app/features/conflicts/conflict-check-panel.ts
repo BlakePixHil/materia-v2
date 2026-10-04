@@ -128,6 +128,15 @@ function toSubject(group: SubjectGroup): ConflictSubject {
   };
 }
 
+/** Whether two subject lists are the same people in the same roles (a run on one stands for the other). */
+export function sameSubjects(a: readonly ConflictSubject[], b: readonly ConflictSubject[]): boolean {
+  const key = (list: readonly ConflictSubject[]) =>
+    JSON.stringify(
+      list.map((s) => [s.contactId ?? null, s.name, s.role, s.dob ?? null, s.email ?? null, s.abn ?? null]),
+    );
+  return key(a) === key(b);
+}
+
 /**
  * The conflict check (CORE-02), reusable by intake (CORE-05) and the matter's check page: the
  * people and organisations to check (prefilled, editable), `conflicts-run`, the matches under each
@@ -319,66 +328,70 @@ function toSubject(group: SubjectGroup): ConflictSubject {
       </section>
     }
 
-    <section class="card determination" aria-labelledby="mt-conflict-determination-h">
-      <div class="card-h">
-        <h2 id="mt-conflict-determination-h" class="heading">Determination</h2>
-        <mt-badge class="mt-ml" [tone]="statusTone()">{{ statusLabel() }}</mt-badge>
-      </div>
-      @if (recorded(); as check) {
-        <dl class="recorded">
-          <div>
-            <dt class="caption t-3">Recorded by</dt>
-            <dd>{{ memberName(check.checkedBy) }}</dd>
-          </div>
-          <div>
-            <dt class="caption t-3">On</dt>
-            <dd>{{ when(check.checkedAt) }}</dd>
-          </div>
-          @if (check.reason) {
-            <div class="reason">
-              <dt class="caption t-3">Reason</dt>
-              <dd>{{ check.reason }}</dd>
+    @if (determination()) {
+      <section class="card determination" aria-labelledby="mt-conflict-determination-h">
+        <div class="card-h">
+          <h2 id="mt-conflict-determination-h" class="heading">Determination</h2>
+          <mt-badge class="mt-ml" [tone]="statusTone()">{{ statusLabel() }}</mt-badge>
+        </div>
+        @if (recorded(); as check) {
+          <dl class="recorded">
+            <div>
+              <dt class="caption t-3">Recorded by</dt>
+              <dd>{{ memberName(check.checkedBy) }}</dd>
             </div>
-          }
-        </dl>
-      } @else {
-        <p class="caption t-2">
-          Not determined yet. The matter stays a lead until a lawyer records Clear or waives a potential conflict.
-        </p>
-      }
-      @if (matterId()) {
-        @if (canDetermine()) {
-          @if (result()) {
-            <form class="decide" [formGroup]="decision" (submit)="$event.preventDefault(); determine()">
-              <mt-radio-group label="Your determination" formControlName="status" [options]="decisions" />
-              @if (decision.controls.status.value === 'clear' && adverse()) {
-                <mt-note tone="warning">You’re recording Clear despite adverse matches. Be sure before you do.</mt-note>
-              }
-              <mt-textarea
-                label="Reason"
-                formControlName="reason"
-                [optional]="decision.controls.status.value === 'clear'"
-                [required]="decision.controls.status.value !== 'clear'"
-                [error]="reasonError() ?? undefined"
-                [rows]="2"
-              />
-              @if (determineError(); as message) {
-                <mt-note tone="danger">{{ message }}</mt-note>
-              }
-              <div class="mt-row">
-                <button mtButton variant="primary" size="sm" type="submit" [loading]="determining()">
-                  Record determination
-                </button>
+            <div>
+              <dt class="caption t-3">On</dt>
+              <dd>{{ when(check.checkedAt) }}</dd>
+            </div>
+            @if (check.reason) {
+              <div class="reason">
+                <dt class="caption t-3">Reason</dt>
+                <dd>{{ check.reason }}</dd>
               </div>
-            </form>
-          } @else {
-            <p class="caption t-2">Run the check to record a determination.</p>
-          }
+            }
+          </dl>
         } @else {
-          <mt-note>A lawyer must determine this check. You can run it and review the matches.</mt-note>
+          <p class="caption t-2">
+            Not determined yet. The matter stays a lead until a lawyer records Clear or waives a potential conflict.
+          </p>
         }
-      }
-    </section>
+        @if (matterId()) {
+          @if (canDetermine()) {
+            @if (result()) {
+              <form class="decide" [formGroup]="decision" (submit)="$event.preventDefault(); determine()">
+                <mt-radio-group label="Your determination" formControlName="status" [options]="decisions" />
+                @if (decision.controls.status.value === 'clear' && adverse()) {
+                  <mt-note tone="warning"
+                    >You’re recording Clear despite adverse matches. Be sure before you do.</mt-note
+                  >
+                }
+                <mt-textarea
+                  label="Reason"
+                  formControlName="reason"
+                  [optional]="decision.controls.status.value === 'clear'"
+                  [required]="decision.controls.status.value !== 'clear'"
+                  [error]="reasonError() ?? undefined"
+                  [rows]="2"
+                />
+                @if (determineError(); as message) {
+                  <mt-note tone="danger">{{ message }}</mt-note>
+                }
+                <div class="mt-row">
+                  <button mtButton variant="primary" size="sm" type="submit" [loading]="determining()">
+                    Record determination
+                  </button>
+                </div>
+              </form>
+            } @else {
+              <p class="caption t-2">Run the check to record a determination.</p>
+            }
+          } @else {
+            <mt-note>A lawyer must determine this check. You can run it and review the matches.</mt-note>
+          }
+        }
+      </section>
+    }
   `,
   styles: `
     :host {
@@ -554,6 +567,12 @@ export class ConflictCheckPanel {
   readonly matterId = input<string>();
   /** The matter's recorded determination, if any. */
   readonly current = input<ConflictDetermination | null | undefined>(null);
+  /** Runs the check as soon as subjects arrive (intake), unless `previous` already ran on them. */
+  readonly autoRun = input(false);
+  /** An earlier run to show again (intake keeps it while the person moves between steps). */
+  readonly previous = input<ConflictRun | null>(null);
+  /** Shows the determination card. Intake records its own determination, with the new matter. */
+  readonly determination = input(true);
 
   /** A run finished (intake keeps the check id to record the determination once the matter exists). */
   readonly ran = output<ConflictRun>();
@@ -630,6 +649,9 @@ export class ConflictCheckPanel {
         if (!subjects.length) return;
         this.subjectForms.clear();
         subjects.forEach((subject) => this.subjectForms.push(subjectGroup(subject)));
+        const previous = this.previous();
+        if (previous && sameSubjects(previous.subjects, subjects)) this.result.set(previous);
+        else if (this.autoRun()) void this.run();
       });
     });
     // A newer determination on the matter replaces the one made here.

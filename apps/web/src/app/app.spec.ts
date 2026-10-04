@@ -88,7 +88,6 @@ describe('app routes', () => {
 
   it.each([
     ['/inbox', 'Inbox', 'CORE-22'],
-    ['/matters/new', 'New matter', 'CORE-05'],
     ['/deadlines', 'Deadlines', 'CORE-10'],
     ['/billing', 'Time & billing', 'BILL-03'],
     ['/insights', 'Insights', 'INS-02'],
@@ -98,6 +97,13 @@ describe('app routes', () => {
     expect(el.querySelector('h1')?.textContent).toContain(heading);
     expect(el.textContent).toContain(`Coming in ${ticket}`);
     expect(title()).toBe(`${heading} · Materia`);
+  });
+
+  it('/matters/new is the new matter intake (CORE-05)', async () => {
+    const { el, title } = await setup('/matters/new');
+    expect(el.querySelector('h1')?.textContent).toContain('New matter');
+    expect(el.textContent).not.toContain('Coming in CORE-05');
+    expect(title()).toBe('New matter · Materia');
   });
 
   it('shows Disputes only while the litigation flag is on for the org', async () => {
