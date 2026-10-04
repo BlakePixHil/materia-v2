@@ -20,12 +20,18 @@ export const RECOVERY_CODE_COUNT = 10;
 /** Failed recovery attempts allowed per window, per account. */
 export const MAX_ATTEMPTS = 5;
 export const ATTEMPT_WINDOW_MS = 15 * 60_000;
-const SCRYPT = { N: 16384, r: 8, p: 1 };
+/**
+ * scrypt cost for new codes. Each stored code records its `N`, so raising the cost later keeps
+ * existing codes verifiable. Tests lower `N` to stay fast; production never changes it at runtime.
+ */
+export const RECOVERY_SCRYPT = { N: 16384, r: 8, p: 1 };
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // No 0/O, 1/I/L.
 
 export interface StoredCode {
   salt: string;
   hash: string;
+  /** scrypt cost the hash was made with (16384 when absent). */
+  N?: number;
   usedAt: Timestamp | null;
 }
 
@@ -40,13 +46,17 @@ export function normaliseCode(code: string): string {
   return code.replace(/[\s-]/g, '').toUpperCase();
 }
 
-export async function hashCode(code: string, salt: Buffer = randomBytes(16)): Promise<{ salt: string; hash: string }> {
-  const hash = await scrypt(normaliseCode(code), salt, 32, SCRYPT);
-  return { salt: salt.toString('hex'), hash: hash.toString('hex') };
+export async function hashCode(
+  code: string,
+  salt: Buffer = randomBytes(16),
+  N: number = RECOVERY_SCRYPT.N,
+): Promise<{ salt: string; hash: string; N: number }> {
+  const hash = await scrypt(normaliseCode(code), salt, 32, { ...RECOVERY_SCRYPT, N });
+  return { salt: salt.toString('hex'), hash: hash.toString('hex'), N };
 }
 
-export async function matchesCode(code: string, stored: Pick<StoredCode, 'salt' | 'hash'>): Promise<boolean> {
-  const { hash } = await hashCode(code, Buffer.from(stored.salt, 'hex'));
+export async function matchesCode(code: string, stored: Pick<StoredCode, 'salt' | 'hash' | 'N'>): Promise<boolean> {
+  const { hash } = await hashCode(code, Buffer.from(stored.salt, 'hex'), stored.N ?? 16384);
   return timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(stored.hash, 'hex'));
 }
 

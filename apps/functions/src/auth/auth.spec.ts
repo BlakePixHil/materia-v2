@@ -18,6 +18,7 @@ import {
   newRecoveryCode,
   normaliseCode,
   RECOVERY_CODE_COUNT,
+  RECOVERY_SCRYPT,
   useRecoveryCodeDefinition,
 } from './recovery';
 import { requireRecentLogin, runUserCallable, type UserCallableDeps } from '../core/user-callable';
@@ -175,6 +176,11 @@ describe('blocking functions', () => {
 });
 
 describe('recovery codes', () => {
+  // Production cost (N=16384) is slow under coverage on CI; the stored N keeps verification honest.
+  const productionN = RECOVERY_SCRYPT.N;
+  beforeAll(() => (RECOVERY_SCRYPT.N = 1024));
+  afterAll(() => (RECOVERY_SCRYPT.N = productionN));
+
   it('generates readable codes without ambiguous characters', () => {
     const code = newRecoveryCode();
     expect(code).toMatch(/^[A-HJ-KM-NP-Z2-9]{5}-[A-HJ-KM-NP-Z2-9]{5}$/);
@@ -182,8 +188,11 @@ describe('recovery codes', () => {
     expect(normaliseCode(' abcde-fghjk ')).toBe('ABCDEFGHJK');
   });
 
-  it('hashes with a salt and matches ignoring case and dashes', async () => {
+  it('hashes with a salt and matches ignoring case and dashes, at the cost it was stored with', async () => {
     const stored = await hashCode('ABCDE-FGHJK');
+    expect(stored.N).toBe(1024);
+    const legacy = await hashCode('ABCDE-FGHJK', undefined, 16384);
+    expect(await matchesCode('ABCDE-FGHJK', { salt: legacy.salt, hash: legacy.hash })).toBe(true);
     expect(stored.hash).not.toContain('ABCDE');
     expect(await matchesCode('abcdefghjk', stored)).toBe(true);
     expect(await matchesCode('ABCDE-FGHJM', stored)).toBe(false);
