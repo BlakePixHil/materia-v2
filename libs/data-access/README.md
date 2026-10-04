@@ -52,6 +52,10 @@ Queries hide soft-deleted documents unless `includeDeleted: true`. A query with 
 
 `savedViewsRepository()` is the signed-in person's `users/{uid}/views` (`SavedView`), listed per org with `SAVED_MATTER_VIEWS_QUERY(orgId)`; views are created, renamed and removed (`hardDelete`) client-direct.
 
+## Conflict checks (CORE-02)
+
+`matterConflictsRepository()` reads a matter for its check (`MatterConflict`: number, title, status, the client, deceased and testator contact ids, `conflictCheck` and the server's optional `conflictAlert`); it has no writes. Checks run and determinations are recorded through the callables in `CONFLICT_CALLABLES` (`conflicts-run`, `conflicts-determine`), called through `CALLABLES`. `matters-changeStatus` refuses `lead → open` with `FAILED_PRECONDITION` and `details.reason: 'conflict_check_not_clear'` until the determination is `clear` or `potential`.
+
 ## Lists: watchQuery and paging
 
 ```ts

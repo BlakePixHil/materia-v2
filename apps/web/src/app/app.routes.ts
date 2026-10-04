@@ -69,6 +69,13 @@ const matterRoutes: Route[] = [
           placeholder: { heading: tab.label, ticket: tab.ticket } satisfies PlaceholderData,
         },
       })),
+      // The conflict check (CORE-02): from the Matters list (one lead selected) or the matter's header.
+      {
+        path: 'conflicts',
+        title: 'Conflict check',
+        data: { crumb: 'Conflict check' },
+        loadComponent: () => import('./features/conflicts/matter-conflicts-page').then((m) => m.MatterConflictsPage),
+      },
       // Deep links to a tab that doesn't exist land on the overview.
       { path: '**', redirectTo: 'overview' },
     ],

@@ -166,6 +166,8 @@ const notificationBase = {
   link: z.string().startsWith('/'),
   readAt: InstantSchema.optional(),
   channel: z.array(z.enum(['inapp', 'email', 'push'])).min(1),
+  /** `high` notifications are shown prominently (a conflict alert, CORE-02). Absent means normal. */
+  priority: z.enum(['normal', 'high']).optional(),
 };
 
 /** `notifications/{id}`, discriminated on `kind`. */
@@ -190,6 +192,14 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
   }),
   z.object({ kind: z.literal('mention'), noteId: DocIdSchema, matterId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('suggestion'), suggestionId: DocIdSchema, matterId: DocIdSchema, ...notificationBase }),
+  // A party added to an open matter is on other matters (CORE-02, conflicts-onPartyAdded).
+  z.object({
+    kind: z.literal('conflict_alert'),
+    matterId: DocIdSchema,
+    checkId: DocIdSchema,
+    contactId: DocIdSchema,
+    ...notificationBase,
+  }),
   z.object({ kind: z.literal('invite_accepted'), memberUid: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('system'), ...notificationBase }),
 ]);

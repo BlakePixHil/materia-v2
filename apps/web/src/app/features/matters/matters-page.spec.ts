@@ -311,7 +311,7 @@ describe('matters list', () => {
     expect(failing.titles()).toContain('Estate of Margaret Whitfield');
   });
 
-  it('switches views and filters by status, type, responsible, label, jurisdiction and overdue', async () => {
+  it('switches views and filters by status, type and responsible', async () => {
     const page = await open('/matters', LAWYER, { configure: (_p, fs) => seed(fs) });
     await page.pick('My open matters', 'All open');
     expect(page.view()).toBe('all-open');
@@ -328,8 +328,11 @@ describe('matters list', () => {
 
     await page.pick('Anyone', 'Priya Shah');
     expect(page.titles()).toEqual(['Estate of Robert Chen']);
-    await page.pick('Priya Shah', 'Anyone');
+  });
 
+  it('filters by label and overdue', async () => {
+    const page = await open('/matters?view=all-open', LAWYER, { configure: (_p, fs) => seed(fs) });
+    await page.pick('Open', 'Lead');
     await page.pick('Label', 'grant');
     expect(page.titles()).toEqual(['Estate of Margaret Whitfield']);
     await page.pick('Label: grant', 'Any label');
@@ -338,8 +341,11 @@ describe('matters list', () => {
     expect(page.titles()).toEqual(['Estate of Margaret Whitfield']);
     // Overdue is worked out here, over the 500 most recent matters: the notice says so.
     expect(page.body.querySelector('.mt-matters-notice')?.textContent).toContain('500');
-    await page.click('Has overdue', page.body);
+  });
 
+  it('filters by jurisdiction across every status', async () => {
+    const page = await open('/matters?view=all-open', LAWYER, { configure: (_p, fs) => seed(fs) });
+    await page.pick('Open', 'Lead');
     await page.pick('Status: 2', 'Open');
     await page.pick('Lead', 'Lead');
     await page.pick('Jurisdiction', 'NSW');

@@ -19,6 +19,7 @@ const F = unwrap(TestUtilsNs);
 const deadlines = unwrap(DeadlinesNs);
 
 const {
+  buildConflictFixture,
   buildLoadMatters,
   makeContact,
   makeCounter,
@@ -528,6 +529,8 @@ export function buildDataset(options: {
       matterNumberFormat: SEED_MATTER_NUMBER_FORMAT,
       security: { mfaRequired: false, sessionIdleMinutes: 60 },
       settings: { clerk: { enabled: true } },
+      // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02).
+      flags: { 'conflicts.enforced': true },
     }),
   );
 
@@ -826,6 +829,20 @@ export function buildDataset(options: {
       files.push({ storagePath, fixture });
     });
   });
+
+  // Conflict-check scenarios (CORE-02): 5 adverse and 5 benign, with their own contacts and matters.
+  if (scenario !== 'minimal') {
+    const conflicts = buildConflictFixture({
+      orgId: org,
+      uid: JORDAN,
+      now,
+      format: SEED_MATTER_NUMBER_FORMAT,
+      year,
+      firstSeq: nextSeq,
+    });
+    for (const doc of conflicts.docs) add(doc.path, doc.data);
+    nextSeq = conflicts.nextSeq;
+  }
 
   if (scenario === 'load') {
     const load = buildLoadMatters({

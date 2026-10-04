@@ -75,6 +75,8 @@ service firebase.storage {
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'contact.delete': ['owner', 'admin', 'lawyer'],
         'contact.merge': ['owner', 'admin'],
+        'conflict.run': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'conflict.determine': ['owner', 'admin', 'lawyer'],
         'privileged.view': ['owner', 'admin', 'lawyer'],
         'document.upload': ['owner', 'admin', 'lawyer', 'paralegal'],
         'document.delete': ['owner', 'admin', 'lawyer'],

@@ -65,6 +65,7 @@ import { MatterNameDialog, type MatterNameDialogData } from './matter-name-dialo
 import { MattersBulkBar, type MatterAssignee } from './matters-bulk-bar';
 import {
   bulkStatusSummary,
+  changeStatusErrorCopy,
   cleanFilters,
   DEFAULT_VIEW_ID,
   DEFAULT_VIEW_OPTIONS,
@@ -292,6 +293,8 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
         [canEdit]="canEdit()"
         [canChangeStatus]="canStatus()"
         [busy]="bulkBusy()"
+        [canCheckConflicts]="singleLead() !== null"
+        (checkConflicts)="checkConflicts()"
         (assign)="bulkAssign($event)"
         (addLabel)="bulkLabel()"
         (changeStatus)="bulkStatus($event)"
@@ -537,6 +540,7 @@ export class MattersPage {
   protected readonly canCreate = can('matter.create');
   protected readonly canEdit = can('matter.edit');
   protected readonly canStatus = can('matter.status');
+  private readonly canRunConflicts = can('conflict.run');
   private readonly privilegedVisible = can('privileged.view');
 
   protected readonly statuses = STATUS_ORDER;
@@ -687,6 +691,12 @@ export class MattersPage {
     return this.rows().filter((row) => selected.has(row.id));
   });
   protected readonly bulkBusy = signal(false);
+  /** The one selected matter when it's a lead (its conflict check can run, CORE-02). */
+  protected readonly singleLead = computed(() => {
+    const rows = this.selectedRows();
+    const row = rows.length === 1 ? rows[0] : undefined;
+    return row && row.status === 'lead' && this.canRunConflicts() ? row : null;
+  });
   private readonly focused = signal(-1);
   private readonly search = viewChild<MtSearchField>('search');
   private readonly table = viewChild<MtTable<MatterRow>>('table');
@@ -943,6 +953,11 @@ export class MattersPage {
     void this.router.navigate(['/matters', row.id]);
   }
 
+  protected checkConflicts(): void {
+    const row = this.singleLead();
+    if (row) void this.router.navigate(['/matters', row.id, 'conflicts']);
+  }
+
   private newMatter(): void {
     void this.router.navigateByUrl('/matters/new');
   }
@@ -1057,7 +1072,7 @@ export class MattersPage {
       bulkStatusSummary(
         to,
         done.length,
-        failed.map((f) => ({ number: f.row.number, message: errorCopy(f.error) })),
+        failed.map((f) => ({ number: f.row.number, message: changeStatusErrorCopy(f.error) })),
       ),
     );
     this.selection.set(failed.map((f) => f.row.id));

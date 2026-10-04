@@ -196,8 +196,10 @@ describe('matters-createMatter', () => {
   it('replays the same requestId with the same matter', async () => {
     await signInAs('paralegal');
     const requestId = randomUUID();
-    const first = await create('Estate of Fictional Repeat', {}, requestId);
-    expect(await create('Estate of Fictional Repeat', {}, requestId)).toEqual(first);
+    // A paralegal creates leads: recording a determination is for conflict.determine (CORE-02).
+    const pending = { conflictCheck: { status: 'pending' } };
+    const first = await create('Estate of Fictional Repeat', pending, requestId);
+    expect(await create('Estate of Fictional Repeat', pending, requestId)).toEqual(first);
     const same = await db.collection(M).where('title', '==', 'Estate of Fictional Repeat').get();
     expect(same.size).toBe(1);
   });
@@ -230,6 +232,11 @@ describe('matters-createMatter', () => {
     expect(detailsOf(await failure(create('Estate of Fictional Nobody')))['code']).toBe('PERMISSION_DENIED');
     await signInAs('paralegal');
     expect((await create('Estate of Fictional Lead', { conflictCheck: { status: 'pending' } })).status).toBe('lead');
+    // A determination at intake needs conflict.determine (CORE-02).
+    expect(detailsOf(await failure(create('Estate of Fictional Cleared')))).toMatchObject({
+      code: 'PERMISSION_DENIED',
+      reason: 'conflict_determine_required',
+    });
   });
 });
 
@@ -261,7 +268,7 @@ describe('matters-changeStatus', () => {
     }
   }, 120_000);
 
-  it('opens a lead only with a clear conflict check', async () => {
+  it('opens a lead only with a determination that allows it', async () => {
     await db.doc(`${M}/lead-unchecked`).set(rawMatter('lead', { conflictCheck: { status: 'pending' } }));
     await signInAs('lawyer');
     const error = await failure(changeStatus('lead-unchecked', 'open'));

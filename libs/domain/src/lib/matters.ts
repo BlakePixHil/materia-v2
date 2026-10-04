@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { conflictAllowsOpening } from './conflicts';
 import { DEFAULT_ORG_TIMEZONE } from './constants';
 import { DocIdSchema } from './schemas/common';
 import { Matter } from './schemas/contacts-matters';
@@ -55,7 +56,10 @@ export function matterNumberKey(number: string): string {
 
 // ---------- status ----------
 
-/** Allowed transitions. `closed → open` (reopen) needs a reason; `lead → open` needs a clear conflict check. */
+/**
+ * Allowed transitions. `closed → open` (reopen) needs a reason; `lead → open` needs a conflict
+ * determination that allows opening (`clear` or `potential`, CORE-02).
+ */
 export const MATTER_TRANSITIONS: Readonly<Record<MatterStatus, readonly MatterStatus[]>> = {
   lead: ['open'],
   open: ['on_hold', 'closed'],
@@ -68,18 +72,18 @@ export function canTransition(from: MatterStatus, to: MatterStatus): boolean {
   return MATTER_TRANSITIONS[from].includes(to);
 }
 
-export type TransitionRequirement = 'conflict_clear' | 'reason';
+export type TransitionRequirement = 'conflict_openable' | 'reason';
 
 /** What a valid transition still needs. */
 export function transitionRequirements(from: MatterStatus, to: MatterStatus): TransitionRequirement[] {
-  if (from === 'lead' && to === 'open') return ['conflict_clear'];
+  if (from === 'lead' && to === 'open') return ['conflict_openable'];
   if (from === 'closed' && to === 'open') return ['reason'];
   return [];
 }
 
-/** The status a new matter starts in: `open` once the conflict check is clear, otherwise `lead`. */
+/** The status a new matter starts in: `open` once the conflict check allows it (CONFLICT_OPENABLE), otherwise `lead`. */
 export function initialMatterStatus(conflictStatus: Matter['conflictCheck']['status'] | undefined): MatterStatus {
-  return conflictStatus === 'clear' ? 'open' : 'lead';
+  return conflictAllowsOpening(conflictStatus) ? 'open' : 'lead';
 }
 
 export const MATTER_STATUS_LABELS: Readonly<Record<MatterStatus, string>> = {
@@ -282,7 +286,9 @@ const RequestId = z.uuid();
 
 /**
  * `matters-createMatter`: the matter's fields without the number and status, which the server
- * allocates. Status is `lead`, or `open` when `conflictCheck.status` is already `clear`.
+ * allocates. Status is `lead`, or `open` when `conflictCheck.status` is already `clear` or
+ * `potential`. A status other than `pending` is a determination: it needs `conflict.determine`, a
+ * reason for `potential` and `conflict`, and the server stamps `checkedAt` and `checkedBy` (CORE-02).
  */
 export const CreateMatterInput = z.object({
   requestId: RequestId,

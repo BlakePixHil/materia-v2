@@ -71,11 +71,13 @@ describe('status machine', () => {
     expect(count).toBe(allowed.size);
   });
 
-  it('needs a clear conflict check to open a lead and a reason to reopen', () => {
-    expect(transitionRequirements('lead', 'open')).toEqual(['conflict_clear']);
+  it('needs an openable conflict determination to open a lead and a reason to reopen', () => {
+    expect(transitionRequirements('lead', 'open')).toEqual(['conflict_openable']);
     expect(transitionRequirements('closed', 'open')).toEqual(['reason']);
     expect(transitionRequirements('open', 'closed')).toEqual([]);
     expect(initialMatterStatus('clear')).toBe('open');
+    expect(initialMatterStatus('potential')).toBe('open');
+    expect(initialMatterStatus('conflict')).toBe('lead');
     expect(initialMatterStatus('pending')).toBe('lead');
     expect(initialMatterStatus(undefined)).toBe('lead');
   });

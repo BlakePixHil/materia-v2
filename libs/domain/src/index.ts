@@ -22,3 +22,4 @@ export * from './lib/orgs';
 export * from './lib/search';
 export * from './lib/contacts';
 export * from './lib/matters';
+export * from './lib/conflicts';

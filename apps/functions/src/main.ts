@@ -11,3 +11,4 @@ export * as jobs from './jobs/index';
 export * as orgs from './orgs/index';
 export * as contacts from './contacts/index';
 export * as matters from './matters/index';
+export * as conflicts from './conflicts/index';
