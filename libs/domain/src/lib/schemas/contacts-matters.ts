@@ -92,6 +92,8 @@ export const Matter = withMeta(
       checkedAt: InstantSchema.optional(),
       checkedBy: DocIdSchema.optional(),
       resultId: DocIdSchema.optional(),
+      /** Why a potential conflict was waived, or why it is a conflict (CORE-02). */
+      reason: z.string().optional(),
     }),
     estate: z
       .object({

@@ -98,6 +98,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'conflicts.enforced': defineFlag({
+    key: 'conflicts.enforced',
+    description:
+      'Conflict checks flag adverse roles from the adverse-role matrix (off until a practitioner signs it off, CORE-02a).',
+    owner: 'CORE-02',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'litigation.enabled': defineFlag({
     key: 'litigation.enabled',
     description: 'Disputes: contested estates, proceedings and court deadlines.',

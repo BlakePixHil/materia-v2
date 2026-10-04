@@ -45,6 +45,7 @@ import {
 } from './org-records';
 import { Org, Member, Invite, User } from './tenancy';
 import { SavedView } from './views';
+import { ConflictCheck } from '../conflicts';
 
 /**
  * Named exports in the `XSchema` / `XCreateSchema` / `XUpdateSchema` form (FND-13). Each is the
@@ -196,3 +197,6 @@ export const CounterUpdateSchema = Counter.update;
 export const MatterNumberSchema = MatterNumber.schema;
 export const MatterNumberCreateSchema = MatterNumber.create;
 export const MatterNumberUpdateSchema = MatterNumber.update;
+export const ConflictCheckSchema = ConflictCheck.schema;
+export const ConflictCheckCreateSchema = ConflictCheck.create;
+export const ConflictCheckUpdateSchema = ConflictCheck.update;

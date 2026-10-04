@@ -406,6 +406,8 @@ service cloud.firestore {
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'contact.delete': ['owner', 'admin', 'lawyer'],
         'contact.merge': ['owner', 'admin'],
+        'conflict.run': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'conflict.determine': ['owner', 'admin', 'lawyer'],
         'privileged.view': ['owner', 'admin', 'lawyer'],
         'document.upload': ['owner', 'admin', 'lawyer', 'paralegal'],
         'document.delete': ['owner', 'admin', 'lawyer'],
@@ -436,6 +438,7 @@ service cloud.firestore {
     function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'embedding']; }
     function fieldsClerkMessage() { return ['stopRequested']; }
     function fieldsClerkThread() { return ['title', 'ownerUid', 'matterId', 'shared']; }
+    function fieldsConflictCheck() { return []; }
     function fieldsContact() { return ['kind', 'givenNames', 'familyName', 'preferredName', 'dateOfBirth', 'dateOfDeath', 'orgName', 'abn', 'emails', 'phones', 'addresses', 'tags', 'isReferrer', 'referrerMeta', 'notes']; }
     function fieldsCounter() { return []; }
     function fieldsCourtBook() { return ['title', 'tabs', 'status']; }
