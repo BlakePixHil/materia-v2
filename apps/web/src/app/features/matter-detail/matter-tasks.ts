@@ -24,7 +24,7 @@ import { errorCopy } from '../../core/error-copy';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { TaskActions } from '../tasks/task-actions';
 import { TaskList } from '../tasks/task-list';
-import { TaskQuickAdd, type QuickAddTask } from '../tasks/task-quick-add';
+import { loadQuickAddParser, TaskQuickAdd, type QuickAddTask } from '../tasks/task-quick-add';
 import { inOrder, isClosed, orderAfterLast, sectionsByGroup, sectionsByStage, taskEntry } from '../tasks/task-view';
 import { TasksBulkBar } from '../tasks/tasks-bulk-bar';
 
@@ -179,7 +179,7 @@ export class MatterTasks {
   private readonly injector = inject(Injector);
   private readonly id = this.screen.id;
   private readonly repo = matterTaskRepository(this.id);
-  private readonly addButton = viewChild<ElementRef<HTMLElement>>('addButton');
+  private readonly addButton = viewChild('addButton', { read: ElementRef<HTMLElement> });
 
   private readonly canTask = can('task.edit');
   protected readonly canEdit = computed(() => this.canTask() && !this.screen.deleted());
@@ -215,6 +215,8 @@ export class MatterTasks {
   });
 
   constructor() {
+    // Quick-add understands its tokens even if the connection drops before it's first opened.
+    loadQuickAddParser().catch(() => undefined);
     const shortcuts = inject(ShortcutService);
     const cleanups = [
       shortcuts.register({

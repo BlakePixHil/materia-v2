@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import {
+  createTestAccount,
   EMULATOR_PROJECT,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
@@ -17,7 +18,6 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
  * `tasks-onWrite` trigger then counts it). Fictional data only.
  */
 
-const COLLEAGUE = 'u-colleague-fictional';
 const URL = '/matters/m-larch/tasks';
 
 function meta(uid: string) {
@@ -43,7 +43,7 @@ function taskDoc(orgId: string, uid: string, id: string, title: string, order: n
   };
 }
 
-/** A matter with three tasks, and a colleague to assign them to. */
+/** A matter with three tasks. */
 async function seed(request: APIRequestContext, orgId: string, uid: string): Promise<void> {
   await seedClient(request, orgId, uid);
   const matter = matterDoc(orgId, uid, {
@@ -59,12 +59,6 @@ async function seed(request: APIRequestContext, orgId: string, uid: string): Pro
     taskDoc(orgId, uid, 't-2', 'Locate the original will', 2048),
     taskDoc(orgId, uid, 't-3', 'Write to the bank', 3072),
   ]);
-  await setEmulatorDocument(request, `orgs/${orgId}/members/${COLLEAGUE}`, {
-    role: 'lawyer',
-    status: 'active',
-    email: 'colleague@example.test',
-    displayName: 'Priya Fictional',
-  });
 }
 
 async function setUp(page: Page, request: APIRequestContext) {
@@ -74,10 +68,15 @@ async function setUp(page: Page, request: APIRequestContext) {
     displayName: 'Jordan Fictional',
   });
   await seed(request, orgId, account.uid);
+  // A colleague to assign tasks to.
+  const colleague = await createTestAccount(request, {
+    claims: { orgId, role: 'lawyer' },
+    displayName: 'Priya Fictional',
+  });
   await page.goto(URL);
   await expect(page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible();
   await expect(titles(page)).toHaveCount(3);
-  return { orgId, uid: account.uid };
+  return { orgId, uid: account.uid, colleague: colleague.uid };
 }
 
 const titles = (page: Page) => page.locator('mt-task-list .mt-task-title');
@@ -107,7 +106,7 @@ async function storedTasks(request: APIRequestContext, orgId: string) {
 test.describe('tasks', () => {
   test('quick-add parses @name, !priority and a due date, then completes the task', async ({ page, request }) => {
     test.setTimeout(90_000);
-    const { orgId } = await setUp(page, request);
+    const { orgId, colleague } = await setUp(page, request);
     await expectNoA11yViolations(page);
 
     await page.getByRole('button', { name: 'Add task' }).click();
@@ -127,7 +126,7 @@ test.describe('tasks', () => {
     await expect
       .poll(async () => (await storedTasks(request, orgId)).get('Lodge the inventory @nobody'), { timeout: 20_000 })
       .toMatchObject({
-        assigneeUid: { stringValue: COLLEAGUE },
+        assigneeUid: { stringValue: colleague },
         priority: { stringValue: 'high' },
         dueDate: { stringValue: '2026-12-15' },
       });
@@ -155,7 +154,7 @@ test.describe('tasks', () => {
 
   test('selects tasks and assigns them in bulk', async ({ page, request }) => {
     test.setTimeout(90_000);
-    const { orgId } = await setUp(page, request);
+    const { orgId, colleague } = await setUp(page, request);
     await page.getByRole('checkbox', { name: 'Select Order the death certificate' }).check();
     await page.getByRole('checkbox', { name: 'Select Write to the bank' }).check();
     const bar = page.getByRole('region', { name: 'Selected tasks' });
@@ -174,7 +173,7 @@ test.describe('tasks', () => {
         },
         { timeout: 20_000 },
       )
-      .toEqual([COLLEAGUE, null, COLLEAGUE]);
+      .toEqual([colleague, null, colleague]);
   });
 
   test('creates a task offline and syncs it after reconnecting', async ({ page, request, context }) => {
@@ -184,6 +183,8 @@ test.describe('tasks', () => {
     await page.getByRole('button', { name: 'Add task' }).click();
     const field = page.getByRole('textbox', { name: 'New task' });
     await field.fill('Call the executor !urgent');
+    // The parser was loaded with the tab, so tokens still work offline.
+    await expect(page.locator('mt-task-quick-add')).toContainText('Urgent priority');
     await field.press('Enter');
     // Shown straight away from the local cache.
     await expect(row(page, 'Call the executor')).toBeVisible();

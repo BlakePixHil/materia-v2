@@ -118,6 +118,8 @@ describe('matter tasks tab', () => {
     expect(field?.value).toBe('');
     await page.press('Escape', {}, field as HTMLElement);
     expect(page.body.querySelector('mt-task-quick-add')).toBeNull();
+    await page.stable(20);
+    expect(page.text(document.activeElement)).toContain('Add task');
   });
 
   it('completes a task with Space, with an Undo', async () => {

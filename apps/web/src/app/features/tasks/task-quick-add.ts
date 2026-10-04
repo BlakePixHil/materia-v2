@@ -28,10 +28,18 @@ export interface QuickAddTask {
 
 type Parse = (typeof import('./quick-add-parser'))['parseQuickAdd'];
 
-/** The parser brings chrono-node, so it loads on first use, in its own chunk. */
+/**
+ * The parser brings chrono-node, so it loads in its own chunk: preloaded when a task list opens (so
+ * quick-add still understands tokens after going offline), and retried if the fetch failed.
+ */
 let parser: Promise<Parse> | null = null;
-function loadParser(): Promise<Parse> {
-  parser ??= import('./quick-add-parser').then((m) => m.parseQuickAdd);
+export function loadQuickAddParser(): Promise<Parse> {
+  parser ??= import('./quick-add-parser')
+    .then((m) => m.parseQuickAdd)
+    .catch((error: unknown) => {
+      parser = null;
+      throw error;
+    });
   return parser;
 }
 
@@ -229,7 +237,11 @@ export class TaskQuickAdd {
   });
 
   constructor() {
-    void loadParser().then((parse) => this.parse.set(parse));
+    // Offline before the parser loaded: the line still saves, with the text as typed.
+    loadQuickAddParser().then(
+      (parse) => this.parse.set(parse),
+      () => undefined,
+    );
     afterNextRender(() => this.focus());
   }
 

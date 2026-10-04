@@ -40,7 +40,7 @@ import {
 
 import { TaskActions } from './task-actions';
 import { TaskList } from './task-list';
-import { TaskQuickAdd, type QuickAddTask } from './task-quick-add';
+import { loadQuickAddParser, TaskQuickAdd, type QuickAddTask } from './task-quick-add';
 import {
   orderAfterLast,
   PRIORITY_NAMES,
@@ -248,7 +248,7 @@ export class MyTasks {
   private readonly today = inject(MT_TODAY);
   private readonly toasts = inject(ToastService);
   private readonly injector = inject(Injector);
-  private readonly addButton = viewChild<ElementRef<HTMLElement>>('addButton');
+  private readonly addButton = viewChild('addButton', { read: ElementRef<HTMLElement> });
   private readonly canEdit = can('task.edit');
 
   protected readonly tasks = taskGroupRepository().watchQuery(() => {
@@ -330,6 +330,10 @@ export class MyTasks {
   });
 
   constructor() {
+    // Quick-add understands its tokens even if the connection drops before it's first opened.
+    afterNextRender(() => {
+      if (!this.compact()) loadQuickAddParser().catch(() => undefined);
+    });
     effect(() => {
       const ids = [
         ...new Set(
