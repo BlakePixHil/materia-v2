@@ -27,11 +27,11 @@
       "inputs": [
         "default",
         "^default",
-        "{workspaceRoot}/firebase/firebase.json",
+        "{workspaceRoot}/firebase.json",
         "{workspaceRoot}/libs/test-utils/fixtures/**/*"
       ],
       "options": {
-        "command": "firebase emulators:exec --only auth,firestore,storage --project demo-materia --config firebase/firebase.json \"node tools/scripts/bin/materia-scripts.mjs seed && node tools/scripts/bin/materia-scripts.mjs seed --verify\"",
+        "command": "firebase emulators:exec --only auth,firestore,storage --project demo-materia --config firebase.json \"node tools/scripts/bin/materia-scripts.mjs seed && node tools/scripts/bin/materia-scripts.mjs seed --verify\"",
         "cwd": "{workspaceRoot}"
       }
     }

@@ -2,7 +2,7 @@
 
 How code reaches dev and prod (FND-05). Nobody deploys from a laptop: every deploy is a GitHub Actions run that authenticates through Workload Identity Federation, with no JSON keys.
 
-MVP mode has two environments, **dev** (`materia-v2-dev`) and **prod** (`materia-v2-prod`). Wherever older docs say "staging", read dev. `infra/terraform/envs/staging.*` and the `staging` entry in `firebase/.firebaserc` are unused.
+MVP mode has two environments, **dev** (`materia-v2-dev`) and **prod** (`materia-v2-prod`). Wherever older docs say "staging", read dev. `infra/terraform/envs/staging.*` and the `staging` entry in the root `.firebaserc` are unused.
 
 ## The pipeline
 

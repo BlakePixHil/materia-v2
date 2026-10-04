@@ -219,7 +219,7 @@ jobs:
           CI: 'true'
         run: >-
           pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting
-          --project demo-materia --config firebase/firebase.json
+          --project demo-materia --config firebase.json
           "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --shard=${{ matrix.shard }}/2"
       - name: Upload the Playwright report
         if: failure()
