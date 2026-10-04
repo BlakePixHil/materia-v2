@@ -81,11 +81,12 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
               variant="secondary"
               size="sm"
               class="status"
+              iconEnd="chevron-down"
               [mtMenuTrigger]="statusMenu"
               [loading]="busy()"
               [attr.aria-label]="'Status: ' + statusLabel(m.status) + '. Change status'"
             >
-              {{ statusLabel(m.status) }}<mt-icon name="chevron-down" />
+              {{ statusLabel(m.status) }}
             </button>
           } @else {
             <mt-badge class="status">{{ statusLabel(m.status) }}</mt-badge>
@@ -312,7 +313,7 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
     }
     .mt-matter-head .mt-chip.label {
       cursor: default;
-      padding-inline-end: 2px;
+      padding-inline-end: 3px;
     }
   `,
 })

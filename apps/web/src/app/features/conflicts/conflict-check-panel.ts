@@ -428,7 +428,7 @@ export function sameSubjects(a: readonly ConflictSubject[], b: readonly Conflict
     .subject {
       display: grid;
       grid-template-columns:
-        minmax(160px, 2fr) minmax(120px, 1fr) minmax(110px, 1fr) minmax(140px, 1.4fr) minmax(110px, 1fr)
+        minmax(140px, 2fr) minmax(120px, 1fr) minmax(140px, 1fr) minmax(140px, 1.4fr) minmax(110px, 1fr)
         auto;
       align-items: start;
       gap: var(--space-8);
@@ -440,6 +440,10 @@ export function sameSubjects(a: readonly ConflictSubject[], b: readonly Conflict
     }
     .subject .remove {
       margin-top: 22px;
+    }
+    /* Labels stay on one line so every input in a row lines up ("Date of birth Optional"). */
+    .subject ::ng-deep .mt-label {
+      white-space: nowrap;
     }
     .intro {
       margin: 0;
