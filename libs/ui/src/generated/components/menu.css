@@ -3,7 +3,7 @@
 .mt-menu-item { display: flex; align-items: center; gap: var(--space-8); height: 30px; padding: 0 var(--space-8); border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; outline: none; }
 .mt-menu-item .mt-i { color: var(--icon-default); }
 .mt-menu-item .hint { margin-left: auto; display: flex; gap: 2px; color: var(--text-tertiary); font: 500 11px/14px var(--font-mono); }
-.mt-menu-item[data-highlighted] { background: var(--bg-hover); }
+.mt-menu-item[data-highlighted], .mt-menu-item[data-active] { background: var(--bg-hover); }
 .mt-menu-item[data-selected] .check { color: var(--icon-brand); }
 .mt-menu-item[data-disabled] { color: var(--text-disabled); cursor: not-allowed; }
 .mt-menu-item[data-tone="danger"] { color: var(--text-danger); } .mt-menu-item[data-tone="danger"] .mt-i { color: var(--text-danger); }

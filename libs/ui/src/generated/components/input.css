@@ -2,6 +2,12 @@
 .mt-input { display: flex; align-items: center; gap: var(--space-8); height: var(--control-md); padding: 0 var(--space-12); border-radius: var(--radius-sm); border: 1px solid var(--border-control); background: var(--bg-surface); font: 400 14px/20px var(--font-sans); color: var(--text-primary); min-width: 0; outline: none; transition: border-color .12s, box-shadow .12s; }
 .mt-input > input, .mt-input > span.v { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; color: inherit; padding: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mt-input .ph, .mt-input > input::placeholder { color: var(--text-tertiary); }
+.mt-input > textarea, .mt-input > select { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; color: inherit; padding: 0; }
+.mt-input > textarea { align-self: stretch; resize: none; white-space: pre-wrap; overflow-y: auto; }
+.mt-input > select { appearance: none; align-self: stretch; cursor: pointer; }
+.mt-input > textarea::placeholder { color: var(--text-tertiary); }
+.mt-input > input:disabled, .mt-input > textarea:disabled, .mt-input > select:disabled { cursor: not-allowed; }
+.mt-input > input:focus-visible, .mt-input > textarea:focus-visible, .mt-input > select:focus-visible { box-shadow: none; }
 .mt-input .mt-i { color: var(--icon-default); }
 .mt-input[data-hover] { border-color: var(--text-tertiary); }
 .mt-input[data-focus], .mt-input:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-focus) 22%, transparent); }
