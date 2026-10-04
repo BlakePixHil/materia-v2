@@ -139,7 +139,7 @@ describe('app routes', () => {
     expect(auth.el.querySelector('.mt-sidebar')).toBeNull();
     TestBed.resetTestingModule();
     const onboarding = await setup('/onboarding', testSession({ claims: {} }));
-    expect(onboarding.el.textContent).toContain('Coming in FND-17');
+    expect(onboarding.el.textContent).toContain('Set up your practice');
   });
 
   it('sends signed-out people to sign in, keeping where they were going', async () => {
@@ -160,7 +160,7 @@ describe('app routes', () => {
   it('sends people without an org to onboarding', async () => {
     const { router, el } = await setup('/today', testSession({ claims: {} }));
     expect(router.url).toBe('/onboarding');
-    expect(el.textContent).toContain('Coming in FND-17');
+    expect(el.textContent).toContain('Create practice');
   });
 
   it('keeps signed-in people away from sign-in', async () => {

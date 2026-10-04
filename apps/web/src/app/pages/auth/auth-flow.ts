@@ -21,8 +21,12 @@ export function safeReturnUrl(value: string | null | undefined): string | null {
 /** After a successful sign-in step: the next unfinished step, else where they were going. */
 export async function continueAfterSignIn(auth: AuthState, router: Router, returnUrl: string | null): Promise<void> {
   const status = auth.status();
+  const back = safeReturnUrl(returnUrl);
   if (status === 'ready') {
-    await router.navigateByUrl(safeReturnUrl(returnUrl) ?? '/today');
+    await router.navigateByUrl(back ?? '/today');
+  } else if (status === 'needsOrg' && back?.startsWith('/invite/')) {
+    // Signing in to accept an invite (FND-17): the invite page, not onboarding.
+    await router.navigateByUrl(back);
   } else if (status !== 'loading' && status !== 'signedOut') {
     await router.navigateByUrl(STATUS_ROUTES[status]);
   }

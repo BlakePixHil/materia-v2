@@ -174,8 +174,6 @@ describe('privileged material', () => {
     const suspended = db(env, 'lawyer', ORG, SUSPENDED_UID);
     await assertFails(getDoc(doc(suspended, PRIVILEGED)));
     await assertFails(getDoc(doc(suspended, `${MATTER}/notes/privileged-note`)));
-    // Non-privileged reads still work until the claim is revoked.
-    await assertSucceeds(getDoc(doc(suspended, MATTER)));
   });
 
   it('a paralegal cannot mark a matter privileged; a lawyer can', async () => {
@@ -278,6 +276,77 @@ describe('field-level rules', () => {
   it('notifications and personal tasks belong to one member', async () => {
     await assertFails(getDoc(doc(db(env, 'admin'), `orgs/${ORG}/notifications/notification-1`)));
     await assertFails(getDoc(doc(db(env, 'owner'), `orgs/${ORG}/members/${OWNER_UID}/tasks/task-1`)));
+  });
+});
+
+describe('membership (FND-17)', () => {
+  const REMOVED_UID = 'removed-a';
+  const reads = (firestore: Firestore) => [
+    getDoc(doc(firestore, `orgs/${ORG}`)),
+    getDoc(doc(firestore, MATTER)),
+    getDoc(doc(firestore, `orgs/${ORG}/members/${uidFor('owner')}`)),
+    getDoc(doc(firestore, `orgs/${ORG}/contacts/doc-1`)),
+    getDocs(query(collectionGroup(firestore, 'deadlines'), where('orgId', '==', ORG))),
+  ];
+
+  beforeAll(async () => {
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, `orgs/${ORG}/members/${REMOVED_UID}`), { role: 'admin', status: 'removed' }),
+    );
+  });
+
+  it('a removed member loses access on their next request, though their token still names the org', async () => {
+    for (const read of reads(db(env, 'admin', ORG, REMOVED_UID))) await assertFails(read);
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'admin', ORG, REMOVED_UID), `orgs/${ORG}/members/member-target`),
+        stamped({ title: 'x' }, REMOVED_UID),
+      ),
+    );
+  });
+
+  it('a suspended member loses access too', async () => {
+    for (const read of reads(db(env, 'lawyer', ORG, SUSPENDED_UID))) await assertFails(read);
+  });
+
+  it('a claim without a member document gets nothing', async () => {
+    for (const read of reads(db(env, 'owner', ORG, 'never-a-member'))) await assertFails(read);
+  });
+
+  it('role and status change only through callables, even for owners', async () => {
+    await seed(specFor('members'));
+    const ref = doc(db(env, 'owner'), `orgs/${ORG}/members/member-target`);
+    await assertFails(updateDoc(ref, stamped({ role: 'owner' }, uidFor('owner'))));
+    await assertFails(updateDoc(ref, stamped({ status: 'removed' }, uidFor('owner'))));
+    await assertFails(updateDoc(ref, stamped({ email: 'other@example.test' }, uidFor('owner'))));
+    await assertSucceeds(updateDoc(ref, stamped({ title: 'Associate' }, uidFor('owner'))));
+  });
+
+  it('nobody promotes themselves', async () => {
+    const ref = doc(db(env, 'admin'), `orgs/${ORG}/members/${uidFor('admin')}`);
+    await assertFails(updateDoc(ref, stamped({ role: 'owner' }, uidFor('admin'))));
+  });
+
+  it('invites: managers read them and change only the role; the token hash and status are server-owned', async () => {
+    await seed(specFor('invites'));
+    const ref = doc(db(env, 'admin'), `orgs/${ORG}/invites/invite-1`);
+    await assertSucceeds(getDoc(ref));
+    await assertFails(getDoc(doc(db(env, 'lawyer'), `orgs/${ORG}/invites/invite-1`)));
+    await assertFails(updateDoc(ref, stamped({ status: 'accepted' }, uidFor('admin'))));
+    await assertFails(updateDoc(ref, stamped({ tokenHash: 'a'.repeat(64) }, uidFor('admin'))));
+    await assertFails(updateDoc(ref, stamped({ expiresAt: Timestamp.fromMillis(Date.now() + 1e10) }, uidFor('admin'))));
+    await assertSucceeds(updateDoc(ref, stamped({ role: 'lawyer' }, uidFor('admin'))));
+  });
+
+  it('the active org and memberships on users/{uid} are server-owned', async () => {
+    await seed(specFor('users'));
+    const ref = doc(db(env, 'lawyer'), `users/${uidFor('lawyer')}`);
+    await assertFails(updateDoc(ref, stamped({ activeOrgId: OTHER_ORG }, uidFor('lawyer'))));
+    await assertFails(
+      updateDoc(ref, stamped({ memberships: { [OTHER_ORG]: { role: 'owner', name: 'X' } } }, uidFor('lawyer'))),
+    );
+    await assertFails(updateDoc(ref, stamped({ claimsVersion: 99 }, uidFor('lawyer'))));
+    await assertSucceeds(updateDoc(ref, stamped({ displayName: 'Jordan P' }, uidFor('lawyer'))));
   });
 });
 

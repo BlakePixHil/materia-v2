@@ -27,6 +27,14 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   CLERK_BUDGET_EXCEEDED: 'Your practice has used this month’s Clerk allowance. An admin can raise it in settings.',
   CLERK_BUSY: 'Clerk is busy. Try again in a moment.',
   CLERK_UNAVAILABLE: 'Clerk is unavailable right now. You can carry on without it.',
+  INVITE_EMAIL_MISMATCH:
+    'This invite was sent to a different email. Sign in with the invited email, or ask for a new invite.',
+  INVITE_EXPIRED: 'This invite has expired. Ask for a new invite.',
+  INVITE_INVALID: 'This invite link isn’t valid any more. Ask for a new invite.',
+  INVITE_LIMIT: 'Your practice has 50 pending invites. Revoke some before sending more.',
+  ALREADY_MEMBER: 'This person is already a member of the practice.',
+  LAST_OWNER: 'A practice needs at least one owner. Make someone else an owner first.',
+  EMAIL_NOT_VERIFIED: 'Confirm your email first, then try again.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 

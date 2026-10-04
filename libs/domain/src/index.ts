@@ -16,3 +16,4 @@ export * from './lib/schemas/aliases';
 export * from './lib/permissions';
 export * from './lib/errors';
 export * from './lib/flags';
+export * from './lib/orgs';

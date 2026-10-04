@@ -16,13 +16,20 @@ export interface IdempotencyStore {
   abandon(orgId: string, requestId: string): Promise<void>;
 }
 
+/** Idempotency records for callables made before the person has an org (FND-17): server-only, 24 h TTL. */
+export const userRequestPath = (uid: string, requestId: string) => `users/${uid}/requests/${requestId}`;
+
 /**
  * `orgs/{orgId}/requests/{requestId}` → `{fn, status, result, expiresAt}` (Domain doc: server-only,
  * 24 h TTL on `expiresAt`). `begin` runs in a transaction, so of two concurrent calls with the same
  * key exactly one executes; the other gets REQUEST_IN_PROGRESS (retry shortly).
  */
-export function firestoreIdempotency(db: () => Firestore, clock: Clock): IdempotencyStore {
-  const ref = (orgId: string, requestId: string) => db().doc(`orgs/${orgId}/requests/${requestId}`);
+export function firestoreIdempotency(
+  db: () => Firestore,
+  clock: Clock,
+  path: (scope: string, requestId: string) => string = (orgId, requestId) => `orgs/${orgId}/requests/${requestId}`,
+): IdempotencyStore {
+  const ref = (scope: string, requestId: string) => db().doc(path(scope, requestId));
   return {
     begin: (orgId, requestId, fn) =>
       db().runTransaction(async (tx) => {
