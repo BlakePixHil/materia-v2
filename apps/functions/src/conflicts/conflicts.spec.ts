@@ -11,7 +11,7 @@ import {
 } from '@materia/test-utils';
 
 import { determineDefinition } from './determine';
-import { recheckParty } from './on-party-added';
+import { onPartyAddedDefinition, onPartyRevivedDefinition, recheckParty } from './on-party-added';
 import { runDefinition } from './run';
 import { findConflictHits } from './shared';
 import { clearRetentionCache } from '../audit/retention';
@@ -80,10 +80,14 @@ function world(extra: Record<string, Record<string, unknown>> = {}, enforced = t
     runDefinition.handler(ctx({ requestId: randomUUID(), ...input }, role));
   const determine = (input: Record<string, unknown>, role: Role = 'lawyer') =>
     determineDefinition.handler(ctx({ requestId: randomUUID(), ...input }, role));
-  const trigger = (path: string) => {
+  /** Runs the re-check on the row at `path`; `before` makes it an update (a create without it). */
+  const trigger = (path: string, before?: Record<string, unknown>) => {
     const [, orgId, , matterId, , partyId] = path.split('/');
     const data = store.docs.get(path);
-    const change = { before: undefined, after: data ? { ref: { path }, data: () => data } : undefined };
+    const change = {
+      before: before ? { ref: { path }, data: () => before } : undefined,
+      after: data ? { ref: { path }, data: () => data } : undefined,
+    };
     return recheckParty(
       change as unknown as TriggerChange,
       {
@@ -499,5 +503,36 @@ describe('conflicts-onPartyAdded', () => {
     expect(await w.trigger(addParty(w, M.probate, C.cosima, 'executor', { deletedAt: NOW }))).toBe('skipped_deleted');
     expect(await w.trigger(addParty(w, M.probate, 'c-missing', 'executor'))).toBe('skipped_contact');
     expect(w.inCollection('conflictChecks')).toHaveLength(0);
+  });
+
+  it('re-checks a revived row (deleted → live) as an added party, by whoever revived it (CORE-06)', async () => {
+    const w = world();
+    // Written with the matter (same createdAt), removed, then added back by matters-upsertParty.
+    const path = addParty(w, M.probate, C.barnaby, 'executor', {
+      createdAt: w.doc(`${M_PATH}/${M.probate}`)?.['createdAt'],
+      updatedBy: 'user-lawyer',
+      deletedAt: null,
+    });
+    const deleted = { ...w.doc(path), deletedAt: NOW, deletedBy: 'user-para' };
+    expect(await w.trigger(path, deleted)).toBe('alerted');
+    const alert = w.doc(`${M_PATH}/${M.probate}`)?.['conflictAlert'] as Record<string, unknown>;
+    expect(w.doc(`orgs/${ORG}/conflictChecks/${String(alert['checkId'])}`)).toMatchObject({ ranBy: 'user-lawyer' });
+    expect(w.inCollection('notifications')).toHaveLength(1);
+  });
+
+  it('skips other edits of a live row and a soft delete', async () => {
+    const w = world();
+    const path = addParty(w, M.probate, C.barnaby, 'executor', { share: '20%' });
+    expect(await w.trigger(path, { ...w.doc(path), share: '10%' })).toBe('skipped_not_added');
+    const live = w.doc(path) ?? {};
+    w.docs.set(path, { ...live, deletedAt: NOW });
+    expect(await w.trigger(path, live)).toBe('skipped_deleted');
+    expect(w.inCollection('conflictChecks')).toHaveLength(0);
+  });
+
+  it('runs on created rows and on updated rows, as two triggers on the parties path', () => {
+    expect(onPartyAddedDefinition).toMatchObject({ name: 'conflicts-onPartyAdded', on: 'created' });
+    expect(onPartyRevivedDefinition).toMatchObject({ name: 'conflicts-onPartyRevived', on: 'updated' });
+    expect(onPartyRevivedDefinition.document).toBe(onPartyAddedDefinition.document);
   });
 });

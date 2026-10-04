@@ -338,12 +338,12 @@ export function buildConflictFixture(options: ConflictFixtureOptions): ConflictF
       }),
       deletedAt: null,
     });
-    spec.parties.forEach(([contactId, role], i) =>
+    for (const [contactId, role] of spec.parties) {
       add(
-        `orgs/${orgId}/matters/${spec.id}/parties/${spec.id}-p-${i + 1}`,
+        `orgs/${orgId}/matters/${spec.id}/parties/${D.partyDocId(role, contactId)}`,
         makeParty({ ...matterMeta, orgId, matterId: spec.id, contactId, role }),
-      ),
-    );
+      );
+    }
   });
   return { docs, scenarios: [...CONFLICT_SCENARIOS], nextSeq: seq };
 }

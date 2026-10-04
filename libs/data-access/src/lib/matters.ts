@@ -271,11 +271,20 @@ export function mattersRepository(): Repository<MatterListItem> {
   });
 }
 
-/** The `matters-*` callables (built in apps/functions/src/matters, CORE-03). */
+/**
+ * The `matters-*` callables (built in apps/functions/src/matters, CORE-03; the stage and parties
+ * CORE-06). `matterCallables(client)` wraps the matter screen's with their input and result types.
+ */
 export const MATTER_CALLABLES = {
   create: 'matters-createMatter',
   changeStatus: 'matters-changeStatus',
   restore: 'matters-restore',
+  /** `ChangeMatterStageInput` → `ChangeMatterStageResult` (matter.edit). */
+  changeStage: 'matters-changeStage',
+  /** `UpsertPartyInput` → `PartyResult` (matter.edit). */
+  upsertParty: 'matters-upsertParty',
+  /** `RemovePartyInput` → `PartyResult` (matter.edit). */
+  removeParty: 'matters-removeParty',
 } as const;
 
 // ---------- saved views ----------

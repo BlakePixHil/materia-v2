@@ -120,6 +120,10 @@ export const Matter = withMeta(
         grantNo: z.string().optional(),
       })
       .optional(),
+    /** Key facts not held elsewhere (CORE-06): the will's date, the court file number. */
+    facts: z
+      .object({ willDate: DateOnlySchema.optional(), courtFileNo: z.string().trim().max(60).optional() })
+      .optional(),
     dispute: z
       .object({
         kind: z.enum(['family_provision', 'will_contest', 'construction', 'executor_removal', 'other']),
@@ -156,7 +160,19 @@ export const Matter = withMeta(
     path: 'orgs/{orgId}/matters',
     softDelete: true,
     // Clients edit only these (CORE-03); number, status and the rest go through callables.
-    updatable: ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'stageId', 'externalRef', 'estate'],
+    // The stage moves through `matters-changeStage`; `privileged` also needs `privileged.view` (rules).
+    updatable: [
+      'title',
+      'responsibleUid',
+      'teamUids',
+      'labels',
+      'priority',
+      'externalRef',
+      'estate',
+      'deceased',
+      'facts',
+      'privileged',
+    ],
     serverOwned: [
       'number',
       'search',

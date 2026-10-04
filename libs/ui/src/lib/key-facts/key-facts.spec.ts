@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
-import { type KeyFactVm, MT_COPIED_MS, MtFactCitation, MtKeyFacts } from './key-facts';
+import { type KeyFactVm, MT_COPIED_MS, MtFactCitation, MtFactEditor, MtKeyFacts } from './key-facts';
 
 // Fictional sample data, as in the design system.
 const FACTS: KeyFactVm[] = [
@@ -31,6 +31,20 @@ class Host {
 })
 class CustomCitationHost {
   readonly facts = FACTS;
+}
+
+@Component({
+  imports: [MtKeyFacts, MtFactEditor],
+  template: `<mt-key-facts [facts]="facts" [editing]="editing" (edit)="editing = $event.id">
+    <ng-template mtFactEditor let-fact><input [attr.aria-label]="fact.label" /></ng-template>
+  </mt-key-facts>`,
+})
+class EditableHost {
+  readonly facts: KeyFactVm[] = [
+    { id: 'grant', label: 'Grant date', value: '', editable: true },
+    { id: 'dod', label: 'Date of death', value: '', editBlockedReason: 'Add the deceased first' },
+  ];
+  editing: string | null = null;
 }
 
 describe('MtKeyFacts', () => {
@@ -75,5 +89,22 @@ describe('MtKeyFacts', () => {
   it('renders a custom citation template', async () => {
     await render(CustomCitationHost);
     expect(screen.getByRole('link', { name: 'Death cert p1 (source)' })).toBeInTheDocument();
+  });
+
+  it('offers Edit on editable facts and shows the editor in place of the value', async () => {
+    const user = userEvent.setup();
+    const { fixture } = await render(EditableHost);
+    const blocked = screen.getByRole('img', { name: 'Add the deceased first' });
+    await user.click(blocked);
+    await user.hover(blocked);
+    expect(
+      await screen.findByText('Add the deceased first', { selector: '.mt-tooltip' }, { timeout: 2000 }),
+    ).toBeTruthy();
+    expect(fixture.componentInstance.editing).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Edit Grant date' }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.editing).toBe('grant');
+    expect(await screen.findByRole('textbox', { name: 'Grant date' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Grant date' })).toBeNull();
   });
 });

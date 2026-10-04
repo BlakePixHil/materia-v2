@@ -145,6 +145,26 @@ describe('repo: writes', () => {
     expect(fs.writes).toEqual([]);
   });
 
+  it('writes only the fields in the patch, not the update schema’s defaults', async () => {
+    const fs = new InMemoryFirestore();
+    fs.set('orgs/org-a/things/t1', { title: 'One', tags: ['kept'], flagged: true });
+    TestBed.configureTestingModule({ providers: [provideInMemoryFirestore(fs)] });
+    TestBed.inject(OrgContext).setSession({ uid: 'u-owner', orgId: 'org-a', role: 'owner' });
+    const things = TestBed.runInInjectionContext(() =>
+      repo((orgId) => `orgs/${orgId}/things`, {
+        schema: z.object({ title: z.string(), tags: z.array(z.string()), flagged: z.boolean() }),
+        version: 1,
+        update: z
+          .object({ title: z.string(), tags: z.array(z.string()).default([]), flagged: z.boolean().default(false) })
+          .partial()
+          .strict(),
+      }),
+    );
+    await things.update('t1', { title: 'Renamed' });
+    expect(fs.writes.at(-1)?.data).not.toHaveProperty('tags');
+    expect(fs.get('orgs/org-a/things/t1')).toMatchObject({ title: 'Renamed', tags: ['kept'], flagged: true });
+  });
+
   it('refuses writes when signed out', async () => {
     const { notes, context } = setup();
     context.setSession({ uid: '', orgId: 'org-a', role: 'owner' });

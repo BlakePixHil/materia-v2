@@ -97,6 +97,11 @@ function currentInjector(fallback: Injector): Injector {
   }
 }
 
+function onlyKeys(parsed: unknown, keys: readonly string[]): Record<string, unknown> {
+  const source = parsed as Record<string, unknown>;
+  return Object.fromEntries(keys.filter((key) => key in source).map((key) => [key, source[key]]));
+}
+
 function resolveSpec<T>(input: QueryInput<T>): QuerySpec<T> | null {
   return typeof input === 'function' ? input() : input;
 }
@@ -291,7 +296,9 @@ function createRepository<T>(
     update: (id, patch, updateOptions = {}) =>
       guard(async () => {
         const remove = updateOptions.remove ?? [];
-        const input = entity.update ? entity.update.parse(patch) : patch;
+        // Only the fields the caller set: a partial schema still fills in its defaults (an empty
+        // `labels`, `privileged: false`), which would overwrite the stored values.
+        const input = entity.update ? onlyKeys(entity.update.parse(patch), Object.keys(patch)) : patch;
         // Removed fields must be updatable too: the strict update schema rejects any other key.
         if (entity.update && remove.length) entity.update.parse(Object.fromEntries(remove.map((f) => [f, undefined])));
         await driver().update(id, toFirestoreValue(input) as Record<string, unknown>, meta(), remove);

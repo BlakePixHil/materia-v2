@@ -59,6 +59,10 @@ export const ERROR_CODES = {
   EMAIL_NOT_VERIFIED: 'failed-precondition',
   /** The matter can't move from its current status to the requested one (CORE-03). */
   MATTER_INVALID_TRANSITION: 'failed-precondition',
+  /** A forward stage move needs key facts that aren't recorded; `details.requirements` lists them (CORE-06). */
+  MATTER_STAGE_REQUIREMENTS: 'failed-precondition',
+  /** A matter must keep at least one client party (CORE-06). */
+  LAST_CLIENT: 'failed-precondition',
   INTERNAL: 'internal',
 } as const;
 

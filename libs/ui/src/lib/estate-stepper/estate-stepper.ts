@@ -8,10 +8,14 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 
+import { MtTooltip } from '../tooltip/tooltip';
+
 /** A stage from the matter template. */
 export interface StageVm {
   id: string;
   title: string;
+  /** What finishes the stage, shown in the stage's tooltip ("Grant received from the court"). */
+  description?: string | undefined;
 }
 
 export type MtStepState = 'done' | 'current' | 'upcoming';
@@ -37,13 +41,15 @@ export function stepStates(
 /**
  * EstateStepper (`mt-estate-stepper`): a matter's stages from its template, as a segmented track. The
  * current stage is marked `aria-current="step"`. With `interactive`, each stage is a button that emits
- * `stageSelect` (moving a matter's stage is the feature's job).
+ * `stageSelect` (moving a matter's stage is the feature's job). A stage's `description` (its
+ * completion criteria) is the button's tooltip.
  */
 @Component({
   selector: 'mt-estate-stepper',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrl: '../../generated/components/stepper.css',
+  imports: [MtTooltip],
   host: { style: 'display: block' },
   template: `
     <ol class="mt-stepper" [style.--n]="stages().length" [attr.aria-label]="label()">
@@ -53,13 +59,22 @@ export function stepStates(
           [attr.aria-current]="states()[i] === 'current' ? 'step' : null"
         >
           @if (interactive()) {
-            <button type="button" class="mt-stepper-btn" (click)="stageSelect.emit(stage)">
+            <button
+              type="button"
+              class="mt-stepper-btn"
+              [mtTooltip]="stage.description ?? ''"
+              [mtTooltipDisabled]="!stage.description"
+              (click)="stageSelect.emit(stage)"
+            >
               {{ stage.title }}<span class="mt-sr">{{ stateText(states()[i]) }}</span>
             </button>
           } @else {
             <span
-              >{{ stage.title }}<span class="mt-sr">{{ stateText(states()[i]) }}</span></span
-            >
+              >{{ stage.title }}<span class="mt-sr">{{ stateText(states()[i]) }}</span>
+              @if (stage.description; as text) {
+                <span class="mt-sr">. {{ text }}</span>
+              }
+            </span>
           }
         </li>
       }

@@ -1,8 +1,8 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 
-import { contactDisplayName, matterSearchTokens, type Contact } from '@materia/domain';
+import { can, contactDisplayName, DomainError, matterSearchTokens, type Contact, type Role } from '@materia/domain';
 
-import { isLive } from '../contacts/shared';
+import { isDeleted, isLive } from '../contacts/shared';
 
 /** Shared helpers for the matters functions (CORE-03). */
 
@@ -12,6 +12,19 @@ export const counterPath = (orgId: string, counterId: string) => `orgs/${orgId}/
 export const matterNumberPath = (orgId: string, key: string) => `orgs/${orgId}/matterNumbers/${key}`;
 
 type Data = Record<string, unknown>;
+
+/**
+ * A matter's data when the caller may act on it: it exists, is not soft-deleted and, when
+ * privileged, the caller's role has `privileged.view`. Anything else is NOT_FOUND, so a privileged
+ * matter's existence isn't revealed.
+ */
+export function liveMatter(snap: DocumentSnapshot, role: Role, matterId: string): Data {
+  const data = snap.data();
+  if (!snap.exists || !data || isDeleted(data) || (data['privileged'] === true && !can(role, 'privileged.view'))) {
+    throw new DomainError('NOT_FOUND', 'Matter not found', { matterId });
+  }
+  return data;
+}
 
 /** The display names of the contacts a matter's search covers (missing contacts are skipped). */
 export async function contactNames(db: Firestore, orgId: string, ids: readonly string[]): Promise<Map<string, string>> {

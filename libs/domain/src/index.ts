@@ -23,3 +23,4 @@ export * from './lib/search';
 export * from './lib/contacts';
 export * from './lib/matters';
 export * from './lib/conflicts';
+export * from './lib/matter-detail';
