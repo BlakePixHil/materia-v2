@@ -613,6 +613,25 @@ export const makeJob = (o: Partial<D.Job> = {}) =>
     o,
   );
 
+export const makeCounter = (o: Partial<D.Counter> = {}) => build(D.Counter, { next: 1 }, o);
+
+export const makeMatterNumber = (o: Partial<D.MatterNumber> = {}) =>
+  build(D.MatterNumber, { number: 'M-2026-0001', matterId: TEST_MATTER_ID, year: 2026 }, o);
+
+export const makeSavedView = (o: Partial<D.SavedView> = {}) =>
+  build(
+    D.SavedView,
+    {
+      orgId: TEST_ORG_ID,
+      list: 'matters',
+      name: 'My urgent probates',
+      filters: { status: ['open'], type: ['probate'], responsible: 'me' },
+      sort: { field: 'lastActivity', dir: 'desc' },
+      groupBy: 'none',
+    },
+    o,
+  );
+
 /** Every factory with its entity, for exhaustive tests (schema coverage, converter round-trips). */
 export const ENTITY_FACTORIES = {
   Org: [D.Org, makeOrg],
@@ -660,4 +679,7 @@ export const ENTITY_FACTORIES = {
   RuleSetVersion: [D.RuleSetVersion, makeRuleSetVersion],
   Calendar: [D.Calendar, makeCalendar],
   Job: [D.Job, makeJob],
+  Counter: [D.Counter, makeCounter],
+  MatterNumber: [D.MatterNumber, makeMatterNumber],
+  SavedView: [D.SavedView, makeSavedView],
 } as const;

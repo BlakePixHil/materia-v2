@@ -157,5 +157,16 @@ export const Matter = withMeta(
   },
 );
 
+/**
+ * `orgs/{orgId}/matterNumbers/{key}`: the reservation that makes a matter number unique per org
+ * (CORE-03). `key` is `matterNumberKey(number)`. Written by `matters-createMatter` in the same
+ * transaction as the matter; server-only. A soft-deleted matter keeps its number.
+ */
+export const MatterNumber = withMeta(
+  { number: NonEmptyString, matterId: DocIdSchema, year: z.number().int().min(2000).max(9999) },
+  { path: 'orgs/{orgId}/matterNumbers', migratable: false, serverOwned: ['number', 'matterId', 'year'] },
+);
+
 export type Contact = z.infer<typeof Contact.schema>;
+export type MatterNumber = z.infer<typeof MatterNumber.schema>;
 export type Matter = z.infer<typeof Matter.schema>;

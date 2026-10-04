@@ -29,10 +29,14 @@ export const MetaShape = {
   _requestId: z.string().optional(),
 };
 
-/** Soft-delete fields, for deletable entities. */
+/**
+ * Soft-delete fields, for deletable entities. `null` means live, like a missing field: matters
+ * store `deletedAt: null` while live so lists can query `where('deletedAt', '==', null)` (CORE-03),
+ * and a restore writes `null` back.
+ */
 export const SoftDeleteShape = {
-  deletedAt: InstantSchema.optional(),
-  deletedBy: ActorSchema.optional(),
+  deletedAt: InstantSchema.nullable().optional(),
+  deletedBy: ActorSchema.nullable().optional(),
 };
 
 /** Present on documents loaded by the legacy migration (Legacy migration plan). */

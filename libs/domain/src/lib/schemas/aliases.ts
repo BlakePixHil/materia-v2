@@ -1,5 +1,5 @@
 import { Suggestion, ClerkThread, ClerkMessage } from './clerk';
-import { Contact, Matter } from './contacts-matters';
+import { Contact, Matter, MatterNumber } from './contacts-matters';
 import { Job } from './jobs';
 import {
   Proceeding,
@@ -41,6 +41,7 @@ import {
   MigrationRun,
   RuleSetVersion,
   Calendar,
+  Counter,
 } from './org-records';
 import { Org, Member, Invite, User } from './tenancy';
 import { SavedView } from './views';
@@ -189,3 +190,9 @@ export const JobUpdateSchema = Job.update;
 export const SavedViewSchema = SavedView.schema;
 export const SavedViewCreateSchema = SavedView.create;
 export const SavedViewUpdateSchema = SavedView.update;
+export const CounterSchema = Counter.schema;
+export const CounterCreateSchema = Counter.create;
+export const CounterUpdateSchema = Counter.update;
+export const MatterNumberSchema = MatterNumber.schema;
+export const MatterNumberCreateSchema = MatterNumber.create;
+export const MatterNumberUpdateSchema = MatterNumber.update;

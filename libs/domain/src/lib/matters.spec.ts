@@ -1,15 +1,23 @@
 import {
+  canRestoreMatter,
   canTransition,
   ChangeMatterStatusInput,
   CreateMatterInput,
   DEFAULT_MATTER_VIEWS,
   formatMatterNumber,
   initialMatterStatus,
+  isIndexedMatterQuery,
   isMatterNumberFormat,
+  MATTER_INDEXED_QUERIES,
+  MATTER_RESTORE_WINDOW_DAYS,
+  MATTER_SORT_ORDER_FIELD,
   MATTER_TRANSITIONS,
   matterCounterId,
+  matterIndexFields,
+  matterNumberKey,
   matterNumberYear,
   matterSearchTokens,
+  RestoreMatterInput,
   transitionRequirements,
 } from './matters';
 import { Matter } from './schemas/contacts-matters';
@@ -117,5 +125,82 @@ describe('matter inputs and views', () => {
         true,
       );
     }
+  });
+});
+
+describe('matter number keys', () => {
+  it('are case-insensitive and always valid document ids', () => {
+    expect(matterNumberKey('M-2026-0007')).toBe('M-2026-0007');
+    expect(matterNumberKey(' m-2026-0007 ')).toBe('M-2026-0007');
+    expect(matterNumberKey('27/042')).toBe('27%2F042');
+    expect(matterNumberKey('..')).toBe('%2E%2E');
+    expect(matterNumberKey('__X__')).toBe('%5F%5FX%5F%5F');
+    expect(matterNumberKey('27/042')).not.toContain('/');
+  });
+});
+
+describe('indexed list queries', () => {
+  it('matches filters in any order, with the order field and direction', () => {
+    expect(isIndexedMatterQuery([], 'lastActivityAt', 'desc')).toBe(true);
+    expect(isIndexedMatterQuery(['responsibleUid', 'status'], 'lastActivityAt', 'desc')).toBe(true);
+    expect(isIndexedMatterQuery(['status', 'status'], 'number', 'asc')).toBe(true);
+    expect(isIndexedMatterQuery(['jurisdiction', 'status'], 'lastActivityAt', 'desc')).toBe(true);
+    expect(isIndexedMatterQuery(['labels'], 'lastActivityAt', 'desc')).toBe(true);
+    expect(isIndexedMatterQuery(['labels', 'search'], 'lastActivityAt', 'desc')).toBe(false);
+    expect(isIndexedMatterQuery(['responsibleUid'], 'title', 'asc')).toBe(false);
+    expect(isIndexedMatterQuery(['status'], 'lastActivityAt', 'asc')).toBe(false);
+  });
+
+  it('covers the combinations the ticket asks for, with no duplicates', () => {
+    for (const [filters, orderBy] of [
+      [['status'], 'lastActivityAt'],
+      [['status', 'responsibleUid'], 'lastActivityAt'],
+      [['status', 'type'], 'lastActivityAt'],
+      [['responsibleUid'], 'lastActivityAt'],
+      [['status'], 'number'],
+      [['status'], 'title'],
+      [['labels'], 'lastActivityAt'],
+      [['jurisdiction', 'status'], 'lastActivityAt'],
+    ] as const) {
+      expect(isIndexedMatterQuery(filters, orderBy, orderBy === 'lastActivityAt' ? 'desc' : 'asc')).toBe(true);
+    }
+    const keys = MATTER_INDEXED_QUERIES.map((q) => `${[...q.filters].sort().join(',')}|${q.orderBy}|${q.dir}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    // At most one array-contains per query (a Firestore limit).
+    for (const query of MATTER_INDEXED_QUERIES) {
+      expect(query.filters.filter((f) => f === 'labels' || f === 'search').length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('builds index fields: deletedAt, optional privileged, filters, then the order field', () => {
+    expect(matterIndexFields({ filters: ['labels', 'status'], orderBy: 'lastActivityAt', dir: 'desc' }, true)).toEqual([
+      { fieldPath: 'deletedAt', order: 'ASCENDING' },
+      { fieldPath: 'privileged', order: 'ASCENDING' },
+      { fieldPath: 'status', order: 'ASCENDING' },
+      { fieldPath: 'labels', arrayConfig: 'CONTAINS' },
+      { fieldPath: 'lastActivityAt', order: 'DESCENDING' },
+    ]);
+    expect(matterIndexFields({ filters: [], orderBy: 'title', dir: 'asc' }, false)).toEqual([
+      { fieldPath: 'deletedAt', order: 'ASCENDING' },
+      { fieldPath: 'title', order: 'ASCENDING' },
+    ]);
+  });
+
+  it('maps saved-view sorts to order fields', () => {
+    expect(MATTER_SORT_ORDER_FIELD.lastActivity).toBe('lastActivityAt');
+    expect(MATTER_SORT_ORDER_FIELD.wip).toBeUndefined();
+  });
+});
+
+describe('restore', () => {
+  it(`allows a restore for ${MATTER_RESTORE_WINDOW_DAYS} days after the delete`, () => {
+    const deletedAt = new Date('2026-10-01T00:00:00Z');
+    expect(canRestoreMatter(deletedAt, new Date('2026-10-31T00:00:00Z'))).toBe(true);
+    expect(canRestoreMatter(deletedAt, new Date('2026-10-31T00:00:01Z'))).toBe(false);
+  });
+
+  it('validates the input', () => {
+    expect(RestoreMatterInput.safeParse({ requestId: crypto.randomUUID(), matterId: 'm1' }).success).toBe(true);
+    expect(RestoreMatterInput.safeParse({ requestId: 'x', matterId: 'm1' }).success).toBe(false);
   });
 });
