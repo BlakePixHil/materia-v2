@@ -24,6 +24,7 @@ import {
 
 import { contactNames, counterPath, liveContactIds, matterNumberPath, mattersPath, matterSearch } from './shared';
 import { audit } from '../audit/audit';
+import { conflictChecksPath } from '../conflicts/shared';
 import { compact } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
@@ -84,12 +85,63 @@ async function checkReferences(db: Firestore, orgId: string, role: Role, matter:
   }
 }
 
+type ConflictCheckInput = MatterInput['conflictCheck'];
+
+/**
+ * The conflict check a new matter is stored with (CORE-02). `pending` keeps only `resultId`. Any
+ * other status is a determination made at intake: it needs `conflict.determine`
+ * (PERMISSION_DENIED, `details.reason: 'conflict_determine_required'`), a reason for `potential`
+ * and `conflict`, and a `resultId` (when given) naming a check run for a new matter. The server
+ * stamps `checkedAt` and `checkedBy`; whatever the client sent for them is ignored.
+ */
+export async function intakeConflictCheck(
+  db: Firestore,
+  orgId: string,
+  uid: string,
+  role: Role,
+  input: ConflictCheckInput,
+  now: Date,
+): Promise<{ conflictCheck: ConflictCheckInput; determined: boolean }> {
+  const resultId = input.resultId;
+  if (resultId) {
+    const check = await db.doc(`${conflictChecksPath(orgId)}/${resultId}`).get();
+    if (!check.exists || check.get('excludeMatterId')) {
+      throw new DomainError('INVALID_ARGUMENT', 'Invalid conflict check', {
+        fields: { 'matter.conflictCheck.resultId': ['Run the conflict check for this matter again'] },
+      });
+    }
+  }
+  if (input.status === 'pending')
+    return { conflictCheck: { status: 'pending', ...(resultId ? { resultId } : {}) }, determined: false };
+  if (!can(role, 'conflict.determine')) {
+    throw new DomainError('PERMISSION_DENIED', 'Your role cannot record a conflict determination', {
+      reason: 'conflict_determine_required',
+    });
+  }
+  const reason = input.reason?.trim() || undefined;
+  if (input.status !== 'clear' && !reason) {
+    throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', {
+      fields: { 'matter.conflictCheck.reason': ['Give a reason for a potential conflict or a conflict'] },
+    });
+  }
+  return {
+    conflictCheck: {
+      status: input.status,
+      checkedAt: now,
+      checkedBy: uid,
+      ...(resultId ? { resultId } : {}),
+      ...(reason ? { reason } : {}),
+    },
+    determined: true,
+  };
+}
+
 /**
  * `matters-createMatter` (CORE-03, `matter.create`). In one transaction: takes the next number from
  * `orgs/{orgId}/counters/matter-{YYYY}` (the year in the org's time zone), skips any number already
  * reserved in `matterNumbers` or held by an existing matter (a format change mid-year, or a migrated
  * matter, can't cause a duplicate), and writes the counter, the reservation, the matter (status
- * `lead`, or `open` when the conflict check is already clear) and its client, deceased and testator
+ * `lead`, or `open` when the conflict check is already clear or potential, see intakeConflictCheck) and its client, deceased and testator
  * party rows. `templateId` is stored but not applied yet (templates are CORE-07). A migrated matter
  * keeps its `externalRef` and still gets a new number. Idempotent on `requestId`.
  */
@@ -112,7 +164,8 @@ export const createMatterDefinition = {
         ? org['matterNumberFormat']
         : DEFAULT_MATTER_NUMBER_FORMAT;
     const year = matterNumberYear(now, timeZone);
-    const status = initialMatterStatus(matter.conflictCheck.status);
+    const intake = await intakeConflictCheck(db, orgId, uid, role, matter.conflictCheck, now);
+    const status = initialMatterStatus(intake.conflictCheck.status);
     const names = await contactNames(db, orgId, [
       ...matter.clientContactIds,
       ...(matter.deceased ? [matter.deceased.contactId] : []),
@@ -156,6 +209,7 @@ export const createMatterDefinition = {
         const data = Matter.schema.parse(
           compact({
             ...matter,
+            conflictCheck: intake.conflictCheck,
             number: candidate,
             status,
             search: matterSearch({ ...matter, number: candidate }, names),
@@ -197,6 +251,24 @@ export const createMatterDefinition = {
         data: { number, status, type: matter.type, year },
       },
     );
+    if (intake.determined) {
+      const reason = intake.conflictCheck.reason;
+      await audit(
+        { uid, orgId, requestId, db, clock },
+        {
+          action: 'matter.conflict_determined',
+          entity: { path: matterRef.path },
+          summary: `Conflict check determined ${intake.conflictCheck.status} at intake of matter ${matterRef.id}`,
+          data: {
+            status: intake.conflictCheck.status,
+            previousStatus: 'pending',
+            atIntake: true,
+            ...(intake.conflictCheck.resultId ? { checkId: intake.conflictCheck.resultId } : {}),
+            ...(reason ? { reason } : {}),
+          },
+        },
+      );
+    }
     log.info('matter created', { matterId: matterRef.id, status, year });
     return { matterId: matterRef.id, number, status };
   },

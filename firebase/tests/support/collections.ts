@@ -227,6 +227,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'none',
     update: 'none',
   },
+  // Conflict check runs (CORE-02): server-written, read by conflict.run roles.
+  {
+    collection: 'conflictChecks',
+    docPath: `orgs/${ORG}/conflictChecks/check-1`,
+    entity: 'ConflictCheck',
+    read: 'conflict.run',
+    update: 'none',
+  },
 
   // Personal tasks live under the member.
   {

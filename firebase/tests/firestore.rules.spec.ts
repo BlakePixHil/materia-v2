@@ -633,6 +633,8 @@ describe('matters (CORE-03)', () => {
       { status: 'closed' },
       { number: 'M-2026-9999' },
       { conflictCheck: { status: 'potential' } },
+      { conflictCheck: { status: 'clear', checkedBy: uid } },
+      { conflictAlert: { checkId: 'check-1', contactId: 'contact-1', at: serverTimestamp(), adverse: false } },
       { closedAt: serverTimestamp() },
       { search: ['zz'] },
       { lastActivityAt: serverTimestamp() },
@@ -694,6 +696,63 @@ describe('matters (CORE-03)', () => {
       setDoc(doc(firestore, `orgs/${ORG}/matterNumbers/M-2027-0001`), { number: 'M-2027-0001', matterId: 'x' }),
     );
   });
+});
+
+describe('conflict checks (CORE-02)', () => {
+  const CHECK = `orgs/${ORG}/conflictChecks/check-1`;
+  const NOTE = `orgs/${ORG}/notifications/conflict-alert-1`;
+
+  beforeAll(() =>
+    seedAdmin(env, async (f) => {
+      await setDoc(doc(f, CHECK), seedData(specFor('conflictChecks')));
+      await setDoc(doc(f, NOTE), {
+        ...seedData(specFor('notifications')),
+        kind: 'conflict_alert',
+        matterId: 'matter-1',
+        checkId: 'check-1',
+        contactId: 'contact-1',
+        recipientUid: uidFor('lawyer'),
+        priority: 'high',
+      });
+    }),
+  );
+
+  it.each(EVERYONE)('a check is read by conflict.run roles only, as %s', async (who) => {
+    const read = getDoc(doc(firestoreOf(who).firestore, CHECK));
+    await (allows(who, 'conflict.run') ? assertSucceeds(read) : assertFails(read));
+  });
+
+  it.each(EVERYONE)('a check is never written by a client, as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    await assertFails(
+      setDoc(doc(firestore, `orgs/${ORG}/conflictChecks/check-new`), seedData(specFor('conflictChecks'))),
+    );
+    await assertFails(updateDoc(doc(firestore, CHECK), stamped({ hits: [] }, uid)));
+    await assertFails(updateDoc(doc(firestore, CHECK), stamped({ adverseRolesChecked: true }, uid)));
+    await assertFails(deleteDoc(doc(firestore, CHECK)));
+  });
+
+  it('lists checks for conflict.run roles; readonly and other orgs are refused', async () => {
+    const list = (firestore: Firestore) =>
+      getDocs(query(collection(firestore, `orgs/${ORG}/conflictChecks`), limit(10)));
+    await assertSucceeds(list(db(env, 'paralegal')));
+    await assertSucceeds(list(db(env, 'owner')));
+    await assertFails(list(db(env, 'readonly')));
+    await assertFails(list(db(env, 'owner', OTHER_ORG)));
+  });
+
+  it.each(EVERYONE)(
+    'a conflict alert notification is read and marked read by its recipient only, as %s',
+    async (who) => {
+      const { firestore, uid } = firestoreOf(who);
+      const mine = who === 'lawyer';
+      const read = getDoc(doc(firestore, NOTE));
+      await (mine ? assertSucceeds(read) : assertFails(read));
+      const markRead = updateDoc(doc(firestore, NOTE), stamped({ readAt: serverTimestamp() }, uid));
+      await (mine ? assertSucceeds(markRead) : assertFails(markRead));
+      await assertFails(updateDoc(doc(firestore, NOTE), stamped({ priority: 'normal' }, uid)));
+    },
+  );
 });
 
 describe('saved views (CORE-03)', () => {

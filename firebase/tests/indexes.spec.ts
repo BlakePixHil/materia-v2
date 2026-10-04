@@ -32,6 +32,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   members: domain.Member,
   contacts: domain.Contact,
   parties: domain.Party,
+  conflictChecks: domain.ConflictCheck,
 } as never;
 
 describe('firestore.indexes.json', () => {
@@ -70,6 +71,13 @@ describe('firestore.indexes.json', () => {
     const parties = file.indexes.find((i) => i.collectionGroup === 'parties');
     expect(parties?.queryScope).toBe('COLLECTION_GROUP');
     expect(parties?.fields.map((f) => f.fieldPath)).toEqual(['orgId', 'contactId']);
+  });
+
+  it('a matter’s conflict checks are listed newest first (CORE-02)', () => {
+    const checks = file.indexes.filter((i) => i.collectionGroup === 'conflictChecks');
+    expect(checks.map((i) => i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(','))).toEqual([
+      'excludeMatterId:ASCENDING,ranAt:DESCENDING',
+    ]);
   });
 
   it('indexes every Matters list query in MATTER_INDEXED_QUERIES, with and without privileged (CORE-03)', () => {

@@ -1,4 +1,5 @@
 import * as D from '@materia/domain';
+import { CONFLICT_CONTACTS, CONFLICT_MATTERS } from '@materia/test-utils';
 
 import { busyPorts, devPorts } from './dev.ts';
 import {
@@ -12,6 +13,8 @@ import {
 import { resolveSeedTarget, SeedGuardError } from './seed/guard.ts';
 import { FIXTURE_NAMES, fixtureInfo, renderFixture } from './seed/pdfs.ts';
 import { entityRegistry, fromFirestore, main, parseSeedArgs } from './seed.ts';
+
+const CONFLICT_MATTER_COUNT = Object.keys(CONFLICT_MATTERS).length;
 
 const EMULATOR_ENV = {
   FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
@@ -110,10 +113,10 @@ describe('seed dataset', () => {
     });
   });
 
-  it('has about 25 contacts and 12 matters covering every type and status', () => {
+  it('has about 25 contacts and 12 matters covering every type and status, plus the conflict scenarios', () => {
     expect(docsUnder('contacts').length).toBeGreaterThanOrEqual(24);
     const matters = docsUnder('matters').map((d) => d.data as { type: string; status: string });
-    expect(matters).toHaveLength(12);
+    expect(matters).toHaveLength(12 + CONFLICT_MATTER_COUNT);
     expect(new Set(matters.map((m) => m.type))).toEqual(new Set(D.MatterTypeSchema.options));
     expect(new Set(matters.map((m) => m.status))).toEqual(new Set(D.MatterStatusSchema.options));
     for (const sub of ['parties', 'events', 'tasks', 'deadlines', 'notes', 'timeEntries', 'documents']) {
@@ -168,6 +171,16 @@ describe('seed dataset', () => {
     expect(empty.accounts).toEqual(SEED_ACCOUNTS);
   });
 
+  it('seeds the conflict scenarios with conflicts.enforced on, but not in the minimal scenario (CORE-02)', () => {
+    const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
+    expect(org?.['flags']).toEqual({ 'conflicts.enforced': true });
+    for (const id of Object.values(CONFLICT_CONTACTS)) {
+      expect(docsUnder('contacts').some((d) => d.path.endsWith(`/${id}`))).toBe(true);
+    }
+    const minimal = buildDataset({ anchor, fixtures, scenario: 'minimal' });
+    expect(minimal.docs.some((d) => d.path.includes('/m-cf-'))).toBe(false);
+  });
+
   it('is deterministic for the same anchor', () => {
     expect(buildDataset({ anchor, fixtures })).toEqual(dataset);
   });
@@ -176,7 +189,9 @@ describe('seed dataset', () => {
     const matters = docsUnder('matters').map((d) => d.data as D.Matter & { deletedAt: unknown });
     const year = D.matterNumberYear(new Date(`${anchor}T00:00:00Z`), 'Australia/Melbourne');
     expect(matters.map((m) => m.number)).toEqual(
-      Array.from({ length: 12 }, (_, i) => D.formatMatterNumber('HV-{YYYY}-{seq:4}', year, i + 1)),
+      Array.from({ length: 12 + CONFLICT_MATTER_COUNT }, (_, i) =>
+        D.formatMatterNumber('HV-{YYYY}-{seq:4}', year, i + 1),
+      ),
     );
     for (const matter of matters) {
       expect(matter.deletedAt).toBeNull();
@@ -184,24 +199,24 @@ describe('seed dataset', () => {
       const reservation = docsUnder('matterNumbers').find((d) => d.data['number'] === matter.number);
       expect(reservation?.path).toBe(`orgs/${SEED_ORG_ID}/matterNumbers/${D.matterNumberKey(matter.number)}`);
     }
-    expect(new Set(matters.map((m) => m.lastActivityAt?.getTime())).size).toBe(12);
+    expect(new Set(matters.map((m) => m.lastActivityAt?.getTime())).size).toBe(12 + CONFLICT_MATTER_COUNT);
     const doyle = matters.find((m) => m.title === 'Estate of Margaret Doyle');
     // The client's and the deceased's names are searchable, as matters-denormalise writes them.
     expect(doyle?.search).toEqual(expect.arrayContaining(['catherine', 'doyle', 'margaret']));
     expect(docsUnder('counters').map((d) => [d.path.split('/').at(-1), d.data['next']])).toEqual([
-      [`matter-${year}`, 13],
+      [`matter-${year}`, 13 + CONFLICT_MATTER_COUNT],
     ]);
   });
 
   it('the load scenario adds 500 varied matters on top of the practice, numbered after it', () => {
     const load = buildDataset({ anchor, fixtures, scenario: 'load' });
     const matters = load.docs.filter((d) => /\/matters\/[^/]+$/.test(d.path)).map((d) => d.data as D.Matter);
-    expect(matters).toHaveLength(12 + LOAD_MATTER_COUNT);
+    expect(matters).toHaveLength(12 + CONFLICT_MATTER_COUNT + LOAD_MATTER_COUNT);
     expect(new Set(matters.map((m) => m.number)).size).toBe(matters.length);
     expect(new Set(matters.map((m) => m.status))).toEqual(new Set(D.MatterStatusSchema.options));
     expect(new Set(matters.map((m) => m.responsibleUid)).size).toBe(3);
     const counter = load.docs.find((d) => /\/counters\//.test(d.path));
-    expect(counter?.data['next']).toBe(13 + LOAD_MATTER_COUNT);
+    expect(counter?.data['next']).toBe(13 + CONFLICT_MATTER_COUNT + LOAD_MATTER_COUNT);
     for (const doc of load.docs) {
       const entity = registry.find((e) => e.pattern.test(doc.path));
       expect(entity?.schema.safeParse(stripUndefined(doc.data)).success, doc.path).toBe(true);

@@ -1,6 +1,7 @@
 import {
   adversePair,
   conflictAllowsOpening,
+  contactSubject,
   DetermineConflictInput,
   hasAdverseHit,
   RunConflictCheckInput,
@@ -8,6 +9,8 @@ import {
   type ConflictHit,
 } from './conflicts';
 import { scoreDuplicate, DUPLICATE_THRESHOLD } from './contacts';
+import { ConflictAlertSchema } from './schemas/contacts-matters';
+import { NotificationPayloadSchema } from './schemas/org-records';
 
 const requestId = '00000000-0000-4000-8000-000000000000';
 
@@ -38,6 +41,73 @@ describe('conflict subjects', () => {
       phones: [],
     } as never);
     expect(score.score).toBeGreaterThanOrEqual(DUPLICATE_THRESHOLD);
+  });
+});
+
+describe('contact subjects', () => {
+  it('builds a subject from a stored person, with the first email and phone', () => {
+    expect(
+      contactSubject(
+        {
+          kind: 'person',
+          givenNames: 'Ada',
+          familyName: 'Quill',
+          preferredName: 'Addie',
+          dateOfBirth: '1950-01-02',
+          emails: [{ address: 'ada@example.test' }, { address: 'other@example.test' }],
+          phones: [{ number: '+61400000000' }],
+        },
+        'executor',
+        'c-ada',
+      ),
+    ).toEqual({
+      kind: 'person',
+      name: 'Ada Quill',
+      role: 'executor',
+      dob: '1950-01-02',
+      email: 'ada@example.test',
+      phone: '+61400000000',
+      contactId: 'c-ada',
+    });
+  });
+
+  it('keeps an organisation with its ABN, and falls back for missing names', () => {
+    expect(
+      contactSubject(
+        { kind: 'organisation', orgName: 'Tidewater Lawyers', abn: '51824753556' },
+        'other_side_solicitor',
+      ),
+    ).toEqual({
+      kind: 'organisation',
+      name: 'Tidewater Lawyers',
+      role: 'other_side_solicitor',
+      abn: '51824753556',
+    });
+    expect(contactSubject({ kind: 'organisation' }, 'client').name).toBe('Unnamed organisation');
+    expect(contactSubject({ preferredName: 'Teuila' }, 'client').name).toBe('Teuila');
+    expect(contactSubject({}, 'client').name).toBe('Unnamed contact');
+  });
+});
+
+describe('alerts', () => {
+  it('validates a matter conflict alert and its notification', () => {
+    const at = new Date('2026-10-04T00:00:00Z');
+    expect(ConflictAlertSchema.safeParse({ checkId: 'k1', contactId: 'c1', at, adverse: true }).success).toBe(true);
+    expect(ConflictAlertSchema.safeParse({ checkId: 'k1', at, adverse: true }).success).toBe(false);
+    expect(
+      NotificationPayloadSchema.safeParse({
+        kind: 'conflict_alert',
+        matterId: 'm1',
+        checkId: 'k1',
+        contactId: 'c1',
+        recipientUid: 'u1',
+        title: 'Possible conflict on M-2026-0001',
+        body: 'A party added to this matter is on other matters.',
+        link: '/matters/m1',
+        channel: ['inapp'],
+        priority: 'high',
+      }).success,
+    ).toBe(true);
   });
 });
 
