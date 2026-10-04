@@ -43,6 +43,7 @@ import {
   Calendar,
 } from './org-records';
 import { Org, Member, Invite, User } from './tenancy';
+import { SavedView } from './views';
 
 /**
  * Named exports in the `XSchema` / `XCreateSchema` / `XUpdateSchema` form (FND-13). Each is the
@@ -185,3 +186,6 @@ export const CalendarUpdateSchema = Calendar.update;
 export const JobSchema = Job.schema;
 export const JobCreateSchema = Job.create;
 export const JobUpdateSchema = Job.update;
+export const SavedViewSchema = SavedView.schema;
+export const SavedViewCreateSchema = SavedView.create;
+export const SavedViewUpdateSchema = SavedView.update;

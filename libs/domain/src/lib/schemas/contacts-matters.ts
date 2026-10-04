@@ -137,6 +137,8 @@ export const Matter = withMeta(
   {
     path: 'orgs/{orgId}/matters',
     softDelete: true,
+    // Clients edit only these (CORE-03); number, status and the rest go through callables.
+    updatable: ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'stageId', 'externalRef', 'estate'],
     serverOwned: [
       'number',
       'search',
