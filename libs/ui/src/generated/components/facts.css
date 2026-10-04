@@ -1,3 +1,8 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-facts). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-facts { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-8) var(--space-12); margin: 0; font: 400 13px/18px var(--font-sans); }
 .mt-facts dt { color: var(--text-tertiary); } .mt-facts dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+.mt-facts dd { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
+.mt-facts-value { min-width: 0; }
+.mt-facts-copy { margin: -5px 0; opacity: 0; transition: opacity .12s; }
+.mt-facts dd:hover .mt-facts-copy, .mt-facts-copy:focus-visible { opacity: 1; }
+@media (hover: none) { .mt-facts-copy { opacity: 1; } }

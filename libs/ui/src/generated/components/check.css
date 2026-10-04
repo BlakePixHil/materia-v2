@@ -1,5 +1,5 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-check). Regenerate with `pnpm materia-scripts sync-design`. */
-.mt-check, .mt-radio { width: 16px; height: 16px; margin-top: 2px; flex: none; display: inline-grid; place-items: center; border: 1px solid var(--border-control); background: var(--bg-surface); color: var(--text-on-brand); outline: none; transition: background-color .12s, border-color .12s; }
+.mt-check, .mt-radio { width: 16px; height: 16px; margin-top: 2px; padding: 0; flex: none; display: inline-grid; place-items: center; border: 1px solid var(--border-control); background: var(--bg-surface); color: var(--text-on-brand); outline: none; transition: background-color .12s, border-color .12s; }
 .mt-check { border-radius: var(--radius-xs); }
 .mt-check .mt-i { width: 12px; height: 12px; stroke-width: 2.4; opacity: 0; }
 .mt-check[data-checked] .mt-i, .mt-check[data-indeterminate] .mt-i { opacity: 1; }

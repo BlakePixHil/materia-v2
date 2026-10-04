@@ -120,6 +120,37 @@ Toasts: at most three on screen (more queue), 5 seconds by default (`duration: 0
 
 Where ng-primitives isn't used: the toast stack is plain Angular (ng-primitives' toast has no queue limit, assertive tone or F6 shortcut), and the command palette implements the combobox pattern itself (ng-primitives' combobox opens its own dropdown portal). Nothing in `libs/ui` imports the CDK directly; ng-primitives uses it internally for focus and positioning.
 
+### Data display and domain components (FND-10)
+
+These are pure: inputs in, outputs out, no data access. Each takes a view-model interface exported from `libs/ui` (`TaskRowVm`, `MatterCardVm`, `DeadlineVm`, `KeyFactVm`, `TimelineItemVm`, `TimeEntryVm`, `StageVm`, `StepVm`, `PersonRoleVm`), and feature code maps domain records to it.
+
+| Component | Use |
+| -- | -- |
+| `<mt-badge tone>`, `<mt-matter-tag type>`, `<mt-avatar name src colorKey size kind hue tooltip>`, `<mt-avatar-group people max>`, `<mt-status-icon status label>`, `<mt-priority-icon level>` | Markers. Avatars fall back to initials (also when the image fails) on a colour derived from `colorKey`, so people with the same initials still differ; `tooltip` shows the name |
+| `<mt-deadline-chip due completed critical trace label>` | Tone from `due` against `MT_TODAY` in the org timezone: overdue red, today brand, within 3 days amber, otherwise neutral, done green (`deadlineTone()`). Label: `Overdue 2d`, `Today`, `Tomorrow`, `In 5 days`, then `28 Oct` (`deadlineLabel()`). `trace` is the engine's working, in a tooltip; `critical` adds a flag |
+| `<mt-progress value max label tone size>`, `<mt-meter value target label tone>` | Completion; a value against a target (the tick) |
+| `<mt-stat label value unit icon>` with `<mt-sparkline values label>` or `<mt-delta value direction good>` in its footer | Headline numbers |
+| `<mt-empty-state title description icon>`, `<mt-note tone>` | Empty lists (say why, give the next step); inline callouts |
+| `<mt-table>` | See below |
+| `<mt-task-row [task] editable (done) (titleChange) (open)>` | A task: the checkbox emits `done`; with `editable` the title edits in place (Enter saves, Escape cancels) |
+| `<mt-matter-card [matter] (open)>` | Board card. Drag behaviour is added by the board (CORE-04) |
+| `<mt-key-facts [facts] (copied)>` + `<ng-template mtFactCitation let-fact>` | Facts with copy buttons; Clerk-sourced facts render the citation template (FND-11's Citation) |
+| `<mt-estate-stepper [stages] current completed interactive (stageSelect)>` | The matter's stages from its template |
+| `<mt-timeline [items] grouped hasMore loading (loadMore)>` | History or deadlines, grouped by day in the org timezone; kinds note, activity, document, email, clerk, deadline |
+| `<mt-time-entry [entry] (accept)>` | A recorded entry (actions projected) or a captured one (Accept) |
+| `<mt-person-header>`, `<mt-settings-section>` + `<mt-settings-row>` (put a `<mt-switch labelHidden>` inside), `<mt-integration-card>`, `<mt-step-list>`, `<mt-choice-cards>` (a form control) | People, settings and onboarding |
+
+Formatting pipes, all `en-AU` and the org timezone (`MT_ORG_TIMEZONE`, default `Australia/Melbourne`): `aud` (cents → `$1,234.50`, credit `-$12.00`, null `—`), `units` (minutes → `0.4`, or `0h 24m` with `'hm'`), `dateOnly` (`3 Oct 2026`) and `relativeDate`. Provide `MT_TODAY` for a fixed date in tests and stories. Note that `en-AU` abbreviates some months as `June`, `July` and `Sept`.
+
+**Table.** `<mt-table label [rows] [columns] [rowKey]>` with `MtTableColumn`s (`sortable`, `value`, `sortValue`, `numeric`, `cellClass`, `width`, `headerHidden`) and `<ng-template mtCell="column" let-row>` for custom cells:
+
+- Sorting: header buttons cycle ascending, descending, off, with `aria-sort`. `[(sort)]`, and `sortMode="external"` when the server sorts.
+- Selection: `selectable` and `[(selection)]` (row keys), with select-all and a mixed state.
+- Keyboard: rows take focus (one tab stop). j/k or ↑/↓ move, Home/End and PageUp/PageDown jump, Enter opens (as does a click), Space or x selects.
+- Layout: sticky header in a scroll container (`maxHeight`), and `density="compact"` (32px rows).
+- Large tables: from `virtualThreshold` rows (200) only the visible rows render, between spacer rows, with `aria-rowcount`/`aria-rowindex`. Row heights are fixed per density.
+- Empty: an `[mtTableEmpty]` element is shown when there are no rows.
+
 ### Storybook
 
 `pnpm storybook` (port 4400). The toolbar has a Light/Dark theme switch; backgrounds are the `bg-*` tokens; the a11y addon reports violations as errors. `Foundations/Colours`, `Type`, `Spacing` and `Theme` are rendered from `tokens.ts`. CI builds Storybook and runs the test-runner over every story (play functions and a11y): `pnpm nx run ui:test-storybook` against a running Storybook locally.

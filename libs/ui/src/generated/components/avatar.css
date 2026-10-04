@@ -7,4 +7,5 @@
 .mt-avatar[data-hue="risk"] { background: var(--bg-danger-subtle); color: var(--text-danger); }
 .mt-avatar[data-kind="clerk"] { background: linear-gradient(135deg, var(--ai-from), var(--ai-to)); color: #FFFFFF; }
 .mt-avatar[data-kind="clerk"] .mt-i { width: 60%; height: 60%; stroke-width: 1.8; }
-.mt-avatar[data-kind="org"] { border-radius: var(--radius-sm); background: var(--bg-brand); color: var(--text-on-brand); }
+.mt-avatar[data-kind="org"] { border-radius: var(--radius-sm); background: var(--bg-brand-hover); color: var(--text-on-brand); }
+.mt-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }

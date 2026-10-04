@@ -6,3 +6,8 @@
 .mt-matter-card .meta { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }
 .mt-matter-card .hint { display: flex; gap: var(--space-6); align-items: flex-start; padding: var(--space-6) var(--space-8); border-radius: var(--radius-sm); background: var(--bg-ai-subtle); font: 400 12px/16px var(--font-sans); color: var(--text-ai); }
 .mt-matter-card .hint .mt-i { width: 13px; height: 13px; margin-top: 1px; }
+.mt-matter-card:hover { border-color: var(--border-strong); }
+.mt-matter-card .titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mt-matter-card .name { all: unset; display: block; font: 500 14px/20px var(--font-sans); color: var(--text-primary); cursor: pointer; border-radius: var(--radius-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-matter-card .name:focus-visible { box-shadow: var(--focus-ring); }
+.mt-matter-card .client { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }

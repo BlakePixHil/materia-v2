@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, signal, ViewEncapsulation } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, input, signal, ViewEncapsulation } from '@angular/core';
 import { NgpDescription, NgpFormField, NgpLabel } from 'ng-primitives/form-field';
 import { NgpSwitch, NgpSwitchThumb } from 'ng-primitives/switch';
 
@@ -34,7 +34,7 @@ import { MtFormControl } from '../forms/form-control';
         <span ngpSwitchThumb class="mt-switch-thumb"></span>
       </button>
       <span>
-        <span ngpLabel>{{ label() }}</span>
+        <span ngpLabel [class.mt-sr]="labelHidden()">{{ label() }}</span>
         @if (description(); as text) {
           <span ngpDescription class="mt-desc">{{ text }}</span>
         }
@@ -45,6 +45,8 @@ import { MtFormControl } from '../forms/form-control';
 export class MtSwitch extends MtFormControl<boolean> {
   readonly label = input.required<string>();
   readonly description = input<string>();
+  /** Keep the label for screen readers only, when the switch sits next to its visible title (SettingsRow). */
+  readonly labelHidden = input(false, { transform: booleanAttribute });
 
   protected readonly checked = signal(false);
 

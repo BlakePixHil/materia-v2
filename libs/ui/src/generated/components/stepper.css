@@ -4,3 +4,6 @@
 .mt-stepper li::before { content: ""; height: 4px; border-radius: 2px; background: var(--bg-sunken); }
 .mt-stepper li[data-state="done"] { color: var(--text-secondary); } .mt-stepper li[data-state="done"]::before { background: var(--bg-brand); }
 .mt-stepper li[data-state="current"] { color: var(--text-primary); } .mt-stepper li[data-state="current"]::before { background: linear-gradient(90deg, var(--bg-brand) 50%, var(--bg-brand-subtle) 50%); }
+.mt-stepper-btn { all: unset; cursor: pointer; border-radius: var(--radius-xs); }
+.mt-stepper-btn:hover { color: var(--text-primary); }
+.mt-stepper-btn:focus-visible { box-shadow: var(--focus-ring); }
