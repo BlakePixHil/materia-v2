@@ -137,6 +137,10 @@ export function firestoreDriver(source: FirestoreSource, path: string, options: 
       const now = handle.sdk.serverTimestamp();
       await handle.sdk.updateDoc(docRef, { deletedAt: now, deletedBy: meta.uid, updatedAt: now, updatedBy: meta.uid });
     },
+    async hardDelete(id) {
+      const { handle, ref: docRef } = await ref(id);
+      await handle.sdk.deleteDoc(docRef);
+    },
   };
 }
 

@@ -46,18 +46,21 @@ export async function setEmulatorDocument(
   expect(response.ok(), await response.text()).toBe(true);
 }
 
+/** Most writes one emulator commit takes. */
+const COMMIT_LIMIT = 500;
+
 /**
- * Writes (replaces) many documents in batched commits through the emulator's admin access: for
- * bulk fixtures such as `buildLoadMatters` from `@materia/test-utils` (500 matters, CORE-03).
+ * Writes (replaces) many documents through the Firestore emulator's admin access, in commits of up
+ * to 500: for seeding a large fictional practice, such as 500 matters for a list's performance
+ * check. Rules and the request-per-document cost of `setEmulatorDocument` are both skipped.
  */
 export async function setEmulatorDocuments(
   request: APIRequestContext,
-  docs: readonly { path: string; data: Record<string, unknown> }[],
-  batchSize = 250,
+  documents: readonly { path: string; data: Record<string, unknown> }[],
 ): Promise<void> {
   const root = `projects/${EMULATOR_PROJECT}/databases/(default)/documents`;
-  for (let i = 0; i < docs.length; i += batchSize) {
-    const writes = docs.slice(i, i + batchSize).map(({ path, data }) => ({
+  for (let start = 0; start < documents.length; start += COMMIT_LIMIT) {
+    const writes = documents.slice(start, start + COMMIT_LIMIT).map(({ path, data }) => ({
       update: { name: `${root}/${path}`, fields: toFirestoreRestFields(data) },
     }));
     const response = await request.post(`${FIRESTORE_EMULATOR}/v1/${root}:commit`, {

@@ -5,6 +5,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  contentChild,
   contentChildren,
   DestroyRef,
   Directive,
@@ -69,6 +70,66 @@ export class MtTableCell<T = unknown> {
   }
 }
 
+/** A group of rows: consecutive rows with the same key share a header row. */
+export interface MtTableGroup {
+  key: string;
+  label: string;
+}
+
+/** Context for an `mtTableGroup` template. */
+export interface MtGroupContext {
+  $implicit: MtTableGroup & { count: number };
+}
+
+/**
+ * A custom group header: `<ng-template mtTableGroup let-group>{{ group.label }}</ng-template>`.
+ */
+@Directive({ selector: 'ng-template[mtTableGroup]' })
+export class MtTableGroupHeader {
+  readonly template = inject<TemplateRef<MtGroupContext>>(TemplateRef);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the parameter only names the type guard
+  static ngTemplateContextGuard(_dir: MtTableGroupHeader, _ctx: unknown): _ctx is MtGroupContext {
+    return true;
+  }
+}
+
+/** A rendered line of the table body: a group header or a row (with its index among the rows). */
+export type MtTableItem<T> =
+  { kind: 'group'; group: MtTableGroup & { count: number } } | { kind: 'row'; row: T; index: number };
+
+/**
+ * The body lines for rows in display order: with `groupOf`, a header before each run of rows that
+ * share a group key.
+ */
+export function tableItems<T>(rows: readonly T[], groupOf: ((row: T) => MtTableGroup) | null): MtTableItem<T>[] {
+  if (!groupOf) return rows.map((row, index) => ({ kind: 'row', row, index }));
+  const items: MtTableItem<T>[] = [];
+  let current: (MtTableGroup & { count: number }) | null = null;
+  rows.forEach((row, index) => {
+    const group = groupOf(row);
+    if (!current || current.key !== group.key) {
+      current = { ...group, count: 0 };
+      items.push({ kind: 'group', group: current });
+    }
+    current.count++;
+    items.push({ kind: 'row', row, index });
+  });
+  return items;
+}
+
+/** Rows ordered by group (groups in order of first appearance), keeping the order within each. */
+export function groupRows<T>(rows: readonly T[], groupOf: (row: T) => MtTableGroup): T[] {
+  const order = new Map<string, number>();
+  for (const row of rows) {
+    const key = groupOf(row).key;
+    if (!order.has(key)) order.set(key, order.size);
+  }
+  return rows
+    .map((row, index) => ({ row, index, group: order.get(groupOf(row).key) ?? 0 }))
+    .sort((a, b) => a.group - b.group || a.index - b.index)
+    .map((entry) => entry.row);
+}
+
 export type MtTableDensity = 'comfortable' | 'compact';
 
 /** Row heights per density; virtual scrolling relies on them being fixed. */
@@ -76,6 +137,8 @@ export const MT_TABLE_ROW_HEIGHT: Record<MtTableDensity, number> = { comfortable
 const HEADER_HEIGHT = 32;
 const OVERSCAN = 8;
 const PAGE_ROWS = 10;
+/** `endReached` fires when the scroll position is within this many rows of the end. */
+const END_ROWS = 10;
 
 const collator = new Intl.Collator('en-AU', { numeric: true, sensitivity: 'base' });
 
@@ -144,12 +207,19 @@ export function virtualWindow(
  * - Sticky header inside a scroll container, `density`, and virtual scrolling from
  *   `virtualThreshold` rows (200 by default): only the visible rows are rendered.
  * - Custom cells with `<ng-template mtCell="column" let-row>`; an `[mtTableEmpty]` slot for no rows.
+ * - Groups: `groupBy` returns each row's group; a header row (an `mtTableGroup` template, or the
+ *   label and count) starts each group. Client sorting sorts within groups.
+ * - `endReached` fires when scrolling nears the end, for infinite scroll.
  */
 @Component({
   selector: 'mt-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  styleUrls: ['../../generated/components/table.css', '../../generated/components/check.css'],
+  styleUrls: [
+    '../../generated/components/table.css',
+    '../../generated/components/check.css',
+    '../../generated/components/count.css',
+  ],
   imports: [NgTemplateOutlet, MtIcon],
   host: { class: 'mt-table-host' },
   template: `
@@ -157,7 +227,7 @@ export function virtualWindow(
       <table
         class="mt-table"
         [attr.aria-label]="label()"
-        [attr.aria-rowcount]="virtual() ? sortedRows().length + 1 : null"
+        [attr.aria-rowcount]="virtual() ? items().length + 1 : null"
         [attr.data-density]="density() === 'compact' ? 'compact' : null"
       >
         <thead>
@@ -212,45 +282,66 @@ export function virtualWindow(
               <td [attr.colspan]="colspan()" [style.height.px]="window().padTop"></td>
             </tr>
           }
-          @for (row of visibleRows(); track rowKey()(row); let i = $index) {
-            @let index = window().start + i;
-            @let key = rowKey()(row);
-            <tr
-              [attr.data-index]="index"
-              [attr.tabindex]="index === activeIndex() ? 0 : -1"
-              [attr.data-selected]="selectedSet().has(key) ? '' : null"
-              [attr.data-active]="index === activeIndex() ? '' : null"
-              [attr.aria-rowindex]="virtual() ? index + 2 : null"
-              (click)="onRowClick($event, index)"
-              (focus)="activeIndex.set(index)"
-              (keydown)="onKeydown($event)"
-            >
-              @if (selectable()) {
-                <td class="mt-table-select">
-                  <button
-                    type="button"
-                    class="mt-check"
-                    role="checkbox"
-                    tabindex="-1"
-                    [attr.aria-label]="'Select ' + labelFor(row)"
-                    [attr.aria-checked]="selectedSet().has(key)"
-                    [attr.data-checked]="selectedSet().has(key) ? '' : null"
-                    (click)="toggleRow(key); $event.stopPropagation()"
-                  >
-                    <mt-icon name="check" />
-                  </button>
-                </td>
-              }
-              @for (column of columns(); track column.id) {
-                <td [class.num]="column.numeric" [class]="column.cellClass ?? ''">
-                  @if (templates()[column.id]; as cell) {
-                    <ng-container *ngTemplateOutlet="cell; context: { $implicit: row, index: index }" />
+          @for (item of visibleItems(); track itemKey(item); let i = $index) {
+            @if (item.kind === 'group') {
+              <tr
+                class="group"
+                style="cursor: default"
+                [attr.aria-rowindex]="virtual() ? window().start + i + 2 : null"
+                [style.height.px]="virtual() ? rowHeight() : null"
+              >
+                <td [attr.colspan]="colspan()">
+                  @if (groupTemplate(); as header) {
+                    <ng-container *ngTemplateOutlet="header.template; context: { $implicit: item.group }" />
                   } @else {
-                    {{ display(column, row) }}
+                    <span class="mt-row">
+                      <span class="t-1">{{ item.group.label }}</span>
+                      <span class="mt-count">{{ item.group.count }}</span>
+                    </span>
                   }
                 </td>
-              }
-            </tr>
+              </tr>
+            } @else {
+              @let row = item.row;
+              @let index = item.index;
+              @let key = rowKey()(row);
+              <tr
+                [attr.data-index]="index"
+                [attr.tabindex]="index === activeIndex() ? 0 : -1"
+                [attr.data-selected]="selectedSet().has(key) ? '' : null"
+                [attr.data-active]="index === activeIndex() ? '' : null"
+                [attr.aria-rowindex]="virtual() ? window().start + i + 2 : null"
+                (click)="onRowClick($event, index)"
+                (focus)="activeIndex.set(index)"
+                (keydown)="onKeydown($event)"
+              >
+                @if (selectable()) {
+                  <td class="mt-table-select">
+                    <button
+                      type="button"
+                      class="mt-check"
+                      role="checkbox"
+                      tabindex="-1"
+                      [attr.aria-label]="'Select ' + labelFor(row)"
+                      [attr.aria-checked]="selectedSet().has(key)"
+                      [attr.data-checked]="selectedSet().has(key) ? '' : null"
+                      (click)="toggleRow(key); $event.stopPropagation()"
+                    >
+                      <mt-icon name="check" />
+                    </button>
+                  </td>
+                }
+                @for (column of columns(); track column.id) {
+                  <td [class.num]="column.numeric" [class]="column.cellClass ?? ''">
+                    @if (templates()[column.id]; as cell) {
+                      <ng-container *ngTemplateOutlet="cell; context: { $implicit: row, index: index }" />
+                    } @else {
+                      {{ display(column, row) }}
+                    }
+                  </td>
+                }
+              </tr>
+            }
           }
           @if (window().padBottom > 0) {
             <tr class="mt-table-spacer" aria-hidden="true">
@@ -282,10 +373,16 @@ export class MtTable<T> {
   /** Height of the scroll container (CSS); virtual tables default to 480px. */
   readonly maxHeight = input<string>();
 
+  /** Groups rows under header rows (by status, owner…); null for a flat table. */
+  readonly groupBy = input<((row: T) => MtTableGroup) | null>(null);
+
   /** A row was opened (Enter or click). */
   readonly open = output<T>();
+  /** Scrolling reached the last rows (load the next page). */
+  readonly endReached = output();
 
   private readonly cells = contentChildren(MtTableCell);
+  protected readonly groupTemplate = contentChild(MtTableGroupHeader);
   private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
@@ -301,19 +398,33 @@ export class MtTable<T> {
   });
   protected readonly sortedRows = computed(() => {
     const sort = this.sort();
-    if (!sort || this.sortMode() === 'external') return this.rows();
-    const column = this.columns().find((c) => c.id === sort.column && c.sortable);
-    return sortRows(this.rows(), column, sort.direction);
+    const groupOf = this.groupBy();
+    let rows: readonly T[] = this.rows();
+    if (sort && this.sortMode() === 'client') {
+      const column = this.columns().find((c) => c.id === sort.column && c.sortable);
+      rows = sortRows(rows, column, sort.direction);
+    }
+    return groupOf ? groupRows(rows, groupOf) : rows;
   });
-  protected readonly virtual = computed(() => this.sortedRows().length >= this.virtualThreshold());
+  /** The body lines: group headers and rows. Virtual scrolling windows over these. */
+  protected readonly items = computed(() => tableItems(this.sortedRows(), this.groupBy()));
+  protected readonly virtual = computed(() => this.items().length >= this.virtualThreshold());
   protected readonly rowHeight = computed(() => MT_TABLE_ROW_HEIGHT[this.density()]);
   protected readonly scrollHeight = computed(() => this.maxHeight() ?? (this.virtual() ? '480px' : null));
   protected readonly window = computed(() => {
-    const total = this.sortedRows().length;
+    const total = this.items().length;
     if (!this.virtual()) return { start: 0, end: total, padTop: 0, padBottom: 0 };
     return virtualWindow(total, this.scrollTop(), this.viewport(), this.rowHeight());
   });
-  protected readonly visibleRows = computed(() => this.sortedRows().slice(this.window().start, this.window().end));
+  protected readonly visibleItems = computed(() => this.items().slice(this.window().start, this.window().end));
+  /** Each row's position among the body lines (group headers above it push it down). */
+  private readonly itemIndex = computed(() => {
+    const positions: number[] = [];
+    this.items().forEach((item, position) => {
+      if (item.kind === 'row') positions[item.index] = position;
+    });
+    return positions;
+  });
   protected readonly selectedSet = computed(() => new Set(this.selection()));
   protected readonly colspan = computed(() => this.columns().length + (this.selectable() ? 1 : 0));
   protected readonly allState = computed<'true' | 'false' | 'mixed'>(() => {
@@ -333,6 +444,10 @@ export class MtTable<T> {
       observer.observe(element);
       this.destroyRef.onDestroy(() => observer.disconnect());
     });
+  }
+
+  protected itemKey(item: MtTableItem<T>): string {
+    return item.kind === 'group' ? `group:${item.group.key}` : `row:${this.rowKey()(item.row)}`;
   }
 
   protected display(column: MtTableColumn<T>, row: T): string {
@@ -369,7 +484,11 @@ export class MtTable<T> {
   }
 
   protected onScroll(): void {
-    this.scrollTop.set(this.scroller().nativeElement.scrollTop);
+    const element = this.scroller().nativeElement;
+    this.scrollTop.set(element.scrollTop);
+    if (element.scrollTop + element.clientHeight >= element.scrollHeight - END_ROWS * this.rowHeight()) {
+      this.endReached.emit();
+    }
   }
 
   protected onRowClick(event: MouseEvent, index: number): void {
@@ -419,7 +538,7 @@ export class MtTable<T> {
     const scroller = this.scroller().nativeElement;
     if (this.virtual()) {
       const height = this.rowHeight();
-      const top = index * height;
+      const top = (this.itemIndex()[index] ?? index) * height;
       const view = Math.max(height, scroller.clientHeight - HEADER_HEIGHT);
       let next = scroller.scrollTop;
       if (top < next) next = top;

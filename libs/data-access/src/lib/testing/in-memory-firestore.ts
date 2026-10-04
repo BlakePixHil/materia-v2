@@ -107,7 +107,12 @@ export class InMemoryFirestore {
   /** Nothing ever arrives: listeners stay attached without a first snapshot (a loading state). */
   stalled = false;
   /** Every write, for assertions. */
-  readonly writes: { op: 'create' | 'update' | 'softDelete'; path: string; data?: Data; removed?: string[] }[] = [];
+  readonly writes: {
+    op: 'create' | 'update' | 'softDelete' | 'delete';
+    path: string;
+    data?: Data;
+    removed?: string[];
+  }[] = [];
 
   readonly driver: DriverFactory = (path, options?: DriverOptions) =>
     options?.group ? this.group(path) : this.collection(path);
@@ -265,6 +270,7 @@ export class InMemoryFirestore {
       create: readOnly,
       update: readOnly,
       softDelete: readOnly,
+      hardDelete: readOnly,
     };
   }
 
@@ -347,6 +353,13 @@ export class InMemoryFirestore {
         const change = { deletedAt: new Date(), deletedBy: meta.uid, ...stamp(meta) };
         this.writes.push({ op: 'softDelete', path: `${path}/${id}`, data: change });
         docs().set(id, { ...current, ...change });
+        this.notify(path);
+      },
+      hardDelete: async (id) => {
+        const failure = this.takeFailure();
+        if (failure) throw failure;
+        this.writes.push({ op: 'delete', path: `${path}/${id}` });
+        docs().delete(id);
         this.notify(path);
       },
     };
