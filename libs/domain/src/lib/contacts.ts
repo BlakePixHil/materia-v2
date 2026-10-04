@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { DocIdSchema } from './schemas/common';
 import { Contact } from './schemas/contacts-matters';
-import { searchTokens, searchWords } from './search';
+import { normaliseText, searchTokens, searchWords } from './search';
 
 /**
  * Contacts (CORE-01): display names, phone and address normalisation, search tokens, the
@@ -132,6 +132,26 @@ export function contactDedupeKey(contact: Partial<Contact>): string {
   }
   const words = [...searchWords(contact.givenNames), ...searchWords(contact.familyName)].sort();
   return `person:${words.join(' ')}|${contact.dateOfBirth ?? ''}`;
+}
+
+/** What `orderBy('sortName')` sorts on: the display name, lower-cased, diacritics stripped. */
+export function contactSortName(contact: Partial<Contact>): string {
+  return normaliseText(contactDisplayName(contact));
+}
+
+/** The server-maintained fields of a contact (`contacts-onWrite` and `contacts-create` write them). */
+export interface ContactDerived {
+  search: string[];
+  dedupeKey: string;
+  sortName: string;
+}
+
+export function contactDerivedFields(contact: Partial<Contact>): ContactDerived {
+  return {
+    search: contactSearchTokens(contact),
+    dedupeKey: contactDedupeKey(contact),
+    sortName: contactSortName(contact),
+  };
 }
 
 // ---------- duplicate scoring ----------
@@ -333,9 +353,16 @@ export interface MergeContactsResult {
 export interface DeleteContactResult {
   deleted: boolean;
 }
-/** Why a delete was refused: the matters that still reference the contact. */
+/**
+ * Why a delete was refused (`details.references` on the FAILED_PRECONDITION error, with
+ * `details.reason: 'contact_referenced'`): the matters that still reference the contact. `role`
+ * is a party role (`executor`…) or `client`, `referrer`, `deceased`, `testator`. A safe custody
+ * packet is listed with `role: 'safe_custody'`, its `safeCustodyId`, an empty `matterId` and the
+ * packet number as `matterTitle`.
+ */
 export interface ContactReference {
   matterId: string;
   matterTitle: string;
   role: string;
+  safeCustodyId?: string;
 }

@@ -1,8 +1,10 @@
 import {
   contactDedupeKey,
+  contactDerivedFields,
   contactDisplayName,
   contactInitials,
   contactSearchTokens,
+  contactSortName,
   DUPLICATE_THRESHOLD,
   formatPhone,
   guessPhoneType,
@@ -68,6 +70,23 @@ describe('names', () => {
     );
     expect(contactDedupeKey({ kind: 'organisation', orgName: 'Acme Pty Ltd' })).toBe('org:acme');
     expect(contactDedupeKey({ kind: 'organisation', orgName: 'Acme', abn: '51824753556' })).toBe('abn:51824753556');
+  });
+
+  it('sorts by the lower-cased display name without diacritics', () => {
+    expect(contactSortName({ kind: 'person', givenNames: 'Zoë', familyName: "O'Hara" })).toBe('zoe ohara');
+    expect(contactSortName({ kind: 'person', givenNames: 'Robert', preferredName: 'Bob', familyName: 'Ng' })).toBe(
+      'bob ng',
+    );
+    expect(contactSortName({ kind: 'organisation', orgName: 'Acme Pty Ltd' })).toBe('acme pty ltd');
+  });
+
+  it('derives search, dedupeKey and sortName together', () => {
+    const contact = { kind: 'person' as const, givenNames: 'Ada', familyName: 'Quill', dateOfBirth: '1950-01-02' };
+    expect(contactDerivedFields(contact as never)).toEqual({
+      search: contactSearchTokens(contact as never),
+      dedupeKey: 'person:ada quill|1950-01-02',
+      sortName: 'ada quill',
+    });
   });
 });
 

@@ -105,7 +105,7 @@ type ContactSpec = {
   referrer?: boolean;
 };
 
-/** About 25 fictional contacts. `dateOfDeath` is days before the anchor. */
+/** About 25 fictional contacts (a few of them near-duplicates). `dateOfDeath` is days before the anchor. */
 const CONTACTS: ContactSpec[] = [
   {
     id: 'c-margaret-doyle',
@@ -139,6 +139,10 @@ const CONTACTS: ContactSpec[] = [
   { id: 'c-bay-funerals', org: 'Bayside Funerals Pty Ltd (fictional)', tags: ['supplier'] },
   { id: 'c-corio-bank', org: 'Corio Savings Bank (fictional)', tags: ['institution'] },
   { id: 'c-lighthouse-advisers', org: 'Lighthouse Financial Advisers (fictional)', referrer: true, tags: ['referrer'] },
+  // Near-duplicates, for trying duplicate detection and merge (CORE-01).
+  { id: 'c-katherine-doyle', given: 'Katherine', family: 'Doyle', suburb: 'Newtown' },
+  { id: 'c-alice-whitfield-2', given: 'Alice', family: 'Whitfeld', dateOfBirth: '1938-11-02', suburb: 'Barwon Heads' },
+  { id: 'c-lighthouse-advisors', org: 'Lighthouse Financial Advisors Pty Ltd (fictional)', tags: ['referrer'] },
 ];
 
 type Offset = number;
@@ -492,10 +496,6 @@ export function searchTokens(...values: (string | undefined)[]): string[] {
   return [...tokens].slice(0, 200);
 }
 
-function contactName(spec: ContactSpec): string {
-  return spec.org ?? `${spec.given} ${spec.family}`;
-}
-
 /** Builds the dataset for a scenario. Pure: the same anchor and fixtures give the same output. */
 export function buildDataset(options: {
   scenario?: SeedScenario;
@@ -593,7 +593,6 @@ export function buildDataset(options: {
   const contactById = new Map(CONTACTS.map((c) => [c.id, c]));
 
   for (const spec of contacts) {
-    const name = contactName(spec);
     const person = !spec.org;
     add(
       `orgs/${org}/contacts/${spec.id}`,
@@ -626,8 +625,13 @@ export function buildDataset(options: {
         ],
         tags: spec.tags ?? [],
         isReferrer: spec.referrer ?? false,
-        search: searchTokens(name),
-        dedupeKey: `${(spec.family ?? spec.org ?? '').toLowerCase()}|${(spec.given ?? '').toLowerCase()}|`,
+        ...domain.contactDerivedFields({
+          kind: person ? 'person' : 'organisation',
+          givenNames: spec.given,
+          familyName: spec.family,
+          orgName: spec.org,
+          dateOfBirth: spec.dateOfBirth ? domain.dateOnly(spec.dateOfBirth) : undefined,
+        }),
       }),
     );
   }
@@ -700,7 +704,10 @@ export function buildDataset(options: {
     );
 
     spec.parties.forEach(([contactId, role], i) =>
-      add(`${base}/parties/${spec.id}-p-${i + 1}`, makeParty({ ...meta, contactId, role })),
+      add(
+        `${base}/parties/${spec.id}-p-${i + 1}`,
+        makeParty({ ...meta, orgId: org, matterId: spec.id, contactId, role }),
+      ),
     );
     spec.events.forEach(([kind, offset, label], i) =>
       add(
