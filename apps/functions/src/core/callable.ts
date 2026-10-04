@@ -188,6 +188,9 @@ export function defineCallable<TSchema extends z.ZodType, TOutput>(
   return onCall(
     {
       region: REGION,
+      // Callables are public at the HTTP layer and check auth and App Check themselves. Explicit,
+      // so firebase-tools also sets it when updating a function created without it.
+      invoker: 'public',
       // App Check is enforced everywhere except the emulator (no App Check provider there).
       enforceAppCheck: (def.appCheck ?? true) && !isEmulator(),
       consumeAppCheckToken: def.consumeAppCheckToken ?? false,
