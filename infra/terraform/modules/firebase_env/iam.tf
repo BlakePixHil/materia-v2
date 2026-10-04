@@ -104,6 +104,28 @@ resource "google_service_account_iam_member" "deployer_acts_as_app_engine_defaul
   depends_on         = [google_firebase_project.this]
 }
 
+# Gen2 functions are built by Cloud Build as the Compute default account, and the Functions API
+# requires the caller to act as it when creating a function. firebase-tools (15.x) has no option for
+# a different build account. Google grants that account roles/editor, so the Editor role is removed
+# (ADR-022, infra/MANUAL.md) and it keeps only what a build needs.
+locals {
+  compute_default_sa = "${google_project.this.number}-compute@developer.gserviceaccount.com"
+}
+
+resource "google_service_account_iam_member" "deployer_acts_as_compute_default" {
+  service_account_id = "projects/${google_project.this.project_id}/serviceAccounts/${local.compute_default_sa}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.deployer.email}"
+  depends_on         = [time_sleep.services_ready]
+}
+
+resource "google_project_iam_member" "compute_default_builder" {
+  project    = google_project.this.project_id
+  role       = "roles/cloudbuild.builds.builder"
+  member     = "serviceAccount:${local.compute_default_sa}"
+  depends_on = [time_sleep.services_ready]
+}
+
 # Functions sign download URLs as themselves (CORE-12).
 resource "google_service_account_iam_member" "fn_runtime_sign_self" {
   service_account_id = google_service_account.fn_runtime.name
