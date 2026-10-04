@@ -304,12 +304,16 @@ describe('matters-denormalise', () => {
     expect(filled['deletedAt']).toBeNull();
     const first = (filled['lastActivityAt'] as Timestamp).toMillis();
 
-    // A client-style edit is activity: lastActivityAt moves on and search follows the title.
+    // A client-style edit is activity: lastActivityAt moves on and search follows the title. (The
+    // event for the trigger's own first write may land after the edit and pick up the new title
+    // first, so wait for both.)
     await db.doc(path).update({ title: 'Estate of Fictional Rawlinson', updatedBy: 'matters-lawyer' });
     const edited = await poll(
       () => data(path),
-      (doc) => (doc['search'] as string[]).includes('rawlinson'),
+      (doc) =>
+        (doc['search'] as string[]).includes('rawlinson') && (doc['lastActivityAt'] as Timestamp).toMillis() > first,
     );
+    expect(edited['search']).toContain('rawlinson');
     expect((edited['lastActivityAt'] as Timestamp).toMillis()).toBeGreaterThan(first);
     expect(edited['updatedBy']).toBe('matters-lawyer');
   });
