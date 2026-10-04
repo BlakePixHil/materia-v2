@@ -1,11 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 
-import { DEFAULT_MATTER_VIEWS, type DateOnly, type MatterViewSort } from '@materia/domain';
+import {
+  DEFAULT_MATTER_VIEWS,
+  isIndexedMatterQuery,
+  MatterTypeSchema,
+  type DateOnly,
+  type MatterViewSort,
+} from '@materia/domain';
 
 import {
   hasMatterFilters,
-  isIndexedMatterQuery,
-  MATTER_LIST_INDEXES,
   matterMatchesFilters,
   matterQueryPlan,
   mattersRepository,
@@ -47,6 +51,8 @@ const row = (overrides: Partial<MatterListItem> = {}): MatterListItem => ({
 });
 
 describe('matterQueryPlan', () => {
+  const LIVE = ['deletedAt', '==', null] as const;
+
   it('pages every default view on the server, "My open matters" by status, responsible and activity', () => {
     const [mine, allOpen, leads, onHold, closed] = DEFAULT_MATTER_VIEWS.map((view) =>
       matterQueryPlan(view.filters, view.sort, ME),
@@ -54,10 +60,7 @@ describe('matterQueryPlan', () => {
     expect(mine).toEqual({
       mode: 'paged',
       spec: {
-        where: [
-          ['status', '==', 'open'],
-          ['responsibleUid', '==', 'u-jordan'],
-        ],
+        where: [LIVE, ['status', '==', 'open'], ['responsibleUid', '==', 'u-jordan']],
         orderBy: [['lastActivityAt', 'desc']],
         pageSize: 50,
       },
@@ -68,7 +71,7 @@ describe('matterQueryPlan', () => {
     // Recently closed filters closedAt here (a range on another field than the order).
     expect(closed).toMatchObject({
       mode: 'capped',
-      spec: { where: [['status', '==', 'closed']], orderBy: [['lastActivityAt', 'desc']], pageSize: 500 },
+      spec: { where: [LIVE, ['status', '==', 'closed']], orderBy: [['lastActivityAt', 'desc']], pageSize: 500 },
       clientFilters: ['closedWithinDays'],
     });
     expect(closed?.notice).toContain('500');
@@ -81,18 +84,21 @@ describe('matterQueryPlan', () => {
     expect(paged({}, { field: 'title', dir: 'asc' })).toBe('paged');
     expect(paged({ status: ['open', 'lead'] })).toBe('paged');
     expect(paged({ status: ['open'], type: ['will'] })).toBe('paged');
+    expect(paged({ status: ['open'], type: ['will'], responsible: 'me' })).toBe('paged');
     expect(paged({ responsible: 'u-priya' })).toBe('paged');
+    expect(paged({ type: ['will'] })).toBe('paged');
     expect(paged({ status: ['open'] }, { field: 'number', dir: 'asc' })).toBe('paged');
     expect(paged({ status: ['open'] }, { field: 'title', dir: 'desc' })).toBe('paged');
     expect(paged({ label: 'urgent-review' })).toBe('paged');
+    expect(paged({ label: 'x', status: ['open'] })).toBe('paged');
     expect(paged({ jurisdiction: 'VIC', status: ['open'] })).toBe('paged');
-    expect(matterQueryPlan({ label: 'x' }, RECENT, ME).spec.where).toEqual([['labels', 'array-contains', 'x']]);
+    expect(paged({ query: 'quill', status: ['open'] })).toBe('paged');
+    expect(matterQueryPlan({ label: 'x' }, RECENT, ME).spec.where).toEqual([LIVE, ['labels', 'array-contains', 'x']]);
     expect(matterQueryPlan({ status: ['open'], type: ['will', 'poa'] }, RECENT, ME).spec.where).toEqual([
+      LIVE,
       ['status', '==', 'open'],
       ['type', 'in', ['will', 'poa']],
     ]);
-    // Type alone has no index: all matters, most recent first, filtered here.
-    expect(matterQueryPlan({ type: ['will'] }, RECENT, ME)).toMatchObject({ mode: 'capped', clientFilters: ['type'] });
   });
 
   it('falls back to the largest indexed subset, 500 rows and a notice for other combinations', () => {
@@ -100,40 +106,50 @@ describe('matterQueryPlan', () => {
     expect(plan.mode).toBe('capped');
     expect(plan.spec.pageSize).toBe(500);
     expect(plan.spec.orderBy).toEqual([['lastActivityAt', 'desc']]);
-    expect(plan.spec.where).toHaveLength(2);
+    expect(plan.spec.where).toHaveLength(3);
     expect(plan.clientFilters).toHaveLength(2);
     expect(plan.notice).toBeTruthy();
 
-    // An unindexed sort direction, a client-only sort, and overdue are all here too.
-    expect(matterQueryPlan({ label: 'x' }, { field: 'number', dir: 'asc' }, ME)).toMatchObject({
+    // Only most-recent-first is indexed by activity; client-only sorts; overdue.
+    expect(matterQueryPlan({ label: 'x' }, { field: 'lastActivity', dir: 'asc' }, ME)).toMatchObject({
       mode: 'capped',
-      spec: { where: [['labels', 'array-contains', 'x']] },
+      spec: { where: [LIVE, ['labels', 'array-contains', 'x']] },
       clientSort: true,
     });
     expect(matterQueryPlan({ status: ['open'] }, { field: 'wip', dir: 'desc' }, ME)).toMatchObject({
       mode: 'capped',
-      spec: { where: [['status', '==', 'open']] },
+      spec: { where: [LIVE, ['status', '==', 'open']] },
       clientFilters: [],
       clientSort: true,
     });
     expect(matterQueryPlan({ hasOverdue: true, responsible: 'me' }, RECENT, ME)).toMatchObject({
       mode: 'capped',
-      spec: { where: [['responsibleUid', '==', 'u-jordan']] },
+      spec: { where: [LIVE, ['responsibleUid', '==', 'u-jordan']] },
       clientFilters: ['hasOverdue'],
     });
-    // A second list filter can't be an `in` as well.
-    expect(matterQueryPlan({ status: ['open', 'lead'], type: ['will', 'poa'] }, RECENT, ME)).toMatchObject({
+    // Firestore caps status × type at 30 disjunctions: the type list stays here.
+    expect(
+      matterQueryPlan({ status: ['open', 'lead', 'on_hold', 'closed'], type: MatterTypeSchema.options }, RECENT, ME),
+    ).toMatchObject({
       mode: 'capped',
-      spec: { where: [['status', 'in', ['open', 'lead']]] },
+      spec: { where: [LIVE, ['status', 'in', ['open', 'lead', 'on_hold', 'closed']]] },
       clientFilters: ['type'],
     });
   });
 
-  it('searches by the first word token without an order, and the rest here', () => {
-    expect(matterQueryPlan({ query: "Quill's estate", status: ['open'] }, RECENT, ME)).toEqual({
+  it('searches by the first word token, and checks further words here', () => {
+    expect(matterQueryPlan({ query: "Quill's", status: ['open'] }, RECENT, ME)).toMatchObject({
+      mode: 'paged',
+      spec: { where: [LIVE, ['status', '==', 'open'], ['search', 'array-contains', 'quills']] },
+    });
+    expect(matterQueryPlan({ query: 'quill estate', responsible: 'me' }, RECENT, ME)).toEqual({
       mode: 'capped',
-      spec: { where: [['search', 'array-contains', 'quills']], pageSize: 500 },
-      clientFilters: ['status', 'query'],
+      spec: {
+        where: [LIVE, ['search', 'array-contains', 'quill']],
+        orderBy: [['lastActivityAt', 'desc']],
+        pageSize: 500,
+      },
+      clientFilters: ['responsible', 'query'],
       clientSort: true,
       notice: expect.stringContaining('500'),
     });
@@ -141,17 +157,24 @@ describe('matterQueryPlan', () => {
 
   it('adds privileged == false for roles that cannot see privileged matters', () => {
     const plan = matterQueryPlan({ status: ['open'] }, RECENT, { viewerUid: 'u', privilegedVisible: false });
-    expect(plan.spec.where).toEqual([
-      ['privileged', '==', false],
-      ['status', '==', 'open'],
-    ]);
+    expect(plan.spec.where).toEqual([LIVE, ['privileged', '==', false], ['status', '==', 'open']]);
   });
 
-  it('knows its index list', () => {
-    expect(MATTER_LIST_INDEXES).toHaveLength(8);
-    expect(isIndexedMatterQuery([], 'number', 'asc')).toBe(true);
-    expect(isIndexedMatterQuery(['responsibleUid', 'status'], 'lastActivityAt', 'desc')).toBe(true);
-    expect(isIndexedMatterQuery(['type'], 'lastActivityAt', 'desc')).toBe(false);
+  it('only ever asks Firestore for an indexed query', () => {
+    const combos: Parameters<typeof matterQueryPlan>[0][] = [
+      {},
+      { status: ['open'], label: 'x', jurisdiction: 'VIC', query: 'quill' },
+      { type: ['will', 'poa'], label: 'x', responsible: 'me' },
+      { jurisdiction: 'NSW', type: ['fp'], hasOverdue: true },
+    ];
+    for (const filters of combos) {
+      for (const field of ['lastActivity', 'number', 'title', 'wip'] as const) {
+        const { spec } = matterQueryPlan(filters, { field, dir: 'asc' }, ME);
+        const fields = (spec.where ?? []).map(([f]) => f).filter((f) => f !== 'deletedAt' && f !== 'privileged');
+        const [order, dir] = spec.orderBy?.[0] ?? [];
+        expect(isIndexedMatterQuery(fields as never, order as never, dir ?? 'asc')).toBe(true);
+      }
+    }
   });
 });
 
@@ -192,6 +215,7 @@ describe('mattersRepository', () => {
       const stored = (id: string, data: Partial<MatterListItem> & Record<string, unknown>) =>
         f.set(`orgs/org-a/matters/${id}`, {
           ...row(),
+          deletedAt: null,
           lastActivityAt: new Date(`2026-10-0${id.slice(-1)}T00:00:00Z`),
           fee: { arrangement: 'hourly', history: [] },
           ...data,

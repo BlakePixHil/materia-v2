@@ -70,6 +70,8 @@ function matterDoc(data: Seed & { number: string; title: string; daysAgo?: numbe
       clientNames: [data['clientContactIds'] ? 'Bram Ostler' : 'Avery Quill'],
     }),
     lastActivityAt: new Date(Date.parse('2026-10-04T00:00:00Z') - daysAgo * 86_400_000),
+    // matters-denormalise keeps deletedAt: null on live matters; the list queries for it.
+    deletedAt: null,
     ...meta,
     ...rest,
   };
@@ -421,8 +423,8 @@ describe('matters list', () => {
         }
       },
     });
-    // 50 read; the soft-deleted one among them is hidden.
-    expect(page.rows()).toHaveLength(49);
+    // Live matters only (deletedAt == null): the soft-deleted one never takes a place in the page.
+    expect(page.rows()).toHaveLength(50);
     await page.click('Show more matters', page.body);
     expect(page.rows()).toHaveLength(63);
     expect(page.buttons('Show more matters')).toHaveLength(0);
