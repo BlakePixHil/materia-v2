@@ -1,3 +1,5 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-ws). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-ws { display: flex; align-items: center; gap: var(--space-8); height: 36px; padding: 0 var(--space-6); border-radius: var(--radius-sm); font: 600 13px/18px var(--font-sans); }
 .mt-ws .mt-i { color: var(--icon-default); width: 14px; height: 14px; }
+button.mt-ws { border: 0; background: none; color: inherit; cursor: pointer; text-align: left; min-width: 0; }
+button.mt-ws:hover { background: var(--bg-hover); }

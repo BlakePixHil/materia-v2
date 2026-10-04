@@ -1,5 +1,5 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-tab). Regenerate with `pnpm materia-scripts sync-design`. */
-.mt-tab { appearance: none; background: none; border: 0; display: inline-flex; align-items: center; gap: var(--space-6); height: 36px; padding: 0 var(--space-8); margin-bottom: -1px; border-bottom: 2px solid transparent; font: 500 13px/18px var(--font-sans); color: var(--text-secondary); cursor: pointer; outline: none; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.mt-tab { appearance: none; background: none; border: 0; text-decoration: none; display: inline-flex; align-items: center; gap: var(--space-6); height: 36px; padding: 0 var(--space-8); margin-bottom: -1px; border-bottom: 2px solid transparent; font: 500 13px/18px var(--font-sans); color: var(--text-secondary); cursor: pointer; outline: none; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
 .mt-tab[data-hover] { color: var(--text-primary); }
 .mt-tab[data-active] { color: var(--text-primary); border-bottom-color: var(--bg-brand); }
 .mt-tab[data-focus-visible] { box-shadow: var(--focus-ring); }

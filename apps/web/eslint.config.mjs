@@ -29,7 +29,9 @@ export default [
   },
   {
     files: ['**/*.html'],
-    // Override or add rules here
-    rules: {},
+    rules: {
+      // Icon-only controls (MtIconButton, collapsed MtNavItem) are named by their required `label`.
+      '@angular-eslint/template/elements-content': ['error', { allowList: ['aria-labelledby', 'label'] }],
+    },
   },
 ];

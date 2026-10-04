@@ -1,3 +1,5 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-search). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-search { background: var(--bg-sunken); border-color: transparent; color: var(--text-tertiary); }
 .mt-search[data-hover] { border-color: var(--border-default); }
+button.mt-search { cursor: pointer; text-align: left; width: 100%; }
+button.mt-search:focus-visible { box-shadow: var(--focus-ring); }
