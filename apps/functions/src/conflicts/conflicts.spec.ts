@@ -131,6 +131,29 @@ describe('findConflictHits', () => {
     expect(summary(hits)).toEqual([...scenario.expected].sort((a, b) => a.contactId.localeCompare(b.contactId)));
   });
 
+  it('finds a contact stored without derived fields, emails or phones, with its display name and DOB reason', async () => {
+    const w = world({
+      [`${C_PATH}/c-margot`]: {
+        ...meta,
+        kind: 'person',
+        givenNames: 'Margot',
+        familyName: 'Ellis',
+        dateOfBirth: '1948-04-09',
+        search: ['margot', 'ellis'],
+        sortName: 'ellis margot',
+        deletedAt: null,
+      },
+    });
+    const [hit] = await findConflictHits(
+      w.db,
+      ORG,
+      [{ kind: 'person', name: 'Margot Ellis', role: 'client', dob: '1948-04-09' }],
+      { adverse: true },
+    );
+    expect(hit).toMatchObject({ contactId: 'c-margot', displayName: 'Margot Ellis', matters: [] });
+    expect(hit?.reasons).toEqual(expect.arrayContaining(['name', 'dateOfBirth']));
+  });
+
   it('reports roles without adverse marking when adverse roles are not checked', async () => {
     const w = world();
     const hits = await findConflictHits(w.db, ORG, [{ name: 'Dorothea Quint', role: 'client' }], { adverse: false });
@@ -397,7 +420,7 @@ describe('conflicts-determine', () => {
         w.deps(),
       ),
     )) as HttpsError;
-    expect(noReason.details).toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(noReason.details).toMatchObject({ code: 'INVALID_ARGUMENT', fields: { reason: expect.any(Array) } });
   });
 });
 
@@ -466,9 +489,13 @@ describe('conflicts-onPartyAdded', () => {
     });
     expect(await w.trigger(addParty(w, 'm-lead', C.barnaby, 'executor'))).toBe('skipped_matter');
     expect(await w.trigger(addParty(w, M.fpClosed, C.dorothea, 'executor'))).toBe('skipped_matter');
-    expect(await w.trigger(addParty(w, M.probate, C.dorothea, 'executor', { createdAt: NOW }))).toBe(
-      'skipped_with_matter',
-    );
+    expect(
+      await w.trigger(
+        addParty(w, M.probate, C.dorothea, 'executor', {
+          createdAt: w.doc(`${M_PATH}/${M.probate}`)?.['createdAt'],
+        }),
+      ),
+    ).toBe('skipped_with_matter');
     expect(await w.trigger(addParty(w, M.probate, C.cosima, 'executor', { deletedAt: NOW }))).toBe('skipped_deleted');
     expect(await w.trigger(addParty(w, M.probate, 'c-missing', 'executor'))).toBe('skipped_contact');
     expect(w.inCollection('conflictChecks')).toHaveLength(0);
