@@ -146,7 +146,7 @@ test.describe('matter templates', () => {
 
     // Record the will date from the note, then move.
     await note.getByRole('button', { name: 'Will date' }).click();
-    await page.getByLabel('Will date').fill('02/10/2026');
+    await page.getByLabel('Will date', { exact: true }).fill('02/10/2026');
     await page.locator('mt-key-facts').getByRole('button', { name: 'Save' }).click();
     await expect(note).toContainText('Everything Safe custody needs is recorded');
     await note.getByRole('button', { name: 'Move to Safe custody' }).click();

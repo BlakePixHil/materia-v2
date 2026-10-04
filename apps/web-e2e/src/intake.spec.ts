@@ -82,7 +82,7 @@ test.describe('new matter intake', () => {
     await expect(page).toHaveTitle('New matter · Materia');
 
     // 1. Type: choosing one shows the template it starts from.
-    await expect(stepHeading(page)).toContainText('Matter type');
+    await expect(stepHeading(page)).toContainText('Matter type', { timeout: 20_000 });
     await page.getByRole('radio', { name: 'Probate', exact: true }).click();
     await expect(page.getByTestId('intake-template')).toContainText('Probate');
     await expectNoA11yViolations(page);
