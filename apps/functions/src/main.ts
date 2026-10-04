@@ -8,3 +8,4 @@ setGlobalOptions({ region: REGION, maxInstances: 10, serviceAccount: 'fn-runtime
 
 // Each export group becomes a function-name prefix: `system.echo` deploys as `system-echo`.
 export * as system from './system/index';
+export * as audit from './audit/index';

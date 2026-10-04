@@ -509,9 +509,13 @@ export const makeAuditEntry = (o: Partial<D.AuditEntry> = {}) =>
     {
       at: FIXED_INSTANT,
       actor: { uid: TEST_UID },
-      action: 'matter.update',
-      entity: { path: `orgs/${TEST_ORG_ID}/matters/${TEST_MATTER_ID}` },
-      source: 'trigger',
+      action: 'update',
+      entity: { path: `orgs/${TEST_ORG_ID}/matters/${TEST_MATTER_ID}`, collection: 'matters', id: TEST_MATTER_ID },
+      changedFields: ['status'],
+      before: { status: 'open' },
+      after: { status: 'closed' },
+      source: 'client',
+      expireAt: new Date(FIXED_INSTANT.getTime() + 7 * 365 * 24 * 60 * 60 * 1000),
     },
     o,
   );

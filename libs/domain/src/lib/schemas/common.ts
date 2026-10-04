@@ -25,6 +25,8 @@ export const MetaShape = {
   updatedAt: InstantSchema,
   updatedBy: ActorSchema,
   schemaVersion: z.number().int().min(1),
+  /** The callable request that made the last write; the audit trigger links the entry to it (FND-18). */
+  _requestId: z.string().optional(),
 };
 
 /** Soft-delete fields, for deletable entities. */
@@ -40,7 +42,7 @@ export const MigrationMetaShape = {
 };
 
 export const META_KEYS = ['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'] as const;
-export const SERVER_KEYS = [...META_KEYS, 'deletedAt', 'deletedBy', 'migration'] as const;
+export const SERVER_KEYS = [...META_KEYS, '_requestId', 'deletedAt', 'deletedBy', 'migration'] as const;
 
 /**
  * Builds the four exports for an entity from its field shape:

@@ -21,6 +21,8 @@ export type TriggerKind = 'written' | 'created' | 'updated' | 'deleted';
 
 export interface TriggerContext {
   eventId: string;
+  /** When the write happened (the event time, not the client's clock). */
+  time: Date;
   params: Record<string, string>;
   log: Log;
   clock: Clock;
@@ -52,6 +54,8 @@ export interface TriggerDeps {
 /** The parts of a Firestore event the wrapper reads. */
 export interface TriggerEvent {
   id: string;
+  /** RFC 3339 event time; the clock's now when absent. */
+  time?: string | undefined;
   params: Record<string, string>;
   change: TriggerChange;
 }
@@ -83,6 +87,7 @@ export async function runTrigger(
   try {
     await def.handler(event.change, {
       eventId: event.id,
+      time: event.time ? new Date(event.time) : deps.clock.now(),
       params: event.params,
       log,
       clock: deps.clock,
@@ -121,9 +126,11 @@ export function toChange(kind: TriggerKind, data: AnyEvent['data']): TriggerChan
 export function defineTrigger(def: TriggerDefinition) {
   const options = { document: def.document, region: REGION, retry: false };
   const run = (event: AnyEvent) =>
-    runTrigger(def, { id: event.id, params: event.params, change: toChange(def.on, event.data) }, triggerDeps()).then(
-      () => undefined,
-    );
+    runTrigger(
+      def,
+      { id: event.id, time: event.time, params: event.params, change: toChange(def.on, event.data) },
+      triggerDeps(),
+    ).then(() => undefined);
   switch (def.on) {
     case 'created':
       return onDocumentCreated(options, run);

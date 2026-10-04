@@ -57,6 +57,16 @@ Client personal information is often sensitive: health information in capacity d
 - Client error reports are scrubbed (emails, phone numbers, names in URLs).
 - Audit log for every mutation, retained 7 years.
 
+**Audit log (FND-18)** (`apps/functions/src/audit/`)
+- **Capture:** two Firestore triggers record every org write. `audit-onOrgWrite` covers `orgs/{orgId}/{collection}/{docId}` and `audit-onMatterWrite` covers matter subcollections. Each write becomes one `orgs/{orgId}/audit/{eventId}` entry; the event id is the entry id, so a redelivered event adds nothing.
+- **Contents:** `at` (event time), `actor` (`updatedBy`, or `deletedBy` for deletes; `system`/`clerk` as themselves), `action` (`create`, `update`, `delete`, `soft_delete`, `restore`), `entity`, `changedFields`, and `source` (`client`, `callable` when `_requestId` is present, `trigger`, or `migration` with `runId`).
+- **Redaction:** `before`/`after` hold only the changed fields. Free text (`bodyMd`, `narrative`, `descriptionMd`, `notes`…) and any string over 280 characters become `{ len, sha256 }`; secrets (`encryptedRefreshToken`, `tokenHash`…) are dropped.
+- **Not audited:** the `audit`, `metrics`, `activity`, `chunks`, `requests` and `counters` collections, and updates that touch only denormalised fields (`nextDeadline`, `openTaskCount`, `wipCents`, `lastActivityAt`, `search`) or `order`.
+- **Semantic events:** callables add them with `audit(ctx, { action: 'invoice.issued', entity, summary, data })`, alongside the trigger's entry for the write.
+- **Access:** clients can neither read nor write `audit` (rules). Reads go through `audit-query`: owners and admins query the whole org and see redacted values; other members read one visible matter's entries without values.
+- **Retention:** `expireAt` is the event time plus the org's `retentionYears` (default 7), deleted by a TTL policy on `audit.expireAt`.
+- **Failures:** a failed trigger never blocks the user's write. It is logged as a dead letter (ids only), and FND-21 adds the alert.
+
 **Backups**
 - Firestore PITR (7 days).
 - Daily managed exports to `australia-southeast2`, with a 35-day retention and monthly copies kept for 1 year.

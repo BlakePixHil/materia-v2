@@ -111,17 +111,37 @@ export const Metrics = withMeta(
   { path: `${ORG}/metrics`, migratable: false },
 );
 
-/** `audit/{id}`: append-only, written by functions only (ADR-010). Diffs are redacted. */
+/** The kinds of change the audit trigger records; semantic events use dotted names (`invoice.issued`). */
+export const AUDIT_WRITE_ACTIONS = ['create', 'update', 'delete', 'soft_delete', 'restore'] as const;
+
+/**
+ * `audit/{id}`: append-only, written by functions only (ADR-010, FND-18). The trigger uses the
+ * event id as the document id. `before`/`after` hold only the changed fields, redacted: long text
+ * becomes `{ len, sha256 }` and secrets are dropped. `expireAt` drives the TTL policy
+ * (`retentionYears` on the org).
+ */
 export const AuditEntry = withMeta(
   {
     at: InstantSchema,
     actor: z.union([z.object({ uid: DocIdSchema }), z.literal('system'), z.literal('clerk')]),
+    /** A write (`create`, `update`, `delete`, `soft_delete`, `restore`) or a semantic event (`invoice.issued`). */
     action: NonEmptyString,
-    entity: z.object({ path: NonEmptyString }),
+    entity: z.object({
+      path: NonEmptyString,
+      collection: NonEmptyString.optional(),
+      id: DocIdSchema.optional(),
+      matterId: DocIdSchema.optional(),
+    }),
+    changedFields: z.array(z.string()).optional(),
     before: z.record(z.string(), z.unknown()).optional(),
     after: z.record(z.string(), z.unknown()).optional(),
+    /** One line for semantic events ("Invoice INV-0042 issued"); never client text. */
+    summary: z.string().optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
     requestId: z.string().optional(),
+    runId: z.string().optional(),
     source: z.enum(['client', 'callable', 'trigger', 'job', 'migration']),
+    expireAt: InstantSchema,
   },
   { path: `${ORG}/audit`, migratable: false, updatable: [] },
 );

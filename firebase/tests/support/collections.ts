@@ -155,7 +155,8 @@ export const COLLECTIONS: CollectionSpec[] = [
     collection: 'audit',
     docPath: `orgs/${ORG}/audit/entry-1`,
     entity: 'AuditEntry',
-    read: 'audit.view',
+    // Read through the audit-query callable only (FND-18).
+    read: 'none',
     update: 'none',
   },
   {
