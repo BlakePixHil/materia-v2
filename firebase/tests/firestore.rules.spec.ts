@@ -1166,7 +1166,8 @@ describe('tasks (CORE-08)', () => {
     await attempt('template', { source: 'template' });
     await attempt('completed', { completedAt: serverTimestamp() });
     await attempt('counted', { countedOpen: true });
-    const { countedOpen: _counted, ...unmarked } = newTask(uid);
+    const unmarked = newTask(uid) as Record<string, unknown>;
+    delete unmarked['countedOpen'];
     await assertFails(setDoc(doc(firestore, `${MATTER}/tasks/unmarked`), unmarked));
     await attempt('tpl-key', { templateTaskKey: 'obtain_death_certificate' });
     await attempt('blank', { title: '   ' });
@@ -1181,7 +1182,8 @@ describe('tasks (CORE-08)', () => {
     await attempt('creator', { createdBy: 'someone-else' });
     await attempt('created-at', { createdAt: Timestamp.fromMillis(0) });
     await attempt('version', { schemaVersion: 2 });
-    const { status: _status, ...withoutStatus } = newTask(uid);
+    const withoutStatus = newTask(uid) as Record<string, unknown>;
+    delete withoutStatus['status'];
     await assertFails(setDoc(doc(firestore, `${MATTER}/tasks/no-status`), withoutStatus));
     // The minimum: no due date, assignee, description or group.
     const minimal = newTask(uid, 'matter-1', { order: 2 });
