@@ -39,6 +39,7 @@ locals {
     "roles/datastore.indexAdmin",
     "roles/firebaserules.admin",
     "roles/eventarc.developer",
+    "roles/cloudtasks.queueAdmin", # task queue functions: firebase-tools creates and updates their queues
     "roles/cloudscheduler.admin",
     "roles/secretmanager.viewer",
     "roles/serviceusage.serviceUsageConsumer",
@@ -61,6 +62,24 @@ locals {
     "roles/logging.logWriter",
     "roles/monitoring.metricWriter",
   ]
+}
+
+# firebase-tools sets the invoker policy on each function's Cloud Run service (public for blocking
+# functions, the runtime account for others). roles/run.developer can read that policy but not set it,
+# and roles/run.admin grants far more, so this custom role holds only the missing permission (ADR-023).
+resource "google_project_iam_custom_role" "deployer_run_invoker" {
+  project     = google_project.this.project_id
+  role_id     = "deployerRunInvoker"
+  title       = "Deployer: set Cloud Run invoker policy"
+  description = "Lets the deployer set the invoker IAM policy on Cloud Run services created for functions."
+  permissions = ["run.services.setIamPolicy"]
+  depends_on  = [time_sleep.services_ready]
+}
+
+resource "google_project_iam_member" "deployer_run_invoker" {
+  project = google_project.this.project_id
+  role    = google_project_iam_custom_role.deployer_run_invoker.id
+  member  = "serviceAccount:${google_service_account.deployer.email}"
 }
 
 resource "google_project_iam_member" "deployer" {
