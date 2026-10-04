@@ -371,6 +371,11 @@ service cloud.firestore {
       match /matterNumbers/{numberKey} {
         allow read, write: if false;
       }
+      // Conflict check runs (CORE-02): written only by conflicts-run and conflicts-onPartyAdded,
+      // read by whoever can run a check (paralegal and above; never readonly).
+      match /conflictChecks/{checkId} {
+        allow read: if can(orgId, 'conflict.run');
+      }
     }
 
     // ---------- collection groups ----------

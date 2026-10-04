@@ -927,6 +927,20 @@
       ]
     },
     {
+      "collectionGroup": "conflictChecks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "excludeMatterId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ranAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
