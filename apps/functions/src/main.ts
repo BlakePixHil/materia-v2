@@ -11,3 +11,4 @@ export * as system from './system/index';
 export * as audit from './audit/index';
 export * as auth from './auth/index';
 export * as flags from './flags/index';
+export * as clerk from './clerk/index';

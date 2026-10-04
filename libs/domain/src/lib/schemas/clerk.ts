@@ -43,7 +43,8 @@ const suggestionMeta = {
   citations: z.array(CitationSchema).default([]),
   status: SuggestionStatusSchema,
   promptId: NonEmptyString,
-  promptVersion: z.number().int().min(1),
+  /** The prompt's semantic version (`promptId@promptVersion` names the template, AI-02). */
+  promptVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
   model: NonEmptyString,
   confidence: z.number().min(0).max(1).optional(),
   basis: z.string().optional(),
@@ -105,16 +106,31 @@ export const ClerkMessage = withMeta(
     role: z.enum(['user', 'assistant']),
     content: z.array(ContentBlockSchema),
     citations: z.array(CitationSchema).default([]),
-    status: z.enum(['streaming', 'done', 'error', 'stopped']),
+    /**
+     * `refused` (shown honestly), `truncated` (hit max tokens; disclosed), `invalid_output` (a
+     * structured reply failed validation; never retried blindly), `error` keeps any partial text.
+     */
+    status: z.enum(['streaming', 'done', 'error', 'stopped', 'refused', 'truncated', 'invalid_output']),
     stopRequested: z.boolean().default(false),
-    usage: z.object({ inputTokens: z.number().int().min(0), outputTokens: z.number().int().min(0) }).optional(),
+    usage: z
+      .object({
+        inputTokens: z.number().int().min(0),
+        outputTokens: z.number().int().min(0),
+        cacheReadTokens: z.number().int().min(0).default(0),
+        cacheWriteTokens: z.number().int().min(0).default(0),
+      })
+      .optional(),
     toolCalls: z.array(z.object({ name: z.string(), status: z.enum(['running', 'done', 'error']) })).default([]),
+    /** `id@version` of the prompt template (AI-02). */
     promptId: z.string().optional(),
+    /** The model that produced the reply (a fallback model when `fallbackUsed`). */
+    model: z.string().optional(),
+    fallbackUsed: z.boolean().optional(),
   },
   {
     path: 'orgs/{orgId}/clerkThreads/{threadId}/messages',
     migratable: false,
-    serverOwned: ['status', 'usage', 'toolCalls', 'citations', 'promptId'],
+    serverOwned: ['status', 'usage', 'toolCalls', 'citations', 'promptId', 'model', 'fallbackUsed'],
     updatable: ['stopRequested'],
   },
 );

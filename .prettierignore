@@ -15,3 +15,5 @@ pnpm-lock.yaml
 # Written by release-please (release.yml): keep its formatting.
 /CHANGELOG.md
 /.release-please-manifest.json
+# Generated from libs/clerk/prompts by `materia-scripts clerk-prompts` (AI-02)
+/libs/clerk/src/lib/prompt-sources.generated.ts

@@ -38,7 +38,22 @@ export const Org = withMeta(
     retentionYears: z.number().int().min(1).default(7),
     plan: z.enum(['trial', 'standard', 'enterprise']),
     security: z.object({ mfaRequired: z.boolean(), sessionIdleMinutes: z.number().int().positive() }),
-    settings: z.object({ clerk: z.object({ enabled: z.boolean() }).optional() }).optional(),
+    settings: z
+      .object({
+        clerk: z
+          .object({
+            /** The org's own Clerk switch (AI-13 builds the toggle); `false` turns Clerk off for the org. */
+            enabled: z.boolean(),
+            /** Monthly token budget (all token kinds); the gateway default applies when unset. */
+            monthlyTokenBudget: z.number().int().positive().optional(),
+            /** Per-user request window; the gateway default (30 per 10 minutes) applies when unset. */
+            userRateLimit: z
+              .object({ requests: z.number().int().positive(), windowMinutes: z.number().int().positive() })
+              .optional(),
+          })
+          .optional(),
+      })
+      .optional(),
     /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */
     flags: z.record(z.string(), z.union([z.boolean(), z.string(), z.number()])).optional(),
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: z.string(), at: InstantSchema }).optional(),

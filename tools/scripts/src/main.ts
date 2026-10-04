@@ -1,6 +1,7 @@
 /** `materia-scripts <command> [options]`: dispatches to the ops scripts in this package. */
 const COMMANDS = {
   'clerk-bench': 'Clerk provider latency benchmark (AI-01)',
+  'clerk-prompts': 'Compile the Clerk prompt registry (libs/clerk/prompts) for Functions (AI-02)',
   env: 'Write apps/web environment files from Terraform outputs (FND-03)',
   'bundle-size': 'Check the apps/web gzip bundle budgets (FND-04)',
   'ci-summary': 'Render the coverage and bundle PR comment (FND-04)',
@@ -34,6 +35,7 @@ export async function run(argv: string[]): Promise<number> {
   try {
     const modules = {
       'clerk-bench': () => import('./clerk-bench.ts'),
+      'clerk-prompts': () => import('./clerk-prompts.ts'),
       env: () => import('./env.ts'),
       'bundle-size': () => import('./bundle-size.ts'),
       'ci-summary': () => import('./ci-summary.ts'),

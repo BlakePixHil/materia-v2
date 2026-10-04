@@ -29,6 +29,9 @@ importers:
       '@angular/router':
         specifier: ~22.2.1
         version: 22.2.1(@angular/common@22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(@angular/platform-browser@22.2.1(@angular/common@22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2)))(rxjs@7.8.2)
+      '@anthropic-ai/sdk':
+        specifier: ^0.131.0
+        version: 0.131.0(zod@4.6.5)
       '@floating-ui/dom':
         specifier: ^1.8.0
         version: 1.8.0
@@ -87,9 +90,6 @@ importers:
       '@anthropic-ai/bedrock-sdk':
         specifier: ^0.34.2
         version: 0.34.2(zod@4.6.5)
-      '@anthropic-ai/sdk':
-        specifier: ^0.131.0
-        version: 0.131.0(zod@4.6.5)
       '@anthropic-ai/vertex-sdk':
         specifier: ^0.20.2
         version: 0.20.2(zod@4.6.5)

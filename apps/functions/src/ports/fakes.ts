@@ -1,7 +1,6 @@
 import type {
   CalendarEvent,
   CalendarPort,
-  ClerkModelPort,
   Clock,
   EmbeddingPort,
   MailMessage,
@@ -12,6 +11,7 @@ import type {
   TranscriptionPort,
   XeroPort,
 } from './index';
+import { FakeClerkModel } from '../clerk/providers/fake';
 
 /** A clock tests can set and advance. */
 export class FakeClock implements Clock {
@@ -35,11 +35,8 @@ export class FakeMail implements MailPort {
   }
 }
 
-export const fakeClerkModel: ClerkModelPort = {
-  async complete(request) {
-    return { text: `fake reply to ${request.messages.length} message(s)`, inputTokens: 10, outputTokens: 5 };
-  },
-};
+/** The default fake model: a plain reply, or a sample object for structured output (AI-02). */
+export const fakeClerkModel = new FakeClerkModel();
 
 /** Deterministic 768-d vectors, so similarity tests are stable. */
 export const fakeEmbedding: EmbeddingPort = {

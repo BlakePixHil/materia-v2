@@ -102,10 +102,13 @@ export const DocTemplate = withMeta(
   { path: `${ORG}/docTemplates`, softDelete: true },
 );
 
-/** `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY`. */
+/**
+ * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY`, or
+ * `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per feature and per user).
+ */
 export const Metrics = withMeta(
   {
-    period: z.string().regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4})$/),
+    period: z.string().regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4}|clerk-\d{4}-\d{2})$/),
     values: z.record(z.string(), z.number()),
   },
   { path: `${ORG}/metrics`, migratable: false },

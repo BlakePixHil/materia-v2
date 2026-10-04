@@ -22,6 +22,11 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   FEATURE_DISABLED: 'This feature isn’t turned on for your practice yet.',
   RATE_LIMITED: 'Too many requests. Wait a minute and try again.',
   UNAVAILABLE: 'This service is temporarily unavailable. Try again shortly.',
+  CLERK_DISABLED: 'Clerk isn’t turned on for your practice.',
+  CLERK_RATE_LIMITED: 'You’ve asked Clerk a lot in the last few minutes. Wait a little and try again.',
+  CLERK_BUDGET_EXCEEDED: 'Your practice has used this month’s Clerk allowance. An admin can raise it in settings.',
+  CLERK_BUSY: 'Clerk is busy. Try again in a moment.',
+  CLERK_UNAVAILABLE: 'Clerk is unavailable right now. You can carry on without it.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 

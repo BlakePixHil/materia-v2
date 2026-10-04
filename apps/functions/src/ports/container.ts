@@ -2,7 +2,9 @@ import { DomainError } from '@materia/domain';
 
 import { fakePorts } from './fakes';
 import type { Ports } from './index';
+import { anthropicModel } from '../clerk/providers/anthropic';
 import { useFakes } from '../core/env';
+import { ANTHROPIC_API_KEY } from '../core/secrets';
 
 export const systemClock = { now: () => new Date() };
 
@@ -21,7 +23,8 @@ function realPorts(): Ports {
   return {
     clock: systemClock,
     mail: notConfigured('MailPort'), // FND-20 (Postmark)
-    clerkModel: notConfigured('ClerkModelPort'), // AI-02 (Anthropic API)
+    // AI-02 (ADR-011a). The key is read on first use, so only functions that declare the secret can call it.
+    clerkModel: anthropicModel({ apiKey: () => ANTHROPIC_API_KEY.value() }),
     embedding: notConfigured('EmbeddingPort'), // AI-03
     calendar: notConfigured('CalendarPort'), // INT-01
     xero: notConfigured('XeroPort'), // BILL-08
