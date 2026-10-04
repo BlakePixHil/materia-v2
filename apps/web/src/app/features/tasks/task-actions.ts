@@ -14,6 +14,7 @@ import {
   asksToCompleteDeadline,
   openChecklistItems,
   planMove,
+  TASK_BULK_MAX,
   toggledStatus,
   type BulkTaskChange,
   type ChecklistItem,
@@ -278,12 +279,20 @@ export class TaskActions {
     if (usesBulkCallable(entries.length)) {
       this.busy.set(true);
       try {
-        const result = await this.callables.bulkUpdate({ tasks: entries.map((e) => e.ref), change });
-        const skipped = result.skipped.filter((s) => s.reason !== 'unchanged').length;
+        let skipped = 0;
+        // One call per TASK_BULK_MAX tasks (the callable's limit).
+        for (let at = 0; at < entries.length; at += TASK_BULK_MAX) {
+          const tasks = entries.slice(at, at + TASK_BULK_MAX).map((e) => e.ref);
+          const result = await this.callables.bulkUpdate({ tasks, change });
+          skipped += result.skipped.filter((s) => s.reason !== 'unchanged').length;
+        }
         if (skipped) {
           this.toasts.show({
-            title: `${plural(skipped, 'task')} weren’t changed`,
-            description: 'They were deleted, or are on a matter you can’t change.',
+            title: `${plural(skipped, 'task')} ${skipped === 1 ? 'wasn’t' : 'weren’t'} changed`,
+            description:
+              skipped === 1
+                ? 'It was deleted, or is on a matter you can’t change.'
+                : 'They were deleted, or are on a matter you can’t change.',
             tone: 'neutral',
           });
         }

@@ -29,7 +29,8 @@ const FOLLOW_MS = 1500;
 
 /**
  * A list of tasks in sections (CORE-08), for the matter's Tasks tab and My tasks. Keyboard, with
- * focus on a task's title: ↓/↑ or j/k move between tasks, `x` selects, Space completes or reopens,
+ * focus on a task's title: ↓/↑ or j/k move between tasks, `x` selects (Ctrl/⌘+A selects them all),
+ * Space completes or reopens,
  * Enter edits the title, Alt+↑/↓ moves the task within its section (announced politely), Escape
  * clears the selection. With `reorderable`, tasks drag by their handle within and between sections.
  * Writes go through the page's `TaskActions`.
@@ -267,6 +268,7 @@ export class TaskList {
       // Listed in the cheat sheet; the focused task handles them.
       ...[
         ['x', 'Select the focused task'],
+        ['mod+a', 'Select every listed task'],
         ['space', 'Complete or reopen the focused task'],
         ['alt+up', 'Move the focused task up'],
         ['alt+down', 'Move the focused task down'],
@@ -293,6 +295,14 @@ export class TaskList {
     this.selection.set(
       current.includes(entry.key) ? current.filter((key) => key !== entry.key) : [...current, entry.key],
     );
+  }
+
+  /** Ctrl/⌘+A on a task: every listed task is selected (again: none). */
+  private selectAll(): void {
+    const keys = this.flat().map((entry) => entry.key);
+    const all = keys.length > 0 && keys.every((key) => this.selected().has(key));
+    this.selection.set(all ? [] : keys);
+    this.say(all ? 'Selection cleared.' : `${keys.length === 1 ? '1 task' : `${keys.length} tasks`} selected.`);
   }
 
   protected expand(entry: TaskEntry): void {
@@ -325,6 +335,11 @@ export class TaskList {
     if (event.altKey && !event.ctrlKey && !event.metaKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
       event.preventDefault();
       this.moveBy(section, entry, index, key === 'ArrowUp' ? -1 : 1);
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && key.toLowerCase() === 'a') {
+      event.preventDefault();
+      this.selectAll();
       return;
     }
     if (event.altKey || event.ctrlKey || event.metaKey) return;

@@ -205,6 +205,61 @@ describe('matter tasks tab', () => {
     expect(page.body.querySelector('mt-tasks-bulk-bar')).toBeNull();
   });
 
+  it('changes more than 50 tasks through tasks-bulkUpdate, and says which were skipped', async () => {
+    const page = await openMatter(URL, {
+      configure: (fs) => {
+        for (let i = 1; i <= 55; i++) {
+          fs.set(`${MATTER}/tasks/t-bulk-${i}`, taskDoc(`Fictional task ${i}`, { order: 2048 + i }));
+        }
+      },
+      callables: {
+        'tasks-bulkUpdate': (data) => ({
+          updated: (data['tasks'] as unknown[]).length - 1,
+          skipped: [{ matterId: 'm-whitfield', taskId: 't-bulk-1', reason: 'deleted' }],
+        }),
+      },
+    });
+    const first = title(page, 'Order the death certificate');
+    first.focus();
+    await page.press('a', { ctrlKey: true }, first);
+    const bar = page.body.querySelector<HTMLElement>('mt-tasks-bulk-bar');
+    expect(page.text(bar)).toContain('56 selected');
+    await page.click('Priority', bar as HTMLElement);
+    await page.click('Urgent');
+    await page.stable(20);
+    const calls = page.calls('tasks-bulkUpdate');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ change: { op: 'priority', priority: 'urgent' }, requestId: expect.any(String) });
+    expect(calls[0]?.['tasks']).toHaveLength(56);
+    expect(calls[0]?.['tasks']).toContainEqual({ matterId: 'm-whitfield', taskId: 't-cert' });
+    const toasts = page.text(page.body.querySelector('.mt-toaster'));
+    expect(toasts).toContain('1 task wasn’t changed');
+    expect(toasts).toContain('It was deleted, or is on a matter you can’t change.');
+    expect(toasts).toContain('56 tasks set to urgent');
+    // Nothing was written directly.
+    expect(page.firestore.writes.filter((w) => w.op === 'update')).toEqual([]);
+  });
+
+  it('shows the callable’s error when a bulk change fails', async () => {
+    const page = await openMatter(URL, {
+      configure: (fs) => {
+        for (let i = 1; i <= 51; i++) fs.set(`${MATTER}/tasks/t-bulk-${i}`, taskDoc(`Fictional task ${i}`));
+      },
+      callables: {
+        'tasks-bulkUpdate': () => {
+          throw { code: 'functions/permission-denied', details: { code: 'PERMISSION_DENIED' } };
+        },
+      },
+    });
+    const first = title(page, 'Order the death certificate');
+    first.focus();
+    await page.press('a', { metaKey: true }, first);
+    await page.click('Priority', page.body.querySelector('mt-tasks-bulk-bar') as HTMLElement);
+    await page.click('Low');
+    await page.stable(20);
+    expect(page.text(page.body.querySelector('.mt-toaster'))).toContain('Those tasks didn’t change');
+  });
+
   it('edits the title inline and ticks checklist items in the details', async () => {
     const page = await openMatter(URL);
     await page.click('Edit title: Order the death certificate');
