@@ -30,7 +30,7 @@ export default [
   {
     // Button and IconButton use attribute selectors on native hosts (button[mtButton], FND-08), so
     // the native <button>/<a> keeps its semantics.
-    files: ['src/lib/button/button.ts', 'src/lib/icon-button/icon-button.ts'],
+    files: ['**/lib/button/button.ts', '**/lib/icon-button/icon-button.ts'],
     rules: { '@angular-eslint/component-selector': 'off' },
   },
   {
