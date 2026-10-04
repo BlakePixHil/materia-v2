@@ -51,7 +51,8 @@ locals {
     "roles/cloudtasks.enqueuer",
     "roles/logging.logWriter",
     "roles/monitoring.metricWriter",
-    "roles/aiplatform.user", # embeddings (ADR-012)
+    "roles/aiplatform.user",        # embeddings (ADR-012)
+    "roles/eventarc.eventReceiver", # trigger service account for Firestore and Auth event functions
   ]
 
   jobs_runtime_roles = [
