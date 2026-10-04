@@ -12,3 +12,4 @@ export * as orgs from './orgs/index';
 export * as contacts from './contacts/index';
 export * as matters from './matters/index';
 export * as conflicts from './conflicts/index';
+export * as templates from './templates/index';

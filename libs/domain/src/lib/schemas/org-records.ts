@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, MetaShape, NonEmptyString, withMeta } from './common';
 import { InvoiceStatusSchema, JurisdictionSchema, MatterTypeSchema } from './enums';
+import { TemplateBasedOnSchema, templateContentShape } from '../templates';
 
 const ORG = 'orgs/{orgId}';
 
@@ -79,25 +80,43 @@ export const CreditNote = withMeta(
   { path: `${ORG}/creditNotes`, serverOwned: ['number', 'totalCents'], updatable: [] },
 );
 
-/** `templates/{id}`: matter templates (CORE-07). Published versions are immutable. */
+/**
+ * `templates/{id}`: an org's matter template (CORE-07): the editable draft, plus where it stands.
+ * `version` is the latest published version (0 until the first publish) and `published` says
+ * whether there is one. Written by the `templates-*` callables only (`templates-clone`, `-save`,
+ * `-publish`); system templates ship with the code (`libs/domain/templates/system`).
+ */
 export const MatterTemplate = withMeta(
   {
-    name: NonEmptyString,
-    matterType: MatterTypeSchema,
-    version: z.number().int().min(1),
-    stages: z.array(z.object({ id: NonEmptyString, title: NonEmptyString })),
-    tasks: z.array(
-      z.object({
-        title: NonEmptyString,
-        stageId: NonEmptyString,
-        offsetFromEvent: z.object({ event: z.string(), days: z.number().int() }).optional(),
-      }),
-    ),
-    deadlineRuleIds: z.array(z.string()).default([]),
-    published: z.boolean(),
+    ...templateContentShape,
+    version: z.number().int().min(0),
     source: z.enum(['system', 'org']),
+    basedOn: TemplateBasedOnSchema.optional(),
+    published: z.boolean(),
+    publishedAt: InstantSchema.optional(),
+    publishedBy: DocIdSchema.optional(),
   },
-  { path: `${ORG}/templates` },
+  { path: `${ORG}/templates`, updatable: [] },
+);
+
+/**
+ * `templates/{templateId}/versions/{version}`: a published version, immutable (CORE-07). Matters
+ * point at one (`templateId` + `templateVersion`), so their stages and tasks never change under
+ * them. `stageMapping` maps the stages this version dropped to stages it has (for upgrades).
+ */
+export const MatterTemplateVersion = withMeta(
+  {
+    ...templateContentShape,
+    templateId: DocIdSchema,
+    version: z.number().int().min(1),
+    source: z.enum(['system', 'org']),
+    basedOn: TemplateBasedOnSchema.optional(),
+    published: z.literal(true),
+    publishedAt: InstantSchema,
+    publishedBy: DocIdSchema,
+    stageMapping: z.record(z.string(), z.string()).optional(),
+  },
+  { path: `${ORG}/templates/{templateId}/versions`, migratable: false, updatable: [] },
 );
 
 /** `docTemplates/{id}`: docx templates with merge fields (INT-06). */
@@ -319,6 +338,7 @@ export const Calendar = withMeta(
 export type Invoice = z.infer<typeof Invoice.schema>;
 export type CreditNote = z.infer<typeof CreditNote.schema>;
 export type MatterTemplate = z.infer<typeof MatterTemplate.schema>;
+export type MatterTemplateVersion = z.infer<typeof MatterTemplateVersion.schema>;
 export type DocTemplate = z.infer<typeof DocTemplate.schema>;
 export type Metrics = z.infer<typeof Metrics.schema>;
 export type AuditEntry = z.infer<typeof AuditEntry.schema>;

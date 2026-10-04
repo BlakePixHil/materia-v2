@@ -295,6 +295,9 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         }
         <mt-menu-separator />
         <a mtMenuItem icon="user-plus" routerLink="/settings/team">Team</a>
+        @if (showTemplates()) {
+          <a mtMenuItem icon="list" routerLink="/settings/templates">Matter templates</a>
+        }
         <a mtMenuItem icon="plus" routerLink="/onboarding">Create a practice</a>
       </mt-menu>
     </ng-template>
@@ -327,6 +330,11 @@ export class AppShellComponent {
   protected readonly settings = SETTINGS_ITEM;
   protected readonly tabBarItems = TAB_BAR_ITEMS;
   private readonly flags = inject(FeatureFlagService);
+  /** Settings → Templates (CORE-07): owners and admins, while matter templates are on. */
+  protected readonly showTemplates = computed(() => {
+    const role = this.orgs.role();
+    return this.flags.isOn('templates.system') && (role === 'owner' || role === 'admin');
+  });
   /** Nav items whose flag (if any) is on. */
   private readonly visibleNav = computed(() => NAV_ITEMS.filter((item) => this.isVisible(item)));
   protected readonly primaryNav = computed(() => this.visibleNav().filter((i) => !i.section));

@@ -11,6 +11,7 @@ import {
   partyDocId,
   unmetStageRequirements,
   type DateOnly,
+  type FlagValue,
   type PartyRole,
 } from '@materia/domain';
 import { MT_KEYBOARD_PLATFORM, MT_TODAY } from '@materia/ui';
@@ -34,8 +35,11 @@ export const MATTER = `orgs/${ORG}/matters/m-whitfield`;
 export const TODAY = '2026-10-04' as DateOnly;
 export const ME = 'user-jordan';
 export const PRIYA = 'user-priya';
-const claims = (role: 'paralegal' | 'readonly') => ({ claims: { orgId: ORG, role, orgName: 'Harbour & Vine Legal' } });
+const claims = (role: 'admin' | 'paralegal' | 'readonly') => ({
+  claims: { orgId: ORG, role, orgName: 'Harbour & Vine Legal' },
+});
 export const LAWYER = testSession();
+export const ADMIN = testSession({ uid: PRIYA, email: 'owner@harbourvine.example', ...claims('admin') });
 export const PARALEGAL = testSession(claims('paralegal'));
 export const READONLY = testSession(claims('readonly'));
 
@@ -212,7 +216,12 @@ export interface OpenOptions {
   configure?: (fs: InMemoryFirestore, port: FakeAuthPort) => void;
   /** Callables to replace (by name). */
   callables?: Record<string, FakeCallable>;
+  /** Feature flags as Remote Config values (`{ 'templates.system': true }`). */
+  flags?: Record<string, FlagValue>;
 }
+
+/** Matter templates on (CORE-07). */
+export const TEMPLATES_ON = { 'templates.system': true };
 
 /** Renders the app at `url` with the fictional practice seeded. */
 export async function openMatter(url = '/matters/m-whitfield/overview', options: OpenOptions = {}) {
@@ -237,7 +246,7 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
       { provide: AUTH_PORT, useValue: port },
       { provide: TENANCY_PORT, useValue: new FakeTenancyPort() },
       provideInMemoryFirestore(firestore),
-      ...provideTestFlags(),
+      ...provideTestFlags(options.flags),
     ],
   });
   const fixture = TestBed.createComponent(App);

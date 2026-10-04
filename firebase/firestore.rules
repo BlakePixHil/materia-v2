@@ -327,9 +327,13 @@ service cloud.firestore {
         allow read: if can(orgId, 'billing.view');
       }
 
+      // Matter templates (CORE-07): every member reads drafts and published versions (the stepper
+      // reads a matter's version); writes go through the templates-* callables only.
       match /templates/{templateId} {
         allow read: if inOrg(orgId);
-        allow update: if can(orgId, 'org.settings') && clientUpdate(fieldsMatterTemplate());
+        match /versions/{version} {
+          allow read: if inOrg(orgId);
+        }
       }
       match /docTemplates/{templateId} {
         allow read: if inOrg(orgId);
@@ -468,7 +472,8 @@ service cloud.firestore {
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted']; }
     function fieldsMatterEvent() { return ['kind', 'date', 'time', 'label', 'meta', 'sourceDocumentId']; }
     function fieldsMatterNumber() { return []; }
-    function fieldsMatterTemplate() { return ['name', 'matterType', 'version', 'stages', 'tasks', 'deadlineRuleIds', 'published', 'source']; }
+    function fieldsMatterTemplate() { return []; }
+    function fieldsMatterTemplateVersion() { return []; }
     function fieldsMember() { return ['displayName', 'initials', 'title', 'admissionNo', 'defaultRateCents', 'rates', 'colour', 'budgets', 'supervisorUid']; }
     function fieldsMetrics() { return ['period', 'values']; }
     function fieldsMigrationRun() { return []; }

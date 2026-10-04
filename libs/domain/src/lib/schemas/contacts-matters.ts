@@ -83,6 +83,8 @@ export const Matter = withMeta(
     type: MatterTypeSchema,
     status: MatterStatusSchema,
     stageId: z.string().optional(),
+    /** The day (org time zone) the matter entered `stageId`; template task due dates count from it (CORE-07). */
+    stageEnteredOn: DateOnlySchema.optional(),
     templateId: DocIdSchema.optional(),
     templateVersion: z.number().int().optional(),
     jurisdiction: JurisdictionSchema,
@@ -188,6 +190,7 @@ export const Matter = withMeta(
       'closedAt',
       'legalHold',
       'conflictAlert',
+      'stageEnteredOn',
     ],
   },
 );

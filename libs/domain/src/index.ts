@@ -24,3 +24,5 @@ export * from './lib/contacts';
 export * from './lib/matters';
 export * from './lib/conflicts';
 export * from './lib/matter-detail';
+export * from './lib/templates';
+export * from './lib/system-templates';

@@ -1,12 +1,14 @@
 import type { MatterDeadline, MatterDetail, MatterParty, MatterTask, WithId } from '@materia/data-access/repository';
 import {
   DomainError,
+  EventKindSchema,
   KEY_FACTS,
   MATTER_STATUS_LABELS,
   MATTER_TRANSITIONS,
   PARTY_ROLE_ORDER,
   transitionRequirements,
   type DateOnly,
+  type EventKind,
   type KeyFactId,
   type KeyFactKind,
   type MatterStatus,
@@ -26,7 +28,13 @@ export type MatterRecord = WithId<MatterDetail>;
  */
 export function matterErrorCopy(error: unknown): string {
   const details = error instanceof DomainError ? error.details : undefined;
-  if (details?.['reason'] === 'matter_closed') return 'Reopen the matter before changing its stage.';
+  const reason = details?.['reason'];
+  if (reason === 'matter_closed') return 'Reopen the matter before changing its stage.';
+  if (reason === 'stage_back_requires_lawyer') return 'Only a lawyer can move a matter back a stage.';
+  if (reason === 'no_template') return 'This matter isn’t on a template, so there’s nothing to upgrade.';
+  if (reason === 'stage_unmapped') {
+    return 'The matter’s stage isn’t in that version. Ask an admin to map the stage when publishing.';
+  }
   const fields = details?.['fields'];
   if (error instanceof DomainError && error.code === 'INVALID_ARGUMENT' && fields && typeof fields === 'object') {
     const messages = Object.values(fields as Record<string, unknown>).flatMap((value) =>
@@ -92,13 +100,52 @@ export function keyFactLabel(id: KeyFactId): string {
   return KEY_FACTS.find((fact) => fact.id === id)?.label ?? id;
 }
 
-/** The key facts a refused stage move names (`MATTER_STAGE_REQUIREMENTS`, `details.requirements`). */
-export function stageRequirementsOf(error: unknown): KeyFactId[] | null {
+/** Matter event kinds in words ("Grant issued"), for requirement notes and template due dates. */
+export const EVENT_KIND_LABELS: Readonly<Record<EventKind, string>> = {
+  date_of_death: 'Date of death',
+  will_located: 'Will located',
+  notice_published: 'Notice of intended application published',
+  probate_filed: 'Probate application filed',
+  grant_issued: 'Grant issued',
+  statutory_notice_published: 'Statutory notice to claimants published',
+  caveat_lodged: 'Caveat lodged',
+  grant_served: 'Grant served',
+  fp_claim_filed: 'Family provision claim filed',
+  hearing: 'Hearing',
+  order_made: 'Order made',
+  offer_made: 'Offer made',
+  custom: 'Custom event',
+};
+
+export function eventKindLabel(kind: EventKind): string {
+  return EVENT_KIND_LABELS[kind] ?? kind;
+}
+
+/** What a refused stage move is missing: key facts, matter events and template task keys. */
+export interface StageRequirements {
+  facts: KeyFactId[];
+  events: EventKind[];
+  tasks: string[];
+}
+
+/**
+ * What a refused stage move names (`MATTER_STAGE_REQUIREMENTS`): `details.requirements` (key
+ * facts), and with templates on (CORE-07) `details.events` and `details.tasks`. Null for other errors.
+ */
+export function stageRequirementsOf(error: unknown): StageRequirements | null {
   const domain = error instanceof DomainError ? error : null;
   if (domain?.code !== 'MATTER_STAGE_REQUIREMENTS') return null;
-  const requirements = domain.details?.['requirements'];
-  const known = new Set<string>(KEY_FACTS.map((fact) => fact.id));
-  return Array.isArray(requirements) ? requirements.filter((id): id is KeyFactId => known.has(String(id))) : [];
+  const list = (key: string) => {
+    const value = domain.details?.[key];
+    return Array.isArray(value) ? value.map(String) : [];
+  };
+  const facts = new Set<string>(KEY_FACTS.map((fact) => fact.id));
+  const events = new Set<string>(EventKindSchema.options);
+  return {
+    facts: list('requirements').filter((id): id is KeyFactId => facts.has(id)),
+    events: list('events').filter((kind): kind is EventKind => events.has(kind)),
+    tasks: list('tasks'),
+  };
 }
 
 /** "Updated by Priya Shah just now": someone else changed the matter in the last two minutes. */
@@ -164,6 +211,11 @@ export function effectiveDue(deadline: MatterDeadline): DateOnly {
 /** The next `count` open deadlines, soonest (or most overdue) first. */
 export function nextDeadlines(rows: readonly WithId<MatterDeadline>[], count = 5): WithId<MatterDeadline>[] {
   return [...rows].sort((a, b) => effectiveDue(a).localeCompare(effectiveDue(b))).slice(0, count);
+}
+
+/** "Due date pending: Grant issued unknown" for a template task waiting on its anchor event (CORE-07). */
+export function duePendingText(task: Pick<MatterTask, 'dueDate' | 'duePending'>): string | null {
+  return !task.dueDate && task.duePending ? `Due date pending: ${eventKindLabel(task.duePending)} unknown` : null;
 }
 
 /** Open tasks: dated ones first by due date, then the rest in their list order. */

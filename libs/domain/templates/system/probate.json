@@ -1,0 +1,380 @@
+{
+  "id": "system-probate",
+  "source": "system",
+  "version": 1,
+  "published": true,
+  "publishedAt": "2026-10-04",
+  "matterType": "probate",
+  "name": "Probate (VIC)",
+  "stages": [
+    {
+      "id": "instructions",
+      "name": "Instructions",
+      "order": 10,
+      "criteria": "Executor’s instructions taken and costs disclosure sent"
+    },
+    {
+      "id": "documents",
+      "name": "Will & death certificate obtained",
+      "order": 20,
+      "criteria": "Original will and death certificate on file",
+      "entryRequires": {
+        "facts": ["dateOfDeath"],
+        "tasksDone": ["obtain_death_certificate", "retrieve_original_will"]
+      }
+    },
+    {
+      "id": "advertisement",
+      "name": "Advertisement of intention to apply published",
+      "order": 30,
+      "criteria": "Notice of intention to apply published on the Supreme Court website",
+      "entryRequires": {
+        "tasksDone": ["publish_advertisement"]
+      }
+    },
+    {
+      "id": "application_filed",
+      "name": "Application filed (RedCrest)",
+      "order": 40,
+      "criteria": "Application for probate filed through RedCrest",
+      "entryRequires": {
+        "events": ["notice_published"],
+        "tasksDone": ["file_application"]
+      }
+    },
+    {
+      "id": "grant_issued",
+      "name": "Grant issued",
+      "order": 50,
+      "criteria": "Grant of probate received from the Probate Office",
+      "entryRequires": {
+        "facts": ["grantDate"]
+      }
+    },
+    {
+      "id": "statutory_notice",
+      "name": "Statutory (s 33) notice published",
+      "order": 60,
+      "criteria": "Notice to creditors and claimants under s 33 of the Trustee Act 1958 published",
+      "entryRequires": {
+        "events": ["statutory_notice_published"]
+      }
+    },
+    {
+      "id": "assets_collected",
+      "name": "Assets collected",
+      "order": 70,
+      "criteria": "Estate assets realised or transferred to the executor",
+      "entryRequires": {
+        "tasksDone": ["collect_bank_accounts", "deal_with_real_estate"]
+      }
+    },
+    {
+      "id": "liabilities_paid",
+      "name": "Liabilities paid",
+      "order": 80,
+      "criteria": "Debts, funeral account and testamentary expenses paid",
+      "entryRequires": {
+        "tasksDone": ["pay_debts"]
+      }
+    },
+    {
+      "id": "fp_window_closed",
+      "name": "Family provision window closed",
+      "order": 90,
+      "criteria": "Six months since the grant with no family provision claim served",
+      "entryRequires": {
+        "tasksDone": ["confirm_no_fp_claim"]
+      }
+    },
+    {
+      "id": "distribution",
+      "name": "Distribution",
+      "order": 100,
+      "criteria": "Estate accounts approved by the beneficiaries",
+      "entryRequires": {
+        "tasksDone": ["prepare_estate_accounts"]
+      }
+    },
+    {
+      "id": "closed",
+      "name": "Closed",
+      "order": 110,
+      "criteria": "Distributions paid, receipts held and the file closed",
+      "entryRequires": {
+        "tasksDone": ["make_distributions"]
+      },
+      "terminal": true
+    }
+  ],
+  "tasks": [
+    {
+      "key": "take_instructions",
+      "title": "Take the executor’s instructions",
+      "stageId": "instructions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 2
+      },
+      "priority": "high",
+      "checklist": [
+        "Copy of the will",
+        "Executor’s identification",
+        "Family tree and beneficiaries",
+        "Known assets and debts"
+      ]
+    },
+    {
+      "key": "send_costs_disclosure",
+      "title": "Send the costs disclosure and engagement letter",
+      "stageId": "instructions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 5
+      },
+      "priority": "high",
+      "checklist": [
+        "Estimate of total legal costs",
+        "Rights to negotiate and to receive itemised bills",
+        "Client signed and returned the agreement"
+      ]
+    },
+    {
+      "key": "obtain_death_certificate",
+      "title": "Obtain the death certificate",
+      "stageId": "instructions",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "retrieve_original_will",
+      "title": "Retrieve the original will from safe custody",
+      "stageId": "instructions",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 7
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "notify_centrelink",
+      "title": "Notify Centrelink and stop pensions or benefits",
+      "stageId": "instructions",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromEvent": "date_of_death",
+        "offsetDays": 28
+      },
+      "priority": "low"
+    },
+    {
+      "key": "prepare_inventory",
+      "title": "Prepare the inventory of assets and liabilities",
+      "stageId": "documents",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "publish_advertisement",
+      "title": "Publish the notice of intention to apply for probate",
+      "stageId": "documents",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 7
+      },
+      "priority": "high"
+    },
+    {
+      "key": "prepare_affidavit",
+      "title": "Prepare the executor’s affidavit and exhibits",
+      "stageId": "advertisement",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 10
+      },
+      "priority": "high"
+    },
+    {
+      "key": "file_application",
+      "title": "File the application for probate through RedCrest",
+      "stageId": "advertisement",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 15
+      },
+      "priority": "high",
+      "checklist": ["Affidavit sworn", "Inventory filed", "Will exhibited", "Filing fee paid"]
+    },
+    {
+      "key": "respond_to_requisitions",
+      "title": "Respond to any Probate Office requisitions",
+      "stageId": "application_filed",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "order_grant_copies",
+      "title": "Order sealed copies of the grant",
+      "stageId": "grant_issued",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 3
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "publish_s33_notice",
+      "title": "Publish the s 33 notice to creditors and claimants",
+      "stageId": "grant_issued",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 7
+      },
+      "priority": "high"
+    },
+    {
+      "key": "send_grant_to_asset_holders",
+      "title": "Send the grant to banks, share registries and super funds",
+      "stageId": "grant_issued",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "collect_bank_accounts",
+      "title": "Close bank accounts and collect the proceeds",
+      "stageId": "statutory_notice",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 30
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "deal_with_real_estate",
+      "title": "Transfer or sell real estate as the will directs",
+      "stageId": "statutory_notice",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 60
+      },
+      "priority": "medium",
+      "checklist": ["Title search", "Instructions from the executor", "Transmission application or contract of sale"]
+    },
+    {
+      "key": "collect_shares_and_super",
+      "title": "Collect or transfer shares and superannuation benefits",
+      "stageId": "statutory_notice",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 60
+      },
+      "priority": "low"
+    },
+    {
+      "key": "engage_tax_accountant",
+      "title": "Engage an accountant for the date-of-death tax return",
+      "stageId": "statutory_notice",
+      "assignTo": "responsible",
+      "due": {
+        "fromEvent": "date_of_death",
+        "offsetDays": 90
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "pay_funeral_account",
+      "title": "Pay the funeral account",
+      "stageId": "assets_collected",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "pay_debts",
+      "title": "Pay debts and testamentary expenses",
+      "stageId": "assets_collected",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 30
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "confirm_no_fp_claim",
+      "title": "Confirm no family provision claim has been served",
+      "stageId": "liabilities_paid",
+      "assignTo": "responsible",
+      "due": {
+        "fromEvent": "grant_issued",
+        "offsetDays": 184
+      },
+      "priority": "high"
+    },
+    {
+      "key": "prepare_estate_accounts",
+      "title": "Prepare estate accounts and the distribution statement",
+      "stageId": "fp_window_closed",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "obtain_releases",
+      "title": "Obtain beneficiaries’ approval of the accounts and releases",
+      "stageId": "fp_window_closed",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 35
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "make_distributions",
+      "title": "Pay the distributions and collect receipts",
+      "stageId": "distribution",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "high"
+    },
+    {
+      "key": "close_file",
+      "title": "Report to the executor, return original documents and close the file",
+      "stageId": "closed",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "low"
+    }
+  ],
+  "deadlineRuleIds": [
+    "vic.probate.advert_min",
+    "vic.probate.prompt_filing",
+    "vic.caveat.expiry",
+    "vic.fp.limitation",
+    "vic.distribution.s99a",
+    "vic.distribution.s33_notice",
+    "vic.distribution.earliest",
+    "au.cgt.main_residence",
+    "au.tax.final_return",
+    "org.executor_year"
+  ]
+}

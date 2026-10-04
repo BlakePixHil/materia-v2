@@ -46,4 +46,24 @@ describe('EstateStepper', () => {
     await userEvent.hover(button);
     expect(await screen.findByText('Grant received from the court', {}, { timeout: 2000 })).toBeInTheDocument();
   });
+
+  it('keeps a locked stage focusable but unchoosable, and says why', async () => {
+    const select = vi.fn();
+    const stages = [
+      { id: 'intake', title: 'Intake', description: 'Client recorded', locked: 'Only a lawyer can move a matter back' },
+      { id: 'grant', title: 'Grant issued' },
+    ];
+    await render(MtEstateStepper, {
+      inputs: { stages, current: 'grant', interactive: true },
+      on: { stageSelect: select },
+    });
+    const button = screen.getByRole('button', { name: 'Intake, complete' });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(button);
+    expect(select).not.toHaveBeenCalled();
+    await userEvent.hover(button);
+    expect(
+      await screen.findByText('Client recorded. Only a lawyer can move a matter back', {}, { timeout: 2000 }),
+    ).toBeInTheDocument();
+  });
 });

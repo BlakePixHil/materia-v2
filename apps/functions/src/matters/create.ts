@@ -16,10 +16,14 @@ import {
   matterNumberYear,
   Party,
   PERMISSIONS,
+  systemTemplate,
+  systemTemplateId,
+  today,
   type CreateMatterResult,
   type FieldErrors,
   type PartyRole,
   type Role,
+  type Template,
 } from '@materia/domain';
 
 import { contactNames, counterPath, liveContactIds, matterNumberPath, mattersPath, matterSearch } from './shared';
@@ -28,6 +32,8 @@ import { conflictChecksPath } from '../conflicts/shared';
 import { compact } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
+import { isEnabled } from '../core/flags';
+import { firstActiveParalegal, planTemplateTasks, readTemplate, readWith, templatesPath } from '../templates/shared';
 
 type MatterInput = z.output<typeof CreateMatterInput>['matter'];
 
@@ -83,6 +89,33 @@ async function checkReferences(db: Firestore, orgId: string, role: Role, matter:
   if (matter.privileged && !can(role, 'privileged.view')) {
     throw new DomainError('PERMISSION_DENIED', 'Your role cannot create privileged matters');
   }
+}
+
+/**
+ * The template a new matter gets with `templates.system` on (CORE-07): the one the input names
+ * (`templateId`, at `templateVersion` or its latest published version; INVALID_ARGUMENT on
+ * `matter.templateId` when unknown or for another type), else the org's most recently published
+ * template of the type, else the type's system template.
+ */
+export async function templateForNewMatter(db: Firestore, orgId: string, matter: MatterInput): Promise<Template> {
+  if (matter.templateId) {
+    const named = await readTemplate(db, readWith(), orgId, matter.templateId, matter.templateVersion);
+    if (!named || named.matterType !== matter.type) {
+      throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', {
+        fields: { 'matter.templateId': ['Choose a published template for this matter type'] },
+      });
+    }
+    return named;
+  }
+  const org = await db.collection(templatesPath(orgId)).where('matterType', '==', matter.type).get();
+  const millis = (value: unknown) => (value as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+  const latest = org.docs
+    .filter((doc) => doc.get('source') === 'org' && doc.get('published') === true && Number(doc.get('version')) >= 1)
+    .sort((a, b) => millis(b.get('publishedAt')) - millis(a.get('publishedAt')) || a.id.localeCompare(b.id))[0];
+  const override = latest
+    ? await readTemplate(db, readWith(), orgId, latest.id, Number(latest.get('version')))
+    : undefined;
+  return override ?? (systemTemplate(systemTemplateId(matter.type)) as Template);
 }
 
 type ConflictCheckInput = MatterInput['conflictCheck'];
@@ -142,7 +175,10 @@ export async function intakeConflictCheck(
  * reserved in `matterNumbers` or held by an existing matter (a format change mid-year, or a migrated
  * matter, can't cause a duplicate), and writes the counter, the reservation, the matter (status
  * `lead`, or `open` when the conflict check is already clear or potential, see intakeConflictCheck) and its client, deceased and testator
- * party rows. `templateId` is stored but not applied yet (templates are CORE-07). A migrated matter
+ * party rows. With `templates.system` on (CORE-07) the matter also gets its template version
+ * (`templateForNewMatter`), starts in the template's first stage (or the input's stage when the
+ * template has it) and gets that stage's tasks plus later tasks whose anchor (a date of death) is
+ * known, all in the same transaction; with it off, `templateId` is only stored. A migrated matter
  * keeps its `externalRef` and still gets a new number. Idempotent on `requestId`.
  */
 export const createMatterDefinition = {
@@ -174,6 +210,39 @@ export const createMatterDefinition = {
     const meta = { ...counterMeta, _requestId: requestId };
     const matterRef = db.collection(mattersPath(orgId)).doc();
     const counterRef = db.doc(counterPath(orgId, matterCounterId(year)));
+
+    // Templates (CORE-07): resolved and planned before the transaction, written inside it.
+    const template = (await isEnabled({ orgId, db, clock: ctx.clock }, 'templates.system'))
+      ? await templateForNewMatter(db, orgId, matter)
+      : undefined;
+    const templated = template
+      ? (() => {
+          const stageId =
+            matter.stageId && template.stages.some((stage) => stage.id === matter.stageId)
+              ? matter.stageId
+              : (template.stages[0]?.id as string);
+          return { stageId, stageEnteredOn: today(timeZone, now) };
+        })()
+      : undefined;
+    const templateTasks =
+      template && templated
+        ? planTemplateTasks(
+            template,
+            { matter, events: [] },
+            {
+              orgId,
+              matterId: matterRef.id,
+              stageId: templated.stageId,
+              stageEnteredOn: templated.stageEnteredOn,
+              knownAnchors: true,
+              responsibleUid: matter.responsibleUid,
+              paralegalUid: await firstActiveParalegal(db, orgId),
+              uid,
+              now,
+              requestId,
+            },
+          )
+        : [];
 
     const number = await db.runTransaction(
       async (tx) => {
@@ -214,7 +283,10 @@ export const createMatterDefinition = {
             status,
             search: matterSearch({ ...matter, number: candidate }, names),
             lastActivityAt: now,
-            openTaskCount: 0,
+            ...(template && templated
+              ? { templateId: template.id, templateVersion: template.version, ...templated }
+              : {}),
+            openTaskCount: templateTasks.length,
             wipCents: 0,
             recomputeVersion: 0,
             // Live matters carry deletedAt: null so lists can filter on it (CORE-03).
@@ -237,6 +309,7 @@ export const createMatterDefinition = {
             }),
           );
         }
+        for (const task of templateTasks) tx.create(db.doc(task.path), task.data);
         return candidate;
       },
       { maxAttempts: CREATE_MAX_ATTEMPTS },
@@ -248,7 +321,15 @@ export const createMatterDefinition = {
         action: 'matter.created',
         entity: { path: matterRef.path },
         summary: `Matter ${matterRef.id} created as ${status}`,
-        data: { number, status, type: matter.type, year },
+        data: {
+          number,
+          status,
+          type: matter.type,
+          year,
+          ...(template
+            ? { templateId: template.id, templateVersion: template.version, tasks: templateTasks.length }
+            : {}),
+        },
       },
     );
     if (intake.determined) {

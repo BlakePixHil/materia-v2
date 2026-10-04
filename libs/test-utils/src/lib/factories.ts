@@ -479,17 +479,40 @@ export const makeCreditNote = (o: Partial<D.CreditNote> = {}) =>
     o,
   );
 
-export const makeMatterTemplate = (o: Partial<D.MatterTemplate> = {}) =>
-  build(
-    D.MatterTemplate,
+const templateContent = {
+  name: 'Probate (fictional)',
+  matterType: 'probate' as const,
+  stages: [
+    { id: 'instructions', name: 'Instructions', order: 1 },
+    { id: 'grant_issued', name: 'Grant issued', order: 2, entryRequires: { facts: ['grantDate' as const] } },
+  ],
+  tasks: [
     {
-      name: 'Probate (fictional)',
-      matterType: 'probate',
+      key: 'obtain_death_certificate',
+      title: 'Obtain death certificate',
+      stageId: 'instructions',
+      assignTo: 'role:paralegal' as const,
+      due: { fromStageEntry: 14 },
+      priority: 'medium' as const,
+    },
+  ],
+  deadlineRuleIds: [],
+};
+
+export const makeMatterTemplate = (o: Partial<D.MatterTemplate> = {}) =>
+  build(D.MatterTemplate, { ...templateContent, version: 0, published: false, source: 'org' }, o);
+
+export const makeMatterTemplateVersion = (o: Partial<D.MatterTemplateVersion> = {}) =>
+  build(
+    D.MatterTemplateVersion,
+    {
+      ...templateContent,
+      templateId: 'template-1',
       version: 1,
-      stages: [{ id: 'intake', title: 'Intake' }],
-      tasks: [{ title: 'Obtain death certificate', stageId: 'intake' }],
-      published: false,
       source: 'org',
+      published: true,
+      publishedAt: new Date('2026-10-04T00:00:00Z'),
+      publishedBy: 'user-1',
     },
     o,
   );
@@ -700,6 +723,7 @@ export const ENTITY_FACTORIES = {
   Invoice: [D.Invoice, makeInvoice],
   CreditNote: [D.CreditNote, makeCreditNote],
   MatterTemplate: [D.MatterTemplate, makeMatterTemplate],
+  MatterTemplateVersion: [D.MatterTemplateVersion, makeMatterTemplateVersion],
   DocTemplate: [D.DocTemplate, makeDocTemplate],
   Metrics: [D.Metrics, makeMetrics],
   AuditEntry: [D.AuditEntry, makeAuditEntry],

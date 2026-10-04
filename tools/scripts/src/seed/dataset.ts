@@ -380,6 +380,7 @@ const MATTERS: MatterSpec[] = [
     events: [
       ['date_of_death', -200],
       ['grant_issued', -60],
+      ['statutory_notice_published', -45, 'Section 33 notice published'],
     ],
     tasks: [
       ['Collect proceeds of the Corio Savings Bank account', 'todo', 'medium', 14, DANIEL],
@@ -423,7 +424,9 @@ const MATTERS: MatterSpec[] = [
     ],
     events: [
       ['date_of_death', -610],
+      ['notice_published', -560, 'Probate notice published online'],
       ['grant_issued', -480],
+      ['statutory_notice_published', -470, 'Section 33 notice published'],
     ],
     tasks: [['Final distribution', 'done', 'medium', -200, PRIYA]],
     deadlines: [['Final distribution', -200, 'internal', false, 'done']],
@@ -495,8 +498,9 @@ const MATTERS: MatterSpec[] = [
 
 /**
  * The matter screen's stage and key facts for a few matters (CORE-06), so the stepper and the key
- * facts card have content. Each stage's required facts are present. Dates are offsets from the
- * anchor; grant and court file numbers are invented.
+ * facts card have content. Stages are the matter type's system template stages (CORE-07); each
+ * stage's required facts and events are present. Dates are offsets from the anchor; grant and
+ * court file numbers are invented.
  */
 interface MatterDetailSpec {
   stageId: string;
@@ -508,26 +512,26 @@ interface MatterDetailSpec {
 }
 
 const MATTER_DETAILS: Readonly<Record<string, MatterDetailSpec>> = {
-  'm-doyle-estate': { stageId: 'grant_application', willDate: -2400, grossValueCents: 1_284_500_00 },
+  'm-doyle-estate': { stageId: 'advertisement', willDate: -2400, grossValueCents: 1_284_500_00 },
   'm-nguyen-fp': {
     stageId: 'mediation',
     willDate: -3100,
     courtFileNo: 'S ECI 2026 90417',
     grossValueCents: 2_150_000_00,
   },
-  'm-doyle-brennan': { stageId: 'pleadings', willDate: -400, courtFileNo: 'S ECI 2026 90233' },
-  'm-okafor-loa': { stageId: 'intake' },
+  'm-doyle-brennan': { stageId: 'proceedings_filed', willDate: -400, courtFileNo: 'S ECI 2026 90233' },
+  'm-okafor-loa': { stageId: 'instructions' },
   'm-okafor-wills': { stageId: 'instructions' },
-  'm-whitfield-poa': { stageId: 'signing' },
+  'm-whitfield-poa': { stageId: 'execution' },
   'm-feather-admin': {
-    stageId: 'collection',
+    stageId: 'statutory_notice',
     grantDate: -20,
     grantNo: 'S PRB 2026 90188',
     grossValueCents: 640_250_00,
   },
   'm-ellis-trust': { stageId: 'administration' },
   'm-ellis-estate': {
-    stageId: 'finalisation',
+    stageId: 'closed',
     willDate: -4000,
     grantDate: -480,
     grantNo: 'S PRB 2025 90051',
@@ -592,8 +596,9 @@ export function buildDataset(options: {
       matterNumberFormat: SEED_MATTER_NUMBER_FORMAT,
       security: { mfaRequired: false, sessionIdleMinutes: 60 },
       settings: { clerk: { enabled: true } },
-      // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02).
-      flags: { 'conflicts.enforced': true },
+      // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02), and
+      // matters follow their templates' stages and tasks (CORE-07).
+      flags: { 'conflicts.enforced': true, 'templates.system': true },
     }),
   );
 
@@ -750,6 +755,44 @@ export function buildDataset(options: {
           }
         : undefined;
 
+    // The type's system template (CORE-07): the matter's stage, and the template tasks of every
+    // stage up to it (earlier stages' done; all done once the matter is closed).
+    const template = domain.systemTemplate(domain.systemTemplateId(spec.type)) as D.Template;
+    const stageId = detail?.stageId ?? (template.stages[0]?.id as string);
+    const stageAt = template.stages.findIndex((stage) => stage.id === stageId);
+    const stageEnteredOn = rel(-7);
+    const anchors: D.AnchorContext = {
+      matter: {
+        ...(deceased && deceased.dateOfDeath !== undefined
+          ? {
+              deceased: {
+                contactId: deceased.id,
+                dateOfDeath: rel(-deceased.dateOfDeath),
+                domicile: 'VIC',
+                lastAddress: '',
+              },
+            }
+          : {}),
+        ...(estate ? { estate } : {}),
+      },
+      events: spec.events.map(([kind, offset]) => ({ kind, date: rel(offset) })),
+    };
+    const templateTasks = template.tasks
+      .filter((task) => template.stages.findIndex((stage) => stage.id === task.stageId) <= stageAt)
+      .map((task) => {
+        const done = closed || task.stageId !== stageId;
+        return {
+          id: domain.templateTaskDocId(task.key),
+          done,
+          fields: domain.templateTaskFields(template, task, anchors, {
+            stageEnteredOn,
+            responsibleUid: spec.responsible,
+            paralegalUid: DANIEL,
+          }),
+        };
+      });
+    const openTemplateTasks = templateTasks.filter((task) => !task.done).length;
+
     add(`orgs/${org}/matterNumbers/${domain.matterNumberKey(number)}`, {
       ...makeMatterNumber({ ...meta, number, matterId: spec.id, year }),
     });
@@ -764,7 +807,10 @@ export function buildDataset(options: {
         jurisdiction: 'VIC',
         responsibleUid: spec.responsible,
         teamUids: spec.team,
-        stageId: detail?.stageId,
+        stageId,
+        stageEnteredOn,
+        templateId: template.id,
+        templateVersion: template.version,
         estate,
         facts,
         clientContactIds: spec.clients,
@@ -797,7 +843,7 @@ export function buildDataset(options: {
         nextDeadline: upcoming
           ? { id: upcoming.id, dueDate: upcoming.dueDate, title: upcoming.title, critical: upcoming.critical }
           : undefined,
-        openTaskCount: openTasks.length,
+        openTaskCount: openTasks.length + openTemplateTasks,
         wipCents: wip as D.Cents,
         // Most recent first in the order above, a few hours apart.
         lastActivityAt: new Date(now.getTime() - index * 5 * HOUR),
@@ -838,6 +884,20 @@ export function buildDataset(options: {
         }),
       ),
     );
+    for (const task of templateTasks) {
+      add(
+        `${base}/tasks/${task.id}`,
+        makeTask({
+          ...meta,
+          ...task.fields,
+          // No anchor yet: no due date (the factory's default would otherwise stand).
+          dueDate: task.fields.dueDate,
+          orgId: org,
+          matterId: spec.id,
+          ...(task.done ? { status: 'done' as const, completedAt: now } : {}),
+        }),
+      );
+    }
     spec.deadlines.forEach(([title, due, kind, critical, status], i) =>
       add(
         `${base}/deadlines/${spec.id}-dl-${i + 1}`,

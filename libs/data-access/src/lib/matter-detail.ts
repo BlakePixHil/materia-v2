@@ -1,3 +1,4 @@
+import { inject, Injector, runInInjectionContext } from '@angular/core';
 import { z } from 'zod';
 
 import {
@@ -5,7 +6,10 @@ import {
   Deadline,
   Matter,
   MatterTemplate,
+  MatterTemplateVersion,
   Party,
+  StageEntryRequiresSchema,
+  systemTemplate,
   SoftDeleteShape,
   Task,
   type ChangeMatterStageInput,
@@ -16,6 +20,9 @@ import {
   type PartyResult,
   type RemovePartyInput,
   type TaskStatus,
+  type TemplateStageLike,
+  type UpgradeMatterTemplateInput,
+  type UpgradeMatterTemplateResult,
   type UpsertPartyInput,
 } from '@materia/domain';
 
@@ -39,6 +46,7 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   status: matter.status,
   stageId: matter.stageId,
   templateId: matter.templateId,
+  templateVersion: matter.templateVersion,
   jurisdiction: matter.jurisdiction,
   responsibleUid: matter.responsibleUid,
   teamUids: matter.teamUids,
@@ -122,6 +130,8 @@ export const MatterTaskSchema = /* @__PURE__ */ z.object({
   priority: task.priority,
   assigneeUid: task.assigneeUid,
   dueDate: task.dueDate,
+  /** The event a template task's due date waits for (CORE-07), while it has no due date. */
+  duePending: task.duePending,
   order: task.order,
   deletedAt: SoftDeleteShape.deletedAt,
 });
@@ -185,19 +195,90 @@ export function matterActivityRepository(matterId: () => string | null): Reposit
 
 const template = MatterTemplate.schema.shape;
 
+/**
+ * A template stage as the stepper reads it: CORE-07 stages (`name`, `criteria`, `entryRequires`,
+ * `terminal`) and CORE-06 ones (`title`) both parse; other fields are dropped.
+ */
+export const MatterTemplateStageSchema = /* @__PURE__ */ z.object({
+  id: z.string().min(1),
+  name: z.string().optional(),
+  title: z.string().optional(),
+  criteria: z.string().optional(),
+  entryRequires: StageEntryRequiresSchema.optional(),
+  terminal: z.boolean().optional(),
+});
+
+/** A template task as the matter screen names it (requirement notes): its key and title. */
+export const MatterTemplateTaskNameSchema = /* @__PURE__ */ z.object({ key: z.string().min(1), title: z.string() });
+export type MatterTemplateTaskName = z.infer<typeof MatterTemplateTaskNameSchema>;
+
 export const MatterTemplateStagesSchema = /* @__PURE__ */ z.object({
   name: template.name,
   matterType: template.matterType,
-  stages: template.stages,
+  /** The latest published version (a draft document) or this version's number (a version document). */
+  version: z.number().int().min(0).optional(),
+  stages: z.array(MatterTemplateStageSchema),
+  tasks: z.array(MatterTemplateTaskNameSchema).optional(),
 });
 export type MatterTemplateStages = z.infer<typeof MatterTemplateStagesSchema>;
 
-/** Matter templates (`orgs/{orgId}/templates`, CORE-07), read for their stages. */
+/** Matter templates (`orgs/{orgId}/templates`, CORE-07): the org's drafts, read for their stages. */
 export function matterTemplatesRepository(): Repository<MatterTemplateStages> {
   return repo((orgId) => `orgs/${orgId}/templates`, {
     schema: MatterTemplateStagesSchema,
     version: MatterTemplate.version,
   });
+}
+
+/** A template's published versions (`orgs/{orgId}/templates/{id}/versions/{n}`, CORE-07), immutable. */
+export function matterTemplateVersionsRepository(templateId: string): Repository<MatterTemplateStages> {
+  return repo((orgId) => `orgs/${orgId}/templates/${templateId}/versions`, {
+    schema: MatterTemplateStagesSchema,
+    version: MatterTemplateVersion.version,
+  });
+}
+
+/** What the matter screen reads of a matter's template version: its stages and its tasks' names. */
+export interface MatterTemplateOutline {
+  stages: TemplateStageLike[];
+  tasks: MatterTemplateTaskName[];
+}
+
+/**
+ * Reads a matter's template (CORE-07), as `matters-changeStage` does: the bundled system template
+ * (`system-{type}`), the matter's published version, else the template document; null when there
+ * is none (the type's default stages apply). Create it in an injection context.
+ */
+export function matterTemplateLoader(): (
+  templateId: string,
+  version?: number | null,
+) => Promise<MatterTemplateOutline | null> {
+  const injector = inject(Injector);
+  const drafts = matterTemplatesRepository();
+  const outline = (found: MatterTemplateStages): MatterTemplateOutline => ({
+    stages: found.stages,
+    tasks: (found.tasks ?? []).map(({ key, title }) => ({ key, title })),
+  });
+  return async (templateId, version) => {
+    const system = systemTemplate(templateId);
+    if (system) return { stages: system.stages, tasks: system.tasks.map(({ key, title }) => ({ key, title })) };
+    if (version) {
+      const versions = runInInjectionContext(injector, () => matterTemplateVersionsRepository(templateId));
+      const found = await versions.get(String(version));
+      if (found?.stages.length) return outline(found);
+    }
+    const draft = await drafts.get(templateId);
+    return draft?.stages.length ? outline(draft) : null;
+  };
+}
+
+/** A matter's template stages only (see `matterTemplateLoader`). Create it in an injection context. */
+export function matterTemplateStagesLoader(): (
+  templateId: string,
+  version?: number | null,
+) => Promise<TemplateStageLike[] | null> {
+  const load = matterTemplateLoader();
+  return async (templateId, version) => (await load(templateId, version))?.stages ?? null;
 }
 
 // ---------- callables ----------
@@ -209,12 +290,14 @@ type Input<T> = Omit<T, 'requestId'>;
 export interface MatterCallables {
   /** `matters-changeStatus` (matter.status). */
   changeStatus(input: Input<ChangeMatterStatusInput>): Promise<ChangeMatterStatusResult>;
-  /** `matters-changeStage` (matter.edit); `MATTER_STAGE_REQUIREMENTS` lists missing key facts. */
+  /** `matters-changeStage` (matter.edit); `MATTER_STAGE_REQUIREMENTS` lists missing key facts (and, CORE-07, events and tasks). */
   changeStage(input: Input<ChangeMatterStageInput>): Promise<ChangeMatterStageResult>;
   /** `matters-upsertParty` (matter.edit): add a contact in a role, or edit a party row. */
   upsertParty(input: Input<UpsertPartyInput>): Promise<PartyResult>;
   /** `matters-removeParty` (matter.edit): soft-deletes the row; `LAST_CLIENT` keeps the last client. */
   removeParty(input: Input<RemovePartyInput>): Promise<PartyResult>;
+  /** `matters-upgradeTemplate` (matter.edit, CORE-07): a later version of the matter's template; adds missing tasks only. */
+  upgradeTemplate(input: Input<UpgradeMatterTemplateInput>): Promise<UpgradeMatterTemplateResult>;
 }
 
 export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCallables {
@@ -227,5 +310,6 @@ export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCal
     changeStage: call(MATTER_CALLABLES.changeStage),
     upsertParty: call(MATTER_CALLABLES.upsertParty),
     removeParty: call(MATTER_CALLABLES.removeParty),
+    upgradeTemplate: call(MATTER_CALLABLES.upgradeTemplate),
   };
 }

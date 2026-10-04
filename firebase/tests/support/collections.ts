@@ -144,12 +144,22 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'billing.view',
     update: 'none',
   },
+  // Matter templates (CORE-07): read by members, written through the templates-* callables only.
   {
     collection: 'templates',
     docPath: `orgs/${ORG}/templates/template-1`,
     entity: 'MatterTemplate',
     read: 'members',
-    update: 'org.settings',
+    update: 'none',
+    change: { name: 'Renamed by a client' },
+  },
+  {
+    collection: 'versions (templates)',
+    docPath: `orgs/${ORG}/templates/template-1/versions/1`,
+    entity: 'MatterTemplateVersion',
+    read: 'members',
+    update: 'none',
+    change: { name: 'Renamed by a client' },
   },
   {
     collection: 'docTemplates',

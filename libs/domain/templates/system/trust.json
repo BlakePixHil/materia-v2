@@ -1,0 +1,169 @@
+{
+  "id": "system-trust",
+  "source": "system",
+  "version": 1,
+  "published": true,
+  "publishedAt": "2026-10-04",
+  "matterType": "trust",
+  "name": "Trust administration",
+  "stages": [
+    {
+      "id": "instructions",
+      "name": "Instructions",
+      "order": 10,
+      "criteria": "Instructions taken and costs disclosure sent"
+    },
+    {
+      "id": "deed_review",
+      "name": "Deed review",
+      "order": 20,
+      "criteria": "Trust deed (or the will creating the trust) reviewed",
+      "entryRequires": {
+        "tasksDone": ["take_instructions"]
+      }
+    },
+    {
+      "id": "establishment",
+      "name": "Establishment",
+      "order": 30,
+      "criteria": "Trustees have accepted office and the trust is set up",
+      "entryRequires": {
+        "tasksDone": ["review_trust_deed"]
+      }
+    },
+    {
+      "id": "administration",
+      "name": "Administration",
+      "order": 40,
+      "criteria": "Trust registered and its accounts operating",
+      "entryRequires": {
+        "tasksDone": ["apply_for_abn_tfn", "open_trust_account"]
+      }
+    },
+    {
+      "id": "wind_up",
+      "name": "Wind up",
+      "order": 50,
+      "criteria": "Trust property distributed and final returns lodged"
+    },
+    {
+      "id": "closed",
+      "name": "Closed",
+      "order": 60,
+      "criteria": "Trustees discharged and the file closed",
+      "entryRequires": {
+        "tasksDone": ["distribute_trust_property"]
+      },
+      "terminal": true
+    }
+  ],
+  "tasks": [
+    {
+      "key": "take_instructions",
+      "title": "Take the trustees’ instructions",
+      "stageId": "instructions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 3
+      },
+      "priority": "high"
+    },
+    {
+      "key": "send_costs_disclosure",
+      "title": "Send the costs disclosure and engagement letter",
+      "stageId": "instructions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 5
+      },
+      "priority": "high",
+      "checklist": [
+        "Estimate of total legal costs",
+        "Rights to negotiate and to receive itemised bills",
+        "Client signed and returned the agreement"
+      ]
+    },
+    {
+      "key": "review_trust_deed",
+      "title": "Review the trust deed or the will creating the trust",
+      "stageId": "deed_review",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "high",
+      "checklist": ["Trustees and appointors", "Beneficiaries and classes", "Vesting date", "Powers and limits"]
+    },
+    {
+      "key": "confirm_trustee_acceptance",
+      "title": "Obtain the trustees’ written acceptance",
+      "stageId": "establishment",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "apply_for_abn_tfn",
+      "title": "Apply for the trust’s ABN and TFN",
+      "stageId": "establishment",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "open_trust_account",
+      "title": "Open the trust bank account",
+      "stageId": "establishment",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "annual_distribution_minutes",
+      "title": "Prepare the annual distribution resolution",
+      "stageId": "administration",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 60
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "distribute_trust_property",
+      "title": "Distribute the trust property",
+      "stageId": "wind_up",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 30
+      },
+      "priority": "high"
+    },
+    {
+      "key": "final_trust_return",
+      "title": "Arrange the trust’s final tax return",
+      "stageId": "wind_up",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 60
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "close_file",
+      "title": "Report to the trustees and close the file",
+      "stageId": "closed",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "low"
+    }
+  ],
+  "deadlineRuleIds": []
+}

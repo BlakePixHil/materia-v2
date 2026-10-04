@@ -1,0 +1,196 @@
+{
+  "id": "system-poa",
+  "source": "system",
+  "version": 1,
+  "published": true,
+  "publishedAt": "2026-10-04",
+  "matterType": "poa",
+  "name": "Enduring power of attorney (VIC)",
+  "stages": [
+    {
+      "id": "instructions",
+      "name": "Instructions",
+      "order": 10,
+      "criteria": "Instructions taken and the fixed-fee quote accepted"
+    },
+    {
+      "id": "draft",
+      "name": "Draft",
+      "order": 20,
+      "criteria": "Draft enduring power of attorney prepared",
+      "entryRequires": {
+        "tasksDone": ["take_instructions"]
+      }
+    },
+    {
+      "id": "client_review",
+      "name": "Client review",
+      "order": 30,
+      "criteria": "Draft sent to the client and approved",
+      "entryRequires": {
+        "tasksDone": ["prepare_draft"]
+      }
+    },
+    {
+      "id": "execution",
+      "name": "Execution",
+      "order": 40,
+      "criteria": "Principal has signed before two eligible witnesses",
+      "entryRequires": {
+        "tasksDone": ["record_client_approval"]
+      }
+    },
+    {
+      "id": "acceptance",
+      "name": "Attorney acceptance",
+      "order": 50,
+      "criteria": "Each attorney has signed the statement of acceptance",
+      "entryRequires": {
+        "tasksDone": ["supervise_execution"]
+      }
+    },
+    {
+      "id": "custody",
+      "name": "Copies & custody",
+      "order": 60,
+      "criteria": "Original stored and certified copies sent",
+      "entryRequires": {
+        "tasksDone": ["obtain_acceptances"]
+      }
+    },
+    {
+      "id": "closed",
+      "name": "Closed",
+      "order": 70,
+      "criteria": "Reporting letter sent and the file closed",
+      "entryRequires": {
+        "tasksDone": ["store_original"]
+      },
+      "terminal": true
+    }
+  ],
+  "tasks": [
+    {
+      "key": "take_instructions",
+      "title": "Take power of attorney instructions",
+      "stageId": "instructions",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 3
+      },
+      "priority": "high",
+      "checklist": [
+        "Attorneys and alternates",
+        "Financial and personal matters",
+        "Conditions and limits",
+        "Capacity considered (file note)"
+      ]
+    },
+    {
+      "key": "send_engagement",
+      "title": "Send the engagement letter and fixed-fee quote",
+      "stageId": "instructions",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 2
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "prepare_draft",
+      "title": "Prepare the draft enduring power of attorney",
+      "stageId": "draft",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 5
+      },
+      "priority": "high"
+    },
+    {
+      "key": "send_draft",
+      "title": "Send the draft to the client",
+      "stageId": "client_review",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 1
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "record_client_approval",
+      "title": "Record the client’s approval or changes",
+      "stageId": "client_review",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "book_signing",
+      "title": "Book the signing appointment",
+      "stageId": "execution",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 3
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "supervise_execution",
+      "title": "Supervise signing before two eligible witnesses",
+      "stageId": "execution",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 14
+      },
+      "priority": "high",
+      "checklist": [
+        "One witness authorised to witness affidavits",
+        "Witness certificates complete",
+        "File note of execution"
+      ]
+    },
+    {
+      "key": "obtain_acceptances",
+      "title": "Obtain each attorney’s signed statement of acceptance",
+      "stageId": "acceptance",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 21
+      },
+      "priority": "high"
+    },
+    {
+      "key": "store_original",
+      "title": "Store the original in safe custody",
+      "stageId": "custody",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 2
+      },
+      "priority": "medium"
+    },
+    {
+      "key": "send_certified_copies",
+      "title": "Send certified copies to the client and attorneys",
+      "stageId": "custody",
+      "assignTo": "role:paralegal",
+      "due": {
+        "fromStageEntry": 5
+      },
+      "priority": "low"
+    },
+    {
+      "key": "close_file",
+      "title": "Close the file",
+      "stageId": "closed",
+      "assignTo": "responsible",
+      "due": {
+        "fromStageEntry": 7
+      },
+      "priority": "low"
+    }
+  ],
+  "deadlineRuleIds": []
+}

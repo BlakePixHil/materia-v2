@@ -8,6 +8,7 @@ import { changeStageDefinition } from './change-stage';
 import { nextClientContactIds, removePartyDefinition, upsertPartyDefinition } from './parties';
 import { clearRetentionCache } from '../audit/retention';
 import { runCallable, type CallableDeps } from '../core/callable';
+import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
 import { memoryFirestore } from '../orgs/testing';
 import { FakeClock, fakePorts } from '../ports/fakes';
@@ -114,7 +115,11 @@ const failureOf = async (promise: Promise<unknown>) => {
   throw new Error('expected a failure');
 };
 
-beforeEach(() => clearRetentionCache());
+beforeEach(() => {
+  clearRetentionCache();
+  setRemoteFlagLoader(async () => ({}));
+});
+afterEach(() => clearFlagCaches());
 
 describe('matters-changeStage', () => {
   it('moves forward when the requirements are met, writes the meta and audits from and to', async () => {

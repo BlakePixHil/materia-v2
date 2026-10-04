@@ -147,10 +147,11 @@ describe('seed dataset', () => {
 
   it('gives demo matters a stage and key facts that meet the stage’s requirements (CORE-06)', () => {
     const matters = docsUnder('matters').map((d) => d.data as D.Matter);
-    const staged = matters.filter((m) => m.stageId);
-    expect(staged.length).toBeGreaterThanOrEqual(6);
+    const staged = matters.filter((m) => m.stageId && m.templateId);
+    expect(staged.length).toBeGreaterThanOrEqual(12);
     for (const matter of staged) {
-      const stages = D.matterStages(matter.type);
+      const template = D.systemTemplate(matter.templateId as string);
+      const stages = D.matterStages(matter.type, template?.stages);
       expect(
         stages.map((s) => s.id),
         matter.title,
@@ -158,15 +159,50 @@ describe('seed dataset', () => {
       expect(D.unmetStageRequirements(matter, stages, undefined, matter.stageId as string), matter.title).toEqual([]);
     }
     const doyle = matters.find((m) => m.title === 'Estate of Margaret Doyle');
-    expect(doyle).toMatchObject({ stageId: 'grant_application', facts: { willDate: expect.any(String) } });
+    expect(doyle).toMatchObject({ stageId: 'advertisement', facts: { willDate: expect.any(String) } });
     expect(matters.some((m) => m.estate?.grantDate && m.estate.grantNo && m.estate.grossValueCents)).toBe(true);
     expect(matters.some((m) => (m.type === 'fp' || m.type === 'contest') && m.facts?.courtFileNo)).toBe(true);
+  });
+
+  it('puts demo matters on their system template with its tasks up to their stage (CORE-07)', () => {
+    const matters = docsUnder('matters');
+    const demo = matters.filter((d) => !d.path.includes('/m-cf-'));
+    expect(demo).toHaveLength(12);
+    for (const doc of demo) {
+      const matter = doc.data as D.Matter;
+      const template = D.systemTemplate(D.systemTemplateId(matter.type));
+      expect(matter, doc.path).toMatchObject({ templateId: template?.id, templateVersion: 1 });
+      const stages = D.matterStages(matter.type, template?.stages);
+      const tasks = dataset.docs
+        .filter((d) => d.path.startsWith(`${doc.path}/tasks/tpl-`))
+        .map((d) => ({ id: d.path.split('/').at(-1) as string, ...(d.data as D.Task) }));
+      // The template tasks of every stage up to the matter's: earlier ones done.
+      const at = D.stageIndex(stages, matter.stageId);
+      const expected = (template?.tasks ?? []).filter(
+        (task) => stages.findIndex((stage) => stage.id === task.stageId) <= at,
+      );
+      expect(tasks.map((t) => t.id).sort(), doc.path).toEqual(expected.map((t) => D.templateTaskDocId(t.key)).sort());
+      // Nothing the matter has passed is still waiting: the next move only needs the current stage's work.
+      const done = new Set(tasks.filter((t) => t.status === 'done').map((t) => t.templateTaskKey as string));
+      const events = dataset.docs
+        .filter((d) => d.path.startsWith(`${doc.path}/events/`))
+        .map((d) => d.data as D.MatterEvent);
+      const unmet = D.unmetStageEntry(stages, undefined, matter.stageId as string, {
+        matter,
+        events,
+        doneTaskKeys: done,
+      });
+      expect(unmet, doc.path).toEqual({ requirements: [], events: [], tasks: [] });
+    }
+    const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
+    expect(org?.['flags']).toMatchObject({ 'templates.system': true });
   });
 
   it('dates deadlines relative to the anchor and denormalises the next deadline', () => {
     const doyle = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}/matters/m-doyle-estate`)?.data as D.Matter;
     expect(doyle.nextDeadline).toMatchObject({ dueDate: '2026-10-03', title: 'Send costs disclosure update' });
-    expect(doyle.openTaskCount).toBe(2);
+    // Two open seeded tasks, plus the two template tasks of its stage (CORE-07).
+    expect(doyle.openTaskCount).toBe(4);
     expect(doyle.wipCents).toBeGreaterThan(0);
     const overdue = dataset.docs.find((d) => d.path.endsWith('m-nguyen-fp-dl-1'))?.data as D.Deadline;
     expect(overdue.dueDate).toBe('2026-10-01');
@@ -203,7 +239,7 @@ describe('seed dataset', () => {
 
   it('seeds the conflict scenarios with conflicts.enforced on, but not in the minimal scenario (CORE-02)', () => {
     const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
-    expect(org?.['flags']).toEqual({ 'conflicts.enforced': true });
+    expect(org?.['flags']).toEqual({ 'conflicts.enforced': true, 'templates.system': true });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
       expect(docsUnder('contacts').some((d) => d.path.endsWith(`/${id}`))).toBe(true);
     }

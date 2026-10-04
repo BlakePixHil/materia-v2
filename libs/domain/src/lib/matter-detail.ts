@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { DocIdSchema } from './schemas/common';
-import { PartyRoleSchema, type MatterType, type PartyRole } from './schemas/enums';
+import { PartyRoleSchema, type EventKind, type MatterType, type PartyRole } from './schemas/enums';
 
 /**
  * The matter screen (CORE-06): key facts, the stage stepper and party management. Key facts are
@@ -10,7 +10,8 @@ import { PartyRoleSchema, type MatterType, type PartyRole } from './schemas/enum
 
 // ---------- key facts ----------
 
-export type KeyFactId = 'dateOfDeath' | 'willDate' | 'grantDate' | 'grantNo' | 'grossValue' | 'courtFileNo';
+export const KeyFactIdSchema = z.enum(['dateOfDeath', 'willDate', 'grantDate', 'grantNo', 'grossValue', 'courtFileNo']);
+export type KeyFactId = z.infer<typeof KeyFactIdSchema>;
 export type KeyFactKind = 'date' | 'money' | 'text';
 
 export interface KeyFactDefinition {
@@ -122,6 +123,31 @@ export interface MatterStage {
   criteria: string;
   /** Key facts that must be recorded to move into this stage (forward moves only). */
   requires?: readonly KeyFactId[];
+  /** Matter events that must be known to move into this stage (template stages, CORE-07). */
+  events?: readonly EventKind[];
+  /** Template task keys that must be done to move into this stage (template stages, CORE-07). */
+  tasksDone?: readonly string[];
+  /** The matter's work is finished once it is here (a template's last stage, CORE-07). */
+  terminal?: boolean;
+}
+
+/**
+ * A template's stage as `matterStages` reads it: a CORE-07 template stage (`name`, `criteria`,
+ * `entryRequires`) or a CORE-06 one (`title`). Read leniently so older documents keep working.
+ */
+export interface TemplateStageLike {
+  id: string;
+  name?: string | undefined;
+  title?: string | undefined;
+  criteria?: string | undefined;
+  entryRequires?:
+    | {
+        facts?: readonly KeyFactId[] | undefined;
+        events?: readonly EventKind[] | undefined;
+        tasksDone?: readonly string[] | undefined;
+      }
+    | undefined;
+  terminal?: boolean | undefined;
 }
 
 const ESTATE_STAGES: readonly MatterStage[] = [
@@ -188,22 +214,26 @@ export const DEFAULT_MATTER_STAGES: Readonly<Record<MatterType, readonly MatterS
 };
 
 /**
- * A matter's stages: the template's (ids and titles), with criteria and requirements from the
- * default stage of the same id; otherwise the type's defaults.
+ * A matter's stages: the template's, in order (`name` becomes the title), each requiring its own
+ * `entryRequires` plus the key facts the default stage of the same id requires (CORE-06), with the
+ * default's criteria when the template gives none; otherwise the type's defaults.
  */
-export function matterStages(
-  type: MatterType,
-  templateStages?: readonly { id: string; title: string }[],
-): MatterStage[] {
+export function matterStages(type: MatterType, templateStages?: readonly TemplateStageLike[]): MatterStage[] {
   const defaults = DEFAULT_MATTER_STAGES[type];
   if (!templateStages?.length) return [...defaults];
   return templateStages.map((stage) => {
     const known = defaults.find((d) => d.id === stage.id);
+    const requires = [...new Set([...(stage.entryRequires?.facts ?? []), ...(known?.requires ?? [])])];
+    const events = stage.entryRequires?.events ?? [];
+    const tasksDone = stage.entryRequires?.tasksDone ?? [];
     return {
       id: stage.id,
-      title: stage.title,
-      criteria: known?.criteria ?? '',
-      ...(known?.requires ? { requires: known.requires } : {}),
+      title: stage.name ?? stage.title ?? stage.id,
+      criteria: stage.criteria ?? known?.criteria ?? '',
+      ...(requires.length ? { requires } : {}),
+      ...(events.length ? { events: [...events] } : {}),
+      ...(tasksDone.length ? { tasksDone: [...tasksDone] } : {}),
+      ...(stage.terminal ? { terminal: true } : {}),
     };
   });
 }
@@ -253,17 +283,23 @@ export function clientContactIdsFrom(parties: readonly { contactId: string; role
 
 const RequestId = z.uuid();
 
-/** `matters-changeStage` (matter.edit). Forward moves check the stages' required key facts. */
+/**
+ * `matters-changeStage` (matter.edit). Forward moves check the stages' requirements. With
+ * `templates.system` on (CORE-07), moving back needs `matter.status` and a `reason`.
+ */
 export const ChangeMatterStageInput = z.object({
   requestId: RequestId,
   matterId: DocIdSchema,
   stageId: z.string().trim().min(1).max(60),
+  reason: z.string().trim().max(500).optional(),
 });
 export type ChangeMatterStageInput = z.infer<typeof ChangeMatterStageInput>;
 
 export interface ChangeMatterStageResult {
   matterId: string;
   stageId: string;
+  /** Template task ids created on entering the stage (CORE-07; absent with templates off). */
+  createdTaskIds?: string[];
 }
 
 /**

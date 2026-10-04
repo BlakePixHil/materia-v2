@@ -56,10 +56,23 @@ const taskShape = {
   completedAt: InstantSchema.optional(),
 };
 
-/** `matters/{matterId}/tasks/{taskId}`. */
+/**
+ * `matters/{matterId}/tasks/{taskId}`. Template tasks (CORE-07) have the id `tpl-{templateTaskKey}`
+ * (one per matter and template task) and, while their anchor event is unknown, no `dueDate` and
+ * `duePending` naming the event ("due date pending: date of death unknown").
+ */
 export const Task = withMeta(
-  { ...taskShape, ...GroupKeys },
-  { path: `${MATTER}/tasks`, softDelete: true, serverOwned: ['orgId', 'matterId', 'completedAt'] },
+  {
+    ...taskShape,
+    ...GroupKeys,
+    templateTaskKey: z.string().optional(),
+    duePending: EventKindSchema.optional(),
+  },
+  {
+    path: `${MATTER}/tasks`,
+    softDelete: true,
+    serverOwned: ['orgId', 'matterId', 'completedAt', 'templateTaskKey', 'duePending'],
+  },
 );
 
 /** `orgs/{orgId}/members/{uid}/tasks/{taskId}`: personal tasks, same shape without matterId. */

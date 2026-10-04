@@ -107,6 +107,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'templates.system': defineFlag({
+    key: 'templates.system',
+    description:
+      'Matter templates: stages and tasks from the system or org template, stage entry requirements (off until a practitioner signs the system templates off, CORE-07a).',
+    owner: 'CORE-07',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'litigation.enabled': defineFlag({
     key: 'litigation.enabled',
     description: 'Disputes: contested estates, proceedings and court deadlines.',
