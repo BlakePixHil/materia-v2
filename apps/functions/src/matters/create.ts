@@ -412,6 +412,8 @@ export const createMatterDefinition = {
           order: 0,
           source: 'manual',
           templateTaskKey: DEATH_CERTIFICATE_TASK_KEY,
+          // Counted in the matter's openTaskCount below (CORE-08: tasks-onWrite leaves it alone).
+          countedOpen: true,
           orgId,
           matterId: matterRef.id,
           ...meta,

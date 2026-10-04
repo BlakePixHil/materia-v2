@@ -293,9 +293,11 @@ describe('ClerkGateway', () => {
   });
 
   it('honours stopRequested: aborts the stream and marks the message stopped', async () => {
-    const { gateway, input, store } = setup([{ chunks: ['one ', 'two ', 'three'], delayMs: 5 }]);
+    const { gateway, input, store } = setup([{ chunks: ['one ', 'two ', 'three'], delayMs: 200 }]);
     const running = gateway.run(input({ stream: { threadId: 't', messageId: 'm' } }));
-    await new Promise((resolve) => setTimeout(resolve, 8));
+    // Stop once the first chunk is written, well inside the pause before the second (a fixed
+    // sleep raced the first chunk on a busy runner).
+    await vi.waitFor(() => expect(store.messages.get('t/m')?.writes).toEqual(['one ']), { interval: 1 });
     store.messages.get('t/m')?.stop();
     const result = await running;
     expect(result.status).toBe('stopped');

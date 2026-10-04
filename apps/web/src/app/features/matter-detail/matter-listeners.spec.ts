@@ -12,7 +12,7 @@ afterEach(cleanUpOverlays);
 
 describe('matter screen listeners', () => {
   it('listen to the matter plus the active tab’s collections only', async () => {
-    const page = await openMatter('/matters/m-whitfield/tasks');
+    const page = await openMatter('/matters/m-whitfield/notes');
     // A placeholder tab: the matter document (and whatever the shell keeps) only.
     const base = page.firestore.listenerCount;
     expect(base).toBeGreaterThan(0);
@@ -25,6 +25,11 @@ describe('matter screen listeners', () => {
     await page.router.navigateByUrl('/matters/m-whitfield/parties');
     await page.stable();
     // Parties: the parties only; the overview's three are gone.
+    expect(page.firestore.listenerCount).toBe(base + 1);
+
+    // Tasks (CORE-08): the matter's tasks only.
+    await page.router.navigateByUrl('/matters/m-whitfield/tasks');
+    await page.stable();
     expect(page.firestore.listenerCount).toBe(base + 1);
 
     await page.router.navigateByUrl('/matters/m-whitfield/notes');

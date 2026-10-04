@@ -649,6 +649,7 @@ export function buildDataset(options: {
       ...meta,
       orgId: org,
       title: 'Review trust account reconciliation',
+      assigneeUid: PRIYA,
       status: 'todo',
       priority: 'medium',
       dueDate: rel(2),
@@ -881,6 +882,8 @@ export function buildDataset(options: {
           dueDate: due === null ? undefined : rel(due),
           order: i + 1,
           completedAt: status === 'done' ? now : undefined,
+          // Counted in the matter's openTaskCount above, so tasks-onWrite leaves them alone (CORE-08).
+          countedOpen: status !== 'done' && status !== 'cancelled',
         }),
       ),
     );
@@ -895,6 +898,7 @@ export function buildDataset(options: {
           orgId: org,
           matterId: spec.id,
           ...(task.done ? { status: 'done' as const, completedAt: now } : {}),
+          countedOpen: !task.done,
         }),
       );
     }

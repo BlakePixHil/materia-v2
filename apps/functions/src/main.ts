@@ -13,3 +13,4 @@ export * as contacts from './contacts/index';
 export * as matters from './matters/index';
 export * as conflicts from './conflicts/index';
 export * as templates from './templates/index';
+export * as tasks from './tasks/index';

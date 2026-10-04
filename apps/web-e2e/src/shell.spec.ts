@@ -22,6 +22,7 @@ test.describe('desktop shell', () => {
     await expect(nav.getByRole('link')).toHaveText([
       'Today',
       'Inbox',
+      'My tasks',
       'Matters',
       'Deadlines',
       'Contacts',

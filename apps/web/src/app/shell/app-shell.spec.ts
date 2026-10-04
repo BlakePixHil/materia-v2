@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 
+import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
 import { MT_KEYBOARD_PLATFORM, ThemeService } from '@materia/ui';
 
 import { App } from '../app';
@@ -32,6 +33,8 @@ async function setup(url = '/today', options: { mobile?: boolean; session?: Auth
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
       ...fake.providers,
       ...provideTestFlags(),
+      // Today lists my tasks (CORE-08).
+      provideInMemoryFirestore(new InMemoryFirestore()),
     ],
   });
   const fixture = TestBed.createComponent(App);
