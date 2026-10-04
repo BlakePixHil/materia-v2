@@ -257,6 +257,18 @@
       "collectionGroup": "chunks",
       "fieldPath": "embedding",
       "indexes": []
+    },
+    {
+      "collectionGroup": "requests",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "eventGuards",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
     }
   ]
 }

@@ -14,3 +14,4 @@ export * from './lib/schemas/clerk';
 export * from './lib/schemas/org-records';
 export * from './lib/schemas/aliases';
 export * from './lib/permissions';
+export * from './lib/errors';

@@ -117,6 +117,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+        with:
+          java: 'true'
+      # FND-15: the callable wrapper and Cloud Tasks, through the auth, firestore and functions
+      # emulators (builds functions first).
+      - run: pnpm nx affected -t test-integration --base="$NX_BASE" --head="$NX_HEAD"
+
   build:
     name: build
     runs-on: ubuntu-latest
@@ -422,7 +437,7 @@ jobs:
     name: ci-ok
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, lint, typecheck, unit, rules, build, e2e, storybook, terraform, security]
+    needs: [changes, lint, typecheck, unit, rules, integration, build, e2e, storybook, terraform, security]
     if: always()
     steps:
       - name: Every job succeeded or was skipped
