@@ -204,7 +204,7 @@ function prefersNativePicker(): boolean {
       >
         <span class="v" [class.ph]="selectedIndex() < 0">{{ selectedLabel() ?? placeholder() }}</span>
         <mt-icon name="updown" />
-        <div *ngpSelectPortal ngpSelectDropdown class="mt-menu" [attr.aria-label]="label()">
+        <div *ngpSelectPortal ngpSelectDropdown class="mt-menu" data-overlay [attr.aria-label]="label()">
           @for (item of options(); track item.label) {
             @if (asGroup(item); as group) {
               <div role="group" [attr.aria-labelledby]="labelId + '-g' + $index">

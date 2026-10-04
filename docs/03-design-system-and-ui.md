@@ -82,6 +82,44 @@ Import them from `@materia/ui`. Each one composes ng-primitives, wears the `mt-*
 
 Validation: once a control is touched and invalid, its first error shows under it and is linked with `aria-describedby`, and `aria-invalid` is set. The default copy (`MT_ERROR_MESSAGES`) follows the writing rules; override it per field with `errorMessages`. `Components/Reactive forms demo` in Storybook shows every control in one form.
 
+### Overlays and navigation (FND-09)
+
+| Component | Use |
+| -- | -- |
+| `[mtTooltip]="'Record time'"` (`mtTooltipKbd`, `mtTooltipPlacement`) | Short label after 400ms on hover or keyboard focus, linked with `aria-describedby`. Never the only place essential information appears. IconButton and collapsed NavItem show their label as a tooltip by default |
+| `[mtMenuTrigger]="tpl"`, `<mt-menu>`, `button[mtMenuItem]` (`icon`, `kbd`, `tone`), `button[mtMenuItemCheckbox]`, `button[mtSubmenuItem]`, `<mt-menu-separator>`, `<mt-menu-label>` | Contextual actions. Arrows, Home/End, type to move; ArrowRight/ArrowLeft open and close submenus; Escape closes the menu (and only the menu when it's inside a dialog). `MT_MENU` imports them all |
+| `<mt-dialog>` (`title`, `description`, `size`, `role`), `[mtDialogTrigger]`, `DialogService` | Modal dialogs: focus trap, focus restore, Escape for the topmost layer, scroll lock |
+| `ToastService` | Bottom-right confirmations; see below |
+| `mtTabset`, `mtTabList`, `button[mtTab]`, `mtTabPanel`; `mtTabNav` + `a[mtTabLink]` | Views of one object; the link variant when the URL is the source of truth |
+| `a[mtNavItem]` (`label`, `icon`, `count`, `dot`, `collapsed`) | Sidebar links; active from `RouterLinkActive` (`data-active`, `aria-current="page"`) |
+| `<mt-breadcrumb [items]>` | Path to the current page; collapses the middle when longer than `max` (3) |
+| `<mt-tab-bar [items]>` | Phone navigation, at most five items, safe-area padding |
+| `<mt-command-palette>` in `<mt-command-palette-overlay>` | Presentational palette (input, grouped results, empty state, footer). The CommandRegistry (FND-12) supplies `groups` and handles `run` |
+| `<mt-bottom-sheet title>` | The phone's dialog; drag the handle to expand (50% → 90%) or close; follows the on-screen keyboard with `visualViewport` |
+
+Overlays portal into one container and stack by the `layer-*` tokens (dropdown 1000, overlay 1100, modal 1200, popover 1300, toast 1400, tooltip 1500). Animations stop under `prefers-reduced-motion`.
+
+```ts
+// Dialogs: typed data in, typed result out.
+const dialogs = inject(DialogService);
+const handle = dialogs.open<EditDeadlineData, Deadline>(EditDeadlineDialog, { data: { deadline } });
+const updated = await handle.result; // undefined when cancelled
+
+// Inside EditDeadlineDialog (its template's root is <mt-dialog>):
+protected readonly ref = injectDialogRef<EditDeadlineData, Deadline>();
+save() { this.ref.close(this.form.getRawValue()); }
+
+// Confirmation, with "type the matter number" for destructive actions.
+if (await dialogs.confirm({ title: 'Delete WE-142?', confirmLabel: 'Delete matter', tone: 'danger', typedConfirmation: 'WE-142' })) { … }
+
+// Toasts: past tense, one optional action.
+inject(ToastService).show({ tone: 'success', title: 'Notice published', action: { label: 'Undo', run: () => undo() } });
+```
+
+Toasts: at most three on screen (more queue), 5 seconds by default (`duration: 0` keeps one until dismissed), timers pause while the pointer or focus is on the stack. They never take focus: **F6** moves focus to the newest toast's action, and F6 or Escape returns it. Screen readers hear them through a polite live region; `danger` toasts use an assertive one.
+
+Where ng-primitives isn't used: the toast stack is plain Angular (ng-primitives' toast has no queue limit, assertive tone or F6 shortcut), and the command palette implements the combobox pattern itself (ng-primitives' combobox opens its own dropdown portal). Nothing in `libs/ui` imports the CDK directly; ng-primitives uses it internally for focus and positioning.
+
 ### Storybook
 
 `pnpm storybook` (port 4400). The toolbar has a Light/Dark theme switch; backgrounds are the `bg-*` tokens; the a11y addon reports violations as errors. `Foundations/Colours`, `Type`, `Spacing` and `Theme` are rendered from `tokens.ts`. CI builds Storybook and runs the test-runner over every story (play functions and a11y): `pnpm nx run ui:test-storybook` against a running Storybook locally.
