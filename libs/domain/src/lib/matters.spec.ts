@@ -101,7 +101,18 @@ describe('matter search tokens', () => {
 describe('matter inputs and views', () => {
   it('lets clients edit only the whitelisted fields', () => {
     expect(Object.keys(Matter.update.shape).sort()).toEqual(
-      ['estate', 'externalRef', 'labels', 'priority', 'responsibleUid', 'stageId', 'teamUids', 'title'].sort(),
+      [
+        'deceased',
+        'estate',
+        'externalRef',
+        'facts',
+        'labels',
+        'priority',
+        'privileged',
+        'responsibleUid',
+        'teamUids',
+        'title',
+      ].sort(),
     );
   });
 

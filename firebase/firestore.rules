@@ -461,7 +461,7 @@ service cloud.firestore {
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }
-    function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'stageId', 'externalRef', 'estate']; }
+    function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'estate', 'deceased', 'facts', 'privileged']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted']; }
     function fieldsMatterEvent() { return ['kind', 'date', 'time', 'label', 'meta', 'sourceDocumentId']; }
     function fieldsMatterNumber() { return []; }
