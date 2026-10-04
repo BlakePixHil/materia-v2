@@ -113,6 +113,9 @@ afterAll(async () => {
 });
 
 describe('audit triggers through the emulators', () => {
+  // Five writes, each waiting for its trigger and a 1.5 s settle that also keeps the entries'
+  // timestamps apart (the order assertion needs that); under a busy emulator that needs more than
+  // the suite's default 30 s.
   it('records create, update, soft delete, restore and delete of a contact (org collection)', async () => {
     const path = `orgs/${ORG}/contacts/c-1`;
     const ref = db.doc(path);
@@ -151,7 +154,7 @@ describe('audit triggers through the emulators', () => {
       ((created?.['expireAt'] as Timestamp).toMillis() - (created?.['at'] as Timestamp).toMillis()) /
       (365.25 * 86_400_000);
     expect(Math.round(years)).toBe(7);
-  });
+  }, 60_000);
 
   it('records matter updates, but not denormalised-only changes', async () => {
     await db.doc(MATTER).update({ ...touch('audit-owner'), status: 'active' });
