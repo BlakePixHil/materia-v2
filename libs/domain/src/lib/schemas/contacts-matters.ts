@@ -15,6 +15,21 @@ import { JurisdictionSchema, MatterStatusSchema, MatterTypeSchema, PrioritySchem
 
 const SearchTokens = z.array(z.string().min(1)).max(200);
 
+/**
+ * `matter.conflictAlert` (CORE-02): set by `conflicts-onPartyAdded` when a party added to an open
+ * or on-hold matter is on other matters. `conflicts-determine` on the same `checkId` clears it. It
+ * never blocks anything; the matter page shows a banner.
+ */
+export const ConflictAlertSchema = z.object({
+  checkId: DocIdSchema,
+  contactId: DocIdSchema,
+  partyId: DocIdSchema.optional(),
+  at: InstantSchema,
+  /** Whether a hit has an adverse role (always false while `conflicts.enforced` is off). */
+  adverse: z.boolean(),
+});
+export type ConflictAlert = z.infer<typeof ConflictAlertSchema>;
+
 /** `orgs/{orgId}/contacts/{contactId}`: people and organisations. */
 export const Contact = withMeta(
   {
@@ -95,6 +110,7 @@ export const Matter = withMeta(
       /** Why a potential conflict was waived, or why it is a conflict (CORE-02). */
       reason: z.string().optional(),
     }),
+    conflictAlert: ConflictAlertSchema.optional(),
     estate: z
       .object({
         grossValueCents: CentsSchema.optional(),
@@ -155,6 +171,7 @@ export const Matter = withMeta(
       'budget',
       'closedAt',
       'legalHold',
+      'conflictAlert',
     ],
   },
 );

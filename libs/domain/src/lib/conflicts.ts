@@ -99,7 +99,10 @@ export const ConflictHitMatterSchema = z.object({
   role: PartyRoleSchema,
   /** Set when the role is adverse to the subject's role on the new matter. */
   adverse: z.string().optional(),
+  /** The matter is soft-deleted (still reported: a deleted matter can still be a conflict). */
   deleted: z.boolean().optional(),
+  /** A privileged matter: its title is withheld (`PRIVILEGED_MATTER_TITLE`), since paralegals read checks. */
+  privileged: z.boolean().optional(),
 });
 export type ConflictHitMatter = z.infer<typeof ConflictHitMatterSchema>;
 
@@ -112,6 +115,11 @@ export const ConflictHitSchema = z.object({
   reasons: z.array(z.enum(['name', 'dateOfBirth', 'email', 'phone', 'abn'] satisfies DuplicateReason[])),
   /** The subject matched a merged contact; the hit is the contact it was merged into. */
   viaMergedContactId: DocIdSchema.optional(),
+  /**
+   * The contact the subject was picked from (`subject.contactId`): not a fuzzy match but "this
+   * person", reported with score 1 when it is on other matters.
+   */
+  self: z.boolean().optional(),
   matters: z.array(ConflictHitMatterSchema),
 });
 export type ConflictHit = z.infer<typeof ConflictHitSchema>;
@@ -125,6 +133,12 @@ export const CONFLICT_OPENABLE: readonly ConflictStatus[] = ['clear', 'potential
 export function conflictAllowsOpening(status: ConflictStatus | undefined): boolean {
   return !!status && CONFLICT_OPENABLE.includes(status);
 }
+
+/** The title a hit shows for a privileged matter. */
+export const PRIVILEGED_MATTER_TITLE = 'Privileged matter';
+
+/** At most this many fuzzy hits are kept per subject (best first). */
+export const MAX_HITS_PER_SUBJECT = 25;
 
 /** Whether any hit has an adverse role: the UI highlights it, and "clear" then needs care. */
 export function hasAdverseHit(hits: readonly ConflictHit[]): boolean {
@@ -145,6 +159,53 @@ export const ConflictCheck = withMeta(
   { path: 'orgs/{orgId}/conflictChecks', migratable: false, updatable: [] },
 );
 export type ConflictCheck = z.infer<typeof ConflictCheck.schema>;
+
+/** A contact as a conflict subject in `role` (the party re-check, CORE-02). */
+export function contactSubject(
+  contact: {
+    kind?: 'person' | 'organisation';
+    givenNames?: string;
+    familyName?: string;
+    preferredName?: string;
+    orgName?: string;
+    dateOfBirth?: string;
+    abn?: string;
+    emails?: readonly { address: string }[];
+    phones?: readonly { number: string }[];
+  },
+  role: PartyRole,
+  contactId?: string,
+): ConflictSubject {
+  const kind = contact.kind === 'organisation' ? 'organisation' : 'person';
+  const name =
+    kind === 'organisation'
+      ? contact.orgName?.trim() || 'Unnamed organisation'
+      : [contact.givenNames, contact.familyName]
+          .map((part) => part?.trim())
+          .filter(Boolean)
+          .join(' ') ||
+        contact.preferredName?.trim() ||
+        'Unnamed contact';
+  const email = contact.emails?.[0]?.address;
+  const phone = contact.phones?.[0]?.number;
+  return {
+    kind,
+    name,
+    role,
+    ...(contact.dateOfBirth ? { dob: contact.dateOfBirth } : {}),
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
+    ...(kind === 'organisation' && contact.abn ? { abn: contact.abn } : {}),
+    ...(contactId ? { contactId } : {}),
+  };
+}
+
+// ---------- alerts ----------
+
+/** Matter statuses whose new parties are re-checked (`conflicts-onPartyAdded`); leads get the full check. */
+export const CONFLICT_RECHECK_STATUSES = ['open', 'on_hold'] as const;
+
+// `matter.conflictAlert` (ConflictAlertSchema) lives with the Matter schema in schemas/contacts-matters.ts.
 
 // ---------- callable inputs ----------
 

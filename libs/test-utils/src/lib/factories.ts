@@ -632,6 +632,37 @@ export const makeSavedView = (o: Partial<D.SavedView> = {}) =>
     o,
   );
 
+export const makeConflictCheck = (o: Partial<D.ConflictCheck> = {}) =>
+  build(
+    D.ConflictCheck,
+    {
+      subjects: [{ kind: 'person', name: 'Ada Quill', role: 'client' }],
+      hits: [
+        {
+          subject: 0,
+          contactId: 'contact-test-1',
+          displayName: 'Ada Quill',
+          score: 0.92,
+          reasons: ['name'],
+          matters: [
+            {
+              matterId: TEST_MATTER_ID,
+              number: 'M-2026-0001',
+              title: 'Estate of Bertram Quill',
+              status: 'open',
+              type: 'probate',
+              role: 'beneficiary',
+            },
+          ],
+        },
+      ],
+      ranAt: FIXED_INSTANT,
+      ranBy: TEST_UID,
+      adverseRolesChecked: false,
+    },
+    o,
+  );
+
 /** Every factory with its entity, for exhaustive tests (schema coverage, converter round-trips). */
 export const ENTITY_FACTORIES = {
   Org: [D.Org, makeOrg],
@@ -682,4 +713,5 @@ export const ENTITY_FACTORIES = {
   Counter: [D.Counter, makeCounter],
   MatterNumber: [D.MatterNumber, makeMatterNumber],
   SavedView: [D.SavedView, makeSavedView],
+  ConflictCheck: [D.ConflictCheck, makeConflictCheck],
 } as const;
