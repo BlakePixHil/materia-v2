@@ -171,6 +171,17 @@ Every Clerk component renders the Clerk mark (`<mt-clerk-mark>`, the violet spar
 - **Interaction:** every data point is focusable (one tab stop; arrows, Home and End move) with a tooltip on hover and focus. "View as table" shows the same data as a table. The width follows the container.
 - **Helpers:** `niceDomain`, `fittedDomain`, `linearScale`, `bandScale`, `verticalBarPath`, `horizontalBarPath` and `chartSummary` are exported for ScenarioBars (LIT-01).
 
+### App shell, shortcuts and commands (FND-12)
+
+The shell lives in `apps/web/src/app/shell/` and matches the Today screen frame. It has a 240px sidebar (`[` collapses it to icons, remembered per user), the inset main panel with breadcrumbs, page actions and a loading bar, and a Clerk panel slot (`⌘J`). Under 768px the TabBar replaces the sidebar. Only signed-in, org-scoped routes get the shell (`orgScopedGuard`, a stub `AuthState` until FND-16). `/auth/**` and `/onboarding` use a minimal layout.
+
+- **Nav:** `NAV_ITEMS` in `shell/nav.ts` is the one list of destinations, each with a `g` key. Feature flags (FND-23) filter it.
+- **Routes:** everything is lazy. Unbuilt pages are `planned(path, title, { ticket })` placeholders ("Coming in CORE-14"). Matter tabs live under `/matters/:id/<tab>`; an unknown tab redirects to `overview`. Titles read root to leaf, then "Materia": `Matter · M-2026-0142 · Materia`, and other tabs add their name. Breadcrumbs come from each route's own `data.crumb` or title.
+- **Shortcuts:** `inject(ShortcutService).register({ combo: 'mod+e', description, group, handler, when? })` returns an unregister function; call it on destroy. `mod` is ⌘ on a Mac and Ctrl elsewhere. Sequences look like `g m`. Plain keys are ignored in editable fields (modifier combos still work), nothing fires during IME composition, and browser-reserved combos (⌘W, ⌘T…) throw. Everything registered shows in the `?` sheet.
+- **Commands:** `inject(CommandRegistry).register({ id, title, group, icon, keywords, shortcut?, when?, run })` adds a command to ⌘K. Async search results come from `registerProvider({ id, group, search(query, signal) })`, which CORE-15 uses for matters, contacts and tasks. The palette shows Recent (the last five commands run), then everything by group. Typing gives fuzzy-ranked commands, then provider results, debounced 150ms; a failing provider shows nothing.
+- **Page actions:** put buttons in the header with `<ng-template mtPageActions>…</ng-template>`.
+- **Errors:** `GlobalErrorHandler` shows one toast at most every 4s and reports the error through `ERROR_REPORTER`. The default reporter logs the error name only; FND-21 swaps in Sentry.
+
 ### Storybook
 
 `pnpm storybook` (port 4400). The toolbar has a Light/Dark theme switch; backgrounds are the `bg-*` tokens; the a11y addon reports violations as errors. `Foundations/Colours`, `Type`, `Spacing` and `Theme` are rendered from `tokens.ts`. CI builds Storybook and runs the test-runner over every story (play functions and a11y): `pnpm nx run ui:test-storybook` against a running Storybook locally.
