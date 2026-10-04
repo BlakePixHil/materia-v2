@@ -318,8 +318,8 @@ export class InMemoryFirestore {
         return data ? this.raw(id, data, path) : null;
       },
       count: async (spec) => this.run(path, { spec, after: null, end: null, limit: null }).length,
-      create: async (data, meta) => {
-        const id = `doc-${this.nextId++}`;
+      create: async (data, meta, given) => {
+        const id = given ?? `doc-${this.nextId++}`;
         const now = new Date();
         const doc = {
           ...data,

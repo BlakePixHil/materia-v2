@@ -12,7 +12,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
-import { ACCESS_REVOKED_HANDLER } from '@materia/data-access';
+import { ACCESS_REVOKED_HANDLER, can } from '@materia/data-access';
 import { formatDateOnly, MtButton, MtEmptyState, MtNote, MtTabLink, MtTabNav } from '@materia/ui';
 
 import { matterTabsFor } from './matter-tabs';
@@ -206,7 +206,14 @@ export class MatterLayout {
     const shortcut = (combo: string, description: string, handler: () => void, when = ready) =>
       shortcuts.register({ combo, description, group: 'Matter', scope: 'route', when, handler });
     const editable = () => ready() && this.screen.editable();
+    const canCreate = can('matter.create');
     return [
+      shortcut(
+        'c',
+        'New matter',
+        () => void this.router.navigateByUrl('/matters/new'),
+        () => canCreate(),
+      ),
       shortcut(
         'mod+j',
         'Ask Clerk about this matter',

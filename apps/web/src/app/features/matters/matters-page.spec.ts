@@ -467,7 +467,7 @@ describe('keyboard', () => {
     await page.stable();
     await page.press('c', page.body);
     expect(page.router.url).toBe('/matters/new');
-    expect(page.text()).toContain('Coming in CORE-05');
+    expect(page.text()).toContain('What kind of matter is it?');
   });
 });
 

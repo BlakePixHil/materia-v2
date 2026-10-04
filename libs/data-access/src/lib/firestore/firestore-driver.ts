@@ -107,10 +107,11 @@ export function firestoreDriver(source: FirestoreSource, path: string, options: 
       const result = await handle.sdk.getCountFromServer(buildQuery(handle, path, spec, undefined, group));
       return result.data().count;
     },
-    async create(data, meta) {
+    async create(data, meta, id) {
       if (group) throw new Error(`Collection group "${path}" is read-only`);
       const handle = await source.get();
-      const docRef = handle.sdk.doc(handle.sdk.collection(handle.db, path));
+      const collection = handle.sdk.collection(handle.db, path);
+      const docRef = id ? handle.sdk.doc(collection, id) : handle.sdk.doc(collection);
       const now = handle.sdk.serverTimestamp();
       await handle.sdk.setDoc(docRef, {
         ...data,
