@@ -38,6 +38,7 @@ locals {
     "roles/firebasehosting.admin",
     "roles/datastore.indexAdmin",
     "roles/firebaserules.admin",
+    "roles/firebaseauth.admin", # registers the auth blocking functions (Identity Toolkit config) on deploy
     "roles/eventarc.developer",
     "roles/cloudtasks.queueAdmin", # task queue functions: firebase-tools creates and updates their queues
     "roles/cloudscheduler.admin",
