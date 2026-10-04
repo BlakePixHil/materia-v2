@@ -182,7 +182,10 @@ describe('audit triggers through the emulators', () => {
   it('records task changes but skips order-only reorders', async () => {
     const task = `${MATTER}/tasks/task-1`;
     await db.doc(task).set({ ...meta('audit-paralegal'), title: 'Lodge the inventory', order: 1 });
+    // Wait between writes: entries are ordered by event time, and back-to-back writes can share it.
+    await waitForEntries(task, 1);
     await db.doc(task).update({ ...touch('audit-paralegal'), order: 2 });
+    expect(await waitForEntries(task, 1)).toHaveLength(1);
     await db
       .doc(task)
       .update({ ...touch('audit-paralegal'), deletedAt: FieldValue.serverTimestamp(), deletedBy: 'audit-paralegal' });

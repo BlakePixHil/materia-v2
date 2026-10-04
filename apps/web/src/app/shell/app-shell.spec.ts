@@ -12,6 +12,7 @@ import { MtPageActions } from './page-header';
 import type { AuthSession } from '../core/auth/auth-port';
 import { provideFakeAuth, testSession, type FakeAuthPort } from '../core/auth/testing';
 import { CommandRegistry } from '../core/commands/command-registry';
+import { provideTestFlags } from '../core/flags/testing';
 
 const settle = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -26,7 +27,12 @@ async function setup(url = '/today', options: { mobile?: boolean; session?: Auth
   const fake = provideFakeAuth(options.session ?? testSession());
   TestBed.configureTestingModule({
     imports: [App],
-    providers: [provideRouter(appRoutes), { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' }, ...fake.providers],
+    providers: [
+      provideRouter(appRoutes),
+      { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
+      ...fake.providers,
+      ...provideTestFlags(),
+    ],
   });
   const fixture = TestBed.createComponent(App);
   const router = TestBed.inject(Router);
@@ -210,6 +216,7 @@ describe('MtPageActions', () => {
           },
         ]),
         ...provideFakeAuth().providers,
+        ...provideTestFlags(),
       ],
     });
     const fixture = TestBed.createComponent(App);

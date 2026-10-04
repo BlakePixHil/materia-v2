@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 
 import { authGuard, mfaGuard, orgScopedGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
+import { flagGuard } from './core/flags/flag';
 import { MATTER_TABS } from './pages/matter-tabs';
 import type { PlaceholderData } from './pages/placeholder';
 
@@ -13,6 +14,11 @@ declare const ngDevMode: unknown;
 const devRoutes: Route[] =
   typeof ngDevMode === 'undefined' || ngDevMode
     ? [
+        {
+          path: '__dev/flags',
+          title: 'Feature flags',
+          loadComponent: () => import('./dev/flags-page').then((m) => m.FlagsDevPage),
+        },
         {
           path: '__dev/deadlines',
           title: 'Deadline lab',
@@ -82,11 +88,13 @@ const shellRoutes: Route[] = [
     icon: 'calendar',
     description: 'Every computed deadline across your matters, by due date.',
   }),
-  planned('disputes', 'Disputes', {
-    ticket: 'LIT-02',
-    icon: 'scale',
-    description: 'Contested estates and family provision claims.',
-  }),
+  // Behind the litigation flag until LIT-01 ships (FND-23).
+  planned(
+    'disputes',
+    'Disputes',
+    { ticket: 'LIT-02', icon: 'scale', description: 'Contested estates and family provision claims.' },
+    { canActivate: [flagGuard('litigation.enabled')] },
+  ),
   planned('contacts', 'Contacts', {
     ticket: 'CORE-01',
     icon: 'contacts',

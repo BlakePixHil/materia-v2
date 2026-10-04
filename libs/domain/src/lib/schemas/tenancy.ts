@@ -39,7 +39,8 @@ export const Org = withMeta(
     plan: z.enum(['trial', 'standard', 'enterprise']),
     security: z.object({ mfaRequired: z.boolean(), sessionIdleMinutes: z.number().int().positive() }),
     settings: z.object({ clerk: z.object({ enabled: z.boolean() }).optional() }).optional(),
-    flags: z.record(z.string(), z.boolean()).optional(),
+    /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */
+    flags: z.record(z.string(), z.union([z.boolean(), z.string(), z.number()])).optional(),
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: z.string(), at: InstantSchema }).optional(),
     deletionScheduledAt: InstantSchema.optional(),
     termsAcceptedVersion: z.string().optional(),
