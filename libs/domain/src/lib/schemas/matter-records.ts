@@ -31,7 +31,14 @@ export const Party = withMeta(
     // Queried across matters by contact ("the matters this contact is on", CORE-01).
     ...GroupKeys,
   },
-  { path: `${MATTER}/parties`, softDelete: true, serverOwned: ['orgId', 'matterId'] },
+  {
+    path: `${MATTER}/parties`,
+    softDelete: true,
+    serverOwned: ['orgId', 'matterId'],
+    // The row id is `partyDocId(role, contactId)` and the matter's `clientContactIds` follows the
+    // client rows, so contact, role and removal go through `matters-upsertParty`/`removeParty` (CORE-06).
+    updatable: ['share', 'notes'],
+  },
 );
 
 const taskShape = {

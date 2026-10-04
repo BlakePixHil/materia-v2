@@ -244,7 +244,10 @@ service cloud.firestore {
 
         match /parties/{partyId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsParty());
+          // Share and notes only: adding, re-roling and removing parties go through the
+          // matters-upsertParty and matters-removeParty callables, which keep clientContactIds and
+          // the last-client rule (CORE-06). No client soft delete.
+          allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsParty());
         }
         match /events/{eventId} {
           allow read: if inOrg(orgId);
@@ -473,7 +476,7 @@ service cloud.firestore {
     function fieldsNotification() { return ['readAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
     function fieldsOrg() { return ['name', 'abn', 'acn', 'practiceType', 'jurisdictions', 'primaryJurisdiction', 'timezone', 'holidayLocality', 'billing', 'matterNumberFormat', 'fy', 'retentionYears', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
-    function fieldsParty() { return ['contactId', 'role', 'share', 'notes', 'addedFrom']; }
+    function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'descriptionMd', 'status', 'priority', 'assigneeUid', 'dueDate', 'deadlineId', 'group', 'checklist', 'order', 'source']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
     function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'rules']; }

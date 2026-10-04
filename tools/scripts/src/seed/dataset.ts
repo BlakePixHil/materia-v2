@@ -493,6 +493,69 @@ const MATTERS: MatterSpec[] = [
   },
 ];
 
+/**
+ * The matter screen's stage and key facts for a few matters (CORE-06), so the stepper and the key
+ * facts card have content. Each stage's required facts are present. Dates are offsets from the
+ * anchor; grant and court file numbers are invented.
+ */
+interface MatterDetailSpec {
+  stageId: string;
+  willDate?: Offset;
+  courtFileNo?: string;
+  grantDate?: Offset;
+  grantNo?: string;
+  grossValueCents?: number;
+}
+
+const MATTER_DETAILS: Readonly<Record<string, MatterDetailSpec>> = {
+  'm-doyle-estate': { stageId: 'grant_application', willDate: -2400, grossValueCents: 1_284_500_00 },
+  'm-nguyen-fp': {
+    stageId: 'mediation',
+    willDate: -3100,
+    courtFileNo: 'S ECI 2026 90417',
+    grossValueCents: 2_150_000_00,
+  },
+  'm-doyle-brennan': { stageId: 'pleadings', willDate: -400, courtFileNo: 'S ECI 2026 90233' },
+  'm-okafor-loa': { stageId: 'intake' },
+  'm-okafor-wills': { stageId: 'instructions' },
+  'm-whitfield-poa': { stageId: 'signing' },
+  'm-feather-admin': {
+    stageId: 'collection',
+    grantDate: -20,
+    grantNo: 'S PRB 2026 90188',
+    grossValueCents: 640_250_00,
+  },
+  'm-ellis-trust': { stageId: 'administration' },
+  'm-ellis-estate': {
+    stageId: 'finalisation',
+    willDate: -4000,
+    grantDate: -480,
+    grantNo: 'S PRB 2025 90051',
+    grossValueCents: 915_000_00,
+  },
+};
+
+/**
+ * The party rows a seeded matter gets: one client row per client (CORE-06: `clientContactIds`
+ * follows the client rows), then its other parties, one row per role and contact.
+ */
+export function seedParties(spec: {
+  clients: readonly string[];
+  parties: readonly (readonly [contactId: string, role: D.PartyRole])[];
+}): [contactId: string, role: D.PartyRole][] {
+  const rows: [string, D.PartyRole][] = [
+    ...spec.clients.map((id): [string, D.PartyRole] => [id, 'client']),
+    ...spec.parties.map(([id, role]): [string, D.PartyRole] => [id, role]),
+  ];
+  const seen = new Set<string>();
+  return rows.filter(([id, role]) => {
+    const key = `${role}|${id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 const FIXTURE_FILES: Record<FixtureName, { name: string; category: D.MatterDocument['category'] }> = {
   will: { name: 'Will (fictional sample).pdf', category: 'will' },
   'death-certificate': { name: 'Death certificate (SAMPLE).pdf', category: 'death_certificate' },
@@ -670,6 +733,22 @@ export function buildDataset(options: {
       return sum + Math.round((units * (MEMBERS[uid]?.rate ?? 0)) / 10);
     }, 0);
     const closed = spec.status === 'closed' || spec.status === 'archived';
+    const detail = MATTER_DETAILS[spec.id];
+    const estate =
+      detail && (detail.grantDate !== undefined || detail.grantNo || detail.grossValueCents !== undefined)
+        ? {
+            ...(detail.grantDate !== undefined ? { grantDate: rel(detail.grantDate) } : {}),
+            ...(detail.grantNo ? { grantNo: detail.grantNo } : {}),
+            ...(detail.grossValueCents !== undefined ? { grossValueCents: detail.grossValueCents as D.Cents } : {}),
+          }
+        : undefined;
+    const facts =
+      detail && (detail.willDate !== undefined || detail.courtFileNo)
+        ? {
+            ...(detail.willDate !== undefined ? { willDate: rel(detail.willDate) } : {}),
+            ...(detail.courtFileNo ? { courtFileNo: detail.courtFileNo } : {}),
+          }
+        : undefined;
 
     add(`orgs/${org}/matterNumbers/${domain.matterNumberKey(number)}`, {
       ...makeMatterNumber({ ...meta, number, matterId: spec.id, year }),
@@ -685,6 +764,9 @@ export function buildDataset(options: {
         jurisdiction: 'VIC',
         responsibleUid: spec.responsible,
         teamUids: spec.team,
+        stageId: detail?.stageId,
+        estate,
+        facts,
         clientContactIds: spec.clients,
         deceased:
           deceased && deceased.dateOfDeath !== undefined
@@ -727,12 +809,12 @@ export function buildDataset(options: {
       deletedAt: null,
     });
 
-    spec.parties.forEach(([contactId, role], i) =>
+    for (const [contactId, role] of seedParties(spec)) {
       add(
-        `${base}/parties/${spec.id}-p-${i + 1}`,
+        `${base}/parties/${domain.partyDocId(role, contactId)}`,
         makeParty({ ...meta, orgId: org, matterId: spec.id, contactId, role }),
-      ),
-    );
+      );
+    }
     spec.events.forEach(([kind, offset, label], i) =>
       add(
         `${base}/events/${spec.id}-ev-${i + 1}`,

@@ -22,12 +22,19 @@ const millis = (value: unknown): number | undefined => {
 };
 
 export type PartyRecheckOutcome =
-  'skipped_deleted' | 'skipped_matter' | 'skipped_with_matter' | 'skipped_contact' | 'no_hits' | 'alerted';
+  | 'skipped_deleted'
+  | 'skipped_not_added'
+  | 'skipped_matter'
+  | 'skipped_with_matter'
+  | 'skipped_contact'
+  | 'no_hits'
+  | 'alerted';
 
 /**
- * Re-checks conflicts when a party is added to an open or on-hold matter (CORE-02). Leads are
- * skipped (they get the full check before opening), and so are the party rows
- * `matters-createMatter` writes with the matter (same `createdAt`). The party's contact is checked
+ * Re-checks conflicts when a party is added to an open or on-hold matter (CORE-02): a new row, or a
+ * soft-deleted row revived by `matters-upsertParty` (CORE-06). Other edits of a row are skipped
+ * (`skipped_not_added`). Leads are skipped (they get the full check before opening), and so are the
+ * party rows `matters-createMatter` writes with the matter (same `createdAt`). The party's contact is checked
  * as a subject in its role, the matter itself excluded, and the run is stored as a ConflictCheck.
  * When the contact (or someone like them) is on other matters, the matter gets a server-owned
  * `conflictAlert` and its responsible lawyer a high-priority in-app notification. Nothing is
@@ -36,6 +43,9 @@ export type PartyRecheckOutcome =
 export async function recheckParty(change: TriggerChange, ctx: TriggerContext): Promise<PartyRecheckOutcome> {
   const party = change.after?.data() as Data | undefined;
   if (!party || isDeleted(party)) return 'skipped_deleted';
+  const before = change.before?.data() as Data | undefined;
+  const revived = !!before && isDeleted(before);
+  if (before && !revived) return 'skipped_not_added';
   const orgId = ctx.params['orgId'] as string;
   const matterId = ctx.params['matterId'] as string;
   const partyId = ctx.params['partyId'] as string;
@@ -49,7 +59,9 @@ export async function recheckParty(change: TriggerChange, ctx: TriggerContext): 
     return 'skipped_matter';
   }
   const partyCreated = millis(party['createdAt']);
-  if (partyCreated !== undefined && partyCreated === millis(matter['createdAt'])) return 'skipped_with_matter';
+  if (!revived && partyCreated !== undefined && partyCreated === millis(matter['createdAt'])) {
+    return 'skipped_with_matter';
+  }
 
   const role = PartyRoleSchema.safeParse(party['role']);
   const contactId = party['contactId'];
@@ -60,7 +72,9 @@ export async function recheckParty(change: TriggerChange, ctx: TriggerContext): 
   const subject = contactSubject(contact as never, role.data, contactId);
   const adverseOn = await isEnabled({ orgId, db, clock: ctx.clock }, 'conflicts.enforced');
   const hits = await findConflictHits(db, orgId, [subject], { excludeMatterId: matterId, adverse: adverseOn });
-  const by = typeof party['createdBy'] === 'string' && party['createdBy'] ? party['createdBy'] : 'system';
+  // Whoever added the party: the creator of a new row, the last editor of a revived one.
+  const addedBy = revived ? party['updatedBy'] : party['createdBy'];
+  const by = typeof addedBy === 'string' && addedBy ? addedBy : 'system';
   const now = ctx.clock.now();
   const checkId = await storeConflictCheck(db, orgId, {
     subjects: [subject],
@@ -115,4 +129,19 @@ export const onPartyAddedDefinition: TriggerDefinition = {
   },
 };
 
+/**
+ * The same re-check for a revived row (`deletedAt` set, then cleared: `matters-upsertParty` adding
+ * a contact back in a role they had). A separate update trigger, so the create trigger's event type
+ * never changes on deploy; every other update is `skipped_not_added`.
+ */
+export const onPartyRevivedDefinition: TriggerDefinition = {
+  name: 'conflicts-onPartyRevived',
+  document: 'orgs/{orgId}/matters/{matterId}/parties/{partyId}',
+  on: 'updated',
+  handler: async (change, ctx) => {
+    await recheckParty(change, ctx);
+  },
+};
+
 export const onPartyAdded = defineTrigger(onPartyAddedDefinition);
+export const onPartyRevived = defineTrigger(onPartyRevivedDefinition);
