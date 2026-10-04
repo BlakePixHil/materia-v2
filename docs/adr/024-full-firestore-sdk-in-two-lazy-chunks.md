@@ -1,4 +1,4 @@
-# ADR-023: The full Firestore SDK loads lazily in two chunks
+# ADR-024: The full Firestore SDK loads lazily in two chunks
 
 - **Status:** Proposed
 - **Date:** 2026-10-04

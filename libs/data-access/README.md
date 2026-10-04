@@ -9,7 +9,7 @@ Two entry points:
 | `@materia/data-access`            | `OrgContext`, `ListenerRegistry`, `FirestoreClient`, `CallableClient`, `DataLifecycle`, `optimistic`, `can`, `toDomainError`, tenancy and job sources | Anywhere, including `main` (it's small)           |
 | `@materia/data-access/repository` | `repo()`, the query resources, the Firestore driver, `membersRepository()`, the in-memory test driver                                                 | Lazily loaded features only, to keep `main` small |
 
-The Firestore SDK itself loads on the first query, as two lazy chunks (ADR-023), never on the sign-in screens.
+The Firestore SDK itself loads on the first query, as two lazy chunks (ADR-024), never on the sign-in screens.
 
 ## A repository
 

@@ -20,7 +20,7 @@ export interface FirestoreSource {
  * Loads the SDK in two lazy chunks that download in parallel: Firestore itself and `re2js` (the
  * regex engine Firestore bundles for pipeline queries). Together they are over the 150 kB lazy
  * chunk budget; importing `re2js` on its own here makes the bundler give it its own chunk
- * (ADR-023). The root package.json pins `re2js` to Firestore's range so both resolve to one copy.
+ * (ADR-024). The root package.json pins `re2js` to Firestore's range so both resolve to one copy.
  */
 export function loadFirestoreSdk(): Promise<FirestoreSdk> {
   return Promise.all([import('./sdk'), import('re2js')]).then(([sdk]) => sdk);
