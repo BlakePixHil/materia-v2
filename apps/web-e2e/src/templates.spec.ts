@@ -65,7 +65,7 @@ test.describe('matter templates', () => {
     await expectNoA11yViolations(page);
 
     // Customise the will template: a draft copy opens in the editor.
-    await page.getByRole('button', { name: 'Customise Will' }).click();
+    await page.getByRole('button', { name: 'Customise Will', exact: true }).click();
     // The first call cold-starts the Functions emulator.
     await expect(page).toHaveURL(/\/settings\/templates\/[^/]+$/, { timeout: 20_000 });
     const templateId = page.url().split('/').at(-1) as string;
@@ -104,8 +104,8 @@ test.describe('matter templates', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('Only tasks it doesn’t have yet are added');
     await dialog.getByRole('button', { name: 'Upgrade to v2' }).click();
-    await expect(page.getByText('Upgraded to v2')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(/\d+ tasks? added\./)).toBeVisible();
+    await expect(page.getByText('Upgraded to v2').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/\d+ tasks? added\./).first()).toBeVisible();
     await expect(page.locator('mt-matter-overview')).toContainText('Check the client’s identity documents');
     await page.getByRole('button', { name: 'More matter actions' }).click();
     await expect(page.getByRole('menuitem', { name: /Upgrade matter/ })).toHaveCount(0);
@@ -137,9 +137,9 @@ test.describe('matter templates', () => {
     ]);
     await page.goto('/matters/m-stage');
     const stepper = page.locator('mt-estate-stepper');
-    await expect(stepper.getByRole('button', { name: 'Execution, current' })).toBeVisible();
+    await expect(stepper.getByRole('button', { name: /^Execution\s*, current$/ })).toBeVisible();
 
-    await stepper.getByRole('button', { name: 'Safe custody' }).click();
+    await stepper.getByRole('button', { name: 'Safe custody', exact: true }).click();
     const note = page.locator('mt-matter-stages mt-note');
     await expect(note).toContainText('To move to Safe custody, record:', { timeout: 20_000 });
     await expectNoA11yViolations(page);
@@ -150,7 +150,7 @@ test.describe('matter templates', () => {
     await page.locator('mt-key-facts').getByRole('button', { name: 'Save' }).click();
     await expect(note).toContainText('Everything Safe custody needs is recorded');
     await note.getByRole('button', { name: 'Move to Safe custody' }).click();
-    await expect(page.getByText('Moved to Safe custody')).toBeVisible({ timeout: 20_000 });
-    await expect(stepper.getByRole('button', { name: 'Safe custody, current' })).toBeVisible();
+    await expect(page.getByText('Moved to Safe custody').first()).toBeVisible({ timeout: 20_000 });
+    await expect(stepper.getByRole('button', { name: /^Safe custody\s*, current$/ })).toBeVisible();
   });
 });
