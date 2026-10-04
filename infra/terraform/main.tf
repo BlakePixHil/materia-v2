@@ -3,8 +3,14 @@
 #   terraform plan -var-file=envs/dev.tfvars
 # MVP mode: dev and prod only; staging is deferred (envs/staging.tfvars is kept for later).
 
+# Quota project: APIs such as Firebase Management, Identity Toolkit and KMS need one. Without it a
+# service-account caller is billed to its own (admin) project, where they're disabled. Pinning
+# billing_project covers resources that ignore user_project_override; it assumes the project
+# exists, so a brand-new environment is created first (see README).
 provider "google" {
-  region = var.region
+  region                = var.region
+  billing_project       = var.project_id
+  user_project_override = true
   default_labels = {
     app = "materia"
     env = var.env
@@ -19,7 +25,9 @@ provider "google" {
 }
 
 provider "google-beta" {
-  region = var.region
+  region                = var.region
+  billing_project       = var.project_id
+  user_project_override = true
   default_labels = {
     app = "materia"
     env = var.env
@@ -42,7 +50,6 @@ module "env" {
   folder_id                    = var.folder_id
   region                       = var.region
   backup_region                = var.backup_region
-  github_repository            = var.github_repository
   restrict_deploys_to_releases = var.restrict_deploys_to_releases
   enable_migration_runner      = var.enable_migration_runner
   deletion_protection          = var.deletion_protection

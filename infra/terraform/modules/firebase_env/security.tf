@@ -10,6 +10,11 @@ resource "google_identity_platform_config" "this" {
       enabled           = true
       password_required = true
     }
+
+    # Declared because the API returns it; otherwise every plan shows a diff.
+    phone_number {
+      enabled = false
+    }
   }
 
   # FND-16 turns on TOTP MFA, Google sign-in and the password policy.

@@ -42,11 +42,6 @@ variable "backup_region" {
   default     = "australia-southeast2"
 }
 
-variable "github_repository" {
-  description = "owner/repo allowed to deploy through WIF."
-  type        = string
-  default     = "BlakePixHil/materia-v2"
-}
 
 variable "restrict_deploys_to_releases" {
   description = "Prod: only v* tags or the production environment may deploy."
@@ -80,4 +75,23 @@ variable "budget_currency" {
 variable "budget_alert_emails" {
   description = "Recipients of budget alerts. Pass via TF_VAR_budget_alert_emails or a gitignored *.auto.tfvars."
   type        = list(string)
+}
+
+# Adoption of pre-existing resources (imports.tf).
+variable "adopt_existing_project" {
+  description = "Import the project and its Firebase project instead of creating them (created in the Firebase console)."
+  type        = bool
+  default     = false
+}
+
+variable "adopt_enabled_services" {
+  description = "APIs already enabled on an adopted project to import into google_project_service. Each must also be in the module's service list."
+  type        = list(string)
+  default     = []
+}
+
+variable "adopt_budget_id" {
+  description = "Id (the last path segment) of an existing budget for this project, such as the one Firebase creates on a Blaze upgrade, to import as the monthly budget."
+  type        = string
+  default     = null
 }

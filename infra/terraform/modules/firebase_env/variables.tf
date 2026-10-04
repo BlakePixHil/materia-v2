@@ -42,14 +42,9 @@ variable "backup_region" {
   default     = "australia-southeast2"
 }
 
-variable "github_repository" {
-  description = "owner/repo allowed to deploy through Workload Identity Federation."
-  type        = string
-  default     = "BlakePixHil/materia-v2"
-}
 
 variable "github_repository_id" {
-  description = "Immutable numeric id of github_repository. Matching ids rather than names means a deleted-and-recreated repo or renamed owner can't inherit access."
+  description = "Immutable numeric id of the repository allowed to deploy through Workload Identity Federation (BlakePixHil/materia-v2). Matching ids rather than names means a deleted-and-recreated repo or renamed owner can't inherit access."
   type        = string
   default     = "1403644575"
 }
