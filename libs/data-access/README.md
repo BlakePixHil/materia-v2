@@ -30,6 +30,7 @@ const matters = repo((orgId) => `orgs/${orgId}/matters`, Matter);
 | `watchQuery(spec, { live })`     | A live, paged `QueryResource` (below); `live: false` reads once |
 | `count(spec)`                    | `getCountFromServer`, cached 60 s per path and spec             |
 | `create`, `update`, `softDelete` | Validated writes; soft delete sets `deletedAt` / `deletedBy`    |
+| `hardDelete(id)`                 | Removes the document, where the rules allow it (saved views)    |
 
 `update(id, patch, { remove: ['dateOfDeath'] })` also deletes fields (`deleteField()`), for clearing an optional value; removed fields must be in the update whitelist too.
 
@@ -42,6 +43,14 @@ Queries hide soft-deleted documents unless `includeDeleted: true`. A query with 
 ## Contacts (CORE-01)
 
 `contactsRepository()` lists `orgs/{orgId}/contacts` with `contactListQuery(filters)` (ordered by the server-maintained `sortName`; one Firestore filter: the search token, kind, referrer or tag) and `contactMatchesFilters(row, filters)` for the rest (and to hide merged tombstones). Edits are client-direct through `Contact.update`; creates, deletes and merges go through the `contacts-*` callables. `matterSummariesRepository()` reads a matter's number and title.
+
+## Matters and saved views (CORE-03)
+
+`mattersRepository()` reads `orgs/{orgId}/matters` as `MatterListItem` and edits the whitelisted fields client-direct (`Matter.update`: title, responsible, team, labels, priority, stage, external reference, estate). Number and status change only through the callables in `MATTER_CALLABLES` (`matters-createMatter`, `matters-changeStatus`, `matters-restore`), called through `CALLABLES` like any other.
+
+`matterQueryPlan(filters, sort, { viewerUid, privilegedVisible })` is the one place that decides how a list view reads: against `MATTER_LIST_INDEXES` (the composite indexes in `firebase/firestore.indexes.json`), a combination Firestore can serve is `paged` (50 rows a page, cursor paging); anything else is `capped`: the largest indexed subset of the filters, most recently active first, at most 500 rows, with the rest filtered and sorted in the browser and a `notice` to show. `matterMatchesFilters(row, filters, { today, now })` applies every filter to loaded rows (overdue, recently closed and the search box always run there). Roles without `privileged.view` get `privileged == false` added, as the rules require.
+
+`savedViewsRepository()` is the signed-in person's `users/{uid}/views` (`SavedView`), listed per org with `SAVED_MATTER_VIEWS_QUERY(orgId)`; views are created, renamed and removed (`hardDelete`) client-direct.
 
 ## Lists: watchQuery and paging
 

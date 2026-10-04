@@ -85,6 +85,8 @@ export interface Repository<T> {
    */
   update(id: string, patch: Partial<T> | Record<string, unknown>, options?: UpdateOptions): Promise<void>;
   softDelete(id: string): Promise<void>;
+  /** Removes the document for good. Only where the rules allow one (a person's own saved views). */
+  hardDelete(id: string): Promise<void>;
 }
 
 function currentInjector(fallback: Injector): Injector {
@@ -296,5 +298,7 @@ function createRepository<T>(
       }, 'write'),
 
     softDelete: (id) => guard(() => driver().softDelete(id, meta()), 'write'),
+
+    hardDelete: (id) => guard(() => driver().hardDelete(id), 'write'),
   };
 }

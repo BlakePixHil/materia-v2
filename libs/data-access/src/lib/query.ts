@@ -68,6 +68,8 @@ export interface CollectionDriver {
   /** Merges `patch`; `remove` lists fields to delete (`deleteField()`), for clearing optional values. */
   update(id: string, patch: Record<string, unknown>, meta: WriteMeta, remove?: readonly string[]): Promise<void>;
   softDelete(id: string, meta: WriteMeta): Promise<void>;
+  /** Removes the document. Only where the rules allow one (a person's own saved views). */
+  hardDelete(id: string): Promise<void>;
 }
 
 export interface DriverOptions {

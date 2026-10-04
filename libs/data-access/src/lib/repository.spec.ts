@@ -132,6 +132,9 @@ describe('repo: writes', () => {
     expect(fs.writes.at(-1)).toMatchObject({ op: 'update', data: { title: 'Renamed', updatedBy: 'u-owner' } });
     await notes.softDelete(id);
     expect(fs.get(`orgs/org-a/notes/${id}`)).toMatchObject({ deletedBy: 'u-owner' });
+    await notes.hardDelete(id);
+    expect(fs.get(`orgs/org-a/notes/${id}`)).toBeUndefined();
+    expect(fs.writes.at(-1)).toEqual({ op: 'delete', path: `orgs/org-a/notes/${id}` });
   });
 
   it('validates input against the entity schemas before writing', async () => {
