@@ -1,0 +1,79 @@
+{
+  "calendarId": "VIC_SUPREME_COURT",
+  "year": 2028,
+  "kind": "court",
+  "jurisdiction": "VIC",
+  "holidays": [
+    {
+      "date": "2028-01-01",
+      "name": "New Year's Day"
+    },
+    {
+      "date": "2028-01-03",
+      "name": "New Year's Day (additional)"
+    },
+    {
+      "date": "2028-01-26",
+      "name": "Australia Day"
+    },
+    {
+      "date": "2028-03-13",
+      "name": "Labour Day"
+    },
+    {
+      "date": "2028-04-14",
+      "name": "Good Friday"
+    },
+    {
+      "date": "2028-04-15",
+      "name": "Saturday before Easter Sunday"
+    },
+    {
+      "date": "2028-04-16",
+      "name": "Easter Sunday"
+    },
+    {
+      "date": "2028-04-17",
+      "name": "Easter Monday"
+    },
+    {
+      "date": "2028-04-25",
+      "name": "ANZAC Day"
+    },
+    {
+      "date": "2028-06-12",
+      "name": "King's Birthday"
+    },
+    {
+      "date": "2028-09-29",
+      "name": "Friday before the AFL Grand Final",
+      "provisional": true
+    },
+    {
+      "date": "2028-11-07",
+      "name": "Melbourne Cup"
+    },
+    {
+      "date": "2028-12-25",
+      "name": "Christmas Day"
+    },
+    {
+      "date": "2028-12-26",
+      "name": "Boxing Day"
+    }
+  ],
+  "closures": [
+    {
+      "from": "2028-01-01",
+      "to": "2028-01-02",
+      "name": "Christmas\u2013New Year registry closure"
+    },
+    {
+      "from": "2028-12-25",
+      "to": "2028-12-31",
+      "name": "Christmas\u2013New Year registry closure"
+    }
+  ],
+  "source": "Victorian public holidays as observed in Melbourne, plus Supreme Court of Victoria registry closures (closure dates to verify against the court's published notice)",
+  "verified": false
+}

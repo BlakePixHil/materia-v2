@@ -1,0 +1,4732 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden scenarios (Victoria v1) > CGT main residence window: 2 years, no roll 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-25",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-25 (Thursday) · event ev-dod",
+      "+ 6 months → 2026-06-25 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-12-25",
+    "reason": null,
+    "rule": "au.cgt.main_residence",
+    "status": "computed",
+    "trace": [
+      "condition estate.hasMainResidence = true: yes (true)",
+      "anchor date_of_death = 2025-12-25 (Thursday) · event ev-dod",
+      "+ 2 years → 2027-12-25 (Saturday)",
+      "2027-12-25 is Saturday on VIC_MELBOURNE → not rolled (rule says none)",
+      "rule au.cgt.main_residence · vic v1 · Income Tax Assessment Act 1997 (Cth) s 118-195",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-25 (Thursday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-29",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-25 (Thursday) · event ev-dod",
+      "+ 12 months → 2026-12-25 (Friday)",
+      "2026-12-25 is Christmas Day on VIC_MELBOURNE → rolled forward to 2026-12-29 (Tuesday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > CGT window only when there is a main residence 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-25",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-25 (Thursday) · event ev-dod",
+      "+ 6 months → 2026-06-25 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-25 (Thursday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-29",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-25 (Thursday) · event ev-dod",
+      "+ 12 months → 2026-12-25 (Friday)",
+      "2026-12-25 is Christmas Day on VIC_MELBOURNE → rolled forward to 2026-12-29 (Tuesday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > a future date of death is invalid 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The date of death (2026-12-01) is in the future",
+    "rule": "vic.probate.prompt_filing",
+    "status": "invalid",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-12-01 (Tuesday) · event ev-dod",
+      "invalid: The date of death (2026-12-01) is in the future",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The date of death (2026-12-01) is in the future",
+    "rule": "au.tax.final_return",
+    "status": "invalid",
+    "trace": [
+      "anchor date_of_death = 2026-12-01 (Tuesday) · event ev-dod",
+      "invalid: The date of death (2026-12-01) is in the future",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The date of death (2026-12-01) is in the future",
+    "rule": "org.executor_year",
+    "status": "invalid",
+    "trace": [
+      "anchor date_of_death = 2026-12-01 (Tuesday) · event ev-dod",
+      "invalid: The date of death (2026-12-01) is in the future",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > a will matter has no deadlines in v1 1`] = `[]`;
+
+exports[`golden scenarios (Victoria v1) > advert: 14 days after the notice 1`] = `
+[
+  {
+    "due": "2026-10-15",
+    "reason": null,
+    "rule": "vic.probate.advert_min",
+    "status": "computed",
+    "trace": [
+      "anchor notice_published = 2026-10-01 (Thursday) · event ev-notice",
+      "+ 14 days → 2026-10-15 (Thursday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-07-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > advert: AFL Grand Final Friday (provisional date) rolls to Monday 1`] = `
+[
+  {
+    "due": "2026-09-28",
+    "reason": null,
+    "rule": "vic.probate.advert_min",
+    "status": "computed",
+    "trace": [
+      "anchor notice_published = 2026-09-11 (Friday) · event ev-notice",
+      "+ 14 days → 2026-09-25 (Friday)",
+      "2026-09-25 is Friday before the AFL Grand Final on VIC_SUPREME_COURT → rolled forward to 2026-09-28 (Monday)",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-06-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-06-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-06-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-06-01 (Monday) · event ev-dod",
+      "+ 12 months → 2027-06-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > advert: Good Friday, Easter Saturday, Sunday and Monday in a row 1`] = `
+[
+  {
+    "due": "2027-03-30",
+    "reason": null,
+    "rule": "vic.probate.advert_min",
+    "status": "computed",
+    "trace": [
+      "anchor notice_published = 2027-03-12 (Friday) · event ev-notice",
+      "+ 14 days → 2027-03-26 (Friday)",
+      "2027-03-26 is Good Friday on VIC_SUPREME_COURT → rolled forward to 2027-03-30 (Tuesday)",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-06-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-12-01 (Tuesday) · event ev-dod",
+      "+ 6 months → 2027-06-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-12-01 (Tuesday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-12-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-12-01 (Tuesday) · event ev-dod",
+      "+ 12 months → 2027-12-01 (Wednesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > advert: a Geelong firm still uses the court calendar for court rules 1`] = `
+[
+  {
+    "due": "2026-11-04",
+    "reason": null,
+    "rule": "vic.probate.advert_min",
+    "status": "computed",
+    "trace": [
+      "anchor notice_published = 2026-10-20 (Tuesday) · event ev-notice",
+      "+ 14 days → 2026-11-03 (Tuesday)",
+      "2026-11-03 is Melbourne Cup on VIC_SUPREME_COURT → rolled forward to 2026-11-04 (Wednesday)",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_GREATER_GEELONG → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-07-01 (Thursday)",
+      "business day on VIC_GREATER_GEELONG → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > advert: a notice on the DST start day (4 Oct 2026) 1`] = `
+[
+  {
+    "due": "2026-10-19",
+    "reason": null,
+    "rule": "vic.probate.advert_min",
+    "status": "computed",
+    "trace": [
+      "anchor notice_published = 2026-10-04 (Sunday) · event ev-notice",
+      "+ 14 days → 2026-10-18 (Sunday)",
+      "2026-10-18 is Sunday on VIC_SUPREME_COURT → rolled forward to 2026-10-19 (Monday)",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-07-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > advert: lands in the Christmas closure 1`] = `
+[
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.probate.advert_min",
+    "status": "computed",
+    "trace": [
+      "anchor notice_published = 2026-12-14 (Monday) · event ev-notice",
+      "+ 14 days → 2026-12-28 (Monday)",
+      "2026-12-28 is Boxing Day (additional) on VIC_SUPREME_COURT → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-07-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > advert: lands on Melbourne Cup and rolls (court calendar) 1`] = `
+[
+  {
+    "due": "2026-11-04",
+    "reason": null,
+    "rule": "vic.probate.advert_min",
+    "status": "computed",
+    "trace": [
+      "anchor notice_published = 2026-10-20 (Tuesday) · event ev-notice",
+      "+ 14 days → 2026-11-03 (Tuesday)",
+      "2026-11-03 is Melbourne Cup on VIC_SUPREME_COURT → rolled forward to 2026-11-04 (Wednesday)",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-07-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > advert: no notice yet 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-07-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > approximate date of death (month): earliest possible, flagged 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-05-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-11-15 (Saturday) · event ev-dod",
+      "approximate date (month only): using the earliest possible date 2025-11-01",
+      "+ 6 months → 2026-05-01 (Friday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-11-15 (Saturday) · event ev-dod",
+      "approximate date (month only): using the earliest possible date 2025-11-01",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-11-15 (Saturday) · event ev-dod",
+      "approximate date (month only): using the earliest possible date 2025-11-01",
+      "+ 12 months → 2026-11-01 (Sunday)",
+      "2026-11-01 is Sunday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > approximate date of death (year only) 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2025-07-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-06-30 (Monday) · event ev-dod",
+      "approximate date (year only): using the earliest possible date 2025-01-01",
+      "+ 6 months → 2025-07-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2025-10-31",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-06-30 (Monday) · event ev-dod",
+      "approximate date (year only): using the earliest possible date 2025-01-01",
+      "31/10 after the financial year end → 2025-10-31 (Friday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-01-02",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-06-30 (Monday) · event ev-dod",
+      "approximate date (year only): using the earliest possible date 2025-01-01",
+      "+ 12 months → 2026-01-01 (Thursday)",
+      "2026-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2026-01-02 (Friday)",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > caveat lapses 6 months after lodging (verify the period) 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-07-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-01-01 (Thursday) · event ev-dod",
+      "+ 6 months → 2026-07-01 (Wednesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": "2026-11-30",
+    "reason": null,
+    "rule": "vic.caveat.expiry",
+    "status": "computed",
+    "trace": [
+      "anchor caveat_lodged = 2026-05-29 (Friday) · event ev-caveat",
+      "+ 6 months → 2026-11-29 (Sunday)",
+      "2026-11-29 is Sunday on VIC_SUPREME_COURT → rolled forward to 2026-11-30 (Monday)",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-01-01 (Thursday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-01-01 (Thursday) · event ev-dod",
+      "+ 12 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2027-01-04 (Monday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > caveat on a will dispute 1`] = `
+[
+  {
+    "due": "2026-11-30",
+    "reason": null,
+    "rule": "vic.caveat.expiry",
+    "status": "computed",
+    "trace": [
+      "anchor caveat_lodged = 2026-05-29 (Friday) · event ev-caveat",
+      "+ 6 months → 2026-11-29 (Sunday)",
+      "2026-11-29 is Sunday on VIC_SUPREME_COURT → rolled forward to 2026-11-30 (Monday)",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No offer has been made",
+    "rule": "vic.offer.o26_expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No offer has been made",
+      "rule vic.offer.o26_expiry · vic v1 · Supreme Court (General Civil Procedure) Rules 2015 (Vic) O 26 (verify the minimum period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No order recorded",
+    "rule": "vic.order.compliance",
+    "status": "blocked",
+    "trace": [
+      "blocked: No order recorded",
+      "rule vic.order.compliance · vic v1 · The court's order",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > distribution: notice published but no grant blocks the composite 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-09-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-03-01 (Sunday) · event ev-dod",
+      "+ 6 months → 2026-09-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": "2026-09-30",
+    "reason": null,
+    "rule": "vic.distribution.s33_notice",
+    "status": "computed",
+    "trace": [
+      "anchor statutory_notice_published = 2026-08-01 (Saturday) · event ev-s33",
+      "+ 60 days → 2026-09-30 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-03-01 (Sunday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-03-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-03-01 (Sunday) · event ev-dod",
+      "+ 12 months → 2027-03-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > distribution: s 33 notice expiring in the Christmas closure rolls 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-08-03",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-02-01 (Sunday) · event ev-dod",
+      "+ 6 months → 2026-08-01 (Saturday)",
+      "2026-08-01 is Saturday on VIC_MELBOURNE → rolled forward to 2026-08-03 (Monday)",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-06-01 (Monday) · event ev-grant",
+      "+ 6 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-06-01 (Monday) · event ev-grant",
+      "+ 6 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.distribution.s33_notice",
+    "status": "computed",
+    "trace": [
+      "anchor statutory_notice_published = 2026-10-30 (Friday) · event ev-s33",
+      "+ 60 days → 2026-12-29 (Tuesday)",
+      "2026-12-29 is Christmas–New Year registry closure on VIC_SUPREME_COURT → rolled forward to 2027-01-04 (Monday)",
+      "task "task:plan-distribution" already proposed by vic.distribution.s99a",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.distribution.earliest",
+    "status": "computed",
+    "trace": [
+      "later of vic.distribution.s99a 2026-12-01 and vic.distribution.s33_notice 2027-01-04 → 2027-01-04",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-02-01 (Sunday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-02-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-02-01 (Sunday) · event ev-dod",
+      "+ 12 months → 2027-02-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > distribution: s 33 notice expiry is later than s 99A 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-06-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-grant",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-grant",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": "2026-09-30",
+    "reason": null,
+    "rule": "vic.distribution.s33_notice",
+    "status": "computed",
+    "trace": [
+      "anchor statutory_notice_published = 2026-08-01 (Saturday) · event ev-s33",
+      "+ 60 days → 2026-09-30 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "task "task:plan-distribution" already proposed by vic.distribution.s99a",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": "2026-09-30",
+    "reason": null,
+    "rule": "vic.distribution.earliest",
+    "status": "computed",
+    "trace": [
+      "later of vic.distribution.s99a 2026-09-02 and vic.distribution.s33_notice 2026-09-30 → 2026-09-30",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 12 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > distribution: s 99A and s 33 propose one "Plan the distribution" task 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-06-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-grant",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-grant",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": "2026-09-30",
+    "reason": null,
+    "rule": "vic.distribution.s33_notice",
+    "status": "computed",
+    "trace": [
+      "anchor statutory_notice_published = 2026-08-01 (Saturday) · event ev-s33",
+      "+ 60 days → 2026-09-30 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "task "task:plan-distribution" already proposed by vic.distribution.s99a",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": "2026-09-30",
+    "reason": null,
+    "rule": "vic.distribution.earliest",
+    "status": "computed",
+    "trace": [
+      "later of vic.distribution.s99a 2026-09-02 and vic.distribution.s33_notice 2026-09-30 → 2026-09-30",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 12 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > distribution: s 99A is later than the s 33 notice expiry 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-06-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-grant",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-grant",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": "2026-07-31",
+    "reason": null,
+    "rule": "vic.distribution.s33_notice",
+    "status": "computed",
+    "trace": [
+      "anchor statutory_notice_published = 2026-06-01 (Monday) · event ev-s33",
+      "+ 60 days → 2026-07-31 (Friday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "task "task:plan-distribution" already proposed by vic.distribution.s99a",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.distribution.earliest",
+    "status": "computed",
+    "trace": [
+      "later of vic.distribution.s99a 2026-09-02 and vic.distribution.s33_notice 2026-07-31 → 2026-09-02",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 12 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > executor’s year on Geelong Cup Day for a Geelong firm 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-04-21",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-10-21 (Tuesday) · event ev-dod",
+      "+ 6 months → 2026-04-21 (Tuesday)",
+      "business day on VIC_GREATER_GEELONG → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-10-21 (Tuesday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-10-22",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-10-21 (Tuesday) · event ev-dod",
+      "+ 12 months → 2026-10-21 (Wednesday)",
+      "2026-10-21 is Geelong Cup Day (replaces Melbourne Cup in Greater Geelong) on VIC_GREATER_GEELONG → rolled forward to 2026-10-22 (Thursday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > executor’s year on Geelong Cup Day for a Melbourne firm 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-04-21",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-10-21 (Tuesday) · event ev-dod",
+      "+ 6 months → 2026-04-21 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-10-21 (Tuesday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-10-21",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-10-21 (Tuesday) · event ev-dod",
+      "+ 12 months → 2026-10-21 (Wednesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > final return: 31 Oct after the FY of death, rolled off a Saturday 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-09-10",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-03-10 (Tuesday) · event ev-dod",
+      "+ 6 months → 2026-09-10 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-03-10 (Tuesday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-03-10",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-03-10 (Tuesday) · event ev-dod",
+      "+ 12 months → 2027-03-10 (Wednesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > final return: death on 1 July starts a new financial year 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-07-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-07-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: 6 months from the grant lands on a Monday 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-06-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-09-14",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-14 (Saturday) · event ev-grant",
+      "+ 6 months → 2026-09-14 (Monday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-09-14",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-14 (Saturday) · event ev-grant",
+      "+ 6 months → 2026-09-14 (Monday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 12 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: 29 Aug + 6 months reaches 29 Feb in a leap year 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2027-01-01 (Friday) · event ev-dod",
+      "+ 6 months → 2027-07-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2027-09-01: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2028-02-29",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2027-08-29 (Sunday) · event ev-grant",
+      "+ 6 months → 2028-02-29 (Tuesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2028-02-29",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2027-08-29 (Sunday) · event ev-grant",
+      "+ 6 months → 2028-02-29 (Tuesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2027-01-01 (Friday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2028-01-04",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2027-01-01 (Friday) · event ev-dod",
+      "+ 12 months → 2028-01-01 (Saturday)",
+      "2028-01-01 is Saturday on VIC_MELBOURNE → rolled forward to 2028-01-04 (Tuesday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: 31 Aug + 6 months clamps to 28 Feb (a Sunday) then rolls 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-07-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-01-01 (Thursday) · event ev-dod",
+      "+ 6 months → 2026-07-01 (Wednesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2027-03-01",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-08-31 (Monday) · event ev-grant",
+      "+ 6 months (clamped to month end) → 2027-02-28 (Sunday)",
+      "2027-02-28 is Sunday on VIC_SUPREME_COURT → rolled forward to 2027-03-01 (Monday)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2027-03-01",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-08-31 (Monday) · event ev-grant",
+      "+ 6 months (clamped to month end) → 2027-02-28 (Sunday)",
+      "2027-02-28 is Sunday on VIC_SUPREME_COURT → rolled forward to 2027-03-01 (Monday)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-01-01 (Thursday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-01-01 (Thursday) · event ev-dod",
+      "+ 12 months → 2027-01-01 (Friday)",
+      "2027-01-01 is New Year's Day on VIC_MELBOURNE → rolled forward to 2027-01-04 (Monday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: 31 Aug + 6 months clamps to 29 Feb in a leap year 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-07-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2027-01-01 (Friday) · event ev-dod",
+      "+ 6 months → 2027-07-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2027-09-01: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2028-02-29",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2027-08-31 (Tuesday) · event ev-grant",
+      "+ 6 months (clamped to month end) → 2028-02-29 (Tuesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2028-02-29",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2027-08-31 (Tuesday) · event ev-grant",
+      "+ 6 months (clamped to month end) → 2028-02-29 (Tuesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2027-01-01 (Friday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2028-01-04",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2027-01-01 (Friday) · event ev-dod",
+      "+ 12 months → 2028-01-01 (Saturday)",
+      "2028-01-01 is Saturday on VIC_MELBOURNE → rolled forward to 2028-01-04 (Tuesday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: DST end (5 Apr 2026) doesn’t move date-only arithmetic 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-06-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-10-05",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-04-05 (Sunday) · event ev-grant",
+      "+ 6 months → 2026-10-05 (Monday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-10-05",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-04-05 (Sunday) · event ev-grant",
+      "+ 6 months → 2026-10-05 (Monday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 12 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: Geelong firm reminders follow the Geelong calendar 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-07-10",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-01-10 (Saturday) · event ev-dod",
+      "+ 6 months → 2026-07-10 (Friday)",
+      "business day on VIC_GREATER_GEELONG → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-11-04",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-05-04 (Monday) · event ev-grant",
+      "+ 6 months → 2026-11-04 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-11-04",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-05-04 (Monday) · event ev-grant",
+      "+ 6 months → 2026-11-04 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-01-10 (Saturday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-01-11",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-01-10 (Saturday) · event ev-dod",
+      "+ 12 months → 2027-01-10 (Sunday)",
+      "2027-01-10 is Sunday on VIC_GREATER_GEELONG → rolled forward to 2027-01-11 (Monday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: Melbourne firm reminders follow the Melbourne calendar 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-07-10",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-01-10 (Saturday) · event ev-dod",
+      "+ 6 months → 2026-07-10 (Friday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-11-04",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-05-04 (Monday) · event ev-grant",
+      "+ 6 months → 2026-11-04 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-11-04",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-05-04 (Monday) · event ev-grant",
+      "+ 6 months → 2026-11-04 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-01-10 (Saturday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-01-11",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-01-10 (Saturday) · event ev-dod",
+      "+ 12 months → 2027-01-10 (Sunday)",
+      "2027-01-10 is Sunday on VIC_MELBOURNE → rolled forward to 2027-01-11 (Monday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: a contest matter gets the limitation but not distribution rules 1`] = `
+[
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-grant",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No offer has been made",
+    "rule": "vic.offer.o26_expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No offer has been made",
+      "rule vic.offer.o26_expiry · vic v1 · Supreme Court (General Civil Procedure) Rules 2015 (Vic) O 26 (verify the minimum period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No order recorded",
+    "rule": "vic.order.compliance",
+    "status": "blocked",
+    "trace": [
+      "blocked: No order recorded",
+      "rule vic.order.compliance · vic v1 · The court's order",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: a family provision matter computes from the grant too 1`] = `
+[
+  {
+    "due": "2026-10-30",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-04-30 (Thursday) · event ev-grant",
+      "+ 6 months → 2026-10-30 (Friday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No offer has been made",
+    "rule": "vic.offer.o26_expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No offer has been made",
+      "rule vic.offer.o26_expiry · vic v1 · Supreme Court (General Civil Procedure) Rules 2015 (Vic) O 26 (verify the minimum period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No order recorded",
+    "rule": "vic.order.compliance",
+    "status": "blocked",
+    "trace": [
+      "blocked: No order recorded",
+      "rule vic.order.compliance · vic v1 · The court's order",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: a grant on Easter Monday (a holiday) still counts from that day 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-04-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-10-01 (Thursday) · event ev-dod",
+      "+ 6 months → 2027-04-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2027-09-29",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2027-03-29 (Monday) · event ev-grant",
+      "+ 6 months → 2027-09-29 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2027-09-29",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2027-03-29 (Monday) · event ev-grant",
+      "+ 6 months → 2027-09-29 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-10-01 (Thursday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-10-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-10-01 (Thursday) · event ev-dod",
+      "+ 12 months → 2027-10-01 (Friday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: due inside the court Christmas closure rolls to the reopening 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-06-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-06-28 (Sunday) · event ev-grant",
+      "+ 6 months → 2026-12-28 (Monday)",
+      "2026-12-28 is Boxing Day (additional) on VIC_SUPREME_COURT → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-06-28 (Sunday) · event ev-grant",
+      "+ 6 months → 2026-12-28 (Monday)",
+      "2026-12-28 is Boxing Day (additional) on VIC_SUPREME_COURT → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 12 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: due on King’s Birthday rolls to Tuesday 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2027-02-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-08-01 (Saturday) · event ev-dod",
+      "+ 6 months → 2027-02-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2027-06-15",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-12-14 (Monday) · event ev-grant",
+      "+ 6 months → 2027-06-14 (Monday)",
+      "2027-06-14 is King's Birthday on VIC_SUPREME_COURT → rolled forward to 2027-06-15 (Tuesday)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2027-06-15",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-12-14 (Monday) · event ev-grant",
+      "+ 6 months → 2027-06-14 (Monday)",
+      "2027-06-14 is King's Birthday on VIC_SUPREME_COURT → rolled forward to 2027-06-15 (Tuesday)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2027-11-01",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-08-01 (Saturday) · event ev-dod",
+      "31/10 after the financial year end → 2027-10-31 (Sunday)",
+      "2027-10-31 is Sunday on VIC_MELBOURNE → rolled forward to 2027-11-01 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-08-02",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-08-01 (Saturday) · event ev-dod",
+      "+ 12 months → 2027-08-01 (Sunday)",
+      "2027-08-01 is Sunday on VIC_MELBOURNE → rolled forward to 2027-08-02 (Monday)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: due on Melbourne Cup rolls to Wednesday 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-06-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-06-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-11-04",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-05-03 (Sunday) · event ev-grant",
+      "+ 6 months → 2026-11-03 (Tuesday)",
+      "2026-11-03 is Melbourne Cup on VIC_SUPREME_COURT → rolled forward to 2026-11-04 (Wednesday)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-11-04",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-05-03 (Sunday) · event ev-grant",
+      "+ 6 months → 2026-11-03 (Tuesday)",
+      "2026-11-03 is Melbourne Cup on VIC_SUPREME_COURT → rolled forward to 2026-11-04 (Wednesday)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-12-01 (Monday) · event ev-dod",
+      "+ 12 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: no grant yet blocks the limitation and s 99A 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-12-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-06-01 (Monday) · event ev-dod",
+      "+ 6 months → 2026-12-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-06-01 (Monday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-06-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-06-01 (Monday) · event ev-dod",
+      "+ 12 months → 2027-06-01 (Tuesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > fp: past on entry goes to review, not missed 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2025-12-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-06-01 (Sunday) · event ev-dod",
+      "+ 6 months → 2025-12-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-04-01",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2025-10-01 (Wednesday) · event ev-grant",
+      "+ 6 months → 2026-04-01 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-04-01",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2025-10-01 (Wednesday) · event ev-grant",
+      "+ 6 months → 2026-04-01 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2025-10-31",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-06-01 (Sunday) · event ev-dod",
+      "31/10 after the financial year end → 2025-10-31 (Friday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-06-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-06-01 (Sunday) · event ev-dod",
+      "+ 12 months → 2026-06-01 (Monday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > offer of compromise: 14 days by default, by 4pm 1`] = `
+[
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-10-05",
+    "reason": null,
+    "rule": "vic.offer.o26_expiry",
+    "status": "computed",
+    "trace": [
+      "anchor offer_made = 2026-09-21 (Monday) · event ev-offer",
+      "+ 14 days → 2026-10-05 (Monday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.offer.o26_expiry · vic v1 · Supreme Court (General Civil Procedure) Rules 2015 (Vic) O 26 (verify the minimum period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No order recorded",
+    "rule": "vic.order.compliance",
+    "status": "blocked",
+    "trace": [
+      "blocked: No order recorded",
+      "rule vic.order.compliance · vic v1 · The court's order",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > offer of compromise: the period stated in the offer 1`] = `
+[
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-10-19",
+    "reason": null,
+    "rule": "vic.offer.o26_expiry",
+    "status": "computed",
+    "trace": [
+      "anchor offer_made = 2026-09-21 (Monday) · event ev-offer",
+      "+ 28 days → 2026-10-19 (Monday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "rule vic.offer.o26_expiry · vic v1 · Supreme Court (General Civil Procedure) Rules 2015 (Vic) O 26 (verify the minimum period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No order recorded",
+    "rule": "vic.order.compliance",
+    "status": "blocked",
+    "trace": [
+      "blocked: No order recorded",
+      "rule vic.order.compliance · vic v1 · The court's order",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > order: comply within 21 days, across the closure, by 4pm 1`] = `
+[
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No offer has been made",
+    "rule": "vic.offer.o26_expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No offer has been made",
+      "rule vic.offer.o26_expiry · vic v1 · Supreme Court (General Civil Procedure) Rules 2015 (Vic) O 26 (verify the minimum period)",
+    ],
+  },
+  {
+    "due": "2027-01-04",
+    "reason": null,
+    "rule": "vic.order.compliance",
+    "status": "computed",
+    "trace": [
+      "anchor order_made = 2026-12-10 (Thursday) · event ev-order",
+      "+ 21 days → 2026-12-31 (Thursday)",
+      "2026-12-31 is Christmas–New Year registry closure on VIC_SUPREME_COURT → rolled forward to 2027-01-04 (Monday)",
+      "rule vic.order.compliance · vic v1 · The court's order",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > order: no number of days recorded 1`] = `
+[
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No offer has been made",
+    "rule": "vic.offer.o26_expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No offer has been made",
+      "rule vic.offer.o26_expiry · vic v1 · Supreme Court (General Civil Procedure) Rules 2015 (Vic) O 26 (verify the minimum period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "the days on the order isn't recorded",
+    "rule": "vic.order.compliance",
+    "status": "blocked",
+    "trace": [
+      "anchor order_made = 2026-12-10 (Thursday) · event ev-order",
+      "blocked: the days on the order isn't recorded",
+      "rule vic.order.compliance · vic v1 · The court's order",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > prompt filing: 6 months after death by default 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-10-15",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-04-15 (Wednesday) · event ev-dod",
+      "+ 6 months → 2026-10-15 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-04-15 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-04-15",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-04-15 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-04-15 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > prompt filing: not shown once the application is filed 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-04-15 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-04-15",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-04-15 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-04-15 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > prompt filing: org setting of 3 months, already past 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-07-15",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2026-04-15 (Wednesday) · event ev-dod",
+      "+ 3 months → 2026-07-15 (Wednesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-04-15 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2027-04-15",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2026-04-15 (Wednesday) · event ev-dod",
+      "+ 12 months → 2027-04-15 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > reseal: only an interstate grant recorded so far (verify applicability) 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-04-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-10-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2026-04-01 (Wednesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-07-10",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-01-10 (Saturday) · event ev-nsw",
+      "+ 6 months → 2026-07-10 (Friday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-07-10",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-01-10 (Saturday) · event ev-nsw",
+      "+ 6 months → 2026-07-10 (Friday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-10-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-10-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-10-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2026-10-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > reseal: the Victorian reseal anchors the window, not the interstate grant 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": "2026-04-01",
+    "reason": null,
+    "rule": "vic.probate.prompt_filing",
+    "status": "computed",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "anchor date_of_death = 2025-10-01 (Wednesday) · event ev-dod",
+      "+ 6 months → 2026-04-01 (Wednesday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.fp.limitation",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-vic",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": "2026-09-02",
+    "reason": null,
+    "rule": "vic.distribution.s99a",
+    "status": "computed",
+    "trace": [
+      "anchor grant_issued = 2026-03-02 (Monday) · event ev-vic",
+      "+ 6 months → 2026-09-02 (Wednesday)",
+      "business day on VIC_SUPREME_COURT → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s33_notice: The statutory notice hasn't been published yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": "2026-11-02",
+    "reason": null,
+    "rule": "au.tax.final_return",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-10-01 (Wednesday) · event ev-dod",
+      "31/10 after the financial year end → 2026-10-31 (Saturday)",
+      "2026-10-31 is Saturday on VIC_MELBOURNE → rolled forward to 2026-11-02 (Monday)",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": "2026-10-01",
+    "reason": null,
+    "rule": "org.executor_year",
+    "status": "computed",
+    "trace": [
+      "anchor date_of_death = 2025-10-01 (Wednesday) · event ev-dod",
+      "+ 12 months → 2026-10-01 (Thursday)",
+      "business day on VIC_MELBOURNE → no roll",
+      "already past on 2026-10-04: needs review (not marked missed)",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;
+
+exports[`golden scenarios (Victoria v1) > unknown date of death blocks death-anchored rules 1`] = `
+[
+  {
+    "due": null,
+    "reason": "The probate notice hasn't been published yet",
+    "rule": "vic.probate.advert_min",
+    "status": "blocked",
+    "trace": [
+      "blocked: The probate notice hasn't been published yet",
+      "rule vic.probate.advert_min · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The date of death isn't recorded",
+    "rule": "vic.probate.prompt_filing",
+    "status": "blocked",
+    "trace": [
+      "condition grant.filed is absent: yes (absent)",
+      "blocked: The date of death isn't recorded",
+      "rule vic.probate.prompt_filing · vic v1 · Practice reminder (org setting, default 6 months)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No caveat has been lodged",
+    "rule": "vic.caveat.expiry",
+    "status": "blocked",
+    "trace": [
+      "blocked: No caveat has been lodged",
+      "rule vic.caveat.expiry · vic v1 · Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.fp.limitation",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.fp.limitation · vic v1 · Administration and Probate Act 1958 (Vic) s 99",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "No grant yet",
+    "rule": "vic.distribution.s99a",
+    "status": "blocked",
+    "trace": [
+      "blocked: No grant yet",
+      "rule vic.distribution.s99a · vic v1 · Administration and Probate Act 1958 (Vic) s 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The statutory notice hasn't been published yet",
+    "rule": "vic.distribution.s33_notice",
+    "status": "blocked",
+    "trace": [
+      "blocked: The statutory notice hasn't been published yet",
+      "rule vic.distribution.s33_notice · vic v1 · Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "Waiting on vic.distribution.s99a: No grant yet",
+    "rule": "vic.distribution.earliest",
+    "status": "blocked",
+    "trace": [
+      "blocked: Waiting on vic.distribution.s99a: No grant yet",
+      "rule vic.distribution.earliest · vic v1 · Administration and Probate Act 1958 (Vic) ss 33, 99A",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The date of death isn't recorded",
+    "rule": "au.tax.final_return",
+    "status": "blocked",
+    "trace": [
+      "blocked: The date of death isn't recorded",
+      "rule au.tax.final_return · vic v1 · ATO lodgment rules (verify agent extensions)",
+    ],
+  },
+  {
+    "due": null,
+    "reason": "The date of death isn't recorded",
+    "rule": "org.executor_year",
+    "status": "blocked",
+    "trace": [
+      "blocked: The date of death isn't recorded",
+      "rule org.executor_year · vic v1 · Practice reminder (not statutory)",
+    ],
+  },
+]
+`;

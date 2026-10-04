@@ -366,7 +366,7 @@ service cloud.firestore {
     function fieldsActivity() { return ['kind', 'summary', 'actorUid', 'at', 'refs']; }
     function fieldsAsset() { return ['class', 'description', 'valueAtDeathCents', 'valuationSource', 'jointlyHeld', 'passesOutsideEstate', 'status', 'realisedCents']; }
     function fieldsAuditEntry() { return []; }
-    function fieldsCalendar() { return ['jurisdiction', 'year', 'holidays', 'closures', 'source']; }
+    function fieldsCalendar() { return ['jurisdiction', 'year', 'calendarId', 'kind', 'holidays', 'closures', 'source', 'verified']; }
     function fieldsChronologyEntry() { return ['date', 'datePrecision', 'title', 'detail', 'sources', 'disputed', 'issueIds']; }
     function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'embedding']; }
     function fieldsClerkMessage() { return ['stopRequested']; }

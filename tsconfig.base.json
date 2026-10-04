@@ -18,6 +18,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
     "paths": {
       "@materia/domain": ["./libs/domain/src/index.ts"],
       "@materia/deadlines": ["./libs/deadlines/src/index.ts"],
