@@ -1,17 +1,22 @@
 # Project, APIs, Firebase and the web app registration.
 
 terraform {
+  required_version = ">= 1.9"
+
   required_providers {
     google = {
-      source = "hashicorp/google"
+      source  = "hashicorp/google"
+      version = ">= 8.5"
       # google.billing sets a quota project, which the Billing Budgets API requires.
       configuration_aliases = [google.billing]
     }
     google-beta = {
-      source = "hashicorp/google-beta"
+      source  = "hashicorp/google-beta"
+      version = ">= 8.5"
     }
     time = {
-      source = "hashicorp/time"
+      source  = "hashicorp/time"
+      version = ">= 0.14"
     }
   }
 }
