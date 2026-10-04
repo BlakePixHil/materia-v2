@@ -25,8 +25,10 @@ Types used below: `DateOnly` = `YYYY-MM-DD`; `Cents` = integer AUD cents; `Minut
 - Organisation fields: `orgName`, `abn?`
 - `emails[]`, `phones[]` (E.164; legacy `04…` becomes `+614…`), `addresses[] {type, line1, line2?, suburb, state, postcode, country:'AU'}`
 - `tags[]`, `isReferrer: bool`, `referrerMeta?: {company, industry}`, `notes?`
-- `search: string[]` (prefix tokens), `dedupeKey` (normalised name plus DOB)
-- `mergedInto?`, used when contacts are merged; it is a tombstone pointer.
+- `search: string[]` (prefix tokens), `dedupeKey` (normalised name plus DOB), `sortName` (lower-cased display name, for `orderBy`): server-owned, kept current by the `contacts-onWrite` trigger
+- `mergedInto?`, used when contacts are merged; it is a tombstone pointer. A tombstone is also soft-deleted and the rules freeze it.
+
+Functions (CORE-01): `contacts-create` (`contact.edit`; creates are callable-only), `contacts-findDuplicates` (`contact.edit`; best five live contacts at or above `DUPLICATE_THRESHOLD`), `contacts-merge` (`contact.merge`; folds one contact into another, re-points parties, matter client/referrer/deceased/testator ids and safe custody packets, 200 in the call and the rest through the `contacts-continueMerge` queue; audited as `contact.merged`) and `contacts-delete` (`contact.delete`; soft delete, refused with `FAILED_PRECONDITION`, `details.reason: 'contact_referenced'` and `details.references: ContactReference[]` while anything references the contact).
 
 ## Matters
 

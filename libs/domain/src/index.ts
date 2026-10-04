@@ -18,3 +18,5 @@ export * from './lib/permissions';
 export * from './lib/errors';
 export * from './lib/flags';
 export * from './lib/orgs';
+export * from './lib/search';
+export * from './lib/contacts';

@@ -131,7 +131,8 @@ export const makeContact = (o: Partial<D.Contact> = {}) =>
         },
       ],
       search: ['mar', 'marg', 'margaret', 'whi', 'whit', 'whitfield'],
-      dedupeKey: 'whitfield|margaret|',
+      dedupeKey: 'person:margaret whitfield|',
+      sortName: 'margaret whitfield',
     },
     o,
   );
@@ -162,7 +163,7 @@ export const makeMatter = (o: Partial<D.Matter> = {}) =>
   );
 
 export const makeParty = (o: Partial<D.Party> = {}) =>
-  build(D.Party, { contactId: 'contact-test-3', role: 'executor' }, o);
+  build(D.Party, { orgId: TEST_ORG_ID, matterId: TEST_MATTER_ID, contactId: 'contact-test-3', role: 'executor' }, o);
 
 export const makeTask = (o: Partial<D.Task> = {}) =>
   build(

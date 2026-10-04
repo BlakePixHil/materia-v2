@@ -38,12 +38,15 @@ export const Contact = withMeta(
     notes: z.string().optional(),
     search: SearchTokens,
     dedupeKey: z.string(),
+    /** Lower-cased display name for `orderBy` (CORE-01), maintained by `contacts-onWrite`. */
+    sortName: z.string(),
+    /** Set by `contacts-merge`: this contact is a tombstone, merged into that one. */
     mergedInto: DocIdSchema.optional(),
   },
   {
     path: 'orgs/{orgId}/contacts',
     softDelete: true,
-    serverOwned: ['search', 'dedupeKey', 'mergedInto'],
+    serverOwned: ['search', 'dedupeKey', 'sortName', 'mergedInto'],
   },
 );
 

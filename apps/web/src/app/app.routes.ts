@@ -95,11 +95,11 @@ const shellRoutes: Route[] = [
     { ticket: 'LIT-02', icon: 'scale', description: 'Contested estates and family provision claims.' },
     { canActivate: [flagGuard('litigation.enabled')] },
   ),
-  planned('contacts', 'Contacts', {
-    ticket: 'CORE-01',
-    icon: 'contacts',
-    description: 'Clients, beneficiaries, executors and other parties.',
-  }),
+  {
+    path: 'contacts',
+    title: 'Contacts',
+    loadComponent: () => import('./features/contacts/contacts-page').then((m) => m.ContactsPage),
+  },
   planned('billing', 'Time & billing', {
     ticket: 'BILL-03',
     icon: 'billing',

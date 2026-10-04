@@ -6,7 +6,9 @@
 export {
   clearIndexedDbPersistence,
   collection,
+  collectionGroup,
   connectFirestoreEmulator,
+  deleteField,
   doc,
   endAt,
   getCountFromServer,

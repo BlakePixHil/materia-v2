@@ -19,7 +19,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 
-import { ROLES, type Role } from '@materia/domain';
+import { PERMISSIONS, ROLES, type Role } from '@materia/domain';
 import { ENTITY_FACTORIES } from '@materia/test-utils';
 
 import { changeFor, COLLECTIONS, rolesFor, seedData, specFor, type CollectionSpec } from './support/collections';
@@ -439,6 +439,124 @@ describe('batched writes', () => {
       batch.update(doc(firestore, `${MATTER}/tasks/batch-${i}`), stamped({ order: i }, uidFor('paralegal')));
     }
     await assertSucceeds(batch.commit());
+  });
+});
+
+describe('contacts (CORE-01)', () => {
+  const CONTACT = `orgs/${ORG}/contacts/contact-1`;
+  const TOMBSTONE = `orgs/${ORG}/contacts/contact-tombstone`;
+
+  /** Every role in the org, someone from another org, and a suspended lawyer. */
+  type Who = Role | 'outsider' | 'suspended';
+  const EVERYONE: Who[] = [...ROLES, 'outsider', 'suspended'];
+  const firestoreOf = (who: Who): { firestore: Firestore; uid: string } => {
+    if (who === 'outsider') return { firestore: db(env, 'owner', OTHER_ORG), uid: uidFor('owner', OTHER_ORG) };
+    if (who === 'suspended') return { firestore: db(env, 'lawyer', ORG, SUSPENDED_UID), uid: SUSPENDED_UID };
+    return { firestore: db(env, who), uid: uidFor(who) };
+  };
+  const inOrg = (who: Who): who is Role => who !== 'outsider' && who !== 'suspended';
+  const canEdit = (who: Who) => inOrg(who) && (PERMISSIONS['contact.edit'] as readonly Role[]).includes(who);
+  const canDelete = (who: Who) => inOrg(who) && (PERMISSIONS['contact.delete'] as readonly Role[]).includes(who);
+  const softDeleteBy = (uid: string) => ({
+    deletedAt: serverTimestamp(),
+    deletedBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+
+  const reseed = () =>
+    seedAdmin(env, async (f) => {
+      await setDoc(doc(f, CONTACT), seedData(specFor('contacts')));
+      await setDoc(doc(f, TOMBSTONE), {
+        ...seedData(specFor('contacts')),
+        mergedInto: 'contact-1',
+        deletedAt: Timestamp.now(),
+        deletedBy: uidFor('admin'),
+      });
+    });
+
+  beforeEach(reseed);
+
+  it.each(EVERYONE)('read as %s', async (who) => {
+    const read = getDoc(doc(firestoreOf(who).firestore, CONTACT));
+    await (inOrg(who) ? assertSucceeds(read) : assertFails(read));
+  });
+
+  it.each(EVERYONE)('whitelisted update as %s follows contact.edit', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const update = updateDoc(
+      doc(firestore, CONTACT),
+      stamped({ preferredName: 'Peggy', tags: ['client'], isReferrer: true }, uid),
+    );
+    await (canEdit(who) ? assertSucceeds(update) : assertFails(update));
+  });
+
+  it.each(EVERYONE)('server-owned fields are refused as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, CONTACT);
+    await assertFails(updateDoc(ref, stamped({ search: ['zz'] }, uid)));
+    await assertFails(updateDoc(ref, stamped({ dedupeKey: 'person:x|' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ sortName: 'aaa' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ mergedInto: 'contact-2' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ givenNames: 'Peg', sortName: 'peg' }, uid)));
+  });
+
+  it.each(EVERYONE)('soft delete as %s follows contact.delete', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const remove = updateDoc(doc(firestore, CONTACT), softDeleteBy(uid));
+    await (canDelete(who) ? assertSucceeds(remove) : assertFails(remove));
+  });
+
+  it.each(EVERYONE)('create is refused as %s (contacts-create only)', async (who) => {
+    const { firestore } = firestoreOf(who);
+    await assertFails(setDoc(doc(firestore, `orgs/${ORG}/contacts/contact-new`), seedData(specFor('contacts'))));
+  });
+
+  it.each(EVERYONE)('a merge tombstone is not editable or restorable as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, TOMBSTONE);
+    await assertFails(updateDoc(ref, stamped({ preferredName: 'Back again' }, uid)));
+    await assertFails(
+      updateDoc(ref, { deletedAt: null, deletedBy: null, updatedAt: serverTimestamp(), updatedBy: uid }),
+    );
+    // Still readable in the org (old links resolve to it and follow mergedInto).
+    const read = getDoc(ref);
+    await (inOrg(who) ? assertSucceeds(read) : assertFails(read));
+  });
+
+  describe('parties collection group', () => {
+    beforeAll(async () => {
+      await seedAdmin(env, async (f) => {
+        const party = seedData(specFor('parties'));
+        await setDoc(doc(f, `${MATTER}/parties/p-contact-1`), { ...party, contactId: 'contact-1' });
+        await setDoc(doc(f, `orgs/${OTHER_ORG}/matters/m-b/parties/p-b`), {
+          ...party,
+          orgId: OTHER_ORG,
+          matterId: 'm-b',
+          contactId: 'contact-1',
+        });
+      });
+    });
+
+    const byContact = (firestore: Firestore, orgId: string) =>
+      getDocs(
+        query(
+          collectionGroup(firestore, 'parties'),
+          where('orgId', '==', orgId),
+          where('contactId', '==', 'contact-1'),
+        ),
+      );
+
+    it.each(EVERYONE)('"the matters this contact is on" as %s', async (who) => {
+      const { firestore } = firestoreOf(who);
+      await (inOrg(who) ? assertSucceeds(byContact(firestore, ORG)) : assertFails(byContact(firestore, ORG)));
+    });
+
+    it('denies another org’s parties, and a query without the org filter', async () => {
+      const firestore = db(env, 'owner');
+      await assertFails(byContact(firestore, OTHER_ORG));
+      await assertFails(getDocs(query(collectionGroup(firestore, 'parties'), where('contactId', '==', 'contact-1'))));
+    });
   });
 });
 

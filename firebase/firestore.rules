@@ -134,10 +134,13 @@ service cloud.firestore {
         allow update: if can(orgId, 'members.manage') && isActiveMember(orgId) && clientUpdate(fieldsInvite());
       }
 
+      // Contacts (CORE-01): created, merged and deleted-with-checks through the contacts-* callables;
+      // clients edit whitelisted fields and soft delete. A merge tombstone (mergedInto set) is frozen.
       match /contacts/{contactId} {
         allow read: if inOrg(orgId);
-        allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsContact())
-          || can(orgId, 'matter.delete') && softDelete();
+        allow update: if resource.data.get('mergedInto', null) == null
+          && (can(orgId, 'contact.edit') && clientUpdate(fieldsContact())
+            || can(orgId, 'contact.delete') && softDelete());
       }
 
       match /matters/{matterId} {
@@ -332,7 +335,7 @@ service cloud.firestore {
     }
 
     // ---------- collection groups ----------
-    // Cross-matter queries ("my tasks", "deadlines this week", timesheets). Personal tasks share the
+    // Cross-matter queries ("my tasks", "deadlines this week", timesheets, a contact's matters). Personal tasks share the
     // `tasks` group name, so reading one through the group needs to be its assignee.
     match /{path=**}/tasks/{taskId} {
       allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg())
@@ -342,6 +345,10 @@ service cloud.firestore {
       allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
     }
     match /{path=**}/timeEntries/{entryId} {
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
+    }
+    // "The matters this contact is on" (CORE-01): parties across matters, by orgId and contactId.
+    match /{path=**}/parties/{partyId} {
       allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
     }
 
@@ -355,6 +362,9 @@ service cloud.firestore {
         'matter.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'matter.delete': ['owner', 'admin', 'lawyer'],
         'matter.close': ['owner', 'admin', 'lawyer'],
+        'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'contact.delete': ['owner', 'admin', 'lawyer'],
+        'contact.merge': ['owner', 'admin'],
         'privileged.view': ['owner', 'admin', 'lawyer'],
         'document.upload': ['owner', 'admin', 'lawyer', 'paralegal'],
         'document.delete': ['owner', 'admin', 'lawyer'],

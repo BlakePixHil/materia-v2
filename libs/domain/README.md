@@ -36,6 +36,9 @@ Each entity `X` exports `{ schema, create, update, version, path }` built by `wi
 | `matter.edit` | ✓ | ✓ | ✓ | ✓ |  |
 | `matter.delete` | ✓ | ✓ | ✓ |  |  |
 | `matter.close` | ✓ | ✓ | ✓ |  |  |
+| `contact.edit` | ✓ | ✓ | ✓ | ✓ |  |
+| `contact.delete` | ✓ | ✓ | ✓ |  |  |
+| `contact.merge` | ✓ | ✓ |  |  |  |
 | `privileged.view` | ✓ | ✓ | ✓ |  |  |
 | `document.upload` | ✓ | ✓ | ✓ | ✓ |  |
 | `document.delete` | ✓ | ✓ | ✓ |  |  |

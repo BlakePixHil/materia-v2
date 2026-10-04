@@ -89,7 +89,7 @@ export const COLLECTIONS: CollectionSpec[] = [
     docPath: `orgs/${ORG}/contacts/contact-1`,
     entity: 'Contact',
     read: 'members',
-    update: 'matter.edit',
+    update: 'contact.edit',
   },
   {
     collection: 'matters',
@@ -253,7 +253,7 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'clerk.use',
     change: { status: 'dismissed' },
   },
-  matterRecord('parties', 'Party'),
+  { ...matterRecord('parties', 'Party'), seed: { orgId: ORG, matterId: 'matter-1' } },
   matterRecord('events', 'MatterEvent'),
   matterRecord('disbursements', 'Disbursement', 'time.record'),
   matterRecord('assets', 'Asset'),
