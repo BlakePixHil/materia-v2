@@ -80,6 +80,12 @@ body {
   outline: none;
 }
 
+/* An icon button inside a chip (a label's remove button) is a small circle that fits within the chip. */
+.mt-chip > .mt-ibtn[data-size] {
+  --s: 20px;
+  border-radius: var(--radius-full);
+}
+
 /* Thin scrollbars in the border colours, so they read as part of the surface. */
 * {
   scrollbar-width: thin;

@@ -54,6 +54,22 @@ export type MtDialogSize = 'sm' | 'md' | 'lg';
     '../../generated/components/modal.css',
     '../../generated/components/dialog.css',
   ],
+  // A tall dialog (a long form on a laptop screen) fits the viewport and scrolls its body, keeping
+  // the title and footer in view; centring an overflowing panel would cut off its top.
+  styles: `
+    .mt-modal-root > .mt-dialog {
+      max-height: calc(100dvh - 2 * var(--space-16));
+    }
+    .mt-dialog > .mt-dialog-b {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .mt-dialog > .mt-dialog-h,
+    .mt-dialog > .mt-dialog-f {
+      flex: none;
+    }
+  `,
   imports: [NgpDialogOverlay, NgpDialog, NgpDialogTitle, NgpDialogDescription, MtIconButton],
   host: { style: 'display: contents' },
   template: `

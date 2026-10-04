@@ -17,6 +17,14 @@ import { MtFormControl } from '../forms/form-control';
     '../../generated/components/switch.css',
     '../../generated/components/check.css',
   ],
+  // The design system draws the switch on a <span>; on a <button> the browser's own border would
+  // shrink the track and push the thumb off centre.
+  styles: `
+    .mt-switch {
+      border: 0;
+      align-items: center;
+    }
+  `,
   imports: [NgpSwitch, NgpSwitchThumb, NgpLabel, NgpDescription],
   hostDirectives: [NgpFormField],
   host: { style: 'display: contents' },
