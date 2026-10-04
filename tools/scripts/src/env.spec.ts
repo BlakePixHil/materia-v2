@@ -41,6 +41,8 @@ describe('env script', () => {
     expect(file).toContain("name: 'dev',");
     expect(file).toContain('"projectId": "materia-v2-dev"');
     expect(file).not.toContain('measurementId');
+    expect(file).toContain("appCheckSiteKey: '");
+    expect(renderEnvironment('staging', parseTerraformOutputs(outputs))).not.toContain('appCheckSiteKey');
     expect(renderEnvironment('dev', parseTerraformOutputs(outputs))).toBe(file);
   });
 });

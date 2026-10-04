@@ -1,5 +1,4 @@
 import { isDevMode } from '@angular/core';
-import { getApp, getApps, initializeApp } from 'firebase/app';
 import { connectFirestoreEmulator, doc, getDoc, getFirestore } from 'firebase/firestore/lite';
 import { fetchAndActivate, getAll, getRemoteConfig } from 'firebase/remote-config';
 
@@ -7,6 +6,7 @@ import { FLAG_KEYS, FLAGS, remoteConfigKey, type FlagValue } from '@materia/doma
 
 import type { FlagValueSource } from './feature-flags';
 import { environment } from '../../../environments/environment';
+import { firebaseApp } from '../firebase-app';
 
 /** Remote Config is fetched at most this often: 1 minute in dev builds, 1 hour in production. */
 export const fetchIntervalMs = () => (isDevMode() ? 60_000 : 3_600_000);
@@ -16,7 +16,7 @@ export const fetchIntervalMs = () => (isDevMode() ? 60_000 : 3_600_000);
  * no client Remote Config, so locally only the registry defaults and org overrides apply.
  */
 export function createFirebaseFlagSource(): FlagValueSource {
-  const app = getApps().length ? getApp() : initializeApp(environment.firebase);
+  const app = firebaseApp();
   const firestore = getFirestore(app);
   if (environment.useEmulators) connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
 
