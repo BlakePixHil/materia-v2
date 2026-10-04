@@ -4,7 +4,8 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 /**
  * Test doubles for the orgs and contacts unit tests: an in-memory Firestore with just what that
  * code uses (doc and collection refs, `==`, `in` and `array-contains` filters on dotted paths,
- * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment`),
+ * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment` and
+ * `FieldValue.delete`),
  * and an Admin Auth with users and custom claims.
  */
 
@@ -23,10 +24,15 @@ function stored(value: unknown, previous: unknown): unknown {
   return value;
 }
 
+const isDeleteSentinel = (value: unknown) =>
+  !!value && typeof value === 'object' && value.constructor?.name === 'DeleteTransform';
+
 function apply(previous: Data | undefined, data: Data): Data {
   const next: Data = { ...previous };
-  for (const [key, value] of Object.entries(data)) next[key] = stored(value, previous?.[key]);
-  return next;
+  for (const [key, value] of Object.entries(data)) {
+    next[key] = isDeleteSentinel(value) ? value : stored(value, previous?.[key]);
+  }
+  return Object.fromEntries(Object.entries(next).filter(([, value]) => !isDeleteSentinel(value)));
 }
 
 export function memoryFirestore(initial: Record<string, Data> = {}) {
