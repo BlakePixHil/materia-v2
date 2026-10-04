@@ -1,8 +1,9 @@
 # Reusable deploy (FND-05), called by deploy-dev.yml and deploy-prod.yml. It deploys a release
-# artifact built once by deploy-dev.yml (no rebuild), in a fixed order, then runs the @smoke
-# Playwright tests against the deployed site. Order: Firestore indexes → rules (Firestore and
-# Storage) → functions (codebase `core`) → hosting. A failure stops the run loudly; nothing is
-# retried automatically (docs/runbooks/deploy.md covers partial deploys).
+# artifact built once by deploy-dev.yml (no rebuild; only the jobs image is assembled here from the
+# release's bundle), in a fixed order, then runs the @smoke Playwright tests against the deployed
+# site. Order: Firestore indexes → rules (Firestore and Storage) → Cloud Run jobs → functions
+# (codebase `core`) → hosting. A failure stops the run loudly; nothing is retried automatically
+# (docs/runbooks/deploy.md covers partial deploys).
 #
 # Settings come from variables named <NAME>_<DEV|PROD> (repository or environment variables):
 # GCP_PROJECT_*, GCP_WIF_PROVIDER_* and GCP_DEPLOYER_SA_*. No JSON keys anywhere.
@@ -93,10 +94,11 @@ jobs:
             echo "::error::The artifact has no $WEB_DIR bundle. For web-prod, set FIREBASE_WEB_CONFIG_PROD and re-run deploy-dev for this commit."
             exit 1
           fi
-          rm -rf dist/apps/web/browser dist/apps/functions
+          rm -rf dist/apps/web/browser dist/apps/functions dist/apps/jobs
           mkdir -p dist/apps/web
           mv "dist/release/$WEB_DIR" dist/apps/web/browser
           mv dist/release/functions dist/apps/functions
+          if [ -d dist/release/jobs ]; then mv dist/release/jobs dist/apps/jobs; fi
           echo "VERSION=$(node -p 'require("./dist/release/release.json").version')" >> "$GITHUB_ENV"
 
       - name: Authenticate to Google Cloud (Workload Identity Federation, no key)
@@ -112,6 +114,37 @@ jobs:
 
       - name: Deploy Firestore and Storage rules
         run: pnpm exec firebase deploy --only firestore:rules,storage --project "$PROJECT" --config firebase.json --non-interactive
+
+      # Functions start job executions, so the job is updated first (ADR-014, FND-24). The image is
+      # built from the release's jobs bundle (same code and lockfile as dev), pushed to the
+      # environment's Artifact Registry (scanned on push) and deployed as the job `pdf`. Releases
+      # from before FND-24 carry no jobs bundle and skip this step.
+      - name: Deploy Cloud Run jobs
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          if [ ! -d dist/apps/jobs ]; then
+            echo "::notice::This release has no Cloud Run jobs bundle; jobs left as they are."
+            exit 0
+          fi
+          image="$REGION-docker.pkg.dev/$PROJECT/jobs/pdf:$SHA"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -f dist/apps/jobs/Dockerfile -t "$image" dist/apps/jobs
+          docker push "$image"
+          gcloud run jobs deploy pdf \
+            --project "$PROJECT" \
+            --region "$REGION" \
+            --image "$image" \
+            --service-account "jobs-runtime@$PROJECT.iam.gserviceaccount.com" \
+            --tasks 1 \
+            --max-retries 0 \
+            --task-timeout 30m \
+            --cpu 2 \
+            --memory 2Gi \
+            --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT,STORAGE_BUCKET=$PROJECT-files" \
+            --labels "app=materia,release=${SHA:0:12}" \
+            --quiet
+          echo "JOBS_IMAGE=$image" >> "$GITHUB_ENV"
 
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
@@ -147,5 +180,6 @@ jobs:
             echo ""
             echo "- Commit: \`${{ inputs.sha }}\`"
             echo "- Site: https://$PROJECT.web.app/health"
+            echo "- Jobs image: \`${JOBS_IMAGE:-unchanged}\`"
             echo "- Rollback: docs/runbooks/rollback.md"
           } >> "$GITHUB_STEP_SUMMARY"

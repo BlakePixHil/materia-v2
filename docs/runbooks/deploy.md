@@ -10,8 +10,8 @@ MVP mode has two environments, **dev** (`materia-v2-dev`) and **prod** (`materia
 | -- | -- | -- |
 | `ci.yml` | every PR and push to `main` | Lint, tests, build, e2e; `ci-ok` is the merge gate (FND-04) |
 | `preview.yml` | PRs from branches of this repo | Builds the web app for dev and deploys it to the Hosting channel `pr-<number>` of `materia-v2-dev` (expires after 7 days), then comments the URL |
-| `deploy-dev.yml` | `ci` succeeds on a push to `main`, or a manual dispatch | Builds the release once (web for dev, web for prod, functions) as the artifact `release-<sha>` (kept 90 days), then runs `deploy.yml` against dev |
-| `deploy.yml` | called by the two deploy workflows | Deploys in order: Firestore indexes → Firestore and Storage rules → functions (`--only functions:core`) → hosting, all `--non-interactive`, then runs the Playwright `@smoke` tests against the deployed site |
+| `deploy-dev.yml` | `ci` succeeds on a push to `main`, or a manual dispatch | Builds the release once (web for dev, web for prod, functions, the Cloud Run jobs bundle) as the artifact `release-<sha>` (kept 90 days), then runs `deploy.yml` against dev |
+| `deploy.yml` | called by the two deploy workflows | Deploys in order: Firestore indexes → Firestore and Storage rules → Cloud Run jobs (builds the image from the bundle, pushes it to Artifact Registry `jobs`, deploys the job `pdf`) → functions (`--only functions:core`) → hosting, all `--non-interactive`, then runs the Playwright `@smoke` tests against the deployed site |
 | `release.yml` | push to `main` | release-please: keeps a release PR open; merging it tags `vX.Y.Z`, publishes the changelog and starts `deploy-prod.yml` |
 | `deploy-prod.yml` | `v*` tag, or a manual dispatch with a tag | Finds the successful `deploy-dev` run for the tagged commit, waits for approval in the `production` environment, then promotes that run's artifact to prod with `deploy.yml` (no rebuild) |
 | `infra.yml` | PRs and pushes touching `infra/terraform/`, or a manual dispatch | `terraform plan` comment on PRs (dev and prod); apply to dev on merge; apply to prod by dispatch, after approval |

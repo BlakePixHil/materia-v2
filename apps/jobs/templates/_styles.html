@@ -1,0 +1,37 @@
+<style>
+  /* Shared print styles for every template. Geist first; DejaVu Sans (installed in the image) covers
+     any glyph Geist lacks, such as Vietnamese diacritics. */
+  @font-face {
+    font-family: 'Geist';
+    src: url('{{fontDir}}/Geist-Variable.woff2') format('woff2');
+    font-weight: 100 900;
+  }
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm;
+  }
+  html {
+    font-family: 'Geist', 'DejaVu Sans', sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.45;
+    color: #1d1d1f;
+  }
+  h1 {
+    font-size: 16pt;
+    font-weight: 600;
+    margin: 0 0 12pt;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 4pt 6pt;
+    border-bottom: 0.5pt solid #d2d2d7;
+  }
+  .page-break {
+    break-before: page;
+  }
+</style>

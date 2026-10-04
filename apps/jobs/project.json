@@ -13,17 +13,29 @@
         "platform": "node",
         "outputPath": "dist/apps/jobs",
         "format": ["cjs"],
-        "bundle": false,
+        "bundle": true,
         "main": "apps/jobs/src/main.ts",
         "tsConfig": "apps/jobs/tsconfig.app.json",
-        "assets": ["apps/jobs/src/assets"],
+        "assets": [
+          {
+            "input": "apps/jobs/templates",
+            "glob": "**/*",
+            "output": "templates"
+          },
+          {
+            "input": "apps/web/public/fonts",
+            "glob": "Geist-Variable.woff2",
+            "output": "fonts"
+          }
+        ],
         "generatePackageJson": true,
         "esbuildOptions": {
           "sourcemap": true,
           "outExtension": {
             ".js": ".js"
           }
-        }
+        },
+        "thirdParty": false
       },
       "configurations": {
         "development": {},
@@ -102,6 +114,14 @@
       "inputs": ["default", "^default"],
       "options": {
         "command": "tsc --noEmit -p apps/jobs/tsconfig.app.json && tsc --noEmit -p apps/jobs/tsconfig.spec.json"
+      }
+    },
+    "test-container": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "vitest run -c apps/jobs/vitest.integration.config.mts",
+        "cwd": "{workspaceRoot}"
       }
     }
   }

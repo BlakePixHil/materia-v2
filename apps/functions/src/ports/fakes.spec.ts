@@ -1,4 +1,4 @@
-import { FakeCalendar, FakeClock, FakeMail, fakeClerkModel, fakePdfRender, fakeTranscription, fakeXero } from './fakes';
+import { FakeCalendar, FakeClock, FakeJobRunner, FakeMail, fakeClerkModel, fakeTranscription, fakeXero } from './fakes';
 
 describe('fakes', () => {
   it('behave deterministically', async () => {
@@ -30,6 +30,8 @@ describe('fakes', () => {
     expect((await fakeClerkModel.run(request)).text).toBe('Fake Clerk reply.');
     expect(await fakeXero.pushInvoice('o', 'inv-1')).toEqual({ xeroInvoiceId: 'xero-inv-1' });
     expect((await fakeTranscription.transcribe('b', 'p')).durationSeconds).toBe(3);
-    expect(await fakePdfRender.render('<p></p>', 'out.pdf')).toEqual({ path: 'out.pdf', pages: 1 });
+    const jobs = new FakeJobRunner();
+    expect(await jobs.start('pdf', { orgId: 'o', jobId: 'j' })).toEqual({ executionId: 'fake-execution-1' });
+    expect(jobs.started).toEqual([{ job: 'pdf', orgId: 'o', jobId: 'j' }]);
   });
 });

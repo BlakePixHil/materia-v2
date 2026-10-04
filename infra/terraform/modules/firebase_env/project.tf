@@ -35,6 +35,7 @@ locals {
     "run.googleapis.com",
     "cloudbuild.googleapis.com",
     "artifactregistry.googleapis.com",
+    "containerscanning.googleapis.com", # vulnerability scans of job images (FND-24)
     "eventarc.googleapis.com",
     "pubsub.googleapis.com",
     "cloudtasks.googleapis.com",

@@ -27,6 +27,9 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   CLERK_BUDGET_EXCEEDED: 'Your practice has used this month’s Clerk allowance. An admin can raise it in settings.',
   CLERK_BUSY: 'Clerk is busy. Try again in a moment.',
   CLERK_UNAVAILABLE: 'Clerk is unavailable right now. You can carry on without it.',
+  PDF_ENCRYPTED: 'One of the PDFs is password-protected. Remove the password and upload it again.',
+  PDF_INVALID: 'One of the PDFs is damaged or isn’t a PDF. Upload a fresh copy and try again.',
+  JOB_TIMEOUT: 'This took too long and was stopped. Try again.',
   INVITE_EMAIL_MISMATCH:
     'This invite was sent to a different email. Sign in with the invited email, or ask for a new invite.',
   INVITE_EXPIRED: 'This invite has expired. Ask for a new invite.',
