@@ -2,7 +2,7 @@
 
 The canonical definitions are the zod schemas in `libs/domain`. This page is the map. Every collection below lives under `orgs/{orgId}` unless marked **global** or **user**.
 
-Common fields, omitted below, are on every document: `createdAt`, `createdBy`, `updatedAt`, `updatedBy`, `schemaVersion`. Soft-deletable documents also have `deletedAt?` and `deletedBy?`.
+Common fields, omitted below, are on every document: `createdAt`, `createdBy`, `updatedAt`, `updatedBy`, `schemaVersion`. Soft-deletable documents also have `deletedAt?` and `deletedBy?` (`null` means live, like a missing field; live matters always store `deletedAt: null` so lists can filter on it).
 
 Types used below: `DateOnly` = `YYYY-MM-DD`; `Cents` = integer AUD cents; `Minutes` = integer.
 
@@ -14,7 +14,7 @@ Types used below: `DateOnly` = `YYYY-MM-DD`; `Cents` = integer AUD cents; `Minut
 | `orgs/{orgId}/members/{uid}` | Membership | `role: 'owner'\|'admin'\|'lawyer'\|'paralegal'\|'readonly'`, `status: 'active'\|'suspended'\|'removed'` (both server-owned: only the orgs callables change them), `email` (lower-case, to tell apart same names), `displayName`, `initials`, `title`, `admissionNo?`, `defaultRateCents`, `colour`, `budgets: {[fyStartYear]: Cents}`, `supervisorUid?` |
 | `orgs/{orgId}/invites/{inviteId}` | Pending invites | `email` (lower-case), `role`, `tokenHash`, `expiresAt`, `status: 'pending'\|'accepted'\|'revoked'\|'expired'`, `invitedBy`, `acceptedBy?`, `acceptedAt?`. The token is sent in the link and only its SHA-256 is stored |
 | `orgs/{orgId}/members/{uid}/tasks/{taskId}` | Personal tasks not tied to a matter (the legacy dashboard checklist). Same shape as matter tasks, without `matterId` |
-| `orgs/{orgId}/counters/{name}` | Sequence allocation | `next: number`. Written only in transactions by functions |
+| `orgs/{orgId}/counters/{name}` | Sequence allocation | `next: number`. Written only in transactions by functions. Matter numbers use `matter-{YYYY}` (CORE-03) |
 | `users/{uid}` (**user**) | Profile and preferences | `email`, `displayName`, `firstName`, `lastName`, `orgIds: string[]`, `activeOrgId`, `memberships: {[orgId]: {role, name}}` (all three server-owned, mirrored by `auth-syncClaims`), `prefs: {theme:'system'\|'light'\|'dark', density, shortcuts, notifications:{email, push, digestHour}}`, `legacy?: {uid, migratedAt}` |
 
 ## Contacts
@@ -63,6 +63,33 @@ Functions (CORE-01): `contacts-create` (`contact.edit`; creates are callable-onl
 - `closedAt?`, `closeReason?`, `destroyAfter?: DateOnly`.
 - `search[]`.
 - Denormalised for lists: `nextDeadline?: {id, dueDate, title, critical}`, `openTaskCount`, `wipCents`, `lastActivityAt`.
+
+Clients update only `title`, `responsibleUid`, `teamUids`, `labels`, `priority`, `stageId`, `externalRef` and `estate`, and soft delete (`matter.delete`). Everything else goes through functions (CORE-03):
+
+- `matters-createMatter` (`matter.create`, idempotent): allocates the number in a transaction from `counters/matter-{YYYY}` (the year in the org's time zone, so 1 January in Melbourne) and `matterNumberFormat` (default `M-{YYYY}-{seq:4}`), skipping any number already reserved in `matterNumbers/{matterNumberKey(number)}` or held by an existing matter, so a format change mid-year or a migrated matter can't cause a duplicate. Writes the counter, the reservation, the matter (`lead`, or `open` when `conflictCheck.status` is `clear`), `parties` rows for the clients, deceased and testator, and a `matter.created` audit entry. `templateId` is stored; applying templates is CORE-07. A migrated matter keeps `externalRef` and gets a new number.
+- `matters-changeStatus` (`matter.status`): `MATTER_TRANSITIONS` (lead → open; open → on hold or closed; on hold → open; closed → open or archived), else `MATTER_INVALID_TRANSITION`. Lead → open needs a clear conflict check (`FAILED_PRECONDITION`, `details.reason: 'conflict_check_not_clear'`); closed → open needs a `reason` (`INVALID_ARGUMENT`). Closing sets `closedAt` and `closeReason`; reopening clears them. Audited as `matter.status_changed`.
+- `matters-restore` (`matter.restore`: owner, admin): restores a soft-deleted matter within 30 days of its delete, else `FAILED_PRECONDITION` (`details.reason: 'restore_window_passed'`). The rules freeze a deleted matter and never let a client restore it.
+- `matters-denormalise` (trigger): keeps `search` (number, title, client and deceased names, external reference), `lastActivityAt` (moved forward on any change outside the denormalised fields) and `deletedAt: null` current, writing only stale fields so it never loops. `openTaskCount`, `nextDeadline` and `wipCents` hook in there in later tickets.
+
+#### Matters list queries
+
+The list queries `orgs/{orgId}/matters` with `deletedAt == null`, plus `privileged == false` for roles without `privileged.view`, the filters below, and cursor pagination of 50. `MATTER_INDEXED_QUERIES` in `libs/domain` (with `isIndexedMatterQuery`) is the same list; any other combination, or a sort on client, responsible, stage, next deadline or WIP, should query the closest indexed subset and filter or sort the rest client-side. `status` and `type` take `==` or `in` (the product of `in` list sizes is at most 30); `labels` and `search` take `array-contains` (one per query). Each row is indexed with and without `privileged`; `firebase/tests/indexes.spec.ts` checks the file matches.
+
+| Filters | Order |
+|---|---|
+| none | `lastActivityAt` desc; `number` asc/desc; `title` asc/desc |
+| `status` | `lastActivityAt` desc; `number` asc/desc; `title` asc/desc |
+| `status`, `responsibleUid` | `lastActivityAt` desc |
+| `status`, `type` | `lastActivityAt` desc |
+| `status`, `responsibleUid`, `type` | `lastActivityAt` desc |
+| `status`, `labels` | `lastActivityAt` desc |
+| `status`, `jurisdiction` | `lastActivityAt` desc |
+| `status`, `search` | `lastActivityAt` desc |
+| `responsibleUid` | `lastActivityAt` desc |
+| `type` | `lastActivityAt` desc |
+| `labels` | `lastActivityAt` desc |
+| `jurisdiction` | `lastActivityAt` desc |
+| `search` | `lastActivityAt` desc |
 
 ### Matter subcollections
 
@@ -126,7 +153,7 @@ Migrated documents also carry `migration: {runId, legacyPath, loadedAt}`, `needs
 ## Invariants (enforced in rules, callables and tests)
 
 1. `members/{uid}` exists and is `active` ⇔ the user's claim includes the org. Claims are synced by the trigger `auth-syncClaims`.
-2. Matter `number` is unique per org. It is allocated only by `matters-createMatter` in a transaction.
+2. Matter `number` is unique per org (case-insensitively). It is allocated only by `matters-createMatter` in a transaction, which also writes its `matterNumbers` reservation.
 3. An invoice `number` is gapless and is never reused. A voided invoice keeps its number.
 4. A deadline's `dueDate` is never changed silently by a recompute. A recompute writes a *proposal* when the date would move; an `override` always wins.
 5. A `timeEntry` with status `billed` is immutable except through a credit-note flow.
@@ -136,7 +163,7 @@ Migrated documents also carry `migration: {runId, legacyPath, loadedAt}`, `needs
 
 ## Indexes (initial)
 
-- `matters`: (status, updatedAt desc), (responsibleUid, status), (type, status), (search array-contains, updatedAt desc).
+- `matters`: the list queries in *Matters list queries* above, each led by `deletedAt` (and `privileged`).
 - Collection group `tasks`: (assigneeUid, status, dueDate), (orgId, status, dueDate). Collection-group docs carry a denormalised `orgId` and `matterId`.
 - Collection group `deadlines`: (orgId, status, dueDate), (assigneeUid, status, dueDate).
 - Collection group `timeEntries`: (orgId, uid, date), (orgId, status, date).
@@ -150,12 +177,14 @@ Migrated documents also carry `migration: {runId, legacyPath, loadedAt}`, `needs
 |---|---|
 | `users/{uid}.claimsVersion` | Incremented by `auth-syncClaims`. The client refreshes its token when this changes (FND-17) |
 | `users/{uid}/devices/{deviceId}` | `{token, platform, lastSeenAt}` FCM registry (FND-20, MOB-04) |
-| `users/{uid}/views/{id}`, `users/{uid}/recent`, `users/{uid}/drafts/{id}` | Saved list views (CORE-03), recents (CORE-14/15), intake drafts with 30-day TTL (CORE-05) |
+| `users/{uid}/views/{id}`, `users/{uid}/recent`, `users/{uid}/drafts/{id}` | Saved list views (CORE-03: `SavedView`, the user's own, written by the client with `orgId` = their current org), recents (CORE-14/15), intake drafts with 30-day TTL (CORE-05) |
 | `users/{uid}/timer/current` | The single running timer (BILL-02) |
 | `users/{uid}/briefs/{date}` | Clerk daily brief (AI-09) |
 | `users/{uid}/private/recovery` | **Server-only.** Hashed MFA recovery codes (FND-16) |
 | `users/{uid}/requests/{requestId}` | **Server-only.** Idempotency records for person-level callables (onboarding, accepting an invite, switching org), 24 h TTL (FND-17) |
 | `emulatorOutbox/{id}` | **Emulator only.** Emails the Functions emulator would have sent (invite links for e2e and local testing) |
+| `orgs/{orgId}/matterNumbers/{key}` | **Server-only.** Matter number reservations `{number, matterId, year}`, written with the matter (CORE-03) |
+| `emulatorClock/{orgId}` | **Emulator only.** `{now}` pins the clock of date-sensitive callables for integration tests (CORE-03) |
 | `orgs/{orgId}/requests/{requestId}` | **Server-only.** Callable idempotency records, 24 h TTL (FND-15) |
 | `orgs/{orgId}/conflictChecks/{id}` | Conflict-check runs and hits (CORE-02) |
 | `orgs/{orgId}/jobs/{jobId}` | Cloud Run job status and progress (FND-24) |
