@@ -13,13 +13,16 @@
       "options": {
         "command": "firebase emulators:exec --only firestore,storage --project demo-materia --config firebase/firebase.json \"vitest run --config firebase/vitest.rules.config.mts\"",
         "cwd": "{workspaceRoot}"
-      }
+      },
+      "outputs": ["{workspaceRoot}/dist/rules-coverage"]
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", "^default"],
-      "options": { "command": "tsc --noEmit -p firebase/tsconfig.json" }
+      "options": {
+        "command": "tsc --noEmit -p firebase/tsconfig.json"
+      }
     }
   }
 }

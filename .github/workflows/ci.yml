@@ -107,6 +107,15 @@ jobs:
       # The firebase project depends implicitly on libs/domain and libs/test-utils, so changes to
       # firebase/**, libs/domain/** or libs/test-utils/** run the rules suite in the emulators.
       - run: pnpm nx affected -t test-rules --base="$NX_BASE" --head="$NX_HEAD"
+      # FND-14: rules coverage (fails below 90% of expressions inside test-rules) and its report.
+      - name: Upload the rules coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rules-coverage
+          path: dist/rules-coverage
+          if-no-files-found: ignore
+          retention-days: 14
 
   build:
     name: build

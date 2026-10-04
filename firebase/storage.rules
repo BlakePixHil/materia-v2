@@ -1,8 +1,98 @@
 rules_version = '2';
 
-// Placeholder: deny everything. FND-14 writes the real rules.
+// Materia Storage rules (FND-14). Default deny. Matter files are uploaded to a pending/ path,
+// malware-scanned server-side (CORE-12) and moved to documents/; reads need an active member, a
+// clean scan and, for privileged documents, privileged.view. The role lists at the bottom are
+// generated from libs/domain (`pnpm materia-scripts rules-sync`).
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function inOrg(orgId) {
+      return isSignedIn() && request.auth.token.orgId == orgId;
+    }
+    function can(orgId, action) {
+      return inOrg(orgId) && request.auth.token.role in perm(action);
+    }
+    // Cross-service reads (each counts towards the Firestore get() limits).
+    function isActiveMember(orgId) {
+      return inOrg(orgId)
+        && firestore.get(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.status == 'active';
+    }
+    function documentMeta(orgId, matterId, documentId) {
+      return firestore.get(/databases/(default)/documents/orgs/$(orgId)/matters/$(matterId)/documents/$(documentId)).data;
+    }
+
+    // Accepted upload types: PDF, Word, Excel, images, email and plain text.
+    function allowedType() {
+      return request.resource.contentType.matches('application/pdf')
+        || request.resource.contentType.matches('application/msword')
+        || request.resource.contentType.matches('application/vnd[.]openxmlformats-officedocument[.].*')
+        || request.resource.contentType.matches('application/vnd[.]ms-(excel|outlook)')
+        || request.resource.contentType.matches('image/(png|jpeg|gif|webp|heic)')
+        || request.resource.contentType.matches('message/rfc822')
+        || request.resource.contentType.matches('text/plain');
+    }
+
+    // Stored versions: read only.
+    match /orgs/{orgId}/matters/{matterId}/documents/{documentId}/{version} {
+      allow read: if isActiveMember(orgId)
+        && documentMeta(orgId, matterId, documentId).scan.status == 'clean'
+        && (documentMeta(orgId, matterId, documentId).privileged == false || can(orgId, 'privileged.view'));
+    }
+
+    // Uploads land here until the scan passes, at most 50 MB. Only `create` is allowed, so an
+    // overwrite (an `update` in production) is denied. The Storage emulator treats overwrites as
+    // creates, so the tests cannot show that part.
+    match /orgs/{orgId}/matters/{matterId}/pending/{uploadId}/{fileName} {
+      allow create: if can(orgId, 'document.upload') && isActiveMember(orgId)
+        && request.resource.size <= 50 * 1024 * 1024
+        && allowedType();
+    }
+
+    // Avatars: the owner writes (images, at most 2 MB); signed-in users read.
+    match /users/{userId}/avatar.png {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // <generated:rules-sync> do not edit: `pnpm materia-scripts rules-sync` writes this from libs/domain.
+    // Roles allowed each action (PERMISSIONS).
+    function perm(action) {
+      return {
+        'matter.view': ['owner', 'admin', 'lawyer', 'paralegal', 'readonly'],
+        'matter.create': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'matter.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'matter.delete': ['owner', 'admin', 'lawyer'],
+        'matter.close': ['owner', 'admin', 'lawyer'],
+        'privileged.view': ['owner', 'admin', 'lawyer'],
+        'document.upload': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'document.delete': ['owner', 'admin', 'lawyer'],
+        'task.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'note.write': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'deadline.override': ['owner', 'admin', 'lawyer'],
+        'time.record': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'time.approve': ['owner', 'admin', 'lawyer'],
+        'billing.view': ['owner', 'admin', 'lawyer'],
+        'billing.issue': ['owner', 'admin'],
+        'billing.void': ['owner', 'admin'],
+        'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'clerk.configure': ['owner', 'admin'],
+        'members.manage': ['owner', 'admin'],
+        'org.settings': ['owner', 'admin'],
+        'org.delete': ['owner'],
+        'audit.view': ['owner', 'admin'],
+        'export.run': ['owner', 'admin'],
+        'export.includePrivileged': ['owner', 'admin']
+      }[action];
+    }
+    // </generated:rules-sync>
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

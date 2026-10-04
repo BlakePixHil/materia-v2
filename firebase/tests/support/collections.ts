@@ -1,0 +1,291 @@
+import { PERMISSIONS, ROLES, type Action, type Role } from '@materia/domain';
+import { ENTITY_FACTORIES } from '@materia/test-utils';
+
+import { MATTER, ORG, uidFor } from './harness';
+
+/**
+ * One entry per Firestore collection (FND-14). The rules suite generates, for each: read and
+ * update for all five roles, a cross-org deny, an unauthenticated deny, a forbidden field change,
+ * missing and wrong `updatedBy`, and denied create and hard delete. Add a collection here when you
+ * add a `match` block; the suite fails if the two lists differ.
+ */
+export interface CollectionSpec {
+  /** Collection id as written in firestore.rules. */
+  collection: string;
+  /** Path of the seeded test document. */
+  docPath: string;
+  /** Factory key in ENTITY_FACTORIES for the seed data (omit for plain data). */
+  entity?: keyof typeof ENTITY_FACTORIES;
+  /** Seed overrides (merged over the factory output). */
+  seed?: Record<string, unknown>;
+  /** Who can read: everyone in the org, an action's roles, only the document's owner, or nobody. */
+  read: 'members' | 'signed-in' | 'owner' | 'none' | Action;
+  /** Who can update: an action's roles, an explicit role list, only the owner, or nobody. */
+  update: 'none' | 'owner' | Action | readonly Role[];
+  /** For 'owner' specs: the owning uid (defaults to the lawyer). */
+  ownerUid?: string;
+  /** A whitelisted field change that `update` roles may make (defaults to the first whitelist key). */
+  change?: Record<string, unknown>;
+}
+
+const OWNER = uidFor('lawyer');
+
+const matterRecord = (collection: string, entity: keyof typeof ENTITY_FACTORIES, update: Action = 'matter.edit') =>
+  ({ collection, docPath: `${MATTER}/${collection}/doc-1`, entity, read: 'members', update }) satisfies CollectionSpec;
+
+export const COLLECTIONS: CollectionSpec[] = [
+  // Global reference data.
+  {
+    collection: 'ruleSets',
+    docPath: 'ruleSets/vic-probate',
+    seed: { name: 'Victorian probate' },
+    read: 'signed-in',
+    update: 'none',
+  },
+  {
+    collection: 'versions',
+    docPath: 'ruleSets/vic-probate/versions/1',
+    entity: 'RuleSetVersion',
+    read: 'signed-in',
+    update: 'none',
+  },
+  { collection: 'calendars', docPath: 'calendars/vic-2026', entity: 'Calendar', read: 'signed-in', update: 'none' },
+  {
+    collection: 'systemTemplates',
+    docPath: 'systemTemplates/probate',
+    seed: { name: 'Probate' },
+    read: 'signed-in',
+    update: 'none',
+  },
+
+  { collection: 'users', docPath: `users/${OWNER}`, entity: 'User', read: 'owner', update: 'owner' },
+
+  // Organisation.
+  { collection: 'orgs', docPath: `orgs/${ORG}`, entity: 'Org', read: 'members', update: 'org.settings' },
+  {
+    collection: 'members',
+    docPath: `orgs/${ORG}/members/member-target`,
+    entity: 'Member',
+    read: 'members',
+    update: 'members.manage',
+  },
+  {
+    collection: 'invites',
+    docPath: `orgs/${ORG}/invites/invite-1`,
+    entity: 'Invite',
+    read: 'members.manage',
+    update: 'members.manage',
+  },
+  {
+    collection: 'contacts',
+    docPath: `orgs/${ORG}/contacts/contact-1`,
+    entity: 'Contact',
+    read: 'members',
+    update: 'matter.edit',
+  },
+  {
+    collection: 'matters',
+    docPath: MATTER,
+    entity: 'Matter',
+    seed: { privileged: false },
+    read: 'members',
+    update: 'matter.edit',
+  },
+  {
+    collection: 'clerkThreads',
+    docPath: `orgs/${ORG}/clerkThreads/thread-1`,
+    entity: 'ClerkThread',
+    seed: { ownerUid: OWNER, shared: false },
+    read: 'owner',
+    update: 'owner',
+  },
+  {
+    collection: 'messages',
+    docPath: `orgs/${ORG}/clerkThreads/thread-1/messages/message-1`,
+    entity: 'ClerkMessage',
+    read: 'owner',
+    update: 'owner',
+    change: { stopRequested: true },
+  },
+  {
+    collection: 'invoices',
+    docPath: `orgs/${ORG}/invoices/invoice-1`,
+    entity: 'Invoice',
+    seed: { status: 'draft' },
+    read: 'billing.view',
+    update: 'billing.issue',
+  },
+  {
+    collection: 'creditNotes',
+    docPath: `orgs/${ORG}/creditNotes/credit-1`,
+    entity: 'CreditNote',
+    read: 'billing.view',
+    update: 'none',
+  },
+  {
+    collection: 'templates',
+    docPath: `orgs/${ORG}/templates/template-1`,
+    entity: 'MatterTemplate',
+    read: 'members',
+    update: 'org.settings',
+  },
+  {
+    collection: 'docTemplates',
+    docPath: `orgs/${ORG}/docTemplates/doctemplate-1`,
+    entity: 'DocTemplate',
+    read: 'members',
+    update: 'org.settings',
+  },
+  {
+    collection: 'safeCustody',
+    docPath: `orgs/${ORG}/safeCustody/packet-1`,
+    entity: 'SafeCustody',
+    read: 'members',
+    update: 'matter.edit',
+  },
+  {
+    collection: 'notifications',
+    docPath: `orgs/${ORG}/notifications/notification-1`,
+    entity: 'Notification',
+    seed: { recipientUid: OWNER },
+    read: 'owner',
+    update: 'owner',
+  },
+  {
+    collection: 'audit',
+    docPath: `orgs/${ORG}/audit/entry-1`,
+    entity: 'AuditEntry',
+    read: 'audit.view',
+    update: 'none',
+  },
+  {
+    collection: 'metrics',
+    docPath: `orgs/${ORG}/metrics/2026-03`,
+    entity: 'Metrics',
+    read: 'billing.view',
+    update: 'none',
+  },
+  {
+    collection: 'migrations',
+    docPath: `orgs/${ORG}/migrations/run-1`,
+    entity: 'MigrationRun',
+    read: 'org.settings',
+    update: 'none',
+  },
+  {
+    collection: 'integrations',
+    docPath: `orgs/${ORG}/integrations/${OWNER}_microsoft`,
+    entity: 'Integration',
+    read: 'none',
+    update: 'none',
+  },
+  { collection: 'counters', docPath: `orgs/${ORG}/counters/matters`, seed: { next: 42 }, read: 'none', update: 'none' },
+
+  // Personal tasks live under the member.
+  {
+    collection: 'tasks (personal)',
+    docPath: `orgs/${ORG}/members/${OWNER}/tasks/task-1`,
+    entity: 'PersonalTask',
+    seed: { orgId: ORG, assigneeUid: OWNER },
+    read: 'owner',
+    update: 'owner',
+  },
+
+  // Matter records.
+  {
+    collection: 'activity',
+    docPath: `${MATTER}/activity/activity-1`,
+    entity: 'Activity',
+    read: 'members',
+    update: 'none',
+  },
+  { ...matterRecord('tasks', 'Task', 'task.edit'), seed: { orgId: ORG, matterId: 'matter-1' } },
+  { ...matterRecord('deadlines', 'Deadline', 'task.edit'), seed: { orgId: ORG, matterId: 'matter-1' } },
+  {
+    collection: 'timeEntries',
+    docPath: `${MATTER}/timeEntries/entry-1`,
+    entity: 'TimeEntry',
+    seed: { orgId: ORG, matterId: 'matter-1', uid: uidFor('paralegal') },
+    read: 'members',
+    // time.approve roles, plus the paralegal because the entry is theirs.
+    update: [...PERMISSIONS['time.approve'], 'paralegal'],
+    change: { narrative: 'Reviewed the inventory of assets' },
+  },
+  { ...matterRecord('documents', 'MatterDocument', 'document.upload'), seed: { privileged: false } },
+  {
+    collection: 'chunks',
+    docPath: `${MATTER}/documents/doc-1/chunks/chunk-1`,
+    entity: 'Chunk',
+    read: 'none',
+    update: 'none',
+  },
+  { ...matterRecord('notes', 'Note', 'note.write'), seed: { privileged: false } },
+  // Offers are always privileged (without prejudice): privileged.view roles only.
+  {
+    ...matterRecord('offers', 'Offer'),
+    read: 'privileged.view',
+    update: PERMISSIONS['matter.edit'].filter((role) => PERMISSIONS['privileged.view'].includes(role as never)),
+  },
+  {
+    collection: 'suggestions',
+    docPath: `${MATTER}/suggestions/suggestion-1`,
+    entity: 'Suggestion',
+    seed: { status: 'proposed' },
+    read: 'members',
+    update: 'clerk.use',
+    change: { status: 'dismissed' },
+  },
+  matterRecord('parties', 'Party'),
+  matterRecord('events', 'MatterEvent'),
+  matterRecord('disbursements', 'Disbursement', 'time.record'),
+  matterRecord('assets', 'Asset'),
+  matterRecord('liabilities', 'Liability'),
+  matterRecord('distributions', 'Distribution'),
+  matterRecord('proceedings', 'Proceeding'),
+  matterRecord('courtEvents', 'CourtEvent'),
+  matterRecord('orders', 'CourtOrder'),
+  matterRecord('chronology', 'ChronologyEntry'),
+  matterRecord('issues', 'Issue'),
+  matterRecord('evidence', 'Evidence'),
+  matterRecord('subpoenas', 'Subpoena'),
+  matterRecord('courtBooks', 'CourtBook'),
+];
+
+/** The spec for a collection id (throws if there is none). */
+export function specFor(collection: string): CollectionSpec {
+  const spec = COLLECTIONS.find((s) => s.collection === collection);
+  if (!spec) throw new Error(`No collection spec for ${collection}`);
+  return spec;
+}
+
+/** Roles expected to pass a read or update rule (excluding owner-only specs). */
+export function rolesFor(rule: CollectionSpec['read'] | CollectionSpec['update']): readonly Role[] {
+  if (Array.isArray(rule)) return rule;
+  switch (rule) {
+    case 'members':
+    case 'signed-in':
+      return ROLES;
+    case 'none':
+    case 'owner':
+      return [];
+    default:
+      return PERMISSIONS[rule as Action];
+  }
+}
+
+/** Seed data for a spec: the factory output (if any) with the overrides applied. */
+export function seedData(spec: CollectionSpec): Record<string, unknown> {
+  const base = spec.entity ? (ENTITY_FACTORIES[spec.entity][1] as () => Record<string, unknown>)() : {};
+  return { ...base, ...spec.seed };
+}
+
+/** The whitelisted change to try, defaulting to the first update-schema key. */
+export function changeFor(spec: CollectionSpec): Record<string, unknown> {
+  if (spec.change) return spec.change;
+  const entity = spec.entity
+    ? (ENTITY_FACTORIES[spec.entity][0] as { update: { shape?: Record<string, unknown> } })
+    : undefined;
+  const field = Object.keys(entity?.update.shape ?? {})[0];
+  // Collections with no whitelist are read-only for clients; any field will do.
+  return { [field ?? 'note']: 'changed by the rules test' };
+}
