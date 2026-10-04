@@ -28,8 +28,10 @@ export const Party = withMeta(
     share: z.string().optional(),
     notes: z.string().optional(),
     addedFrom: z.enum(['manual', 'clerk', 'migration']).default('manual'),
+    // Queried across matters by contact ("the matters this contact is on", CORE-01).
+    ...GroupKeys,
   },
-  { path: `${MATTER}/parties`, softDelete: true },
+  { path: `${MATTER}/parties`, softDelete: true, serverOwned: ['orgId', 'matterId'] },
 );
 
 const taskShape = {
