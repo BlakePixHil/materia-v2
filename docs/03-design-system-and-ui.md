@@ -65,6 +65,23 @@ The `lint` CI job runs `sync-design --check`.
 
 `<mt-icon name="matters" />` renders a design-system icon (any key of `MT_ICONS`) or any Lucide icon node from the data-only `lucide` package (`import { House } from 'lucide'`, then `[name]="House"`), at 14, 16 (default) or 20px with the brand-book 1.6 stroke. It renders the SVG itself: Angular icon libraries ship every icon as a compiled component, which made builds slow and memory-hungry. Icons are decorative unless you pass `label`. The custom status and priority glyph sources are in `libs/ui/src/icons/custom.ts`; their components come later.
 
+### Form controls (FND-08)
+
+Import them from `@materia/ui`. Each one composes ng-primitives, wears the `mt-*` CSS and works with `formControlName`, `[formControl]` and `ngModel`:
+
+| Component | Use |
+| -- | -- |
+| `button[mtButton]`, `a[mtButton]` | `variant` (`primary`, `secondary`, `ghost`, `danger`, `clerk`), `size`, `iconStart`, `iconEnd`, `kbd`, `loading`. `type="button"` unless you set `type="submit"` |
+| `button[mtIconButton]` | Required `icon` and `label` (accessible name and tooltip) |
+| `<mt-text-field>`, `<mt-textarea>` | `label`, `description`, `error`, `errorMessages`, `optional`, `required`; text field: `type`, `iconStart`, `suffix`, `[mtPrefix]`/`[mtSuffix]` slots; textarea: `autoGrow` (12 lines), `maxLength` with a count |
+| `<mt-select>` | `options` (`MtOption` or `MtOptionGroup`), `placeholder`; type-ahead; a native `<select>` below 768px (`native` forces it) |
+| `<mt-checkbox>`, `<mt-switch>` | `label`, `description`; checkbox: `indeterminate` |
+| `<mt-radio-group>`, `<mt-segmented-control>` | `options`, `label`; radio: `orientation` |
+| `<mt-search-field>` | `label` (accessible name), `variant` (`global` or `filter`), `shortcut`, debounced `queryChange` |
+| `<mt-kbd keys="mod+k">` | ⌘ on Mac, Ctrl elsewhere; `g m` for sequences |
+
+Validation: once a control is touched and invalid, its first error shows under it and is linked with `aria-describedby`, and `aria-invalid` is set. The default copy (`MT_ERROR_MESSAGES`) follows the writing rules; override it per field with `errorMessages`. `Components/Reactive forms demo` in Storybook shows every control in one form.
+
 ### Storybook
 
 `pnpm storybook` (port 4400). The toolbar has a Light/Dark theme switch; backgrounds are the `bg-*` tokens; the a11y addon reports violations as errors. `Foundations/Colours`, `Type`, `Spacing` and `Theme` are rendered from `tokens.ts`. CI builds Storybook and runs the test-runner over every story (play functions and a11y): `pnpm nx run ui:test-storybook` against a running Storybook locally.

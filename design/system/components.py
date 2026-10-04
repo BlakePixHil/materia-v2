@@ -47,7 +47,7 @@ Buttons commit an action; one **primary** (blue) button per view, for the thing 
 ```
 `ngpButton` sets `data-hover`, `data-press`, `data-focus-visible` and `data-disabled`; the CSS reads only those. Loading: add `data-loading` and a `loader` icon first; keep the label.
 
-**Accessibility.** White on `bg-brand` (#346CFC) is 4.47:1. Keep primary labels at 13px medium or larger, and use `bg-brand-hover` (5.76:1) wherever strict AA for small text is required.
+**Accessibility.** White on `bg-brand` (#346CFC) is 4.47:1, just under AA for 13px text, so the primary button rests on `bg-brand-hover` (5.76:1) and darkens on hover (FND-08).
 """, body, "5 variants × 3 sizes · data-hover · data-press · data-focus-visible · data-disabled")
 
 ib = []

@@ -28,8 +28,18 @@ export default [
     },
   },
   {
+    // Button and IconButton use attribute selectors on native hosts (button[mtButton], FND-08), so
+    // the native <button>/<a> keeps its semantics.
+    files: ['**/lib/button/button.ts', '**/lib/icon-button/icon-button.ts'],
+    rules: { '@angular-eslint/component-selector': 'off' },
+  },
+  {
     files: ['**/*.html'],
-    // Override or add rules here
-    rules: {},
+    rules: {
+      // Checkbox, Switch and Radio render ng-primitives buttons inside their <label> (FND-08).
+      '@angular-eslint/template/label-has-associated-control': ['error', { controlComponents: ['button'] }],
+      // Icon-only controls are named by aria-labelledby or MtIconButton's required `label`.
+      '@angular-eslint/template/elements-content': ['error', { allowList: ['aria-labelledby', 'label'] }],
+    },
   },
 ];
