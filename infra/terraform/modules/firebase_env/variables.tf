@@ -115,9 +115,9 @@ variable "migration_retention_days" {
 
 # FND-16 configures these; they are declared now so the environment files stay stable.
 variable "auth_mfa_state" {
-  description = "Identity Platform MFA state (DISABLED, ENABLED or MANDATORY). Set by FND-16."
+  description = "Identity Platform MFA state (DISABLED, ENABLED or MANDATORY). ENABLED lets people add a TOTP authenticator (FND-16); per-org enforcement is SEC-04."
   type        = string
-  default     = "DISABLED"
+  default     = "ENABLED"
 }
 
 variable "auth_authorized_domains" {

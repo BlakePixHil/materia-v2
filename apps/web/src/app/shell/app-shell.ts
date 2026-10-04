@@ -276,7 +276,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         <button mtMenuItem icon="eye" (click)="toggleTheme()">{{ themeLabel() }}</button>
         <button mtMenuItem icon="help" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
         <mt-menu-separator />
-        <a mtMenuItem icon="arrow-right" routerLink="/auth/sign-in">Sign out</a>
+        <button mtMenuItem icon="arrow-right" (click)="signOut()">Sign out</button>
       </mt-menu>
     </ng-template>
   `,
@@ -350,6 +350,12 @@ export class AppShellComponent {
 
   toggleClerk(): void {
     this.clerkOpen.update((value) => !value);
+  }
+
+  /** Signs out (clearing cached data) and returns to sign-in. */
+  async signOut(): Promise<void> {
+    await this.auth.signOut();
+    await this.router.navigateByUrl('/auth/sign-in');
   }
 
   toggleTheme(): void {

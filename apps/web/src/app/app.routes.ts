@@ -1,6 +1,6 @@
 import { Route } from '@angular/router';
 
-import { orgScopedGuard } from './core/auth/auth-state';
+import { authGuard, mfaGuard, orgScopedGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { MATTER_TABS } from './pages/matter-tabs';
 import type { PlaceholderData } from './pages/placeholder';
 
@@ -135,16 +135,59 @@ export const appRoutes: Route[] = [
     loadComponent: minimalLayout,
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'sign-in' },
-      planned('sign-in', 'Sign in', {
-        ticket: 'FND-16',
-        description: 'Sign in with your firm email, Google or Microsoft.',
-      }),
+      {
+        path: 'sign-in',
+        title: 'Sign in',
+        canActivate: [signedOutGuard],
+        loadComponent: () => import('./pages/auth/sign-in').then((m) => m.SignInPage),
+      },
+      {
+        path: 'sign-up',
+        title: 'Create your account',
+        canActivate: [signedOutGuard],
+        loadComponent: () => import('./pages/auth/sign-up').then((m) => m.SignUpPage),
+      },
+      {
+        path: 'verify-email',
+        title: 'Confirm your email',
+        canActivate: [unverifiedGuard],
+        loadComponent: () => import('./pages/auth/verify-email').then((m) => m.VerifyEmailPage),
+      },
+      {
+        path: 'forgot-password',
+        title: 'Reset your password',
+        loadComponent: () => import('./pages/auth/forgot-password').then((m) => m.ForgotPasswordPage),
+      },
+      // Email action links: verify email, reset password (any device, signed in or not).
+      {
+        path: 'action',
+        title: 'Materia',
+        loadComponent: () => import('./pages/auth/action').then((m) => m.AuthActionPage),
+      },
+      {
+        path: 'mfa',
+        title: 'Enter your code',
+        loadComponent: () => import('./pages/auth/mfa-challenge').then((m) => m.MfaChallengePage),
+      },
+      {
+        path: 'mfa/enrol',
+        title: 'Set up two-step sign-in',
+        canActivate: [authGuard],
+        loadComponent: () => import('./pages/auth/mfa-enrol').then((m) => m.MfaEnrolPage),
+      },
+      {
+        path: 'recover',
+        title: 'Use a recovery code',
+        loadComponent: () => import('./pages/auth/recover').then((m) => m.RecoverPage),
+      },
       { path: '**', redirectTo: 'sign-in' },
     ],
   },
   {
     path: 'onboarding',
     loadComponent: minimalLayout,
+    // Signed in and verified, with MFA where required; FND-17 builds the page.
+    canActivate: [mfaGuard],
     children: [
       planned('**', 'Set up your firm', {
         ticket: 'FND-17',
@@ -152,7 +195,7 @@ export const appRoutes: Route[] = [
       }),
     ],
   },
-  // The shell needs a signed-in person with an active org (stub AuthState until FND-16).
+  // The shell needs a signed-in, verified person with an active org (and MFA where required).
   {
     path: '',
     canMatch: [orgScopedGuard],

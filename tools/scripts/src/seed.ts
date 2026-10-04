@@ -211,7 +211,11 @@ export async function main(argv: string[]): Promise<void> {
         displayName: account.displayName,
         emailVerified: true,
       });
-      await auth.setCustomUserClaims(account.uid, { orgId: SEED_ORG_ID, role: account.role });
+      await auth.setCustomUserClaims(account.uid, {
+        orgId: SEED_ORG_ID,
+        role: account.role,
+        orgName: 'Harbour & Vine Legal',
+      });
     }
     await writeDocs(db, dataset.docs);
     if (target.storageHost) {

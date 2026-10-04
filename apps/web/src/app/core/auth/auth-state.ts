@@ -1,9 +1,8 @@
-import { computed, Injectable, signal } from '@angular/core';
-import { inject } from '@angular/core';
-import type { CanMatchFn } from '@angular/router';
-import { Router } from '@angular/router';
+import { computed, DestroyRef, inject, Injectable, InjectionToken, signal } from '@angular/core';
 
-/** The signed-in person and their active org. */
+import { AUTH_PORT, type AuthPersistence, type AuthSession, type SignInOutcome } from './auth-port';
+
+/** The signed-in person and their active org, as the shell shows them. */
 export interface SessionUser {
   uid: string;
   displayName: string;
@@ -13,27 +12,153 @@ export interface SessionUser {
 }
 
 /**
- * Stub auth state (FND-12): a fictional signed-in user so the shell can be built and tested.
- * FND-16 replaces it with Identity Platform; keep this interface.
+ * Where a session stands. Guards send people to the step they're missing:
+ * signed out → sign in; unverified email → verify; MFA required but missing → enrol; no org → onboarding.
+ */
+export type AuthStatus = 'loading' | 'signedOut' | 'needsVerification' | 'needsMfa' | 'needsOrg' | 'ready';
+
+export function statusOf(session: AuthSession | null | undefined, mfaRequired: boolean): AuthStatus {
+  if (session === undefined) return 'loading';
+  if (session === null) return 'signedOut';
+  // Federated accounts (Google) are verified by the provider; password accounts verify by email.
+  if (!session.emailVerified && session.providerIds.includes('password')) return 'needsVerification';
+  if (mfaRequired && !session.mfaEnrolled) return 'needsMfa';
+  if (!session.claims.orgId) return 'needsOrg';
+  return 'ready';
+}
+
+/** Clean-up run on sign-out: features stop listeners and clear in-memory stores (FND-19 adds Firestore). */
+export type SignOutCleanup = () => void | Promise<void>;
+export const SIGN_OUT_CLEANUP = new InjectionToken<SignOutCleanup[]>('SIGN_OUT_CLEANUP', { factory: () => [] });
+
+/** Per-user browser state that mustn't survive sign-out on a shared computer. */
+const USER_STORAGE_KEYS = ['materia.commands.recent'];
+
+/**
+ * Deletes Firestore's IndexedDB caches (`firestore/…` databases), so nothing cached survives
+ * sign-out even if a Firestore instance was never terminated cleanly.
+ */
+export async function clearFirestoreCaches(idb: IDBFactory | undefined = globalThis.indexedDB): Promise<string[]> {
+  if (!idb?.databases) return [];
+  const names = (await idb.databases()).map((db) => db.name ?? '').filter((name) => name.startsWith('firestore/'));
+  await Promise.all(
+    names.map(
+      (name) =>
+        new Promise<void>((resolve) => {
+          const request = idb.deleteDatabase(name);
+          request.onsuccess = request.onerror = request.onblocked = () => resolve();
+        }),
+    ),
+  );
+  return names;
+}
+
+/**
+ * The auth signal store (FND-16): the session from Identity Platform, its status, and the auth
+ * actions the screens call. `AUTH_PORT` hides the Firebase SDK, which loads lazily.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthState {
-  readonly user = signal<SessionUser | null>({
-    uid: 'user-jordan',
-    displayName: 'Jordan Price',
-    email: 'lawyer@harbourvine.example',
-    orgId: 'org-harbour-vine',
-    orgName: 'Harbour & Vine Legal',
-  });
-  readonly signedIn = computed(() => this.user() !== null);
-  readonly orgScoped = computed(() => !!this.user()?.orgId);
-}
+  private readonly port = inject(AUTH_PORT);
+  private readonly cleanups = inject(SIGN_OUT_CLEANUP);
+  private readonly sessionSignal = signal<AuthSession | null | undefined>(undefined);
+  private readonly readyWaiters: (() => void)[] = [];
 
-/** The shell's routes need a signed-in user with an active org; otherwise sign in or onboard. */
-export const orgScopedGuard: CanMatchFn = () => {
-  const auth = inject(AuthState);
-  const router = inject(Router);
-  if (!auth.signedIn()) return router.parseUrl('/auth/sign-in');
-  if (!auth.orgScoped()) return router.parseUrl('/onboarding');
-  return true;
-};
+  /** `undefined` while loading, `null` when signed out. */
+  readonly session = this.sessionSignal.asReadonly();
+  /** Whether the org requires MFA. SEC-04 sets it from the org's security policy. */
+  readonly mfaRequired = signal(false);
+  readonly status = computed(() => statusOf(this.sessionSignal(), this.mfaRequired()));
+  readonly claims = computed(() => this.sessionSignal()?.claims ?? {});
+  readonly activeOrgId = computed(() => this.sessionSignal()?.claims.orgId ?? null);
+  readonly user = computed<SessionUser | null>(() => {
+    const session = this.sessionSignal();
+    if (!session) return null;
+    return {
+      uid: session.uid,
+      displayName: session.displayName || session.email || 'Account',
+      email: session.email ?? '',
+      orgId: session.claims.orgId ?? null,
+      orgName: session.claims.orgName ?? null,
+    };
+  });
+  readonly signedIn = computed(() => !!this.sessionSignal());
+  readonly orgScoped = computed(() => !!this.activeOrgId());
+
+  constructor() {
+    const stop = this.port.watch((session) => {
+      this.sessionSignal.set(session);
+      for (const resolve of this.readyWaiters.splice(0)) resolve();
+    });
+    inject(DestroyRef).onDestroy(stop);
+  }
+
+  /** Resolves once the first session state is known. */
+  whenReady(): Promise<void> {
+    if (this.sessionSignal() !== undefined) return Promise.resolve();
+    return new Promise((resolve) => this.readyWaiters.push(resolve));
+  }
+
+  signInWithPassword(email: string, password: string, persistence: AuthPersistence = 'local'): Promise<SignInOutcome> {
+    return this.port.signInWithPassword(email, password, persistence);
+  }
+
+  signInWithGoogle(persistence: AuthPersistence = 'local'): Promise<SignInOutcome> {
+    return this.port.signInWithGoogle(persistence);
+  }
+
+  completeMfa(code: string): Promise<void> {
+    return this.port.completeMfa(code);
+  }
+
+  signUp(email: string, password: string, displayName: string): Promise<void> {
+    return this.port.signUp(email, password, displayName);
+  }
+
+  sendVerificationEmail(): Promise<void> {
+    return this.port.sendVerificationEmail();
+  }
+
+  reload(): Promise<void> {
+    return this.port.reload();
+  }
+
+  /** Forces a token refresh so new claims (org, role) apply; listeners restart on the new session. */
+  refreshClaims(): Promise<void> {
+    return this.port.refreshClaims();
+  }
+
+  /** Whether the current sign-in is recent enough for a sensitive action. */
+  isRecentLogin(maxAgeMinutes = 5, now = Date.now()): boolean {
+    const session = this.sessionSignal();
+    return !!session && now - session.authTime <= maxAgeMinutes * 60_000;
+  }
+
+  /**
+   * Signs out and leaves nothing behind: features clean up (listeners, stores, Firestore), cached
+   * Firestore data and per-user storage are deleted, then Identity Platform signs out.
+   */
+  async signOut(): Promise<void> {
+    for (const cleanup of this.cleanups) {
+      try {
+        await cleanup();
+      } catch {
+        // One failing clean-up must not keep the person signed in.
+      }
+    }
+    await clearFirestoreCaches().catch(() => undefined);
+    for (const key of USER_STORAGE_KEYS) {
+      try {
+        globalThis.localStorage?.removeItem(key);
+      } catch {
+        // Storage may be unavailable.
+      }
+    }
+    await this.port.signOut();
+  }
+
+  /** For screens that need a port method directly (enrolment, reset links, callables). */
+  get api() {
+    return this.port;
+  }
+}

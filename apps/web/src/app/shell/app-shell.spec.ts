@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 
 import { MT_KEYBOARD_PLATFORM, ThemeService } from '@materia/ui';
@@ -8,12 +9,13 @@ import { App } from '../app';
 import { appRoutes } from '../app.routes';
 import { AppShellComponent, SIDEBAR_STORAGE_PREFIX } from './app-shell';
 import { MtPageActions } from './page-header';
-import { AuthState } from '../core/auth/auth-state';
+import type { AuthSession } from '../core/auth/auth-port';
+import { provideFakeAuth, testSession, type FakeAuthPort } from '../core/auth/testing';
 import { CommandRegistry } from '../core/commands/command-registry';
 
 const settle = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function setup(url = '/today', options: { mobile?: boolean; configure?: () => void } = {}) {
+async function setup(url = '/today', options: { mobile?: boolean; session?: AuthSession } = {}) {
   const original = window.matchMedia;
   window.matchMedia = ((query: string) => ({
     matches: query.includes('max-width') ? !!options.mobile : false,
@@ -21,11 +23,11 @@ async function setup(url = '/today', options: { mobile?: boolean; configure?: ()
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
   })) as unknown as typeof window.matchMedia;
+  const fake = provideFakeAuth(options.session ?? testSession());
   TestBed.configureTestingModule({
     imports: [App],
-    providers: [provideRouter(appRoutes), { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' }],
+    providers: [provideRouter(appRoutes), { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' }, ...fake.providers],
   });
-  options.configure?.();
   const fixture = TestBed.createComponent(App);
   const router = TestBed.inject(Router);
   await router.navigateByUrl(url);
@@ -38,7 +40,7 @@ async function setup(url = '/today', options: { mobile?: boolean; configure?: ()
     await fixture.whenStable();
     await settle();
   };
-  return { fixture, router, el, app, press };
+  return { fixture, router, el, app, press, port: fake.port as FakeAuthPort };
 }
 
 describe('AppShellComponent', () => {
@@ -72,9 +74,7 @@ describe('AppShellComponent', () => {
 
   it('keeps the collapsed choice separate for each user', async () => {
     localStorage.setItem(`${SIDEBAR_STORAGE_PREFIX}user-jordan`, '1');
-    const { app } = await setup('/today', {
-      configure: () => TestBed.inject(AuthState).user.update((u) => (u ? { ...u, uid: 'user-other' } : u)),
-    });
+    const { app } = await setup('/today', { session: testSession({ uid: 'user-other' }) });
     expect(app().hasAttribute('data-collapsed')).toBe(false);
   });
 
@@ -165,6 +165,17 @@ describe('AppShellComponent', () => {
     expect(theme.resolved()).not.toBe(before);
   });
 
+  it('signs out from the user menu, clearing cached data, and returns to sign-in', async () => {
+    localStorage.setItem('materia.commands.recent', '["go.matters"]');
+    const { router, port, fixture } = await setup();
+    const shell = fixture.debugElement.query(By.directive(AppShellComponent)).componentInstance as AppShellComponent;
+    await shell.signOut();
+    await fixture.whenStable();
+    expect(port.session).toBeNull();
+    expect(router.url).toBe('/auth/sign-in');
+    expect(localStorage.getItem('materia.commands.recent')).toBeNull();
+  });
+
   it('shows the TabBar instead of the sidebar on phones', async () => {
     const { el } = await setup('/today', { mobile: true });
     expect(el.querySelector('.mt-sidebar')).toBeNull();
@@ -198,6 +209,7 @@ describe('MtPageActions', () => {
             ],
           },
         ]),
+        ...provideFakeAuth().providers,
       ],
     });
     const fixture = TestBed.createComponent(App);

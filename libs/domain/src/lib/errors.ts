@@ -5,6 +5,8 @@
  */
 export const ERROR_CODES = {
   UNAUTHENTICATED: 'unauthenticated',
+  /** A sensitive action needs a sign-in within the last few minutes: re-authenticate and retry. */
+  REAUTH_REQUIRED: 'unauthenticated',
   ORG_CLAIM_MISSING: 'permission-denied',
   /** The token's org claim is stale (for example just after an org switch): refresh the token and retry once. */
   ORG_CLAIM_MISMATCH: 'failed-precondition',

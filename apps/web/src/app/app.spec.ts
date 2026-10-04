@@ -7,11 +7,12 @@ import { MT_KEYBOARD_PLATFORM } from '@materia/ui';
 
 import { App } from './app';
 import { appRoutes } from './app.routes';
-import { AuthState } from './core/auth/auth-state';
+import type { AuthSession } from './core/auth/auth-port';
+import { provideFakeAuth, testSession } from './core/auth/testing';
 import { GlobalErrorHandler } from './core/error-handler';
 import { MateriaTitleStrategy } from './core/title-strategy';
 
-async function setup(url: string, configure?: () => void) {
+async function setup(url: string, session: AuthSession | null = testSession()) {
   TestBed.configureTestingModule({
     imports: [App],
     providers: [
@@ -19,9 +20,9 @@ async function setup(url: string, configure?: () => void) {
       { provide: TitleStrategy, useClass: MateriaTitleStrategy },
       { provide: ErrorHandler, useClass: GlobalErrorHandler },
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
+      ...provideFakeAuth(session).providers,
     ],
   });
-  configure?.();
   const fixture = TestBed.createComponent(App);
   const router = TestBed.inject(Router);
   await router.navigateByUrl(url);
@@ -120,28 +121,40 @@ describe('app routes', () => {
   });
 
   it('uses the minimal layout for sign-in and onboarding', async () => {
-    const auth = await setup('/auth/anything');
+    const auth = await setup('/auth/anything', null);
     expect(auth.router.url).toBe('/auth/sign-in');
     expect(auth.title()).toBe('Sign in · Materia');
     expect(auth.el.querySelector('.mt-minimal')).not.toBeNull();
     expect(auth.el.querySelector('.mt-sidebar')).toBeNull();
     TestBed.resetTestingModule();
-    const onboarding = await setup('/onboarding');
+    const onboarding = await setup('/onboarding', testSession({ claims: {} }));
     expect(onboarding.el.textContent).toContain('Coming in FND-17');
   });
 
-  it('sends signed-out people to sign in', async () => {
-    const { router } = await setup('/matters', () => TestBed.inject(AuthState).user.set(null));
-    expect(router.url).toBe('/auth/sign-in');
+  it('sends signed-out people to sign in, keeping where they were going', async () => {
+    const { router } = await setup('/matters', null);
+    expect(router.url).toBe('/auth/sign-in?returnUrl=%2Fmatters');
+  });
+
+  it('sends unverified password accounts to verify their email', async () => {
+    const { router } = await setup('/today', testSession({ emailVerified: false }));
+    expect(router.url).toBe('/auth/verify-email');
+  });
+
+  it('lets unverified Google accounts through (the provider verified them)', async () => {
+    const { router } = await setup('/today', testSession({ emailVerified: false, providerIds: ['google.com'] }));
+    expect(router.url).toBe('/today');
   });
 
   it('sends people without an org to onboarding', async () => {
-    const { router } = await setup('/today', () => {
-      const auth = TestBed.inject(AuthState);
-      const user = auth.user();
-      if (user) auth.user.set({ ...user, orgId: null, orgName: null });
-    });
+    const { router, el } = await setup('/today', testSession({ claims: {} }));
     expect(router.url).toBe('/onboarding');
+    expect(el.textContent).toContain('Coming in FND-17');
+  });
+
+  it('keeps signed-in people away from sign-in', async () => {
+    const { router } = await setup('/auth/sign-in');
+    expect(router.url).toBe('/today');
   });
 
   it('lazy-loads every page', () => {
