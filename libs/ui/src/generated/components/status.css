@@ -1,0 +1,8 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-status). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-status { width: 14px; height: 14px; flex: none; }
+.mt-status .ring, .mt-status .pie { fill: none; } .mt-status .ring { stroke-width: 1.5; } .mt-status .pie { stroke-width: 5; }
+.mt-status[data-status="draft"] { color: var(--status-neutral); }
+.mt-status[data-status="active"] { color: var(--status-warning); }
+.mt-status[data-status="review"] { color: var(--icon-brand); }
+.mt-status[data-status="done"] { color: var(--status-success); }
+.mt-status[data-status="blocked"] { color: var(--status-danger); }

@@ -1,0 +1,6 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-stepper). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-stepper { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--n, 9), minmax(0, 1fr)); }
+.mt-stepper li { position: relative; display: flex; flex-direction: column; gap: var(--space-6); padding-right: var(--space-8); font: 500 12px/16px var(--font-sans); color: var(--text-tertiary); }
+.mt-stepper li::before { content: ""; height: 4px; border-radius: 2px; background: var(--bg-sunken); }
+.mt-stepper li[data-state="done"] { color: var(--text-secondary); } .mt-stepper li[data-state="done"]::before { background: var(--bg-brand); }
+.mt-stepper li[data-state="current"] { color: var(--text-primary); } .mt-stepper li[data-state="current"]::before { background: linear-gradient(90deg, var(--bg-brand) 50%, var(--bg-brand-subtle) 50%); }

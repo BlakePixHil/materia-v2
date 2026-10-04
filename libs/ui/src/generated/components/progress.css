@@ -1,0 +1,7 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-progress). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-progress { height: 4px; border-radius: var(--radius-full); background: var(--bg-sunken); overflow: hidden; min-width: 48px; }
+.mt-progress-bar { height: 100%; border-radius: inherit; background: var(--bg-brand); }
+.mt-progress[data-tone="ai"] .mt-progress-bar { background: linear-gradient(90deg, var(--ai-from), var(--ai-to)); }
+.mt-progress[data-tone="danger"] .mt-progress-bar { background: var(--status-danger); }
+.mt-progress[data-tone="success"] .mt-progress-bar { background: var(--status-success); }
+.mt-progress[data-size="md"] { height: 6px; }

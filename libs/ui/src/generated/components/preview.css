@@ -1,0 +1,7 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-preview). Regenerate with `pnpm materia-scripts sync-design`. */
+.pv { padding: var(--space-20); display: flex; flex-wrap: wrap; gap: var(--space-16); align-items: center; background: var(--bg-surface); min-height: 100%; }
+.pv[data-col] { flex-direction: column; align-items: stretch; }
+.pv[data-canvas] { background: var(--bg-canvas); }
+.pv-group { display: flex; flex-direction: column; gap: var(--space-8); }
+.pv-label { font: 500 11px/14px var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--text-tertiary); }
+.pv-grid { display: grid; gap: var(--space-12) var(--space-16); align-items: center; }

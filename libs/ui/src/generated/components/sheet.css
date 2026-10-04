@@ -1,0 +1,3 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-sheet). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-sheet { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 24px 24px 0 0; background: var(--bg-raised); box-shadow: var(--shadow-dialog); padding: var(--space-8) var(--space-20) 34px; display: flex; flex-direction: column; gap: var(--space-16); }
+.mt-sheet .grab { width: 36px; height: 5px; border-radius: 3px; background: var(--border-strong); align-self: center; }

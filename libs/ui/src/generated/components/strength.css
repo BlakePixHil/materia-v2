@@ -1,0 +1,5 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-strength). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-strength { display: inline-flex; align-items: center; gap: var(--space-6); white-space: nowrap; font: 500 12px/16px var(--font-sans); color: var(--text-secondary); }
+.mt-strength i { width: 7px; height: 7px; border-radius: 50%; background: var(--bg-brand-subtle); box-shadow: inset 0 0 0 1px var(--border-default); }
+.mt-strength i.on { background: var(--icon-brand); box-shadow: none; }
+.mt-strength[data-level="gap"] { color: var(--text-warning); }

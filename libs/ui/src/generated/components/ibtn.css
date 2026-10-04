@@ -1,0 +1,10 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-ibtn). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-ibtn { --s: var(--control-md); width: var(--s); height: var(--s); display: inline-grid; place-items: center; border-radius: var(--radius-sm); border: 1px solid transparent; background: none; color: var(--icon-default); cursor: pointer; outline: none; flex: none; transition: background-color .12s, color .12s; }
+.mt-ibtn[data-size="sm"] { --s: var(--control-sm); }
+.mt-ibtn[data-variant="secondary"] { background: var(--bg-surface); border-color: var(--border-default); box-shadow: var(--shadow-control); }
+.mt-ibtn[data-variant="ai"] { background: var(--bg-ai-subtle); border-color: var(--border-ai); color: var(--icon-ai); }
+.mt-ibtn[data-hover] { background: var(--bg-hover); color: var(--text-primary); }
+.mt-ibtn[data-variant="ai"][data-hover] { background: var(--bg-ai-subtle-hover); color: var(--icon-ai); }
+.mt-ibtn[data-press] { background: var(--bg-pressed); }
+.mt-ibtn[data-focus-visible] { box-shadow: var(--focus-ring); }
+.mt-ibtn[data-disabled] { color: var(--icon-muted); background: none; cursor: not-allowed; }

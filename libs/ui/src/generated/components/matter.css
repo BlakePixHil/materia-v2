@@ -1,0 +1,8 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-matter). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-matter-card { display: flex; flex-direction: column; gap: var(--space-12); padding: var(--space-12); border-radius: var(--radius-md); background: var(--bg-surface); border: 1px solid var(--border-default); box-shadow: var(--shadow-card); cursor: pointer; }
+.mt-matter-card[data-hover] { border-color: var(--border-strong); }
+.mt-matter-card .top { display: flex; align-items: center; gap: var(--space-6); font: 500 11px/14px var(--font-mono); color: var(--text-tertiary); }
+.mt-matter-card .name { font: 500 14px/20px var(--font-sans); color: var(--text-primary); }
+.mt-matter-card .meta { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }
+.mt-matter-card .hint { display: flex; gap: var(--space-6); align-items: flex-start; padding: var(--space-6) var(--space-8); border-radius: var(--radius-sm); background: var(--bg-ai-subtle); font: 400 12px/16px var(--font-sans); color: var(--text-ai); }
+.mt-matter-card .hint .mt-i { width: 13px; height: 13px; margin-top: 1px; }

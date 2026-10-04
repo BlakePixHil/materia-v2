@@ -1,0 +1,12 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-menu). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-menu { min-width: 220px; padding: var(--space-4); border-radius: var(--radius-md); background: var(--bg-raised); box-shadow: var(--shadow-popover); display: flex; flex-direction: column; gap: 1px; font: 400 13px/18px var(--font-sans); }
+.mt-menu-item { display: flex; align-items: center; gap: var(--space-8); height: 30px; padding: 0 var(--space-8); border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; outline: none; }
+.mt-menu-item .mt-i { color: var(--icon-default); }
+.mt-menu-item .hint { margin-left: auto; display: flex; gap: 2px; color: var(--text-tertiary); font: 500 11px/14px var(--font-mono); }
+.mt-menu-item[data-highlighted] { background: var(--bg-hover); }
+.mt-menu-item[data-selected] .check { color: var(--icon-brand); }
+.mt-menu-item[data-disabled] { color: var(--text-disabled); cursor: not-allowed; }
+.mt-menu-item[data-tone="danger"] { color: var(--text-danger); } .mt-menu-item[data-tone="danger"] .mt-i { color: var(--text-danger); }
+.mt-menu-item[data-tone="ai"] .mt-i { color: var(--icon-ai); }
+.mt-menu-label { padding: var(--space-8) var(--space-8) var(--space-4); font: 500 11px/14px var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--text-tertiary); }
+.mt-menu-sep { height: 1px; margin: var(--space-4) calc(var(--space-4) * -1); background: var(--border-default); }

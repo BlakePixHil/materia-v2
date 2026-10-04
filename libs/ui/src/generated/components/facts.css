@@ -1,0 +1,3 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-facts). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-facts { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-8) var(--space-12); margin: 0; font: 400 13px/18px var(--font-sans); }
+.mt-facts dt { color: var(--text-tertiary); } .mt-facts dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }

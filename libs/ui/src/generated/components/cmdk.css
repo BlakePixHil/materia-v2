@@ -1,0 +1,8 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-cmdk). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-cmdk { width: 560px; max-width: 100%; border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-dialog); overflow: hidden; }
+.mt-cmdk-input { display: flex; align-items: center; gap: var(--space-8); height: 48px; padding: 0 var(--space-16); border-bottom: 1px solid var(--border-default); font: 400 15px/22px var(--font-sans); color: var(--text-primary); }
+.mt-cmdk-input .ph { color: var(--text-tertiary); flex: 1; }
+.mt-cmdk-input .mt-i { color: var(--icon-default); }
+.mt-cmdk .mt-menu { box-shadow: none; background: none; border-radius: 0; padding: var(--space-6); }
+.mt-cmdk-foot { display: flex; align-items: center; gap: var(--space-12); height: 36px; padding: 0 var(--space-12); border-top: 1px solid var(--border-default); font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); background: var(--bg-canvas); }
+.mt-cmdk-foot span { display: inline-flex; align-items: center; gap: var(--space-4); }

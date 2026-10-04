@@ -21,7 +21,7 @@
 
 ## Using it in Angular
 
-1. Import `materia.tokens.css` and the component CSS globally. They live in `libs/ui/styles/`, split per component in FND-07.
+1. The tokens and the global base CSS are loaded globally (`styles` in `apps/web/project.json` and in the Storybook targets of `libs/ui/project.json`): `libs/ui/src/generated/tokens.css`, `generated/components/base.css` and `layout.css`, then `libs/ui/src/styles/base.css` (reset, `color-scheme`, canvas background, focus ring, scrollbars, reduced motion). Each component imports its own file from `libs/ui/src/generated/components/<name>.css` with `styleUrl` and `ViewEncapsulation.None`, because the `mt-*` classes are global by design.
 2. Put the `mt-*` class on the element that carries the ng-primitives directive. Variants are data attributes.
 
 ```html
@@ -32,6 +32,42 @@
 
 3. The ng-primitives directives set the state attributes (`data-hover`, `data-press`, `data-focus-visible`, `data-disabled`, `data-checked`, `data-open`, `data-selected`, `data-active`, `data-highlighted`, `data-invalid`). The CSS reads **only** these.
 4. Wrap each primitive in a thin Angular component in `libs/ui`, such as `<mt-button>`. The wrapper uses `hostDirectives` to compose the ng-primitives directive and exposes typed `input()` signals for its variants.
+
+### Syncing the design system (FND-07)
+
+`design/` is the source; `libs/ui/src/generated/` and `apps/web/public/fonts/` are generated from it. Never edit generated files: change `design/system/*.py`, then run
+
+```sh
+pnpm materia-scripts sync-design            # runs python3 design/system/build.py, then syncs
+pnpm materia-scripts sync-design --skip-build   # sync the already-built design/ outputs only
+pnpm materia-scripts sync-design --check    # CI: exits 1 if anything is out of date
+```
+
+It needs **Python 3.11+** (macOS `brew install python@3.12`, Ubuntu `sudo apt-get install python3`, Windows `winget install Python.Python.3.12`). It writes:
+
+| Output | From |
+| -- | -- |
+| `libs/ui/src/generated/tokens.css` | `design/tokens/materia.tokens.css`, with font URLs pointing at `/fonts/` |
+| `libs/ui/src/generated/components/<name>.css` | `design/system/project/components/bundle.css`, split by `mt-<name>` prefix (`base`, `layout` and `preview` are the global sections) |
+| `libs/ui/src/generated/tokens.ts` | `design/system/project/tokens.json`: `MT_TOKENS` plus token-name types. Use `cssVar('chart-1')` from `@materia/ui` in TS |
+| `libs/ui/src/generated/icons.ts` | `design/system/icons.py`: `MT_ICONS` (Lucide icon data under Materia names) and `MT_STATUS_GLYPHS` |
+| `apps/web/public/fonts/*.woff2` | `design/system/project/fonts/` (Geist and Geist Mono variable fonts; the sans one is preloaded in `index.html`) |
+
+The `lint` CI job runs `sync-design --check`.
+
+### Theme
+
+- `ThemeService` (`@materia/ui`) holds `theme` (`'system' | 'light' | 'dark'`) and `resolved`, and sets `data-theme` on `<html>` to the resolved value. An explicit choice wins over `prefers-color-scheme`; on `system` it follows OS changes live.
+- The preference is stored in localStorage (`mt-theme`, try/catch). When a user is signed in, data-access mirrors it to `users/{uid}.prefs.theme` and calls `applyProfilePreference()` (or provides its own `THEME_PREFERENCE_STORE`).
+- An inline script in `apps/web/src/index.html` sets `data-theme` before the app loads, so there is no flash of the wrong theme. Its CSP hash is in `apps/web/csp-hashes.json` (a test keeps it current); FND-22 adds it to the policy.
+
+### Icons
+
+`<mt-icon name="matters" />` renders a design-system icon (any key of `MT_ICONS`) or any Lucide icon node from the data-only `lucide` package (`import { House } from 'lucide'`, then `[name]="House"`), at 14, 16 (default) or 20px with the brand-book 1.6 stroke. It renders the SVG itself: Angular icon libraries ship every icon as a compiled component, which made builds slow and memory-hungry. Icons are decorative unless you pass `label`. The custom status and priority glyph sources are in `libs/ui/src/icons/custom.ts`; their components come later.
+
+### Storybook
+
+`pnpm storybook` (port 4400). The toolbar has a Light/Dark theme switch; backgrounds are the `bg-*` tokens; the a11y addon reports violations as errors. `Foundations/Colours`, `Type`, `Spacing` and `Theme` are rendered from `tokens.ts`. CI builds Storybook and runs the test-runner over every story (play functions and a11y): `pnpm nx run ui:test-storybook` against a running Storybook locally.
 
 ## Component inventory
 

@@ -32,6 +32,7 @@ jobs:
     outputs:
       infra: ${{ steps.filter.outputs.infra }}
       e2e: ${{ steps.filter.outputs.e2e }}
+      storybook: ${{ steps.filter.outputs.storybook }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,6 +45,7 @@ jobs:
           echo "Affected projects:"; echo "$affected"
           if git diff --name-only "$NX_BASE" "$NX_HEAD" | grep -q '^infra/'; then echo "infra=true" >> "$GITHUB_OUTPUT"; else echo "infra=false" >> "$GITHUB_OUTPUT"; fi
           if echo "$affected" | grep -qx 'web-e2e'; then echo "e2e=true" >> "$GITHUB_OUTPUT"; else echo "e2e=false" >> "$GITHUB_OUTPUT"; fi
+          if echo "$affected" | grep -qx 'ui'; then echo "storybook=true" >> "$GITHUB_OUTPUT"; else echo "storybook=false" >> "$GITHUB_OUTPUT"; fi
 
   lint:
     name: lint
@@ -56,6 +58,9 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm exec prettier --check .
       - run: pnpm nx affected -t lint --base="$NX_BASE" --head="$NX_HEAD"
+      # FND-07: libs/ui/src/generated and the web fonts must match design/ (needs python3, preinstalled).
+      - name: Design outputs in sync
+        run: pnpm materia-scripts sync-design --check
 
   typecheck:
     name: typecheck
@@ -369,11 +374,46 @@ jobs:
             if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
             else await github.rest.issues.createComment({ owner, repo, issue_number, body });
 
+  storybook:
+    name: storybook
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes]
+    if: needs.changes.outputs.storybook == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Build Storybook
+        run: pnpm nx run ui:build-storybook
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Install Playwright system dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+      # Every story's play function plus the a11y checks (violations fail, parameters.a11y.test = 'error').
+      - name: Storybook test-runner
+        run: |
+          python3 -m http.server 6006 --bind 127.0.0.1 --directory dist/storybook/ui >/dev/null 2>&1 &
+          for _ in $(seq 30); do curl -fsS -o /dev/null http://127.0.0.1:6006/index.html && break; sleep 1; done
+          pnpm exec test-storybook -c libs/ui/.storybook --url http://127.0.0.1:6006
+
   ci-ok:
     name: ci-ok
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, lint, typecheck, unit, rules, build, e2e, terraform, security]
+    needs: [changes, lint, typecheck, unit, rules, build, e2e, storybook, terraform, security]
     if: always()
     steps:
       - name: Every job succeeded or was skipped

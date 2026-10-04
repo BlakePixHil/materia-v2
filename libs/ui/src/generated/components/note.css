@@ -1,0 +1,6 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-note). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-note { display: flex; gap: var(--space-8); align-items: flex-start; padding: var(--space-8) var(--space-12); border-radius: var(--radius-md); font: 400 13px/18px var(--font-sans); background: var(--bg-info-subtle); color: var(--text-info); }
+.mt-note[data-tone="warning"] { background: var(--bg-warning-subtle); color: var(--text-warning); }
+.mt-note[data-tone="danger"] { background: var(--bg-danger-subtle); color: var(--text-danger); }
+.mt-note .mt-i { margin-top: 1px; }
+.mt-note b { font-weight: 600; }

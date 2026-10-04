@@ -1,0 +1,5 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-legend). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-legend { display: flex; flex-wrap: wrap; gap: var(--space-12); font: 400 12px/16px var(--font-sans); color: var(--text-secondary); }
+.mt-legend span { display: inline-flex; align-items: center; gap: var(--space-6); }
+.mt-legend .key-bar { width: 10px; height: 10px; border-radius: 2px; background: var(--icon-brand); }
+.mt-legend .key-line { width: 14px; height: 0; border-top: 1.5px solid var(--text-tertiary); }

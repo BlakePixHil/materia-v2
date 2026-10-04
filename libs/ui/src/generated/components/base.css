@@ -1,0 +1,16 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-base). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt, .mt-app, body { font-family: var(--font-sans); font-size: 14px; line-height: 20px; color: var(--text-primary); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html, body { background: var(--bg-surface); }
+.mt *, .mt-app *, .pv * { box-sizing: border-box; }
+.eyebrow { text-transform: uppercase; }
+.tnum, .mono, .mono-s, .numeric-xl, .numeric-m { font-variant-numeric: tabular-nums; }
+.t-1 { color: var(--text-primary); } .t-2 { color: var(--text-secondary); } .t-3 { color: var(--text-tertiary); }
+.t-brand { color: var(--text-brand); } .t-ai { color: var(--text-ai); } .t-success { color: var(--text-success); } .t-warning { color: var(--text-warning); } .t-danger { color: var(--text-danger); }
+.mt-i { width: var(--icon); height: var(--icon); flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.mt-i[data-size="sm"] { width: var(--icon-sm); height: var(--icon-sm); }
+.mt-i[data-size="lg"] { width: 20px; height: 20px; }
+.mt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes mt-spin { to { transform: rotate(360deg); } }
+@keyframes mt-pulse { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+@keyframes mt-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .mt-working .dots i, .mt-shimmer, .mt-btn[data-loading] .mt-i:first-child { animation: none; } .mt-shimmer { color: var(--text-ai); background: none; } * { transition: none !important; } }

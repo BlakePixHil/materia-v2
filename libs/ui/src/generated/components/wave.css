@@ -1,0 +1,3 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-wave). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-wave { display: flex; align-items: center; justify-content: center; gap: 3px; height: 48px; }
+.mt-wave i { width: 3px; border-radius: 2px; background: linear-gradient(180deg, var(--ai-from), var(--ai-to)); }

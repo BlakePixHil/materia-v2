@@ -1,0 +1,10 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-avatar). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-avatar { --s: 24px; width: var(--s); height: var(--s); border-radius: var(--radius-full); display: inline-grid; place-items: center; flex: none; font: 500 calc(var(--s) * .4)/1 var(--font-sans); letter-spacing: -.01em; background: var(--bg-brand-subtle); color: var(--text-brand); box-shadow: 0 0 0 1.5px var(--bg-surface); overflow: hidden; }
+.mt-avatar[data-size="xs"] { --s: 18px; } .mt-avatar[data-size="sm"] { --s: 20px; } .mt-avatar[data-size="lg"] { --s: 32px; } .mt-avatar[data-size="xl"] { --s: 40px; }
+.mt-avatar[data-hue="2"] { background: var(--bg-info-subtle); color: var(--text-info); }
+.mt-avatar[data-hue="3"] { background: var(--bg-warning-subtle); color: var(--text-warning); }
+.mt-avatar[data-hue="4"] { background: var(--bg-success-subtle); color: var(--text-success); }
+.mt-avatar[data-hue="risk"] { background: var(--bg-danger-subtle); color: var(--text-danger); }
+.mt-avatar[data-kind="clerk"] { background: linear-gradient(135deg, var(--ai-from), var(--ai-to)); color: #FFFFFF; }
+.mt-avatar[data-kind="clerk"] .mt-i { width: 60%; height: 60%; stroke-width: 1.8; }
+.mt-avatar[data-kind="org"] { border-radius: var(--radius-sm); background: var(--bg-brand); color: var(--text-on-brand); }

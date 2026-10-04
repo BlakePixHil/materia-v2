@@ -20,7 +20,13 @@
             "input": "apps/web/public"
           }
         ],
-        "styles": ["apps/web/src/styles.css"]
+        "styles": [
+          "libs/ui/src/generated/tokens.css",
+          "libs/ui/src/generated/components/base.css",
+          "libs/ui/src/generated/components/layout.css",
+          "libs/ui/src/styles/base.css",
+          "apps/web/src/styles.css"
+        ]
       },
       "configurations": {
         "production": {

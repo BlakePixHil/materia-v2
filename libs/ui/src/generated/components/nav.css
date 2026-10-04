@@ -1,0 +1,10 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-nav). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-nav { display: flex; align-items: center; gap: var(--space-8); height: 30px; padding: 0 var(--space-8); border-radius: var(--radius-sm); font: 500 13px/18px var(--font-sans); color: var(--text-secondary); cursor: pointer; outline: none; text-decoration: none; min-width: 0; }
+.mt-nav .mt-i { color: var(--icon-default); }
+.mt-nav[data-hover] { background: var(--bg-hover); color: var(--text-primary); }
+.mt-nav[data-active] { background: var(--bg-pressed); color: var(--text-primary); }
+.mt-nav[data-active] .mt-i { color: var(--text-primary); }
+.mt-nav[data-focus-visible] { box-shadow: var(--focus-ring); }
+.mt-nav .mt-nav-count { margin-left: auto; font: 500 11px/14px var(--font-mono); color: var(--text-tertiary); }
+.mt-nav .mt-dot { width: 8px; height: 8px; border-radius: 2px; margin: 0 4px; flex: none; }
+.mt-nav-section { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-16) var(--space-8) var(--space-4); font: 500 12px/16px var(--font-sans); color: var(--text-tertiary); }

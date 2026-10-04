@@ -1,0 +1,17 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-chart). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-chart { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font-sans); }
+.mt-chart .grid { stroke: var(--border-subtle); stroke-width: 1; shape-rendering: crispEdges; }
+.mt-chart .base { stroke: var(--border-default); stroke-width: 1; shape-rendering: crispEdges; }
+.mt-chart .tick { fill: var(--text-tertiary); font: 400 11px/1 var(--font-sans); font-variant-numeric: tabular-nums; }
+.mt-chart .lbl { fill: var(--text-secondary); font: 400 12px/1 var(--font-sans); }
+.mt-chart .val { fill: var(--text-primary); font: 500 12px/1 var(--font-sans); font-variant-numeric: tabular-nums; }
+.mt-chart .bar { fill: var(--icon-brand); }
+.mt-chart .bar.muted { fill: var(--bg-brand-subtle); }
+.mt-chart .line { fill: none; stroke: var(--icon-brand); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mt-chart .area { fill: var(--icon-brand); opacity: .1; }
+.mt-chart .dot { fill: var(--icon-brand); stroke: var(--bg-surface); stroke-width: 2; }
+.mt-chart .ref { stroke: var(--text-tertiary); stroke-width: 1.5; }
+.mt-chart .ref-lbl { fill: var(--text-tertiary); font: 500 11px/1 var(--font-sans); }
+.mt-chart .hit { fill: transparent; cursor: default; outline: none; }
+.mt-chart .hit[data-hover], .mt-chart .hit:focus-visible { fill: var(--bg-hover); fill-opacity: .7; }
+.mt-chart .hit:focus-visible { stroke: var(--border-focus); stroke-width: 2; }
