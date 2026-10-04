@@ -75,7 +75,6 @@ describe('app routes', () => {
     ['/inbox', 'Inbox', 'CORE-22'],
     ['/matters', 'Matters', 'CORE-03'],
     ['/deadlines', 'Deadlines', 'CORE-10'],
-    ['/contacts', 'Contacts', 'CORE-01'],
     ['/billing', 'Time & billing', 'BILL-03'],
     ['/insights', 'Insights', 'INS-02'],
     ['/settings/firm/people', 'Settings', 'CORE-21'],

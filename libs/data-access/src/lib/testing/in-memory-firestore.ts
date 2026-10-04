@@ -1,17 +1,29 @@
 import type { Provider } from '@angular/core';
 
 import { FIRESTORE_DRIVER } from '../firestore/firestore-driver';
-import type { CollectionDriver, DriverFactory, PageRequest, QuerySpec, RawDoc, RawPage, WhereOp } from '../query';
+import type {
+  CollectionDriver,
+  DriverFactory,
+  DriverOptions,
+  PageRequest,
+  QuerySpec,
+  RawDoc,
+  RawPage,
+  WhereOp,
+} from '../query';
 
 type Data = Record<string, unknown>;
 
 interface Cursor {
   id: string;
+  /** The full document path: the tie-break after the `orderBy` fields, as in Firestore. */
+  key: string;
   data: Data;
 }
 
 interface Listener {
-  path: string;
+  /** Whether a change to this collection path concerns the listener. */
+  watches: (path: string) => boolean;
   run: () => void;
   fail: (error: unknown) => void;
 }
@@ -76,7 +88,8 @@ function matches(data: Data, [path, op, expected]: readonly [string, WhereOp, un
 /**
  * An in-memory Firestore for unit tests of features (FND-19): it implements the repositories'
  * `CollectionDriver` with Firestore's query semantics (filters, ordering, `startAfter`/`endAt`
- * cursors, limits) and delivers changes to listeners synchronously.
+ * cursors, limits) and delivers changes to listeners synchronously. Collection-group drivers
+ * (`driver('parties', { group: true })`) read every collection with that id, read-only.
  *
  * ```ts
  * const firestore = new InMemoryFirestore();
@@ -94,9 +107,10 @@ export class InMemoryFirestore {
   /** Nothing ever arrives: listeners stay attached without a first snapshot (a loading state). */
   stalled = false;
   /** Every write, for assertions. */
-  readonly writes: { op: 'create' | 'update' | 'softDelete'; path: string; data?: Data }[] = [];
+  readonly writes: { op: 'create' | 'update' | 'softDelete'; path: string; data?: Data; removed?: string[] }[] = [];
 
-  readonly driver: DriverFactory = (path) => this.collection(path);
+  readonly driver: DriverFactory = (path, options?: DriverOptions) =>
+    options?.group ? this.group(path) : this.collection(path);
 
   /** Attached listeners (each page of a query is one). */
   get listenerCount(): number {
@@ -128,7 +142,7 @@ export class InMemoryFirestore {
 
   /** Every listener on a collection fails, as Firestore does when the rules start refusing. */
   breakListeners(path: string, error: unknown): void {
-    for (const listener of [...this.listeners]) if (listener.path === path) listener.fail(error);
+    for (const listener of [...this.listeners]) if (listener.watches(path)) listener.fail(error);
   }
 
   setOffline(offline: boolean): void {
@@ -148,7 +162,7 @@ export class InMemoryFirestore {
   }
 
   private notify(path: string): void {
-    for (const listener of [...this.listeners]) if (listener.path === path) listener.run();
+    for (const listener of [...this.listeners]) if (listener.watches(path)) listener.run();
   }
 
   private takeFailure(): unknown {
@@ -157,8 +171,8 @@ export class InMemoryFirestore {
     return failure;
   }
 
-  private raw(id: string, data: Data): RawDoc {
-    const cursor: Cursor = { id, data: { ...data } };
+  private raw(id: string, data: Data, path: string): RawDoc {
+    const cursor: Cursor = { id, key: `${path}/${id}`, data: { ...data } };
     return { id, cursor, snapshot: { id, data: () => asStored(data) as Data } };
   }
 
@@ -169,51 +183,102 @@ export class InMemoryFirestore {
         const result = compareValues(field(a.data, path), field(b.data, path));
         if (result) return direction === 'desc' ? -result : result;
       }
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
     };
   }
 
-  private run(path: string, request: Pick<PageRequest, 'spec' | 'after' | 'end' | 'limit'>): RawDoc[] {
+  /** The collections a read covers: one path, or every collection with the group's id. */
+  private sources(path: string, group: boolean): string[] {
+    if (!group) return [path];
+    return [...this.collections.keys()].filter((candidate) => candidate.split('/').pop() === path);
+  }
+
+  private run(path: string, request: Pick<PageRequest, 'spec' | 'after' | 'end' | 'limit'>, group = false): RawDoc[] {
     const compare = this.sortKey(request.spec);
-    const rows = [...this.docs(path).entries()]
-      .map(([id, data]) => ({ id, data }))
+    const rows = this.sources(path, group)
+      .flatMap((source) =>
+        [...this.docs(source).entries()].map(([id, data]) => ({ id, key: `${source}/${id}`, source, data })),
+      )
       .filter((row) => (request.spec.where ?? []).every((clause) => matches(row.data, clause)))
       .filter((row) => (request.spec.orderBy ?? []).every(([path]) => field(row.data, path) !== undefined))
       .sort(compare)
       .filter((row) => !request.after || compare(row, request.after as Cursor) > 0)
       .filter((row) => !request.end || compare(row, request.end as Cursor) <= 0);
     const limited = request.limit ? rows.slice(0, request.limit) : rows;
-    return limited.map((row) => this.raw(row.id, row.data));
+    return limited.map((row) => this.raw(row.id, row.data, row.source));
   }
 
-  private page(path: string, request: PageRequest): RawPage {
-    return { docs: this.run(path, request), fromCache: this.offline };
+  private page(path: string, request: PageRequest, group = false): RawPage {
+    return { docs: this.run(path, request, group), fromCache: this.offline };
+  }
+
+  /** Runs `listen` for a query: an immediate first page, then one per change it watches. */
+  private listenTo(
+    watches: (path: string) => boolean,
+    read: () => RawPage,
+    next: (page: RawPage) => void,
+    error: (error: unknown) => void,
+  ): () => void {
+    const failure = this.takeFailure();
+    if (failure) {
+      queueMicrotask(() => error(failure));
+      return () => undefined;
+    }
+    const listener: Listener = {
+      watches,
+      run: () => {
+        if (!this.stalled) next(read());
+      },
+      fail: (e) => {
+        this.listeners.delete(listener);
+        error(e);
+      },
+    };
+    this.listeners.add(listener);
+    listener.run();
+    return () => this.listeners.delete(listener);
+  }
+
+  /** A read-only collection-group driver (`parties` across every matter). */
+  private group(collectionId: string): CollectionDriver {
+    const readOnly = async (): Promise<never> => {
+      throw new Error(`Collection group "${collectionId}" is read-only`);
+    };
+    return {
+      listen: (request, next, error) =>
+        this.listenTo(
+          (path) => path.split('/').pop() === collectionId,
+          () => this.page(collectionId, request, true),
+          next,
+          error,
+        ),
+      fetch: async (request) => {
+        const failure = this.takeFailure();
+        if (failure) throw failure;
+        return this.page(collectionId, request, true);
+      },
+      watchDoc: () => {
+        throw new Error(`Collection group "${collectionId}" can't watch one document`);
+      },
+      getDoc: readOnly,
+      count: async (spec) => this.run(collectionId, { spec, after: null, end: null, limit: null }, true).length,
+      create: readOnly,
+      update: readOnly,
+      softDelete: readOnly,
+    };
   }
 
   private collection(path: string): CollectionDriver {
     const docs = () => this.docs(path);
     const stamp = (meta: { uid: string }) => ({ updatedAt: new Date(), updatedBy: meta.uid });
     return {
-      listen: (request, next, error) => {
-        const failure = this.takeFailure();
-        if (failure) {
-          queueMicrotask(() => error(failure));
-          return () => undefined;
-        }
-        const listener: Listener = {
-          path,
-          run: () => {
-            if (!this.stalled) next(this.page(path, request));
-          },
-          fail: (e) => {
-            this.listeners.delete(listener);
-            error(e);
-          },
-        };
-        this.listeners.add(listener);
-        listener.run();
-        return () => this.listeners.delete(listener);
-      },
+      listen: (request, next, error) =>
+        this.listenTo(
+          (changed) => changed === path,
+          () => this.page(path, request),
+          next,
+          error,
+        ),
       fetch: async (request) => {
         const failure = this.takeFailure();
         if (failure) throw failure;
@@ -226,10 +291,10 @@ export class InMemoryFirestore {
           return () => undefined;
         }
         const listener: Listener = {
-          path,
+          watches: (changed) => changed === path,
           run: () => {
             const data = docs().get(id);
-            next(data ? this.raw(id, data) : null, this.offline);
+            next(data ? this.raw(id, data, path) : null, this.offline);
           },
           fail: (e) => {
             this.listeners.delete(listener);
@@ -244,7 +309,7 @@ export class InMemoryFirestore {
         const failure = this.takeFailure();
         if (failure) throw failure;
         const data = docs().get(id);
-        return data ? this.raw(id, data) : null;
+        return data ? this.raw(id, data, path) : null;
       },
       count: async (spec) => this.run(path, { spec, after: null, end: null, limit: null }).length,
       create: async (data, meta) => {
@@ -262,12 +327,18 @@ export class InMemoryFirestore {
         this.notify(path);
         return id;
       },
-      update: async (id, patch, meta) => {
+      update: async (id, patch, meta, remove = []) => {
         const current = docs().get(id);
         if (!current) throw { code: 'not-found', message: `No document ${path}/${id}` };
         const change = { ...patch, ...stamp(meta) };
-        this.writes.push({ op: 'update', path: `${path}/${id}`, data: change });
-        docs().set(id, { ...current, ...change });
+        this.writes.push({
+          op: 'update',
+          path: `${path}/${id}`,
+          data: change,
+          ...(remove.length ? { removed: [...remove] } : {}),
+        });
+        const next = Object.fromEntries(Object.entries({ ...current, ...change }).filter(([k]) => !remove.includes(k)));
+        docs().set(id, next);
         this.notify(path);
       },
       softDelete: async (id, meta) => {
