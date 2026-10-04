@@ -1,0 +1,373 @@
+{
+  "ruleSetId": "vic",
+  "version": 1,
+  "jurisdiction": "VIC",
+  "published": true,
+  "practitionerReviewed": false,
+  "flag": "deadlines.ruleset.vic",
+  "disclaimer": "Illustrative until a practising Victorian wills and estates lawyer signs it off. Ships behind the deadlines.ruleset.vic flag.",
+  "rules": [
+    {
+      "conditions": [],
+      "reminders": [],
+      "verify": false,
+      "id": "vic.probate.advert_min",
+      "title": "Earliest date to file for a grant (14 days after the advertisement)",
+      "citation": "Supreme Court (Administration and Probate) Rules 2014 (Vic)",
+      "explain": "The intention to apply for a grant must be advertised on the Supreme Court website at least 14 days before the application is filed.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "notice_published"
+      },
+      "offset": {
+        "days": 14
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "VIC_SUPREME_COURT",
+      "kind": "court",
+      "critical": false,
+      "createsTask": {
+        "title": "File the application for a grant",
+        "stage": "grant",
+        "dedupeKey": "task:file-grant"
+      },
+      "blockedReason": "The probate notice hasn't been published yet"
+    },
+    {
+      "conditions": [
+        {
+          "fact": "grant.filed",
+          "exists": false
+        }
+      ],
+      "reminders": [14],
+      "verify": true,
+      "id": "vic.probate.prompt_filing",
+      "title": "Application for a grant not yet filed (practice reminder)",
+      "citation": "Practice reminder (org setting, default 6 months)",
+      "explain": "A practice reminder when no application for a grant has been filed some months after death. Check whether any rule requires an explanation for delay.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "date_of_death"
+      },
+      "offset": {
+        "months": {
+          "fact": "org.promptFilingMonths",
+          "default": 6
+        }
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "locality",
+      "kind": "internal",
+      "critical": false,
+      "blockedReason": "The date of death isn't recorded"
+    },
+    {
+      "conditions": [],
+      "reminders": [30, 14, 7],
+      "verify": true,
+      "id": "vic.caveat.expiry",
+      "title": "Caveat against a grant lapses",
+      "citation": "Supreme Court (Administration and Probate) Rules 2014 (Vic) (verify period and renewal)",
+      "explain": "A caveat against the making of a grant remains in force for a limited period unless extended. Verify the period and the renewal mechanism.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin", "contest"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "caveat_lodged"
+      },
+      "offset": {
+        "months": 6
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "VIC_SUPREME_COURT",
+      "kind": "court",
+      "critical": true,
+      "blockedReason": "No caveat has been lodged"
+    },
+    {
+      "conditions": [],
+      "reminders": [30, 14, 7, 3, 1],
+      "verify": false,
+      "id": "vic.fp.limitation",
+      "title": "Family provision claim period ends",
+      "citation": "Administration and Probate Act 1958 (Vic) s 99",
+      "explain": "A family provision claim must be made within 6 months after the grant, unless the court extends time. In Victoria the period runs from the grant, not from death.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin", "fp", "contest"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "grant_issued"
+      },
+      "offset": {
+        "months": 6
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "VIC_SUPREME_COURT",
+      "kind": "statutory",
+      "critical": true,
+      "createsTask": {
+        "title": "Advise beneficiaries about the family provision window",
+        "stage": "administration",
+        "dedupeKey": "task:advise-fp-window"
+      },
+      "blockedReason": "No grant yet"
+    },
+    {
+      "conditions": [],
+      "reminders": [],
+      "verify": false,
+      "id": "vic.distribution.s99a",
+      "title": "Earliest distribution protected against family provision claims",
+      "citation": "Administration and Probate Act 1958 (Vic) s 99A",
+      "explain": "An executor who distributes after 6 months from the grant, without notice of a claim, is protected against later family provision claims.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "grant_issued"
+      },
+      "offset": {
+        "months": 6
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "VIC_SUPREME_COURT",
+      "kind": "statutory",
+      "critical": false,
+      "createsTask": {
+        "title": "Plan the distribution",
+        "stage": "distribution",
+        "dedupeKey": "task:plan-distribution"
+      },
+      "blockedReason": "No grant yet"
+    },
+    {
+      "conditions": [],
+      "reminders": [],
+      "verify": true,
+      "id": "vic.distribution.s33_notice",
+      "title": "Statutory notice to creditors and claimants expires",
+      "citation": "Administration and Probate Act 1958 (Vic) s 33 (verify the notice period)",
+      "explain": "Distribution after the statutory notice period expires protects the executor against claims they had no notice of. The period is commonly 60 days; verify.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "statutory_notice_published"
+      },
+      "offset": {
+        "days": 60
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "VIC_SUPREME_COURT",
+      "kind": "statutory",
+      "critical": false,
+      "createsTask": {
+        "title": "Plan the distribution",
+        "stage": "distribution",
+        "dedupeKey": "task:plan-distribution"
+      },
+      "blockedReason": "The statutory notice hasn't been published yet"
+    },
+    {
+      "conditions": [],
+      "reminders": [14, 7],
+      "verify": false,
+      "id": "vic.distribution.earliest",
+      "title": "Earliest protected distribution",
+      "citation": "Administration and Probate Act 1958 (Vic) ss 33, 99A",
+      "explain": "The later of the s 99A date and the expiry of the s 33 notice.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin"],
+        "jurisdictions": ["VIC"]
+      },
+      "composite": {
+        "op": "max",
+        "of": ["vic.distribution.s99a", "vic.distribution.s33_notice"]
+      },
+      "nonBusinessDay": "none",
+      "calendar": "VIC_SUPREME_COURT",
+      "kind": "statutory",
+      "critical": false
+    },
+    {
+      "conditions": [
+        {
+          "fact": "estate.hasMainResidence",
+          "eq": true
+        }
+      ],
+      "reminders": [90, 30],
+      "verify": false,
+      "id": "au.cgt.main_residence",
+      "title": "Main residence CGT exemption window (2 years from death)",
+      "citation": "Income Tax Assessment Act 1997 (Cth) s 118-195",
+      "explain": "A deceased's main residence disposed of within 2 years of death can be fully exempt from CGT (the Commissioner can extend).",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "date_of_death"
+      },
+      "offset": {
+        "years": 2
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "none",
+      "calendar": "VIC_MELBOURNE",
+      "kind": "statutory",
+      "critical": false,
+      "blockedReason": "The date of death isn't recorded"
+    },
+    {
+      "conditions": [],
+      "reminders": [30],
+      "verify": true,
+      "id": "au.tax.final_return",
+      "title": "Date-of-death final tax return due",
+      "citation": "ATO lodgment rules (verify agent extensions)",
+      "explain": "The deceased's final individual return is due on 31 October after the financial year of death, later if a registered agent lodges.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "date_of_death"
+      },
+      "offset": {
+        "afterFyEnd": {
+          "month": 10,
+          "day": 31,
+          "fyStartMonth": 7
+        }
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "VIC_MELBOURNE",
+      "kind": "statutory",
+      "critical": false,
+      "blockedReason": "The date of death isn't recorded"
+    },
+    {
+      "conditions": [],
+      "reminders": [3, 1],
+      "verify": true,
+      "id": "vic.offer.o26_expiry",
+      "title": "Offer of compromise expires",
+      "citation": "Supreme Court (General Civil Procedure) Rules 2015 (Vic) O 26 (verify the minimum period)",
+      "explain": "An offer of compromise stays open for the period it states (verify the minimum). Respond before it expires.",
+      "appliesTo": {
+        "matterTypes": ["fp", "contest"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "offer_made"
+      },
+      "offset": {
+        "days": {
+          "eventMeta": "periodDays",
+          "default": 14
+        }
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "VIC_SUPREME_COURT",
+      "kind": "court",
+      "critical": true,
+      "dueTime": "16:00",
+      "blockedReason": "No offer has been made"
+    },
+    {
+      "conditions": [],
+      "reminders": [7, 3, 1],
+      "verify": false,
+      "id": "vic.order.compliance",
+      "title": "Comply with order",
+      "citation": "The court's order",
+      "explain": "Steps ordered to be taken within a number of days, counted from the day the order was made.",
+      "appliesTo": {
+        "matterTypes": ["fp", "contest"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "order_made"
+      },
+      "offset": {
+        "days": {
+          "eventMeta": "days"
+        }
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "VIC_SUPREME_COURT",
+      "kind": "court",
+      "critical": true,
+      "dueTime": "16:00",
+      "blockedReason": "No order recorded"
+    },
+    {
+      "conditions": [],
+      "reminders": [30],
+      "verify": false,
+      "id": "org.executor_year",
+      "title": "Executor's year (practice reminder)",
+      "citation": "Practice reminder (not statutory)",
+      "explain": "The customary executor's year: a checkpoint to review progress towards distribution.",
+      "appliesTo": {
+        "matterTypes": ["probate", "loa", "admin"],
+        "jurisdictions": ["VIC"]
+      },
+      "anchor": {
+        "event": "date_of_death"
+      },
+      "offset": {
+        "months": 12
+      },
+      "direction": "after",
+      "counting": "exclude_anchor_day",
+      "monthEnd": "clamp",
+      "nonBusinessDay": "roll_forward",
+      "calendar": "locality",
+      "kind": "internal",
+      "critical": false,
+      "blockedReason": "The date of death isn't recorded"
+    }
+  ]
+}

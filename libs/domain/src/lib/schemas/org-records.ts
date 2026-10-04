@@ -242,18 +242,33 @@ export const RuleSetVersion = withMeta(
   { path: 'ruleSets/{ruleSetId}/versions', migratable: false },
 );
 
-/** `calendars/{jurisdiction}-{year}` (global): public holidays and court/registry closures. */
+/**
+ * `calendars/{calendarId}-{year}` (global): public holidays and court/registry closures for one
+ * calendar (CORE-09): court calendars (VIC_SUPREME_COURT) and firm locality calendars
+ * (VIC_GREATER_GEELONG). `verified` is set once a person has checked it against official sources.
+ */
 export const Calendar = withMeta(
   {
     jurisdiction: JurisdictionSchema,
     year: z.number().int().min(2000).max(2100),
+    calendarId: z
+      .string()
+      .regex(/^[A-Z][A-Z0-9_]+$/)
+      .optional(),
+    kind: z.enum(['court', 'locality']).optional(),
     holidays: z.array(
-      z.object({ date: DateOnlySchema, name: NonEmptyString, localities: z.array(z.string()).optional() }),
+      z.object({
+        date: DateOnlySchema,
+        name: NonEmptyString,
+        localities: z.array(z.string()).optional(),
+        provisional: z.boolean().optional(),
+      }),
     ),
     closures: z
       .array(z.object({ from: DateOnlySchema, to: DateOnlySchema, body: z.string(), name: z.string() }))
       .default([]),
     source: z.string(),
+    verified: z.boolean().default(false),
   },
   { path: 'calendars', migratable: false },
 );

@@ -148,6 +148,17 @@ describe('seed dataset', () => {
     }
   });
 
+  it('seeds the calendars and the Victorian rule set in every scenario', () => {
+    expect(dataset.docs.filter((d) => d.path.startsWith('calendars/'))).toHaveLength(16);
+    expect(dataset.docs.find((d) => d.path === 'ruleSets/vic/versions/1')?.data).toMatchObject({
+      ruleSetId: 'vic',
+      version: 1,
+      published: true,
+    });
+    const empty = buildDataset({ anchor, fixtures, scenario: 'empty' });
+    expect(empty.docs.some((d) => d.path === 'calendars/VIC_GREATER_GEELONG-2026')).toBe(true);
+  });
+
   it('builds minimal and empty scenarios', () => {
     const minimal = buildDataset({ anchor, fixtures, scenario: 'minimal' });
     expect(minimal.docs.filter((d) => /\/matters\/[^/]+$/.test(d.path))).toHaveLength(2);

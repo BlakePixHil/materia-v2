@@ -16,7 +16,15 @@ export default defineConfig(() => ({
       provider: 'v8' as const,
       reporter: ['text-summary', 'json-summary'],
       // Testing & quality strategy: 90% for this project.
-      thresholds: { statements: 90, branches: 90, functions: 90, lines: 90 },
+      exclude: ['src/golden/scenarios.ts', 'data/**'],
+      // CORE-09: the engine core is fully covered; the rest of the lib at least 90%.
+      thresholds: {
+        statements: 90,
+        branches: 90,
+        functions: 90,
+        lines: 90,
+        'src/lib/{engine,calendar,model}.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+      },
     },
   },
 }));

@@ -7,6 +7,7 @@
  * Dates are relative to `anchor` (today in the org timezone by default), so "due today" and
  * "overdue" stay meaningful whenever the seed runs.
  */
+import * as DeadlinesNs from '@materia/deadlines';
 import * as D from '@materia/domain';
 // Namespace import: the workspace lib loads as CommonJS under tsx, so named imports don't resolve.
 import * as TestUtilsNs from '@materia/test-utils';
@@ -15,6 +16,7 @@ import { unwrap } from './interop.ts';
 
 const domain = unwrap(D);
 const F = unwrap(TestUtilsNs);
+const deadlines = unwrap(DeadlinesNs);
 
 const {
   makeContact,
@@ -558,6 +560,13 @@ export function buildDataset(options: {
       }),
     );
   }
+
+  // Global reference data (CORE-09): the calendars and the Victorian rule set the engine uses.
+  const system = { createdAt: now, updatedAt: now, createdBy: 'system', updatedBy: 'system', schemaVersion: 1 };
+  for (const calendar of deadlines.CALENDAR_YEARS)
+    add(`calendars/${deadlines.calendarDocId(calendar)}`, { ...deadlines.toCalendarDoc(calendar), ...system });
+  const ruleSet = deadlines.VIC_RULESET_V1;
+  add(`ruleSets/${ruleSet.ruleSetId}/versions/${ruleSet.version}`, { ...deadlines.toRuleSetDoc(ruleSet), ...system });
 
   add(
     `orgs/${org}/members/${PRIYA}/tasks/pt-trust-recon`,
