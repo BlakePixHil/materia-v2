@@ -155,6 +155,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       const tx = {
         get: async (target: Ref | Query) =>
           'where' in target || !('path' in target) ? (target as Query).get() : snapshot(target.path),
+        getAll: async (...refs: Ref[]) => refs.map((ref) => snapshot(ref.path)),
         create: (ref: Ref, data: Data) => void ops.push(() => write.create(ref.path, data)),
         set: (ref: Ref, data: Data, options?: { merge?: boolean }) =>
           void ops.push(() => write.set(ref.path, data, options)),

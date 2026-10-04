@@ -686,6 +686,19 @@ export const makeConflictCheck = (o: Partial<D.ConflictCheck> = {}) =>
     o,
   );
 
+export const makeIntakeDraft = (o: Partial<D.IntakeDraft> = {}) =>
+  build(
+    D.IntakeDraft,
+    {
+      orgId: TEST_ORG_ID,
+      kind: 'intake',
+      step: 'details',
+      stateJson: JSON.stringify({ type: { type: 'probate', jurisdiction: 'VIC' } }),
+      expireAt: D.intakeDraftExpireAt(FIXED_INSTANT),
+    },
+    o,
+  );
+
 /** Every factory with its entity, for exhaustive tests (schema coverage, converter round-trips). */
 export const ENTITY_FACTORIES = {
   Org: [D.Org, makeOrg],
@@ -738,4 +751,5 @@ export const ENTITY_FACTORIES = {
   MatterNumber: [D.MatterNumber, makeMatterNumber],
   SavedView: [D.SavedView, makeSavedView],
   ConflictCheck: [D.ConflictCheck, makeConflictCheck],
+  IntakeDraft: [D.IntakeDraft, makeIntakeDraft],
 } as const;

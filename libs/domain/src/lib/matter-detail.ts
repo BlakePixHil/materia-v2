@@ -44,7 +44,7 @@ export function keyFactsFor(type: MatterType): KeyFactDefinition[] {
  * cents) so plain objects and parsed matters both fit. Patches go through `Matter.update`.
  */
 export interface FactMatter {
-  deceased?: { contactId: string; dateOfDeath: string; domicile: string; lastAddress: string } | undefined;
+  deceased?: { contactId: string; dateOfDeath?: string | undefined; domicile: string; lastAddress: string } | undefined;
   estate?:
     | {
         grantDate?: string | undefined;
@@ -53,7 +53,8 @@ export interface FactMatter {
         [key: string]: unknown;
       }
     | undefined;
-  facts?: { willDate?: string | undefined; courtFileNo?: string | undefined } | undefined;
+  facts?:
+    { willDate?: string | undefined; courtFileNo?: string | undefined; trustName?: string | undefined } | undefined;
 }
 
 /** A key fact's value: an ISO date, cents, or text; undefined when not recorded. */

@@ -3,23 +3,35 @@ import type { z } from 'zod';
 
 import {
   can,
+  costsDisclosureRequirement,
   CreateMatterInput,
+  dateOfDeathProblem,
+  DEATH_CERTIFICATE_TASK_KEY,
+  DEATH_CERTIFICATE_TASK_TITLE,
   DEFAULT_MATTER_NUMBER_FORMAT,
   DEFAULT_ORG_TIMEZONE,
   DomainError,
+  feeEstimateCents,
   formatMatterNumber,
+  isDateOnly,
   initialMatterStatus,
   Matter,
   matterCounterId,
   MatterNumber,
   matterNumberKey,
   matterNumberYear,
+  MatterEvent,
   Party,
+  partyDocId,
   PERMISSIONS,
   systemTemplate,
   systemTemplateId,
+  Task,
+  templateTaskDocId,
   today,
+  type AnchorEvent,
   type CreateMatterResult,
+  type DateOnly,
   type FieldErrors,
   type PartyRole,
   type Role,
@@ -29,13 +41,23 @@ import {
 import { contactNames, counterPath, liveContactIds, matterNumberPath, mattersPath, matterSearch } from './shared';
 import { audit } from '../audit/audit';
 import { conflictChecksPath } from '../conflicts/shared';
-import { compact } from '../contacts/shared';
+import { compact, isLive } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
 import { isEnabled } from '../core/flags';
-import { firstActiveParalegal, planTemplateTasks, readTemplate, readWith, templatesPath } from '../templates/shared';
+import {
+  firstActiveParalegal,
+  planTemplateTasks,
+  readTemplate,
+  readWith,
+  templatesPath,
+  type PlannedTask,
+} from '../templates/shared';
 
-type MatterInput = z.output<typeof CreateMatterInput>['matter'];
+type Input = z.output<typeof CreateMatterInput>;
+type MatterInput = Input['matter'];
+type PartyRow = { contactId: string; role: PartyRole; share?: string | undefined; notes?: string | undefined };
+type EventRow = { kind: AnchorEvent['kind']; date: DateOnly; label?: string | undefined };
 
 /** Numbers skipped past (already taken) before giving up: only a pathological format change gets near it. */
 export const MAX_NUMBER_SKIPS = 100;
@@ -56,6 +78,100 @@ export function initialParties(matter: MatterInput): { contactId: string; role: 
     seen.add(key);
     return true;
   });
+}
+
+/**
+ * Every party row a new matter gets (CORE-05): `initialParties` plus the input's `parties`, one row
+ * per `partyDocId(role, contactId)`; a repeated row keeps the first `share` and `notes` given.
+ * `inputIndex` is the row's index in `input.parties` (for field errors), when it came from there.
+ */
+export function intakeParties(
+  matter: MatterInput,
+  extra: readonly PartyRow[] = [],
+): (PartyRow & { inputIndex?: number })[] {
+  const rows = new Map<string, PartyRow & { inputIndex?: number }>();
+  for (const row of initialParties(matter)) rows.set(partyDocId(row.role, row.contactId), { ...row });
+  extra.forEach((row, inputIndex) => {
+    const id = partyDocId(row.role, row.contactId);
+    const existing = rows.get(id);
+    if (!existing) {
+      rows.set(id, compact({ ...row, inputIndex }));
+      return;
+    }
+    if (existing.share === undefined && row.share !== undefined) existing.share = row.share;
+    if (existing.notes === undefined && row.notes !== undefined) existing.notes = row.notes;
+  });
+  return [...rows.values()];
+}
+
+/**
+ * The events a new matter gets: the input's (one per kind, date and label), plus the date of death
+ * event from `deceased.dateOfDeath` when known and not listed. A listed date of death event must
+ * match `deceased.dateOfDeath` (INVALID_ARGUMENT on `events.{i}.date`).
+ */
+export function intakeEvents(matter: MatterInput, events: readonly EventRow[] = []): EventRow[] {
+  const dateOfDeath = matter.deceased?.dateOfDeath;
+  const fields: FieldErrors = {};
+  events.forEach((event, i) => {
+    if (event.kind !== 'date_of_death') return;
+    if (!dateOfDeath) fields[`events.${i}.date`] = ['Record the date of death on the deceased first'];
+    else if (event.date !== dateOfDeath) fields[`events.${i}.date`] = ['Must match the date of death'];
+  });
+  if (Object.keys(fields).length) throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', { fields });
+  const seen = new Set<string>();
+  const rows = events.filter((event) => {
+    const key = `${event.kind}|${event.date}|${event.label ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (dateOfDeath && !rows.some((event) => event.kind === 'date_of_death')) {
+    rows.unshift({ kind: 'date_of_death', date: dateOfDeath, label: 'Date of death' });
+  }
+  return rows;
+}
+
+/**
+ * The fee and costs disclosure a new matter is stored with: the top-level `fee`/`costsDisclosure`
+ * (CORE-05) over `matter.fee`/`matter.costsDisclosure`; without either disclosure, the requirement
+ * for the fee's estimate (`costsDisclosureRequirement`, a BILL-06 placeholder). A top-level
+ * `not_required` the estimate doesn't allow is INVALID_ARGUMENT on `costsDisclosure.status`.
+ */
+export function intakeFeeAndDisclosure(input: Input): Pick<Matter, 'fee' | 'costsDisclosure'> {
+  const fee = (input.fee ?? input.matter.fee) as Matter['fee'] | undefined;
+  if (!fee) {
+    throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', { fields: { fee: ['Choose a fee arrangement'] } });
+  }
+  const estimateCents = feeEstimateCents(fee);
+  const requirement = costsDisclosureRequirement(estimateCents);
+  if (input.costsDisclosure?.status === 'not_required' && requirement === 'required') {
+    throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', {
+      fields: { 'costsDisclosure.status': ['This estimate needs a costs disclosure'] },
+    });
+  }
+  const costsDisclosure = (input.costsDisclosure ??
+    input.matter.costsDisclosure ?? {
+      status: requirement,
+      ...(estimateCents !== undefined ? { estimateCents } : {}),
+    }) as Matter['costsDisclosure'];
+  return { fee: { ...fee, history: fee.history ?? [] }, costsDisclosure };
+}
+
+/** What the CORE-10 hook gets: the new matter and its anchors, inside the create transaction. */
+export interface IntakeDeadlineContext {
+  orgId: string;
+  matterId: string;
+  matter: MatterInput;
+  events: readonly EventRow[];
+}
+
+/**
+ * Hook for CORE-10: the deadline documents a new matter gets, written in the create transaction.
+ * None yet; deadline computation (rule sets, anchors, citations) belongs to CORE-09/CORE-10.
+ */
+export function planIntakeDeadlines(context: IntakeDeadlineContext): PlannedTask[] {
+  void context;
+  return [];
 }
 
 /**
@@ -88,6 +204,23 @@ async function checkReferences(db: Firestore, orgId: string, role: Role, matter:
   // Whoever creates a privileged matter must be able to see it.
   if (matter.privileged && !can(role, 'privileged.view')) {
     throw new DomainError('PERMISSION_DENIED', 'Your role cannot create privileged matters');
+  }
+}
+
+/**
+ * A known date of death must not be after the org's today, nor before the deceased contact's date
+ * of birth (CORE-05). INVALID_ARGUMENT on `matter.deceased.dateOfDeath`.
+ */
+async function checkDateOfDeath(db: Firestore, orgId: string, matter: MatterInput, orgToday: DateOnly): Promise<void> {
+  const dateOfDeath = matter.deceased?.dateOfDeath;
+  if (!matter.deceased || !dateOfDeath) return;
+  const contact = await db.doc(`orgs/${orgId}/contacts/${matter.deceased.contactId}`).get();
+  const dob = contact.get('dateOfBirth');
+  const problem = dateOfDeathProblem(dateOfDeath, { dateOfBirth: isDateOnly(dob) ? dob : undefined, today: orgToday });
+  if (problem) {
+    throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', {
+      fields: { 'matter.deceased.dateOfDeath': [problem] },
+    });
   }
 }
 
@@ -180,6 +313,12 @@ export async function intakeConflictCheck(
  * template has it) and gets that stage's tasks plus later tasks whose anchor (a date of death) is
  * known, all in the same transaction; with it off, `templateId` is only stored. A migrated matter
  * keeps its `externalRef` and still gets a new number. Idempotent on `requestId`.
+ *
+ * CORE-05 intake: the same transaction also writes the input's `parties` (deduplicated with the
+ * matter's own rows), its `events` plus the date of death event, the fee and costs disclosure
+ * (`intakeFeeAndDisclosure`), the conflict check link (`conflictCheckId`), a death certificate task
+ * when the date of death is unknown, and the CORE-10 deadline hook's documents. Any failure in the
+ * transaction (an unknown party contact, say) leaves nothing written.
  */
 export const createMatterDefinition = {
   name: 'matters-createMatter',
@@ -188,7 +327,14 @@ export const createMatterDefinition = {
   idempotent: true,
   handler: async (ctx): Promise<CreateMatterResult> => {
     const { input, orgId, uid, role, db, requestId, log } = ctx;
-    const matter = input.matter;
+    const { fee, costsDisclosure } = intakeFeeAndDisclosure(input);
+    const resultId = input.conflictCheckId ?? input.matter.conflictCheck.resultId;
+    const matter: MatterInput = {
+      ...input.matter,
+      fee,
+      costsDisclosure,
+      conflictCheck: { ...input.matter.conflictCheck, ...(resultId ? { resultId } : {}) },
+    };
     await checkReferences(db, orgId, role, matter);
 
     const clock = await orgClock(db, orgId, ctx.clock);
@@ -200,6 +346,10 @@ export const createMatterDefinition = {
         ? org['matterNumberFormat']
         : DEFAULT_MATTER_NUMBER_FORMAT;
     const year = matterNumberYear(now, timeZone);
+    const orgToday = today(timeZone, now);
+    await checkDateOfDeath(db, orgId, matter, orgToday);
+    const events = intakeEvents(matter, input.events);
+    const parties = intakeParties(matter, input.parties);
     const intake = await intakeConflictCheck(db, orgId, uid, role, matter.conflictCheck, now);
     const status = initialMatterStatus(intake.conflictCheck.status);
     const names = await contactNames(db, orgId, [
@@ -221,14 +371,16 @@ export const createMatterDefinition = {
             matter.stageId && template.stages.some((stage) => stage.id === matter.stageId)
               ? matter.stageId
               : (template.stages[0]?.id as string);
-          return { stageId, stageEnteredOn: today(timeZone, now) };
+          return { stageId, stageEnteredOn: orgToday };
         })()
       : undefined;
-    const templateTasks =
+    const needsDeathCertificate = !!matter.deceased && !matter.deceased.dateOfDeath;
+    const paralegalUid = template || needsDeathCertificate ? await firstActiveParalegal(db, orgId) : undefined;
+    const tasks: PlannedTask[] =
       template && templated
         ? planTemplateTasks(
             template,
-            { matter, events: [] },
+            { matter, events },
             {
               orgId,
               matterId: matterRef.id,
@@ -236,16 +388,51 @@ export const createMatterDefinition = {
               stageEnteredOn: templated.stageEnteredOn,
               knownAnchors: true,
               responsibleUid: matter.responsibleUid,
-              paralegalUid: await firstActiveParalegal(db, orgId),
+              paralegalUid,
               uid,
               now,
               requestId,
             },
           )
         : [];
+    // Unknown date of death (CORE-05): exactly one death certificate task, the template's when it
+    // has one (same id, `tpl-obtain_death_certificate`, so a later template apply won't add another).
+    const deathCertificatePath = `${matterRef.path}/tasks/${templateTaskDocId(DEATH_CERTIFICATE_TASK_KEY)}`;
+    const deathCertificateTask = needsDeathCertificate && !tasks.some((task) => task.path === deathCertificatePath);
+    if (deathCertificateTask) {
+      tasks.push({
+        path: deathCertificatePath,
+        data: Task.schema.parse({
+          title: DEATH_CERTIFICATE_TASK_TITLE,
+          status: 'todo',
+          priority: 'high',
+          assigneeUid: paralegalUid ?? matter.responsibleUid,
+          group: 'Intake',
+          checklist: [],
+          order: 0,
+          source: 'manual',
+          templateTaskKey: DEATH_CERTIFICATE_TASK_KEY,
+          orgId,
+          matterId: matterRef.id,
+          ...meta,
+          schemaVersion: Task.version,
+        }) as Record<string, unknown>,
+      });
+    }
+    const deadlines = planIntakeDeadlines({ orgId, matterId: matterRef.id, matter, events });
+    // Party contacts beyond the matter's own (checked above): read in the transaction, refused there.
+    const extraContactIds = [
+      ...new Set(parties.filter((party) => party.inputIndex !== undefined).map((party) => party.contactId)),
+    ];
 
     const number = await db.runTransaction(
       async (tx) => {
+        const contactSnaps = extraContactIds.length
+          ? await tx.getAll(...extraContactIds.map((id) => db.doc(`orgs/${orgId}/contacts/${id}`)))
+          : [];
+        const liveContacts = new Set(
+          contactSnaps.filter((snap) => snap.exists && isLive(snap.data())).map((snap) => snap.id),
+        );
         const counter = await tx.get(counterRef);
         const stored = Number(counter.get('next'));
         let seq = Number.isInteger(stored) && stored >= 1 ? stored : 1;
@@ -263,6 +450,8 @@ export const createMatterDefinition = {
           seq++;
         }
 
+        // Writes are buffered until commit: anything thrown from here on leaves nothing behind (no
+        // counter step, no reservation, no matter), which the rollback integration test proves.
         if (counter.exists) tx.update(counterRef, { next: seq + 1, updatedAt: now, updatedBy: uid });
         else tx.create(counterRef, { next: seq + 1, ...counterMeta, schemaVersion: 1 });
         tx.create(
@@ -286,7 +475,7 @@ export const createMatterDefinition = {
             ...(template && templated
               ? { templateId: template.id, templateVersion: template.version, ...templated }
               : {}),
-            openTaskCount: templateTasks.length,
+            openTaskCount: tasks.length,
             wipCents: 0,
             recomputeVersion: 0,
             // Live matters carry deletedAt: null so lists can filter on it (CORE-03).
@@ -296,9 +485,14 @@ export const createMatterDefinition = {
           }),
         );
         tx.create(matterRef, data);
-        for (const party of initialParties(matter)) {
+        const badParties: FieldErrors = {};
+        for (const { inputIndex, ...party } of parties) {
+          if (inputIndex !== undefined && !liveContacts.has(party.contactId)) {
+            badParties[`parties.${inputIndex}.contactId`] = ['Choose an existing contact'];
+            continue;
+          }
           tx.create(
-            db.doc(`${matterRef.path}/parties/${party.role}-${party.contactId}`),
+            db.doc(`${matterRef.path}/parties/${partyDocId(party.role, party.contactId)}`),
             Party.schema.parse({
               ...party,
               addedFrom: 'manual',
@@ -309,7 +503,17 @@ export const createMatterDefinition = {
             }),
           );
         }
-        for (const task of templateTasks) tx.create(db.doc(task.path), task.data);
+        if (Object.keys(badParties).length) {
+          throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', { fields: badParties });
+        }
+        for (const event of events) {
+          tx.create(
+            db.collection(`${matterRef.path}/events`).doc(),
+            MatterEvent.schema.parse({ ...event, meta: {}, ...meta, schemaVersion: MatterEvent.version }),
+          );
+        }
+        for (const task of tasks) tx.create(db.doc(task.path), task.data);
+        for (const deadline of deadlines) tx.create(db.doc(deadline.path), deadline.data);
         return candidate;
       },
       { maxAttempts: CREATE_MAX_ATTEMPTS },
@@ -326,8 +530,15 @@ export const createMatterDefinition = {
           status,
           type: matter.type,
           year,
+          parties: parties.length,
+          events: events.length,
+          ...(deathCertificateTask ? { deathCertificateTask: true } : {}),
           ...(template
-            ? { templateId: template.id, templateVersion: template.version, tasks: templateTasks.length }
+            ? {
+                templateId: template.id,
+                templateVersion: template.version,
+                tasks: tasks.length - (deathCertificateTask ? 1 : 0),
+              }
             : {}),
         },
       },
@@ -350,7 +561,13 @@ export const createMatterDefinition = {
         },
       );
     }
-    log.info('matter created', { matterId: matterRef.id, status, year });
+    log.info('matter created', {
+      matterId: matterRef.id,
+      status,
+      year,
+      parties: parties.length,
+      events: events.length,
+    });
     return { matterId: matterRef.id, number, status };
   },
 } satisfies CallableDefinition<typeof CreateMatterInput, CreateMatterResult>;

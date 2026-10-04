@@ -120,6 +120,13 @@ describe('firestore.indexes.json', () => {
     }
   });
 
+  it('intake drafts expire through TTL on expireAt (CORE-05)', () => {
+    const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
+      (o) => o.collectionGroup === 'drafts' && o.ttl,
+    );
+    expect(ttl?.fieldPath).toBe('expireAt');
+  });
+
   it('audit entries expire through TTL on expireAt, and the audit-query filters are indexed (FND-18)', () => {
     const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
       (o) => o.collectionGroup === 'audit' && o.ttl,

@@ -1,3 +1,5 @@
+import { Timestamp } from 'firebase/firestore';
+
 import { PERMISSIONS, ROLES, type Action, type Role } from '@materia/domain';
 import { ENTITY_FACTORIES } from '@materia/test-utils';
 
@@ -79,6 +81,19 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'owner',
     update: 'owner',
     change: { name: 'Renamed view' },
+    ownerCreatesAndDeletes: true,
+  },
+
+  // New matter intake drafts (CORE-05): the user's own, created and deleted by the client. A save
+  // stamps a fresh `expireAt` (about 30 days on), so the whitelisted change carries one.
+  {
+    collection: 'drafts',
+    docPath: `users/${OWNER}/drafts/intake-draft-1`,
+    entity: 'IntakeDraft',
+    seed: { orgId: ORG },
+    read: 'owner',
+    update: 'owner',
+    change: { step: 'fees', expireAt: Timestamp.fromMillis(Date.now() + 30 * 86_400_000) },
     ownerCreatesAndDeletes: true,
   },
 

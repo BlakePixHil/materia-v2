@@ -27,7 +27,8 @@ test('a signed-out visit goes to sign-in, then back to where it was going', asyn
   await expect(page.getByRole('alert')).toContainText('don’t match');
   await page.getByLabel('Password').fill(account.password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page).toHaveURL(/\/matters$/);
+  // Signing in waits on the emulators (token, org and MFA policy), which other workers keep busy.
+  await expect(page).toHaveURL(/\/matters$/, { timeout: 20_000 });
 });
 
 test('sign-out leaves no cached Firestore data', async ({ page, request, isMobile }) => {

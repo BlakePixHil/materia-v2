@@ -1267,6 +1267,12 @@
       "indexes": []
     },
     {
+      "collectionGroup": "drafts",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "invites",
       "fieldPath": "tokenHash",
       "indexes": [

@@ -142,6 +142,34 @@ service cloud.firestore {
           && validView(request.resource.data);
         allow update: if isSelf() && clientUpdate(fieldsSavedView()) && validView(request.resource.data);
       }
+
+      // New matter intake drafts (CORE-05): `intake-{id}`, private to their user, written by the
+      // client directly. The form state is JSON text of at most 100,000 characters
+      // (INTAKE_DRAFT_MAX_STATE_CHARS); `expireAt` is about 30 days after the save (a day's slack
+      // for the client's clock) and Firestore TTL deletes the draft then.
+      match /drafts/{draftId} {
+        function isDraftOwner() {
+          return isSignedIn() && uid() == userId;
+        }
+        function validDraft(data) {
+          return draftId.matches('^intake-[A-Za-z0-9_-]{1,64}$')
+            && data.orgId == claimOrg() && inOrg(claimOrg())
+            && data.kind == 'intake'
+            && data.step in ['type', 'clients', 'details', 'parties', 'fees', 'conflict', 'review']
+            && data.stateJson is string && data.stateJson.size() <= 100000
+            && data.expireAt is timestamp
+            && data.expireAt > request.time + duration.value(29, 'd')
+            && data.expireAt <= request.time + duration.value(31, 'd');
+        }
+        allow read, delete: if isDraftOwner();
+        allow create: if isDraftOwner()
+          && request.resource.data.keys().hasOnly(fieldsIntakeDraft().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+          && request.resource.data.keys().hasAll(fieldsIntakeDraft().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt == request.time
+          && validMeta() && request.resource.data.schemaVersion == 1
+          && validDraft(request.resource.data);
+        allow update: if isDraftOwner() && clientUpdate(fieldsIntakeDraft()) && validDraft(request.resource.data);
+      }
     }
 
     // ---------- organisations ----------
@@ -462,6 +490,7 @@ service cloud.firestore {
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'status', 'paidOn']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }
+    function fieldsIntakeDraft() { return ['orgId', 'kind', 'step', 'stateJson', 'expireAt']; }
     function fieldsIntegration() { return []; }
     function fieldsInvite() { return ['role']; }
     function fieldsInvoice() { return ['lines', 'dueDate']; }

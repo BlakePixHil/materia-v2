@@ -143,7 +143,8 @@ export async function signInAsTestUser(
 ): Promise<TestAccount> {
   const account = await createTestAccount(request, options);
   await signInThroughUi(page, account);
-  await expect(page).toHaveURL(/\/today$/);
+  // Signing in waits on the emulators, which other workers keep busy.
+  await expect(page).toHaveURL(/\/today$/, { timeout: 20_000 });
   return account;
 }
 

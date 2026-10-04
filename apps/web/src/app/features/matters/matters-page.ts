@@ -726,16 +726,6 @@ export class MattersPage {
         () => free() && this.selection().length > 0,
       ),
       commands.register({
-        id: 'matters.new',
-        title: 'New matter',
-        group: 'Matters',
-        icon: 'plus',
-        keywords: ['intake', 'open', 'estate', 'will'],
-        shortcut: 'c',
-        when: () => this.canCreate(),
-        run: () => this.newMatter(),
-      }),
-      commands.register({
         id: 'matters.filter',
         title: 'Filter matters',
         group: 'Matters',
