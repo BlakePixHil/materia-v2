@@ -133,6 +133,36 @@ describe('seed dataset', () => {
     }
   });
 
+  it('gives every matter one client party row per client, at partyDocId ids (CORE-06)', () => {
+    const matters = docsUnder('matters');
+    for (const matter of matters) {
+      const clients = (matter.data as D.Matter).clientContactIds;
+      const rows = dataset.docs
+        .filter((d) => d.path.startsWith(`${matter.path}/parties/`))
+        .map((d) => ({ id: d.path.split('/').at(-1), ...(d.data as D.Party) }));
+      expect(D.clientContactIdsFrom(rows), matter.path).toEqual(clients);
+      for (const row of rows) expect(row.id, matter.path).toBe(D.partyDocId(row.role, row.contactId));
+    }
+  });
+
+  it('gives demo matters a stage and key facts that meet the stage’s requirements (CORE-06)', () => {
+    const matters = docsUnder('matters').map((d) => d.data as D.Matter);
+    const staged = matters.filter((m) => m.stageId);
+    expect(staged.length).toBeGreaterThanOrEqual(6);
+    for (const matter of staged) {
+      const stages = D.matterStages(matter.type);
+      expect(
+        stages.map((s) => s.id),
+        matter.title,
+      ).toContain(matter.stageId);
+      expect(D.unmetStageRequirements(matter, stages, undefined, matter.stageId as string), matter.title).toEqual([]);
+    }
+    const doyle = matters.find((m) => m.title === 'Estate of Margaret Doyle');
+    expect(doyle).toMatchObject({ stageId: 'grant_application', facts: { willDate: expect.any(String) } });
+    expect(matters.some((m) => m.estate?.grantDate && m.estate.grantNo && m.estate.grossValueCents)).toBe(true);
+    expect(matters.some((m) => (m.type === 'fp' || m.type === 'contest') && m.facts?.courtFileNo)).toBe(true);
+  });
+
   it('dates deadlines relative to the anchor and denormalises the next deadline', () => {
     const doyle = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}/matters/m-doyle-estate`)?.data as D.Matter;
     expect(doyle.nextDeadline).toMatchObject({ dueDate: '2026-10-03', title: 'Send costs disclosure update' });
