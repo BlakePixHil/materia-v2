@@ -28,7 +28,8 @@
       "@materia/data-access": ["./libs/data-access/src/index.ts"],
       "@materia/data-access/repository": ["./libs/data-access/src/repository.ts"],
       "@materia/test-utils/e2e": ["./libs/test-utils/e2e/index.ts"],
-      "@materia/domain/firestore": ["./libs/domain/firestore/index.ts"]
+      "@materia/domain/firestore": ["./libs/domain/firestore/index.ts"],
+      "@materia/domain/quick-add": ["./libs/domain/quick-add/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

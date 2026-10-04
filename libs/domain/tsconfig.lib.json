@@ -5,7 +5,7 @@
     "declaration": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "firestore/**/*.ts"],
+  "include": ["src/**/*.ts", "firestore/**/*.ts", "quick-add/**/*.ts"],
   "exclude": [
     "vite.config.ts",
     "vite.config.mts",
@@ -19,6 +19,7 @@
     "src/**/*.spec.js",
     "src/**/*.test.jsx",
     "src/**/*.spec.jsx",
-    "firestore/**/*.spec.ts"
+    "firestore/**/*.spec.ts",
+    "quick-add/**/*.spec.ts"
   ]
 }

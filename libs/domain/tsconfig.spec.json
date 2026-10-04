@@ -18,6 +18,7 @@
     "src/**/*.test.jsx",
     "src/**/*.spec.jsx",
     "src/**/*.d.ts",
-    "firestore/**/*.spec.ts"
+    "firestore/**/*.spec.ts",
+    "quick-add/**/*.spec.ts"
   ]
 }

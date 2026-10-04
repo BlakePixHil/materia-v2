@@ -27,3 +27,4 @@ export * from './lib/matter-detail';
 export * from './lib/templates';
 export * from './lib/system-templates';
 export * from './lib/intake';
+export * from './lib/tasks';

@@ -41,25 +41,54 @@ export const Party = withMeta(
   },
 );
 
+/** Limits the rules enforce on client-written tasks (CORE-08). */
+export const TASK_TITLE_MAX = 500;
+export const TASK_GROUP_MAX = 120;
+export const TASK_CHECKLIST_MAX = 100;
+
+/** A checklist item inside a task (CORE-08), ticked inline. */
+export const ChecklistItemSchema = z.object({ id: z.string().min(1), text: z.string().max(500), done: z.boolean() });
+export type ChecklistItem = z.infer<typeof ChecklistItemSchema>;
+
 const taskShape = {
-  title: NonEmptyString,
+  title: NonEmptyString.max(TASK_TITLE_MAX),
   descriptionMd: z.string().optional(),
   status: TaskStatusSchema,
   priority: PrioritySchema.default('none'),
   assigneeUid: DocIdSchema.optional(),
   dueDate: DateOnlySchema.optional(),
   deadlineId: DocIdSchema.optional(),
-  group: z.string().optional(),
-  checklist: z.array(z.object({ id: z.string(), text: z.string(), done: z.boolean() })).default([]),
+  group: z.string().max(TASK_GROUP_MAX).optional(),
+  checklist: z.array(ChecklistItemSchema).max(TASK_CHECKLIST_MAX).default([]),
+  /** Fractional sort key (CORE-08): a move writes the midpoint of its neighbours (`orderBetween`). */
   order: z.number(),
   source: z.enum(['manual', 'template', 'clerk', 'migration']).default('manual'),
+  /** Set by `tasks-onWrite` when the status becomes `done`, removed when the task is reopened. */
   completedAt: InstantSchema.optional(),
 };
 
 /**
+ * The fields clients change directly (CORE-08): title, status, priority, assignee, due date,
+ * checklist, order and group, plus soft delete. The description, deadline link and source are set
+ * when the task is created.
+ */
+const TASK_UPDATABLE = [
+  'title',
+  'status',
+  'priority',
+  'assigneeUid',
+  'dueDate',
+  'checklist',
+  'order',
+  'group',
+] as const;
+
+/**
  * `matters/{matterId}/tasks/{taskId}`. Template tasks (CORE-07) have the id `tpl-{templateTaskKey}`
  * (one per matter and template task) and, while their anchor event is unknown, no `dueDate` and
- * `duePending` naming the event ("due date pending: date of death unknown").
+ * `duePending` naming the event ("due date pending: date of death unknown"). `countedOpen` records
+ * whether the task is counted in the matter's `openTaskCount` (server-owned, CORE-08): `tasks-onWrite`
+ * reconciles it, and a server writer that counts a task itself sets it to `true`.
  */
 export const Task = withMeta(
   {
@@ -67,18 +96,29 @@ export const Task = withMeta(
     ...GroupKeys,
     templateTaskKey: z.string().optional(),
     duePending: EventKindSchema.optional(),
+    countedOpen: z.boolean().optional(),
   },
   {
     path: `${MATTER}/tasks`,
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'completedAt', 'templateTaskKey', 'duePending'],
+    serverOwned: ['orgId', 'matterId', 'completedAt', 'templateTaskKey', 'duePending', 'countedOpen'],
+    updatable: TASK_UPDATABLE,
   },
 );
 
-/** `orgs/{orgId}/members/{uid}/tasks/{taskId}`: personal tasks, same shape without matterId. */
+/**
+ * `orgs/{orgId}/members/{uid}/tasks/{taskId}`: personal tasks, private to their member (even admins
+ * can't read them). Same shape as matter tasks with `matterId: null` (the `tasks` collection group
+ * holds both) and `assigneeUid` always the owner, so "assigned to me" finds them too.
+ */
 export const PersonalTask = withMeta(
-  { ...taskShape, orgId: DocIdSchema },
-  { path: 'orgs/{orgId}/members/{uid}/tasks', softDelete: true, serverOwned: ['orgId', 'completedAt'] },
+  { ...taskShape, orgId: DocIdSchema, matterId: z.null().default(null) },
+  {
+    path: 'orgs/{orgId}/members/{uid}/tasks',
+    softDelete: true,
+    serverOwned: ['orgId', 'matterId', 'completedAt'],
+    updatable: TASK_UPDATABLE,
+  },
 );
 
 /** `matters/{matterId}/events/{eventId}`: key facts that drive deadlines. */
