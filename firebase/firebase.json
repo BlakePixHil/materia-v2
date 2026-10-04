@@ -11,9 +11,12 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "storage": {
-    "rules": "storage.rules"
-  },
+  "storage": [
+    {
+      "target": "files",
+      "rules": "storage.rules"
+    }
+  ],
   "hosting": {
     "public": "../dist/apps/web/browser",
     "ignore": ["firebase.json", "**/.*"],

@@ -4,5 +4,27 @@
     "dev": "materia-v2-dev",
     "staging": "materia-v2-staging",
     "prod": "materia-v2-prod"
+  },
+  "targets": {
+    "demo-materia": {
+      "storage": {
+        "files": ["demo-materia.appspot.com"]
+      }
+    },
+    "materia-v2-dev": {
+      "storage": {
+        "files": ["materia-v2-dev-files"]
+      }
+    },
+    "materia-v2-staging": {
+      "storage": {
+        "files": ["materia-v2-staging-files"]
+      }
+    },
+    "materia-v2-prod": {
+      "storage": {
+        "files": ["materia-v2-prod-files"]
+      }
+    }
   }
 }
