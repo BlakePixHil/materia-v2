@@ -85,7 +85,14 @@ describe('entity schemas', () => {
   });
 
   it('validates suggestion payloads per kind', () => {
-    const base = { status: 'proposed', promptId: 'p', promptVersion: 1, model: 'm', dedupeKey: 'k', citations: [] };
+    const base = {
+      status: 'proposed',
+      promptId: 'p',
+      promptVersion: '1.0.0',
+      model: 'm',
+      dedupeKey: 'k',
+      citations: [],
+    };
     expect(
       D.Suggestion.create.safeParse({ ...base, kind: 'key_fact', payload: { field: 'grantNo', value: '123' } }).success,
     ).toBe(true);

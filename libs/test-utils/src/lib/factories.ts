@@ -323,7 +323,7 @@ export const makeSuggestion = (o: Partial<D.Suggestion> = {}) =>
       citations: [{ documentId: 'doc-test-1', page: 2, quote: 'I appoint my daughter' }],
       status: 'proposed',
       promptId: 'suggest-tasks',
-      promptVersion: 1,
+      promptVersion: '1.0.0',
       model: 'claude-opus-5-5',
       dedupeKey: 'task:publish-notice',
     },

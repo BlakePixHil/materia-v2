@@ -25,6 +25,16 @@ export const ERROR_CODES = {
   FEATURE_DISABLED: 'failed-precondition',
   RATE_LIMITED: 'resource-exhausted',
   UNAVAILABLE: 'unavailable',
+  /** Clerk is switched off: the global or per-feature flag, or the org's own setting (AI-02). */
+  CLERK_DISABLED: 'failed-precondition',
+  /** This person has made too many Clerk requests recently (per-user window, AI-02). */
+  CLERK_RATE_LIMITED: 'resource-exhausted',
+  /** The org has used its monthly Clerk token budget (AI-02). */
+  CLERK_BUDGET_EXCEEDED: 'resource-exhausted',
+  /** The model provider is rate-limiting us: "Clerk is busy" (ADR-011a). */
+  CLERK_BUSY: 'resource-exhausted',
+  /** The provider and every fallback model failed: use the manual path (ADR-011a). */
+  CLERK_UNAVAILABLE: 'unavailable',
   INTERNAL: 'internal',
 } as const;
 

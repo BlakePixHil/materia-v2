@@ -98,6 +98,8 @@ export function withMeta<
 /** A [documentId, page, quote] citation (Clerk rule 2). */
 export const CitationSchema = z.object({
   documentId: DocIdSchema,
+  /** The document version the quote was taken from (AI-02). */
+  version: z.number().int().min(1).optional(),
   page: z.number().int().min(1).optional(),
   quote: z.string().max(2000),
 });

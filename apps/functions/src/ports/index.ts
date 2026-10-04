@@ -18,18 +18,77 @@ export interface MailPort {
   send(message: MailMessage): Promise<{ id: string }>;
 }
 
+/**
+ * One content block in a Clerk request (AI-02). Documents and retrieved chunks are separate block
+ * kinds so the model can cite them; `cache` marks the end of the stable prefix (prompt caching).
+ */
+export type ClerkContentBlock =
+  | { type: 'text'; text: string; cache?: boolean }
+  | {
+      type: 'document';
+      title?: string;
+      source: { kind: 'text'; text: string } | { kind: 'pdf'; base64: string };
+      cache?: boolean;
+    }
+  | { type: 'search_result'; source: string; title: string; text: string; cache?: boolean };
+
+export interface ClerkTurn {
+  role: 'user' | 'assistant';
+  /** User turns: our blocks. Assistant turns: the provider's blocks, verbatim (thinking included). */
+  content: ClerkContentBlock[] | readonly unknown[];
+}
+
+export type ClerkEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
 export interface ClerkModelRequest {
+  model: string;
+  /** The stable system prompt, always cached. */
   system: string;
-  messages: { role: 'user' | 'assistant'; content: string }[];
+  messages: ClerkTurn[];
   maxTokens: number;
+  effort: ClerkEffort;
+  /** Structured output: the reply is JSON matching this schema (`output_config.format`). */
+  output?: { name: string; schema: import('zod').ZodType };
+  timeoutMs: number;
+  signal?: AbortSignal;
+  /** Let the API reroute refusals to another model itself (first-party API only, ADR-011a). */
+  serverFallbacks: boolean;
 }
-export interface ClerkModelResponse {
+
+export type ClerkStreamEvent = { type: 'text'; text: string };
+
+export interface ClerkModelResult {
+  /** The model that served the reply (differs from the request after a server-side fallback). */
+  model: string;
+  stopReason: string;
   text: string;
-  inputTokens: number;
-  outputTokens: number;
+  /** The provider's raw citation locations; the gateway maps them to documents. */
+  citations: unknown[];
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
+  /** The assistant turn verbatim, for replay (never edited; preserved thinking). */
+  content: readonly unknown[];
+  serverFallback: boolean;
 }
+
+export type ClerkModelErrorKind =
+  'rate_limited' | 'overloaded' | 'server' | 'timeout' | 'disconnected' | 'aborted' | 'bad_request' | 'auth';
+
+/** A provider failure, classified so the gateway can retry, fall back or give up. Never carries content. */
+export class ClerkModelError extends Error {
+  constructor(
+    readonly kind: ClerkModelErrorKind,
+    message: string = kind,
+    readonly status?: number,
+    readonly retryAfterMs?: number,
+  ) {
+    super(message);
+    this.name = 'ClerkModelError';
+  }
+}
+
+/** The only way Functions reach a Claude model (ADR-011a). Adapters live in `clerk/providers/`. */
 export interface ClerkModelPort {
-  complete(request: ClerkModelRequest): Promise<ClerkModelResponse>;
+  run(request: ClerkModelRequest, onEvent?: (event: ClerkStreamEvent) => void): Promise<ClerkModelResult>;
 }
 
 export interface EmbeddingPort {

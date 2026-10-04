@@ -73,6 +73,34 @@ export default [
       '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
     },
   },
+  // Clerk (AI-02): every model call goes through ClerkGateway. Model SDKs are imported only by the
+  // provider adapters (and the AI-01 latency benchmark). Patterns are relative to each project's
+  // config, hence the leading `**/`.
+  {
+    files: ['**/*.ts', '**/*.mts', '**/*.cts', '**/*.js', '**/*.mjs'],
+    ignores: ['**/src/clerk/providers/**', '**/src/clerk-bench.ts', '**/src/clerk-bench.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@anthropic-ai/*',
+                'openai',
+                'openai/*',
+                '@google/genai',
+                '@google-cloud/vertexai',
+                '@aws-sdk/client-bedrock*',
+              ],
+              message:
+                'Call Claude through ClerkGateway (apps/functions/src/clerk). Model SDKs are imported only in apps/functions/src/clerk/providers (AI-02).',
+            },
+          ],
+        },
+      ],
+    },
+  },
   {
     files: ['**/*.ts', '**/*.mts', '**/*.js', '**/*.mjs'],
     plugins: { import: importPlugin },

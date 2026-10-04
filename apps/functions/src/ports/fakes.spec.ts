@@ -18,9 +18,16 @@ describe('fakes', () => {
     await calendar.deleteEvent('u1', externalId);
     expect(calendar.events.size).toBe(0);
 
-    expect(
-      (await fakeClerkModel.complete({ system: '', messages: [{ role: 'user', content: 'hi' }], maxTokens: 10 })).text,
-    ).toContain('1 message');
+    const request = {
+      model: 'm',
+      system: '',
+      messages: [],
+      maxTokens: 10,
+      effort: 'low' as const,
+      timeoutMs: 1000,
+      serverFallbacks: false,
+    };
+    expect((await fakeClerkModel.run(request)).text).toBe('Fake Clerk reply.');
     expect(await fakeXero.pushInvoice('o', 'inv-1')).toEqual({ xeroInvoiceId: 'xero-inv-1' });
     expect((await fakeTranscription.transcribe('b', 'p')).durationSeconds).toBe(3);
     expect(await fakePdfRender.render('<p></p>', 'out.pdf')).toEqual({ path: 'out.pdf', pages: 1 });

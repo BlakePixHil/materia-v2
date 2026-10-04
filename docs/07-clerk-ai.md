@@ -42,8 +42,8 @@ Clerk is Materia's AI assistant. It reads the matter, drafts, extracts and sugge
 
 ```ts
 interface ClerkModelPort {
-  stream(req: ClerkRequest, onEvent: (e: ClerkStreamEvent) => void): Promise<ClerkResult>;
-  create(req: ClerkRequest): Promise<ClerkResult>;
+  // Streams when onEvent is given; always resolves with the final message.
+  run(req: ClerkModelRequest, onEvent?: (e: ClerkStreamEvent) => void): Promise<ClerkModelResult>;
 }
 ```
 
@@ -58,6 +58,20 @@ The gateway is responsible for:
 - **Stop:** the client sets `stopRequested: true` on the message, and the gateway checks this between stream events and aborts.
 - **Metering:** `usage` (input, output and cache-read tokens) is written to `orgs/{orgId}/metrics/clerk-{month}` and to the message.
 - **Logging:** metadata only (ids, token counts, latency, stop reason). **Never prompt or completion text.**
+
+### As built (AI-02)
+
+- **Entry point:** `createClerkGateway(deps).run({ctx, feature, promptId, vars, documents?, searchResults?, stream?, output?})` returns `{status, text, parsed, citations, usage, stopReason, model, promptRef, fallbackUsed, costMicros}`. Callables get one from `clerkGateway({db, ports, clock})` (`apps/functions/src/clerk/service.ts`).
+- **Order:** role (`clerk.use`) → kill switches (`clerk.enabled`, `clerk.features.<feature>`, `org.settings.clerk.enabled === false`, all `CLERK_DISABLED`) → prompt render → monthly budget (`CLERK_BUDGET_EXCEEDED`) → per-user window (`CLERK_RATE_LIMITED`) → the call → status → structured-output validation → citations → metering → message → log.
+- **Features** (`clerk/features.ts`): each has a kill-switch flag and a timeout. `hello` (the connectivity check) has no feature flag of its own.
+- **Limits:** a sliding window per user in `orgs/{orgId}/counters/clerk-rate-{uid}` (default 30 per 10 minutes) and a monthly token budget across all token kinds (default 200M). Both can be set in `orgs/{orgId}.settings.clerk` (`userRateLimit`, `monthlyTokenBudget`). Months run in Melbourne time.
+- **Statuses** on the message and the result: `done`, `refused` (`stop_reason: refusal`, shown honestly), `truncated` (`max_tokens`), `invalid_output` (structured output that doesn't parse or validate; never retried), `stopped` (the owner set `stopRequested`), and `error` (the stream dropped after text arrived; the partial text is kept).
+- **Resilience:** the SDK runs with `maxRetries: 0`, so the gateway owns retries. It retries the primary model twice on 429, 529, 5xx, timeouts and connection drops, with jittered backoff (0.5 s, then 1 s, × 0.5–1.5, or the provider's `retry-after`). It then tries `claude-opus-5`, then `claude-sonnet-5-5`, once each, as a fresh branch with no earlier assistant turns. A provider 429 never switches models; it ends as `CLERK_BUSY`. If everything fails, the result is `CLERK_UNAVAILABLE`. Refusals use the API's server-side `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) on the primary only. Any hop sets `fallbackUsed`.
+- **Prompts:** `libs/clerk/prompts/<id>@<semver>.md` with front-matter (`id`, `version`, `effort`, `maxTokens`, `outputSchema?`, `tools?`), then a `# System` and a `# User` section. `renderPrompt` fails on a missing or unused variable. `pnpm materia-scripts clerk-prompts` compiles the files into `prompt-sources.generated.ts` for the Functions bundle, and a libs/clerk test fails when the two drift. Output schemas live in `libs/clerk/src/lib/schemas.ts`.
+- **Messages:** the gateway creates the assistant message (never overwriting one) and writes text at most every 250 ms. The final write adds the status, citations, usage, model and `fallbackUsed`. The verbatim assistant turn (thinking blocks included) is stored as JSON in the server-only `messages/{m}/private/raw`, so later turns can replay it unchanged.
+- **Metering:** `orgs/{orgId}/metrics/clerk-YYYY-MM` holds `values.{calls,tokens,inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens,costMicros}`, plus `feature.<f>.{calls,tokens,costMicros}` and `user.<uid>.{calls,tokens,costMicros}`. Costs come from `CLERK_PRICES` (`libs/clerk/src/lib/prices.ts`). A model without a confirmed price is costed at the primary's price and counted in `estimatedCostCalls`. A stopped stream meters the call with zero tokens, because the API reports no usage for an aborted stream.
+- **SDK boundary:** ESLint `no-restricted-imports` blocks model SDKs everywhere except `apps/functions/src/clerk/providers/` (and the AI-01 bench script). `tools/scripts/src/model-sdk-imports.spec.ts` proves it.
+- **Smoke test:** the `clerk-hello` callable runs the `hello` prompt through the whole gateway. It needs `clerk.enabled` on for the org. In the emulator it uses the fake model; with `ANTHROPIC_API_KEY` in Secret Manager it is the live check (AI-01b, MAT-120).
 
 ## Context assembly (AI-03)
 

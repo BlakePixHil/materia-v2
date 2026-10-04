@@ -79,8 +79,8 @@ Types used below: `DateOnly` = `YYYY-MM-DD`; `Cents` = integer AUD cents; `Minut
 | `assets/{id}` | Estate register. `class: 'real_property'\|'bank'\|'shares'\|'superannuation'\|'insurance'\|'vehicle'\|'personal'\|'business'\|'debt_owed_to_estate'\|'other'`, `description`, `valueAtDeathCents`, `valuationSource`, `jointlyHeld`, `passesOutsideEstate: bool` (super, joint tenancy, nominated policies), `status: 'identified'\|'valued'\|'realised'\|'transferred'`, `realisedCents?` |
 | `liabilities/{id}` | `class`, `creditor`, `amountCents`, `status: 'notified'\|'paid'\|'disputed'` |
 | `distributions/{id}` | `beneficiaryPartyId`, `kind: 'specific'\|'pecuniary'\|'residuary'`, `amountCents?`, `assetId?`, `status`, `paidOn?` |
-| `suggestions/{id}` | Clerk proposals. `kind: 'task'\|'deadline'\|'event'\|'party'\|'time_entry'\|'note'\|'key_fact'\|'chronology'\|'order'`, `payload` (zod-validated per kind), `citations[] {documentId, page, quote}`, `status: 'proposed'\|'accepted'\|'edited'\|'dismissed'\|'expired'`, `promptId`, `promptVersion`, `model`, `confidence?`, `resolvedBy?`, `resolvedAt?`, `resultRef?` |
-| `clerkThreads/{threadId}` and `/messages/{msgId}` | `role`, `content` (blocks), `citations[]`, `status: 'streaming'\|'done'\|'error'\|'stopped'`, `usage: {inputTokens, outputTokens}`, `toolCalls[]` |
+| `suggestions/{id}` | Clerk proposals. `kind: 'task'\|'deadline'\|'event'\|'party'\|'time_entry'\|'note'\|'key_fact'\|'chronology'\|'order'`, `payload` (zod-validated per kind), `citations[] {documentId, version?, page, quote}`, `status: 'proposed'\|'accepted'\|'edited'\|'dismissed'\|'expired'`, `promptId`, `promptVersion` (semver, so `promptId@promptVersion` names the template), `model`, `confidence?`, `resolvedBy?`, `resolvedAt?`, `resultRef?` |
+| `clerkThreads/{threadId}` and `/messages/{msgId}` | `role`, `content` (blocks), `citations[]`, `status: 'streaming'\|'done'\|'error'\|'stopped'\|'refused'\|'truncated'\|'invalid_output'`, `usage: {inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens}`, `promptId` (`id@version`), `model`, `fallbackUsed`, `stopRequested` (the only client-writable field), `toolCalls[]`. The verbatim assistant turn is in the server-only `messages/{msgId}/private/raw` (AI-02) |
 
 ### Litigation subcollections (on `contest`/`fp` matters)
 
@@ -106,7 +106,7 @@ Migrated documents also carry `migration: {runId, legacyPath, loadedAt}`, `needs
 | `creditNotes/{id}` | Reverses issued invoices. Invoices are never edited after issue |
 | `templates/{id}` | Matter templates: `matterType`, `version`, `stages[]`, `tasks[] {title, stageId, offsetFromEvent?}`, `deadlineRuleIds[]`, `published`, `source: 'system'\|'org'` |
 | `docTemplates/{id}` | docx templates with merge fields |
-| `metrics/{period}` | Rollups. `period` is `day-2026-10-03`, `month-2026-10` or `fy-2027` |
+| `metrics/{period}` | Rollups. `period` is `day-2026-10-03`, `month-2026-10` or `fy-2027`, or `clerk-2026-10` for Clerk metering (tokens and cost, per feature and per user; AI-02) |
 | `audit/{id}` | Append-only. `at`, `actor {uid\|'system'\|'clerk'}`, `action`, `entity {path}`, `before?`, `after?` (diffed, redacted), `requestId`, `source` |
 | `notifications/{id}` | `recipientUid`, `kind`, `title`, `body`, `link`, `readAt?`, `channel: ['inapp','email','push']` |
 | `integrations/{uid_provider}` | **Server-only.** `provider: 'microsoft'\|'google'\|'xero'`, `status`, `scopes`, `encryptedRefreshToken`, `kmsKeyVersion`, `lastSyncAt`, `error?` |
