@@ -7,6 +7,9 @@ const COMMANDS = {
   'sync-design': 'Sync design tokens, component CSS and fonts into libs/ui (FND-07)',
   'rules-sync': 'Sync the Firestore rules role lists and field whitelists from libs/domain (FND-14)',
   stamp: 'Stamp the web and functions builds with the release version and SHA (FND-05)',
+  seed: 'Wipe the emulators and seed the fictional practice (FND-06)',
+  dev: 'Run the emulators, seed and web app together: pnpm dev (FND-06)',
+  'fixture-pdfs': 'Regenerate the fictional fixture PDFs in libs/test-utils (FND-06)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -35,6 +38,9 @@ export async function run(argv: string[]): Promise<number> {
       'sync-design': () => import('./sync-design.ts'),
       'rules-sync': () => import('./rules-sync.ts'),
       stamp: () => import('./stamp.ts'),
+      seed: () => import('./seed.ts'),
+      dev: () => import('./dev.ts'),
+      'fixture-pdfs': () => import('./seed/pdfs.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);

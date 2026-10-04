@@ -10,7 +10,7 @@
   },
   "scripts": {
     "prepare": "husky",
-    "dev": "nx run web:serve",
+    "dev": "materia-scripts dev",
     "build": "nx run-many -t build",
     "test": "nx run-many -t test",
     "lint": "nx run-many -t lint",
@@ -85,6 +85,7 @@
     "jsdom": "^27.1.0",
     "lint-staged": "^17.6.0",
     "nx": "23.2.1",
+    "pdf-lib": "^1.17.1",
     "prettier": "^3.9.9",
     "storybook": "^10.5.0",
     "ts-node": "10.9.1",

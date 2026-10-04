@@ -48,10 +48,11 @@ Materia v2: a practice tool for Australian Wills & Estates lawyers (launching in
 | `pnpm nx run-many -t lint,typecheck,test,build`     | Everything CI checks (FND-04 runs it with `nx affected`)                                                                                                |
 | `pnpm nx affected -t lint,typecheck,test,build`     | The same, for projects changed against `main`                                                                                                           |
 | `pnpm nx test <project>` / `pnpm nx lint <project>` | One project. Projects: `web`, `web-e2e`, `functions`, `jobs`, `ui`, `data-access`, `domain`, `deadlines`, `clerk`, `test-utils`, `scripts`, `migration` |
-| `pnpm dev`                                          | Serve the web app at http://localhost:4200 (`nx run web:serve`)                                                                                         |
+| `pnpm dev`                                          | The whole local stack: emulators, fictional seed data and the web app at http://localhost:4200 (see Run locally)                                        |
 | `pnpm e2e`                                          | Playwright e2e against the dev server. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use a pre-installed Chromium                                        |
 | `pnpm nx run functions:serve`                       | Build Functions and run them in the emulator (project `demo-materia`)                                                                                   |
-| `pnpm emulators`                                    | All Firebase emulators (FND-06 adds seed data)                                                                                                          |
+| `pnpm emulators`                                    | All Firebase emulators on their own, without the seed or the web app                                                                                    |
+| `pnpm materia-scripts seed`                         | Wipe the emulators and reseed (`--minimal`, `--scenario=empty`, `--verify`); refuses anything but emulators and `demo-` projects                        |
 | `pnpm storybook`                                    | Storybook for `libs/ui` at http://localhost:4400                                                                                                        |
 | `pnpm materia-scripts sync-design`                  | Regenerate `libs/ui/src/generated` and the web fonts from `design/` (needs Python 3.11+; `--check` for CI)                                              |
 | `pnpm materia-scripts rules-sync`                   | Regenerate the role lists and field whitelists in `firebase/*.rules` from `libs/domain` (`--check` for CI)                                              |
@@ -70,7 +71,7 @@ CI (`.github/workflows/ci.yml`) runs every job with `nx affected`; `ci-ok` is th
 | `typecheck`   | `pnpm nx affected -t typecheck --base=origin/main`                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `unit`        | `pnpm nx affected -t test --base=origin/main --coverage` (thresholds: `domain` and `deadlines` 90%, everything else 70%)                                                                                                                                                                                                                                                                                                                                                                          |
 | `rules`       | `pnpm nx run firebase:test-rules` (needs Java; starts the Firestore and Storage emulators; fails below 90% rules coverage, report in `dist/rules-coverage/`). Behind an HTTPS proxy, run it as `env -u HTTPS_PROXY -u https_proxy pnpm nx run firebase:test-rules`: firebase-tools sends even local emulator calls through the proxy, which breaks Storage rules that read Firestore. `pnpm materia-scripts rules-sync --check` checks the generated role lists and whitelists (also a unit test) |
-| `integration` | `pnpm nx run functions:test-integration` (builds functions, then runs `apps/functions/tests/integration` against the auth, firestore and functions emulators; needs Java). Behind an HTTPS proxy, prefix `env -u HTTPS_PROXY -u https_proxy`                                                                                                                                                                                                                                                      |
+| `integration` | `pnpm nx run functions:test-integration` (builds functions, then runs `apps/functions/tests/integration` against the auth, firestore and functions emulators; needs Java). Behind an HTTPS proxy, prefix `env -u HTTPS_PROXY -u https_proxy`. Then `pnpm nx run scripts:test-seed` (seeds the auth, firestore and storage emulators and validates every document against its schema)                                                                                                              |
 | `build`       | `pnpm nx affected -t build --base=origin/main --configuration=production && pnpm materia-scripts bundle-size` (gzip budgets: initial ≤ 300 kB, lazy chunk ≤ 150 kB)                                                                                                                                                                                                                                                                                                                               |
 | `e2e`         | `pnpm nx build web --configuration=e2e && pnpm nx build functions`, then `BASE_URL=http://127.0.0.1:5000 pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting --project demo-materia --config firebase/firebase.json "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts"`. Every page test also calls `expectNoA11yViolations(page)` from `@materia/test-utils/e2e` (axe, WCAG 2.2 AA)                                                                 |
 | `storybook`   | `pnpm nx run ui:build-storybook`, serve `dist/storybook/ui` (for example `python3 -m http.server 6006 -d dist/storybook/ui`), then `pnpm exec test-storybook -c libs/ui/.storybook --url http://127.0.0.1:6006` (play functions and a11y; set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use a pre-installed Chromium)                                                                                                                                                                              |
@@ -122,6 +123,25 @@ Export it from the group's `index.ts` and the group from `main.ts` (`export * as
 - External services go through `ports()` (`apps/functions/src/ports`). Fakes are used in the emulator and with `MATERIA_FAKES=1`.
 - Background work: `defineQueue` (with retry config) plus `enqueue(name, payload, { dedupeKey })`. Firestore triggers: `defineTrigger`, which has no retries, an event-id guard and a dead-letter log.
 - Never use `console.*` in functions (lint error). Log through `ctx.log`.
+
+## Run locally
+
+`pnpm i && pnpm dev` starts everything (FND-06): it checks the ports are free, builds functions, starts the Firebase emulators (project `demo-materia`, UI at http://127.0.0.1:4000), seeds the fictional practice if the emulators are empty, and serves the web app with HMR at http://localhost:4200 (`apps/web/src/environments/environment.ts` points at the emulators).
+
+- Emulator data is exported to `.emulator-data/` (gitignored) when you stop with Ctrl+C and imported next time. `pnpm dev --fresh` starts empty, and `pnpm materia-scripts seed` resets to the seed at any time (with the emulators running).
+- The seed is **Harbour & Vine Legal**, a fictional wills and estates firm in Geelong (VIC, `Australia/Melbourne`). It has 25 contacts and 12 matters covering every matter type and status, with parties, events, tasks, static deadlines (computed once CORE-09 lands), notes, time entries and sample PDFs from `libs/test-utils/fixtures/pdfs/`. Dates are relative to the day you seed, so something is always due today. Everything is invented; never add real client data. `--minimal` (2 matters) and `--scenario=empty` (org and accounts only) are smaller.
+- The dev container (`.devcontainer/`) has Node 22, pnpm, Java 21, Playwright's Chromium, gcloud and Terraform; run `pnpm dev` inside it.
+
+Test accounts (emulator only; password `materia-local-dev` for all):
+
+| Role      | Email                           | Name         |
+| --------- | ------------------------------- | ------------ |
+| owner     | `owner@harbourvine.example`     | Priya Shah   |
+| lawyer    | `lawyer@harbourvine.example`    | Jordan Price |
+| paralegal | `paralegal@harbourvine.example` | Daniel Kim   |
+| readonly  | `readonly@harbourvine.example`  | Sam Lee      |
+
+Each account carries the `orgId` and `role` custom claims the security rules check. The sign-in screen arrives with the auth tickets; until then, sign in from the Emulator UI or the Auth emulator REST API.
 
 ## Definition of done
 

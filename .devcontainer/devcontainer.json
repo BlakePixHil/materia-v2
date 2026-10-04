@@ -1,0 +1,42 @@
+{
+  // Materia v2 dev container (FND-06): Node 22 + pnpm, Java 21 for the Firebase emulators,
+  // Playwright's Chromium dependencies, gcloud and Terraform. `pnpm dev` runs the whole stack.
+  "name": "Materia v2",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": { "version": "21", "jdkDistro": "tem" },
+    "ghcr.io/devcontainers/features/terraform:1": { "version": "1.9" },
+    "ghcr.io/dhoeric/features/google-cloud-cli:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "containerEnv": {
+    "PNPM_HOME": "/home/node/.local/share/pnpm"
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "forwardPorts": [4200, 4000, 4400, 5000, 5001, 8080, 8085, 9099, 9199],
+  "portsAttributes": {
+    "4200": { "label": "Materia (web)", "onAutoForward": "openBrowser" },
+    "4000": { "label": "Emulator UI" },
+    "4400": { "label": "Storybook" },
+    "5000": { "label": "Hosting emulator" },
+    "5001": { "label": "Functions emulator" },
+    "8080": { "label": "Firestore emulator" },
+    "8085": { "label": "Pub/Sub emulator" },
+    "9099": { "label": "Auth emulator" },
+    "9199": { "label": "Storage emulator" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "angular.ng-template",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "nrwl.angular-console",
+        "vitest.explorer",
+        "ms-playwright.playwright",
+        "toba.vsfire"
+      ]
+    }
+  },
+  "hostRequirements": { "cpus": 4, "memory": "8gb" }
+}
