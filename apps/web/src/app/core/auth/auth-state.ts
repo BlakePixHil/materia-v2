@@ -1,5 +1,7 @@
 import { computed, DestroyRef, inject, Injectable, InjectionToken, signal } from '@angular/core';
 
+import { DataLifecycle, setFirestoreCacheMode } from '@materia/data-access';
+
 import { AUTH_PORT, type AuthPersistence, type AuthSession, type SignInOutcome } from './auth-port';
 
 /** The signed-in person and their active org, as the shell shows them. */
@@ -27,9 +29,22 @@ export function statusOf(session: AuthSession | null | undefined, mfaRequired: b
   return 'ready';
 }
 
-/** Clean-up run on sign-out: features stop listeners and clear in-memory stores (FND-19 adds Firestore). */
+/**
+ * Clean-up run on sign-out. The data layer (FND-19) stops every listener, resets stores, then
+ * terminates Firestore and clears its IndexedDB cache.
+ */
 export type SignOutCleanup = () => void | Promise<void>;
-export const SIGN_OUT_CLEANUP = new InjectionToken<SignOutCleanup[]>('SIGN_OUT_CLEANUP', { factory: () => [] });
+export const SIGN_OUT_CLEANUP = new InjectionToken<SignOutCleanup[]>('SIGN_OUT_CLEANUP', {
+  factory: () => {
+    const data = inject(DataLifecycle);
+    return [() => data.signOut()];
+  },
+});
+
+/** A shared-computer sign-in (session persistence) keeps Firestore's cache in memory only (FND-19). */
+function useCacheFor(persistence: AuthPersistence): void {
+  setFirestoreCacheMode(persistence === 'session' ? 'memory' : 'persistent');
+}
 
 /** Per-user browser state that mustn't survive sign-out on a shared computer. */
 const USER_STORAGE_KEYS = ['materia.commands.recent'];
@@ -83,11 +98,16 @@ export class AuthState {
     };
   });
   readonly signedIn = computed(() => !!this.sessionSignal());
+  /** True from this tab's sign-out until the next sign-in (so a sign-out from another tab can be told apart). */
+  readonly signingOut = signal(false);
   readonly orgScoped = computed(() => !!this.activeOrgId());
 
   constructor() {
     const stop = this.port.watch((session) => {
       this.sessionSignal.set(session);
+      // Stays set until the next sign-in, so the session ending (which the port may report after
+      // signOut resolves) still reads as this tab's own sign-out.
+      if (session) this.signingOut.set(false);
       for (const resolve of this.readyWaiters.splice(0)) resolve();
     });
     inject(DestroyRef).onDestroy(stop);
@@ -100,10 +120,12 @@ export class AuthState {
   }
 
   signInWithPassword(email: string, password: string, persistence: AuthPersistence = 'local'): Promise<SignInOutcome> {
+    useCacheFor(persistence);
     return this.port.signInWithPassword(email, password, persistence);
   }
 
   signInWithGoogle(persistence: AuthPersistence = 'local'): Promise<SignInOutcome> {
+    useCacheFor(persistence);
     return this.port.signInWithGoogle(persistence);
   }
 
@@ -139,6 +161,21 @@ export class AuthState {
    * Firestore data and per-user storage are deleted, then Identity Platform signs out.
    */
   async signOut(): Promise<void> {
+    this.signingOut.set(true);
+    try {
+      await this.cleanUp();
+      await this.port.signOut();
+    } catch (error) {
+      this.signingOut.set(false);
+      throw error;
+    }
+  }
+
+  /**
+   * Everything sign-out removes from this tab: features clean up, then any Firestore cache left in
+   * IndexedDB and per-user storage are deleted. Also run when another tab signs out.
+   */
+  async cleanUp(): Promise<void> {
     for (const cleanup of this.cleanups) {
       try {
         await cleanup();
@@ -154,7 +191,6 @@ export class AuthState {
         // Storage may be unavailable.
       }
     }
-    await this.port.signOut();
   }
 
   /** For screens that need a port method directly (enrolment, reset links, callables). */

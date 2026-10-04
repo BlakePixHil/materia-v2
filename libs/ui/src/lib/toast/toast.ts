@@ -156,6 +156,11 @@ export class ToastService {
     }
   }
 
+  /** @internal An outlet placed in a template registers itself, so the service doesn't add a second. */
+  registerOutlet(): void {
+    this.outletAttached = true;
+  }
+
   private attachOutlet(): void {
     if (this.outletAttached || !this.document.body) return;
     this.outletAttached = true;
@@ -227,6 +232,7 @@ export class MtToastOutlet {
   private returnTo: HTMLElement | null = null;
 
   constructor() {
+    this.toasts.registerOutlet();
     const onKeydown = (event: KeyboardEvent) => {
       if (event.key !== 'F6' || this.toasts.visible().length === 0) return;
       const section = this.document.querySelector<HTMLElement>('.mt-toaster');

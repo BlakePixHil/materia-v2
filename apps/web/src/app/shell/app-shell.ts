@@ -15,6 +15,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
+import { DataLifecycle } from '@materia/data-access';
 import {
   DialogService,
   MtAvatar,
@@ -307,6 +308,7 @@ export class AppShellComponent {
   private readonly document = inject(DOCUMENT);
   private readonly orgs = inject(OrgService);
   private readonly toasts = inject(ToastService);
+  private readonly data = inject(DataLifecycle);
   protected readonly header = inject(PageHeader);
   /** The org switcher (FND-17). */
   protected readonly orgChoices = this.orgs.orgs;
@@ -375,8 +377,26 @@ export class AppShellComponent {
     this.clerkOpen.update((value) => !value);
   }
 
-  /** Signs out (clearing cached data) and returns to sign-in. */
+  /**
+   * Signs out (clearing cached data) and returns to sign-in. Edits made offline that haven't
+   * reached the server yet would be lost, so the person can choose to wait for them (FND-19).
+   */
   async signOut(): Promise<void> {
+    if (await this.data.hasUnsyncedChanges()) {
+      const discard = await this.dialogs.confirm({
+        title: 'You have unsynced changes',
+        body: 'Some changes you made offline haven’t reached Materia yet. If you sign out now, they’re lost.',
+        confirmLabel: 'Sign out anyway',
+        cancelLabel: 'Wait for them to sync',
+        tone: 'danger',
+      });
+      if (!discard) {
+        void this.data
+          .waitForSync()
+          .then(() => this.toasts.show({ title: 'Your changes are synced', tone: 'success' }));
+        return;
+      }
+    }
     await this.auth.signOut();
     await this.router.navigateByUrl('/auth/sign-in');
   }

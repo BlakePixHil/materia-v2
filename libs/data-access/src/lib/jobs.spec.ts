@@ -1,4 +1,7 @@
-import { pollingJobSource, toJobView } from './jobs';
+import { TestBed } from '@angular/core/testing';
+
+import { firestoreJobSource, toJobView } from './jobs';
+import { ListenerRegistry } from './listener-registry';
 
 describe('toJobView', () => {
   it('reads a job document with safe defaults', () => {
@@ -23,45 +26,77 @@ describe('toJobView', () => {
   });
 });
 
-describe('pollingJobSource', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+/** A fake full-SDK Firestore with one document listener at a time. */
+function fakeFirestore() {
+  const state = {
+    path: null as string | null,
+    next: null as ((snap: unknown) => void) | null,
+    error: null as ((e: unknown) => void) | null,
+  };
+  const sdk = {
+    doc: (_db: unknown, ...path: string[]) => path.join('/'),
+    onSnapshot: (path: string, next: (snap: unknown) => void, error: (e: unknown) => void) => {
+      Object.assign(state, { path, next, error });
+      return () => Object.assign(state, { path: null, next: null, error: null });
+    },
+  };
+  const emit = (data: Record<string, unknown> | undefined) => state.next?.({ data: () => data });
+  return { source: { get: async () => ({ sdk, db: {} }) as never }, state, emit };
+}
 
-  it('reports changes only, and stops polling once the job finishes', async () => {
-    const docs = [
-      { status: 'queued' },
-      { status: 'queued' },
-      { status: 'running', progress: { done: 1, total: 2 } },
-      { status: 'succeeded' },
-    ];
-    const read = vi.fn(async () => docs.shift());
+describe('firestoreJobSource', () => {
+  it('reports changes only, and stops listening once the job finishes', async () => {
+    const fs = fakeFirestore();
+    const registry = TestBed.inject(ListenerRegistry);
     const next = vi.fn();
-    pollingJobSource(read, 100).watch('o', 'j', next, vi.fn());
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(read).toHaveBeenCalledTimes(4);
-    expect(read).toHaveBeenCalledWith('o', 'j');
+    firestoreJobSource(fs.source, registry).watch('o', 'j', next, vi.fn());
+    expect(registry.labels()).toEqual(['orgs/o/jobs/j']);
+    await vi.waitFor(() => expect(fs.state.path).toBe('orgs/o/jobs/j'));
+    fs.emit({ status: 'queued' });
+    fs.emit({ status: 'queued' });
+    fs.emit({ status: 'running', progress: { done: 1, total: 2 } });
+    fs.emit({ status: 'succeeded' });
     expect(next.mock.calls.map(([job]) => job?.status)).toEqual(['queued', 'running', 'succeeded']);
+    expect(fs.state.path).toBeNull();
+    expect(registry.active()).toBe(0);
   });
 
-  it('retries failed reads, reports permission-denied and stops', async () => {
-    const denied = Object.assign(new Error('denied'), { code: 'permission-denied' });
-    const read = vi.fn().mockRejectedValueOnce(new Error('offline')).mockRejectedValueOnce(denied);
+  it('reports a refused read and stops', async () => {
+    const fs = fakeFirestore();
+    const registry = TestBed.inject(ListenerRegistry);
     const error = vi.fn();
-    pollingJobSource(read, 100).watch('o', 'j', vi.fn(), error);
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(read).toHaveBeenCalledTimes(2);
+    firestoreJobSource(fs.source, registry).watch('o', 'j', vi.fn(), error);
+    await vi.waitFor(() => expect(fs.state.error).not.toBeNull());
+    const denied = { code: 'permission-denied' };
+    fs.state.error?.(denied);
     expect(error).toHaveBeenCalledWith(denied);
+    expect(registry.active()).toBe(0);
   });
 
-  it('stops when unsubscribed', async () => {
-    const read = vi.fn(async () => ({ status: 'running' }));
+  it('stops when unsubscribed or on an org switch, and never attaches after an early stop', async () => {
+    const fs = fakeFirestore();
+    const registry = TestBed.inject(ListenerRegistry);
+    const source = firestoreJobSource(fs.source, registry);
     const next = vi.fn();
-    const stop = pollingJobSource(read, 100).watch('o', 'j', next, vi.fn());
-    await vi.advanceTimersByTimeAsync(250);
-    stop();
-    const calls = read.mock.calls.length;
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(read).toHaveBeenCalledTimes(calls);
-    expect(next).toHaveBeenCalledTimes(1);
+    source.watch('o', 'j', next, vi.fn());
+    await vi.waitFor(() => expect(fs.state.path).not.toBeNull());
+    registry.stopAll();
+    expect(fs.state.path).toBeNull();
+
+    source.watch('o', 'j2', next, vi.fn())();
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(fs.state.path).toBeNull();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('reports a failure to load Firestore', async () => {
+    const error = vi.fn();
+    firestoreJobSource({ get: () => Promise.reject(new Error('offline')) }, TestBed.inject(ListenerRegistry)).watch(
+      'o',
+      'j',
+      vi.fn(),
+      error,
+    );
+    await vi.waitFor(() => expect(error).toHaveBeenCalled());
   });
 });

@@ -1,13 +1,19 @@
 import { computed, effect, inject, Injectable, InjectionToken, signal, untracked } from '@angular/core';
 
-import { NULL_TENANCY_PORT, OrgContext, TENANCY_PORT, type UserTenancy } from '@materia/data-access';
+import { DataLifecycle, NULL_TENANCY_PORT, OrgContext, TENANCY_PORT, type UserTenancy } from '@materia/data-access';
 import { can, type CreateOrgInput, type Role } from '@materia/domain';
 
 import { AuthState } from '../auth/auth-state';
+import { CALLABLES } from '../data/callables';
 
-/** Clean-up before switching org: features stop listeners and clear stores (FND-19 adds Firestore). */
+/** Clean-up before switching org: the data layer stops every listener and resets stores (FND-19). */
 export type OrgSwitchCleanup = () => void | Promise<void>;
-export const ORG_SWITCH_CLEANUP = new InjectionToken<OrgSwitchCleanup[]>('ORG_SWITCH_CLEANUP', { factory: () => [] });
+export const ORG_SWITCH_CLEANUP = new InjectionToken<OrgSwitchCleanup[]>('ORG_SWITCH_CLEANUP', {
+  factory: () => {
+    const data = inject(DataLifecycle);
+    return [() => data.orgSwitch()];
+  },
+});
 
 /** Loads a URL as a fresh page (tests replace it). */
 export const PAGE_LOAD = new InjectionToken<(url: string) => void>('PAGE_LOAD', {
@@ -83,6 +89,7 @@ export class OrgService {
   private readonly cleanups = inject(ORG_SWITCH_CLEANUP);
   private readonly load = inject(PAGE_LOAD);
   private readonly online = inject(IS_ONLINE);
+  private readonly callables = inject(CALLABLES);
 
   private readonly uid = computed(() => this.auth.session()?.uid ?? null);
   /** The latest `users/{uid}` tenancy fields, or null before they load. */
@@ -114,9 +121,18 @@ export class OrgService {
   });
 
   constructor() {
-    effect(() => this.context.setOrg(this.auth.activeOrgId()));
+    effect(() => {
+      const session = this.auth.session();
+      this.context.setSession(
+        session ? { uid: session.uid, orgId: session.claims.orgId ?? null, role: session.claims.role ?? null } : null,
+      );
+    });
     effect((onCleanup) => {
-      const uid = this.uid();
+      // OrgContext's uid, not the auth session's: sign-out clears it before Identity Platform signs
+      // out, so nothing reopens Firestore while its cache is being deleted.
+      const uid = this.context.uid();
+      // An org switch stops every listener (OrgContext); follow users/{uid} again for the new session.
+      this.context.generation();
       this.tenancy.set(null);
       if (!uid) return;
       let seen: number | undefined;
@@ -134,8 +150,9 @@ export class OrgService {
     });
   }
 
+  /** The orgs-* callables are idempotent: a retry re-uses the request id. */
   private call<T>(name: string, data: Record<string, unknown>): Promise<T> {
-    return this.auth.api.call<T>(name, { requestId: crypto.randomUUID(), ...data });
+    return this.callables.call<Record<string, unknown>, T>(name, data, { idempotent: true });
   }
 
   /** Onboarding: creates the org, then refreshes the token so its claims apply. */
@@ -188,11 +205,6 @@ export class OrgService {
 
   removeMember(uid: string): Promise<unknown> {
     return this.call('orgs-removeMember', { uid });
-  }
-
-  members() {
-    const orgId = this.auth.activeOrgId();
-    return orgId ? this.port.members(orgId) : Promise.resolve([]);
   }
 
   invites() {

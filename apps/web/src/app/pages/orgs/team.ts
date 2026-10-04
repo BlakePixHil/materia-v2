@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import type { PendingInvite, TeamMember } from '@materia/data-access';
+import { MEMBER_LIST_QUERY, membersRepository } from '@materia/data-access/repository';
 import { ROLES, type Role } from '@materia/domain';
 import {
   MtAvatar,
@@ -31,6 +32,9 @@ const ROLE_LABELS: Record<Role, string> = {
  * The team (`/settings/team`, FND-17): members and pending invites. Owners and admins invite,
  * change roles and remove people; only owners grant the owner role. CORE-21 builds full team
  * settings on this.
+ *
+ * The members list is the data layer's worked example (FND-19): a live, paged query resource from
+ * the members repository, with loading, empty, error and offline states.
  */
 @Component({
   selector: 'mt-team-page',
@@ -77,7 +81,35 @@ const ROLE_LABELS: Record<Role, string> = {
     }
 
     <mt-settings-section title="Members" [headingLevel]="2">
-      @for (member of members(); track member.uid) {
+      @switch (membersState()) {
+        @case ('error') {
+          <mt-note tone="danger">
+            {{ membersError() }}
+            <button mtButton size="sm" (click)="members.refresh()">Try again</button>
+          </mt-note>
+        }
+        @case ('offline') {
+          <mt-note tone="info" role="status">
+            {{
+              team().length
+                ? 'You’re offline. This is the team as it was when you were last connected.'
+                : 'You’re offline. The team will load when you reconnect.'
+            }}
+          </mt-note>
+        }
+        @case ('loading') {
+          <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading members…</p>
+        }
+        @case ('empty') {
+          <p style="margin: 0; color: var(--text-tertiary)">No members yet.</p>
+        }
+      }
+      @if (members.newItems(); as count) {
+        <button mtButton size="sm" (click)="members.refresh()">
+          {{ count === 1 ? '1 new member' : count + ' new members' }}
+        </button>
+      }
+      @for (member of team(); track member.uid) {
         <mt-settings-row
           [title]="member.displayName + (member.uid === me() ? ' (you)' : '')"
           [description]="describe(member)"
@@ -103,8 +135,11 @@ const ROLE_LABELS: Record<Role, string> = {
             }
           </div>
         </mt-settings-row>
-      } @empty {
-        <p style="margin: 0; color: var(--text-tertiary)">{{ loading() ? 'Loading…' : 'No members yet.' }}</p>
+      }
+      @if (members.hasMore()) {
+        <button mtButton size="sm" [loading]="members.loadingMore()" (click)="members.loadMore()">
+          Show more members
+        </button>
       }
     </mt-settings-section>
 
@@ -127,9 +162,30 @@ export class TeamPage {
   private readonly auth = inject(AuthState);
   private readonly toasts = inject(ToastService);
 
-  protected readonly members = signal<TeamMember[]>([]);
+  /** Live members of the active org; the listener stops with the page. */
+  protected readonly members = membersRepository().watchQuery(MEMBER_LIST_QUERY);
+  protected readonly team = computed<TeamMember[]>(() =>
+    this.members.value().map((m) => ({
+      uid: m.id,
+      displayName: m.displayName,
+      email: m.email ?? null,
+      initials: m.initials ?? '?',
+      role: m.role,
+      status: m.status,
+      colour: m.colour ?? '',
+    })),
+  );
+  /** Which state the list is in; rows show under `offline` too, from this device's cache. */
+  protected readonly membersState = computed(() => {
+    const status = this.members.status();
+    if (status !== 'ready') return status;
+    return this.team().length ? 'list' : 'empty';
+  });
+  protected readonly membersError = computed(() => {
+    const error = this.members.error();
+    return error ? errorCopy(error) : '';
+  });
   protected readonly invites = signal<PendingInvite[]>([]);
-  protected readonly loading = signal(true);
   protected readonly inviting = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly confirming = signal<string | null>(null);
@@ -172,18 +228,12 @@ export class TeamPage {
     return member.role !== 'owner' || this.orgs.role() === 'owner';
   }
 
+  /** Re-reads the pending invites (members are live). */
   async reload(): Promise<void> {
     try {
-      const [members, invites] = await Promise.all([
-        this.orgs.members(),
-        this.manage() ? this.orgs.invites() : Promise.resolve([]),
-      ]);
-      this.members.set(members);
-      this.invites.set(invites);
+      this.invites.set(this.manage() ? await this.orgs.invites() : []);
     } catch (error) {
       this.error.set(errorCopy(error));
-    } finally {
-      this.loading.set(false);
     }
   }
 

@@ -29,6 +29,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   chunks: domain.Chunk,
   audit: domain.AuditEntry,
   invites: domain.Invite,
+  members: domain.Member,
 } as never;
 
 describe('firestore.indexes.json', () => {

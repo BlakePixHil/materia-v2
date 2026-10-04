@@ -11,6 +11,8 @@ export const ERROR_CODES = {
   /** The token's org claim is stale (for example just after an org switch): refresh the token and retry once. */
   ORG_CLAIM_MISMATCH: 'failed-precondition',
   MEMBER_INACTIVE: 'permission-denied',
+  /** A live read was refused after a role change or removal (FND-19): route to the no-access page, don't retry. */
+  ACCESS_REVOKED: 'permission-denied',
   PERMISSION_DENIED: 'permission-denied',
   APP_CHECK_FAILED: 'unauthenticated',
   INVALID_ARGUMENT: 'invalid-argument',

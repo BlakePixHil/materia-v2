@@ -1,7 +1,6 @@
 import { FirebaseError, getApp, getApps, initializeApp } from 'firebase/app';
 import {
   applyActionCode,
-  browserLocalPersistence,
   browserSessionPersistence,
   confirmPasswordReset,
   connectAuthEmulator,
@@ -10,6 +9,7 @@ import {
   getMultiFactorResolver,
   getRedirectResult,
   GoogleAuthProvider,
+  indexedDBLocalPersistence,
   linkWithCredential,
   multiFactor,
   onIdTokenChanged,
@@ -173,8 +173,11 @@ export function createFirebaseAuthPort(): AuthPort {
     }
   };
 
+  // "Stay signed in" uses IndexedDB, getAuth's default. Moving the user to localStorage instead made
+  // every newly opened tab migrate it back and delete the localStorage copy, which signed the
+  // first tab out.
   const persist = (persistence: AuthPersistence) =>
-    setPersistence(auth, persistence === 'session' ? browserSessionPersistence : browserLocalPersistence);
+    setPersistence(auth, persistence === 'session' ? browserSessionPersistence : indexedDBLocalPersistence);
 
   // Finishes a redirect sign-in (the fallback when pop-ups are blocked).
   void getRedirectResult(auth)

@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/angular';
 import type { JobSource, JobView } from '@materia/data-access';
 import { ToastService } from '@materia/ui';
 
-import { JOB_SOURCE, JobProgress, jobStatusText, lazyFirebaseJobSource } from './job-progress';
+import { JOB_SOURCE, JobProgress, jobStatusText } from './job-progress';
 import { AuthState } from '../auth/auth-state';
 
 /** A job source the test drives by hand. */
@@ -121,35 +121,5 @@ describe('jobStatusText', () => {
       jobStatusText(view({ status: 'failed', error: { code: 'NOT_A_CODE', message: '', retryable: false } })),
     ).toMatch(/Something went wrong/);
     expect(jobStatusText(view({ status: 'failed' }))).toMatch(/Something went wrong/);
-  });
-});
-
-describe('lazyFirebaseJobSource', () => {
-  it('loads the source once and forwards watches; a stop before loading cancels the watch', async () => {
-    const { source, watchers } = fakeSource();
-    const load = vi.fn(async () => source);
-    const lazy = lazyFirebaseJobSource(load);
-    const stop = lazy.watch(
-      'o',
-      'j1',
-      () => undefined,
-      () => undefined,
-    );
-    lazy.watch(
-      'o',
-      'j2',
-      () => undefined,
-      () => undefined,
-    )();
-    await vi.waitFor(() => expect(watchers).toHaveLength(1));
-    expect(load).toHaveBeenCalledTimes(1);
-    stop();
-    expect(watchers[0]?.stopped).toBe(true);
-  });
-
-  it('reports a failed load as a watch error', async () => {
-    const error = vi.fn();
-    lazyFirebaseJobSource(() => Promise.reject(new Error('offline'))).watch('o', 'j', () => undefined, error);
-    await vi.waitFor(() => expect(error).toHaveBeenCalled());
   });
 });

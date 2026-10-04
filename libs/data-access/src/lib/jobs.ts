@@ -1,6 +1,7 @@
-import type { FirebaseApp } from 'firebase/app';
-
 import type { JobProblem, JobStatus } from '@materia/domain';
+
+import type { FirestoreSource } from './firestore/firestore-client';
+import type { ListenerRegistry } from './listener-registry';
 
 /** What the UI needs from `orgs/{orgId}/jobs/{jobId}` (FND-24). */
 export interface JobView {
@@ -33,68 +34,47 @@ export function toJobView(data: Record<string, unknown> | undefined): JobView | 
   };
 }
 
-/** How often a running job is re-read; jobs report progress at most once a second. */
-export const JOB_POLL_MS = 2_000;
-
 const isFinished = (job: JobView | null) => job?.status === 'succeeded' || job?.status === 'failed';
-const isDenied = (error: unknown) => (error as { code?: string } | null)?.code === 'permission-denied';
 
 /**
- * Polls the job document until it succeeds or fails. Read failures are retried on the next poll,
- * except `permission-denied`, which stops the watch and is reported.
+ * The Firestore implementation (FND-19): a snapshot listener on the job document, tracked by the
+ * `ListenerRegistry`, that stops itself once the job succeeds or fails. A refused read
+ * (`permission-denied`) is reported; the rules let only the member who started a job read it.
  */
-export function pollingJobSource(
-  read: (orgId: string, jobId: string) => Promise<Record<string, unknown> | undefined>,
-  pollMs = JOB_POLL_MS,
-): JobSource {
+export function firestoreJobSource(source: FirestoreSource, registry: ListenerRegistry): JobSource {
   return {
     watch(orgId, jobId, next, error) {
       let stopped = false;
-      let timer: ReturnType<typeof setTimeout> | undefined;
+      let unsubscribe: (() => void) | undefined;
       let last: string | undefined;
-      const poll = async () => {
-        try {
-          const job = toJobView(await read(orgId, jobId));
-          if (stopped) return;
-          const key = JSON.stringify(job);
-          if (key !== last) {
-            last = key;
-            next(job);
-          }
-          if (isFinished(job)) return;
-        } catch (e) {
-          if (stopped) return;
-          if (isDenied(e)) {
+      const release = registry.add(
+        () => {
+          stopped = true;
+          unsubscribe?.();
+        },
+        { label: `orgs/${orgId}/jobs/${jobId}` },
+      );
+      source.get().then(({ sdk, db }) => {
+        if (stopped) return;
+        unsubscribe = sdk.onSnapshot(
+          sdk.doc(db, 'orgs', orgId, 'jobs', jobId),
+          (snap) => {
+            if (stopped) return;
+            const job = toJobView(snap.data());
+            const key = JSON.stringify(job);
+            if (key !== last) {
+              last = key;
+              next(job);
+            }
+            if (isFinished(job)) release();
+          },
+          (e) => {
+            release();
             error(e);
-            return;
-          }
-        }
-        timer = setTimeout(() => void poll(), pollMs);
-      };
-      void poll();
-      return () => {
-        stopped = true;
-        clearTimeout(timer);
-      };
+          },
+        );
+      }, error);
+      return release;
     },
   };
-}
-
-/**
- * The Firestore implementation, on the Lite SDK (loaded lazily by the caller). The full SDK's
- * listeners would put its lazy chunk over the 150 kB budget (see `firebaseTenancyPort`), so the
- * document is polled every two seconds while the job runs. The rules let only the member who
- * started a job read it.
- */
-export async function createFirestoreJobSource(app: FirebaseApp, options: { emulators: boolean }): Promise<JobSource> {
-  const { connectFirestoreEmulator, doc, getDoc, getFirestore } = await import('firebase/firestore/lite');
-  const firestore = getFirestore(app);
-  if (options.emulators) {
-    try {
-      connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
-    } catch {
-      // Another part of the app already connected this instance to the emulator.
-    }
-  }
-  return pollingJobSource(async (orgId, jobId) => (await getDoc(doc(firestore, 'orgs', orgId, 'jobs', jobId))).data());
 }

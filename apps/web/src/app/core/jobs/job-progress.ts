@@ -12,37 +12,24 @@ import {
   untracked,
 } from '@angular/core';
 
-import type { JobSource, JobView } from '@materia/data-access';
+import {
+  FirestoreClient,
+  firestoreJobSource,
+  ListenerRegistry,
+  type JobSource,
+  type JobView,
+} from '@materia/data-access';
 import { isErrorCode } from '@materia/domain';
 import { MtProgress, ToastService } from '@materia/ui';
 
 import { AuthState } from '../auth/auth-state';
 import { ERROR_COPY } from '../error-copy';
 
+/** Watches `orgs/{orgId}/jobs/{jobId}` with a snapshot listener; Firestore loads on first use (FND-19). */
 export const JOB_SOURCE = new InjectionToken<JobSource>('JOB_SOURCE', {
   providedIn: 'root',
-  factory: () => lazyFirebaseJobSource(),
+  factory: () => firestoreJobSource(inject(FirestoreClient), inject(ListenerRegistry)),
 });
-
-/** Loads the Firestore SDK on first use, so pages that never watch a job don't pay for it. */
-export function lazyFirebaseJobSource(
-  load = () => import('./firebase-job-source').then((m) => m.createJobSource()),
-): JobSource {
-  let source: Promise<JobSource> | undefined;
-  return {
-    watch(orgId, jobId, next, error) {
-      let stop: (() => void) | undefined;
-      let stopped = false;
-      (source ??= load()).then((s) => {
-        if (!stopped) stop = s.watch(orgId, jobId, next, error);
-      }, error);
-      return () => {
-        stopped = true;
-        stop?.();
-      };
-    },
-  };
-}
 
 const STAGE_COPY: Record<string, string> = {
   rendering: 'Preparing the document',
