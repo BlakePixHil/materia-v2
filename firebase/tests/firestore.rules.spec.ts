@@ -6,6 +6,7 @@ import {
   collection,
   collectionGroup,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -21,7 +22,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 
-import { PERMISSIONS, ROLES, type Role } from '@materia/domain';
+import { MatterTaskCreateInput, PERMISSIONS, ROLES, type Role } from '@materia/domain';
 import { ENTITY_FACTORIES } from '@materia/test-utils';
 
 import { changeFor, COLLECTIONS, rolesFor, seedData, specFor, type CollectionSpec } from './support/collections';
@@ -426,13 +427,30 @@ describe('collection groups', () => {
 
   it('a member queries their org across matters', async () => {
     const firestore = db(env, 'paralegal');
-    await assertSucceeds(
-      getDocs(
-        query(collectionGroup(firestore, 'tasks'), where('orgId', '==', ORG), where('matterId', '==', 'matter-1')),
-      ),
-    );
     await assertSucceeds(getDocs(query(collectionGroup(firestore, 'deadlines'), where('orgId', '==', ORG))));
     await assertSucceeds(getDocs(query(collectionGroup(firestore, 'timeEntries'), where('orgId', '==', ORG))));
+  });
+
+  // CORE-08 (ADR-026): tasks follow matter access, which a group query can't check per matter.
+  it('every matter’s tasks through the group need privileged.view; my own are always mine', async () => {
+    const byMatter = (firestore: Firestore) =>
+      getDocs(
+        query(collectionGroup(firestore, 'tasks'), where('orgId', '==', ORG), where('matterId', '==', 'matter-1')),
+      );
+    await assertSucceeds(byMatter(db(env, 'lawyer')));
+    await assertFails(byMatter(db(env, 'paralegal')));
+    await assertFails(byMatter(db(env, 'readonly')));
+    for (const role of ['paralegal', 'readonly'] as const) {
+      await assertSucceeds(
+        getDocs(
+          query(
+            collectionGroup(db(env, role), 'tasks'),
+            where('orgId', '==', ORG),
+            where('assigneeUid', '==', uidFor(role)),
+          ),
+        ),
+      );
+    }
   });
 
   it('"my tasks" includes my personal tasks', async () => {
@@ -1076,6 +1094,246 @@ describe('intake drafts (CORE-05)', () => {
     await assertFails(updateDoc(ref, stamped({ createdBy: 'someone-else', expireAt: expiring() }, uid)));
     await assertFails(updateDoc(ref, { step: 'review', expireAt: expiring() }));
     await assertSucceeds(updateDoc(ref, stamped({ step: 'review', expireAt: expiring() }, uid)));
+  });
+});
+
+describe('tasks (CORE-08)', () => {
+  const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-tasks-privileged`;
+  const DELETED_MATTER = `orgs/${ORG}/matters/matter-tasks-deleted`;
+  const TASK = `${MATTER}/tasks/doc-1`;
+  const LAWYER = uidFor('lawyer');
+  const personalPath = (owner: string, id: string) => `orgs/${ORG}/members/${owner}/tasks/${id}`;
+
+  /** A valid client create of a matter task, stamped for `uid`. */
+  const newTask = (uid: string, matterId = 'matter-1', extra: Record<string, unknown> = {}) => ({
+    title: 'Request bank valuation letters',
+    status: 'todo',
+    priority: 'high',
+    dueDate: '2026-10-20',
+    assigneeUid: uid,
+    checklist: [{ id: 'c1', text: 'Fictional Bank', done: false }],
+    order: 1024,
+    source: 'manual',
+    orgId: ORG,
+    matterId,
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+  const newPersonal = (uid: string, extra: Record<string, unknown> = {}) =>
+    newTask(uid, 'unused', { matterId: null, ...extra });
+
+  beforeAll(async () => {
+    await seedAdmin(env, async (f) => {
+      const matter = seedData(specFor('matters'));
+      await setDoc(doc(f, PRIVILEGED_MATTER), { ...matter, privileged: true });
+      await setDoc(doc(f, `${PRIVILEGED_MATTER}/tasks/t-1`), {
+        ...seedData(specFor('tasks')),
+        matterId: 'matter-tasks-privileged',
+      });
+      await setDoc(doc(f, DELETED_MATTER), { ...matter, deletedAt: Timestamp.fromMillis(1), deletedBy: 'x' });
+      await setDoc(doc(f, `${DELETED_MATTER}/tasks/t-1`), {
+        ...seedData(specFor('tasks')),
+        matterId: 'matter-tasks-deleted',
+      });
+    });
+  });
+
+  it('the create whitelist matches MatterTaskCreateInput in libs/domain', () => {
+    const rules = readFileSync(path.resolve(import.meta.dirname, '../firestore.rules'), 'utf8');
+    const listed = /function taskCreateFields\(\) \{\s*return \[([^\]]*)\]/.exec(rules)?.[1] ?? '';
+    const fields = [...listed.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]);
+    expect(fields.sort()).toEqual(Object.keys(MatterTaskCreateInput.shape).sort());
+  });
+
+  it.each(ROLES)('creating a matter task as %s follows task.edit', async (role) => {
+    const uid = uidFor(role);
+    const create = setDoc(doc(db(env, role), `${MATTER}/tasks/new-${role}`), newTask(uid));
+    await (allows(role, 'task.edit') ? assertSucceeds(create) : assertFails(create));
+  });
+
+  it('a create needs the path’s org and matter, a manual source and valid values', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const attempt = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${MATTER}/tasks/${id}`), newTask(uid, 'matter-1', extra)));
+    await attempt('bad-org', { orgId: OTHER_ORG });
+    await attempt('bad-matter', { matterId: 'matter-2' });
+    await attempt('template', { source: 'template' });
+    await attempt('completed', { completedAt: serverTimestamp() });
+    await attempt('counted', { countedOpen: true });
+    await attempt('tpl-key', { templateTaskKey: 'obtain_death_certificate' });
+    await attempt('blank', { title: '   ' });
+    await attempt('long', { title: 'x'.repeat(501) });
+    await attempt('status', { status: 'waiting' });
+    await attempt('priority', { priority: 'p1' });
+    await attempt('date', { dueDate: '20/10/2026' });
+    await attempt('order', { order: '1' });
+    await attempt('checklist', { checklist: 'none' });
+    await attempt('group', { group: 'g'.repeat(121) });
+    await attempt('assignee', { assigneeUid: '' });
+    await attempt('creator', { createdBy: 'someone-else' });
+    await attempt('created-at', { createdAt: Timestamp.fromMillis(0) });
+    await attempt('version', { schemaVersion: 2 });
+    const { status: _status, ...withoutStatus } = newTask(uid);
+    await assertFails(setDoc(doc(firestore, `${MATTER}/tasks/no-status`), withoutStatus));
+    // The minimum: no due date, assignee, description or group.
+    const minimal = newTask(uid, 'matter-1', { order: 2 });
+    delete (minimal as Record<string, unknown>)['dueDate'];
+    delete (minimal as Record<string, unknown>)['assigneeUid'];
+    await assertSucceeds(setDoc(doc(firestore, `${MATTER}/tasks/minimal`), minimal));
+    await assertSucceeds(
+      setDoc(
+        doc(firestore, `${MATTER}/tasks/full`),
+        newTask(uid, 'matter-1', { descriptionMd: 'Fictional notes', deadlineId: 'dl-1', group: 'Grant' }),
+      ),
+    );
+  });
+
+  it('privileged matters: tasks follow privileged.view', async () => {
+    for (const role of ROLES) {
+      const read = getDoc(doc(db(env, role), `${PRIVILEGED_MATTER}/tasks/t-1`));
+      await (allows(role, 'privileged.view') ? assertSucceeds(read) : assertFails(read));
+    }
+    const paralegal = db(env, 'paralegal');
+    await assertFails(getDocs(collection(paralegal, `${PRIVILEGED_MATTER}/tasks`)));
+    await assertFails(
+      setDoc(
+        doc(paralegal, `${PRIVILEGED_MATTER}/tasks/p-new`),
+        newTask(uidFor('paralegal'), 'matter-tasks-privileged'),
+      ),
+    );
+    await assertFails(
+      updateDoc(doc(paralegal, `${PRIVILEGED_MATTER}/tasks/t-1`), stamped({ status: 'done' }, uidFor('paralegal'))),
+    );
+    const lawyer = db(env, 'lawyer');
+    await assertSucceeds(getDocs(collection(lawyer, `${PRIVILEGED_MATTER}/tasks`)));
+    await assertSucceeds(
+      setDoc(doc(lawyer, `${PRIVILEGED_MATTER}/tasks/l-new`), newTask(LAWYER, 'matter-tasks-privileged')),
+    );
+  });
+
+  it('a deleted matter’s tasks are frozen', async () => {
+    const lawyer = db(env, 'lawyer');
+    await assertFails(setDoc(doc(lawyer, `${DELETED_MATTER}/tasks/new`), newTask(LAWYER, 'matter-tasks-deleted')));
+    await assertFails(updateDoc(doc(lawyer, `${DELETED_MATTER}/tasks/t-1`), stamped({ status: 'done' }, LAWYER)));
+  });
+
+  it('updates the whitelisted fields with valid values only', async () => {
+    await seed(specFor('tasks'));
+    const uid = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), TASK);
+    await assertSucceeds(
+      updateDoc(
+        ref,
+        stamped(
+          {
+            title: 'Renamed',
+            status: 'in_progress',
+            priority: 'urgent',
+            assigneeUid: uidFor('lawyer'),
+            dueDate: '2026-11-02',
+            checklist: [{ id: 'c1', text: 'Fictional item', done: true }],
+            order: 1536.5,
+            group: 'Estate administration',
+          },
+          uid,
+        ),
+      ),
+    );
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), dueDate: deleteField(), assigneeUid: deleteField() }));
+    await assertFails(updateDoc(ref, stamped({ status: 'waiting' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ title: '' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ dueDate: 'tomorrow' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ descriptionMd: 'Not editable here' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ deadlineId: 'dl-2' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ source: 'clerk' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ completedAt: serverTimestamp() }, uid)));
+    await assertFails(updateDoc(ref, stamped({ countedOpen: false }, uid)));
+    await assertFails(updateDoc(ref, stamped({ matterId: 'matter-2' }, uid)));
+  });
+
+  it('soft delete and restore, never a hard delete', async () => {
+    await seed(specFor('tasks'));
+    const uid = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), TASK);
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: serverTimestamp(), deletedBy: uid }));
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: null, deletedBy: null }));
+    await assertFails(deleteDoc(ref));
+    await assertFails(
+      updateDoc(doc(db(env, 'readonly'), TASK), {
+        ...stamped({}, uidFor('readonly')),
+        deletedAt: serverTimestamp(),
+        deletedBy: uidFor('readonly'),
+      }),
+    );
+  });
+
+  describe('personal tasks', () => {
+    it('their owner creates them, assigned to themselves, with matterId null', async () => {
+      const firestore = db(env, 'lawyer');
+      await assertSucceeds(setDoc(doc(firestore, personalPath(LAWYER, 'p-new')), newPersonal(LAWYER)));
+      await assertFails(
+        setDoc(
+          doc(firestore, personalPath(LAWYER, 'p-other')),
+          newPersonal(LAWYER, { assigneeUid: uidFor('paralegal') }),
+        ),
+      );
+      await assertFails(
+        setDoc(doc(firestore, personalPath(LAWYER, 'p-matter')), newPersonal(LAWYER, { matterId: 'matter-1' })),
+      );
+      await assertFails(
+        setDoc(doc(firestore, personalPath(LAWYER, 'p-tpl')), newPersonal(LAWYER, { countedOpen: true })),
+      );
+    });
+
+    it('nobody else creates, reads, edits or lists them, owners and admins included', async () => {
+      for (const role of ['owner', 'admin', 'paralegal'] as const) {
+        const firestore = db(env, role);
+        await assertFails(setDoc(doc(firestore, personalPath(LAWYER, `p-by-${role}`)), newPersonal(LAWYER)));
+        await assertFails(getDoc(doc(firestore, personalPath(LAWYER, 'p-new'))));
+        await assertFails(getDocs(collection(firestore, `orgs/${ORG}/members/${LAWYER}/tasks`)));
+        await assertFails(
+          updateDoc(doc(firestore, personalPath(LAWYER, 'p-new')), stamped({ status: 'done' }, uidFor(role))),
+        );
+        await assertFails(
+          getDocs(query(collectionGroup(firestore, 'tasks'), where('orgId', '==', ORG), where('matterId', '==', null))),
+        );
+        await assertFails(
+          getDocs(
+            query(collectionGroup(firestore, 'tasks'), where('orgId', '==', ORG), where('assigneeUid', '==', LAWYER)),
+          ),
+        );
+      }
+    });
+
+    it('their owner edits them but can’t hand them to someone else', async () => {
+      const firestore = db(env, 'lawyer');
+      const ref = doc(firestore, personalPath(LAWYER, 'p-new'));
+      await assertSucceeds(updateDoc(ref, stamped({ status: 'done', order: 3 }, LAWYER)));
+      await assertFails(updateDoc(ref, stamped({ assigneeUid: uidFor('paralegal') }, LAWYER)));
+      await assertFails(updateDoc(ref, stamped({ priority: 'p1' }, LAWYER)));
+      await assertSucceeds(updateDoc(ref, { ...stamped({}, LAWYER), deletedAt: serverTimestamp(), deletedBy: LAWYER }));
+      await assertFails(deleteDoc(ref));
+    });
+
+    it('"my tasks" lists my matter and personal tasks, open ones by due date', async () => {
+      const firestore = db(env, 'lawyer');
+      await assertSucceeds(
+        getDocs(
+          query(
+            collectionGroup(firestore, 'tasks'),
+            where('orgId', '==', ORG),
+            where('assigneeUid', '==', LAWYER),
+            where('status', 'in', ['todo', 'in_progress', 'blocked']),
+            orderBy('dueDate'),
+          ),
+        ),
+      );
+    });
   });
 });
 
