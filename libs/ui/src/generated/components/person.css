@@ -1,3 +1,7 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-person). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-person { display: flex; align-items: center; gap: var(--space-12); }
 .mt-person .nm { font: 600 18px/24px var(--font-sans); letter-spacing: -.015em; }
+.mt-person-header { gap: var(--space-12); }
+.mt-person .nm { margin: 0; }
+.mt-person-text { gap: 2px; }
+.mt-person-sub { font: 400 13px/18px var(--font-sans); color: var(--text-tertiary); }

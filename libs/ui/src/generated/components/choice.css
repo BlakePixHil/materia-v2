@@ -9,3 +9,7 @@
 .mt-choice-card .ts { font: 400 13px/18px var(--font-sans); color: var(--text-secondary); margin-top: 2px; }
 .mt-choice-card .glyph { width: 36px; height: 36px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-sunken); color: var(--icon-default); flex: none; }
 .mt-choice-card[data-selected] .glyph { background: var(--bg-brand); color: var(--text-on-brand); }
+.mt-choice-card[data-focus-visible] { box-shadow: var(--focus-ring); }
+.mt-choice-card[data-selected][data-focus-visible] { box-shadow: 0 0 0 1px var(--border-focus), var(--focus-ring); }
+.mt-choice-card[data-disabled] { cursor: not-allowed; color: var(--text-disabled); }
+.mt-choice-card[data-disabled] .tt, .mt-choice-card[data-disabled] .ts { color: var(--text-disabled); }

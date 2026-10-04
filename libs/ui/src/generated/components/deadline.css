@@ -2,7 +2,8 @@
 .mt-deadline { display: inline-flex; align-items: center; gap: var(--space-4); height: 22px; padding: 0 var(--space-6); border-radius: var(--radius-xs); font: 500 12px/16px var(--font-sans); white-space: nowrap; background: var(--bg-sunken); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .mt-deadline .mt-i { width: 13px; height: 13px; }
 .mt-deadline[data-urgency="overdue"] { background: var(--bg-danger-subtle); color: var(--text-danger); }
-.mt-deadline[data-urgency="today"] { background: var(--bg-brand); color: var(--text-on-brand); }
+.mt-deadline[data-urgency="today"] { background: var(--bg-brand-hover); color: var(--text-on-brand); }
 .mt-deadline[data-urgency="soon"] { background: var(--bg-warning-subtle); color: var(--text-warning); }
 .mt-deadline[data-urgency="done"] { background: var(--bg-success-subtle); color: var(--text-success); }
 .mt-deadline[data-urgency="upcoming"] .mt-i { color: var(--icon-default); }
+.mt-deadline:focus-visible { outline: none; box-shadow: var(--focus-ring); }

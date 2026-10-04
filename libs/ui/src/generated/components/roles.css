@@ -1,2 +1,3 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-roles). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-roles { display: flex; flex-wrap: wrap; gap: var(--space-6); }
+.mt-roles { margin: 0; padding: 0; list-style: none; }

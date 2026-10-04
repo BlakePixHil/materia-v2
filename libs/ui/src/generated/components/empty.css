@@ -3,3 +3,4 @@
 .mt-empty .glyph { width: 40px; height: 40px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-sunken); color: var(--icon-default); margin-bottom: var(--space-4); }
 .mt-empty h3 { margin: 0; font: 600 14px/20px var(--font-sans); }
 .mt-empty p { margin: 0 0 var(--space-8); max-width: 360px; font: 400 13px/18px var(--font-sans); color: var(--text-tertiary); }
+.mt-empty > .mt-row { justify-content: center; }

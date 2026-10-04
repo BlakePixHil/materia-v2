@@ -20,6 +20,7 @@
           "libs/ui/src/generated/tokens.css",
           "libs/ui/src/generated/components/base.css",
           "libs/ui/src/generated/components/layout.css",
+          "libs/ui/src/generated/components/card.css",
           "libs/ui/src/styles/base.css",
           "libs/ui/src/foundations/foundations.css"
         ]
@@ -42,6 +43,7 @@
           "libs/ui/src/generated/tokens.css",
           "libs/ui/src/generated/components/base.css",
           "libs/ui/src/generated/components/layout.css",
+          "libs/ui/src/generated/components/card.css",
           "libs/ui/src/styles/base.css",
           "libs/ui/src/foundations/foundations.css"
         ]

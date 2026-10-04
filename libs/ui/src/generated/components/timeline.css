@@ -1,2 +1,6 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-timeline). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-timeline { display: flex; flex-direction: column; }
+.mt-timeline { margin: 0; padding: 0; list-style: none; }
+.mt-timeline-day + .mt-timeline-day { margin-top: var(--space-16); }
+.mt-timeline-date { margin: 0 0 var(--space-8); font: 500 11px/14px var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--text-tertiary); }
+.mt-timeline-more { display: flex; justify-content: center; padding-top: var(--space-12); }

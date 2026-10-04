@@ -4,3 +4,4 @@
 .mt-stat .v { font: 600 28px/32px var(--font-sans); letter-spacing: -.02em; font-variant-numeric: proportional-nums; color: var(--text-primary); }
 .mt-stat .v small { font: 500 14px/20px var(--font-sans); letter-spacing: 0; color: var(--text-tertiary); margin-left: 2px; }
 .mt-stat .f { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); display: flex; align-items: center; gap: var(--space-8); }
+.mt-stat .f > .mt-progress, .mt-stat .f > mt-sparkline { flex: 1; }
