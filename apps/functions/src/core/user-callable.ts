@@ -139,7 +139,8 @@ const userCallableDeps = (): UserCallableDeps => ({
 export function defineUserCallable<TSchema extends z.ZodType, TOutput>(
   def: UserCallableDefinition<TSchema, TOutput>,
 ): CallableFunction<z.input<TSchema>, Promise<TOutput>> {
-  return onCall({ region: REGION, enforceAppCheck: (def.appCheck ?? true) && !isEmulator() }, (request) =>
-    runUserCallable(def, request as UserCallableRequest, userCallableDeps()),
+  return onCall(
+    { region: REGION, invoker: 'public', enforceAppCheck: (def.appCheck ?? true) && !isEmulator() },
+    (request) => runUserCallable(def, request as UserCallableRequest, userCallableDeps()),
   );
 }
