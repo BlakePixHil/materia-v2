@@ -4,9 +4,9 @@ import { busyPorts, devPorts } from './dev.ts';
 import {
   buildDataset,
   type FixtureName,
+  LOAD_MATTER_COUNT,
   SEED_ACCOUNTS,
   SEED_ORG_ID,
-  searchTokens,
   stripUndefined,
 } from './seed/dataset.ts';
 import { resolveSeedTarget, SeedGuardError } from './seed/guard.ts';
@@ -76,6 +76,7 @@ describe('seed arguments', () => {
       ifEmpty: true,
       verify: true,
     });
+    expect(parseSeedArgs(['--scenario=load'])).toMatchObject({ scenario: 'load' });
     expect(() => parseSeedArgs(['--scenario=prod'])).toThrow(/Unknown scenario/);
     expect(() => parseSeedArgs(['--nope'])).toThrow();
   });
@@ -170,27 +171,45 @@ describe('seed dataset', () => {
   it('is deterministic for the same anchor', () => {
     expect(buildDataset({ anchor, fixtures })).toEqual(dataset);
   });
+
+  it('numbers matters as matters-createMatter would, with reservations, search and a counter past them (CORE-03)', () => {
+    const matters = docsUnder('matters').map((d) => d.data as D.Matter & { deletedAt: unknown });
+    const year = D.matterNumberYear(new Date(`${anchor}T00:00:00Z`), 'Australia/Melbourne');
+    expect(matters.map((m) => m.number)).toEqual(
+      Array.from({ length: 12 }, (_, i) => D.formatMatterNumber('HV-{YYYY}-{seq:4}', year, i + 1)),
+    );
+    for (const matter of matters) {
+      expect(matter.deletedAt).toBeNull();
+      expect(matter.lastActivityAt).toBeInstanceOf(Date);
+      const reservation = docsUnder('matterNumbers').find((d) => d.data['number'] === matter.number);
+      expect(reservation?.path).toBe(`orgs/${SEED_ORG_ID}/matterNumbers/${D.matterNumberKey(matter.number)}`);
+    }
+    expect(new Set(matters.map((m) => m.lastActivityAt?.getTime())).size).toBe(12);
+    const doyle = matters.find((m) => m.title === 'Estate of Margaret Doyle');
+    // The client's and the deceased's names are searchable, as matters-denormalise writes them.
+    expect(doyle?.search).toEqual(expect.arrayContaining(['catherine', 'doyle', 'margaret']));
+    expect(docsUnder('counters').map((d) => [d.path.split('/').at(-1), d.data['next']])).toEqual([
+      [`matter-${year}`, 13],
+    ]);
+  });
+
+  it('the load scenario adds 500 varied matters on top of the practice, numbered after it', () => {
+    const load = buildDataset({ anchor, fixtures, scenario: 'load' });
+    const matters = load.docs.filter((d) => /\/matters\/[^/]+$/.test(d.path)).map((d) => d.data as D.Matter);
+    expect(matters).toHaveLength(12 + LOAD_MATTER_COUNT);
+    expect(new Set(matters.map((m) => m.number)).size).toBe(matters.length);
+    expect(new Set(matters.map((m) => m.status))).toEqual(new Set(D.MatterStatusSchema.options));
+    expect(new Set(matters.map((m) => m.responsibleUid)).size).toBe(3);
+    const counter = load.docs.find((d) => /\/counters\//.test(d.path));
+    expect(counter?.data['next']).toBe(13 + LOAD_MATTER_COUNT);
+    for (const doc of load.docs) {
+      const entity = registry.find((e) => e.pattern.test(doc.path));
+      expect(entity?.schema.safeParse(stripUndefined(doc.data)).success, doc.path).toBe(true);
+    }
+  });
 });
 
 describe('seed helpers', () => {
-  it('makes prefix search tokens', () => {
-    expect(searchTokens('Nguyen v Nguyen', 'HV-2026-0002')).toEqual([
-      'ngu',
-      'nguy',
-      'nguye',
-      'nguyen',
-      'hv-',
-      'hv-2',
-      'hv-20',
-      'hv-202',
-      'hv-2026',
-      'hv-2026-',
-      'hv-2026-0',
-      'hv-2026-00',
-    ]);
-    expect(searchTokens(undefined)).toEqual([]);
-  });
-
   it('strips undefined values deeply, leaving dates and arrays alone', () => {
     const at = new Date(0);
     expect(stripUndefined({ a: 1, b: undefined, c: { d: undefined, e: [1, { f: undefined }] }, at })).toEqual({

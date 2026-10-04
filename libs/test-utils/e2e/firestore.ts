@@ -45,3 +45,25 @@ export async function setEmulatorDocument(
   );
   expect(response.ok(), await response.text()).toBe(true);
 }
+
+/**
+ * Writes (replaces) many documents in batched commits through the emulator's admin access: for
+ * bulk fixtures such as `buildLoadMatters` from `@materia/test-utils` (500 matters, CORE-03).
+ */
+export async function setEmulatorDocuments(
+  request: APIRequestContext,
+  docs: readonly { path: string; data: Record<string, unknown> }[],
+  batchSize = 250,
+): Promise<void> {
+  const root = `projects/${EMULATOR_PROJECT}/databases/(default)/documents`;
+  for (let i = 0; i < docs.length; i += batchSize) {
+    const writes = docs.slice(i, i + batchSize).map(({ path, data }) => ({
+      update: { name: `${root}/${path}`, fields: toFirestoreRestFields(data) },
+    }));
+    const response = await request.post(`${FIRESTORE_EMULATOR}/v1/${root}:commit`, {
+      headers: ADMIN,
+      data: { writes },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+  }
+}
