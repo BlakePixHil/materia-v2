@@ -1,15 +1,7 @@
-import { firebaseTenancyPort, sortMembers, toUserTenancy, type TeamMember } from './tenancy';
+import { TestBed } from '@angular/core/testing';
 
-const member = (over: Partial<TeamMember>): TeamMember => ({
-  uid: 'u',
-  displayName: 'Alex Fictional',
-  email: null,
-  initials: 'AF',
-  role: 'lawyer',
-  status: 'active',
-  colour: '#346CFC',
-  ...over,
-});
+import { ListenerRegistry } from './listener-registry';
+import { firestoreTenancyPort, NULL_TENANCY_PORT, toUserTenancy } from './tenancy';
 
 describe('toUserTenancy', () => {
   it('reads the claims version and memberships, defaulting what is missing', () => {
@@ -21,84 +13,79 @@ describe('toUserTenancy', () => {
   });
 });
 
-describe('sortMembers', () => {
-  it('hides removed members, lists suspended ones last, and tells same names apart by email', () => {
-    const sorted = sortMembers([
-      member({ uid: 'c', displayName: 'Sam Lee', email: 'sam.b@example.test' }),
-      member({ uid: 'r', displayName: 'Aaron Gone', status: 'removed' }),
-      member({ uid: 's', displayName: 'Abby Paused', status: 'suspended' }),
-      member({ uid: 'a', displayName: 'Sam Lee', email: 'sam.a@example.test' }),
-      member({ uid: 'b', displayName: 'Bea Fictional' }),
-    ]);
-    expect(sorted.map((m) => m.uid)).toEqual(['b', 'a', 'c', 's']);
-  });
-});
-
-const firestoreMock = vi.hoisted(() => {
-  const docs: Record<string, { id: string; data: () => Record<string, unknown> }[]> = {};
-  const state = { user: undefined as Record<string, unknown> | undefined, connected: 0, reads: 0 };
-  return {
-    docs,
-    state,
-    module: {
-      getFirestore: () => ({ name: 'fs' }),
-      connectFirestoreEmulator: () => {
-        state.connected++;
-      },
-      doc: (_fs: unknown, ...path: string[]) => path.join('/'),
-      collection: (_fs: unknown, ...path: string[]) => path.join('/'),
-      query: (path: string) => path,
-      where: () => undefined,
-      getDoc: async () => {
-        state.reads++;
-        return { data: () => state.user };
-      },
-      getDocs: async (path: string) => ({ docs: docs[path] ?? [] }),
+/** A fake full-SDK Firestore: `onSnapshot` on a document path, `getDocs` on a collection. */
+function fakeFirestore() {
+  const listeners = new Map<string, { next: (snap: unknown) => void; error: (e: unknown) => void }>();
+  const collections: Record<string, { id: string; data: () => Record<string, unknown> }[]> = {};
+  const sdk = {
+    doc: (_db: unknown, ...path: string[]) => path.join('/'),
+    collection: (_db: unknown, ...path: string[]) => path.join('/'),
+    query: (path: string) => path,
+    where: () => undefined,
+    onSnapshot: (path: string, next: (snap: unknown) => void, error: (e: unknown) => void) => {
+      listeners.set(path, { next, error });
+      return () => listeners.delete(path);
     },
+    getDocs: async (path: string) => ({ docs: collections[path] ?? [] }),
   };
-});
-vi.mock('firebase/firestore/lite', () => firestoreMock.module);
+  const emit = (path: string, data: Record<string, unknown> | undefined) =>
+    listeners.get(path)?.next({ data: () => data });
+  return { source: { get: async () => ({ sdk, db: {} }) as never }, listeners, collections, emit };
+}
 
-describe('firebaseTenancyPort', () => {
-  const port = firebaseTenancyPort({ app: async () => ({}) as never, useEmulators: true }, 20);
-
-  it('re-reads users/{uid}, reports changes only, and stops on unsubscribe', async () => {
-    firestoreMock.state.user = { claimsVersion: 2 };
+describe('firestoreTenancyPort', () => {
+  it('follows users/{uid} live, reports changes only, and is tracked by the registry', async () => {
+    const fs = fakeFirestore();
+    const registry = TestBed.inject(ListenerRegistry);
+    const port = firestoreTenancyPort(fs.source, registry);
     const seen: unknown[] = [];
     const stop = port.watchUser('u1', (value) => seen.push(value));
-    await vi.waitFor(() => expect(seen).toHaveLength(1));
-    expect(seen[0]).toEqual({ claimsVersion: 2, activeOrgId: null, memberships: {} });
-    expect(firestoreMock.state.connected).toBe(1);
-    await vi.waitFor(() => expect(firestoreMock.state.reads).toBeGreaterThan(2));
-    expect(seen).toHaveLength(1);
-    firestoreMock.state.user = { claimsVersion: 3 };
-    await vi.waitFor(() => expect(seen).toHaveLength(2));
-    document.dispatchEvent(new Event('visibilitychange'));
-    stop();
-    const reads = firestoreMock.state.reads;
-    firestoreMock.state.user = { claimsVersion: 4 };
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(registry.labels()).toEqual(['users/u1']);
+    await vi.waitFor(() => expect(fs.listeners.has('users/u1')).toBe(true));
+    fs.emit('users/u1', { claimsVersion: 2 });
+    fs.emit('users/u1', { claimsVersion: 2 });
+    expect(seen).toEqual([{ claimsVersion: 2, activeOrgId: null, memberships: {} }]);
+    fs.emit('users/u1', { claimsVersion: 3 });
     expect(seen).toHaveLength(2);
-    expect(firestoreMock.state.reads).toBeLessThanOrEqual(reads + 1);
+    fs.listeners.get('users/u1')?.error({ code: 'permission-denied' });
+
+    stop();
+    expect(fs.listeners.has('users/u1')).toBe(false);
+    expect(registry.active()).toBe(0);
   });
 
-  it('lists members and pending invites', async () => {
-    firestoreMock.docs['orgs/org-1/members'] = [
-      { id: 'b', data: () => ({ displayName: 'Bea', role: 'owner', status: 'active', email: 'bea@example.test' }) },
-      { id: 'a', data: () => ({ displayName: 'Al', role: 'lawyer', status: 'active' }) },
-    ];
-    firestoreMock.docs['orgs/org-1/invites'] = [
+  it('stops with the registry (an org switch), and never attaches when stopped before Firestore loads', async () => {
+    const fs = fakeFirestore();
+    const registry = TestBed.inject(ListenerRegistry);
+    const port = firestoreTenancyPort(fs.source, registry);
+    port.watchUser('u1', () => undefined);
+    await vi.waitFor(() => expect(fs.listeners.size).toBe(1));
+    registry.stopAll();
+    expect(fs.listeners.size).toBe(0);
+
+    port.watchUser('u2', () => undefined)();
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(fs.listeners.size).toBe(0);
+  });
+
+  it('lists pending invites by email', async () => {
+    const fs = fakeFirestore();
+    fs.collections['orgs/org-1/invites'] = [
+      {
+        id: 'i2',
+        data: () => ({ email: 'zed@example.test', role: 'lawyer', expiresAt: { toDate: () => new Date(1) } }),
+      },
       {
         id: 'i1',
         data: () => ({ email: 'new@example.test', role: 'paralegal', expiresAt: { toDate: () => new Date(0) } }),
       },
     ];
-    expect((await port.members('org-1')).map((m) => [m.uid, m.email])).toEqual([
-      ['a', null],
-      ['b', 'bea@example.test'],
-    ]);
+    const port = firestoreTenancyPort(fs.source, TestBed.inject(ListenerRegistry));
     expect(await port.invites('org-1')).toEqual([
       { id: 'i1', email: 'new@example.test', role: 'paralegal', expiresAt: new Date(0) },
+      { id: 'i2', email: 'zed@example.test', role: 'lawyer', expiresAt: new Date(1) },
     ]);
+    expect(NULL_TENANCY_PORT.watchUser('u', () => undefined)()).toBeUndefined();
+    expect(await NULL_TENANCY_PORT.invites('o')).toEqual([]);
   });
 });

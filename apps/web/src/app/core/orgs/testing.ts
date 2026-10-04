@@ -1,16 +1,9 @@
 import type { Provider } from '@angular/core';
 
-import {
-  TENANCY_PORT,
-  type PendingInvite,
-  type TeamMember,
-  type TenancyPort,
-  type UserTenancy,
-} from '@materia/data-access';
+import { TENANCY_PORT, type PendingInvite, type TenancyPort, type UserTenancy } from '@materia/data-access';
 
-/** An in-memory TenancyPort: set `members`/`invites`, and `emit` a new `users/{uid}`. */
+/** An in-memory TenancyPort: set `invites_`, and `emit` a new `users/{uid}`. */
 export class FakeTenancyPort implements TenancyPort {
-  members_: TeamMember[] = [];
   invites_: PendingInvite[] = [];
   private listener: ((tenancy: UserTenancy | null) => void) | null = null;
   watching: string | null = null;
@@ -26,10 +19,6 @@ export class FakeTenancyPort implements TenancyPort {
 
   emit(tenancy: UserTenancy | null): void {
     this.listener?.(tenancy);
-  }
-
-  async members(): Promise<TeamMember[]> {
-    return this.members_;
   }
 
   async invites(): Promise<PendingInvite[]> {

@@ -3,6 +3,7 @@ import { provideRouter, Router } from '@angular/router';
 
 import { OrgContext } from '@materia/data-access';
 import { TENANCY_PORT } from '@materia/data-access';
+import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
 import { MT_KEYBOARD_PLATFORM } from '@materia/ui';
 
 import { App } from '../../app';
@@ -28,14 +29,15 @@ const NO_ORG = testSession({ claims: {} });
 const OWNER = testSession({ claims: { orgId: 'org-harbour-vine', role: 'owner', orgName: 'Harbour & Vine Legal' } });
 
 interface Options {
-  configure?: (port: FakeAuthPort, tenancy: FakeTenancyPort) => void;
+  configure?: (port: FakeAuthPort, tenancy: FakeTenancyPort, firestore: InMemoryFirestore) => void;
   online?: boolean;
 }
 
 async function open(url: string, session: AuthSession | null, options: Options = {}) {
   const port = new FakeAuthPort(session);
   const tenancy = new FakeTenancyPort();
-  options.configure?.(port, tenancy);
+  const firestore = new InMemoryFirestore();
+  options.configure?.(port, tenancy, firestore);
   const loads: string[] = [];
   const cleanups: string[] = [];
   TestBed.configureTestingModule({
@@ -45,6 +47,7 @@ async function open(url: string, session: AuthSession | null, options: Options =
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
       { provide: AUTH_PORT, useValue: port },
       { provide: TENANCY_PORT, useValue: tenancy },
+      provideInMemoryFirestore(firestore),
       { provide: PAGE_LOAD, useValue: (u: string) => loads.push(u) },
       { provide: IS_ONLINE, useValue: () => options.online ?? true },
       { provide: ORG_SWITCH_CLEANUP, useValue: [() => void cleanups.push('listeners')] },
@@ -103,6 +106,7 @@ async function open(url: string, session: AuthSession | null, options: Options =
   return {
     port,
     tenancy,
+    firestore,
     orgs,
     router,
     el,
@@ -253,11 +257,16 @@ describe('team page', () => {
       colour: '',
     },
   ] as const;
+  const ORG_MEMBERS = 'orgs/org-harbour-vine/members';
+  const seedMembers = (firestore: InMemoryFirestore) => {
+    for (const { uid, ...member } of members) firestore.set(`${ORG_MEMBERS}/${uid}`, member);
+    firestore.set(`${ORG_MEMBERS}/u-gone`, { displayName: 'Gone Fictional', role: 'lawyer', status: 'removed' });
+  };
 
   it('lists members with their emails (same names stay distinguishable) and pending invites', async () => {
     const page = await open('/settings/team', OWNER, {
-      configure: (_port, tenancy) => {
-        tenancy.members_ = members.map((m) => ({ ...m }));
+      configure: (_port, tenancy, firestore) => {
+        seedMembers(firestore);
         tenancy.invites_ = [
           { id: 'inv-9', email: 'new@example.test', role: 'lawyer', expiresAt: new Date(Date.now() + 86_400_000) },
         ];
@@ -267,12 +276,81 @@ describe('team page', () => {
     expect(page.text()).toContain('sam.one@example.test · Paralegal');
     expect(page.text()).toContain('sam.two@example.test · Read-only · Suspended');
     expect(page.text()).toContain('new@example.test');
+    expect(page.text()).not.toContain('Gone Fictional');
+  });
+
+  it('follows member changes live, without a reload', async () => {
+    const page = await open('/settings/team', OWNER, { configure: (_p, _t, firestore) => seedMembers(firestore) });
+    const sam: Record<string, unknown> = { ...members[1] };
+    delete sam['uid'];
+    page.firestore.set(`${ORG_MEMBERS}/u-sam-1`, { ...sam, role: 'admin' });
+    page.firestore.set(`${ORG_MEMBERS}/u-new`, { displayName: 'Bea Fictional', role: 'lawyer', status: 'active' });
+    await page.stable();
+    expect(page.text()).toContain('sam.one@example.test · Admin');
+    expect(page.text()).toContain('Bea Fictional');
+  });
+
+  it('shows the loading, empty, error and offline states', async () => {
+    const loading = await open('/settings/team', OWNER, {
+      configure: (_p, _t, firestore) => {
+        firestore.stalled = true;
+      },
+    });
+    expect(loading.text()).toContain('Loading members…');
+    TestBed.resetTestingModule();
+
+    const empty = await open('/settings/team', OWNER);
+    expect(empty.text()).toContain('No members yet.');
+    TestBed.resetTestingModule();
+
+    const failing = await open('/settings/team', OWNER, {
+      configure: (_p, _t, firestore) => {
+        seedMembers(firestore);
+        firestore.failNext({ code: 'unavailable' });
+      },
+    });
+    expect(failing.text()).toContain('This service is temporarily unavailable');
+    await failing.click('Try again');
+    expect(failing.text()).toContain('Jordan Price (you)');
+    TestBed.resetTestingModule();
+
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    try {
+      const offline = await open('/settings/team', OWNER, {
+        configure: (_p, _t, firestore) => {
+          seedMembers(firestore);
+          firestore.offline = true;
+        },
+      });
+      expect(offline.text()).toContain('You’re offline. This is the team as it was when you were last connected.');
+      expect(offline.text()).toContain('Jordan Price (you)');
+    } finally {
+      onLine.mockRestore();
+    }
+  });
+
+  it('pages through members and offers new ones above the first page', async () => {
+    const page = await open('/settings/team', OWNER, {
+      configure: (_p, _t, firestore) => {
+        for (let i = 10; i < 40; i++) {
+          firestore.set(`${ORG_MEMBERS}/u${i}`, { displayName: `Member ${i}`, role: 'lawyer', status: 'active' });
+        }
+      },
+    });
+    expect(page.el.querySelectorAll('mt-settings-row').length).toBe(25);
+    await page.click('Show more members');
+    expect(page.el.querySelectorAll('mt-settings-row').length).toBe(30);
+    page.firestore.set(`${ORG_MEMBERS}/u-a`, { displayName: 'Aaron Fictional', role: 'lawyer', status: 'active' });
+    await page.stable();
+    expect(page.text()).not.toContain('Aaron Fictional');
+    await page.click('1 new member');
+    expect(page.text()).toContain('Aaron Fictional');
   });
 
   it('invites, changes a role, removes after confirming, resends and revokes', async () => {
     const page = await open('/settings/team', OWNER, {
-      configure: (port, tenancy) => {
-        tenancy.members_ = members.map((m) => ({ ...m }));
+      configure: (port, tenancy, firestore) => {
+        seedMembers(firestore);
         tenancy.invites_ = [{ id: 'inv-9', email: 'new@example.test', role: 'lawyer', expiresAt: new Date(0) }];
         port.callResults['orgs-inviteMember'] = { inviteId: 'inv-10', emailed: true };
       },
@@ -302,8 +380,8 @@ describe('team page', () => {
 
   it('shows the last-owner error', async () => {
     const page = await open('/settings/team', OWNER, {
-      configure: (port, tenancy) => {
-        tenancy.members_ = members.map((m) => ({ ...m }));
+      configure: (port, _tenancy, firestore) => {
+        seedMembers(firestore);
         port.call = async () => {
           throw { details: { code: 'LAST_OWNER' } };
         };
@@ -316,9 +394,7 @@ describe('team page', () => {
 
   it('is read-only for roles without members.manage', async () => {
     const page = await open('/settings/team', testSession(), {
-      configure: (_port, tenancy) => {
-        tenancy.members_ = members.map((m) => ({ ...m }));
-      },
+      configure: (_port, _tenancy, firestore) => seedMembers(firestore),
     });
     expect(page.text()).not.toContain('Invite someone');
     expect(page.el.querySelector('mt-select')).toBeNull();

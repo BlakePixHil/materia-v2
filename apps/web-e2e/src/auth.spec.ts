@@ -35,22 +35,12 @@ test('sign-out leaves no cached Firestore data', async ({ page, request, isMobil
   const account = await createTestAccount(request);
   await signInThroughUi(page, account);
   await expect(page).toHaveURL(/\/today$/);
-  // A Firestore cache as the data layer (FND-19) will leave one.
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) => {
-        const open = indexedDB.open('firestore/[DEFAULT]/demo-materia/main');
-        open.onsuccess = () => {
-          open.result.close();
-          resolve();
-        };
-      }),
-  );
+  // The data layer (FND-19) keeps Firestore's persistent cache in IndexedDB once a listener starts.
   const firestoreDbs = () =>
     page.evaluate(async () =>
       (await indexedDB.databases()).map((db) => db.name ?? '').filter((name) => name.startsWith('firestore/')),
     );
-  expect(await firestoreDbs()).toHaveLength(1);
+  await expect.poll(firestoreDbs).toHaveLength(1);
   await page.getByRole('button', { name: /Account menu/ }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/auth\/sign-in$/);
@@ -58,6 +48,37 @@ test('sign-out leaves no cached Firestore data', async ({ page, request, isMobil
   // And the session is gone: protected pages send you back to sign in.
   await page.goto('/today');
   await expect(page).toHaveURL(/\/auth\/sign-in/);
+});
+
+test('signing out in one tab signs out the other', async ({ context, page, request, isMobile }) => {
+  test.skip(isMobile, 'Sign-out lives in the desktop user menu');
+  const account = await createTestAccount(request, { displayName: 'Tab Fictional' });
+  await signInThroughUi(page, account);
+  await expect(page).toHaveURL(/\/today$/);
+
+  // A second tab shares the sign-in and follows live data (the members list).
+  const other = await context.newPage();
+  await other.goto('/settings/team');
+  await expect(other.getByText('Tab Fictional (you)')).toBeVisible();
+
+  await page.getByRole('button', { name: /Account menu/ }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/auth\/sign-in$/);
+
+  await expect(other).toHaveURL(/\/auth\/sign-in$/);
+  await expect(other.getByRole('heading', { name: 'Sign in to Materia' })).toBeVisible();
+  await expect(
+    other.getByRole('region', { name: /Notifications/ }).getByText('You signed out in another tab'),
+  ).toBeVisible();
+  await expect(other.getByText('Tab Fictional (you)')).toHaveCount(0);
+  await expectNoA11yViolations(other);
+  await expect
+    .poll(() =>
+      other.evaluate(async () =>
+        (await indexedDB.databases()).map((db) => db.name ?? '').filter((name) => name.startsWith('firestore/')),
+      ),
+    )
+    .toEqual([]);
 });
 
 test('sign-up without an invite is refused', async ({ page }) => {

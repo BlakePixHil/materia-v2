@@ -16,6 +16,14 @@
       "options": {
         "command": "tsc --noEmit -p libs/data-access/tsconfig.lib.json && tsc --noEmit -p libs/data-access/tsconfig.spec.json"
       }
+    },
+    "test-integration": {
+      "executor": "nx:run-commands",
+      "parallelism": false,
+      "options": {
+        "command": "firebase emulators:exec --only firestore --project demo-materia --config firebase.json \"vitest run --config libs/data-access/vitest.integration.config.mts\"",
+        "cwd": "{workspaceRoot}"
+      }
     }
   }
 }

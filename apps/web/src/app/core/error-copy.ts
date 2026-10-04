@@ -1,4 +1,4 @@
-import { isErrorCode, type ErrorCode } from '@materia/domain';
+import { DomainError, isErrorCode, type ErrorCode } from '@materia/domain';
 
 /**
  * What users see for each error code from a callable (FND-15). Plain, specific and actionable:
@@ -10,6 +10,7 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   ORG_CLAIM_MISSING: 'Your account isn’t linked to a practice yet. Ask your practice admin for an invite.',
   ORG_CLAIM_MISMATCH: 'You switched practices in another tab. Refreshing your access…',
   MEMBER_INACTIVE: 'Your access to this practice has been paused. Contact your practice admin.',
+  ACCESS_REVOKED: 'Your access to this changed. Ask a practice admin if you think it’s wrong.',
   PERMISSION_DENIED: 'Your role can’t do this. Ask a practice admin if you need access.',
   APP_CHECK_FAILED: 'We couldn’t verify this browser. Reload the page and try again.',
   INVALID_ARGUMENT: 'Some details need fixing. Check the highlighted fields.',
@@ -41,8 +42,9 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 
-/** The error code carried by a callable error (`details.code`), or INTERNAL. */
+/** The error code of a `DomainError` (from the data layer) or a raw callable error (`details.code`), or INTERNAL. */
 export function errorCodeOf(error: unknown): ErrorCode {
+  if (error instanceof DomainError) return error.code;
   const code = (error as { details?: { code?: unknown } } | null)?.details?.code;
   return isErrorCode(code) ? code : 'INTERNAL';
 }
