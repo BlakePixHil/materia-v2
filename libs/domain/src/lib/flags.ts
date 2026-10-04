@@ -90,6 +90,14 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'clerk.features.intakePrefill': defineFlag({
+    key: 'clerk.features.intakePrefill',
+    description: 'The "Prefill from email or notes" button on the New matter form (shown disabled while off).',
+    owner: 'CORE-05',
+    type: 'boolean',
+    default: false,
+    serverEnforced: false,
+  }),
   'deadlines.ruleset.vic.v1': defineFlag({
     key: 'deadlines.ruleset.vic.v1',
     description: 'Victorian rule set v1 computes persisted deadlines (off until a practitioner signs it off).',

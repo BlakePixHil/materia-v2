@@ -964,6 +964,121 @@ describe('saved views (CORE-03)', () => {
   });
 });
 
+describe('intake drafts (CORE-05)', () => {
+  const draftsOf = (uid: string) => `users/${uid}/drafts`;
+  const DAY = 86_400_000;
+  const expiring = (days = 30) => Timestamp.fromMillis(Date.now() + days * DAY);
+  /** A draft save as the client writes it (fictional form state). */
+  const newDraft = (uid: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    orgId: ORG,
+    kind: 'intake',
+    step: 'clients',
+    stateJson: JSON.stringify({
+      type: { type: 'probate', jurisdiction: 'VIC' },
+      clients: { clientContactIds: ['c-1'] },
+    }),
+    expireAt: expiring(),
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+
+  it.each(EVERYONE)('create, read, resave and delete my own draft as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, `${draftsOf(uid)}/intake-mine`);
+    const create = setDoc(ref, newDraft(uid));
+    // Every member can draft a matter in their org; the outsider's claim names another org, and a
+    // suspended member is out of the org.
+    if (!isMember(who)) {
+      await assertFails(create);
+      return;
+    }
+    await assertSucceeds(create);
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(getDocs(collection(firestore, draftsOf(uid))));
+    await assertSucceeds(
+      updateDoc(ref, stamped({ step: 'fees', stateJson: '{"fees":{}}', expireAt: expiring() }, uid)),
+    );
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it.each(ROLES)("someone else's drafts are off limits, as %s", async (role) => {
+    const other = role === 'lawyer' ? uidFor('owner') : uidFor('lawyer');
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, `${draftsOf(other)}/intake-theirs`), { ...seedData(specFor('drafts')), createdBy: other }),
+    );
+    const firestore = db(env, role);
+    const ref = doc(firestore, `${draftsOf(other)}/intake-theirs`);
+    await assertFails(getDoc(ref));
+    await assertFails(getDocs(collection(firestore, draftsOf(other))));
+    await assertFails(updateDoc(ref, stamped({ step: 'review', expireAt: expiring() }, uidFor(role))));
+    await assertFails(deleteDoc(ref));
+    await assertFails(setDoc(doc(firestore, `${draftsOf(other)}/intake-planted`), newDraft(uidFor(role))));
+  });
+
+  it('limits the form state to 100,000 characters', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const padded = (size: number) => JSON.stringify({ notes: 'x'.repeat(size - 12) });
+    expect(padded(100_000)).toHaveLength(100_000);
+    await assertSucceeds(
+      setDoc(doc(firestore, `${draftsOf(uid)}/intake-big`), newDraft(uid, { stateJson: padded(100_000) })),
+    );
+    await assertFails(
+      updateDoc(
+        doc(firestore, `${draftsOf(uid)}/intake-big`),
+        stamped({ stateJson: padded(100_001), expireAt: expiring() }, uid),
+      ),
+    );
+    await assertFails(
+      setDoc(doc(firestore, `${draftsOf(uid)}/intake-huge`), newDraft(uid, { stateJson: padded(100_001) })),
+    );
+  });
+
+  it('refuses an invalid draft', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const ref = doc(firestore, `${draftsOf(uid)}/intake-bad`);
+    for (const bad of [
+      { orgId: OTHER_ORG },
+      { kind: 'contact' },
+      { step: 'payment' },
+      { stateJson: { type: 'probate' } },
+      { expireAt: expiring(90) },
+      { expireAt: expiring(1) },
+      { expireAt: '2026-11-01' },
+      { createdBy: 'someone-else' },
+      { updatedBy: 'someone-else' },
+      { createdAt: Timestamp.fromMillis(0) },
+      { schemaVersion: 2 },
+      { sharedWith: ['someone-else'] },
+    ]) {
+      await assertFails(setDoc(ref, newDraft(uid, bad)));
+    }
+    const incomplete = newDraft(uid);
+    delete incomplete['expireAt'];
+    await assertFails(setDoc(ref, incomplete));
+    // Only `intake-{id}` documents.
+    await assertFails(setDoc(doc(firestore, `${draftsOf(uid)}/other-1`), newDraft(uid)));
+    await assertFails(setDoc(doc(firestore, `${draftsOf(uid)}/intake-`), newDraft(uid)));
+  });
+
+  it('a resave keeps the draft valid, with a fresh expiry and only whitelisted fields', async () => {
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), `${draftsOf(uid)}/intake-draft-1`);
+    await seed(specFor('drafts'));
+    // The seeded draft's expiry is long past: a save must move it on.
+    await assertFails(updateDoc(ref, stamped({ step: 'review' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ orgId: OTHER_ORG, expireAt: expiring() }, uid)));
+    await assertFails(updateDoc(ref, stamped({ createdBy: 'someone-else', expireAt: expiring() }, uid)));
+    await assertFails(updateDoc(ref, { step: 'review', expireAt: expiring() }));
+    await assertSucceeds(updateDoc(ref, stamped({ step: 'review', expireAt: expiring() }, uid)));
+  });
+});
+
 // Last in this file, before another suite reloads the rules (which resets the emulator's report).
 describe('rules coverage', () => {
   it('evaluates at least 90% of the rule expressions', async () => {

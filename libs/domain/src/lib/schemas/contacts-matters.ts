@@ -91,8 +91,18 @@ export const Matter = withMeta(
     responsibleUid: DocIdSchema,
     teamUids: z.array(DocIdSchema).default([]),
     clientContactIds: z.array(DocIdSchema).min(1),
+    /**
+     * The deceased. `dateOfDeath` is absent while unknown (CORE-05): the matter then has no
+     * `date_of_death` event, its template tasks anchored on it show "due date pending", and it gets
+     * a death certificate task. Recording it later (key facts) makes the event known.
+     */
     deceased: z
-      .object({ contactId: DocIdSchema, dateOfDeath: DateOnlySchema, domicile: z.string(), lastAddress: z.string() })
+      .object({
+        contactId: DocIdSchema,
+        dateOfDeath: DateOnlySchema.optional(),
+        domicile: z.string(),
+        lastAddress: z.string(),
+      })
       .optional(),
     testator: z.object({ contactId: DocIdSchema }).optional(),
     referrerContactId: DocIdSchema.optional(),
@@ -122,9 +132,13 @@ export const Matter = withMeta(
         grantNo: z.string().optional(),
       })
       .optional(),
-    /** Key facts not held elsewhere (CORE-06): the will's date, the court file number. */
+    /** Key facts not held elsewhere (CORE-06): the will's date, the court file number, a trust's name (CORE-05). */
     facts: z
-      .object({ willDate: DateOnlySchema.optional(), courtFileNo: z.string().trim().max(60).optional() })
+      .object({
+        willDate: DateOnlySchema.optional(),
+        courtFileNo: z.string().trim().max(60).optional(),
+        trustName: z.string().trim().max(200).optional(),
+      })
       .optional(),
     dispute: z
       .object({

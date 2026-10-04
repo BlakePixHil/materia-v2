@@ -47,6 +47,7 @@ import {
 import { Org, Member, Invite, User } from './tenancy';
 import { SavedView } from './views';
 import { ConflictCheck } from '../conflicts';
+import { IntakeDraft } from '../intake';
 
 /**
  * Named exports in the `XSchema` / `XCreateSchema` / `XUpdateSchema` form (FND-13). Each is the
@@ -204,3 +205,6 @@ export const MatterNumberUpdateSchema = MatterNumber.update;
 export const ConflictCheckSchema = ConflictCheck.schema;
 export const ConflictCheckCreateSchema = ConflictCheck.create;
 export const ConflictCheckUpdateSchema = ConflictCheck.update;
+export const IntakeDraftSchema = IntakeDraft.schema;
+export const IntakeDraftCreateSchema = IntakeDraft.create;
+export const IntakeDraftUpdateSchema = IntakeDraft.update;

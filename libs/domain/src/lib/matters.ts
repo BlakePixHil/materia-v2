@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { conflictAllowsOpening } from './conflicts';
 import { DEFAULT_ORG_TIMEZONE } from './constants';
+import { CostsDisclosureInput, FeeInput, IntakeEventInput, IntakePartyInput } from './intake';
 import { DocIdSchema } from './schemas/common';
 import { Matter } from './schemas/contacts-matters';
 import { MatterStatusSchema } from './schemas/enums';
@@ -289,11 +290,44 @@ const RequestId = z.uuid();
  * allocates. Status is `lead`, or `open` when `conflictCheck.status` is already `clear` or
  * `potential`. A status other than `pending` is a determination: it needs `conflict.determine`, a
  * reason for `potential` and `conflict`, and the server stamps `checkedAt` and `checkedBy` (CORE-02).
+ * CORE-05 adds the intake fields (`parties`, `events`, `fee`, `costsDisclosure`, `conflictCheckId`);
+ * `intakeToCreateMatterInput` builds them from the New matter form.
  */
-export const CreateMatterInput = z.object({
-  requestId: RequestId,
-  matter: Matter.create.omit({ status: true }),
-});
+export const CreateMatterInput = z
+  .object({
+    requestId: RequestId,
+    /** `fee` and `costsDisclosure` may come here (before CORE-05) or at the top level (intake). */
+    matter: Matter.create.omit({ status: true }).extend({
+      fee: Matter.create.shape.fee.optional(),
+      costsDisclosure: Matter.create.shape.costsDisclosure.optional(),
+    }),
+    /**
+     * CORE-05 intake: more party rows, created with the matter at `partyDocId(role, contactId)`
+     * besides the clients, deceased and testator (duplicates collapse to one row).
+     */
+    parties: z.array(IntakePartyInput).max(100).optional(),
+    /** Matter events; the date of death event is added from `matter.deceased.dateOfDeath`. */
+    events: z.array(IntakeEventInput).max(20).optional(),
+    /** The fee arrangement (wins over `matter.fee`). One of the two is required. */
+    fee: FeeInput.optional(),
+    /** Costs disclosure (wins over `matter.costsDisclosure`); computed from the fee's estimate when neither is given. */
+    costsDisclosure: CostsDisclosureInput.optional(),
+    /** The conflict check run for this intake: stored as `matter.conflictCheck.resultId`. */
+    conflictCheckId: DocIdSchema.optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (!input.fee && !input.matter.fee) {
+      ctx.addIssue({ code: 'custom', path: ['fee'], message: 'Choose a fee arrangement' });
+    }
+    const resultId = input.matter.conflictCheck.resultId;
+    if (input.conflictCheckId && resultId && resultId !== input.conflictCheckId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['conflictCheckId'],
+        message: 'The conflict check differs from matter.conflictCheck.resultId',
+      });
+    }
+  });
 export type CreateMatterInput = z.infer<typeof CreateMatterInput>;
 
 /** `matters-changeStatus` (lawyer and above). */
