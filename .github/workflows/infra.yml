@@ -1,0 +1,169 @@
+# Terraform through CI (FND-05). A PR that touches infra/ gets a `terraform plan` comment for dev
+# and prod. Merging applies dev. Prod is applied only through a manual dispatch, which waits for
+# the `production` environment's reviewers. MVP has no staging (envs/staging.* is unused).
+#
+# Terraform runs as terraform-agent through the bootstrap stack's Workload Identity pool, which only
+# accepts jobs in the `infra-dev` or `production` environment. Needs the TF_WIF_PROVIDER and
+# TF_SERVICE_ACCOUNT variables and the TF_VAR_BILLING_ACCOUNT and TF_VAR_BUDGET_ALERT_EMAILS secrets.
+name: infra
+
+on:
+  pull_request:
+    paths: ['infra/terraform/**', '.github/workflows/infra.yml', '.github/actions/terraform/**']
+  push:
+    branches: [main]
+    paths: ['infra/terraform/**', '.github/workflows/infra.yml', '.github/actions/terraform/**']
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Environment to apply
+        required: true
+        type: choice
+        options: [prod, dev]
+
+# One Terraform run per environment at a time (the state lock would fail the second anyway).
+concurrency:
+  group: infra-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'apply' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TF_INPUT: 'false'
+  TF_VAR_billing_account: ${{ secrets.TF_VAR_BILLING_ACCOUNT }}
+  TF_VAR_budget_alert_emails: ${{ secrets.TF_VAR_BUDGET_ALERT_EMAILS }}
+
+jobs:
+  # Until the owner has applied the bootstrap pool and set the variables and secrets, plans and dev
+  # applies are skipped with a notice (a prod dispatch still fails loudly).
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          WIF_PROVIDER: ${{ vars.TF_WIF_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.TF_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$WIF_PROVIDER" ] || [ -z "$SERVICE_ACCOUNT" ] || [ -z "$TF_VAR_billing_account" ] || [ -z "$TF_VAR_budget_alert_emails" ]; then
+            echo "::notice::Terraform skipped: set TF_WIF_PROVIDER, TF_SERVICE_ACCOUNT, TF_VAR_BILLING_ACCOUNT and TF_VAR_BUDGET_ALERT_EMAILS (docs/runbooks/deploy.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  plan:
+    name: plan (${{ matrix.env }})
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: infra-dev
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, prod]
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/terraform
+        with:
+          env: ${{ matrix.env }}
+          workload-identity-provider: ${{ vars.TF_WIF_PROVIDER }}
+          service-account: ${{ vars.TF_SERVICE_ACCOUNT }}
+      - name: terraform plan
+        id: plan
+        run: |
+          set +e
+          terraform -chdir=infra/terraform plan -no-color -lock-timeout=5m -detailed-exitcode \
+            -var-file="envs/${{ matrix.env }}.tfvars" > "$RUNNER_TEMP/plan.txt" 2>&1
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/plan.txt"
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          # 0 = no changes, 2 = changes, anything else = error.
+          [ "$code" = "0" ] || [ "$code" = "2" ]
+      - name: Comment the plan
+        if: always() && steps.plan.outputs.exitcode != ''
+        uses: actions/github-script@v7
+        env:
+          ENV_NAME: ${{ matrix.env }}
+          EXIT_CODE: ${{ steps.plan.outputs.exitcode }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const env = process.env.ENV_NAME;
+            const code = process.env.EXIT_CODE;
+            const marker = `<!-- materia-terraform-plan-${env} -->`;
+            const plan = fs.readFileSync(`${process.env.RUNNER_TEMP}/plan.txt`, 'utf8');
+            const summary = plan.match(/^(Plan: .*|No changes\..*)$/m)?.[0] ?? (code === '1' ? 'Plan failed.' : 'See the plan.');
+            const max = 60000;
+            const shown = plan.length > max ? `…(truncated, full plan in the run log)\n${plan.slice(-max)}` : plan;
+            const body = [
+              marker,
+              `### Terraform plan: ${env}`,
+              '',
+              `**${summary}**${env === 'prod' ? ' Prod is applied only by a manual dispatch of infra.yml, with approval.' : ' Applied to dev when this PR merges.'}`,
+              '',
+              '<details><summary>Plan output</summary>',
+              '',
+              '```',
+              shown,
+              '```',
+              '</details>',
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.user.type === 'Bot' && c.body.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+  apply-dev:
+    name: apply (dev)
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.env == 'dev'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: infra-dev
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/terraform
+        with:
+          env: dev
+          workload-identity-provider: ${{ vars.TF_WIF_PROVIDER }}
+          service-account: ${{ vars.TF_SERVICE_ACCOUNT }}
+      - name: terraform apply
+        run: |
+          terraform -chdir=infra/terraform plan -no-color -lock-timeout=5m -var-file=envs/dev.tfvars -out=dev.plan
+          terraform -chdir=infra/terraform apply -no-color -lock-timeout=5m dev.plan
+
+  apply-prod:
+    name: apply (prod)
+    if: github.event_name == 'workflow_dispatch' && inputs.env == 'prod'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production # required reviewers approve before this job starts
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/terraform
+        with:
+          env: prod
+          workload-identity-provider: ${{ vars.TF_WIF_PROVIDER }}
+          service-account: ${{ vars.TF_SERVICE_ACCOUNT }}
+      - name: terraform apply
+        run: |
+          terraform -chdir=infra/terraform plan -no-color -lock-timeout=5m -var-file=envs/prod.tfvars -out=prod.plan
+          terraform -chdir=infra/terraform apply -no-color -lock-timeout=5m prod.plan

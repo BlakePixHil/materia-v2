@@ -1,0 +1,98 @@
+# Production release (FND-05). A v* tag promotes the exact build that deploy-dev.yml made and
+# smoke-tested for the tagged commit (artifact release-<sha>); nothing is rebuilt. The deploy job
+# runs in the GitHub environment `production`, whose required reviewers approve it, and the prod
+# Workload Identity provider only accepts that environment or a v* tag.
+#
+# release.yml dispatches this workflow after release-please tags a release, because tags pushed
+# with the default GITHUB_TOKEN do not trigger workflows. Dispatching an older tag redeploys it
+# (docs/runbooks/rollback.md).
+name: deploy-prod
+run-name: deploy-prod ${{ inputs.tag || github.ref_name }}
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to deploy (for example v0.1.0)
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: find the dev-tested release
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.find.outputs.sha }}
+      run-id: ${{ steps.find.outputs.run-id }}
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve the tag
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::$TAG is not a release tag (vMAJOR.MINOR.PATCH)."
+            exit 1
+          fi
+          sha="$(git rev-list -n 1 "refs/tags/$TAG")"
+          echo "SHA=$sha" >> "$GITHUB_ENV"
+          echo "$TAG is $sha"
+
+      # A commit that never deployed to dev cannot reach prod. release-please tags the release
+      # commit while its dev deploy is still running, so wait up to 45 minutes for it.
+      - name: Find a successful dev deployment of this commit
+        id: find
+        run: |
+          for attempt in $(seq 1 90); do
+            # Newest unexpired release-<sha> artifacts, each with the deploy-dev run that made it.
+            run_ids="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=release-$SHA&per_page=20" \
+              --jq '.artifacts[] | select(.expired == false) | .workflow_run.id')"
+            for run_id in $run_ids; do
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.conclusion // "pending"')"
+              if [ "$conclusion" = "success" ]; then
+                echo "Dev deployment of $SHA: run $run_id"
+                echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+                echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done
+            # Nothing running or queued for this commit: stop waiting.
+            active="$(gh run list --workflow deploy-dev.yml --limit 20 --json status,displayTitle \
+              --jq "[.[] | select(.status != \"completed\" and (.displayTitle | contains(\"$SHA\")))] | length")"
+            if [ "$active" = "0" ] && [ "$attempt" -gt 2 ]; then break; fi
+            sleep 30
+          done
+          echo "::error::No successful deploy-dev run for $SHA (or its artifact expired). Deploy it to dev first: docs/runbooks/deploy.md."
+          exit 1
+
+  deploy:
+    needs: resolve
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    with:
+      environment: production
+      suffix: PROD
+      sha: ${{ needs.resolve.outputs.sha }}
+      artifact-run-id: ${{ needs.resolve.outputs.run-id }}
+      web-dir: web-prod

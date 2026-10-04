@@ -12,3 +12,6 @@ pnpm-lock.yaml
 /libs/domain/README.md
 # Generated from design/ by `materia-scripts sync-design` (FND-07)
 /libs/ui/src/generated
+# Written by release-please (release.yml): keep its formatting.
+/CHANGELOG.md
+/.release-please-manifest.json

@@ -1,0 +1,126 @@
+# Continuous deployment to dev (FND-05). Every push to main whose CI run succeeds (`ci-ok` green)
+# is built once and deployed to materia-v2-dev, then smoke-tested. MVP has no staging project:
+# dev plays that role. The same run builds the prod web bundle from the same commit and keeps the
+# whole release as the artifact release-<sha>, which deploy-prod.yml promotes without rebuilding.
+#
+# Needs: GCP_PROJECT_DEV, GCP_WIF_PROVIDER_DEV, GCP_DEPLOYER_SA_DEV and FIREBASE_WEB_CONFIG_DEV
+# (`terraform output -raw web_app_config`). FIREBASE_WEB_CONFIG_PROD is optional here; without it
+# the release has no prod bundle and cannot be promoted.
+name: deploy-dev
+run-name: deploy-dev ${{ github.event.workflow_run.head_sha || github.sha }}
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  # Re-deploy the current main (for example after a failed run, or to rebuild an expired artifact).
+  workflow_dispatch:
+
+# Deploys queue; a running deploy is never cancelled halfway.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Until the owner sets FIREBASE_WEB_CONFIG_DEV (one-time setup in docs/runbooks/deploy.md), the
+  # deploy is skipped with a notice instead of failing every push to main.
+  preflight:
+    name: preflight
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          WEB_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG_DEV }}
+        run: |
+          if [ -z "$WEB_CONFIG" ]; then
+            echo "::notice::Dev deploy skipped: set the FIREBASE_WEB_CONFIG_DEV repository variable (docs/runbooks/deploy.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: build release
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: ./.github/actions/setup
+
+      - name: Release version and commit
+        id: release
+        run: |
+          sha="$(git rev-parse HEAD)"
+          version="v$(node -p 'require("./.release-please-manifest.json")["."]')"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "SHA=$sha" >> "$GITHUB_ENV"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "Building $version ($sha)"
+
+      - name: Build the web app for dev
+        env:
+          WEB_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG_DEV }}
+        run: |
+          pnpm materia-scripts env --env dev --web-config "$WEB_CONFIG"
+          pnpm materia-scripts stamp --target web --version "$VERSION" --sha "$SHA"
+          pnpm nx build web --configuration=dev --skip-nx-cache
+          mkdir -p dist/release && mv dist/apps/web/browser dist/release/web-dev
+
+      - name: Build the web app for prod (same commit, prod Firebase config)
+        env:
+          WEB_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG_PROD }}
+        run: |
+          if [ -z "$WEB_CONFIG" ]; then
+            echo "::notice::FIREBASE_WEB_CONFIG_PROD is not set, so this release has no prod bundle and cannot be promoted."
+            exit 0
+          fi
+          pnpm materia-scripts env --env prod --web-config "$WEB_CONFIG"
+          pnpm nx build web --configuration=prod --skip-nx-cache
+          mv dist/apps/web/browser dist/release/web-prod
+
+      - name: Build functions
+        run: |
+          pnpm nx build functions --skip-nx-cache
+          pnpm materia-scripts stamp --target functions --version "$VERSION" --sha "$SHA"
+          mv dist/apps/functions dist/release/functions
+          node -e 'require("fs").writeFileSync("dist/release/release.json", JSON.stringify({ version: process.env.VERSION, sha: process.env.SHA }, null, 2) + "\n")'
+
+      # Kept for 90 days so a tag can be promoted to prod and older releases redeployed.
+      - name: Upload the release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.release.outputs.sha }}
+          path: dist/release
+          include-hidden-files: true # functions/.env carries the release stamp
+          retention-days: 90
+          if-no-files-found: error
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    with:
+      environment: dev
+      suffix: DEV
+      sha: ${{ needs.build.outputs.sha }}
+      artifact-run-id: ${{ github.run_id }}
+      web-dir: web-dev

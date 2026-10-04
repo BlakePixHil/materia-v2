@@ -40,7 +40,9 @@ dev and prod were applied on 2026-10-04 (results in [`../MANUAL.md`](../MANUAL.m
 
 ## GitHub Actions (FND-04, FND-05)
 
-Authenticate with `google-github-actions/auth` using the `wif_provider` and `deployer_sa` outputs; no JSON keys. The provider only accepts tokens whose immutable `repository_id` and `repository_owner_id` claims match this repository.
+Authenticate with `google-github-actions/auth` using the `wif_provider` and `deployer_sa` outputs; no JSON keys. The provider only accepts tokens whose immutable `repository_id` and `repository_owner_id` claims match this repository. The deploy workflows read them from the `GCP_*_<DEV|PROD>` variables ([deploy runbook](../../docs/runbooks/deploy.md)).
+
+`infra.yml` runs this stack in CI as `terraform-agent`, through the Workload Identity pool in `bootstrap/github_wif.tf` (admin project). That pool only accepts jobs in the GitHub environments `infra-dev` (PR plans, dev apply) and `production` (prod apply, with required reviewers). Apply the bootstrap stack once to create it, then set `TF_WIF_PROVIDER` and `TF_SERVICE_ACCOUNT` from its outputs.
 
 ## Checks
 

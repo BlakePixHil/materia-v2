@@ -1,0 +1,53 @@
+# Releases (FND-05). release-please keeps a release PR open that bumps the version and
+# CHANGELOG.md from the Conventional Commits merged to main. Main's squash commits are titled
+# "[KEY] <title>", so each PR body carries its conventional message in a
+# BEGIN_COMMIT_OVERRIDE … END_COMMIT_OVERRIDE block (CONTRIBUTING.md), which release-please reads.
+# Merging the release PR tags vX.Y.Z, publishes the GitHub release and starts deploy-prod.yml,
+# which waits for the production approval.
+#
+# With the default GITHUB_TOKEN, CI does not run on the release PR and the tag push does not start
+# deploy-prod. Set the RELEASE_PLEASE_TOKEN secret (a fine-grained token with contents and pull
+# requests write) to fix the first. This workflow then leaves deploy-prod to the tag push;
+# without the secret it dispatches deploy-prod itself.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write # dispatch deploy-prod
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Start the production deploy
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
+        run: |
+          if [ "$HAS_RELEASE_TOKEN" = "true" ]; then
+            echo "Tagged $TAG with RELEASE_PLEASE_TOKEN; the tag push starts deploy-prod."
+          else
+            gh workflow run deploy-prod.yml --repo "$GITHUB_REPOSITORY" --ref main -f tag="$TAG"
+            echo "Dispatched deploy-prod for $TAG."
+          fi
+          echo "Released $TAG. Approve the production deploy in Actions → deploy-prod." >> "$GITHUB_STEP_SUMMARY"
