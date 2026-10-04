@@ -120,6 +120,8 @@ resource "google_service_account_iam_member" "deployer_acts_as_compute_default" 
 }
 
 resource "google_project_iam_member" "compute_default_builder" {
+  #checkov:skip=CKV_GCP_46:Gen2 function builds run as the Compute default account and firebase-tools cannot choose another; it is cut down from Editor to this one role (ADR-022).
+  #checkov:skip=CKV_GCP_49:cloudbuild.builds.builder is the minimum role for those builds; the deployer can act as this account only, which is why Editor was removed.
   project    = google_project.this.project_id
   role       = "roles/cloudbuild.builds.builder"
   member     = "serviceAccount:${local.compute_default_sa}"
