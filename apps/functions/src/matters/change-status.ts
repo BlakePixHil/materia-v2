@@ -4,6 +4,8 @@ import {
   can,
   canTransition,
   ChangeMatterStatusInput,
+  conflictAllowsOpening,
+  ConflictStatusSchema,
   DomainError,
   MATTER_TRANSITIONS,
   MatterStatusSchema,
@@ -21,8 +23,9 @@ import { defineCallable, type CallableDefinition } from '../core/callable';
 /**
  * `matters-changeStatus` (CORE-03, `matter.status`: lawyer and above). Moves a live matter along
  * MATTER_TRANSITIONS, else MATTER_INVALID_TRANSITION (`details.from`, `details.to`,
- * `details.allowed`). `lead → open` needs a clear conflict check (FAILED_PRECONDITION,
- * `details.reason: 'conflict_check_not_clear'`); reopening a closed matter needs a reason
+ * `details.allowed`). `lead → open` needs a conflict determination that allows opening, `clear` or
+ * `potential` (CORE-02); `pending` and `conflict` are FAILED_PRECONDITION with
+ * `details.reason: 'conflict_check_not_clear'` and `details.conflictStatus`. Reopening a closed matter needs a reason
  * (INVALID_ARGUMENT on `reason`). Closing sets `closedAt` and `closeReason` (the reason, when
  * given); reopening clears both. Audited as `matter.status_changed`.
  */
@@ -61,10 +64,17 @@ export const changeStatusDefinition = {
         });
       }
       for (const requirement of transitionRequirements(current, input.to)) {
-        if (requirement === 'conflict_clear') {
-          const conflictStatus = (data['conflictCheck'] as { status?: string } | undefined)?.status ?? 'pending';
-          if (conflictStatus !== 'clear') {
-            throw new DomainError('FAILED_PRECONDITION', 'Clear the conflict check before opening the matter', {
+        if (requirement === 'conflict_openable') {
+          const stored = ConflictStatusSchema.safeParse(
+            (data['conflictCheck'] as { status?: unknown } | undefined)?.status,
+          );
+          const conflictStatus = stored.success ? stored.data : 'pending';
+          if (!conflictAllowsOpening(conflictStatus)) {
+            const message =
+              conflictStatus === 'conflict'
+                ? 'The conflict check found a conflict: the matter cannot be opened'
+                : 'Record a conflict determination before opening the matter';
+            throw new DomainError('FAILED_PRECONDITION', message, {
               reason: 'conflict_check_not_clear',
               matterId: input.matterId,
               conflictStatus,

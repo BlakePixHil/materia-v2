@@ -223,6 +223,8 @@ export type RunConflictCheckInput = z.input<typeof RunConflictCheckInput>;
 export interface RunConflictCheckResult {
   checkId: string;
   hits: ConflictHit[];
+  /** Whether `adverse` was evaluated (the `conflicts.enforced` flag). */
+  adverseRolesChecked: boolean;
 }
 
 /** `conflicts-determine` (lawyer and above). `potential` and `conflict` need a reason. */

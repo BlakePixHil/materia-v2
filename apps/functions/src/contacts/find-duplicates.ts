@@ -16,8 +16,8 @@ import { defineCallable, type CallableDefinition } from '../core/callable';
 /** At most this many matches are offered. */
 export const MAX_MATCHES = 5;
 
-/** The fields the scorer and the result read; nothing else is loaded. */
-const FIELDS = [
+/** The fields the scorer and the result read; nothing else is loaded (also the conflict scan, CORE-02). */
+export const DUPLICATE_SCAN_FIELDS = [
   'kind',
   'givenNames',
   'familyName',
@@ -53,7 +53,7 @@ export const findDuplicatesDefinition = {
     if (!hasSomething(input)) return { matches: [] };
     const snapshot = await db
       .collection(contactsPath(orgId))
-      .select(...FIELDS)
+      .select(...DUPLICATE_SCAN_FIELDS)
       .get();
     const matches: DuplicateMatch[] = [];
     for (const doc of snapshot.docs) {

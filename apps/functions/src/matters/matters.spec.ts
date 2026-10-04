@@ -249,9 +249,67 @@ describe('matters-createMatter', () => {
       call('lawyer', { requestId: randomUUID(), matter: newMatter({ number: 'M-1', status: 'open' }) }),
     )) as HttpsError;
     expect(sneaky.details).toMatchObject({ code: 'INVALID_ARGUMENT' });
-    await expect(call('paralegal', { requestId: randomUUID(), matter: newMatter() })).resolves.toMatchObject({
-      number: 'M-2026-0001',
+    // A paralegal creates leads; recording a determination is for conflict.determine (CORE-02).
+    const paralegalClear = (await failureOf(
+      call('paralegal', { requestId: randomUUID(), matter: newMatter() }),
+    )) as HttpsError;
+    expect(paralegalClear.details).toMatchObject({ code: 'PERMISSION_DENIED', reason: 'conflict_determine_required' });
+    await expect(
+      call('paralegal', { requestId: randomUUID(), matter: newMatter({ conflictCheck: { status: 'pending' } }) }),
+    ).resolves.toMatchObject({ number: 'M-2026-0001', status: 'lead' });
+  });
+});
+
+describe('matters-createMatter conflict intake (CORE-02)', () => {
+  it('stamps a determination made at intake and audits it with its reason', async () => {
+    const w = world();
+    const result = await w.create(
+      newMatter({
+        conflictCheck: {
+          status: 'potential',
+          reason: 'Same surname as a beneficiary on an unrelated estate',
+          checkedBy: 'someone-else',
+        },
+      }),
+    );
+    expect(result.status).toBe('open');
+    expect(w.doc(`${M}/${result.matterId}`)?.['conflictCheck']).toMatchObject({
+      status: 'potential',
+      checkedBy: 'user-lawyer',
+      reason: 'Same surname as a beneficiary on an unrelated estate',
     });
+    expect(w.audits().find((entry) => entry['action'] === 'matter.conflict_determined')).toMatchObject({
+      data: { status: 'potential', atIntake: true, reason: 'Same surname as a beneficiary on an unrelated estate' },
+    });
+  });
+
+  it('keeps a conflict matter a lead, and needs a reason for potential and conflict', async () => {
+    const w = world();
+    expect(
+      (await w.create(newMatter({ conflictCheck: { status: 'conflict', reason: 'Acting for the other side' } })))
+        .status,
+    ).toBe('lead');
+    expect(await failureOf(w.create(newMatter({ conflictCheck: { status: 'conflict' } })))).toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { fields: { 'matter.conflictCheck.reason': expect.any(Array) } },
+    });
+  });
+
+  it('keeps only resultId on a pending check, and refuses a check run for another matter', async () => {
+    const w = world({
+      [`orgs/${ORG}/conflictChecks/k-new`]: { ...meta, subjects: [], hits: [] },
+      [`orgs/${ORG}/conflictChecks/k-other`]: { ...meta, subjects: [], hits: [], excludeMatterId: 'm-other' },
+    });
+    const { matterId } = await w.create(
+      newMatter({ conflictCheck: { status: 'pending', resultId: 'k-new', checkedBy: 'user-lawyer' } }),
+    );
+    expect(w.doc(`${M}/${matterId}`)?.['conflictCheck']).toEqual({ status: 'pending', resultId: 'k-new' });
+    for (const resultId of ['k-other', 'k-missing']) {
+      expect(await failureOf(w.create(newMatter({ conflictCheck: { status: 'pending', resultId } })))).toMatchObject({
+        code: 'INVALID_ARGUMENT',
+        details: { fields: { 'matter.conflictCheck.resultId': expect.any(Array) } },
+      });
+    }
   });
 });
 
@@ -292,12 +350,18 @@ describe('matters-changeStatus', () => {
     expect(w.doc(`${M}/m1`)?.['status']).toBe(from);
   });
 
-  it('opens a lead only once the conflict check is clear', async () => {
-    const w = seeded('lead', { conflictCheck: { status: 'potential' } });
+  it('opens a lead only once the conflict check is clear or potential (CORE-02)', async () => {
+    const w = seeded('lead', { conflictCheck: { status: 'conflict', reason: 'Acting for the other side' } });
     expect(await failureOf(change(w, 'open'))).toMatchObject({
       code: 'FAILED_PRECONDITION',
-      details: { reason: 'conflict_check_not_clear', conflictStatus: 'potential' },
+      details: { reason: 'conflict_check_not_clear', conflictStatus: 'conflict' },
     });
+    const pending = seeded('lead', { conflictCheck: { status: 'pending' } });
+    expect(await failureOf(change(pending, 'open'))).toMatchObject({
+      details: { reason: 'conflict_check_not_clear', conflictStatus: 'pending' },
+    });
+    const potential = seeded('lead', { conflictCheck: { status: 'potential', reason: 'Waived after review' } });
+    await expect(change(potential, 'open')).resolves.toEqual({ matterId: 'm1', status: 'open' });
     const noCheck = seeded('lead', { conflictCheck: undefined });
     expect(await failureOf(change(noCheck, 'open'))).toMatchObject({
       details: { reason: 'conflict_check_not_clear', conflictStatus: 'pending' },
