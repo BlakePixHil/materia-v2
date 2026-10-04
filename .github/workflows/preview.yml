@@ -72,8 +72,12 @@ jobs:
         id: deploy
         if: steps.ready.outputs.ready == 'true'
         run: |
-          pnpm exec firebase hosting:channel:deploy "$CHANNEL" --expires 7d \
-            --project "$PROJECT" --config firebase/firebase.json --non-interactive --json > "$RUNNER_TEMP/channel.json"
+          # --json sends errors to stdout too, so show the file when the CLI fails.
+          if ! pnpm exec firebase hosting:channel:deploy "$CHANNEL" --expires 7d \
+            --project "$PROJECT" --config firebase/firebase.json --non-interactive --json > "$RUNNER_TEMP/channel.json"; then
+            cat "$RUNNER_TEMP/channel.json"
+            exit 1
+          fi
           url="$(node -e '
             const out = require(process.argv[1]);
             if (out.status !== "success") { console.error(JSON.stringify(out)); process.exit(1); }
