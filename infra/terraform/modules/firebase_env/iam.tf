@@ -93,6 +93,17 @@ resource "google_service_account_iam_member" "deployer_acts_as" {
   member             = "serviceAccount:${google_service_account.deployer.email}"
 }
 
+# firebase-tools checks actAs on the App Engine default account before every functions deploy, even
+# though all functions run as fn-runtime (apps/functions/src/global-options.ts). The account holds
+# no roles in our projects (the Editor role Google grants it is removed, see ADR-021 and
+# infra/MANUAL.md), so this lets the deploy proceed without giving the deployer any extra reach.
+resource "google_service_account_iam_member" "deployer_acts_as_app_engine_default" {
+  service_account_id = "projects/${google_project.this.project_id}/serviceAccounts/${google_project.this.project_id}@appspot.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.deployer.email}"
+  depends_on         = [google_firebase_project.this]
+}
+
 # Functions sign download URLs as themselves (CORE-12).
 resource "google_service_account_iam_member" "fn_runtime_sign_self" {
   service_account_id = google_service_account.fn_runtime.name
