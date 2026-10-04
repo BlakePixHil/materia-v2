@@ -1,0 +1,8 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-brief). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-brief { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.mt-brief-item { display: flex; align-items: flex-start; gap: var(--space-12); padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+.mt-brief-item > .mt-i { margin-top: 2px; }
+.mt-brief-item > .mt-col { gap: var(--space-6); }
+.mt-brief-text { font: 400 13px/18px var(--font-sans); color: var(--text-secondary); }
+.mt-brief-text b { font-weight: 600; color: var(--text-primary); }
+.mt-brief-empty { font: 400 13px/18px var(--font-sans); color: var(--text-tertiary); }

@@ -2,3 +2,5 @@
 .mt-send { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0; display: grid; place-items: center; background: var(--bg-ai); color: var(--text-on-brand); cursor: pointer; flex: none; }
 .mt-send .mt-i { width: 15px; height: 15px; stroke-width: 2; }
 .mt-send[data-disabled] { background: var(--bg-disabled); color: var(--icon-muted); }
+.mt-send:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.mt-send[data-stop] { background: var(--text-primary); color: var(--bg-surface); }

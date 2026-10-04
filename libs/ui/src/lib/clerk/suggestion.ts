@@ -1,0 +1,83 @@
+import { booleanAttribute, ChangeDetectionStrategy, Component, input, output, ViewEncapsulation } from '@angular/core';
+
+import { type CitationOpenEvent, type CitationVm, MtCitation } from './citation';
+import { MtClerkMark } from './clerk-mark';
+import { MtButton } from '../button/button';
+import { MtIcon } from '../icon/icon';
+import { MtBadge } from '../markers/markers';
+
+/** A proposal from Clerk. Clerk proposes; a person accepts (Clerk rule 4). */
+export interface SuggestionVm {
+  id: string;
+  /** What it would create ("Task", "Deadline", "Time entry"); shown as a badge. */
+  kind: string;
+  /** The proposal ("Request date-of-death valuation for 14 Ashby St"). */
+  title: string;
+  /** Why ("From will cl. 4(b) and the title search"). */
+  rationale?: string | undefined;
+  citations?: readonly CitationVm[] | undefined;
+  /** The accept button's label ("Add task"); defaults to "Accept". */
+  acceptLabel?: string | undefined;
+}
+
+/**
+ * Suggestion (`mt-suggestion`): a Clerk proposal with Accept, Edit and Dismiss. Project a preview or
+ * diff as content. `stale` means the underlying data changed since Clerk suggested it: the card says
+ * so and Accept becomes "Review".
+ */
+@Component({
+  selector: 'mt-suggestion',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
+  styleUrls: ['../../generated/components/suggestion.css', '../../generated/components/cites.css'],
+  imports: [MtClerkMark, MtCitation, MtButton, MtBadge, MtIcon],
+  host: {
+    class: 'mt-suggestion',
+    role: 'group',
+    '[attr.aria-label]': '"Clerk suggestion: " + suggestion().title',
+    '[attr.data-stale]': 'stale() ? "" : null',
+  },
+  template: `
+    <mt-clerk-mark />
+    <div class="mt-grow">
+      <div class="mt-suggestion-head">
+        <mt-badge tone="ai">{{ suggestion().kind }}</mt-badge>
+        <span class="tt">{{ suggestion().title }}</span>
+      </div>
+      @if (suggestion().rationale; as why) {
+        <div class="ts">{{ why }}</div>
+      }
+      @if (stale()) {
+        <div class="mt-suggestion-stale">
+          <mt-icon name="alert" [size]="14" />Data changed since suggested — review before accepting.
+        </div>
+      }
+    </div>
+    <span class="mt-row mt-suggestion-actions">
+      <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="dismiss.emit()">Dismiss</button>
+      <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="edit.emit()">Edit</button>
+      <button mtButton variant="clerk" size="sm" [loading]="busy()" (click)="stale() ? edit.emit() : accept.emit()">
+        {{ stale() ? 'Review' : (suggestion().acceptLabel ?? 'Accept') }}
+      </button>
+    </span>
+    <div class="mt-suggestion-preview"><ng-content /></div>
+    @if (suggestion().citations?.length) {
+      <div class="mt-cites mt-suggestion-cites" role="group" aria-label="Sources">
+        @for (citation of suggestion().citations; track citation.n ?? citation.documentId) {
+          <mt-citation [citation]="citation" (open)="citationOpen.emit($event)" />
+        }
+      </div>
+    }
+  `,
+})
+export class MtSuggestion {
+  readonly suggestion = input.required<SuggestionVm>();
+  readonly stale = input(false, { transform: booleanAttribute });
+  /** Accepting is in progress. */
+  readonly busy = input(false, { transform: booleanAttribute });
+
+  readonly accept = output();
+  readonly edit = output();
+  readonly dismiss = output();
+  readonly citationOpen = output<CitationOpenEvent>();
+}
