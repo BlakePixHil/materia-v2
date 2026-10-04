@@ -213,6 +213,7 @@ test.describe('tasks with the keyboard', () => {
     test.setTimeout(90_000);
     const { orgId } = await setUp(page, request);
     await page.emulateMedia({ colorScheme: 'dark' });
+    await expectNoA11yViolations(page);
 
     await page.keyboard.press('c');
     await expect(page.getByRole('textbox', { name: 'New task' })).toBeFocused();
@@ -243,7 +244,6 @@ test.describe('tasks with the keyboard', () => {
         { timeout: 20_000 },
       )
       .toBe(true);
-    await expectNoA11yViolations(page);
 
     // x selects; Space completes.
     await page.keyboard.press('x');
