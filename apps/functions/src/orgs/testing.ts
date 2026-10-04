@@ -2,9 +2,10 @@ import type { Auth, UserRecord } from 'firebase-admin/auth';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 
 /**
- * Test doubles for the orgs unit tests: an in-memory Firestore with just what the orgs code uses
- * (doc and collection refs, equality queries, collection groups, getAll, batches and serial
- * transactions, `FieldValue.increment`), and an Admin Auth with users and custom claims.
+ * Test doubles for the orgs and contacts unit tests: an in-memory Firestore with just what that
+ * code uses (doc and collection refs, `==`, `in` and `array-contains` filters on dotted paths,
+ * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment`),
+ * and an Admin Auth with users and custom claims.
  */
 
 type Data = Record<string, unknown>;
@@ -77,15 +78,27 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
     },
   };
 
-  type Filter = [string, unknown];
+  type Op = '==' | 'array-contains' | 'in';
+  type Filter = [string, Op, unknown];
+  /** A field by dotted path (`deceased.contactId`). */
+  const valueAt = (data: Data | undefined, field: string): unknown =>
+    field.split('.').reduce<unknown>((value, key) => (value as Data | undefined)?.[key], data);
+  const matchesFilter = (data: Data | undefined, [field, op, value]: Filter) => {
+    const actual = valueAt(data, field);
+    if (op === 'array-contains') return Array.isArray(actual) && actual.includes(value);
+    if (op === 'in') return (value as unknown[]).includes(actual);
+    return actual === value;
+  };
   function query(matches: (path: string) => boolean, filters: Filter[] = [], max = Infinity) {
     return {
-      where: (field: string, _op: '==', value: unknown) => query(matches, [...filters, [field, value]], max),
+      where: (field: string, op: Op, value: unknown) => query(matches, [...filters, [field, op, value]], max),
       limit: (n: number) => query(matches, filters, n),
+      // Field masks don't change what the fakes return.
+      select: () => query(matches, filters, max),
       get: async () => {
         const found = [...docs.keys()]
           .filter((path) => matches(path))
-          .filter((path) => filters.every(([field, value]) => docs.get(path)?.[field] === value))
+          .filter((path) => filters.every((filter) => matchesFilter(docs.get(path), filter)))
           .sort()
           .slice(0, max)
           .map(snapshot);

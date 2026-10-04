@@ -17,7 +17,17 @@ export const EXCLUDED_COLLECTIONS = new Set(['audit', 'metrics', 'activity', 'ch
  * Denormalised or ordering fields: an update that changes only these (plus meta) is noise, such as
  * a recomputed `nextDeadline` or 500 tasks reordered.
  */
-export const NOISE_FIELDS = new Set(['nextDeadline', 'openTaskCount', 'wipCents', 'lastActivityAt', 'search', 'order']);
+export const NOISE_FIELDS = new Set([
+  'nextDeadline',
+  'openTaskCount',
+  'wipCents',
+  'lastActivityAt',
+  'search',
+  'order',
+  // Contacts (CORE-01): recomputed by contacts-onWrite.
+  'dedupeKey',
+  'sortName',
+]);
 
 /** Bookkeeping fields: never listed as changes. */
 export const META_FIELDS = new Set(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion', '_requestId']);
