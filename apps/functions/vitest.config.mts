@@ -9,7 +9,8 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'node',
-    include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    // Unit tests only; tests/integration needs the emulators (vitest.integration.config.mts).
+    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     reporters: ['default'],
     coverage: {
       reportsDirectory: '../../coverage/apps/functions',

@@ -55,7 +55,24 @@ describe('firestore.indexes.json', () => {
     expect(vector?.fields.at(-1)?.vectorConfig).toEqual({ dimension: 768, flat: {} });
   });
 
+  // Server-only operational collections (no client rules, default deny) with TTL policies (FND-15).
+  const OPERATIONAL = new Set(['requests', 'eventGuards']);
+
   it('field overrides target known collections', () => {
-    for (const override of file.fieldOverrides) expect(known.has(override.collectionGroup)).toBe(true);
+    for (const override of file.fieldOverrides) {
+      expect(
+        known.has(override.collectionGroup) || OPERATIONAL.has(override.collectionGroup),
+        override.collectionGroup,
+      ).toBe(true);
+    }
+  });
+
+  it('idempotency records and event guards expire through TTL on expiresAt', () => {
+    for (const group of OPERATIONAL) {
+      const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
+        (o) => o.collectionGroup === group && o.ttl,
+      );
+      expect(ttl?.fieldPath, group).toBe('expiresAt');
+    }
   });
 });
