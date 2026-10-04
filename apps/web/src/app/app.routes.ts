@@ -40,10 +40,16 @@ function planned(
 }
 
 const matterRoutes: Route[] = [
-  planned('', 'Matters', {
-    ticket: 'CORE-03',
+  {
+    path: '',
+    pathMatch: 'full',
+    title: 'Matters',
+    loadComponent: () => import('./features/matters/matters-page').then((m) => m.MattersPage),
+  },
+  planned('new', 'New matter', {
+    ticket: 'CORE-05',
     icon: 'matters',
-    description: 'Every matter, with filters, saved views and the matter table.',
+    description: 'Matter intake: the client, the deceased or testator, conflicts and costs disclosure.',
   }),
   {
     path: ':id',
