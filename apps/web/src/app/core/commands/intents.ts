@@ -10,7 +10,7 @@ import { ActivatedRoute, Router } from '@angular/router';
  */
 export const INTENT_PARAM = 'do';
 
-export type Intent = 'add-task' | 'add-deadline' | 'record-event' | 'upload' | 'close' | 'new-contact';
+export type Intent = 'add-task' | 'add-deadline' | 'record-event' | 'upload' | 'close' | 'new-contact' | 'log-time';
 
 /** A URL with an intent (`/matters/m1/tasks?do=add-task`). */
 export function intentUrl(path: string, intent: Intent): string {

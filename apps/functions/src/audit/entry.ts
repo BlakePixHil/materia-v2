@@ -38,6 +38,8 @@ export const NOISE_FIELDS = new Set([
   'recomputeVersion',
   'missedCheck',
   'wipCents',
+  // Time entries (BILL-01): what time-onWrite has counted into the matter's wipCents.
+  'wipCountedCents',
   'lastActivityAt',
   'search',
   'order',

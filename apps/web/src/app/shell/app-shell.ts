@@ -389,6 +389,7 @@ export class AppShellComponent {
 
   private paletteOpen = false;
   private shortcutsOpen = false;
+  private quickTimeOpen = false;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -474,6 +475,23 @@ export class AppShellComponent {
     }
   }
 
+  /**
+   * Quick time entry (BILL-01): `t` or ⌘K "Log time", on the open matter when there is one. The
+   * matter's Time tab takes `t` itself (its add row).
+   */
+  async openQuickTime(): Promise<void> {
+    if (this.quickTimeOpen) return;
+    this.quickTimeOpen = true;
+    try {
+      const { TimeQuickEntry } = await import('../features/time/time-quick-entry');
+      const id = /^\/matters\/([^/?#]+)\/[^/?#]+/.exec(this.router.url)?.[1];
+      const matterId = id && id !== 'new' && id !== 'board' ? id : null;
+      await this.dialogs.open(TimeQuickEntry, { data: { matterId } }).result;
+    } finally {
+      this.quickTimeOpen = false;
+    }
+  }
+
   async openShortcuts(): Promise<void> {
     if (this.shortcutsOpen) return;
     this.shortcutsOpen = true;
@@ -487,6 +505,11 @@ export class AppShellComponent {
   protected skipToMain(event: Event): void {
     event.preventDefault();
     this.document.getElementById('main')?.focus();
+  }
+
+  private canRecordTime(): boolean {
+    const role = this.orgs.role();
+    return !!role && can(role, 'time.record');
   }
 
   private isVisible(item: NavEntry): boolean {
@@ -521,6 +544,13 @@ export class AppShellComponent {
         group: 'General',
         when: () => !this.mobile(),
         handler: () => this.toggleSidebar(),
+      }),
+      this.shortcuts.register({
+        combo: 't',
+        description: 'Log time',
+        group: 'Time',
+        when: () => this.canRecordTime(),
+        handler: () => void this.openQuickTime(),
       }),
       this.shortcuts.register({
         combo: 'mod+j',
@@ -591,6 +621,17 @@ export class AppShellComponent {
         keywords: ['todo', 'reminder', 'my tasks', 'add'],
         href: intentUrl('/tasks', 'add-task'),
         run: () => void this.router.navigateByUrl(intentUrl('/tasks', 'add-task')),
+      },
+      // Quick time entry (BILL-01), from anywhere.
+      {
+        id: 'time.log',
+        title: 'Log time',
+        group: 'Time',
+        icon: 'timer',
+        keywords: ['time entry', 'record', 'units', 'hours', 'billing'],
+        shortcut: 't',
+        when: () => allowed('time.record'),
+        run: () => void this.openQuickTime(),
       },
       {
         id: 'theme.toggle',

@@ -57,6 +57,7 @@ describe('matterCommands (CORE-15)', () => {
     expect(byTitle('Add task')?.href).toBe('/matters/m-142/tasks?do=add-task');
     expect(byTitle('Upload document')?.href).toBe('/matters/m-142/documents?do=upload');
     expect(byTitle('Close matter…')?.href).toBe('/matters/m-142/overview?do=close');
+    expect(byTitle('Log time')?.href).toBe('/matters/m-142/time?do=log-time');
     byTitle('Add deadline')?.run();
     expect(go).toHaveBeenCalledWith('/matters/m-142/deadlines?do=add-deadline');
     expect(commands.every((command) => command.group === 'M-2026-0142')).toBe(true);
@@ -69,6 +70,7 @@ describe('matterCommands (CORE-15)', () => {
     expect(offered).not.toContain('Add task');
     expect(offered).not.toContain('Upload document');
     expect(offered).not.toContain('Close matter…');
+    expect(offered).not.toContain('Log time');
     expect(offered).toContain('Open documents');
   });
 });

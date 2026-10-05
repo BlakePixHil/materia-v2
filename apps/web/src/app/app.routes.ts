@@ -57,6 +57,7 @@ const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
   documents: () => import('./features/documents/matter-documents').then((m) => m.MatterDocuments),
   parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
   notes: () => import('./features/notes/matter-notes').then((m) => m.MatterNotes),
+  time: () => import('./features/time/matter-time').then((m) => m.MatterTime),
   activity: () => import('./features/matter-detail/matter-activity').then((m) => m.MatterActivityTab),
 };
 
