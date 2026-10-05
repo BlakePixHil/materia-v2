@@ -218,6 +218,16 @@ Each component's guidelines are on its page in the design system.
 | Settlement and costs | LIT-08 |
 | Court book | LIT-09 |
 
+### Today (CORE-14)
+
+`/today` (apps/web `features/today`) follows the design's Today frame; the data is in docs/02 (Today).
+
+- **Layout.** The date as an eyebrow and the greeting as the `display` heading, in the org's time zone, with a caption when this device's time zone differs. Left column: Clerk's brief slot (an EmptyState, only while `clerk.features.brief` is on), the new-practice checklist (create a matter, invite people, connect a calendar: disabled, "Coming soon"), Needs attention and My tasks. Right column (400px; one column below 1100px): two Stats (open matters, deadlines this week; no WIP), Due today and this week as a timeline, and Recent matters. The page action is New matter.
+- **Rows.** Deadlines show the DeadlineChip with the trace in its tooltip and Mark done (`deadlines-complete`); changes show what moves and Accept/Reject (`DeadlineActions.resolve`, a red banner for `isUrgentChange`); tasks use TaskRow and `TaskActions` (Undo on completion).
+- **Keyboard.** `j`/`k` move through every row on the page (all sections, in page order), Enter opens the focused row, Space completes the focused task (focus then takes the row that moves into its place), `a` acknowledges the focused escalation (escalations arrive with CORE-11).
+- **Empty and offline.** A clear day says so plainly ("Nothing needs attention", "Your week is clear"). Offline, the page keeps what it showed with a note; counts show `—`.
+- **Stats** use the design system's `.mt-stat` styles in the page rather than `MtStat`: the first use of a `@materia/ui` component from a lazy page lands in the initial bundle, and Today must not grow it.
+
 **Not yet designed** (DES-01 designs these first):
 - Settings sub-pages: team and roles, billing and rates, trust display, integrations;
 - Inbox and notifications;

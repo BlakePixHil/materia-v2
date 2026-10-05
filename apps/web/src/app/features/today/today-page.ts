@@ -175,7 +175,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     .mt-today {
       display: flex;
       flex-direction: column;
-      gap: var(--space-20, 20px);
+      gap: var(--space-20);
       flex: 1;
       min-width: 0;
       max-width: 1180px;
@@ -183,7 +183,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     .mt-today .head {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--space-6);
     }
     .mt-today .head h1 {
       margin: 0;
@@ -197,7 +197,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     .mt-today .grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 400px;
-      gap: 20px;
+      gap: var(--space-20);
       align-items: start;
     }
     .mt-today .col {
@@ -359,10 +359,6 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
       }
     }
     @media (max-width: 480px) {
-      .mt-today .head h1 {
-        font-size: 26px;
-        line-height: 32px;
-      }
       .mt-today .mt-tl {
         grid-template-columns: 20px minmax(0, 1fr);
       }
