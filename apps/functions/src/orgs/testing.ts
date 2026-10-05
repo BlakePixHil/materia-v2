@@ -3,7 +3,8 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 
 /**
  * Test doubles for the orgs and contacts unit tests: an in-memory Firestore with just what that
- * code uses (doc and collection refs, `==`, `in` and `array-contains` filters on dotted paths,
+ * code uses (doc and collection refs, `==`, `in`, `array-contains` and range filters on dotted paths,
+ * paging by document id,
  * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment` and
  * `FieldValue.delete`),
  * and an Admin Auth with users and custom claims.
@@ -76,7 +77,19 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
     },
     update(path: string, data: Data) {
       if (!docs.has(path)) throw Object.assign(new Error(`No document to update: ${path}`), { code: 5 });
-      docs.set(path, apply(docs.get(path), data));
+      const previous = docs.get(path) as Data;
+      // `update` reads a dotted key as a field path into a map (`deceased.dateOfDeath`).
+      const nested: Data = {};
+      for (const [key, value] of Object.entries(data)) {
+        const [head, ...rest] = key.split('.') as [string, ...string[]];
+        if (!rest.length) {
+          nested[key] = value;
+          continue;
+        }
+        const inner = (nested[head] ?? previous[head] ?? {}) as Data;
+        nested[head] = apply(inner, { [rest.join('.')]: value });
+      }
+      docs.set(path, apply(previous, nested));
     },
     create(path: string, data: Data) {
       if (docs.has(path)) throw Object.assign(new Error(`Already exists: ${path}`), { code: 6 });
@@ -84,7 +97,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
     },
   };
 
-  type Op = '==' | 'array-contains' | 'in';
+  type Op = '==' | 'array-contains' | 'in' | '<' | '<=' | '>' | '>=';
   type Filter = [string, Op, unknown];
   /** A field by dotted path (`deceased.contactId`). */
   const valueAt = (data: Data | undefined, field: string): unknown =>
@@ -93,17 +106,26 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
     const actual = valueAt(data, field);
     if (op === 'array-contains') return Array.isArray(actual) && actual.includes(value);
     if (op === 'in') return (value as unknown[]).includes(actual);
-    return actual === value;
+    if (op === '==') return actual === value;
+    // Range filters compare strings or numbers (date-only strings sort as dates); a missing field never matches.
+    if (actual === undefined || actual === null) return false;
+    const a = actual as string | number;
+    const b = value as string | number;
+    return op === '<' ? a < b : op === '<=' ? a <= b : op === '>' ? a > b : a >= b;
   };
-  function query(matches: (path: string) => boolean, filters: Filter[] = [], max = Infinity) {
+  function query(matches: (path: string) => boolean, filters: Filter[] = [], max = Infinity, after?: string) {
     return {
-      where: (field: string, op: Op, value: unknown) => query(matches, [...filters, [field, op, value]], max),
-      limit: (n: number) => query(matches, filters, n),
-      // Field masks don't change what the fakes return.
-      select: () => query(matches, filters, max),
+      where: (field: string, op: Op, value: unknown) => query(matches, [...filters, [field, op, value]], max, after),
+      limit: (n: number) => query(matches, filters, n, after),
+      // Field masks don't change what the fakes return; results are always in document-path order.
+      select: () => query(matches, filters, max, after),
+      orderBy: () => query(matches, filters, max, after),
+      /** Pages by document id (with `orderBy(FieldPath.documentId())`). */
+      startAfter: (id: string) => query(matches, filters, max, id),
       get: async () => {
         const found = [...docs.keys()]
           .filter((path) => matches(path))
+          .filter((path) => after === undefined || (path.split('/').at(-1) as string) > after)
           .filter((path) => filters.every((filter) => matchesFilter(docs.get(path), filter)))
           .sort()
           .slice(0, max)

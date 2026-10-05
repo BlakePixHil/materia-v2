@@ -66,7 +66,8 @@ export const proposeRulesetUpgradeDefinition = {
       { uid, orgId, requestId, db, clock },
       {
         action: 'deadline.ruleset_upgrade_proposed',
-        entity: { path: `orgs/${orgId}` },
+        // No document stands for the run; the request id names it.
+        entity: { path: `orgs/${orgId}/ruleSetUpgrades/${requestId}` },
         summary: `Rule set upgrade: ${result.processed} matters recomputed, ${result.proposed} proposals`,
         data: {
           processed: result.processed,

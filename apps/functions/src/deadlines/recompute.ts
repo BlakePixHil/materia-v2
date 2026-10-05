@@ -101,6 +101,10 @@ const LINKED_TASK_ORDER = 1_000_000;
 
 const del = () => FieldValue.delete();
 
+/** A stored instant (a Firestore Timestamp, or a Date in tests) as a Date. */
+const asDate = (value: unknown): Date | undefined =>
+  value instanceof Date ? value : (value as { toDate?: () => Date } | undefined)?.toDate?.();
+
 function existingDeadline(id: string, data: Data): ExistingDeadline | undefined {
   const computed = data['computed'] as DeadlineComputed | undefined;
   if (!computed || typeof computed.ruleId !== 'string') return undefined;
@@ -254,7 +258,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
             meta: event.fields.meta ?? (eventBefore?.['meta'] as Data | undefined) ?? {},
             sourceDocumentId: event.fields.sourceDocumentId,
             ...(eventBefore
-              ? { createdAt: eventBefore['createdAt'], createdBy: eventBefore['createdBy'] }
+              ? { createdAt: asDate(eventBefore['createdAt']) ?? now, createdBy: eventBefore['createdBy'] }
               : { createdAt: now, createdBy: uid }),
             ...stamp,
             schemaVersion: MatterEvent.version,
