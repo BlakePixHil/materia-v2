@@ -169,8 +169,8 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 
 **ADR-035: Trust money is shown, never kept** ([ADR-035](adr/035-trust-accounting.md), BILL-10).
 - Materia never keeps trust records: no receipts, payments, transfers, running balance or "available" amount. The trust ledger stays in the firm's trust software.
-- At most a matter shows a trust balance snapshot copied from those records (amount, as-at date, source system), labelled "Not the trust ledger", behind `billing.trustDisplay`. A later read-only integration may fill it.
-- "Paid from trust" is a `trust_transfer` payment recorded after the withdrawal; distributions (CORE-16) never move money.
+- At most a matter shows a trust balance snapshot copied from those records (amount, as-at date, source system), labelled "Not the trust ledger", behind `billing.trustDisplay` (BILL-11). A later read-only integration may fill it.
+- "Paid from trust" is a `trust_transfer` payment recorded after the withdrawal (BILL-12); distributions (CORE-16) never move money.
 
 ## Cross-cutting conventions
 

@@ -1,6 +1,6 @@
 # ADR-035: Trust money is shown, never kept: the trust ledger stays in the firm's trust software
 
-- **Status:** Proposed (owner decisions pending on [BILL-10](https://linear.app/materia-web/issue/MAT-55))
+- **Status:** Accepted (owner, 2026-10-05; practitioner review in [BILL-10a](https://linear.app/materia-web/issue/MAT-142))
 - **Date:** 2026-10-05
 - **Ticket:** [BILL-10](https://linear.app/materia-web/issue/MAT-55)
 
@@ -33,7 +33,7 @@ jurisdiction.
 
 These citations were gathered from the Law Society of NSW _Legal Accounting Handbook: Trust money and trust records_ (2024), AustLII
 section headings and VLSB+C pages, because this work's sandbox couldn't open legislation.vic.gov.au. A practitioner checks them against the
-primary sources (BILL-10a).
+primary sources ([BILL-10a](https://linear.app/materia-web/issue/MAT-142)).
 
 What else frames the decision:
 
@@ -41,6 +41,8 @@ What else frames the decision:
 - The MVP has one user, migrated from the legacy app, which kept no trust records (its billing has only an `applyTrust` flag, migrated read-only
   into `legacyBilling`). That user's firm already keeps its trust records somewhere: practice software (LEAP, Smokeball, Actionstep) or a
   standalone package run by a bookkeeper.
+- The owner doesn't know which trust system the first firm uses and assumes it is an in-house one (2026-10-05). The display therefore
+  names its source as free text and assumes no API.
 - The schema already allows an invoice payment with `method: 'trust_transfer'` (`libs/domain/src/lib/schemas/org-records.ts`).
 
 ## Decision
@@ -74,12 +76,13 @@ source: 'manual' | <vendor>, recordedBy, recordedAt}`, with integer cents ≥ 0 
 - A lawyer can still see roughly what's held for a matter, at the cost of copying it in. A stale or mistyped snapshot is the main risk, which
   the labels, the as-at date and the out-of-date chip address; the trust software stays the only basis for paying money out.
 - Follow-ups (Linear, project 02, M2.2, all after the MVP):
-  - **BILL-11** Trust balance snapshots on matters (display only), behind `billing.trustDisplay`. Blocked by CORE-06 and CORE-21.
-  - **BILL-12** "Paid from trust" on invoices and payments (r 42 notice, `trust_transfer` payments, prompt to update the snapshot).
+  - **[BILL-11](https://linear.app/materia-web/issue/MAT-143)** Trust balance snapshots on matters (display only), behind `billing.trustDisplay`. Blocked by CORE-06 and CORE-21.
+  - **[BILL-12](https://linear.app/materia-web/issue/MAT-144)** "Paid from trust" on invoices and payments (r 42 notice, `trust_transfer` payments, prompt to update the snapshot).
     Blocked by BILL-07, BILL-08 and BILL-11.
-  - **BILL-10a** Practitioner review of this ADR's citations and the r 42 notice wording. Blocks nothing; BILL-12's notice stays off until
+  - **[BILL-10a](https://linear.app/materia-web/issue/MAT-142)** Practitioner review of this ADR's citations and the r 42 notice wording. Blocks nothing; BILL-12's notice stays off until
     it's done.
-- A read-only integration ticket is written only if the firm's software turns out to have a usable API and the owner wants it.
+- No integration ticket is written: the firm's system is unknown and assumed in-house. One is written only if it turns out to have a
+  usable API and the owner wants it.
 
 ### Settings → Trust (input for DES-01)
 
