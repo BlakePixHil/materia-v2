@@ -29,7 +29,7 @@ We will build Today from the person's own collection-group reads, each scoped to
 - Two listeners on the page, so it stays cheap to leave open.
 - Lists that aren't live can be a little stale until focus or a change on the page. Counts can be a minute old.
 - Indexes: the existing assignee indexes on `deadlines`, `deadlineChanges` and `tasks` serve every query. `recent` needs (orgId, updatedAt desc) and a TTL on `expireAt`.
-- Escalations plug into `needsAttention` as a third source when CORE-11 lands; `a` already acknowledges the focused one.
+- Escalations plug into `needsAttention` as a third source when CORE-11 lands; the `a` shortcut for acknowledging the focused one is already registered.
 - The Stats are drawn with the design system's `.mt-stat` styles in the page, because a `@materia/ui` component first used from a lazy page lands in the initial bundle.
 
 ## Alternatives considered
