@@ -115,6 +115,8 @@ test.describe('inbox', () => {
     await row(page, 'Read yesterday').click();
     await page.keyboard.press('y');
     await expect(rows(page)).toHaveCount(3);
+    // The archive is written before its toast shows; reloading sooner can lose it.
+    await expect(page.locator('.mt-toaster')).toContainText('Archived');
     await page.reload();
     await expect(rows(page)).toHaveCount(3, LIVE);
     await expect(row(page, 'Read yesterday')).toHaveCount(0);
