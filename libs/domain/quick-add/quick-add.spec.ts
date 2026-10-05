@@ -1,4 +1,4 @@
-import { parseQuickAdd, type QuickAddMember, type QuickAddResult } from './quick-add';
+import { dateKey, parseDatePhrase, parseQuickAdd, type QuickAddMember, type QuickAddResult } from './quick-add';
 
 // Fictional members (the seed's cast) plus a second "Da…" for the ambiguous case.
 const MEMBERS: QuickAddMember[] = [
@@ -36,12 +36,37 @@ describe('parseQuickAdd: table (pinned to Friday 9 October 2026, Australia/Melbo
     ['Chase bank @Daniel', { title: 'Chase bank', assigneeUid: 'u-daniel' }],
     ['Chase bank @daniel.kim', { title: 'Chase bank', assigneeUid: 'u-daniel' }],
     ['@PS Review costs agreement', { title: 'Review costs agreement', assigneeUid: 'u-priya' }],
-    ['Follow up @Jordan Price tomorrow', { title: 'Follow up tomorrow', assigneeUid: 'u-jordan' }],
+    [
+      'Follow up @Jordan Price tomorrow',
+      { title: 'Follow up', assigneeUid: 'u-jordan', dueDate: '2026-10-10' as never },
+    ],
     ['@da Review', { title: '@da Review', assigneeUid: undefined }],
     ['@nobody Review', { title: '@nobody Review', assigneeUid: undefined }],
     ['Email client !someday', { title: 'Email client !someday', priority: undefined }],
     ['Discuss due diligence report', { title: 'Discuss due diligence report', dueDate: undefined }],
-    ['Meet re 14 Oct hearing', { title: 'Meet re 14 Oct hearing', dueDate: undefined }],
+    // A date anywhere in the line counts, with or without "due" (CORE-08b).
+    ['Meet re 14 Oct hearing', { title: 'Meet re hearing', dueDate: '2026-10-14' as never }],
+    ['Do the laundry fri', { title: 'Do the laundry', dueDate: '2026-10-09' as never }],
+    ['Call the bank this Tuesday', { title: 'Call the bank', dueDate: '2026-10-13' as never }],
+    ['Call the bank next tue', { title: 'Call the bank', dueDate: '2026-10-13' as never }],
+    ['Sign the will by Friday', { title: 'Sign the will', dueDate: '2026-10-09' as never }],
+    ['Ring Priya tmrw', { title: 'Ring Priya', dueDate: '2026-10-10' as never }],
+    ['File it on 12/10', { title: 'File it', dueDate: '2026-10-12' as never }],
+    ['Lodge 14/10/2026 !high', { title: 'Lodge', priority: 'high', dueDate: '2026-10-14' as never }],
+    ['Lodge 3/2/27', { title: 'Lodge', dueDate: '2027-02-03' as never }],
+    ['Lodge 14-10-2026', { title: 'Lodge', dueDate: '2026-10-14' as never }],
+    ['Lodge 14.10.2026', { title: 'Lodge', dueDate: '2026-10-14' as never }],
+    ['Lodge 2026-10-14', { title: 'Lodge', dueDate: '2026-10-14' as never }],
+    ['Settle Oct 14', { title: 'Settle', dueDate: '2026-10-14' as never }],
+    ['Settle on Sept 3', { title: 'Settle', dueDate: '2027-09-03' as never }],
+    ['Settle 2 Jan', { title: 'Settle', dueDate: '2027-01-02' as never }],
+    // Not dates: numbers, a bare month, a time, "now".
+    ['Lodge 3 copies', { title: 'Lodge 3 copies', dueDate: undefined }],
+    ['Review clause 4.2', { title: 'Review clause 4.2', dueDate: undefined }],
+    ['Prepare March BAS', { title: 'Prepare March BAS', dueDate: undefined }],
+    ['Call at 5', { title: 'Call at 5', dueDate: undefined }],
+    ['Do it now', { title: 'Do it now', dueDate: undefined }],
+    ['Pay $300 for Form 1 and 2', { title: 'Pay $300 for Form 1 and 2', dueDate: undefined }],
     [
       'Lodge caveat due sat @sam !med',
       { title: 'Lodge caveat', assigneeUid: 'u-sam', priority: 'medium', dueDate: '2026-10-10' as never },
@@ -91,6 +116,19 @@ describe('parseQuickAdd: tokens and unresolved mentions', () => {
       { uid: 'u-alex', displayName: 'Alex Nguyen' },
     ];
     expect(parseQuickAdd('Call @al', { members, now: FRIDAY }).assigneeUid).toBe('u-al');
+  });
+
+  it('leaves a dismissed date in the title', () => {
+    const options = { members: MEMBERS, now: FRIDAY, ignoreDates: ['fri'] };
+    expect(parseQuickAdd('Do the laundry fri', options)).toMatchObject({ title: 'Do the laundry fri' });
+    expect(parseQuickAdd('Do the laundry fri', options).dueDate).toBeUndefined();
+    // Dismissing one phrase leaves another one free to count.
+    expect(parseQuickAdd('Do the laundry fri or 14/10', options).dueDate).toBe('2026-10-14');
+    expect(dateKey('  Due   Fri ')).toBe('fri');
+  });
+
+  it('marks "due" with the date it introduces', () => {
+    expect(parse('Pay by Friday').tokens.map((t) => t.text)).toEqual(['by Friday']);
   });
 
   it('ignores a mention with only punctuation', () => {
@@ -143,5 +181,18 @@ describe('parseQuickAdd: time zone, DST and year end', () => {
     expect(parse('X due 31 Dec', newYear).dueDate).toBe('2027-12-31');
     // On New Year's Eve (Thursday) "mon" is in the new year.
     expect(parse('X due mon', new Date('2026-12-30T23:00:00Z')).dueDate).toBe('2027-01-04');
+  });
+});
+
+describe('parseDatePhrase', () => {
+  it('reads a date typed on its own, and nothing else', () => {
+    const options = { now: FRIDAY };
+    expect(parseDatePhrase('fri', options)).toBe('2026-10-09');
+    expect(parseDatePhrase(' next tue ', options)).toBe('2026-10-13');
+    expect(parseDatePhrase('6/10/2026', options)).toBe('2026-10-06');
+    expect(parseDatePhrase('due 14 Oct', options)).toBe('2026-10-14');
+    expect(parseDatePhrase('call fri', options)).toBeNull();
+    expect(parseDatePhrase('31/02/2026', options)).toBeNull();
+    expect(parseDatePhrase('', options)).toBeNull();
   });
 });

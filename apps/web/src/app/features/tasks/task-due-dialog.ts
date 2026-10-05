@@ -1,14 +1,17 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { DateOnly } from '@materia/domain';
-import { injectDialogRef, MtButton, MtDialog, MtTextField } from '@materia/ui';
+import { injectDialogRef, MT_ORG_TIMEZONE, MtButton, MtDialog, MtTextField } from '@materia/ui';
 
+import { loadQuickAddParser } from './quick-add-loader';
 import { formatDueInput, parseDueInput } from './task-view';
 
 export interface TaskDueDialogData {
   /** How many tasks change. */
   count: number;
+  /** The title, when it isn't about tasks already saved (the quick-add line). */
+  title?: string;
   /** Their shared due date, if they have one. */
   current: DateOnly | null;
 }
@@ -18,7 +21,10 @@ export interface TaskDueDialogResult {
   dueDate: DateOnly | null;
 }
 
-/** Sets or clears the due date of the selected tasks (CORE-08). */
+/**
+ * Sets or clears the due date of the selected tasks (CORE-08). Takes DD/MM/YYYY, or anything the
+ * quick-add line understands (`fri`, `next tue`, `14 Oct`) once the parser has loaded (CORE-08b).
+ */
 @Component({
   selector: 'mt-task-due-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,7 +35,7 @@ export interface TaskDueDialogResult {
         <mt-text-field
           name="due"
           label="Due date"
-          placeholder="DD/MM/YYYY"
+          placeholder="DD/MM/YYYY, fri, 14 Oct…"
           [error]="error() ?? undefined"
           [ngModel]="text()"
           (ngModelChange)="text.set($event ?? ''); error.set(null)"
@@ -48,8 +54,10 @@ export interface TaskDueDialogResult {
 export class TaskDueDialog {
   protected readonly ref = injectDialogRef<TaskDueDialogData, TaskDueDialogResult | undefined>();
   protected readonly data = this.ref.data;
+  private readonly timeZone = inject(MT_ORG_TIMEZONE);
   protected readonly title =
-    this.data.count === 1 ? 'Change the due date' : `Change the due date of ${this.data.count} tasks`;
+    this.data.title ??
+    (this.data.count === 1 ? 'Change the due date' : `Change the due date of ${this.data.count} tasks`);
   protected readonly text = signal(formatDueInput(this.data.current));
   protected readonly error = signal<string | null>(null);
 
@@ -61,17 +69,27 @@ export class TaskDueDialog {
     this.close({ dueDate: null });
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     const text = this.text().trim();
     if (!text) {
       this.close({ dueDate: null });
       return;
     }
-    const dueDate = parseDueInput(text);
+    const dueDate = parseDueInput(text) ?? (await this.parsePhrase(text));
     if (!dueDate) {
-      this.error.set('Enter a date like 14/10/2026.');
+      this.error.set('Enter a date like 14/10/2026 or fri.');
       return;
     }
     this.close({ dueDate });
+  }
+
+  /** `fri`, `next tue`: the quick-add parser, if it can be loaded (it can't offline before it was). */
+  private async parsePhrase(text: string): Promise<DateOnly | null> {
+    try {
+      const parser = await loadQuickAddParser();
+      return parser.parseDatePhrase(text, { now: new Date(), timeZone: this.timeZone });
+    } catch {
+      return null;
+    }
   }
 }
