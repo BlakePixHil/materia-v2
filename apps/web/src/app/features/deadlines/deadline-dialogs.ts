@@ -237,7 +237,12 @@ export interface ConfirmChangeDialogData {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule, MtButton, MtDialog, MtTextField],
   template: `
-    <mt-dialog size="sm" role="alertdialog" title="Accept a change to a critical deadline?" [description]="description">
+    <mt-dialog
+      size="sm"
+      title="Accept a change to a critical deadline?"
+      [role]="'alertdialog'"
+      [description]="description"
+    >
       <form id="mt-confirm-change-form" (submit)="$event.preventDefault(); save()">
         <mt-text-field
           name="confirmation"
