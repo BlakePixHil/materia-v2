@@ -1,0 +1,8 @@
+{
+  "id": "chat-013",
+  "fixtures": {
+    "matters/pryce/will.txt": "488797152daa2029"
+  },
+  "expectCitations": true,
+  "mustNotContain": ["Priya Venkataraman"]
+}

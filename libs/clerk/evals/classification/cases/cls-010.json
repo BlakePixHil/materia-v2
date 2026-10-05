@@ -1,0 +1,13 @@
+{
+  "id": "cls-010",
+  "description": "Opposing solicitors' letter",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "matters/vance/roland-letter.txt",
+      "title": "keane-doyle-28jan.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

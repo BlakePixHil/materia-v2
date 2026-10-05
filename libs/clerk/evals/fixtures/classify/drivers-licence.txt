@@ -1,0 +1,8 @@
+SAMPLE - NOT A REAL LICENCE. Fictional document for software testing.
+
+VICTORIA DRIVER LICENCE (SAMPLE)
+Name: GWENDOLYN MAY PRYCE
+Address: 19 WEDDELL ROAD, NORTH GEELONG VIC 3215
+Date of birth: 14 APR 1937
+Licence no: 000000000 (SAMPLE)
+Expiry: 14 APR 2027
