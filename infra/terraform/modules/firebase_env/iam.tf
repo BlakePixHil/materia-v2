@@ -157,6 +157,14 @@ resource "google_service_account_iam_member" "fn_runtime_sign_self" {
   member             = "serviceAccount:${google_service_account.fn_runtime.email}"
 }
 
+# documents-onUpload is a Cloud Storage trigger (CORE-12): Eventarc receives the bucket's
+# notifications through Pub/Sub, so the Cloud Storage service agent must be able to publish.
+resource "google_project_iam_member" "gcs_eventarc_publisher" {
+  project = google_project.this.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
+}
+
 resource "google_storage_bucket_iam_member" "fn_runtime_files" {
   bucket = google_storage_bucket.default.name
   role   = "roles/storage.objectAdmin"

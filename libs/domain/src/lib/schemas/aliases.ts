@@ -20,6 +20,7 @@ import {
   Deadline,
   DeadlineChange,
   MatterDocument,
+  DocumentHash,
   Chunk,
   Note,
   Activity,
@@ -97,6 +98,9 @@ export const DeadlineChangeUpdateSchema = DeadlineChange.update;
 export const MatterDocumentSchema = MatterDocument.schema;
 export const MatterDocumentCreateSchema = MatterDocument.create;
 export const MatterDocumentUpdateSchema = MatterDocument.update;
+export const DocumentHashSchema = DocumentHash.schema;
+export const DocumentHashCreateSchema = DocumentHash.create;
+export const DocumentHashUpdateSchema = DocumentHash.update;
 export const ChunkSchema = Chunk.schema;
 export const ChunkCreateSchema = Chunk.create;
 export const ChunkUpdateSchema = Chunk.update;

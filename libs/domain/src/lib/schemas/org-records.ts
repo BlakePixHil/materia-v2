@@ -290,6 +290,14 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
     contactId: DocIdSchema,
     ...notificationBase,
   }),
+  // An upload to a matter was infected and deleted (CORE-12): to the uploader and the org's owners
+  // and admins. High priority.
+  z.object({
+    kind: z.literal('document_infected'),
+    matterId: DocIdSchema,
+    documentId: DocIdSchema,
+    ...notificationBase,
+  }),
   z.object({ kind: z.literal('invite_accepted'), memberUid: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('system'), ...notificationBase }),
 ]);

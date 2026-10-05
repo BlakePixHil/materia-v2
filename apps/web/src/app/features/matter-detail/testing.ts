@@ -356,7 +356,7 @@ export interface OpenOptions {
   callables?: Record<string, FakeCallable>;
   /** Feature flags as Remote Config values (`{ 'templates.system': true }`). */
   flags?: Record<string, FlagValue>;
-  /** Extra providers (a fixed clock, a device time zone). */
+  /** Extra providers (a fixed clock, a device time zone, fakes for ports a feature adds). */
   providers?: Provider[];
 }
 

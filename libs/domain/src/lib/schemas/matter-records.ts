@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
-import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
+import {
+  ActorSchema,
+  CentsSchema,
+  DateOnlySchema,
+  DocIdSchema,
+  InstantSchema,
+  NonEmptyString,
+  withMeta,
+} from './common';
 import {
   DeadlineKindSchema,
   DeadlineStatusSchema,
@@ -331,19 +339,123 @@ export const DeadlineChange = withMeta(
   },
 );
 
-/** `matters/{matterId}/documents/{docId}`. */
+/** Limits on a matter document's metadata and history (CORE-12). The rules check the same values. */
+export const DOCUMENT_NAME_MAX = 255;
+export const DOCUMENT_TAG_MAX = 40;
+export const DOCUMENT_TAGS_MAX = 20;
+export const DOCUMENT_NOTES_MAX = 5000;
+export const DOCUMENT_VERSIONS_MAX = 100;
+
+/** A stored version: `orgs/{orgId}/matters/{matterId}/documents/{docId}/v{n}`. */
+export const DocumentStoragePathSchema = z.string().regex(/^orgs\/[^/]+\/matters\/[^/]+\/documents\/[^/]+\/v\d+$/);
+const Sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
+
+/**
+ * Derived files of one version (CORE-12), each a Storage path under
+ * `documents/{docId}/renditions/v{n}/`: an Office document's PDF preview, a HEIC photo's JPEG, an
+ * email's parsed headers, body and attachment list (JSON). Clients fetch them through
+ * `documents-getDownloadUrl`.
+ */
+export const DocumentRenditionsSchema = z
+  .object({ previewPdf: z.string().optional(), previewImage: z.string().optional(), message: z.string().optional() })
+  .strict();
+export type DocumentRenditions = z.infer<typeof DocumentRenditionsSchema>;
+
+/** One clean version in a document's history (CORE-12). Versions are never edited or removed. */
+export const DocumentVersionSchema = z
+  .object({
+    version: z.number().int().min(1),
+    storagePath: DocumentStoragePathSchema,
+    /** The file name it was uploaded with. */
+    fileName: NonEmptyString.max(DOCUMENT_NAME_MAX),
+    /** The type its content was verified as (magic bytes), not what the browser said. */
+    mime: z.string().min(3),
+    sizeBytes: z.number().int().min(0),
+    sha256: Sha256Schema,
+    uploadedAt: InstantSchema,
+    uploadedBy: ActorSchema,
+    /** The pending upload it came from (`pending/{uploadId}`), so a retried trigger adds it once. */
+    uploadId: z.string().optional(),
+    pageCount: z.number().int().min(0).optional(),
+    /** A password-protected PDF: stored, but it can't be previewed or merged. */
+    encrypted: z.boolean().optional(),
+    /** `documents-restoreVersion` copied this version from an earlier one. */
+    restoredFrom: z.number().int().min(1).optional(),
+    renditions: DocumentRenditionsSchema.optional(),
+  })
+  .strict();
+export type DocumentVersion = z.infer<typeof DocumentVersionSchema>;
+
+/** Why an upload was refused before it became a version (CORE-12). */
+export const DocumentUploadReasonSchema = z.enum([
+  /** The extension isn't on the allow-list. */
+  'type_not_allowed',
+  /** The content isn't what the extension says (magic bytes). */
+  'type_mismatch',
+  /** The SHA-256 the client sent doesn't match the bytes received. */
+  'hash_mismatch',
+  'too_large',
+  /** The uploader may not upload here (role, membership, privileged material). */
+  'not_allowed',
+  /** The document a new version was meant for is gone or not visible to the uploader. */
+  'target_unavailable',
+  /** The document already has the maximum number of versions. */
+  'version_limit',
+]);
+export type DocumentUploadReason = z.infer<typeof DocumentUploadReasonSchema>;
+
+/**
+ * The document's latest upload while it is in the pipeline, or refused (CORE-12): `scanning`,
+ * `delayed` (the scanner timed out or is down: the file stays quarantined and is retried, shown
+ * as "Scanning delayed"), `infected` (deleted), `rejected` (`reason`) or `expired` (still
+ * unscanned after 24 hours, deleted). Removed once the upload becomes a version.
+ */
+export const DocumentUploadSchema = z
+  .object({
+    uploadId: z.string().min(1),
+    fileName: NonEmptyString.max(DOCUMENT_NAME_MAX),
+    sizeBytes: z.number().int().min(0),
+    uploadedBy: ActorSchema,
+    at: InstantSchema,
+    status: z.enum(['scanning', 'delayed', 'infected', 'rejected', 'expired']),
+    attempts: z.number().int().min(0),
+    reason: DocumentUploadReasonSchema.optional(),
+    /** The version number reserved for it (once clean). */
+    version: z.number().int().min(1).optional(),
+  })
+  .strict();
+export type DocumentUpload = z.infer<typeof DocumentUploadSchema>;
+
+/**
+ * `matters/{matterId}/documents/{docId}` (CORE-12). Created by `documents-onUpload` when an upload
+ * arrives, with `scan.status: 'pending'` and no version; each clean upload appends to `versions`,
+ * and the top-level `storagePath`, `mime`, `sizeBytes`, `sha256`, `version`, `pageCount`,
+ * `encrypted` and `renditions` mirror the current one. `scan` is the current content's status
+ * (`infected` only when the first upload was infected and nothing was stored). Clients edit the
+ * name, category, privileged flag, tags and notes, and soft delete; everything else is
+ * server-owned. A soft-deleted document stays readable so citations resolve ("Removed document").
+ */
 export const MatterDocument = withMeta(
   {
     ...GroupKeys,
-    name: NonEmptyString,
-    storagePath: z.string().regex(/^orgs\/[^/]+\/matters\/[^/]+\/documents\/[^/]+\/v\d+$/),
-    mime: z.string().min(3),
-    sizeBytes: z.number().int().min(0),
-    sha256: z.string().regex(/^[0-9a-f]{64}$/),
-    version: z.number().int().min(1),
+    name: NonEmptyString.max(DOCUMENT_NAME_MAX),
     category: DocumentCategorySchema,
     privileged: z.boolean().default(false),
-    scan: z.object({ status: z.enum(['pending', 'clean', 'infected', 'error']) }),
+    tags: z.array(NonEmptyString.max(DOCUMENT_TAG_MAX)).max(DOCUMENT_TAGS_MAX).default([]),
+    notes: z.string().max(DOCUMENT_NOTES_MAX).optional(),
+    storagePath: DocumentStoragePathSchema.optional(),
+    mime: z.string().min(3).optional(),
+    sizeBytes: z.number().int().min(0).optional(),
+    sha256: Sha256Schema.optional(),
+    /** The current version's number; 0 until the first clean upload. */
+    version: z.number().int().min(0),
+    /** The highest version number reserved so far (numbers are never reused; a crash can skip one). */
+    versionSeq: z.number().int().min(0).optional(),
+    versions: z.array(DocumentVersionSchema).max(DOCUMENT_VERSIONS_MAX).default([]),
+    scan: z.object({ status: z.enum(['pending', 'clean', 'infected', 'error']), at: InstantSchema.optional() }),
+    upload: DocumentUploadSchema.optional(),
+    /** Another live document in the matter with the same content: the UI offers keep both or discard. */
+    duplicateOf: DocIdSchema.optional(),
     ingest: z.object({
       status: z.enum(['pending', 'done', 'failed', 'skipped']),
       pages: z.number().int().optional(),
@@ -354,7 +466,7 @@ export const MatterDocument = withMeta(
     pageCount: z.number().int().optional(),
     encrypted: z.boolean().default(false),
     accessRestricted: z.boolean().default(false),
-    renditions: z.object({ previewPdf: z.string().optional() }).optional(),
+    renditions: DocumentRenditionsSchema.optional(),
   },
   {
     path: `${MATTER}/documents`,
@@ -363,16 +475,34 @@ export const MatterDocument = withMeta(
       'orgId',
       'matterId',
       'storagePath',
+      'mime',
       'sha256',
       'sizeBytes',
       'version',
+      'versionSeq',
+      'versions',
       'scan',
+      'upload',
+      'duplicateOf',
       'ingest',
+      'source',
       'renditions',
       'pageCount',
+      'encrypted',
     ],
-    updatable: ['name', 'category', 'privileged', 'accessRestricted'],
+    updatable: ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes'],
   },
+);
+
+/**
+ * `matters/{matterId}/documentHashes/{sha256}`: server-only index of the matter's content hashes
+ * (CORE-12). `documents-onUpload` reads and writes it in the transaction that adds a first version,
+ * so two uploads of the same file, even at the same moment, can't both be the original: the
+ * second is marked `duplicateOf` the first.
+ */
+export const DocumentHash = withMeta(
+  { documentId: DocIdSchema },
+  { path: `${MATTER}/documentHashes`, migratable: false, updatable: [] },
 );
 
 /** `documents/{docId}/chunks/{n}`. Written by functions only. */
@@ -514,6 +644,7 @@ export type MatterEvent = z.infer<typeof MatterEvent.schema>;
 export type Deadline = z.infer<typeof Deadline.schema>;
 export type DeadlineChange = z.infer<typeof DeadlineChange.schema>;
 export type MatterDocument = z.infer<typeof MatterDocument.schema>;
+export type DocumentHash = z.infer<typeof DocumentHash.schema>;
 export type Chunk = z.infer<typeof Chunk.schema>;
 export type Note = z.infer<typeof Note.schema>;
 export type Activity = z.infer<typeof Activity.schema>;

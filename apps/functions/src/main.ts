@@ -15,3 +15,4 @@ export * as conflicts from './conflicts/index';
 export * as templates from './templates/index';
 export * as tasks from './tasks/index';
 export * as deadlines from './deadlines/index';
+export * as documents from './documents/index';

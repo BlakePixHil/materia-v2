@@ -36,10 +36,13 @@ function seedTemplates(fs: Page['firestore']): void {
 /** Opens the templates from the Tasks header; the dialog loads on demand. */
 async function openTemplates(page: Page): Promise<HTMLElement> {
   await page.click('Task group templates');
-  await page.stable(50);
-  const dialog = page.dialog();
-  if (!dialog) throw new Error('No dialog');
-  return dialog;
+  // The dialog is a lazy chunk: wait for it rather than for a fixed time.
+  return vi.waitFor(async () => {
+    await page.stable(50);
+    const dialog = page.dialog();
+    if (!dialog) throw new Error('No dialog');
+    return dialog;
+  });
 }
 
 const names = (page: Page) =>

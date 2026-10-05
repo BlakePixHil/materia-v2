@@ -139,7 +139,8 @@ describe('app routes', () => {
     const { title, crumbs, el } = await setup('/matters/M-2026-0142/documents', testSession(), {}, withMatter());
     expect(title()).toBe('Matter · M-2026-0142 · Documents · Materia');
     expect(crumbs()).toEqual(['Matters', 'M-2026-0142', 'Documents']);
-    expect(el.textContent).toContain('Coming in CORE-12');
+    // The Documents tab itself (CORE-12), no longer a placeholder.
+    expect(el.querySelector('mt-matter-documents h2')?.textContent?.trim()).toBe('Documents');
   });
 
   it('redirects an unknown matter tab to the overview', async () => {

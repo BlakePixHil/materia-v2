@@ -29,6 +29,17 @@ describe('rules-sync', () => {
     expect(renderBlock(fakeDomain, { fields: false })).not.toContain('fieldsTask');
   });
 
+  it('renders uploadTypes() from UPLOAD_TYPES for the Storage rules only (CORE-12)', () => {
+    const withUploads = {
+      ...fakeDomain,
+      UPLOAD_TYPES: { pdf: { mime: 'application/pdf' }, txt: { mime: 'text/plain' } },
+    };
+    const block = renderBlock(withUploads, { fields: false, uploads: true });
+    expect(block).toContain("'pdf': 'application/pdf',\n        'txt': 'text/plain'");
+    expect(block).toContain('function uploadTypes()');
+    expect(renderBlock(withUploads)).not.toContain('uploadTypes');
+  });
+
   it('replaces only the marked block, and fails without markers', () => {
     const rules = 'before\n    // <generated:rules-sync>\n    old\n    // </generated:rules-sync>\nafter\n';
     const next = applyBlock(rules, '    // <generated:rules-sync>\n    new\n    // </generated:rules-sync>');

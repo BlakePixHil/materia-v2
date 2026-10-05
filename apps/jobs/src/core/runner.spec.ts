@@ -85,6 +85,8 @@ describe('executeJob', () => {
       createdBy: 'uid-lawyer',
       scan: { status: 'clean' },
       ingest: { status: 'pending' },
+      version: 1,
+      versions: [{ version: 1, storagePath: path, mime: 'application/pdf', pageCount: 3, uploadedBy: 'uid-lawyer' }],
     });
     expect(store.progressWrites.at(-1)).toMatchObject({ stage: 'saving' });
   });
