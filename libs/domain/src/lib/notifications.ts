@@ -52,6 +52,8 @@ export const NOTIFICATION_KINDS = {
   document_infected: { label: 'Infected uploads removed', channels: ['inapp', 'email'], priority: 'high' },
   integration_error: { label: 'Integration problems', channels: ['inapp', 'email'], priority: 'high' },
   export_ready: { label: 'Exports ready', channels: ['inapp', 'email'], priority: 'normal' },
+  // CORE-17: a testator whose original will is in safe custody has died. High and emailed.
+  safe_custody: { label: 'Safe custody wills', channels: ['inapp', 'email'], priority: 'high' },
   budget_alert: { label: 'Budget alerts', channels: ['inapp'], priority: 'normal' },
   system: { label: 'Account and system messages', channels: ['inapp'], priority: 'normal' },
 } as const satisfies Record<NotificationKind, NotificationKindSpec>;

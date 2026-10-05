@@ -664,11 +664,16 @@ export const makeSafeCustody = (o: Partial<D.SafeCustody> = {}) =>
   build(
     D.SafeCustody,
     {
+      packetNo: 'SC-000001',
       testatorContactId: 'contact-test-4',
-      packetNo: '0000-TEST',
-      location: 'Safe A, shelf 2',
+      testatorName: 'Fictional Testator',
+      responsibleUid: 'user-test-lawyer',
+      items: [{ kind: 'will', date: d('2019-02-14'), description: 'Will' }],
+      location: { site: 'Geelong', cabinet: 'Safe A', slot: '2' },
       receivedOn: d('2019-03-01'),
       status: 'held',
+      search: ['sc000001', 'fictional'],
+      locationKey: 'geelong|safe a|00000002',
     },
     o,
   );

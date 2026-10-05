@@ -6,15 +6,22 @@ import {
   ChangeMatterStatusInput,
   conflictAllowsOpening,
   ConflictStatusSchema,
+  contactDisplayName,
+  DEFAULT_ORG_TIMEZONE,
   DomainError,
   MATTER_TRANSITIONS,
   MatterStatusSchema,
   PERMISSIONS,
+  referrerThankYouEnabled,
+  referrerThankYouTitle,
+  today,
   transitionRequirements,
   type ChangeMatterStatusResult,
+  type Contact,
   type MatterStatus,
 } from '@materia/domain';
 
+import { thankYouTaskData, thankYouTaskPath } from './referral';
 import { matterPath } from './shared';
 import { audit } from '../audit/audit';
 import { isDeleted, stamp } from '../contacts/shared';
@@ -39,6 +46,10 @@ export const changeStatusDefinition = {
     const ref = db.doc(matterPath(orgId, input.matterId));
     const reason = input.reason?.trim() || undefined;
     const now = clock.now();
+    // CORE-18: a referred lead that opens gets a "Thank referrer" task when the org asks for it.
+    const org = input.to === 'open' ? (await db.doc(`orgs/${orgId}`).get()).data() : undefined;
+    const thankYou = referrerThankYouEnabled(org);
+    let thankYouTask = false;
 
     const from = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
@@ -89,6 +100,34 @@ export const changeStatusDefinition = {
       }
 
       const patch: Record<string, unknown> = { status: input.to, ...stamp(uid, now, requestId) };
+      // Reads first: the task (one per matter, so a retry or a second opening never adds another)
+      // and the referrer's name for its title.
+      const referrerId = data['referrerContactId'];
+      thankYouTask = false;
+      let taskData: Record<string, unknown> | undefined;
+      if (thankYou && current === 'lead' && input.to === 'open' && typeof referrerId === 'string' && referrerId) {
+        const taskRef = db.doc(thankYouTaskPath(orgId, input.matterId));
+        const [task, referrer] = await Promise.all([
+          tx.get(taskRef),
+          tx.get(db.doc(`orgs/${orgId}/contacts/${referrerId}`)),
+        ]);
+        if (!task.exists) {
+          const timeZone =
+            typeof org?.['timezone'] === 'string' && org['timezone'] ? org['timezone'] : DEFAULT_ORG_TIMEZONE;
+          const name = referrer.exists ? contactDisplayName(referrer.data() as Partial<Contact>) : undefined;
+          taskData = thankYouTaskData({
+            orgId,
+            matterId: input.matterId,
+            title: referrerThankYouTitle(name),
+            assigneeUid: typeof data['responsibleUid'] === 'string' ? data['responsibleUid'] : undefined,
+            openedOn: today(timeZone, now),
+            uid,
+            now,
+            requestId,
+          });
+          patch['openTaskCount'] = FieldValue.increment(1);
+        }
+      }
       if (input.to === 'closed') {
         patch['closedAt'] = now;
         patch['closeReason'] = reason ?? FieldValue.delete();
@@ -98,6 +137,10 @@ export const changeStatusDefinition = {
         patch['closeReason'] = FieldValue.delete();
       }
       tx.update(ref, patch);
+      if (taskData) {
+        tx.create(db.doc(thankYouTaskPath(orgId, input.matterId)), taskData);
+        thankYouTask = true;
+      }
       return current;
     });
 
@@ -105,7 +148,12 @@ export const changeStatusDefinition = {
       action: 'matter.status_changed',
       entity: { path: ref.path },
       summary: `Matter ${input.matterId} moved from ${from} to ${input.to}`,
-      data: { from, to: input.to, ...(reason ? { reason } : {}) },
+      data: {
+        from,
+        to: input.to,
+        ...(reason ? { reason } : {}),
+        ...(thankYouTask ? { referrerThankYouTask: true } : {}),
+      },
     });
     log.info('matter status changed', { matterId: input.matterId, from, to: input.to });
     return { matterId: input.matterId, status: input.to };

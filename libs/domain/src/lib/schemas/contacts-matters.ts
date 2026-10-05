@@ -12,7 +12,14 @@ import {
   SearchTokensSchema,
   withMeta,
 } from './common';
-import { JurisdictionSchema, MatterStatusSchema, MatterTypeSchema, PrioritySchema } from './enums';
+import {
+  JurisdictionSchema,
+  MatterStatusSchema,
+  MatterTypeSchema,
+  PrioritySchema,
+  ReferralSourceSchema,
+  ReferrerIndustrySchema,
+} from './enums';
 
 /**
  * `matter.conflictAlert` (CORE-02): set by `conflicts-onPartyAdded` when a party added to an open
@@ -48,7 +55,16 @@ export const Contact = withMeta(
     addresses: z.array(AddressSchema).default([]),
     tags: z.array(z.string()).default([]),
     isReferrer: z.boolean().default(false),
-    referrerMeta: z.object({ company: z.string(), industry: z.string() }).optional(),
+    /**
+     * Who the referrer works for and their industry (CORE-18). An industry from before the enum
+     * (free text) reads as `other`; `referrerIndustryFromText` maps legacy text properly.
+     */
+    referrerMeta: z
+      .object({
+        company: z.string().optional(),
+        industry: ReferrerIndustrySchema.optional().catch('other'),
+      })
+      .optional(),
     notes: z.string().optional(),
     search: SearchTokensSchema,
     dedupeKey: z.string(),
@@ -104,8 +120,10 @@ export const Matter = withMeta(
       })
       .optional(),
     testator: z.object({ contactId: DocIdSchema }).optional(),
+    /** The contact who referred the matter (CORE-18), usually one with `isReferrer`. */
     referrerContactId: DocIdSchema.optional(),
-    referralSource: z.string().optional(),
+    /** Where the matter came from when no referrer contact sent it (CORE-18); never set with `referrerContactId`. */
+    referralSource: ReferralSourceSchema.optional(),
     fee: FeeSchema,
     costsDisclosure: z.object({
       status: z.enum(['not_required', 'required', 'sent', 'updated', 'waived']),
@@ -197,6 +215,9 @@ export const Matter = withMeta(
       'deceased',
       'facts',
       'privileged',
+      // The referral (CORE-18), edited on the matter header.
+      'referrerContactId',
+      'referralSource',
       // The Matters board's card order (CORE-04): a reorder is a client write.
       'boardOrder',
     ],
