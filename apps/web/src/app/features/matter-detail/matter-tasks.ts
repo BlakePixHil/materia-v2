@@ -32,6 +32,7 @@ import {
   sectionsByGroup,
   sectionsByStage,
   taskEntry,
+  tasksByGroup,
   uniqueGroups,
 } from '../tasks/task-view';
 import { TasksBulkBar } from '../tasks/tasks-bulk-bar';
@@ -50,8 +51,8 @@ function storedGroupBy(): GroupBy {
 /**
  * A matter's Tasks tab (CORE-08): its tasks grouped by stage (template tasks carry their stage's
  * name) or by their own group, in their manual order. `c` opens the quick-add line; tasks are
- * completed, renamed, reordered, ticked and changed in bulk from the list. Listens to the matter's
- * tasks only while this tab is shown.
+ * completed, renamed, reordered, ticked and changed in bulk from the list; "Templates" adds a task
+ * group template's tasks (CORE-08f). Listens to the matter's tasks only while this tab is shown.
  */
 @Component({
   selector: 'mt-matter-tasks',
@@ -81,6 +82,16 @@ function storedGroupBy(): GroupBy {
           (ngModelChange)="setGroupBy($event)"
         />
         @if (canEdit()) {
+          <button
+            mtButton
+            variant="secondary"
+            size="sm"
+            iconStart="list"
+            aria-label="Task group templates"
+            (click)="openTemplates()"
+          >
+            Templates
+          </button>
           <button #addButton mtButton variant="primary" size="sm" iconStart="plus" kbd="c" (click)="openQuickAdd()">
             Add task
           </button>
@@ -293,6 +304,18 @@ export class MatterTasks {
         this.toasts.show({ title: 'The task didn’t save', description: errorCopy(error), tone: 'danger' }),
       );
     this.actions.announcement.set(`Added ${task.title}.`);
+  }
+
+  /**
+   * "Templates" (CORE-08f): picks a task group template (or saves one of this matter's groups as
+   * one), then adds its tasks after the last task.
+   */
+  protected async openTemplates(): Promise<void> {
+    if (!this.canEdit()) return;
+    const template = await this.actions.openTaskGroupTemplates(tasksByGroup(inOrder(this.tasks.value())));
+    const matterId = this.id();
+    if (!template || !matterId) return;
+    this.actions.addTaskGroup(matterId, template, orderAfterLast(this.tasks.value()));
   }
 
   protected setStatus(status: TaskStatus): void {

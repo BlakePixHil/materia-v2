@@ -208,6 +208,24 @@ export function sectionsByGroup(entries: readonly TaskEntry[]): TaskSectionVm[] 
   return [...sections.values(), none].filter((section) => section.entries.length);
 }
 
+/** Each named group and its tasks, in the given order, spelled as first seen (CORE-08f). */
+export function tasksByGroup<T extends { group?: string | null | undefined }>(
+  tasks: readonly T[],
+): { name: string; tasks: T[] }[] {
+  const groups = new Map<string, { name: string; tasks: T[] }>();
+  for (const task of tasks) {
+    const name = task.group?.trim();
+    if (!name) continue;
+    let group = groups.get(fold(name));
+    if (!group) {
+      group = { name, tasks: [] };
+      groups.set(fold(name), group);
+    }
+    group.tasks.push(task);
+  }
+  return [...groups.values()];
+}
+
 /** Tasks in their manual order (`byOrder`, ties by id). */
 export function inOrder(tasks: readonly TaskRecord[]): TaskRecord[] {
   return [...tasks].sort(byOrder);

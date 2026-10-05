@@ -197,6 +197,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'members',
     update: 'task.edit',
   },
+  // Task group templates (CORE-08f): read by members, written client-direct by task.edit roles.
+  {
+    collection: 'taskGroupTemplates',
+    docPath: `orgs/${ORG}/taskGroupTemplates/group-1`,
+    entity: 'TaskGroupTemplate',
+    read: 'members',
+    update: 'task.edit',
+  },
   {
     collection: 'docTemplates',
     docPath: `orgs/${ORG}/docTemplates/doctemplate-1`,

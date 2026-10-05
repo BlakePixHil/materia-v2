@@ -23,6 +23,7 @@ const {
   buildLoadMatters,
   makeContact,
   makeChecklistTemplate,
+  makeTaskGroupTemplate,
   makeCounter,
   makeDeadline,
   makeMatter,
@@ -735,6 +736,24 @@ export function buildDataset(options: {
       ],
       priority: 'high',
       dueInDays: 7,
+    }),
+  );
+  // A task group template to add from a matter's Tasks tab (CORE-08f).
+  add(
+    `orgs/${org}/taskGroupTemplates/tg-estate-letters`,
+    makeTaskGroupTemplate({
+      ...meta,
+      name: 'Estate letters',
+      tasks: [
+        {
+          title: 'Write to the bank',
+          checklist: ['Account numbers', 'Certified death certificate', 'Date-of-death balances'],
+          priority: 'high',
+          dueInDays: 3,
+        },
+        { title: 'Write to the super fund', checklist: ['Member number', 'Binding nomination'], dueInDays: 7 },
+        { title: 'Notify Centrelink', checklist: [] },
+      ],
     }),
   );
 
