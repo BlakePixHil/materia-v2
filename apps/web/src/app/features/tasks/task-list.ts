@@ -138,6 +138,8 @@ const FOLLOW_MS = 1500;
                       [entry]="entry"
                       (checklist)="actions.setChecklist(entry, $event)"
                       (status)="actions.setStatus([entry], $event)"
+                      (priority)="actions.bulk([entry], { op: 'priority', priority: $event })"
+                      (dueDate)="actions.changeDueDate([entry])"
                     />
                   }
                 </div>
