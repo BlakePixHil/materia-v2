@@ -39,6 +39,8 @@ function world(extra: Record<string, Record<string, unknown>> = {}, enforced = t
       flags: { 'conflicts.enforced': enforced },
     },
     ...Object.fromEntries(fixture.docs.map((doc) => [doc.path, doc.data])),
+    // notify() only writes to active members (FND-20).
+    [`orgs/${ORG}/members/user-lawyer`]: { ...meta, role: 'lawyer', status: 'active' },
     ...extra,
   });
   const clock = new FakeClock(NOW);
@@ -462,7 +464,8 @@ describe('conflicts-onPartyAdded', () => {
       contactId: C.barnaby,
       link: `/matters/${M.probate}`,
       priority: 'high',
-      channel: ['inapp'],
+      channels: ['inapp'],
+      readAt: null,
     });
     expect(Notification.create.safeParse(notification?.data).success).toBe(true);
   });

@@ -245,7 +245,10 @@ describe('tasks-onWrite', () => {
       title: 'Task assigned to you',
       body: 'Prepare the inventory of assets · TK-2026-0001',
       link: '/matters/m-tasks/tasks',
-      channel: ['inapp'],
+      // Assignments go in-app and by email (FND-20); this member has no address, so only in-app arrives.
+      channels: ['inapp', 'email'],
+      priority: 'normal',
+      readAt: null,
     });
     // A later edit that keeps the assignee doesn't notify again; reassigning does.
     await updateDoc(doc(firestore, `${TASKS}/assigned-1`), stamped(uid, { priority: 'urgent' }));

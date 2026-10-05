@@ -2,7 +2,6 @@ import {
   CONFLICT_RECHECK_STATUSES,
   contactSubject,
   hasAdverseHit,
-  Notification,
   PartyRoleSchema,
   type Contact,
 } from '@materia/domain';
@@ -12,6 +11,7 @@ import { contactPath, isDeleted } from '../contacts/shared';
 import { isEnabled } from '../core/flags';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
 import { matterPath } from '../matters/shared';
+import { notify } from '../notifications/notify';
 
 type Data = Record<string, unknown>;
 
@@ -95,26 +95,22 @@ export async function recheckParty(change: TriggerChange, ctx: TriggerContext): 
   const recipientUid = matter['responsibleUid'];
   if (typeof recipientUid === 'string' && recipientUid) {
     const number = typeof matter['number'] === 'string' && matter['number'] ? matter['number'] : 'a matter';
-    const notification = Notification.schema.parse({
-      kind: 'conflict_alert',
-      matterId,
-      checkId,
-      contactId,
-      recipientUid,
-      title: adverse ? `Possible conflict on ${number}` : `Conflict check needed on ${number}`,
-      body: adverse
-        ? 'A party just added is on other matters in an adverse role. Review the conflict check.'
-        : 'A party just added is on other matters. Review the conflict check.',
-      link: `/matters/${matterId}`,
-      channel: ['inapp'],
-      priority: 'high',
-      createdAt: now,
-      createdBy: 'system',
-      updatedAt: now,
-      updatedBy: 'system',
-      schemaVersion: Notification.version,
-    });
-    await db.collection(`orgs/${orgId}/notifications`).doc().create(notification);
+    await notify(
+      { db, orgId, clock: ctx.clock, log, ports: ctx.ports },
+      {
+        kind: 'conflict_alert',
+        matterId,
+        checkId,
+        contactId,
+        recipients: [recipientUid],
+        title: adverse ? `Possible conflict on ${number}` : `Conflict check needed on ${number}`,
+        body: adverse
+          ? 'A party just added is on other matters in an adverse role. Review the conflict check.'
+          : 'A party just added is on other matters. Review the conflict check.',
+        link: `/matters/${matterId}`,
+        priority: 'high',
+      },
+    );
   }
   log.info('party re-check alert', { matterId, partyId, checkId, hits: relevant.length, adverse });
   return 'alerted';

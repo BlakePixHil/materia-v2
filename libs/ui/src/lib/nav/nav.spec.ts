@@ -20,7 +20,7 @@ describe('MtNavItem', () => {
   @Component({
     imports: [MtNavItem, RouterLink],
     template: `
-      <a mtNavItem routerLink="/today" icon="today" label="Today"></a>
+      <a mtNavItem routerLink="/today" icon="today" label="Today" [count]="250"></a>
       <a mtNavItem routerLink="/inbox" icon="inbox" label="Inbox" [count]="4"></a>
       <a mtNavItem routerLink="/matters" icon="matters" label="Matters" collapsed></a>
     `,
@@ -35,7 +35,10 @@ describe('MtNavItem', () => {
     await waitFor(() => expect(inbox).toHaveAttribute('data-active'));
     expect(inbox).toHaveAttribute('aria-current', 'page');
     expect(inbox.querySelector('.mt-nav-count')).toHaveTextContent('4');
-    expect(screen.getByRole('link', { name: 'Today' })).not.toHaveAttribute('data-active');
+    const todayLink = screen.getByRole('link', { name: /Today/ });
+    expect(todayLink).not.toHaveAttribute('data-active');
+    // Past 99 the count reads 99+.
+    expect(todayLink.querySelector('.mt-nav-count')).toHaveTextContent('99+');
 
     const matters = screen.getByRole('link', { name: 'Matters' });
     expect(matters).toHaveAttribute('aria-label', 'Matters');
@@ -96,5 +99,21 @@ describe('MtTabBar', () => {
     expect(screen.getByRole('link', { name: 'Record' }).querySelector('.fab')).not.toBeNull();
     await waitFor(() => expect(screen.getByRole('link', { name: 'Matters' })).toHaveAttribute('aria-current', 'page'));
     warn.mockRestore();
+  });
+
+  it('badges a count on its icon, capped at 99+', async () => {
+    const items = [
+      { label: 'Today', icon: 'today', link: '/today', count: 0 },
+      { label: 'Matters', icon: 'matters', link: '/matters', count: 120 },
+      { label: 'Inbox', icon: 'inbox', link: '/inbox', count: 3 },
+    ];
+    await render(`<mt-tab-bar [items]="items" />`, {
+      imports: [MtTabBar],
+      providers: [provideRouter(routes)],
+      componentProperties: { items },
+    });
+    expect(screen.getByRole('link', { name: /^Inbox/ }).querySelector('.mt-nav-count')).toHaveTextContent('3');
+    expect(screen.getByRole('link', { name: /^Matters/ }).querySelector('.mt-nav-count')).toHaveTextContent('99+');
+    expect(screen.getByRole('link', { name: /^Today/ }).querySelector('.mt-nav-count')).toBeNull();
   });
 });

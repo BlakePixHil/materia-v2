@@ -168,8 +168,47 @@ service cloud.firestore {
 
     // ---------- users ----------
     match /users/{userId} {
+      // Notification preferences (FND-20), when present, hold sensible values, and never switch off
+      // email for deadline escalations. The server enforces the real constraint whatever is stored
+      // (critical notifications always email); this only keeps the stored choice honest.
+      function notificationPrefsOk(data) {
+        let prefs = data.get('prefs', {});
+        let n = prefs.get('notifications', null);
+        return n == null || (
+          n is map
+          && n.get('email', true) is bool && n.get('push', false) is bool
+          && n.get('digestHour', 7) is int && n.get('digestHour', 7) >= 0 && n.get('digestHour', 7) <= 23
+          && n.get('kinds', {}) is map
+          && n.get('kinds', {}).get('deadline_escalation', {}).get('email', true) == true
+        );
+      }
       allow read: if isSignedIn() && uid() == userId;
-      allow update: if isSignedIn() && uid() == userId && clientUpdate(fieldsUser());
+      allow update: if isSignedIn() && uid() == userId && clientUpdate(fieldsUser())
+        && notificationPrefsOk(request.resource.data);
+
+      // Push devices (FND-20): `{token, platform, lastSeenAt}`, private to their user, registered,
+      // refreshed and removed by the client. Functions prune tokens FCM reports gone.
+      match /devices/{deviceId} {
+        function isDeviceOwner() {
+          return isSignedIn() && uid() == userId;
+        }
+        function validDevice(data) {
+          return data.token is string && data.token.size() > 0 && data.token.size() <= 4096
+            && data.platform in ['web', 'ios', 'android']
+            && data.lastSeenAt is timestamp;
+        }
+        function deviceKeys() {
+          return fieldsDevice().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']);
+        }
+        allow read, delete: if isDeviceOwner();
+        allow create: if isDeviceOwner()
+          && request.resource.data.keys().hasOnly(deviceKeys())
+          && request.resource.data.keys().hasAll(deviceKeys())
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt == request.time
+          && validMeta() && request.resource.data.schemaVersion == 1
+          && validDevice(request.resource.data);
+        allow update: if isDeviceOwner() && clientUpdate(fieldsDevice()) && validDevice(request.resource.data);
+      }
 
       // Server-only: MFA recovery code hashes and sign-in stamps (FND-16). Not even the owner reads them.
       match /private/{docId} {
@@ -580,10 +619,12 @@ service cloud.firestore {
         allow update: if editable(orgId, 'matter.edit', fieldsSafeCustody());
       }
 
-      // Each member reads and marks read only their own notifications.
+      // Each member reads and marks read (or unread) only their own notifications (FND-20): `readAt`
+      // is the server's time, or null.
       match /notifications/{notificationId} {
         allow read: if inOrg(orgId) && resource.data.recipientUid == uid();
-        allow update: if inOrg(orgId) && resource.data.recipientUid == uid() && clientUpdate(fieldsNotification());
+        allow update: if inOrg(orgId) && resource.data.recipientUid == uid() && clientUpdate(fieldsNotification())
+          && (request.resource.data.readAt == null || request.resource.data.readAt == request.time);
       }
 
       // Background jobs (FND-24): written by functions and the Cloud Run job; the member who
@@ -604,6 +645,11 @@ service cloud.firestore {
         allow read: if can(orgId, 'org.settings') && isActiveMember(orgId);
       }
       match /integrations/{integrationId} {
+        allow read, write: if false;
+      }
+      // Daily digest records (FND-20), `digest-{uid}-{date}`: written by notifications-digest so a
+      // person gets one a day; Firestore TTL deletes them after 30 days.
+      match /digests/{digestId} {
         allow read, write: if false;
       }
       match /counters/{counterId} {
@@ -704,6 +750,7 @@ service cloud.firestore {
     function fieldsCreditNote() { return []; }
     function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt']; }
     function fieldsDeadlineChange() { return []; }
+    function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'amountExGstCents', 'gstTreatment', 'payee', 'receiptDocumentId', 'status']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'status', 'paidOn']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }

@@ -4,6 +4,7 @@ import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
+import { makeNotification } from '@materia/test-utils';
 import { MT_KEYBOARD_PLATFORM, ThemeService } from '@materia/ui';
 
 import { App } from '../app';
@@ -14,10 +15,14 @@ import type { AuthSession } from '../core/auth/auth-port';
 import { provideFakeAuth, testSession, type FakeAuthPort } from '../core/auth/testing';
 import { CommandRegistry } from '../core/commands/command-registry';
 import { provideTestFlags } from '../core/flags/testing';
+import { NOTIFICATIONS_START_DELAY_MS } from '../core/notifications/notifications-store';
 
 const settle = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function setup(url = '/today', options: { mobile?: boolean; session?: AuthSession } = {}) {
+async function setup(
+  url = '/today',
+  options: { mobile?: boolean; session?: AuthSession; firestore?: InMemoryFirestore } = {},
+) {
   const original = window.matchMedia;
   window.matchMedia = ((query: string) => ({
     matches: query.includes('max-width') ? !!options.mobile : false,
@@ -34,7 +39,9 @@ async function setup(url = '/today', options: { mobile?: boolean; session?: Auth
       ...fake.providers,
       ...provideTestFlags(),
       // Today lists my tasks (CORE-08).
-      provideInMemoryFirestore(new InMemoryFirestore()),
+      provideInMemoryFirestore(options.firestore ?? new InMemoryFirestore()),
+      // The unread badge (FND-20) waits for the page's reads; with seeded notifications, start at once.
+      ...(options.firestore ? [{ provide: NOTIFICATIONS_START_DELAY_MS, useValue: 0 }] : []),
     ],
   });
   const fixture = TestBed.createComponent(App);
@@ -85,6 +92,43 @@ describe('AppShellComponent', () => {
     localStorage.setItem(`${SIDEBAR_STORAGE_PREFIX}user-jordan`, '1');
     const { app } = await setup('/today', { session: testSession({ uid: 'user-other' }) });
     expect(app().hasAttribute('data-collapsed')).toBe(false);
+  });
+
+  it('shows my unread in-app notifications on Inbox (FND-20)', async () => {
+    const firestore = new InMemoryFirestore();
+    const session = testSession();
+    const orgId = session.claims.orgId as string;
+    for (const id of ['n1', 'n2', 'n3']) {
+      firestore.set(`orgs/${orgId}/notifications/${id}`, {
+        ...makeNotification({ recipientUid: session.uid }),
+        createdAt: new Date('2026-10-05T00:00:00.000Z'),
+        ...(id === 'n3' ? { readAt: new Date('2026-10-05T01:00:00.000Z') } : {}),
+      });
+    }
+    const { el, fixture } = await setup('/today', { session, firestore });
+    await settle();
+    await fixture.whenStable();
+    const inbox = [...el.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Main"] a')].find(
+      (a) => a.getAttribute('href') === '/inbox',
+    );
+    expect(inbox?.querySelector('.mt-nav-count')?.textContent?.trim()).toBe('2');
+    // Other items carry no count.
+    expect(el.querySelectorAll('nav[aria-label="Main"] .mt-nav-count')).toHaveLength(1);
+  });
+
+  it('shows the unread count on the Inbox tab on a phone (FND-20)', async () => {
+    const firestore = new InMemoryFirestore();
+    const session = testSession();
+    const orgId = session.claims.orgId as string;
+    firestore.set(`orgs/${orgId}/notifications/n1`, {
+      ...makeNotification({ recipientUid: session.uid }),
+      createdAt: new Date('2026-10-05T00:00:00.000Z'),
+    });
+    const { el, fixture } = await setup('/today', { mobile: true, session, firestore });
+    await settle();
+    await fixture.whenStable();
+    const counts = [...el.querySelectorAll('.mt-tabbar a')].map((a) => a.querySelector('.mt-nav-count')?.textContent);
+    expect(counts).toEqual([undefined, undefined, undefined, undefined, '1']);
   });
 
   it('ignores [ while typing in a field', async () => {

@@ -110,6 +110,10 @@ export const makeUser = (o: Partial<D.User> = {}) =>
     o,
   );
 
+/** A browser's push token (FND-20). The token is a made-up string, not a real FCM token. */
+export const makeDevice = (o: Partial<D.Device> = {}) =>
+  build(D.Device, { token: 'fake-fcm-token-0001', platform: 'web', lastSeenAt: FIXED_INSTANT }, o);
+
 export const makeContact = (o: Partial<D.Contact> = {}) =>
   build(
     D.Contact,
@@ -623,7 +627,10 @@ export const makeNotification = (o: Partial<D.Notification> = {}) =>
       title: 'New task',
       body: 'You were assigned a task',
       link: '/tasks',
-      channel: ['inapp'],
+      channels: ['inapp'],
+      priority: 'normal',
+      readAt: null,
+      summaryId: null,
     },
     o as never,
   );
@@ -781,6 +788,7 @@ export const ENTITY_FACTORIES = {
   Member: [D.Member, makeMember],
   Invite: [D.Invite, makeInvite],
   User: [D.User, makeUser],
+  Device: [D.Device, makeDevice],
   Contact: [D.Contact, makeContact],
   Matter: [D.Matter, makeMatter],
   Party: [D.Party, makeParty],

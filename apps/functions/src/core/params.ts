@@ -1,15 +1,13 @@
-import { defineString } from 'firebase-functions/params';
-
 /**
- * Non-secret deploy-time configuration (firebase-functions params). Set per project in
- * `.env.<projectId>` next to the functions bundle, or leave the default.
+ * Non-secret runtime configuration, read from the functions' environment variables (set in the
+ * deployed `.env`, or on the Cloud Run service). Not firebase-functions params: a deploy without an
+ * interactive terminal refuses any param missing from `.env`, even one with a default.
  */
 
 /**
- * The ClamAV scan service's base URL (CORE-12, ADR-028). Empty until the scanner service is
- * deployed: uploads then stay quarantined ("Scanning delayed") rather than skip the scan.
+ * The ClamAV scan service's base URL (CORE-12, ADR-028). Unset until the scanner service is
+ * deployed (MAT-137): uploads then stay quarantined ("Scanning delayed") rather than skip the scan.
  */
-export const CLAMAV_SCAN_URL = defineString('CLAMAV_SCAN_URL', {
-  default: '',
-  description: 'Base URL of the ClamAV scan service on Cloud Run (POST /scan). Empty: uploads stay quarantined.',
-});
+export function clamavScanUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return env['CLAMAV_SCAN_URL']?.trim() ?? '';
+}

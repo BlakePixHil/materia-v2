@@ -36,6 +36,8 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   conflictChecks: domain.ConflictCheck,
   recent: domain.RecentMatter,
   documents: domain.MatterDocument,
+  // A union of kinds: every kind shares these fields (FND-20).
+  notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
 } as never;
 
 describe('firestore.indexes.json', () => {
@@ -163,5 +165,19 @@ describe('firestore.indexes.json', () => {
       'entity.matterId:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
       'entity.path:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
     ]);
+  });
+
+  it('indexes the unread badge and the burst count, and digest records expire (FND-20)', () => {
+    const notifications = file.indexes
+      .filter((i) => i.collectionGroup === 'notifications')
+      .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(',')}`);
+    expect(notifications).toEqual([
+      'COLLECTION:recipientUid:ASCENDING,createdAt:ASCENDING',
+      'COLLECTION:recipientUid:ASCENDING,channels:CONTAINS,readAt:ASCENDING,summaryId:ASCENDING,createdAt:DESCENDING',
+    ]);
+    const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
+      (o) => o.collectionGroup === 'digests' && o.ttl,
+    );
+    expect(ttl?.fieldPath).toBe('expireAt');
   });
 });
