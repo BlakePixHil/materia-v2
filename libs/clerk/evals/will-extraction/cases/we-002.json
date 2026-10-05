@@ -1,0 +1,13 @@
+{
+  "id": "we-002",
+  "description": "Simple will, typed PDF",
+  "today": "2026-03-20",
+  "documents": [
+    {
+      "id": "d-will",
+      "fixture": "wills/okafor.typed.pdf",
+      "title": "Will"
+    }
+  ],
+  "query": "Extract the will."
+}

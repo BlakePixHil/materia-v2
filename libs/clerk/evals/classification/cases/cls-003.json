@@ -1,0 +1,13 @@
+{
+  "id": "cls-003",
+  "description": "Death certificate",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "matters/pryce/death-certificate.txt",
+      "title": "scan0042.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

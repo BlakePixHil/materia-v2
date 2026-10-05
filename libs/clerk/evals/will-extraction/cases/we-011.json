@@ -1,0 +1,13 @@
+{
+  "id": "we-011",
+  "description": "Charity gift, scanned PDF",
+  "today": "2026-03-20",
+  "documents": [
+    {
+      "id": "d-will",
+      "fixture": "wills/fairweather.scanned.pdf",
+      "title": "Will"
+    }
+  ],
+  "query": "Extract the will."
+}

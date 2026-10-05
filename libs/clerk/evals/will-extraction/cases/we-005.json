@@ -1,0 +1,13 @@
+{
+  "id": "we-005",
+  "description": "A witness is also a beneficiary",
+  "today": "2026-03-20",
+  "documents": [
+    {
+      "id": "d-will",
+      "fixture": "wills/lindqvist.txt",
+      "title": "Will"
+    }
+  ],
+  "query": "Extract the will."
+}

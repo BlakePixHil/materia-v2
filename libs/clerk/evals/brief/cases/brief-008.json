@@ -1,0 +1,21 @@
+{
+  "id": "brief-008",
+  "description": "Weekend: Monday deadline flagged",
+  "today": "2026-03-21",
+  "matter": {
+    "user": "Jordan Price",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0011",
+        "upcomingDeadlines": [
+          {
+            "title": "Reply to Keane & Doyle Lawyers",
+            "due": "2026-03-23"
+          }
+        ],
+        "openTasks": [],
+        "newDocuments": []
+      }
+    ]
+  }
+}

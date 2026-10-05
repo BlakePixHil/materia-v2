@@ -1,0 +1,10 @@
+{
+  "id": "cls-004",
+  "fixtures": {
+    "classify/grant.txt": "595c0aa51e9ce9d3"
+  },
+  "fields": {
+    "category": "grant",
+    "documentDate": "2026-04-02"
+  }
+}

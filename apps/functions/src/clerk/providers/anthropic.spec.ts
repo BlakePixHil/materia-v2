@@ -87,7 +87,13 @@ describe('Anthropic adapter', () => {
   it('adds output_config.format for structured output, and omits fallbacks for fallback models', async () => {
     const params = (await buildParams(
       request({ output: { name: 'hello', schema: z.object({ greeting: z.string() }) }, serverFallbacks: false }),
-    )) as unknown as { output_config: { format: { type: string; schema: { type: string; properties: object } } } };
+    )) as unknown as {
+      output_config: { format: { type: string; schema: { type: string; properties: object } } };
+      messages: { content: Record<string, unknown>[] }[];
+    };
+    // The API rejects citations together with structured output: those features quote in their fields.
+    expect(params.messages[0]?.content).toHaveLength(3);
+    for (const block of params.messages[0]?.content ?? []) expect(block).not.toHaveProperty('citations');
     expect(params.output_config.format.type).toBe('json_schema');
     expect(params.output_config.format.schema).toMatchObject({
       type: 'object',
