@@ -1,0 +1,58 @@
+{
+  "name": "doc-services",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/doc-services/src",
+  "projectType": "application",
+  "tags": ["type:app", "scope:functions"],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "platform": "node",
+        "outputPath": "dist/apps/doc-services",
+        "format": ["cjs"],
+        "bundle": true,
+        "main": "apps/doc-services/src/scanner.ts",
+        "additionalEntryPoints": ["apps/doc-services/src/preview.ts"],
+        "tsConfig": "apps/doc-services/tsconfig.app.json",
+        "assets": [
+          {
+            "input": "apps/doc-services/docker",
+            "glob": "**/*",
+            "output": "docker"
+          }
+        ],
+        "generatePackageJson": false,
+        "thirdParty": false,
+        "esbuildOptions": {
+          "sourcemap": false,
+          "outExtension": {
+            ".js": ".js"
+          }
+        }
+      },
+      "configurations": {
+        "development": {},
+        "production": {}
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": {
+        "command": "tsc --noEmit -p apps/doc-services/tsconfig.app.json && tsc --noEmit -p apps/doc-services/tsconfig.spec.json"
+      }
+    },
+    "test-container": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "vitest run -c apps/doc-services/vitest.integration.config.mts",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

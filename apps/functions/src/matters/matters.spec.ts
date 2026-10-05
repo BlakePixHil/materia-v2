@@ -8,6 +8,7 @@ import { MATTER_TRANSITIONS, MatterStatusSchema, type MatterStatus, type Role } 
 import { changeStatusDefinition } from './change-status';
 import { createMatterDefinition, initialParties, MAX_NUMBER_SKIPS } from './create';
 import { denormalise, denormaliseDefinition, isActivity, recordMatterActivity, staleMatterFields } from './denormalise';
+import { rebalanceBoardDefinition } from './rebalance-board';
 import { renumberDefinition } from './renumber';
 import { restoreDefinition } from './restore';
 import { matterSearch } from './shared';
@@ -669,5 +670,63 @@ describe('orgClock (emulator-only clock pin)', () => {
     expect((await orgClock(w.db, ORG, w.clock, false)).now()).toEqual(w.clock.now());
     expect((await orgClock(w.db, ORG, w.clock, true)).now()).toEqual(pinned);
     expect((await orgClock(w.db, 'org-other', w.clock, true)).now()).toEqual(w.clock.now());
+  });
+});
+
+describe('matters-rebalanceBoard (CORE-04)', () => {
+  const live = (title: string, extra: Record<string, unknown> = {}) => ({
+    ...meta,
+    number: title,
+    title,
+    status: 'open',
+    deletedAt: null,
+    updatedAt: new Date('2026-10-01T00:00:00.000Z'),
+    ...extra,
+  });
+  const seeded = () =>
+    world({
+      [`${M}/m1`]: live('One', { boardOrder: 5 }),
+      [`${M}/m2`]: live('Two', { boardOrder: 5.0000001 }),
+      [`${M}/m3`]: live('Three'),
+      [`${M}/gone`]: live('Gone', { deletedAt: new Date('2026-10-02T00:00:00.000Z') }),
+      [`${M}/secret`]: live('Secret', { privileged: true }),
+    });
+  const rebalance = (w: ReturnType<typeof world>, matterIds: string[], role: Role = 'lawyer') =>
+    rebalanceBoardDefinition.handler(w.ctx({ requestId: randomUUID(), matterIds }, role) as never);
+
+  it('spaces the column out in the order given, writing only boardOrder', async () => {
+    const w = seeded();
+    await expect(rebalance(w, ['m3', 'm2', 'm1'])).resolves.toEqual({ updated: 3, skipped: [] });
+    expect(w.doc(`${M}/m3`)?.['boardOrder']).toBe(1024);
+    expect(w.doc(`${M}/m2`)?.['boardOrder']).toBe(2048);
+    expect(w.doc(`${M}/m1`)).toMatchObject({ boardOrder: 3072, updatedBy: 'seed' });
+    expect(w.doc(`${M}/m1`)?.['updatedAt']).toEqual(Timestamp.fromDate(new Date('2026-10-01T00:00:00.000Z')));
+  });
+
+  it('skips missing, deleted and (for paralegals) privileged matters without revealing them', async () => {
+    const w = seeded();
+    await expect(rebalance(w, ['m1', 'gone', 'nope', 'secret', 'm2'], 'paralegal')).resolves.toEqual({
+      updated: 2,
+      skipped: ['gone', 'nope', 'secret'],
+    });
+    expect(w.doc(`${M}/m2`)?.['boardOrder']).toBe(5 * 1024);
+    expect(w.doc(`${M}/secret`)?.['boardOrder']).toBeUndefined();
+    await expect(rebalance(w, ['secret'], 'lawyer')).resolves.toEqual({ updated: 1, skipped: [] });
+    await expect(rebalance(w, ['nope'])).resolves.toEqual({ updated: 0, skipped: ['nope'] });
+  });
+
+  it('is for roles that edit matters (wrapper)', async () => {
+    const w = seeded();
+    const call = (role: Role) =>
+      runCallable(
+        rebalanceBoardDefinition,
+        {
+          data: { requestId: randomUUID(), matterIds: ['m1'] },
+          auth: { uid: `user-${role}`, token: { orgId: ORG, role } },
+        },
+        w.deps(),
+      );
+    expect(((await failureOf(call('readonly'))) as HttpsError).details).toMatchObject({ code: 'PERMISSION_DENIED' });
+    await expect(call('paralegal')).resolves.toEqual({ updated: 1, skipped: [] });
   });
 });

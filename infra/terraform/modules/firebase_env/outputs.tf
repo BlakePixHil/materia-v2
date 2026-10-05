@@ -49,3 +49,13 @@ output "buckets" {
     migration = google_storage_bucket.migration.name
   }
 }
+
+output "doc_services" {
+  description = "Cloud Run document services (CORE-12a): runtime accounts and the URLs the functions call (CLAMAV_SCAN_URL, PREVIEW_SERVICE_URL)."
+  value = {
+    clamav_runtime_sa  = google_service_account.clamav_runtime.email
+    preview_runtime_sa = google_service_account.preview_runtime.email
+    clamav_url         = "https://clamav-${google_project.this.number}.${var.region}.run.app"
+    preview_url        = "https://preview-${google_project.this.number}.${var.region}.run.app"
+  }
+}

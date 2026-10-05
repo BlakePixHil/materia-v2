@@ -9,9 +9,10 @@ import { adminDb } from '../core/admin';
 import { cloudTasks } from '../core/enqueue';
 import { isEmulator, useFakes } from '../core/env';
 import { cloudKms } from '../core/kms';
-import { clamavScanUrl } from '../core/params';
+import { clamavScanUrl, previewServiceUrl } from '../core/params';
 import { POSTMARK_TOKEN, secretValue } from '../core/secrets';
 import { clamavScanner } from '../documents/clamav';
+import { previewService } from '../documents/preview';
 import { emulatorSignedUrls, storageSignedUrls } from '../documents/signed-urls';
 import { cloudRunJobs } from '../jobs/cloud-run';
 import { mailFrom, postmarkMail } from '../mail/postmark';
@@ -47,6 +48,8 @@ function realPorts(): Ports {
     // CORE-12: ClamAV over HTTP. Until the scanner service is deployed (CLAMAV_SCAN_URL empty),
     // every upload stays quarantined as "Scanning delayed": fail closed.
     malwareScan: clamavScanner({ url: clamavScanUrl }),
+    // CORE-12a: Office → PDF and HEIC → JPEG previews on Cloud Run.
+    preview: previewService({ url: previewServiceUrl }),
     signedUrls: storageSignedUrls(), // CORE-12
     transcription: notConfigured('TranscriptionPort'), // MOB-03
     jobs: cloudRunJobs(), // FND-24

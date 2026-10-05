@@ -47,7 +47,13 @@ function useCacheFor(persistence: AuthPersistence): void {
 }
 
 /** Per-user browser state that mustn't survive sign-out on a shared computer. */
-const USER_STORAGE_KEYS = ['materia.commands.recent', 'materia.matters.view', 'materia.matter.eventsView'];
+const USER_STORAGE_KEYS = [
+  'materia.commands.recent',
+  'materia.matters.view',
+  'materia.matters.layout',
+  'materia.matters.swimlanes',
+  'materia.matter.eventsView',
+];
 
 /**
  * Deletes Firestore's IndexedDB caches (`firestore/…` databases), so nothing cached survives

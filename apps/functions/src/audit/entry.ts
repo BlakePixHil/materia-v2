@@ -41,6 +41,8 @@ export const NOISE_FIELDS = new Set([
   'lastActivityAt',
   'search',
   'order',
+  // The Matters board's card order (CORE-04).
+  'boardOrder',
   // Contacts (CORE-01): recomputed by contacts-onWrite.
   'dedupeKey',
   'sortName',

@@ -44,6 +44,8 @@ export const MatterListItemSchema = /* @__PURE__ */ z.object({
   labels: matter.labels,
   /** Read as any string: the UI links it only when `isMatterLink` (a bad value never hides the matter). */
   externalUrl: z.string().optional(),
+  /** The Matters board's card order (CORE-04). */
+  boardOrder: matter.boardOrder,
   search: matter.search.default([]),
   nextDeadline: matter.nextDeadline,
   openTaskCount: matter.openTaskCount,
@@ -291,6 +293,8 @@ export const MATTER_CALLABLES = {
   upgradeTemplate: 'matters-upgradeTemplate',
   /** `RenumberMatterInput` → `RenumberMatterResult` (matter.renumber, CORE-21a). */
   renumber: 'matters-renumber',
+  /** `RebalanceBoardInput` → `RebalanceBoardResult` (matter.edit, CORE-04). */
+  rebalanceBoard: 'matters-rebalanceBoard',
 } as const;
 
 // ---------- saved views ----------

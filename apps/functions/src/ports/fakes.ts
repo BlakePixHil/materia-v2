@@ -9,6 +9,7 @@ import type {
   MailMessage,
   MailPort,
   MalwareScanPort,
+  PreviewPort,
   JobRunnerPort,
   KmsPort,
   Ports,
@@ -21,7 +22,7 @@ import type {
   TranscriptionPort,
   XeroPort,
 } from './index';
-import { ScannerUnavailableError } from './index';
+import { PreviewUnavailableError, ScannerUnavailableError } from './index';
 import { FakeClerkModel } from '../clerk/providers/fake';
 
 /**
@@ -147,6 +148,45 @@ export const fakeMalwareScan: MalwareScanPort = {
   },
 };
 
+/** Test hook: a file containing this can't be previewed (`PreviewUnavailableError('failed')`). */
+export const FAKE_PREVIEW_FAIL_MARKER = 'MATERIA-FAKE-PREVIEW-FAIL';
+
+/** A one-page PDF saying "Preview (emulator)": PDF.js rebuilds the missing cross-reference table. */
+export const FAKE_PREVIEW_PDF = Buffer.from(
+  [
+    '%PDF-1.4',
+    '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+    '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+    '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R',
+    '  /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >> endobj',
+    '4 0 obj << /Length 52 >> stream',
+    'BT /F1 24 Tf 72 760 Td (Preview \\(emulator\\)) Tj ET',
+    'endstream endobj',
+    'trailer << /Root 1 0 R >>',
+    '%%EOF',
+    '',
+  ].join('\n'),
+);
+
+/** A 1×1 JPEG. */
+export const FAKE_PREVIEW_JPEG = Buffer.from(
+  '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=',
+  'base64',
+);
+
+/**
+ * The emulator's and tests' preview service (CORE-12a): a fixed PDF or JPEG for any supported
+ * file, `failed` for files containing `FAKE_PREVIEW_FAIL_MARKER`.
+ */
+export const fakePreview: PreviewPort = {
+  async render({ to, data }) {
+    if (Buffer.from(data.buffer, data.byteOffset, data.byteLength).includes(FAKE_PREVIEW_FAIL_MARKER)) {
+      throw new PreviewUnavailableError('failed');
+    }
+    return Buffer.from(to === 'pdf' ? FAKE_PREVIEW_PDF : FAKE_PREVIEW_JPEG);
+  },
+};
+
 /** Signed URLs for unit tests: records each request and returns a recognisable fake URL. */
 export class FakeSignedUrls implements SignedUrlPort {
   readonly signed: SignedUrlRequest[] = [];
@@ -184,6 +224,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     calendar: new FakeCalendar(),
     xero: fakeXero,
     malwareScan: fakeMalwareScan,
+    preview: fakePreview,
     signedUrls: new FakeSignedUrls(),
     transcription: fakeTranscription,
     jobs: new FakeJobRunner(),
