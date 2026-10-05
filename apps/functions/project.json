@@ -58,7 +58,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["build"],
       "options": {
-        "command": "firebase emulators:exec --only auth,firestore,functions,storage --project demo-materia --config firebase.json \"vitest run --config apps/functions/vitest.integration.config.mts\"",
+        "command": "timeout -k 30s 16m firebase emulators:exec --only auth,firestore,functions,storage --project demo-materia --config firebase.json \"timeout -k 15s 14m vitest run --config apps/functions/vitest.integration.config.mts\"",
         "cwd": "{workspaceRoot}"
       }
     }
