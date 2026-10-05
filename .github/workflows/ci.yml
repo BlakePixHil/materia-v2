@@ -1,5 +1,17 @@
 # CI (FND-04). Every job runs `nx affected`, so unchanged projects are skipped.
 # `ci-ok` is the only required check on main: it passes when every job succeeded or was skipped.
+#
+# Actions minutes are billed, so the `gate` job picks how much of CI a run needs (mode):
+#   full  PRs, the morning run and manual dispatches: every job.
+#   main  pushes to main: the fast checks only. e2e, Storybook, the container tests, Terraform
+#         and security already passed on the PR; the morning run repeats them once a day.
+#   docs  docs-only changes: lint (Prettier) only.
+#   skip  pushes to main in quiet hours (22:00-07:30 Melbourne, nobody is testing), and morning
+#         runs with nothing new to deploy. deploy-dev only deploys runs whose `build` job ran,
+#         so quiet-hour merges wait for the morning run (about 06:30 Melbourne), which tests
+#         everything merged since the last dev deploy and deploys it. Release commits (the
+#         release-please PR) are never held back. To deploy overnight anyway, dispatch this
+#         workflow (or deploy-dev) on main.
 # Reproduce any job locally with the commands in AGENTS.md → "CI jobs locally".
 #
 # Third-party code: only GitHub-owned actions are used (actions/*, github/codeql-action). CLI tools
@@ -10,9 +22,16 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The morning run. Cron is UTC: 19:30 is 06:30 in Melbourne in daylight saving (AEDT), 20:30 is
+  # 06:30 in standard time (AEST); the gate lets through only the one that lands 06:00-07:15 local.
+  schedule:
+    - cron: '30 19 * * *'
+    - cron: '30 20 * * *'
+  workflow_dispatch:
 
+# Per event, so a quiet-hours push never cancels the morning run on main.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -25,10 +44,36 @@ env:
   FORCE_COLOR: '1'
 
 jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # find the last dev deploy
+      pull-requests: read # list the PR's files
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+      base: ${{ steps.decide.outputs.base }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - id: decide
+        name: Decide how much of CI to run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+        run: .github/scripts/ci-gate.sh
+
   changes:
     name: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    needs: gate
+    if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     outputs:
       infra: ${{ steps.filter.outputs.infra }}
       e2e: ${{ steps.filter.outputs.e2e }}
@@ -39,6 +84,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          base: ${{ needs.gate.outputs.base }}
       - id: filter
         name: Detect affected areas
         run: |
@@ -53,11 +100,15 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: gate
+    if: needs.gate.outputs.mode != 'skip'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          base: ${{ needs.gate.outputs.base }}
       - run: pnpm exec prettier --check .
       - run: pnpm nx affected -t lint --base="$NX_BASE" --head="$NX_HEAD"
       # FND-07: libs/ui/src/generated and the web fonts must match design/ (needs python3, preinstalled).
@@ -70,22 +121,30 @@ jobs:
     name: typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: gate
+    if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          base: ${{ needs.gate.outputs.base }}
       - run: pnpm nx affected -t typecheck --base="$NX_BASE" --head="$NX_HEAD"
 
   unit:
     name: unit
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: gate
+    if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          base: ${{ needs.gate.outputs.base }}
       # Coverage thresholds live in each project's Vitest config (Testing & quality strategy).
       - run: pnpm nx affected -t test --base="$NX_BASE" --head="$NX_HEAD" --coverage
       - name: Upload coverage summaries
@@ -101,12 +160,15 @@ jobs:
     name: rules
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: gate
+    if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
         with:
+          base: ${{ needs.gate.outputs.base }}
           java: 'true'
       # The firebase project depends implicitly on libs/domain and libs/test-utils, so changes to
       # firebase/**, libs/domain/** or libs/test-utils/** run the rules suite in the emulators.
@@ -125,12 +187,15 @@ jobs:
     name: integration
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: gate
+    if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
         with:
+          base: ${{ needs.gate.outputs.base }}
           java: 'true'
       # FND-15: the callable wrapper and Cloud Tasks, through the auth, firestore and functions
       # emulators (builds functions first).
@@ -146,8 +211,8 @@ jobs:
     name: jobs container
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: changes
-    if: needs.changes.outputs.jobs == 'true'
+    needs: [gate, changes]
+    if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.jobs == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -166,12 +231,15 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: changes
+    needs: [gate, changes]
+    if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          base: ${{ needs.gate.outputs.base }}
       - run: pnpm nx affected -t build --base="$NX_BASE" --head="$NX_HEAD" --configuration=production
       - name: Check gzip bundle budgets
         id: bundle
@@ -189,10 +257,10 @@ jobs:
           path: bundle-report.json
           retention-days: 30
       - name: Build the e2e web app (emulator environment)
-        if: needs.changes.outputs.e2e == 'true'
+        if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.e2e == 'true'
         run: pnpm nx build web --configuration=e2e
       - name: Upload the e2e web app
-        if: needs.changes.outputs.e2e == 'true'
+        if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.e2e == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: web-e2e-dist
@@ -203,8 +271,8 @@ jobs:
     name: e2e (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: [changes, build]
-    if: needs.changes.outputs.e2e == 'true'
+    needs: [gate, changes, build]
+    if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.e2e == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -215,6 +283,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
         with:
+          base: ${{ needs.gate.outputs.base }}
           java: 'true'
       - name: Download the e2e web app
         uses: actions/download-artifact@v4
@@ -258,8 +327,8 @@ jobs:
     name: terraform
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: changes
-    if: needs.changes.outputs.infra == 'true'
+    needs: [gate, changes]
+    if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.infra == 'true'
     env:
       TERRAFORM_VERSION: 1.16.5
       TFLINT_VERSION: 0.55.0
@@ -302,6 +371,8 @@ jobs:
     name: security
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: gate
+    if: needs.gate.outputs.mode == 'full'
     permissions:
       contents: read
       security-events: write
@@ -313,6 +384,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          base: ${{ needs.gate.outputs.base }}
       - name: pnpm audit (production dependencies)
         run: pnpm audit --prod --audit-level=high
       - name: Install gitleaks (checksum-verified)
@@ -327,7 +400,7 @@ jobs:
       - name: gitleaks (commits in this change)
         run: gitleaks git --redact --no-banner --log-opts="$NX_BASE..$NX_HEAD" .
       # CodeQL takes ~2.5 min and has nothing to analyse when only docs changed, so docs-only PRs skip
-      # it (FND-04: docs-only CI under 3 min). Pushes to main always run it.
+      # it (FND-04: docs-only CI under 3 min). The morning run and manual dispatches always run it.
       - name: Detect code changes
         id: scope
         run: |
@@ -380,8 +453,8 @@ jobs:
     name: summary
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [unit, build]
-    if: always() && github.event_name == 'pull_request'
+    needs: [gate, unit, build]
+    if: always() && github.event_name == 'pull_request' && needs.gate.outputs.mode == 'full'
     permissions:
       contents: read
       actions: read
@@ -399,11 +472,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --event push --status success --limit 1 --json databaseId -q '.[0].databaseId' || true)"
-          if [ -n "$run_id" ]; then
-            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n coverage-summary -D base/coverage || true
-            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n bundle-report -D base/bundle || true
-          fi
+          # The newest green main run that produced reports (quiet-hours and docs-only runs have none).
+          run_ids="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --status success --limit 10 --json databaseId,event -q '.[] | select(.event != "pull_request") | .databaseId' || true)"
+          for run_id in $run_ids; do
+            if gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n coverage-summary -D base/coverage 2>/dev/null; then
+              gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n bundle-report -D base/bundle || true
+              break
+            fi
+          done
       - name: Render the summary
         run: |
           args=(--coverage reports/coverage-summary --out summary.md)
@@ -432,13 +508,15 @@ jobs:
     name: storybook
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [changes]
-    if: needs.changes.outputs.storybook == 'true'
+    needs: [gate, changes]
+    if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.storybook == 'true'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          base: ${{ needs.gate.outputs.base }}
       - name: Build Storybook
         run: pnpm nx run ui:build-storybook
       - name: Playwright version
@@ -468,7 +546,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
-      [changes, lint, typecheck, unit, rules, integration, jobs-container, build, e2e, storybook, terraform, security]
+      [
+        gate,
+        changes,
+        lint,
+        typecheck,
+        unit,
+        rules,
+        integration,
+        jobs-container,
+        build,
+        e2e,
+        storybook,
+        terraform,
+        security,
+      ]
     if: always()
     steps:
       - name: Every job succeeded or was skipped
