@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 
 import { FieldValue, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
-import { PDFDocument } from 'pdf-lib';
 
 import {
   attachmentDisposition,
@@ -96,6 +95,8 @@ const sha256Hex = (data: Uint8Array) => createHash('sha256').update(data).digest
 /** Page count and encryption of a PDF; a damaged PDF gives neither (it is still stored). */
 export async function analysePdf(data: Uint8Array): Promise<{ pageCount?: number; encrypted: boolean }> {
   try {
+    // Loaded on first use, like the email parsers: it would otherwise slow every function's cold start.
+    const { PDFDocument } = await import('pdf-lib');
     const pdf = await PDFDocument.load(data, { ignoreEncryption: true, updateMetadata: false });
     if (pdf.isEncrypted) return { encrypted: true };
     return { pageCount: pdf.getPageCount(), encrypted: false };
