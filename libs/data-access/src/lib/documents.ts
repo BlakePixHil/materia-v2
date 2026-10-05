@@ -35,8 +35,9 @@ export type DocumentItem = z.infer<typeof DocumentItemSchema>;
 /**
  * A matter's documents (`orgs/{orgId}/matters/{matterId}/documents`, CORE-12): live queries,
  * client-direct edits of the metadata the rules allow (`MatterDocument.update`: name, category,
- * tags, notes; privileged and accessRestricted need privileged.view) and soft deletes (a removed
- * document still resolves, as "Removed document"). There are no client creates: a document
+ * tags, notes, accessRestricted, and privileged, which needs privileged.view; document.upload
+ * roles) and soft deletes and restores (document.delete roles; a removed document still resolves,
+ * as "Removed document"). There are no client creates: a document
  * starts as an upload to the pending area (`documentUpload`), and the server creates it.
  */
 export function matterDocumentRepository(matterId: () => string | null): Repository<DocumentItem> {
