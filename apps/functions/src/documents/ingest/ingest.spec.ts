@@ -10,7 +10,14 @@ import { chunkId } from './chunks';
 import { gatewayIngestClerk, OcrUnavailableError, type IngestClerk } from './clerk';
 import { backfillIngest, needsIngest, onIngestChangeHandler } from './index';
 import { detectLanguage } from './language';
-import { CHECKPOINT_PAGES, INGEST_QUEUE, ingestDocument, markIngestFailed, type IngestTask } from './pipeline';
+import {
+  CHECKPOINT_PAGES,
+  INGEST_QUEUE,
+  ingestDocument,
+  ingestErrorLabel,
+  markIngestFailed,
+  type IngestTask,
+} from './pipeline';
 import { chunkSearch, clampK, FakeChunkSearch } from './search';
 import { sampleDocx, samplePng, textPdf } from './testing';
 import { createClerkGateway } from '../../clerk/gateway';
@@ -486,7 +493,7 @@ describe('ingestDocument', () => {
     await expect(ingestDocument(task, w.deps({ clerk: failing }))).rejects.toThrow('provider down');
     expect(await reserveOcrPages(w.db, ORG, 1000, w.clock.now())).toBe(DEFAULT_OCR_DAILY_PAGES);
     await markIngestFailed(w.db, task, new Error('provider down'), w.clock.now());
-    expect(ingestOf(await w.docData('d-scan'))).toMatchObject({ status: 'failed', error: 'Error' });
+    expect(ingestOf(await w.docData('d-scan'))).toMatchObject({ status: 'failed', error: 'Error: provider down' });
     expect(needsIngest(await w.docData('d-scan'))).toBe(false);
   });
 
@@ -782,5 +789,17 @@ describe('backfillIngest', () => {
 
   it('marks chunk vectors as Firestore vectors', () => {
     expect(FieldValue.vector([1, 2]).toArray()).toEqual([1, 2]);
+  });
+});
+
+describe('ingestErrorLabel', () => {
+  it('keeps the name, code and message, and drops everything from a path on', () => {
+    const error = Object.assign(new Error('No such object: files/orgs/o1/matters/m1/Will of Example.pdf'), {
+      code: 404,
+    });
+    expect(ingestErrorLabel(error)).toBe('Error (404): No such object: [path]');
+    expect(ingestErrorLabel(new TypeError(''))).toBe('TypeError');
+    expect(ingestErrorLabel('boom')).toBe('Error');
+    expect(ingestErrorLabel(new Error('x'.repeat(500))).length).toBeLessThanOrEqual(200);
   });
 });
