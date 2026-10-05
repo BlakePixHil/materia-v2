@@ -76,16 +76,38 @@ let nextId = 0;
       position: relative;
       min-width: 0;
     }
+    /* The menu's look (mt-menu), here because the list isn't an MtMenu overlay. */
     .mt-narrative-field .phrases {
       position: absolute;
-      z-index: 5;
+      z-index: var(--layer-popover);
       top: 100%;
       left: 0;
       right: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
       margin: var(--space-4) 0 0;
+      padding: var(--space-4);
       list-style: none;
       max-height: 240px;
       overflow-y: auto;
+      border-radius: var(--radius-md);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-popover);
+      font: 400 13px/18px var(--font-sans);
+    }
+    .mt-narrative-field .phrases li {
+      display: flex;
+      align-items: center;
+      height: 30px;
+      padding: 0 var(--space-8);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .mt-narrative-field .phrases li[data-active],
+    .mt-narrative-field .phrases li:hover {
+      background: var(--bg-hover);
     }
   `,
 })

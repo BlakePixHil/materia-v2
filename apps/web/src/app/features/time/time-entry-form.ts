@@ -63,7 +63,12 @@ function durationText(minutes: number | undefined): string {
   imports: [FormsModule, MtButton, MtCheckbox, MtNote, MtTextField, NarrativeField],
   host: { class: 'mt-time-entry-form', '[attr.data-layout]': 'layout()', '(keydown.escape)': 'onEscape($event)' },
   template: `
-    <form class="fields" [attr.aria-label]="formLabel()" (submit)="$event.preventDefault(); save()">
+    <form
+      class="fields"
+      [attr.id]="formId()"
+      [attr.aria-label]="formLabel()"
+      (submit)="$event.preventDefault(); save()"
+    >
       <mt-text-field
         #dateField
         class="date"
@@ -96,12 +101,14 @@ function durationText(minutes: number | undefined): string {
         (ngModelChange)="billable.set(!!$event)"
       />
       <span class="value caption t-3" aria-live="polite">{{ previewValue() }}</span>
-      <span class="actions">
-        <button mtButton variant="ghost" size="sm" type="button" (click)="cancelled.emit()">Cancel</button>
-        <button mtButton variant="primary" size="sm" type="submit" [loading]="saving()">
-          {{ confirming() ? 'Save anyway' : submitLabel() }}
-        </button>
-      </span>
+      @if (actions()) {
+        <span class="actions">
+          <button mtButton variant="ghost" size="sm" type="button" (click)="cancelled.emit()">Cancel</button>
+          <button mtButton variant="primary" size="sm" type="submit" [loading]="saving()">
+            {{ confirming() ? 'Save anyway' : submitLabel() }}
+          </button>
+        </span>
+      }
     </form>
     @if (confirming()) {
       <mt-note tone="warning" role="alert">{{ warning() }}</mt-note>
@@ -131,14 +138,16 @@ function durationText(minutes: number | undefined): string {
     .mt-time-entry-form[data-layout='stack'] .actions {
       grid-column: 1 / -1;
     }
+    /* Level with the inputs (control height), under their labels. */
     .mt-time-entry-form .billable,
     .mt-time-entry-form .value {
-      align-self: center;
-      padding-top: var(--space-16);
+      display: flex;
+      align-items: center;
+      min-height: var(--control-sm);
     }
-    .mt-time-entry-form[data-layout='stack'] .billable,
-    .mt-time-entry-form[data-layout='stack'] .value {
-      padding-top: 0;
+    .mt-time-entry-form .value {
+      justify-content: flex-end;
+      font-variant-numeric: tabular-nums;
     }
     .mt-time-entry-form .actions {
       display: flex;
@@ -152,10 +161,6 @@ function durationText(minutes: number | undefined): string {
     @media (max-width: 1100px) {
       .mt-time-entry-form[data-layout='row'] .fields {
         grid-template-columns: 120px 110px minmax(0, 1fr);
-      }
-      .mt-time-entry-form[data-layout='row'] .billable,
-      .mt-time-entry-form[data-layout='row'] .value {
-        padding-top: 0;
       }
       .mt-time-entry-form[data-layout='row'] .actions {
         grid-column: 3;
@@ -186,6 +191,10 @@ export class TimeEntryForm {
   readonly layout = input<'row' | 'stack'>('row');
   readonly submitLabel = input('Add time');
   readonly formLabel = input('Record time');
+  /** The form's id, for a submit button outside it (a dialog's footer, with `actions` off). */
+  readonly formId = input<string | null>(null);
+  /** Show Cancel and the submit button (off when the host shows its own). */
+  readonly actions = input(true, { transform: booleanAttribute });
   readonly saved = output<TimeEntryFormValue>();
   readonly cancelled = output();
 
@@ -198,7 +207,8 @@ export class TimeEntryForm {
   protected readonly billable = signal(true);
   protected readonly dateError = signal<string | null>(null);
   protected readonly durationError = signal<string | null>(null);
-  protected readonly confirming = signal(false);
+  /** Over 24 hours on the day: the next submit saves anyway. */
+  readonly confirming = signal(false);
   protected readonly warning = signal('');
 
   private readonly parsed = computed(() => {

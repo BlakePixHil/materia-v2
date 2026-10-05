@@ -78,6 +78,8 @@ const choiceOf = (matter: PickedMatter): MatterChoice => ({
             layout="stack"
             submitLabel="Log time"
             formLabel="Time entry"
+            formId="mt-time-quick-form"
+            [actions]="false"
             [initial]="initial()"
             [preview]="preview"
             [dayMinutes]="myDayMinutes"
@@ -114,6 +116,14 @@ const choiceOf = (matter: PickedMatter): MatterChoice => ({
           }
         }
       </div>
+      <ng-container mtDialogFooter>
+        <button mtButton variant="ghost" (click)="ref.close(undefined)">Cancel</button>
+        @if (matter()) {
+          <button mtButton variant="primary" type="submit" form="mt-time-quick-form" [loading]="saving()">
+            {{ form()?.confirming() ? 'Save anyway' : 'Log time' }}
+          </button>
+        }
+      </ng-container>
     </mt-dialog>
   `,
   styles: `
@@ -141,6 +151,7 @@ const choiceOf = (matter: PickedMatter): MatterChoice => ({
       gap: var(--space-8);
     }
     .result .caption {
+      margin-left: var(--space-8);
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -159,7 +170,7 @@ export class TimeQuickEntry {
   private readonly recentsRepo = recentMattersRepository();
   private readonly search = matterSearch(can('privileged.view'));
   private readonly dayTime = dayTime();
-  private readonly form = viewChild<TimeEntryForm>('form');
+  protected readonly form = viewChild<TimeEntryForm>('form');
   private readonly searchField = viewChild<MtSearchField>('search');
 
   protected readonly matter = signal<PickedMatter | null>(null);
