@@ -4,6 +4,7 @@
 - **Date:** 2026-10-03 (proposed); 2026-10-03 (accepted, route changed by the owner)
 - **Ticket:** [AI-01](https://linear.app/materia-web/issue/MAT-54)
 - **Refines:** [ADR-011: Clerk (AI)](011-clerk-ai.md)
+- **Partly superseded by:** [ADR-011b](ADR-011b-clerk-byok.md) (2026-10-05): each firm brings its own Anthropic key instead of one platform key in Secret Manager, and Sonnet 5.5 is the default model with Opus 5.5 as an opt-in.
 
 ## Context
 

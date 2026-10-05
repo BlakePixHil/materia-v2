@@ -4,7 +4,6 @@ import { DocIdSchema, DomainError, PERMISSIONS } from '@materia/domain';
 
 import { clerkGateway } from './service';
 import { defineCallable, type CallableDefinition } from '../core/callable';
-import { ANTHROPIC_API_KEY } from '../core/secrets';
 
 export const HelloInput = z.object({
   requestId: z.uuid(),
@@ -24,17 +23,17 @@ export interface HelloResult {
 }
 
 /**
- * `clerk-hello` (AI-02): a connectivity check through the whole gateway (kill switches, limits,
- * the `hello` prompt, streaming into a message, structured output, metering). It is the live
- * smoke test once `ANTHROPIC_API_KEY` is in Secret Manager (AI-01b, MAT-120); in the emulator it
- * runs against the fake model. Clerk must be on for the org (`clerk.enabled`).
+ * `clerk-hello` (AI-02): a connectivity check through the whole gateway (kill switches, the org's
+ * key and model, limits, the `hello` prompt, streaming into a message, structured output,
+ * metering). It is the live smoke test once an admin has saved the org's Anthropic key in
+ * Settings → Clerk (AI-02a); it needs no Secret Manager secret. In the emulator it runs against the
+ * fake model. Clerk must be on for the org (`clerk.enabled`).
  */
 export const helloDefinition = {
   name: 'clerk-hello',
   input: HelloInput,
   roles: PERMISSIONS['clerk.use'],
   idempotent: true,
-  secrets: [ANTHROPIC_API_KEY],
   timeoutSeconds: 60,
   handler: async ({ input, uid, orgId, role, requestId, log, clock, db, ports }): Promise<HelloResult> => {
     const threads = db.collection(`orgs/${orgId}/clerkThreads`);

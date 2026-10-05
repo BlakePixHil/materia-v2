@@ -16,7 +16,9 @@ async function boundaryErrors(project: string, source: string): Promise<string[]
     .map((message) => message.message);
 }
 
-describe('module boundaries', () => {
+// The first lint builds the Nx project graph, which takes several seconds when the other projects'
+// tests run alongside (`nx run-many`), so the cases get more than vitest's default 5 s.
+describe('module boundaries', { timeout: 30_000 }, () => {
   it('rejects libs/ui importing @materia/data-access', async () => {
     const errors = await boundaryErrors(
       'libs/ui',

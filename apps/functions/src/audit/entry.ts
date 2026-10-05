@@ -41,6 +41,8 @@ export const NOISE_FIELDS = new Set([
   'lastActivityAt',
   'search',
   'order',
+  // The Matters board's card order (CORE-04).
+  'boardOrder',
   // Contacts (CORE-01): recomputed by contacts-onWrite.
   'dedupeKey',
   'sortName',
@@ -66,6 +68,9 @@ export const HASHED_FIELDS = new Set([
 /** Secrets: dropped from the audit entirely. */
 export const DROPPED_FIELDS = new Set([
   'encryptedRefreshToken',
+  // Clerk BYOK (AI-02a).
+  'encryptedApiKey',
+  'apiKey',
   'tokenHash',
   'refreshToken',
   'accessToken',

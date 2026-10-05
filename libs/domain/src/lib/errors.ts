@@ -37,6 +37,8 @@ export const ERROR_CODES = {
   CLERK_BUSY: 'resource-exhausted',
   /** The provider and every fallback model failed: use the manual path (ADR-011a). */
   CLERK_UNAVAILABLE: 'unavailable',
+  /** Anthropic rejected the org's API key (when saved, or a stored one): an admin must replace it (AI-02a). */
+  CLERK_KEY_INVALID: 'failed-precondition',
   /** An input PDF needs a password to open (FND-24). */
   PDF_ENCRYPTED: 'failed-precondition',
   /** An input PDF is damaged beyond repair, or is not a PDF (FND-24). */

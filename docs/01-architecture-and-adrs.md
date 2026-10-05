@@ -106,11 +106,12 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - Retained 7 years.
 
 **ADR-011: Clerk (AI).**
-- Claude `claude-opus-5-5` sits behind `ClerkGateway` (in functions only).
+- Claude (Sonnet 5.5 by default, Opus 5.5 opt-in; ADR-011b) sits behind `ClerkGateway` (in functions only).
 - The provider is chosen by the AI-01 spike. Order of preference: Claude on Vertex AI in an Australian region → Claude Platform/Bedrock in Sydney → Anthropic API with zero data retention, but only with an explicit privacy sign-off.
 - Clerk outputs structured proposals with citations, never direct writes.
 - See the Clerk doc.
-- **Provider: see [ADR-011a](adr/ADR-011a-clerk-provider.md)** (accepted for the MVP): the **Anthropic API**, with the key in Secret Manager. The owner accepted processing outside Australia for the MVP. Bedrock's `AU` profile is the documented path if Australian processing is needed later.
+- **Provider: see [ADR-011a](adr/ADR-011a-clerk-provider.md)** (accepted for the MVP): the **Anthropic API**. The owner accepted processing outside Australia for the MVP. Bedrock's `AU` profile is the documented path if Australian processing is needed later.
+- **Credentials and model: see [ADR-011b](adr/ADR-011b-clerk-byok.md)** (supersedes ADR-011a's credentials and default model): each firm brings its own Anthropic API key, KMS-encrypted in `orgs/{orgId}/integrations/anthropic`, and Clerk runs on Claude Sonnet 5.5 by default with Opus 5.5 as an admin opt-in.
 
 **ADR-012: Retrieval.**
 - Document text is chunked into `orgs/{orgId}/matters/{matterId}/documents/{docId}/chunks/{n}`, with embeddings from Vertex AI text embeddings in `australia-southeast1`.

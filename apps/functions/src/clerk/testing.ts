@@ -1,11 +1,22 @@
+import type { ContextManifest } from '@materia/domain';
+
+import type { ClerkKeyring, OrgKey } from './keyring';
 import type { ClerkStore, FinalMessage, MessageSink, MeterEntry, OrgClerkSettings } from './store';
+
+interface MemoryMessage {
+  writes: string[];
+  final?: FinalMessage;
+  closed: boolean;
+  stop: () => void;
+  manifest?: ContextManifest;
+}
 
 /** An in-memory ClerkStore for unit tests (the Firestore one is covered by integration tests). */
 export class MemoryClerkStore implements ClerkStore {
   settings: OrgClerkSettings = {};
   readonly hits = new Map<string, number[]>();
   readonly meters: { period: string; entry: MeterEntry }[] = [];
-  readonly messages = new Map<string, { writes: string[]; final?: FinalMessage; closed: boolean; stop: () => void }>();
+  readonly messages = new Map<string, MemoryMessage>();
   tokensUsed = 0;
 
   async orgSettings(): Promise<OrgClerkSettings> {
@@ -34,15 +45,19 @@ export class MemoryClerkStore implements ClerkStore {
     this.tokensUsed += u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens;
   }
 
-  async openMessage(_orgId: string, target: { threadId: string; messageId: string }): Promise<MessageSink> {
+  async openMessage(
+    _orgId: string,
+    target: { threadId: string; messageId: string },
+    init?: { manifest?: ContextManifest },
+  ): Promise<MessageSink> {
     const key = `${target.threadId}/${target.messageId}`;
     if (this.messages.has(key)) throw new Error('exists');
     const listeners: (() => void)[] = [];
-    const record = { writes: [] as string[], closed: false, stop: () => listeners.forEach((l) => l()) } as {
-      writes: string[];
-      final?: FinalMessage;
-      closed: boolean;
-      stop: () => void;
+    const record: MemoryMessage = {
+      writes: [],
+      closed: false,
+      stop: () => listeners.forEach((l) => l()),
+      ...(init?.manifest ? { manifest: init.manifest } : {}),
     };
     this.messages.set(key, record);
     return {
@@ -55,5 +70,20 @@ export class MemoryClerkStore implements ClerkStore {
         record.closed = true;
       },
     };
+  }
+}
+
+/** An in-memory keyring for unit tests: one org key, or none. */
+export class MemoryKeyring implements ClerkKeyring {
+  key: OrgKey = { state: 'ok', apiKey: 'sk-ant-fictional-unit-test-key-0000', version: 'v1' };
+  readonly invalidated: string[] = [];
+
+  async resolve(): Promise<OrgKey> {
+    return this.key;
+  }
+
+  async markInvalid(_orgId: string, version: string): Promise<void> {
+    this.invalidated.push(version);
+    if (this.key.state === 'ok' && this.key.version === version) this.key = { state: 'invalid' };
   }
 }

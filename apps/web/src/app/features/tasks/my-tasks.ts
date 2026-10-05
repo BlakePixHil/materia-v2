@@ -49,6 +49,7 @@ import {
   type TaskSectionVm,
 } from './task-view';
 import { TasksBulkBar } from './tasks-bulk-bar';
+import { onIntent } from '../../core/commands/intents';
 import { errorCopy } from '../../core/error-copy';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 
@@ -348,6 +349,8 @@ export class MyTasks {
       }),
     ];
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+    // ⌘K's "New task (personal)" (CORE-15).
+    onIntent('add-task', () => this.adding.set(true));
   }
 
   protected typeLabel(type: TypeFilter): string {
