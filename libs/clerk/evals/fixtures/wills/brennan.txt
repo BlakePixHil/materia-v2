@@ -1,0 +1,21 @@
+SAMPLE - FICTIONAL DOCUMENT FOR SOFTWARE TESTING ONLY
+
+WILL OF DECLAN PATRICK BRENNAN
+
+I, DECLAN PATRICK BRENNAN of 7 Corio Parade, Lara, Victoria, make this my last will and revoke all earlier wills.
+
+1. I appoint my sister FIONA BRENNAN as executor and trustee. If she cannot or will not act, I appoint my brother-in-law KIERAN WALSH.
+
+2. If my wife SIOBHAN BRENNAN does not survive me, I appoint my sister FIONA BRENNAN as guardian of any of my children who are under 18.
+
+3. I give my whole estate to my wife SIOBHAN BRENNAN if she survives me by 30 days.
+SAMPLE - FICTIONAL DOCUMENT FOR SOFTWARE TESTING ONLY
+
+4. If my wife does not survive me by 30 days, I give my whole estate to my trustee to hold on trust for those of my children who reach 25, in equal shares (the Children's Trust). Until a child reaches 25 my trustee may use income and capital for that child's education and maintenance.
+
+Dated 3 February 2020.
+
+Signed by Declan Patrick Brennan in our presence and by us in his presence:
+D. P. Brennan
+Witness: Aaron Lim, pharmacist, Lara
+Witness: Grace Ferreira, teacher, Lara

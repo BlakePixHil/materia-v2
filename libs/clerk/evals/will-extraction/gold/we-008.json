@@ -1,0 +1,12 @@
+{
+  "id": "we-008",
+  "fixtures": {
+    "wills/papadopoulos.txt": "04b6312952eb870a"
+  },
+  "fields": {
+    "testator.name": "Georgios Papadopoulos",
+    "willDate": "2019-04-30",
+    "executors[].name": ["Eleni Papadopoulos"],
+    "formalValidityFlags[].issue": ["alterations"]
+  }
+}

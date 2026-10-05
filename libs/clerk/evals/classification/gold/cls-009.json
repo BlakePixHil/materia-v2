@@ -1,0 +1,9 @@
+{
+  "id": "cls-009",
+  "fixtures": {
+    "classify/drivers-licence.txt": "64b8e24c6d44d243"
+  },
+  "fields": {
+    "category": "id"
+  }
+}

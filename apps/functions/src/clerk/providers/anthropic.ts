@@ -24,8 +24,14 @@ const EPHEMERAL = { type: 'ephemeral' } as const;
 
 type ApiBlock = Record<string, unknown>;
 
-function toApiBlock(block: ClerkContentBlock): ApiBlock {
+/**
+ * One user content block. Citations are on for documents and search results, except with
+ * structured output: the API rejects citations combined with `output_config.format`, so a
+ * structured feature quotes its sources in its own fields instead (will extraction, AI-06).
+ */
+function toApiBlock(block: ClerkContentBlock, citable: boolean): ApiBlock {
   const cache = block.cache ? { cache_control: EPHEMERAL } : {};
+  const citations = citable ? { citations: { enabled: true } } : {};
   switch (block.type) {
     case 'text':
       return { type: 'text', text: block.text, ...cache };
@@ -37,7 +43,7 @@ function toApiBlock(block: ClerkContentBlock): ApiBlock {
             ? { type: 'base64', media_type: 'application/pdf', data: block.source.base64 }
             : { type: 'text', media_type: 'text/plain', data: block.source.text },
         ...(block.title ? { title: block.title } : {}),
-        citations: { enabled: true },
+        ...citations,
         ...cache,
       };
     case 'search_result':
@@ -46,7 +52,7 @@ function toApiBlock(block: ClerkContentBlock): ApiBlock {
         source: block.source,
         title: block.title,
         content: [{ type: 'text', text: block.text }],
-        citations: { enabled: true },
+        ...citations,
         ...cache,
       };
   }
@@ -73,7 +79,7 @@ export async function buildParams(request: ClerkModelRequest): Promise<MessageSt
     role: turn.role,
     content:
       turn.role === 'user'
-        ? (turn.content as ClerkContentBlock[]).map(toApiBlock)
+        ? (turn.content as ClerkContentBlock[]).map((block) => toApiBlock(block, !request.output))
         : // Assistant turns are replayed exactly as the API returned them (preserved thinking).
           (turn.content as ApiBlock[]),
   }));

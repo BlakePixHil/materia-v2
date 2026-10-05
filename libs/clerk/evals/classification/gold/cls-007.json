@@ -1,0 +1,10 @@
+{
+  "id": "cls-007",
+  "fixtures": {
+    "classify/court-order.txt": "156a12bcd54b5763"
+  },
+  "fields": {
+    "category": "order",
+    "documentDate": "2026-05-15"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "ta-006",
+  "fixtures": {},
+  "fields": {
+    "entries[].units": []
+  },
+  "mustNotContain": ["6 minutes", "0.1 hours"]
+}

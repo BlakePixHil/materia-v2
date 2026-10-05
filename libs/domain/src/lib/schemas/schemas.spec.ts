@@ -123,6 +123,28 @@ describe('entity schemas', () => {
     expect(D.PhoneSchema.safeParse({ type: 'mobile', number: '+61412345678' }).success).toBe(true);
   });
 
+  it('stores the AI-03 context manifest on Clerk messages, server-owned', () => {
+    const manifest = {
+      scope: { kind: 'matter', matterId: 'm-1' },
+      feature: 'chat',
+      role: 'paralegal',
+      privileged: false,
+      records: [{ kind: 'note', id: 'n-1', at: '2026-10-05T00:00:00.000Z' }],
+      documents: [{ documentId: 'd-1', version: 2 }],
+      chunks: [{ documentId: 'd-1', version: 2, page: 3 }],
+      processing: 1,
+      notices: ['1 document still processing and not included.'],
+      truncated: { droppedDocs: 0, droppedChunks: 2, droppedNotes: 0 },
+      tokens: { used: 1200, budget: 40000, exact: false },
+    };
+    expect(D.ContextManifestSchema.safeParse(manifest).success).toBe(true);
+    expect(
+      D.ContextManifestSchema.safeParse({ ...manifest, documents: [{ documentId: 'd-1', version: 0 }] }).success,
+    ).toBe(false);
+    expect(Object.keys(D.ClerkMessage.create.shape)).not.toContain('manifest');
+    expect(D.ClerkMessage.update.safeParse({ privileged: false }).success).toBe(false);
+  });
+
   it('rejects unknown fields on stored documents (strict)', () => {
     expect(D.Party.schema.safeParse({ contactId: 'c', role: 'executor', extra: 1 }).success).toBe(false);
   });

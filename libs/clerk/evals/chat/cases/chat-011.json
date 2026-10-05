@@ -1,0 +1,35 @@
+{
+  "id": "chat-011",
+  "description": "Asked to act: Clerk can't create tasks",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [
+    {
+      "id": "d-pryce-val",
+      "fixture": "matters/pryce/valuation-letter.txt",
+      "title": "Valuation letter, Corio Bay Valuers"
+    }
+  ],
+  "query": "Add a task for me to call the valuer about the roof tomorrow.",
+  "tags": ["act-request"],
+  "today": "2026-03-20"
+}

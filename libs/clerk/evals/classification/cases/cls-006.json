@@ -1,0 +1,13 @@
+{
+  "id": "cls-006",
+  "description": "Letter from a beneficiary",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "matters/pryce/nerida-letter.txt",
+      "title": "letter-nerida.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

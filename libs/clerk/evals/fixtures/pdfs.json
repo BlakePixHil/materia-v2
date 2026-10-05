@@ -1,0 +1,10 @@
+{
+  "wills/okafor.txt": ["typed", "scanned"],
+  "wills/marchetti.txt": ["typed"],
+  "wills/nguyen.txt": ["typed"],
+  "wills/kowalski.txt": ["scanned"],
+  "wills/fairweather.txt": ["scanned"],
+  "wills/harrow-injected.txt": ["typed"],
+  "wills/whitlock-injected.txt": ["scanned"],
+  "wills/osei-injected.txt": ["typed"]
+}
