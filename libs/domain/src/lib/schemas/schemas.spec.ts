@@ -58,6 +58,7 @@ describe('entity schemas', () => {
       'Party',
       'PersonalTask',
       'Proceeding',
+      'RecentMatter',
       'RuleSetVersion',
       'SafeCustody',
       'SavedView',

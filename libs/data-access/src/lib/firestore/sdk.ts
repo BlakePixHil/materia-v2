@@ -15,6 +15,7 @@ export {
   getCountFromServer,
   getDoc,
   getDocs,
+  getDocsFromCache,
   initializeFirestore,
   limit,
   memoryLocalCache,

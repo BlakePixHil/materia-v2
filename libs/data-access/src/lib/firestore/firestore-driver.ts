@@ -83,6 +83,10 @@ export function firestoreDriver(source: FirestoreSource, path: string, options: 
       const handle = await source.get();
       return toPage(await handle.sdk.getDocs(buildQuery(handle, path, request.spec, request, group)));
     },
+    async fetchCached(request) {
+      const handle = await source.get();
+      return toPage(await handle.sdk.getDocsFromCache(buildQuery(handle, path, request.spec, request, group)));
+    },
     watchDoc(id, next, error) {
       if (group) throw new Error(`Collection group "${path}" can't watch one document`);
       return attach(

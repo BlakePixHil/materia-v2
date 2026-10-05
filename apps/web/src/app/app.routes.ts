@@ -97,11 +97,11 @@ const matterRoutes: Route[] = [
 /** The shell's pages (FND-12). Every feature is lazily loaded (ADR-002). */
 const shellRoutes: Route[] = [
   { path: '', pathMatch: 'full', redirectTo: 'today' },
-  // Today: my tasks due this week for now (CORE-08); CORE-14 builds the rest.
+  // Today: what needs me, what's due this week, my tasks and recent matters (CORE-14).
   {
     path: 'today',
     title: 'Today',
-    loadComponent: () => import('./features/tasks/today-page').then((m) => m.TodayPage),
+    loadComponent: () => import('./features/today/today-page').then((m) => m.TodayPage),
   },
   // My tasks across matters, and personal tasks (CORE-08).
   {

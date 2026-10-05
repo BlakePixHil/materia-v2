@@ -5,6 +5,8 @@ import { expectNoA11yViolations, signInAsTestUser } from '@materia/test-utils/e2
 /** App shell (FND-12): sidebar, ⌘K palette, shortcuts and the phone TabBar. */
 
 const sidebar = (page: Page) => page.getByRole('complementary', { name: 'Sidebar' });
+/** Today's heading greets the test user (CORE-14). */
+const todayHeading = (page: Page) => page.getByRole('heading', { level: 1, name: /^Good (morning|afternoon|evening)/ });
 
 test.describe('desktop shell', () => {
   test.skip(({ isMobile }) => isMobile, 'The sidebar and keyboard shortcuts are desktop features');
@@ -16,7 +18,7 @@ test.describe('desktop shell', () => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/today$/);
     await expect(page).toHaveTitle('Today · Materia');
-    await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+    await expect(todayHeading(page)).toBeVisible();
     const nav = sidebar(page).getByRole('navigation', { name: 'Main' });
     // Disputes is behind the litigation flag, off by default (FND-23).
     await expect(nav.getByRole('link')).toHaveText([
@@ -34,7 +36,7 @@ test.describe('desktop shell', () => {
 
   test('navigates with ⌘K', async ({ page }) => {
     await page.goto('/today');
-    await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+    await expect(todayHeading(page)).toBeVisible();
     await page.keyboard.press('ControlOrMeta+k');
     const input = page.getByRole('combobox');
     await expect(input).toBeFocused();
@@ -68,7 +70,7 @@ test.describe('desktop shell', () => {
 
   test('navigates with g then a key, and ? lists every shortcut', async ({ page }) => {
     await page.goto('/today');
-    await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+    await expect(todayHeading(page)).toBeVisible();
     await page.keyboard.press('g');
     await page.keyboard.press('m');
     await expect(page).toHaveURL(/\/matters$/);
@@ -89,7 +91,7 @@ test.describe('desktop shell', () => {
 
   test('keyboard-only: skip link, sidebar and palette are reachable', async ({ page }) => {
     await page.goto('/today');
-    await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+    await expect(todayHeading(page)).toBeVisible();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
     await page.keyboard.press('Tab');
@@ -107,7 +109,7 @@ test.describe('desktop shell', () => {
     test(`the shell has no WCAG 2.2 AA violations (${theme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: theme });
       await page.goto('/today');
-      await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+      await expect(todayHeading(page)).toBeVisible();
       await expectNoA11yViolations(page);
       await page.screenshot({ path: test.info().outputPath(`shell-${theme}.png`) });
       await page.keyboard.press('ControlOrMeta+j');
@@ -126,7 +128,7 @@ test.describe('phone shell', () => {
 
   test('shows the TabBar instead of the sidebar', async ({ page }) => {
     await page.goto('/today');
-    await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+    await expect(todayHeading(page)).toBeVisible();
     await expect(sidebar(page)).toHaveCount(0);
     const tabs = page.locator('.mt-tabbar');
     await expect(tabs).toBeVisible();
