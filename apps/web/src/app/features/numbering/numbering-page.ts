@@ -8,6 +8,7 @@ import {
   DEFAULT_MATTER_TYPE_CODES,
   formatMatterNumber,
   matterNumberFormatProblem,
+  matterNumberFormatWarning,
   MatterTypeCodeSchema,
   MatterTypeSchema,
   type MatterType,
@@ -15,6 +16,7 @@ import {
 import { MATTER_TYPE_LABELS, MtButton, MtNote, MtSettingsSection, MtTextField, ToastService } from '@materia/ui';
 
 import { errorCopy } from '../../core/error-copy';
+import { warnBeforeUnload, type HasUnsavedChanges } from '../settings/unsaved-changes';
 
 const TYPES = MatterTypeSchema.options;
 
@@ -68,6 +70,9 @@ const emptyCodes = (): Codes => Object.fromEntries(TYPES.map((type) => [type, ''
             Next probate matter, for example: <strong class="mono">{{ preview() }}</strong>
           }
         </p>
+        @if (formatWarning(); as warning) {
+          <mt-note tone="warning" data-uniqueness>{{ warning }}</mt-note>
+        }
       </mt-settings-section>
 
       <mt-settings-section
@@ -108,7 +113,7 @@ const emptyCodes = (): Codes => Object.fromEntries(TYPES.map((type) => [type, ''
     }
   `,
 })
-export class NumberingPage {
+export class NumberingPage implements HasUnsavedChanges {
   private readonly context = inject(OrgContext);
   private readonly toasts = inject(ToastService);
   private readonly repo = orgSettingsRepository();
@@ -124,6 +129,7 @@ export class NumberingPage {
   private readonly loaded = signal<string | null>(null);
 
   protected readonly formatProblem = computed(() => matterNumberFormatProblem(this.format()));
+  protected readonly formatWarning = computed(() => matterNumberFormatWarning(this.format()));
   protected readonly preview = computed(() =>
     formatMatterNumber(this.format().trim(), new Date().getFullYear(), 1, this.code('probate')),
   );
@@ -139,12 +145,14 @@ export class NumberingPage {
   private readonly valid = computed(() => !this.formatProblem() && !Object.keys(this.codeProblems()).length);
   protected readonly dirty = computed(() => this.loaded() !== null && this.loaded() !== JSON.stringify(this.patch()));
   protected readonly ready = computed(() => this.dirty() && this.valid() && !this.saving());
+  readonly unsaved = computed(() => this.dirty());
   protected readonly loadError = computed(() => {
     const error = this.org.error();
     return error ? errorCopy(error) : 'Couldn’t load the settings.';
   });
 
   constructor() {
+    warnBeforeUnload(this.unsaved);
     // Fill the form from the stored settings when they load (and after a save), not while editing.
     effect(() => {
       const org = this.org.value();

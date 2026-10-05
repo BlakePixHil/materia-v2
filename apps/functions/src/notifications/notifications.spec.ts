@@ -1,4 +1,4 @@
-import { Notification, NOTIFICATION_BURST_LIMIT } from '@materia/domain';
+import { Notification, NOTIFICATION_BURST_LIMIT, notificationExpiry } from '@materia/domain';
 
 import { DELIVERY_MAX_ATTEMPTS, deliverNotification, RetryDelivery } from './deliver';
 import { digestContent, digestModel, runDigests } from './digest';
@@ -97,7 +97,10 @@ describe('notify()', () => {
       schemaVersion: Notification.version,
     });
     expect(stored?.['deliverAfter']).toBeUndefined();
-    expect(Notification.create.safeParse(stored).success).toBe(true);
+    // Kept 90 days (CORE-22): Firestore TTL deletes it at `expireAt`.
+    const { expireAt, ...payload } = stored ?? {};
+    expect((expireAt as { toDate(): Date }).toDate()).toEqual(notificationExpiry(w.ctx.clock.now()));
+    expect(Notification.create.safeParse(payload).success).toBe(true);
     expect(w.tasks.queued).toEqual([
       {
         queue: DELIVER_QUEUE,

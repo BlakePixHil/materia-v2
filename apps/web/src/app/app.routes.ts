@@ -1,9 +1,12 @@
 import { inject } from '@angular/core';
 import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 
+import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgScopedGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
 import { readLayout } from './features/matters/matters-layout';
+import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
+import { unsavedChangesGuard } from './features/settings/unsaved-changes';
 import { MATTER_TABS } from './pages/matter-tabs';
 import type { PlaceholderData } from './pages/placeholder';
 
@@ -148,11 +151,12 @@ const shellRoutes: Route[] = [
     data: { crumb: 'My tasks' },
     loadComponent: () => import('./features/tasks/tasks-page').then((m) => m.TasksPage),
   },
-  planned('inbox', 'Inbox', {
-    ticket: 'CORE-22',
-    icon: 'inbox',
-    description: 'Mentions, assignments and replies that need you.',
-  }),
+  // Every notification I get, with filters, keyboard triage and inline actions (CORE-22).
+  {
+    path: 'inbox',
+    title: 'Inbox',
+    loadComponent: () => import('./features/inbox/inbox-page').then((m) => m.InboxPage),
+  },
   { path: 'matters', data: { crumb: 'Matters' }, children: matterRoutes },
   // Every upcoming deadline across the firm's matters, as a list or a month calendar (CORE-10).
   {
@@ -208,29 +212,56 @@ const shellRoutes: Route[] = [
     icon: 'insights',
     description: 'Workload, realisation and deadline health.',
   }),
+  // Settings (CORE-21): a sidebar of pages. Everyone sees the team; owners and admins the rest.
   {
     path: 'settings',
     data: { crumb: 'Settings' },
+    loadComponent: () => import('./features/settings/settings-layout').then((m) => m.SettingsLayout),
     children: [
       {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: () => {
+          const role = inject(AuthState).claims().role;
+          return role === 'owner' || role === 'admin' ? 'practice' : 'team';
+        },
+      },
+      {
+        path: 'practice',
+        title: 'Practice',
+        data: { crumb: 'Practice' },
+        canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/settings/practice-page').then((m) => m.PracticeSettingsPage),
+      },
+      {
         path: 'team',
-        title: 'Team',
-        data: { crumb: 'Team' },
+        title: 'Team and roles',
+        data: { crumb: 'Team and roles' },
         loadComponent: () => import('./pages/orgs/team').then((m) => m.TeamPage),
+      },
+      {
+        path: 'billing',
+        title: 'Billing and rates',
+        data: { crumb: 'Billing and rates' },
+        canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/settings/billing-page').then((m) => m.BillingSettingsPage),
       },
       // Matter numbering (CORE-21a): owners and admins (`org.settings`).
       {
         path: 'numbering',
         title: 'Matter numbering',
         data: { crumb: 'Matter numbering' },
-        canActivate: [roleGuard(['owner', 'admin'])],
+        canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
         loadComponent: () => import('./features/numbering/numbering-page').then((m) => m.NumberingPage),
       },
       // Matter templates (CORE-07): owners and admins (`org.settings`), while `templates.system` is on.
       {
         path: 'templates',
         data: { crumb: 'Templates' },
-        canActivate: [flagGuard('templates.system'), roleGuard(['owner', 'admin'])],
+        canActivate: [flagGuard('templates.system'), roleGuard(SETTINGS_ADMIN_ROLES)],
         children: [
           {
             path: '',
@@ -254,11 +285,15 @@ const shellRoutes: Route[] = [
         canActivate: [roleGuard(['owner', 'admin'])],
         loadComponent: () => import('./features/clerk-settings/clerk-settings-page').then((m) => m.ClerkSettingsPage),
       },
-      planned('**', 'Settings', {
-        ticket: 'CORE-21',
-        icon: 'settings',
-        description: 'Firm, people, billing rates and integrations.',
-      }),
+      {
+        path: 'audit',
+        title: 'Audit log',
+        data: { crumb: 'Audit log' },
+        canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
+        loadComponent: () => import('./features/settings/audit-log-page').then((m) => m.AuditLogPage),
+      },
+      // Settings pages still to come (integrations INT-03, security SEC-04) land on the team page.
+      { path: '**', redirectTo: 'team' },
     ],
   },
   {

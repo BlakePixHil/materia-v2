@@ -57,6 +57,11 @@ export interface WatchQueryOptions extends WatchOptions {
 export interface UpdateOptions {
   /** Fields to delete from the document. */
   remove?: readonly string[];
+  /**
+   * Fields set to the server's time (`serverTimestamp()`), for rules that check a field equals
+   * `request.time` (a notification's `readAt`). They must be in the update whitelist too.
+   */
+  stamp?: readonly string[];
 }
 
 /**
@@ -305,12 +310,14 @@ function createRepository<T>(
     update: (id, patch, updateOptions = {}) =>
       guard(async () => {
         const remove = updateOptions.remove ?? [];
+        const stamp = updateOptions.stamp ?? [];
         // Only the fields the caller set: a partial schema still fills in its defaults (an empty
         // `labels`, `privileged: false`), which would overwrite the stored values.
         const input = entity.update ? onlyKeys(entity.update.parse(patch), Object.keys(patch)) : patch;
-        // Removed fields must be updatable too: the strict update schema rejects any other key.
-        if (entity.update && remove.length) entity.update.parse(Object.fromEntries(remove.map((f) => [f, undefined])));
-        await driver().update(id, toFirestoreValue(input) as Record<string, unknown>, meta(), remove);
+        // Removed and stamped fields must be updatable too: the strict update schema rejects any other key.
+        const extra = [...remove, ...stamp];
+        if (entity.update && extra.length) entity.update.parse(Object.fromEntries(extra.map((f) => [f, undefined])));
+        await driver().update(id, toFirestoreValue(input) as Record<string, unknown>, meta(), remove, stamp);
       }, 'write'),
 
     softDelete: (id) => guard(() => driver().softDelete(id, meta()), 'write'),

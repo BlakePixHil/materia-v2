@@ -1,11 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { ORG_TEMPLATES_QUERY, orgTemplatesRepository, type OrgTemplate } from '@materia/data-access/repository';
-import type { MatterType } from '@materia/domain';
+import { OrgContext } from '@materia/data-access';
+import {
+  ORG_TEMPLATES_QUERY,
+  orgSettingsReadRepository,
+  orgTemplatesRepository,
+  type OrgTemplate,
+} from '@materia/data-access/repository';
+import type { FeeDefaults, MatterType } from '@materia/domain';
 import { MATTER_TYPE_LABELS, MtChoiceCards, MtIcon } from '@materia/ui';
 
-import { MATTER_TYPE_OPTIONS } from './intake-state';
+import { feesWithDefault, MATTER_TYPE_OPTIONS } from './intake-state';
 import { IntakeStore } from './intake-store';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
 
@@ -52,6 +58,8 @@ export class IntakeTypeStep {
   protected readonly options = MATTER_TYPE_OPTIONS;
   private readonly flags = inject(FeatureFlagService);
   private readonly templates = signal<OrgTemplate[]>([]);
+  /** The practice's fee default per matter type (CORE-21), prefilled on the fees step. */
+  private feeDefaults: FeeDefaults = {};
 
   protected readonly template = computed(() => {
     const type = this.store.state().type;
@@ -65,6 +73,13 @@ export class IntakeTypeStep {
   });
 
   constructor() {
+    const orgId = inject(OrgContext).orgId();
+    if (orgId) {
+      orgSettingsReadRepository()
+        .get(orgId)
+        .then((org) => (this.feeDefaults = org?.feeDefaults ?? {}))
+        .catch(() => undefined);
+    }
     if (this.flags.isOn('templates.system')) {
       orgTemplatesRepository()
         .query(ORG_TEMPLATES_QUERY)
@@ -74,6 +89,11 @@ export class IntakeTypeStep {
   }
 
   protected choose(type: MatterType | null): void {
-    if (type) this.store.update((s) => ({ ...s, type }));
+    if (!type) return;
+    this.store.update((s) => ({
+      ...s,
+      type,
+      fees: feesWithDefault(s.fees, this.feeDefaults[type], s.type ? this.feeDefaults[s.type] : undefined),
+    }));
   }
 }

@@ -1,3 +1,4 @@
+export * from './lib/chunking';
 export * from './lib/citations';
 export * from './lib/model';
 export * from './lib/prices';

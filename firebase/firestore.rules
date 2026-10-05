@@ -658,12 +658,17 @@ service cloud.firestore {
         allow read: if inOrg(orgId);
       }
 
-      // Each member reads and marks read (or unread) only their own notifications (FND-20): `readAt`
-      // is the server's time, or null.
+      // Each member reads, marks read (or unread) and archives (or restores) only their own
+      // notifications (FND-20, CORE-22): a changed `readAt` or `hiddenAt` is the server's time, or null.
       match /notifications/{notificationId} {
+        function stampedOrCleared(field) {
+          return !(field in request.resource.data.diff(resource.data).affectedKeys())
+            || request.resource.data.get(field, null) == null
+            || request.resource.data.get(field, null) == request.time;
+        }
         allow read: if inOrg(orgId) && resource.data.recipientUid == uid();
         allow update: if inOrg(orgId) && resource.data.recipientUid == uid() && clientUpdate(fieldsNotification())
-          && (request.resource.data.readAt == null || request.resource.data.readAt == request.time);
+          && stampedOrCleared('readAt') && stampedOrCleared('hiddenAt');
       }
 
       // Background jobs (FND-24): written by functions and the Cloud Run job; the member who
@@ -797,7 +802,7 @@ service cloud.firestore {
     function fieldsCalendar() { return ['jurisdiction', 'year', 'calendarId', 'kind', 'holidays', 'closures', 'source', 'verified']; }
     function fieldsChecklistTemplate() { return ['name', 'items', 'priority', 'dueInDays']; }
     function fieldsChronologyEntry() { return ['date', 'datePrecision', 'title', 'detail', 'sources', 'disputed', 'issueIds']; }
-    function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'embedding']; }
+    function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'docVersion', 'ordinal', 'privileged', 'ocr', 'embedding']; }
     function fieldsClerkMessage() { return ['stopRequested']; }
     function fieldsClerkThread() { return ['title', 'ownerUid', 'matterId', 'shared']; }
     function fieldsConflictCheck() { return []; }
@@ -835,9 +840,9 @@ service cloud.firestore {
     function fieldsMigrationRun() { return []; }
     function fieldsNote() { return ['pinned']; }
     function fieldsNoteRevision() { return []; }
-    function fieldsNotification() { return ['readAt']; }
+    function fieldsNotification() { return ['readAt', 'hiddenAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['name', 'abn', 'acn', 'practiceType', 'jurisdictions', 'primaryJurisdiction', 'timezone', 'holidayLocality', 'billing', 'matterNumberFormat', 'matterTypeCodes', 'fy', 'retentionYears', 'destructionKeepsTitle', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }

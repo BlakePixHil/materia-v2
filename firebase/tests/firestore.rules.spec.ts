@@ -399,6 +399,44 @@ describe('membership (FND-17)', () => {
   });
 });
 
+describe('org settings (CORE-21)', () => {
+  const ORG_DOC = `orgs/${ORG}`;
+  const MEMBER = `orgs/${ORG}/members/member-target`;
+
+  it('practice details and billing change only through orgs-updateSettings, even for owners', async () => {
+    await seed(specFor('orgs'));
+    const ref = doc(db(env, 'owner'), ORG_DOC);
+    const owner = uidFor('owner');
+    await assertFails(updateDoc(ref, stamped({ name: 'Renamed Fictional Legal' }, owner)));
+    await assertFails(updateDoc(ref, stamped({ timezone: 'Australia/Perth' }, owner)));
+    await assertFails(updateDoc(ref, stamped({ jurisdictions: ['NSW'] }, owner)));
+    await assertFails(updateDoc(ref, stamped({ retentionYears: 1 }, owner)));
+    await assertFails(updateDoc(ref, stamped({ 'billing.gstRegistered': false }, owner)));
+    // Matter numbering (CORE-21a) stays client-direct for owners and admins.
+    await assertSucceeds(
+      updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped({ matterNumberFormat: 'F-{YY}-{seq:3}' }, uidFor('admin'))),
+    );
+    await assertFails(
+      updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped({ matterNumberFormat: 'F-{seq}' }, uidFor('lawyer'))),
+    );
+  });
+
+  it('owners and admins set a member’s rate, budgets and supervisor; others can’t', async () => {
+    await seed(specFor('members'));
+    const patch = {
+      defaultRateCents: 52000,
+      rates: [{ effectiveFrom: '2026-10-05', rateCents: 52000 }],
+      budgets: { '2026': 25000000 },
+      supervisorUid: uidFor('owner'),
+    };
+    await assertSucceeds(updateDoc(doc(db(env, 'admin'), MEMBER), stamped(patch, uidFor('admin'))));
+    await assertFails(updateDoc(doc(db(env, 'lawyer'), MEMBER), stamped(patch, uidFor('lawyer'))));
+    await assertFails(
+      updateDoc(doc(db(env, 'paralegal'), MEMBER), stamped({ defaultRateCents: 1 }, uidFor('paralegal'))),
+    );
+  });
+});
+
 describe('soft delete', () => {
   const softDelete = (uid: string) => ({
     deletedAt: serverTimestamp(),
@@ -1429,9 +1467,62 @@ describe('notifications (FND-20)', () => {
     await assertSucceeds(updateDoc(ref, stamped({ readAt: null }, uid)));
     await assertFails(updateDoc(ref, stamped({ readAt: Timestamp.fromMillis(0) }, uid)));
     await assertFails(updateDoc(ref, stamped({ readAt: 'yesterday' }, uid)));
-    for (const field of ['channels', 'deliveries', 'priority', 'recipientUid', 'body', 'deliverAfter']) {
+    for (const field of ['channels', 'deliveries', 'priority', 'recipientUid', 'body', 'deliverAfter', 'expireAt']) {
       await assertFails(updateDoc(ref, stamped({ readAt: serverTimestamp(), [field]: null }, uid)));
     }
+  });
+
+  it('a recipient archives a notification with the server time, or restores it, whether or not it was read (CORE-22)', async () => {
+    const uid = uidFor('lawyer');
+    const path = `${INBOX}/notification-archive`;
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, path), {
+        ...seedData(specFor('notifications')),
+        recipientUid: uid,
+        // Read a while ago: archiving leaves `readAt` as it is.
+        readAt: Timestamp.fromMillis(Date.now() - 86_400_000),
+      }),
+    );
+    const ref = doc(db(env, 'lawyer'), path);
+    await assertSucceeds(updateDoc(ref, stamped({ hiddenAt: serverTimestamp() }, uid)));
+    await assertSucceeds(updateDoc(ref, stamped({ hiddenAt: null }, uid)));
+    await assertSucceeds(updateDoc(ref, stamped({ hiddenAt: serverTimestamp(), readAt: serverTimestamp() }, uid)));
+    await assertFails(updateDoc(ref, stamped({ hiddenAt: Timestamp.fromMillis(0) }, uid)));
+    await assertFails(updateDoc(ref, stamped({ hiddenAt: serverTimestamp(), readAt: Timestamp.fromMillis(0) }, uid)));
+    // Someone else's stays theirs.
+    await assertFails(
+      updateDoc(doc(db(env, 'owner'), path), stamped({ hiddenAt: serverTimestamp() }, uidFor('owner'))),
+    );
+  });
+
+  it.each(EVERYONE)('lists my inbox and a burst’s members, as %s (CORE-22)', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const inbox = (recipient: string) =>
+      getDocs(
+        query(
+          collection(firestore, INBOX),
+          where('recipientUid', '==', recipient),
+          where('channels', 'array-contains', 'inapp'),
+          where('summaryId', '==', null),
+          orderBy('createdAt', 'desc'),
+          limit(100),
+        ),
+      );
+    const burst = (recipient: string) =>
+      getDocs(
+        query(
+          collection(firestore, INBOX),
+          where('recipientUid', '==', recipient),
+          where('summaryId', '==', 'burst-x'),
+          orderBy('createdAt', 'desc'),
+          limit(100),
+        ),
+      );
+    await (isMember(who) ? assertSucceeds(inbox(uid)) : assertFails(inbox(uid)));
+    await (isMember(who) ? assertSucceeds(burst(uid)) : assertFails(burst(uid)));
+    const other = uid === uidFor('lawyer') ? uidFor('owner') : uidFor('lawyer');
+    await assertFails(inbox(other));
+    await assertFails(burst(other));
   });
 
   it.each(EVERYONE)('lists only my unread in-app notifications, as %s', async (who) => {

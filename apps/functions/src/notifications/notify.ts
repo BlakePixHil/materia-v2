@@ -8,6 +8,7 @@ import {
   NOTIFICATION_BURST_LIMIT,
   NOTIFICATION_BURST_WINDOW_MS,
   NOTIFICATION_KINDS,
+  notificationExpiry,
   readNotificationPrefs,
   resolveChannels,
   validTimeZone,
@@ -26,7 +27,16 @@ type Payload = z.input<typeof NotificationPayloadSchema>;
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 /** Fields `notify()` sets itself. */
 type Managed =
-  'recipientUid' | 'channels' | 'priority' | 'readAt' | 'deliveries' | 'deliverAfter' | 'summaryId' | 'collapsedCount';
+  | 'recipientUid'
+  | 'channels'
+  | 'priority'
+  | 'readAt'
+  | 'deliveries'
+  | 'deliverAfter'
+  | 'summaryId'
+  | 'collapsedCount'
+  | 'hiddenAt'
+  | 'expireAt';
 
 /**
  * What to send: the kind and its payload ids, `title`, `body` (never privileged content: name the
@@ -104,7 +114,8 @@ interface Writer {
  * - the channels follow their preferences (`resolveChannels`: critical always emails);
  * - after `NOTIFICATION_BURST_LIMIT` in a minute (critical aside), the rest are written in-app
  *   only, marked with the burst's summary, and the summary counts them;
- * - otherwise `orgs/{orgId}/notifications/{id}` is written (`readAt` and `summaryId` null) and each email and
+ * - otherwise `orgs/{orgId}/notifications/{id}` is written (`readAt` and `summaryId` null, expiring after
+ *   `NOTIFICATION_RETENTION_DAYS`) and each email and
  *   push delivery is enqueued on `notifications-deliver`, held until the end of the recipient's
  *   quiet hours when it isn't critical.
  *
@@ -135,6 +146,8 @@ export async function notify(
       updatedAt: now,
       updatedBy: actor,
       schemaVersion: Notification.version,
+      // Kept 90 days, then Firestore TTL deletes it (CORE-22).
+      expireAt: notificationExpiry(now),
     };
     const [org, ...people] = await db.getAll(
       db.doc(`orgs/${orgId}`),

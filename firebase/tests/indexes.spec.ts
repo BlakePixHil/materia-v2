@@ -204,7 +204,7 @@ describe('firestore.indexes.json', () => {
     ]);
   });
 
-  it('audit entries expire through TTL on expireAt, and the audit-query filters are indexed (FND-18)', () => {
+  it('audit entries expire through TTL on expireAt, and the audit-query filters are indexed (FND-18, CORE-21)', () => {
     const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
       (o) => o.collectionGroup === 'audit' && o.ttl,
     );
@@ -218,20 +218,31 @@ describe('firestore.indexes.json', () => {
       'actor.uid:ASCENDING,at:DESCENDING',
       'entity.matterId:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
       'entity.path:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
+      // The audit log page's filters (CORE-21): record kind, action and person.
+      'entity.collection:ASCENDING,at:DESCENDING',
+      'action:ASCENDING,at:DESCENDING',
+      'entity.collection:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
+      'action:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
+      'entity.collection:ASCENDING,action:ASCENDING,at:DESCENDING',
+      'entity.collection:ASCENDING,action:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
     ]);
   });
 
-  it('indexes the unread badge and the burst count, and digest records expire (FND-20)', () => {
+  it('indexes the unread badge, the burst count and the inbox; digests and notifications expire (FND-20, CORE-22)', () => {
     const notifications = file.indexes
       .filter((i) => i.collectionGroup === 'notifications')
       .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(',')}`);
     expect(notifications).toEqual([
       'COLLECTION:recipientUid:ASCENDING,createdAt:ASCENDING',
       'COLLECTION:recipientUid:ASCENDING,channels:CONTAINS,readAt:ASCENDING,summaryId:ASCENDING,createdAt:DESCENDING',
+      // The inbox (CORE-22): everything in-app but burst members, and one burst's members.
+      'COLLECTION:recipientUid:ASCENDING,channels:CONTAINS,summaryId:ASCENDING,createdAt:DESCENDING',
+      'COLLECTION:recipientUid:ASCENDING,summaryId:ASCENDING,createdAt:DESCENDING',
     ]);
-    const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
-      (o) => o.collectionGroup === 'digests' && o.ttl,
-    );
-    expect(ttl?.fieldPath).toBe('expireAt');
+    const overrides = file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[];
+    const ttl = (group: string) => overrides.find((o) => o.collectionGroup === group && o.ttl)?.fieldPath;
+    expect(ttl('digests')).toBe('expireAt');
+    // Notifications are kept 90 days (CORE-22).
+    expect(ttl('notifications')).toBe('expireAt');
   });
 });
