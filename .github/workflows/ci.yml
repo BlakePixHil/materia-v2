@@ -2,9 +2,10 @@
 # `ci-ok` is the only required check on main: it passes when every job succeeded or was skipped.
 #
 # Actions minutes are billed, so the `gate` job picks how much of CI a run needs (mode):
-#   full  PRs, the morning run and manual dispatches: every job.
+#   full  PRs, the morning run and manual dispatches: every job. PRs skip CodeQL and run e2e in
+#         Chromium only; the morning run adds both (WebKit = iPhone Safari).
 #   main  pushes to main: the fast checks only. e2e, Storybook, the container tests, Terraform
-#         and security already passed on the PR; the morning run repeats them once a day.
+#         and security already ran on the PR; the morning run repeats them once a day.
 #   docs  docs-only changes: lint (Prettier) only.
 #   skip  pushes to main in quiet hours (22:00-07:30 Melbourne, nobody is testing), and morning
 #         runs with nothing new to deploy. deploy-dev only deploys runs whose `build` job ran,
@@ -79,6 +80,7 @@ jobs:
       e2e: ${{ steps.filter.outputs.e2e }}
       storybook: ${{ steps.filter.outputs.storybook }}
       jobs: ${{ steps.filter.outputs.jobs }}
+      doc-services: ${{ steps.filter.outputs.doc-services }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -95,6 +97,7 @@ jobs:
           if echo "$affected" | grep -qx 'web-e2e'; then echo "e2e=true" >> "$GITHUB_OUTPUT"; else echo "e2e=false" >> "$GITHUB_OUTPUT"; fi
           if echo "$affected" | grep -qx 'ui'; then echo "storybook=true" >> "$GITHUB_OUTPUT"; else echo "storybook=false" >> "$GITHUB_OUTPUT"; fi
           if echo "$affected" | grep -qx 'jobs'; then echo "jobs=true" >> "$GITHUB_OUTPUT"; else echo "jobs=false" >> "$GITHUB_OUTPUT"; fi
+          if echo "$affected" | grep -qx 'doc-services'; then echo "doc-services=true" >> "$GITHUB_OUTPUT"; else echo "doc-services=false" >> "$GITHUB_OUTPUT"; fi
 
   lint:
     name: lint
@@ -227,6 +230,29 @@ jobs:
           JOBS_IMAGE: materia-jobs:ci
         run: pnpm exec vitest run -c apps/jobs/vitest.integration.config.mts
 
+  # CORE-12a: builds the ClamAV and preview images exactly as deploy.yml does, then calls them over
+  # HTTP: EICAR is infected and a plain file clean (real clamd, the image's signatures), a .docx
+  # becomes a PDF (LibreOffice) and a HEIC photo a JPEG (heif-convert).
+  doc-services-container:
+    name: doc-services container
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [gate, changes]
+    if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.doc-services == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build the bundle and the images
+        run: |
+          pnpm nx build doc-services
+          docker build --pull -f dist/apps/doc-services/docker/scanner.Dockerfile -t materia-clamav:ci dist/apps/doc-services
+          docker build --pull -f dist/apps/doc-services/docker/preview.Dockerfile -t materia-preview:ci dist/apps/doc-services
+      - name: Call the services in their images
+        env:
+          SCANNER_IMAGE: materia-clamav:ci
+          PREVIEW_IMAGE: materia-preview:ci
+        run: pnpm exec vitest run -c apps/doc-services/vitest.integration.config.mts
+
   build:
     name: build
     runs-on: ubuntu-latest
@@ -311,6 +337,8 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:5000
           CI: 'true'
+          # PRs test Chromium only; the morning run and dispatches add WebKit (iPhone Safari).
+          E2E_CHROMIUM_ONLY: ${{ github.event_name == 'pull_request' && '1' || '' }}
         run: >-
           pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting
           --project demo-materia --config firebase.json
@@ -399,12 +427,12 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: gitleaks (commits in this change)
         run: gitleaks git --redact --no-banner --log-opts="$NX_BASE..$NX_HEAD" .
-      # CodeQL takes ~2.5 min and has nothing to analyse when only docs changed, so docs-only PRs skip
-      # it (FND-04: docs-only CI under 3 min). The morning run and manual dispatches always run it.
+      # CodeQL takes ~3-4 min, so to save Actions minutes it runs once a day in CI's morning run (and
+      # on manual dispatches), over everything merged since the last dev deploy, not on PRs.
       - name: Detect code changes
         id: scope
         run: |
-          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then echo "code=false" >> "$GITHUB_OUTPUT"; echo "PR: CodeQL runs in the morning run."; exit 0; fi
           code_files="$(git diff --name-only "$NX_BASE" "$NX_HEAD" | grep -Ev '(^docs/|^design/|^LICENSE$|\.md$)' || true)"
           if [ -n "$code_files" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; else echo "code=false" >> "$GITHUB_OUTPUT"; echo "Docs-only change: skipping CodeQL."; fi
       - name: CodeQL init
@@ -555,6 +583,7 @@ jobs:
         rules,
         integration,
         jobs-container,
+        doc-services-container,
         build,
         e2e,
         storybook,

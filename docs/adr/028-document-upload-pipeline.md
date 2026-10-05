@@ -57,11 +57,11 @@ The contract (`UPLOAD_TYPES`, `uploadSettings`, `UploadMetadataSchema`) lives in
 
 - No client ever holds a reference to unscanned bytes. The web app shows pipeline state from the document (`upload.status`, `scan.status`, `duplicateOf`).
 - Firebase Storage adds a download token to client uploads after the rules run. The pipeline reads only the contract's metadata keys, and it deletes the pending object either way. The uploader could fetch their own quarantined bytes with that token until the trigger runs; those are bytes they already have.
-- Until the ClamAV service is deployed and `CLAMAV_SCAN_URL` set, production uploads stay "Scanning delayed" and expire after 24 hours. This is deliberate: fail closed.
+- Until the ClamAV service is deployed and `CLAMAV_SCAN_URL` set, production uploads stay "Scanning delayed" and expire after 24 hours. This is deliberate: fail closed. (Built in CORE-12a, ADR-032.)
 - The trigger needs the Cloud Storage service agent to publish to Pub/Sub (Eventarc), which Terraform now grants.
 - Follow-ups, not built here:
-  - **The ClamAV Cloud Run service** (`clamav/clamav` with freshclam, behind `run.invoker` for `fn-runtime`). The jobs image runs as a Cloud Run *job*, not a service. A service needs its own image build and deploy step in the deploy workflow, which this ticket must not edit.
-  - **Office → PDF and HEIC → JPEG previews** (`renditions.previewPdf`, `previewImage`). LibreOffice and libheif belong in a container. Running a Cloud Run job execution per upload is too heavy, so it wants a preview service, which needs the same deploy-workflow change. The download callable already accepts these renditions and reports `rendition_unavailable` until they exist.
+  - **The ClamAV Cloud Run service** (built in CORE-12a, [ADR-032](032-document-services-on-cloud-run.md); `clamav/clamav` with freshclam, behind `run.invoker` for `fn-runtime`). The jobs image runs as a Cloud Run *job*, not a service. A service needs its own image build and deploy step in the deploy workflow, which this ticket must not edit.
+  - **Office → PDF and HEIC → JPEG previews** (`renditions.previewPdf`, `previewImage`; built in CORE-12a, ADR-032). LibreOffice and libheif belong in a container. Running a Cloud Run job execution per upload is too heavy, so it wants a preview service, which needs the same deploy-workflow change. The download callable already accepts these renditions and reports `rendition_unavailable` until they exist.
   - **Zip download of a selection.** This needs a non-PDF job output, and a way to download exports (a signed-URL callable for `orgs/{orgId}/exports/`, plus SEC-05's 7-day lifecycle). Neither exists yet.
 
 ## Alternatives considered
