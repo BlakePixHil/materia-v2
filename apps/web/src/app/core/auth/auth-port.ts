@@ -20,6 +20,9 @@ export interface AuthSession {
 /** Local persistence by default; session-only on a shared computer. */
 export type AuthPersistence = 'local' | 'session';
 
+/** How a person confirms it's them again. */
+export type ReauthMethod = { kind: 'google' } | { kind: 'password'; password: string };
+
 export type SignInOutcome = { kind: 'signedIn' } | { kind: 'mfaRequired' };
 
 /** Why an auth flow failed, mapped from Firebase error codes (never shown raw). */
@@ -97,6 +100,11 @@ export interface AuthPort {
   /** A sign-in method waiting to be linked after the person signs in the existing way. */
   pendingLink(): { email: string; method: string } | null;
   reauthenticateWithPassword(password: string): Promise<void>;
+  /**
+   * Confirms it's still them before a sensitive action (CORE-17): Google again, or their password.
+   * `mfaRequired` means answer the challenge with `completeMfa`.
+   */
+  reauthenticate(method: ReauthMethod): Promise<SignInOutcome>;
   /** Forces a token refresh so new custom claims apply. */
   refreshClaims(): Promise<void>;
   call<T>(name: string, data: unknown): Promise<T>;
@@ -129,6 +137,7 @@ export function lazyFirebaseAuthPort(
     'startTotpEnrolment',
     'finishTotpEnrolment',
     'reauthenticateWithPassword',
+    'reauthenticate',
     'refreshClaims',
     'call',
     'signOut',

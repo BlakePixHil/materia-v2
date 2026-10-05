@@ -3,7 +3,8 @@
 # Writes `mode` (full | main | docs | skip) and `base` (Nx base for the morning run) to
 # $GITHUB_OUTPUT. The modes are described at the top of ci.yml.
 #
-# Env: GH_TOKEN, EVENT, PR (pull_request), BEFORE (push), plus the runner's GITHUB_* variables.
+# Env: GH_TOKEN, EVENT, PR (pull_request), BEFORE (push), CRON (schedule: the cron that fired),
+# plus the runner's GITHUB_* variables.
 set -euo pipefail
 
 repo="$GITHUB_REPOSITORY"
@@ -74,9 +75,21 @@ case "$EVENT" in
     fi
     ;;
   schedule)
-    if [ "$now" -lt 600 ] || [ "$now" -ge 715 ]; then
+    # Two crons per run, one per UTC offset (AEDT/AEST); only the one that lands in its window runs.
+    # The morning run deploys the night's merges; the 07:40 catch-up deploys what merged between
+    # the morning run and 07:30 (and covers a morning cron GitHub dropped or delayed).
+    case "${CRON:-}" in
+      '30 19 * * *' | '30 20 * * *') from=600 to=730 ;;
+      *) from=730 to=900 ;;
+    esac
+    running="$(gh run list --repo "$repo" --workflow ci.yml --event schedule --status in_progress \
+      --json databaseId,headSha --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and .headSha == \"$head\")] | length" 2>/dev/null || echo 0)"
+    if [ "$now" -lt "$from" ] || [ "$now" -ge "$to" ]; then
       mode=skip
       reason="this cron is the other time zone's ($hhmm in Melbourne)"
+    elif [ "${running:-0}" != 0 ]; then
+      mode=skip
+      reason="another scheduled run is already testing this commit"
     else
       deployed="$(last_deployed || true)"
       if [ "$deployed" = "$head" ]; then
@@ -87,7 +100,7 @@ case "$EVENT" in
         reason="only docs changed since the last dev deploy"
       else
         base="$deployed"
-        reason="morning run: everything merged since ${deployed:-the start} (last dev deploy)"
+        reason="scheduled run: everything merged since ${deployed:-the start} (last dev deploy)"
       fi
     fi
     ;;

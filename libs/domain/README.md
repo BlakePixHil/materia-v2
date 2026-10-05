@@ -63,5 +63,7 @@ Each entity `X` exports `{ schema, create, update, version, path }` built by `wi
 | `audit.view` | ✓ | ✓ |  |  |  |
 | `export.run` | ✓ | ✓ |  |  |  |
 | `export.includePrivileged` | ✓ | ✓ |  |  |  |
+| `safeCustody.edit` | ✓ | ✓ | ✓ | ✓ |  |
+| `safeCustody.release` | ✓ | ✓ | ✓ |  |  |
 
 <!-- permissions:end -->
