@@ -8,7 +8,7 @@ import { anthropicModel } from '../clerk/providers/anthropic';
 import { adminDb } from '../core/admin';
 import { cloudTasks } from '../core/enqueue';
 import { isEmulator, useFakes } from '../core/env';
-import { CLAMAV_SCAN_URL } from '../core/params';
+import { clamavScanUrl } from '../core/params';
 import { ANTHROPIC_API_KEY, POSTMARK_TOKEN, secretValue } from '../core/secrets';
 import { clamavScanner } from '../documents/clamav';
 import { emulatorSignedUrls, storageSignedUrls } from '../documents/signed-urls';
@@ -44,7 +44,7 @@ function realPorts(): Ports {
     xero: notConfigured('XeroPort'), // BILL-08
     // CORE-12: ClamAV over HTTP. Until the scanner service is deployed (CLAMAV_SCAN_URL empty),
     // every upload stays quarantined as "Scanning delayed": fail closed.
-    malwareScan: clamavScanner({ url: () => CLAMAV_SCAN_URL.value() }),
+    malwareScan: clamavScanner({ url: clamavScanUrl }),
     signedUrls: storageSignedUrls(), // CORE-12
     transcription: notConfigured('TranscriptionPort'), // MOB-03
     jobs: cloudRunJobs(), // FND-24
