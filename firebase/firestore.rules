@@ -320,7 +320,11 @@ service cloud.firestore {
     // ---------- organisations ----------
     match /orgs/{orgId} {
       allow read: if inOrg(orgId);
-      allow update: if can(orgId, 'org.settings') && isActiveMember(orgId) && clientUpdate(fieldsOrg());
+      // Clerk's settings (`settings.clerk`: switches, limits, the disclosure acknowledgement) change
+      // only through the audited clerk-* callables (AI-02a, AI-13), even when a client rewrites
+      // another part of `settings` (referrals, CORE-18).
+      allow update: if can(orgId, 'org.settings') && isActiveMember(orgId) && clientUpdate(fieldsOrg())
+        && request.resource.data.get('settings', {}).get('clerk', null) == resource.data.get('settings', {}).get('clerk', null);
 
       match /members/{memberUid} {
         allow read: if inOrg(orgId);

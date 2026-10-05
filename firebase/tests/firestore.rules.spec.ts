@@ -421,6 +421,21 @@ describe('org settings (CORE-21)', () => {
     );
   });
 
+  it('Clerk settings change only through the clerk-* callables; the rest of settings stays client-direct', async () => {
+    await seed(specFor('orgs'));
+    const ref = doc(db(env, 'owner'), ORG_DOC);
+    const owner = uidFor('owner');
+    await assertSucceeds(updateDoc(ref, stamped({ settings: { referrals: { thankYouTask: true } } }, owner)));
+    await assertFails(updateDoc(ref, stamped({ 'settings.clerk.ackVersion': 1 }, owner)));
+    await assertFails(updateDoc(ref, stamped({ 'settings.clerk.features.chat': false }, owner)));
+    await assertFails(
+      updateDoc(
+        ref,
+        stamped({ settings: { referrals: { thankYouTask: false }, clerk: { monthlyBudgetCents: 1 } } }, owner),
+      ),
+    );
+  });
+
   it('owners and admins set a member’s rate, budgets and supervisor; others can’t', async () => {
     await seed(specFor('members'));
     const patch = {

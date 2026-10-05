@@ -207,6 +207,13 @@ const shellRoutes: Route[] = [
     icon: 'insights',
     description: 'Workload, realisation and deadline health.',
   }),
+  // How Clerk works (AI-13): the seven Clerk rules in plain words, linked from the Clerk panel.
+  {
+    path: 'help/clerk',
+    title: 'How Clerk works',
+    data: { crumb: 'How Clerk works' },
+    loadComponent: () => import('./features/clerk-settings/clerk-guide-page').then((m) => m.ClerkGuidePage),
+  },
   // Settings (CORE-21): a sidebar of pages. Everyone sees the team; owners and admins the rest.
   {
     path: 'settings',
@@ -286,12 +293,12 @@ const shellRoutes: Route[] = [
           },
         ],
       },
-      // Clerk (AI-02a): the firm's own Anthropic key and model; owners and admins (`clerk.configure`).
+      // Clerk and AI (AI-02a, AI-13): owners and admins change it (`clerk.configure`); everyone
+      // else sees which features are on and the data-use disclosure.
       {
         path: 'clerk',
-        title: 'Clerk',
-        data: { crumb: 'Clerk' },
-        canActivate: [roleGuard(['owner', 'admin'])],
+        title: 'Clerk and AI',
+        data: { crumb: 'Clerk and AI' },
         loadComponent: () => import('./features/clerk-settings/clerk-settings-page').then((m) => m.ClerkSettingsPage),
       },
       {

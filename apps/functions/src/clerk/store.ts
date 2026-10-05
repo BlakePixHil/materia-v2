@@ -1,14 +1,20 @@
 import type { ClerkCitation, ClerkUsage } from '@materia/clerk';
-import type { ClerkModelChoice, ContextManifest } from '@materia/domain';
+import type { ContextManifest, OrgClerkSettings } from '@materia/domain';
 
-/** The org's Clerk settings (`orgs/{orgId}.settings.clerk`). */
-export interface OrgClerkSettings {
-  enabled?: boolean;
-  /** The org's model (AI-02a); Sonnet 5.5 when unset. */
-  model?: ClerkModelChoice;
-  monthlyTokenBudget?: number;
-  userRateLimit?: { requests: number; windowMinutes: number };
+/** The org's Clerk settings (`orgs/{orgId}.settings.clerk`, AI-02a and AI-13). */
+export type { OrgClerkSettings };
+
+/** What the gateway's limits need from the person's request counters. */
+export interface RateLimit {
+  /** The sliding window (AI-02). */
+  requests: number;
+  windowMs: number;
+  /** The org's per-person daily cap (AI-13), counted per metering day. */
+  daily?: { limit: number; day: string };
 }
+
+/** Why `takeRateSlot` refused: the sliding window or the daily cap. */
+export type RateSlot = 'ok' | 'window' | 'daily';
 
 export type ClerkMessageStatus = 'done' | 'error' | 'stopped' | 'refused' | 'truncated' | 'invalid_output';
 
@@ -44,15 +50,10 @@ export interface MeterEntry {
 /** The gateway's persistence (Firestore in production, in memory in unit tests). */
 export interface ClerkStore {
   orgSettings(orgId: string): Promise<OrgClerkSettings>;
-  /** Takes a slot in the user's sliding window; false when the window is full. */
-  takeRateSlot(
-    orgId: string,
-    uid: string,
-    nowMs: number,
-    limit: { requests: number; windowMs: number },
-  ): Promise<boolean>;
-  /** Tokens metered so far in a `clerk-YYYY-MM` period. */
-  periodTokens(orgId: string, period: string): Promise<number>;
+  /** Takes a slot in the user's sliding window (and daily count); says which limit refused it. */
+  takeRateSlot(orgId: string, uid: string, nowMs: number, limit: RateLimit): Promise<RateSlot>;
+  /** Tokens and cost metered so far in a `clerk-YYYY-MM` period. */
+  periodUsage(orgId: string, period: string): Promise<{ tokens: number; costMicros: number }>;
   meter(orgId: string, period: string, entry: MeterEntry, at: Date): Promise<void>;
   /** Creates the assistant message (never overwrites one: history is append-only). */
   openMessage(

@@ -1,7 +1,7 @@
-import type { ContextManifest } from '@materia/domain';
+import { CLERK_DISCLOSURE_VERSION, type ContextManifest } from '@materia/domain';
 
 import type { ClerkKeyring, OrgKey } from './keyring';
-import type { ClerkStore, FinalMessage, MessageSink, MeterEntry, OrgClerkSettings } from './store';
+import type { ClerkStore, FinalMessage, MessageSink, MeterEntry, OrgClerkSettings, RateLimit, RateSlot } from './store';
 
 interface MemoryMessage {
   writes: string[];
@@ -11,38 +11,46 @@ interface MemoryMessage {
   manifest?: ContextManifest;
 }
 
-/** An in-memory ClerkStore for unit tests (the Firestore one is covered by integration tests). */
+/** Org settings that let every feature run: the current disclosure acknowledged (AI-13). */
+export const ACKNOWLEDGED_CLERK_SETTINGS: OrgClerkSettings = { ackVersion: CLERK_DISCLOSURE_VERSION };
+
+/**
+ * An in-memory ClerkStore for unit tests (the Firestore one is covered by integration tests). Its
+ * org has acknowledged the data-use disclosure unless a test sets `settings` without it.
+ */
 export class MemoryClerkStore implements ClerkStore {
-  settings: OrgClerkSettings = {};
+  settings: OrgClerkSettings = { ...ACKNOWLEDGED_CLERK_SETTINGS };
   readonly hits = new Map<string, number[]>();
+  readonly days = new Map<string, { day: string; count: number }>();
   readonly meters: { period: string; entry: MeterEntry }[] = [];
   readonly messages = new Map<string, MemoryMessage>();
   tokensUsed = 0;
+  costMicrosUsed = 0;
 
   async orgSettings(): Promise<OrgClerkSettings> {
     return this.settings;
   }
 
-  async takeRateSlot(
-    _orgId: string,
-    uid: string,
-    nowMs: number,
-    limit: { requests: number; windowMs: number },
-  ): Promise<boolean> {
+  async takeRateSlot(_orgId: string, uid: string, nowMs: number, limit: RateLimit): Promise<RateSlot> {
     const hits = (this.hits.get(uid) ?? []).filter((at) => at > nowMs - limit.windowMs);
-    if (hits.length >= limit.requests) return false;
+    if (hits.length >= limit.requests) return 'window';
+    const today = this.days.get(uid);
+    const count = limit.daily && today && today.day === limit.daily.day ? today.count : 0;
+    if (limit.daily && count >= limit.daily.limit) return 'daily';
     this.hits.set(uid, [...hits, nowMs]);
-    return true;
+    if (limit.daily) this.days.set(uid, { day: limit.daily.day, count: count + 1 });
+    return 'ok';
   }
 
-  async periodTokens(): Promise<number> {
-    return this.tokensUsed;
+  async periodUsage(): Promise<{ tokens: number; costMicros: number }> {
+    return { tokens: this.tokensUsed, costMicros: this.costMicrosUsed };
   }
 
   async meter(_orgId: string, period: string, entry: MeterEntry): Promise<void> {
     this.meters.push({ period, entry });
     const u = entry.usage;
     this.tokensUsed += u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens;
+    this.costMicrosUsed += entry.costMicros;
   }
 
   async openMessage(
