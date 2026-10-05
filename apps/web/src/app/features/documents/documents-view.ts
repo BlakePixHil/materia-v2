@@ -191,6 +191,14 @@ export function isReadable(doc: Pick<DocumentRow, 'deletedAt' | 'version' | 'sca
   return !doc.deletedAt && doc.version > 0 && doc.scan.status === 'clean';
 }
 
+/**
+ * A row's accessible name: a removed document reads as "Removed document" everywhere (citations
+ * resolve to it), so in the "Show removed" list its former name is added, to tell them apart.
+ */
+export function rowName(doc: Pick<DocumentRow, 'name' | 'deletedAt'>): string {
+  return doc.deletedAt ? `${REMOVED_DOCUMENT_LABEL} (${doc.name})` : documentDisplayName(doc);
+}
+
 /** "Duplicate of Will (fictional sample).pdf", or of a removed document. */
 export function duplicateText(original: Pick<DocumentRow, 'name' | 'deletedAt'> | undefined): string {
   return `Duplicate of ${original ? documentDisplayName(original) : REMOVED_DOCUMENT_LABEL}`;

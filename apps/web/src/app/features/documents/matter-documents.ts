@@ -40,6 +40,7 @@ import {
   hasFilters,
   matchesFilters,
   NO_FILTERS,
+  rowName,
   SORT_LABELS,
   sortDocuments,
   UPLOAD_ACCEPT,
@@ -261,6 +262,9 @@ function storedLayout(): Layout {
               <span class="doc-name">
                 <mt-icon [name]="icon(row)" />
                 <a class="mt-ell" [routerLink]="row.id" (click)="$event.stopPropagation()">{{ name(row) }}</a>
+                @if (row.deletedAt) {
+                  <span class="caption t-3 mt-ell">{{ row.name }}</span>
+                }
                 @if (row.privileged) {
                   <mt-icon name="shield" class="priv" aria-label="Privileged" role="img" />
                 }
@@ -281,12 +285,15 @@ function storedLayout(): Layout {
                   <input
                     type="checkbox"
                     [checked]="isSelected(doc.id)"
-                    [attr.aria-label]="'Select ' + name(doc)"
+                    [attr.aria-label]="'Select ' + label(doc)"
                     (change)="toggle(doc.id, $any($event.target).checked)"
                   />
                 }
                 <mt-icon [name]="icon(doc)" class="big" />
                 <a class="mt-ell" [routerLink]="doc.id">{{ name(doc) }}</a>
+                @if (doc.deletedAt) {
+                  <span class="caption t-3 mt-ell">{{ doc.name }}</span>
+                }
                 <span class="caption t-3">{{ categoryLabels[doc.category] }} · {{ added(doc) }}</span>
                 <span class="tags">
                   @if (doc.privileged) {
@@ -504,7 +511,7 @@ export class MatterDocuments {
     { id: 'version', header: 'Version', numeric: true, value: (row) => (row.version ? `v${row.version}` : '—') },
   ];
   protected readonly rowKey = (row: DocumentRow) => row.id;
-  protected readonly rowLabel = (row: DocumentRow) => this.name(row);
+  protected readonly rowLabel = (row: DocumentRow) => rowName(row);
 
   protected on(value: unknown): '' | null {
     return value ? '' : null;
@@ -516,6 +523,10 @@ export class MatterDocuments {
 
   protected name(doc: DocumentRow): string {
     return documentDisplayName(doc);
+  }
+
+  protected label(doc: DocumentRow): string {
+    return rowName(doc);
   }
 
   protected icon(doc: DocumentRow) {
