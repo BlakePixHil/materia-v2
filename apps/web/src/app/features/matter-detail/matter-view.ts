@@ -1,5 +1,6 @@
 import type { MatterDeadline, MatterDetail, MatterParty, MatterTask, WithId } from '@materia/data-access/repository';
 import {
+  compareDeadlines,
   DomainError,
   EventKindSchema,
   KEY_FACTS,
@@ -203,14 +204,19 @@ export function statusLabel(status: MatterStatus): string {
 
 // ---------- overview ----------
 
-/** A deadline's date: the override when someone moved it, otherwise the computed date. */
-export function effectiveDue(deadline: MatterDeadline): DateOnly {
-  return (deadline.override?.dueDate ?? deadline.dueDate) as DateOnly;
+/**
+ * A deadline's date in force. Since CORE-10 `dueDate` already carries an override; older documents
+ * kept the override beside it. Undefined while the deadline is blocked (no date yet).
+ */
+export function effectiveDue(deadline: MatterDeadline): DateOnly | undefined {
+  return (deadline.override?.dueDate ?? deadline.dueDate) as DateOnly | undefined;
 }
 
-/** The next `count` open deadlines, soonest (or most overdue) first. */
+/** The next `count` open deadlines: dated ones soonest (or most overdue) first, then waiting ones. */
 export function nextDeadlines(rows: readonly WithId<MatterDeadline>[], count = 5): WithId<MatterDeadline>[] {
-  return [...rows].sort((a, b) => effectiveDue(a).localeCompare(effectiveDue(b))).slice(0, count);
+  return [...rows]
+    .sort((a, b) => compareDeadlines({ ...a, dueDate: effectiveDue(a) }, { ...b, dueDate: effectiveDue(b) }))
+    .slice(0, count);
 }
 
 /** "Due date pending: Grant issued unknown" for a template task waiting on its anchor event (CORE-07). */

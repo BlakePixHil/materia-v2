@@ -39,10 +39,11 @@ function planned(
   return { path, title, loadComponent: placeholder, data: { placeholder: { heading: title, ...data } }, ...extra };
 }
 
-/** The matter tabs built so far (CORE-06, CORE-08); the others show a placeholder. */
+/** The matter tabs built so far (CORE-06, CORE-08, CORE-10); the others show a placeholder. */
 const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
   overview: () => import('./features/matter-detail/matter-overview').then((m) => m.MatterOverview),
   tasks: () => import('./features/matter-detail/matter-tasks').then((m) => m.MatterTasks),
+  deadlines: () => import('./features/deadlines/matter-deadlines').then((m) => m.MatterDeadlines),
   parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
 };
 
@@ -115,11 +116,13 @@ const shellRoutes: Route[] = [
     description: 'Mentions, assignments and replies that need you.',
   }),
   { path: 'matters', data: { crumb: 'Matters' }, children: matterRoutes },
-  planned('deadlines', 'Deadlines', {
-    ticket: 'CORE-10',
-    icon: 'calendar',
-    description: 'Every computed deadline across your matters, by due date.',
-  }),
+  // Every upcoming deadline across the firm's matters, as a list or a month calendar (CORE-10).
+  {
+    path: 'deadlines',
+    title: 'Deadlines',
+    data: { crumb: 'Deadlines' },
+    loadComponent: () => import('./features/deadlines/deadlines-page').then((m) => m.DeadlinesPage),
+  },
   // Behind the litigation flag until LIT-01 ships (FND-23).
   planned(
     'disputes',

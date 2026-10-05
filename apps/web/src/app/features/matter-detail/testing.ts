@@ -202,6 +202,138 @@ export function serverCallables(): Record<string, FakeCallable> {
   };
 }
 
+/** A recompute that changed nothing; tests pass their own `proposed`, `created`. */
+export function recomputeSummary(changes: Partial<Record<'created' | 'proposed', string[]>> = {}) {
+  return {
+    ran: true,
+    recomputeVersion: 1,
+    created: [],
+    updated: [],
+    proposed: [],
+    superseded: [],
+    calendarMissing: [],
+    createdTaskIds: [],
+    statutoryDisabled: false,
+    ...changes,
+  };
+}
+
+const KEY_FACT_EVENTS: Record<string, (matter: Seed, date: string | undefined) => Seed> = {
+  date_of_death: (matter, date) => ({ deceased: { ...(matter['deceased'] as Seed), dateOfDeath: date } }),
+  grant_issued: (matter, date) => ({ estate: { ...(matter['estate'] as Seed), grantDate: date } }),
+};
+
+/**
+ * The `deadlines-*` callables (CORE-10) as the server runs them, without the engine: events are
+ * written (setting their key fact), deadlines closed or overridden, and proposals decided.
+ */
+export function deadlineServerCallables(): Record<string, FakeCallable> {
+  let nextEvent = 1;
+  return {
+    'deadlines-upsertEvent': (data, fs) => {
+      const matter = fs.get(MATTER) as Seed;
+      if (data['kind'] === 'date_of_death' && String(data['date']) > TODAY) {
+        throw {
+          code: 'functions/invalid-argument',
+          details: { code: 'INVALID_ARGUMENT', fields: { date: ['A date of death can’t be after today'] } },
+        };
+      }
+      const eventId = String(data['eventId'] ?? `ev-${nextEvent++}`);
+      fs.set(`${MATTER}/events/${eventId}`, {
+        kind: data['kind'],
+        date: data['date'],
+        ...(data['label'] ? { label: data['label'] } : {}),
+        meta: {},
+        orgId: ORG,
+        matterId: 'm-whitfield',
+        deletedAt: null,
+        ...meta,
+      });
+      const fact = KEY_FACT_EVENTS[String(data['kind'])];
+      if (fact) fs.set(MATTER, { ...matter, ...fact(matter, String(data['date'])) });
+      return { eventId, recompute: recomputeSummary(), filledTaskIds: [] };
+    },
+    'deadlines-deleteEvent': (data, fs) => {
+      const path = `${MATTER}/events/${String(data['eventId'])}`;
+      const event = fs.get(path) as Seed;
+      fs.set(path, { ...event, deletedAt: new Date() });
+      const fact = KEY_FACT_EVENTS[String(event['kind'])];
+      const matter = fs.get(MATTER) as Seed;
+      if (fact) fs.set(MATTER, { ...matter, ...fact(matter, undefined) });
+      return { eventId: data['eventId'], recompute: recomputeSummary() };
+    },
+    'deadlines-complete': (data, fs) => {
+      const path = `${MATTER}/deadlines/${String(data['deadlineId'])}`;
+      const deadline = fs.get(path) as Seed;
+      if (deadline['status'] !== 'upcoming') {
+        throw {
+          code: 'functions/failed-precondition',
+          details: { code: 'FAILED_PRECONDITION', reason: 'deadline_not_open' },
+        };
+      }
+      const on = String(data['completedOn'] ?? TODAY);
+      fs.set(path, {
+        ...deadline,
+        status: data['outcome'],
+        resolution: { on, by: ME, at: new Date(), ...(data['reason'] ? { reason: data['reason'] } : {}) },
+      });
+      const taskId = deadline['taskId'] as string | undefined;
+      if (taskId && data['completeLinkedTasks']) {
+        fs.set(`${MATTER}/tasks/${taskId}`, { ...(fs.get(`${MATTER}/tasks/${taskId}`) as Seed), status: 'done' });
+      }
+      return {
+        deadlineId: data['deadlineId'],
+        status: data['outcome'],
+        openLinkedTaskIds: taskId && !data['completeLinkedTasks'] ? [taskId] : [],
+        completedTaskIds: taskId && data['completeLinkedTasks'] ? [taskId] : [],
+      };
+    },
+    'deadlines-override': (data, fs) => {
+      const path = `${MATTER}/deadlines/${String(data['deadlineId'])}`;
+      const deadline = fs.get(path) as Seed & { computed?: Seed };
+      if (data['dueDate'] === null) {
+        const { override: _override, ...rest } = deadline;
+        void _override;
+        fs.set(path, { ...rest, dueDate: deadline.computed?.['dueDate'] });
+        return { deadlineId: data['deadlineId'], dueDate: deadline.computed?.['dueDate'], overrideConflict: false };
+      }
+      fs.set(path, {
+        ...deadline,
+        dueDate: data['dueDate'],
+        override: { dueDate: data['dueDate'], reason: data['reason'], by: ME, at: new Date() },
+      });
+      return { deadlineId: data['deadlineId'], dueDate: data['dueDate'], overrideConflict: false };
+    },
+    'deadlines-resolveChange': (data, fs) => {
+      const path = `${MATTER}/deadlineChanges/${String(data['changeId'])}`;
+      const change = fs.get(path) as Seed;
+      const matter = fs.get(MATTER) as Seed;
+      if (data['accept'] && change['critical'] && data['confirmation'] !== matter['number']) {
+        throw {
+          code: 'functions/invalid-argument',
+          details: {
+            code: 'INVALID_ARGUMENT',
+            fields: { confirmation: ['Type the matter number exactly to confirm'] },
+          },
+        };
+      }
+      const status = data['accept'] ? 'accepted' : 'rejected';
+      fs.set(path, { ...change, status, resolvedBy: ME, resolvedAt: new Date() });
+      const deadlinePath = `${MATTER}/deadlines/${String(change['deadlineId'])}`;
+      if (data['accept']) {
+        const deadline = fs.get(deadlinePath) as Seed;
+        fs.set(
+          deadlinePath,
+          change['kind'] === 'removed'
+            ? { ...deadline, status: 'superseded' }
+            : { ...deadline, dueDate: change['toDueDate'] },
+        );
+      }
+      return { changeId: data['changeId'], deadlineId: change['deadlineId'], status };
+    },
+  };
+}
+
 function clientIds(fs: InMemoryFirestore): string[] {
   const rows = ['c-avery', 'c-bram', 'c-margaret']
     .map((id) => fs.get(`${MATTER}/parties/${partyDocId('client', id)}`) as Seed | undefined)
@@ -229,7 +361,7 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
   const firestore = new InMemoryFirestore();
   seed(firestore, options.matter);
   options.configure?.(firestore, port);
-  const callables = { ...serverCallables(), ...options.callables };
+  const callables = { ...serverCallables(), ...deadlineServerCallables(), ...options.callables };
   port.call = async <T>(name: string, data: unknown): Promise<T> => {
     port.calls.push({ name, data });
     const handler = callables[name];

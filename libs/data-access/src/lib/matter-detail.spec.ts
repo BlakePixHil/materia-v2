@@ -139,6 +139,8 @@ describe('a matter’s records', () => {
       });
     deadline('d-open', 'upcoming');
     deadline('d-done', 'done');
+    // Missed is closed (CORE-10): a lawyer confirmed it.
+    deadline('d-missed', 'missed');
     for (let day = 1; day <= 7; day++) {
       fs.set(`${M}/activity/a${day}`, { kind: 'note', summary: `Day ${day}`, actorUid: 'u-jordan', at: at(day) });
     }

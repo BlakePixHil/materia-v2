@@ -151,20 +151,33 @@ export function matterTasksRepository(matterId: () => string | null): Repository
 
 const deadline = Deadline.schema.shape;
 
+/**
+ * A deadline as the overview lists it: `dueDate` is the date in force (an override applied) and is
+ * absent while `blocked` (CORE-10), with the rule's provenance for the trace.
+ */
 export const MatterDeadlineSchema = /* @__PURE__ */ z.object({
   title: deadline.title,
   dueDate: deadline.dueDate,
+  dueTime: deadline.dueTime,
+  kind: deadline.kind,
   critical: deadline.critical,
   status: deadline.status,
+  blockedReason: deadline.blockedReason,
+  computed: deadline.computed,
   override: deadline.override,
+  overrideConflict: deadline.overrideConflict,
+  pastOnCreation: deadline.pastOnCreation,
   deletedAt: SoftDeleteShape.deletedAt,
 });
 export type MatterDeadline = z.infer<typeof MatterDeadlineSchema>;
 
-/** Deadlines still to meet (overdue ones are `missed` until done or waived). */
-export const OPEN_DEADLINE_STATUSES: readonly DeadlineStatus[] = ['upcoming', 'blocked', 'missed'];
+/**
+ * Deadlines still to meet: upcoming (overdue ones stay upcoming until done, waived or confirmed
+ * missed) and blocked ones waiting on an event (CORE-10). Missed is closed.
+ */
+export const OPEN_DEADLINE_STATUSES: readonly DeadlineStatus[] = ['upcoming', 'blocked'];
 
-/** A matter's open deadlines; the overview sorts them by (overridden) due date. */
+/** A matter's open deadlines; the overview sorts them with `compareDeadlines`. */
 export const OPEN_DEADLINES_QUERY: QuerySpec<MatterDeadline> = {
   where: [['status', 'in', [...OPEN_DEADLINE_STATUSES]]],
   pageSize: 50,
