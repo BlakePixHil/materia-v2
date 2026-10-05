@@ -33,7 +33,8 @@ function itemId(existing: readonly ChecklistItem[]): string {
  * A task's details under its row (CORE-08): its status, priority and due date, and its checklist
  * ticked, added to and removed inline. The add field shows only while adding (CORE-08c): "Add item"
  * opens it, Enter adds and keeps it open for the next one, Escape (or leaving it empty) closes it.
- * Read-only for people who can't edit the task.
+ * "Templates" beside it applies a checklist template (CORE-08d). Read-only for people who can't
+ * edit the task.
  */
 @Component({
   selector: 'mt-task-details',
@@ -101,34 +102,49 @@ function itemId(existing: readonly ChecklistItem[]): string {
         }
       </ul>
     }
-    @if (entry().editable && items().length < max) {
-      @if (adding()) {
-        <input
-          #addField
-          class="add"
-          type="text"
-          [attr.aria-label]="'Add a checklist item to ' + entry().task.title"
-          placeholder="Add a checklist item, then Enter"
-          [value]="draft()"
-          (input)="draft.set($any($event.target).value)"
-          (keydown.enter)="$event.preventDefault(); add()"
-          (keydown.escape)="$event.preventDefault(); $event.stopPropagation(); stopAdding(true)"
-          (blur)="draft().trim() ? null : stopAdding(false)"
-        />
-      } @else {
+    @if (entry().editable) {
+      <div class="checklist-actions">
+        @if (items().length < max) {
+          @if (adding()) {
+            <input
+              #addField
+              class="add"
+              type="text"
+              [attr.aria-label]="'Add a checklist item to ' + entry().task.title"
+              placeholder="Add a checklist item, then Enter"
+              [value]="draft()"
+              (input)="draft.set($any($event.target).value)"
+              (keydown.enter)="$event.preventDefault(); add()"
+              (keydown.escape)="$event.preventDefault(); $event.stopPropagation(); stopAdding(true)"
+              (blur)="draft().trim() ? null : stopAdding(false)"
+            />
+          } @else {
+            <button
+              #addButton
+              class="start"
+              mtButton
+              variant="ghost"
+              size="sm"
+              iconStart="plus"
+              [attr.aria-label]="'Add a checklist item to ' + entry().task.title"
+              (click)="startAdding()"
+            >
+              Add checklist item
+            </button>
+          }
+        }
         <button
-          #addButton
-          class="start"
+          class="templates"
           mtButton
           variant="ghost"
           size="sm"
-          iconStart="plus"
-          [attr.aria-label]="'Add a checklist item to ' + entry().task.title"
-          (click)="startAdding()"
+          iconStart="list"
+          [attr.aria-label]="'Checklist templates for ' + entry().task.title"
+          (click)="templates.emit()"
         >
-          Add checklist item
+          Templates
         </button>
-      }
+      </div>
     } @else if (!items().length) {
       <p class="caption t-3 empty">No checklist items.</p>
     }
@@ -181,9 +197,16 @@ function itemId(existing: readonly ChecklistItem[]): string {
       box-shadow: var(--focus-ring);
     }
     .mt-task-details .add {
-      width: 100%;
+      flex: 1 1 240px;
       max-width: 420px;
       box-sizing: border-box;
+    }
+    .mt-task-details .checklist-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      align-self: stretch;
+      gap: var(--space-4) var(--space-8);
     }
     .mt-task-details .start {
       margin-left: calc(-1 * var(--space-8));
@@ -225,6 +248,8 @@ export class TaskDetails {
   readonly priority = output<Priority>();
   /** The due date button: the page asks for the new date. */
   readonly dueDate = output();
+  /** "Templates": the page opens the checklist templates dialog (CORE-08d). */
+  readonly templates = output();
 
   private readonly timeZone = inject(MT_ORG_TIMEZONE);
   private readonly injector = inject(Injector);

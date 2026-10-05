@@ -176,6 +176,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
     change: { name: 'Renamed by a client' },
   },
+  // Checklist templates (CORE-08d): read by members, written client-direct by task.edit roles.
+  {
+    collection: 'checklistTemplates',
+    docPath: `orgs/${ORG}/checklistTemplates/checklist-1`,
+    entity: 'ChecklistTemplate',
+    read: 'members',
+    update: 'task.edit',
+  },
   {
     collection: 'docTemplates',
     docPath: `orgs/${ORG}/docTemplates/doctemplate-1`,

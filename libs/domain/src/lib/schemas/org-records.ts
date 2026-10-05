@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, MetaShape, NonEmptyString, withMeta } from './common';
-import { InvoiceStatusSchema, JurisdictionSchema, MatterTypeSchema } from './enums';
+import { InvoiceStatusSchema, JurisdictionSchema, MatterTypeSchema, PrioritySchema } from './enums';
 import { TemplateBasedOnSchema, templateContentShape } from '../templates';
 
 const ORG = 'orgs/{orgId}';
@@ -129,6 +129,33 @@ export const DocTemplate = withMeta(
     active: z.boolean().default(true),
   },
   { path: `${ORG}/docTemplates`, softDelete: true },
+);
+
+/** Limits on checklist templates (CORE-08d); the items match a template task's checklist (CORE-07). */
+export const CHECKLIST_TEMPLATE_NAME_MAX = 100;
+export const CHECKLIST_TEMPLATE_ITEMS_MAX = 30;
+export const CHECKLIST_TEMPLATE_ITEM_MAX = 200;
+export const CHECKLIST_TEMPLATE_DUE_MAX_DAYS = 365;
+
+/** One checklist line: trimmed, non-empty, on a single line. */
+export const ChecklistTemplateItemSchema = NonEmptyString.max(CHECKLIST_TEMPLATE_ITEM_MAX).regex(/^[^\r\n]*$/, {
+  message: 'One item per line',
+});
+
+/**
+ * `orgs/{orgId}/checklistTemplates/{id}` (CORE-08d): a reusable checklist ("Probate kick-off")
+ * applied to a task from its details. `priority` and `dueInDays` fill in a task's priority and due
+ * date when it has none. Every member reads them; task.edit roles create, edit and soft delete them
+ * client-direct (the rules validate the values).
+ */
+export const ChecklistTemplate = withMeta(
+  {
+    name: NonEmptyString.max(CHECKLIST_TEMPLATE_NAME_MAX),
+    items: z.array(ChecklistTemplateItemSchema).min(1).max(CHECKLIST_TEMPLATE_ITEMS_MAX),
+    priority: PrioritySchema.optional(),
+    dueInDays: z.number().int().min(0).max(CHECKLIST_TEMPLATE_DUE_MAX_DAYS).optional(),
+  },
+  { path: `${ORG}/checklistTemplates`, softDelete: true, migratable: false },
 );
 
 /**
@@ -359,6 +386,7 @@ export type CreditNote = z.infer<typeof CreditNote.schema>;
 export type MatterTemplate = z.infer<typeof MatterTemplate.schema>;
 export type MatterTemplateVersion = z.infer<typeof MatterTemplateVersion.schema>;
 export type DocTemplate = z.infer<typeof DocTemplate.schema>;
+export type ChecklistTemplate = z.infer<typeof ChecklistTemplate.schema>;
 export type Metrics = z.infer<typeof Metrics.schema>;
 export type AuditEntry = z.infer<typeof AuditEntry.schema>;
 export type Integration = z.infer<typeof Integration.schema>;
