@@ -48,3 +48,14 @@ export function createLog(context: LogContext, sink: LogSink = functionsSink, st
     child: (extra) => createLog({ ...context, ...extra } as LogContext, sink, started),
   };
 }
+
+/**
+ * Fields that put an unexpected error in Error Reporting (FND-21): an ERROR entry whose
+ * `stack_trace` is a Node stack. The message line is withheld (library messages can contain personal
+ * data); the type and frames are enough to group and locate the error.
+ */
+export function errorReportFields(error: unknown): { errorType: string; stack_trace?: string } {
+  const errorType = error instanceof Error ? error.name : typeof error;
+  const frames = error instanceof Error ? (error.stack?.split('\n').slice(1, 11).join('\n') ?? '') : '';
+  return frames ? { errorType, stack_trace: `${errorType}: message withheld\n${frames}` } : { errorType };
+}

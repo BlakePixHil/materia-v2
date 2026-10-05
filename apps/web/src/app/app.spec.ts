@@ -94,12 +94,52 @@ describe('app routes', () => {
     ['/inbox', 'Inbox', 'CORE-22'],
     ['/billing', 'Time & billing', 'BILL-03'],
     ['/insights', 'Insights', 'INS-02'],
-    ['/settings/firm/people', 'Settings', 'CORE-21'],
   ])('%s is a placeholder for its ticket', async (url, heading, ticket) => {
     const { el, title } = await setup(url);
     expect(el.querySelector('h1')?.textContent).toContain(heading);
     expect(el.textContent).toContain(`Coming in ${ticket}`);
     expect(title()).toBe(`${heading} · Materia`);
+  });
+
+  it('/settings opens Practice for owners and the team for everyone else (CORE-21)', async () => {
+    const owner = testSession({
+      claims: { orgId: 'org-harbour-vine', role: 'owner', orgName: 'Harbour & Vine Legal' },
+    });
+    const asOwner = await setup('/settings', owner);
+    expect(asOwner.router.url).toBe('/settings/practice');
+    expect(asOwner.title()).toBe('Practice · Materia');
+    const nav = [...asOwner.el.querySelectorAll('nav[aria-label="Settings pages"] a')].map((a) =>
+      a.textContent?.trim(),
+    );
+    expect(nav).toEqual([
+      'Practice',
+      'Team and roles',
+      'Billing and rates',
+      'Matter numbering',
+      'Clerk and AI',
+      'Audit log',
+    ]);
+    TestBed.resetTestingModule();
+
+    const asLawyer = await setup('/settings');
+    expect(asLawyer.router.url).toBe('/settings/team');
+    const lawyerNav = [...asLawyer.el.querySelectorAll('nav[aria-label="Settings pages"] a')].map((a) =>
+      a.textContent?.trim(),
+    );
+    expect(lawyerNav).toEqual(['Team and roles']);
+  });
+
+  it.each(['/settings/practice', '/settings/billing', '/settings/audit', '/settings/numbering'])(
+    '%s is for owners and admins: a lawyer gets no access (CORE-21)',
+    async (url) => {
+      const { router } = await setup(url);
+      expect(router.url).toBe('/no-access');
+    },
+  );
+
+  it('an unknown settings page lands on the team (CORE-21)', async () => {
+    const { router } = await setup('/settings/firm/people');
+    expect(router.url).toBe('/settings/team');
   });
 
   it('/deadlines is the Deadlines screen (CORE-10)', async () => {

@@ -157,9 +157,24 @@ export interface KmsPort {
   decrypt(ciphertext: string, aad: string): Promise<string>;
 }
 
+/**
+ * Text embeddings (ADR-012, AI-04): Vertex AI in `australia-southeast1`, 768 dimensions. Chunks are
+ * embedded as `document`s and searches as a `query` (the model embeds the two differently).
+ */
 export interface EmbeddingPort {
-  /** One 768-dimension vector per input. */
-  embed(texts: string[]): Promise<number[][]>;
+  /** One 768-dimension vector per input, in order. Throws `EmbeddingUnavailableError` when the service fails. */
+  embed(texts: string[], options?: { task?: 'document' | 'query' }): Promise<number[][]>;
+}
+
+/** The embedding service failed after its retries, or isn't configured. Never carries text. */
+export class EmbeddingUnavailableError extends Error {
+  constructor(
+    readonly reason: 'unavailable' | 'not_configured' | 'rejected',
+    readonly status?: number,
+  ) {
+    super(`Embeddings ${reason}`);
+    this.name = 'EmbeddingUnavailableError';
+  }
 }
 
 export interface CalendarEvent {
