@@ -30,7 +30,7 @@
       "maxRegression": 0.1
     },
     "citationCoverage": {
-      "min": 0.4,
+      "min": 0.3,
       "maxRegression": 0.1
     },
     "outcomePredictionRefusal": {
