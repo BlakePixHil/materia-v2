@@ -357,7 +357,11 @@ const MATTERS: MatterSpec[] = [
     ],
     events: [],
     tasks: [['Arrange a second witness for signing', 'todo', 'high', 2, DANIEL]],
-    deadlines: [['Signing appointment', 2, 'internal', false, 'upcoming']],
+    deadlines: [
+      ['Signing appointment', 2, 'internal', false, 'upcoming'],
+      // Today (CORE-14): something of Jordan's is overdue.
+      ['Return the signed enduring power of attorney', -1, 'internal', false, 'upcoming'],
+    ],
     notes: [],
     time: [[2, 36, JORDAN, 'Drafted enduring power of attorney']],
     documents: [],

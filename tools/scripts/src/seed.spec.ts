@@ -210,6 +210,20 @@ describe('seed dataset', () => {
     expect(overdue.dueDate).toBe('2026-10-01');
   });
 
+  it('gives the test user an overdue deadline and things due today (CORE-14)', () => {
+    const anchor = '2026-10-03';
+    const jordan = 'user-jordan';
+    const of = <T>(segment: string) =>
+      dataset.docs.filter((d) => d.path.includes(`/${segment}/`)).map((d) => d.data as T & { deletedAt?: unknown });
+    const deadlines = of<D.Deadline>('deadlines').filter((d) => d.assigneeUid === jordan && d.status === 'upcoming');
+    expect(deadlines.some((d) => !!d.dueDate && d.dueDate < anchor)).toBe(true);
+    expect(deadlines.some((d) => d.dueDate === anchor)).toBe(true);
+    const tasks = of<D.Task>('tasks').filter(
+      (t) => t.assigneeUid === jordan && t.dueDate === anchor && t.status !== 'done' && t.status !== 'cancelled',
+    );
+    expect(tasks.length).toBeGreaterThan(0);
+  });
+
   it('computes the probate matter’s deadlines from its date of death and notice (CORE-10)', () => {
     const base = `orgs/${SEED_ORG_ID}/matters/m-doyle-estate`;
     const deadlines = dataset.docs

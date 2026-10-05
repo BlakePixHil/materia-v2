@@ -282,9 +282,10 @@ test.describe('my tasks', () => {
     await expect(row(page, 'Renew my practising certificate')).toContainText('Personal');
     await expectNoA11yViolations(page);
 
+    // Today's short list (CORE-14): the personal task has no date, so it's on My tasks only.
     await page.goto('/today');
-    await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
-    await expect(page.locator('mt-my-tasks')).toContainText('Nothing due this week');
+    const today = page.getByRole('region', { name: 'My tasks' });
+    await expect(today).toContainText('No open tasks with a date');
     await expectNoA11yViolations(page);
   });
 });
