@@ -2,7 +2,7 @@ import { createLog } from '../../core/log';
 import { FakeClock } from '../../ports/fakes';
 import { createClerkGateway } from '../gateway';
 import { FakeClerkModel } from '../providers/fake';
-import { MemoryClerkStore } from '../testing';
+import { MemoryClerkStore, MemoryKeyring } from '../testing';
 import { createContextBuilder } from './build-context';
 import { CANARY, DOCUMENT_TEXT, fixtureOrgs, HITS, MATTER, ORG, USERS } from './fixtures';
 import { CONTEXT_POLICIES } from './policy';
@@ -20,6 +20,7 @@ function setup(budgetTokens: number = CONTEXT_POLICIES.chat.budgetTokens) {
   const gateway = createClerkGateway({
     model,
     store,
+    keyring: new MemoryKeyring(),
     flag: async () => true,
     sleep: async () => undefined,
   });

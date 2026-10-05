@@ -26,6 +26,7 @@ import { FakeChunkSearch, FakeDocumentText } from '../../src/clerk/context/testi
 import { firestoreClerkStore } from '../../src/clerk/firestore-store';
 import { createClerkGateway } from '../../src/clerk/gateway';
 import { FakeClerkModel } from '../../src/clerk/providers/fake';
+import { MemoryKeyring } from '../../src/clerk/testing';
 import { createLog } from '../../src/core/log';
 
 /**
@@ -200,6 +201,7 @@ describe('ClerkGateway with a built context on Firestore', () => {
     const gateway = createClerkGateway({
       model: new FakeClerkModel([{ chunks: [HELLO_JSON] }]),
       store: firestoreClerkStore(db),
+      keyring: new MemoryKeyring(),
       flag: async () => true,
       sleep: async () => undefined,
     });
