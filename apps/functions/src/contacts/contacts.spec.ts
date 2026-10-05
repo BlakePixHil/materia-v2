@@ -559,6 +559,26 @@ describe('merge helpers', () => {
     expect(matterIdOfParty(`orgs/${ORG}/parties/p1`, ORG)).toBeNull();
   });
 
+  it('re-reads and retries a page when a matter changed between the read and the write', async () => {
+    const w = world({ [`${M}/m1`]: { title: 'Fictional estate', clientContactIds: ['b', 'c-other'] } });
+    const batch = w.db.batch.bind(w.db);
+    // The first commit finds the matter changed (its lastUpdateTime precondition fails).
+    vi.spyOn(w.db, 'batch').mockImplementationOnce(() =>
+      Object.assign(batch(), {
+        commit: async () => {
+          throw Object.assign(new Error('Fictional stale write'), { code: 9 });
+        },
+      }),
+    );
+    const task = { orgId: ORG, keepId: 'a', mergeId: 'b', uid: 'u', requestId: 'r', round: 1 };
+    await expect(continueMerge(task, { db: w.db, log: w.log, enqueueNext: vi.fn() })).resolves.toEqual({
+      repointed: 1,
+      more: false,
+    });
+    expect(w.doc(`${M}/m1`)).toMatchObject({ clientContactIds: ['a', 'c-other'] });
+    expect(w.logs).toContain('a matter changed while re-pointing, retrying');
+  });
+
   it('stops a runaway task chain', async () => {
     const w = world();
     const enqueueNext = vi.fn(async () => undefined);
