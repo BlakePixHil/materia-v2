@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DUPLICATE_THRESHOLD, type DuplicateProbe, type DuplicateReason } from './contacts';
 import { DocIdSchema, InstantSchema, withMeta } from './schemas/common';

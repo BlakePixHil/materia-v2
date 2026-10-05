@@ -2,7 +2,7 @@ import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:cry
 import { promisify } from 'node:util';
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DomainError } from '@materia/domain';
 

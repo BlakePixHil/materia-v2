@@ -1,6 +1,6 @@
 import { Component, Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DomainError } from '@materia/domain';
 

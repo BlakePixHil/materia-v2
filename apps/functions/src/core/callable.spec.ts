@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import type { HttpsError } from 'firebase-functions/v2/https';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DomainError, PERMISSIONS } from '@materia/domain';
 

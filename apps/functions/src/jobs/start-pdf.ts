@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import {
   can,

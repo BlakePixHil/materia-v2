@@ -1,5 +1,5 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js/min';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DocIdSchema } from './schemas/common';
 import { Contact } from './schemas/contacts-matters';
