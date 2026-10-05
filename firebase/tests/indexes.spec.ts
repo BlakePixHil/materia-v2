@@ -25,6 +25,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   matters: domain.Matter,
   tasks: domain.Task,
   deadlines: domain.Deadline,
+  deadlineChanges: domain.DeadlineChange,
   timeEntries: domain.TimeEntry,
   chunks: domain.Chunk,
   audit: domain.AuditEntry,

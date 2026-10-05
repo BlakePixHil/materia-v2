@@ -4,13 +4,7 @@ import type { HttpsError } from 'firebase-functions/v2/https';
 
 import { intakeFormSchema, intakeToCreateMatterInput, type CreateMatterResult, type Role } from '@materia/domain';
 
-import {
-  createMatterDefinition,
-  intakeEvents,
-  intakeFeeAndDisclosure,
-  intakeParties,
-  planIntakeDeadlines,
-} from './create';
+import { createMatterDefinition, intakeEvents, intakeFeeAndDisclosure, intakeParties } from './create';
 import { clearRetentionCache } from '../audit/retention';
 import { runCallable, type CallableDeps } from '../core/callable';
 import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
@@ -325,9 +319,5 @@ describe('intake helpers', () => {
     expect(intakeFeeAndDisclosure({ matter: {}, fee: { arrangement: 'hourly' } } as never).costsDisclosure).toEqual({
       status: 'required',
     });
-  });
-
-  it('the CORE-10 deadline hook plans nothing yet', () => {
-    expect(planIntakeDeadlines({ orgId: ORG, matterId: 'm-1', matter, events: [] })).toEqual([]);
   });
 });

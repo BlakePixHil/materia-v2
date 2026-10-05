@@ -10,11 +10,13 @@ import {
   OPEN_TASKS_QUERY,
   RECENT_ACTIVITY_QUERY,
 } from '@materia/data-access/repository';
+import { deadlineTraceText, STATUTORY_DISABLED_MESSAGE } from '@materia/domain';
 import { formatRelativeDate, MT_TODAY, MtClerkMark, MtDeadlineChip, MtEmptyState, type MtDateInput } from '@materia/ui';
 
 import { MatterKeyFacts } from './matter-key-facts';
 import { MatterScreen } from './matter-screen';
 import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
+import { statutoryDisabled } from '../deadlines/statutory-flag';
 
 /** How many open tasks the overview lists (the count shows them all). */
 const TASKS_SHOWN = 5;
@@ -56,6 +58,9 @@ const TASKS_SHOWN = 5;
           <h2 class="mt-card-title" id="mt-ov-deadlines">Next deadlines</h2>
           <a class="mt-ml caption" routerLink="../deadlines">All deadlines</a>
         </div>
+        @if (statutoryOff()) {
+          <p class="caption t-2 statutory">{{ statutoryMessage }}</p>
+        }
         @if (deadlines.status() === 'loading') {
           <p class="caption t-3" role="status">Loading deadlines…</p>
         } @else {
@@ -63,7 +68,11 @@ const TASKS_SHOWN = 5;
             @for (deadline of upcoming(); track deadline.id) {
               <li>
                 <span class="mt-grow">{{ deadline.title }}</span>
-                <mt-deadline-chip [due]="due(deadline)" [critical]="deadline.critical" [trace]="deadline.title" />
+                @if (due(deadline); as date) {
+                  <mt-deadline-chip [due]="date" [critical]="deadline.critical" [trace]="trace(deadline)" />
+                } @else {
+                  <span class="caption t-3">Waiting: {{ deadline.blockedReason ?? 'not computed yet' }}</span>
+                }
               </li>
             } @empty {
               <li class="caption t-3">No open deadlines.</li>
@@ -144,6 +153,9 @@ const TASKS_SHOWN = 5;
       gap: var(--space-8);
       font: 400 13px/18px var(--font-sans);
     }
+    .mt-matter-overview .statutory {
+      margin: 0 0 var(--space-8);
+    }
     .mt-matter-overview .list li {
       display: flex;
       align-items: center;
@@ -172,6 +184,9 @@ export class MatterOverview {
   protected readonly openTasks = computed(() => sortOpenTasks(this.tasks.value()).slice(0, TASKS_SHOWN));
   protected readonly due = effectiveDue;
   protected readonly pending = duePendingText;
+  protected readonly trace = deadlineTraceText;
+  protected readonly statutoryMessage = STATUTORY_DISABLED_MESSAGE;
+  protected readonly statutoryOff = statutoryDisabled(() => [this.screen.value()?.jurisdiction]);
 
   protected relative(value: MtDateInput): string {
     return formatRelativeDate(value, this.today());

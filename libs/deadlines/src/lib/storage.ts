@@ -41,6 +41,8 @@ export function toRuleSetDoc(ruleSet: RuleSet): WithoutMeta<RuleSetVersion> {
     jurisdiction: ruleSet.jurisdiction,
     published: ruleSet.published,
     practitionerReviewed: ruleSet.practitionerReviewed,
+    flag: ruleSet.flag,
+    disclaimer: ruleSet.disclaimer,
     rules: ruleSet.rules.map(({ id, title, citation, ...definition }) => ({ id, title, citation, definition })),
   };
 }

@@ -11,12 +11,17 @@ import {
   untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 
+import { deadlineCallables, matterEventRepository } from '@materia/data-access/repository';
 import {
+  EVENT_KEY_FACTS,
   keyFactEditable,
   keyFactPatch,
   keyFactsFor,
   keyFactValue,
+  type DateOnly,
+  type EventKind,
   type KeyFactDefinition,
   type KeyFactId,
 } from '@materia/domain';
@@ -24,10 +29,17 @@ import { MtButton, MtFactEditor, MtKeyFacts, MtTextField, ToastService, type Key
 
 import { MatterScreen } from './matter-screen';
 import { KEY_FACT_PLACEHOLDERS, keyFactInput, keyFactText, parseKeyFactInput, type MatterRecord } from './matter-view';
+import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { deadlineErrorCopy, recomputeSummaryText } from '../deadlines/deadline-view';
 
 /** Why the date of death can't be recorded yet. */
 export const NO_DECEASED_HINT = 'Add the deceased on the Parties tab before recording the date of death';
+
+/** Key facts that stand for a matter event (date of death, grant date): edited through the event. */
+const FACT_EVENTS = new Map(
+  Object.entries(EVENT_KEY_FACTS).map(([kind, fact]) => [fact as KeyFactId, kind as EventKind] as const),
+);
 
 /**
  * Where Clerk found a key fact's value, for the Citation marker. A hook for now: Clerk-sourced
@@ -39,7 +51,10 @@ export const keyFactCitation: KeyFactCitationSource = () => undefined;
 /**
  * The matter's key facts (CORE-06): the facts its type shows (`keyFactsFor`), each edited inline.
  * A save writes `keyFactPatch` through the matters repository, so two people editing at once means
- * the last write wins; the header says when someone else just changed the matter.
+ * the last write wins; the header says when someone else just changed the matter. The date of
+ * death and the grant date are matter events (CORE-10): they're recorded through
+ * `deadlines-upsertEvent`, which recomputes the deadlines and proposes any date in force that
+ * would move; a toast says so and links to the Deadlines tab.
  */
 @Component({
   selector: 'mt-matter-key-facts',
@@ -82,6 +97,9 @@ export class MatterKeyFacts {
   private readonly toasts = inject(ToastService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
+  private readonly deadlines = deadlineCallables(inject(CALLABLES));
+  private readonly events = matterEventRepository(this.screen.id);
 
   protected readonly draft = signal('');
   protected readonly error = signal<string | null>(null);
@@ -164,12 +182,57 @@ export class MatterKeyFacts {
     }
     this.saving.set(true);
     try {
-      await this.screen.repo.update(matter.id, patch);
+      const kind = FACT_EVENTS.get(fact.id);
+      if (!kind || !(await this.saveEvent(matter.id, fact.label, kind, parsed.value as DateOnly | undefined))) {
+        await this.screen.repo.update(matter.id, patch);
+      }
       this.cancel();
     } catch (error) {
-      this.toasts.show({ title: `${fact.label} didn’t save`, description: errorCopy(error), tone: 'danger' });
+      const description = FACT_EVENTS.has(fact.id) ? deadlineErrorCopy(error) : errorCopy(error);
+      if (FACT_EVENTS.has(fact.id) && description !== errorCopy(error)) this.error.set(description);
+      this.toasts.show({ title: `${fact.label} didn’t save`, description, tone: 'danger' });
     } finally {
       this.saving.set(false);
     }
+  }
+
+  /**
+   * Records the fact's event (or edits it, or deletes it when cleared), which sets the key fact and
+   * recomputes the deadlines. False when there's nothing to go through (clearing a fact without an
+   * event): the caller writes the patch.
+   */
+  private async saveEvent(matterId: string, label: string, kind: EventKind, date: DateOnly | undefined) {
+    const [existing] = await this.events.query({ where: [['kind', '==', kind]], pageSize: 20 });
+    if (!date) {
+      if (!existing) return false;
+      const result = await this.deadlines.deleteEvent({ matterId, eventId: existing.id });
+      this.report(matterId, `${label} cleared`, recomputeSummaryText(result.recompute), result.recompute.proposed);
+      return true;
+    }
+    const result = await this.deadlines.upsertEvent({
+      matterId,
+      kind,
+      date,
+      ...(existing ? { eventId: existing.id } : {}),
+    });
+    this.report(matterId, `${label} saved`, recomputeSummaryText(result.recompute), result.recompute.proposed);
+    return true;
+  }
+
+  private report(matterId: string, title: string, changes: string, proposed: readonly string[]): void {
+    this.toasts.show({
+      title,
+      ...(changes ? { description: `${changes}.` } : {}),
+      tone: proposed.length ? 'neutral' : 'success',
+      ...(proposed.length
+        ? {
+            duration: 10_000,
+            action: {
+              label: 'Review',
+              run: () => void this.router.navigate(['/matters', matterId, 'deadlines']),
+            },
+          }
+        : {}),
+    });
   }
 }

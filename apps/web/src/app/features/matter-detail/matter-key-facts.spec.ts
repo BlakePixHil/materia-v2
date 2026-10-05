@@ -13,7 +13,15 @@ import {
   sortOpenTasks,
   statusChoices,
 } from './matter-view';
-import { cleanUpOverlays, MATTER, openMatter, READONLY } from './testing';
+import {
+  cleanUpOverlays,
+  deadlineServerCallables,
+  MATTER,
+  meta,
+  openMatter,
+  READONLY,
+  recomputeSummary,
+} from './testing';
 
 /** Key facts on the Overview (CORE-06). Fictional data only. */
 
@@ -46,15 +54,69 @@ describe('key facts', () => {
 
   it('edits a fact inline, writing only that part of the matter', async () => {
     const page = await openMatter();
+    await page.click('Edit Will date');
+    await page.fill('Will date', '30/09/2019');
+    await page.submit(page.body.querySelector('mt-key-facts'));
+    expect(page.firestore.writes.at(-1)?.data).toMatchObject({ facts: { willDate: '2019-09-30' } });
+    expect(page.firestore.get(MATTER)).toMatchObject({ labels: ['grant'], teamUids: ['user-priya'] });
+    expect(facts(page)['Will date']).toBe(formatDateOnly('2019-09-30'));
+    expect(page.body.querySelector('mt-key-facts form')).toBeNull();
+  });
+
+  it('records the grant date as a matter event, which recomputes the deadlines (CORE-10)', async () => {
+    const page = await openMatter(undefined, {
+      callables: {
+        'deadlines-upsertEvent': (data, fs) => {
+          const result = deadlineServerCallables()['deadlines-upsertEvent']?.(data, fs) as Record<string, unknown>;
+          return { ...result, recompute: recomputeSummary({ proposed: ['rule-a-v2'], created: ['rule-b'] }) };
+        },
+      },
+    });
     await page.click('Edit Grant date');
     await page.fill('Grant date', '30/09/2026');
     await page.submit(page.body.querySelector('mt-key-facts'));
-    expect(page.firestore.writes.at(-1)?.data).toMatchObject({
-      estate: { grantType: 'probate', grantDate: '2026-09-30' },
-    });
-    expect(page.firestore.get(MATTER)).toMatchObject({ labels: ['grant'], teamUids: ['user-priya'] });
+    await page.stable(20);
+    expect(page.calls('deadlines-upsertEvent')).toEqual([
+      expect.objectContaining({ matterId: 'm-whitfield', kind: 'grant_issued', date: '2026-09-30' }),
+    ]);
+    // Not written directly: the callable sets the key fact with the event.
+    expect(page.firestore.writes.some((w) => w.path === MATTER && w.op === 'update')).toBe(false);
+    expect(page.firestore.get(MATTER)?.['estate']).toEqual({ grantType: 'probate', grantDate: '2026-09-30' });
     expect(facts(page)['Grant date']).toBe(formatDateOnly('2026-09-30'));
-    expect(page.body.querySelector('mt-key-facts form')).toBeNull();
+    const toast = page.body.querySelector('.mt-toaster');
+    expect(page.text(toast)).toContain('Grant date saved');
+    expect(page.text(toast)).toContain('1 deadline change needs review · 1 deadline added.');
+    await page.click('Review', toast ?? page.body);
+    expect(page.router.url).toBe('/matters/m-whitfield/deadlines');
+  });
+
+  it('edits the date of death’s event, and shows the server’s reason when it’s refused', async () => {
+    const page = await openMatter(undefined, {
+      configure: (fs) =>
+        fs.set(`${MATTER}/events/ev-death`, {
+          kind: 'date_of_death',
+          date: '2026-07-22',
+          meta: {},
+          orgId: 'org-harbour-vine',
+          matterId: 'm-whitfield',
+          deletedAt: null,
+          ...meta,
+        }),
+    });
+    await page.click('Edit Date of death');
+    await page.fill('Date of death', '21/07/2026');
+    await page.submit(page.body.querySelector('mt-key-facts'));
+    await page.stable(20);
+    expect(page.calls('deadlines-upsertEvent')).toEqual([
+      expect.objectContaining({ eventId: 'ev-death', kind: 'date_of_death', date: '2026-07-21' }),
+    ]);
+    expect(facts(page)['Date of death']).toBe(formatDateOnly('2026-07-21'));
+
+    await page.click('Edit Date of death');
+    await page.fill('Date of death', '01/01/2027');
+    await page.submit(page.body.querySelector('mt-key-facts'));
+    await page.stable(20);
+    expect(page.text(page.body.querySelector('mt-key-facts form'))).toContain('A date of death can’t be after today.');
   });
 
   it('checks what was typed, and clears a fact left empty', async () => {

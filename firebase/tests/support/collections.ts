@@ -280,7 +280,22 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
   },
   { ...matterRecord('tasks', 'Task', 'task.edit'), seed: { orgId: ORG, matterId: 'matter-1' } },
-  { ...matterRecord('deadlines', 'Deadline', 'task.edit'), seed: { orgId: ORG, matterId: 'matter-1' } },
+  // Computed deadlines (CORE-10): clients only reassign or acknowledge them; manual ones are
+  // tested field by field in the rules suite.
+  {
+    ...matterRecord('deadlines', 'Deadline', 'task.edit'),
+    seed: { orgId: ORG, matterId: 'matter-1' },
+    change: { assigneeUid: uidFor('paralegal') },
+  },
+  // Proposed deadline changes (CORE-10): server-written, decided through deadlines-resolveChange.
+  {
+    collection: 'deadlineChanges',
+    docPath: `${MATTER}/deadlineChanges/change-1`,
+    entity: 'DeadlineChange',
+    seed: { orgId: ORG, matterId: 'matter-1' },
+    read: 'members',
+    update: 'none',
+  },
   {
     collection: 'timeEntries',
     docPath: `${MATTER}/timeEntries/entry-1`,
@@ -316,7 +331,8 @@ export const COLLECTIONS: CollectionSpec[] = [
     change: { status: 'dismissed' },
   },
   { ...matterRecord('parties', 'Party'), seed: { orgId: ORG, matterId: 'matter-1' } },
-  matterRecord('events', 'MatterEvent'),
+  // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent.
+  { ...matterRecord('events', 'MatterEvent'), update: 'none' },
   matterRecord('disbursements', 'Disbursement', 'time.record'),
   matterRecord('assets', 'Asset'),
   matterRecord('liabilities', 'Liability'),

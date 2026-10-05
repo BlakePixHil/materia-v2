@@ -32,6 +32,9 @@ export const NOISE_FIELDS = new Set([
   // Tasks (CORE-08): written by tasks-onWrite after a status change, which is audited itself.
   'countedOpen',
   'completedAt',
+  // Deadlines (CORE-10): the recompute's serial number, and the missed check's question.
+  'recomputeVersion',
+  'missedCheck',
   'wipCents',
   'lastActivityAt',
   'search',

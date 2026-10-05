@@ -93,11 +93,14 @@ Victoria is the first jurisdiction (the launch firm is in Melbourne and Geelong)
 
 ## Recompute semantics
 
-1. Editing an anchor event recomputes every deadline anchored to it, in the `deadlines-recompute` callable.
+How CORE-10 implements these: `docs/02-domain-model.md` (Deadlines) and ADR-027.
+
+1. Editing an anchor event recomputes the matter's deadlines, in the same transaction (`deadlines-upsertEvent`, `deadlines-deleteEvent`; `deadlines-recompute` runs one on demand).
 2. If a deadline's date changes and the deadline is `upcoming`, the system creates a **change proposal**. Nothing is overwritten. The responsible lawyer confirms each change. A critical deadline needs a typed confirmation.
 3. `override` always wins, but the engine keeps computing in the background. If the computed date moves to *earlier* than the override, it flags the deadline.
 4. A rule-set version bump never changes existing deadlines automatically. A migration job proposes the changes, matter by matter.
-5. Deleting an anchor event marks its dependent deadlines `superseded`, after confirmation.
+5. Deleting an anchor event marks its dependent deadlines `superseded`, after confirmation (a `removed` proposal).
+6. A year without calendar data blocks only the rules that need it (`calendar_missing`) and raises an ops alert; an existing date stays in force.
 
 ## Edge cases the engine must test
 

@@ -62,7 +62,8 @@ const taskShape = {
   checklist: z.array(ChecklistItemSchema).max(TASK_CHECKLIST_MAX).default([]),
   /** Fractional sort key (CORE-08): a move writes the midpoint of its neighbours (`orderBetween`). */
   order: z.number(),
-  source: z.enum(['manual', 'template', 'clerk', 'migration']).default('manual'),
+  /** `rule`: created by a deadline rule's `createsTask` (CORE-10), linked by `deadlineId`. */
+  source: z.enum(['manual', 'template', 'clerk', 'migration', 'rule']).default('manual'),
   /** Set by `tasks-onWrite` when the status becomes `done`, removed when the task is reopened. */
   completedAt: InstantSchema.optional(),
 };
@@ -121,45 +122,109 @@ export const PersonalTask = withMeta(
   },
 );
 
-/** `matters/{matterId}/events/{eventId}`: key facts that drive deadlines. */
+/**
+ * `matters/{matterId}/events/{eventId}`: key facts that drive deadlines. Written only through the
+ * `deadlines-upsertEvent` and `deadlines-deleteEvent` callables (CORE-10), which recompute the
+ * matter's deadlines in the same transaction; clients read them.
+ */
 export const MatterEvent = withMeta(
   {
     kind: EventKindSchema,
     date: DateOnlySchema,
     time: TimeOfDay.optional(),
-    label: z.string().optional(),
+    label: z.string().max(200).optional(),
     meta: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).default({}),
     sourceDocumentId: DocIdSchema.optional(),
   },
-  { path: `${MATTER}/events`, softDelete: true },
+  { path: `${MATTER}/events`, softDelete: true, updatable: [] },
 );
 
-const ComputedSchema = z.object({
+/** Why a deadline has no date yet (CORE-10): its anchor event, calendar data, or a bad input. */
+export const DeadlineBlockedCodeSchema = z.enum(['anchor_missing', 'calendar_missing', 'invalid_input']);
+export type DeadlineBlockedCode = z.infer<typeof DeadlineBlockedCodeSchema>;
+
+/**
+ * A computed deadline's provenance (ADR-009): the rule, its rule-set version and citation, the
+ * anchor event, the inputs and the rendered trace. `dueDate` is the engine's latest date, which
+ * differs from the deadline's `dueDate` while an override stands.
+ */
+export const ComputedSchema = z.object({
   ruleId: NonEmptyString,
   ruleSetId: NonEmptyString,
   ruleSetVersion: z.number().int().min(1),
-  anchorEventId: DocIdSchema,
+  /** Absent for composite rules and for a rule blocked on a missing anchor. */
+  anchorEventId: DocIdSchema.optional(),
   inputs: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
   trace: z.array(z.string()),
   citation: z.string().optional(),
+  /** The rule's plain-language explanation. */
+  explain: z.string().optional(),
+  dueDate: DateOnlySchema.optional(),
+  /** Computed from an approximate anchor (the earliest possible date). */
+  approximate: z.boolean().optional(),
+  /** The rule is marked `verify` in its rule set: it needs particular practitioner attention. */
+  verify: z.boolean().optional(),
 });
+export type DeadlineComputed = z.infer<typeof ComputedSchema>;
 
-/** `matters/{matterId}/deadlines/{deadlineId}`. Every computed deadline records its rule (ADR-009). */
+/** Limits on client-entered (manual) deadlines (CORE-10); the rules enforce them too. */
+export const DEADLINE_TITLE_MAX = 300;
+export const DEADLINE_REMINDERS_MAX = 10;
+export const DEADLINE_REASON_MAX = 1000;
+
+/**
+ * `matters/{matterId}/deadlines/{deadlineId}`. Every computed deadline records its rule (ADR-009).
+ *
+ * Computed deadlines (`computed` set, id `rule-{ruleId}`) are written by the recompute (CORE-10);
+ * clients change only their assignee and acknowledgement. Manual ones (no `computed`; kind
+ * contractual, internal or court) are created and edited by clients directly. Status changes go
+ * through `deadlines-complete` (done, waived, missed), `deadlines-override` and
+ * `deadlines-resolveChange`. `dueDate` is the date in force (the override when there is one) and
+ * is absent only while `status` is `blocked`.
+ */
 export const Deadline = withMeta(
   {
     ...GroupKeys,
-    title: NonEmptyString,
-    dueDate: DateOnlySchema,
+    title: NonEmptyString.max(DEADLINE_TITLE_MAX),
+    dueDate: DateOnlySchema.optional(),
     dueTime: TimeOfDay.optional(),
     kind: DeadlineKindSchema,
     critical: z.boolean(),
     status: DeadlineStatusSchema,
     blockedReason: z.string().optional(),
+    blockedCode: DeadlineBlockedCodeSchema.optional(),
     computed: ComputedSchema.optional(),
     override: z
       .object({ dueDate: DateOnlySchema, reason: NonEmptyString, by: DocIdSchema, at: InstantSchema })
       .optional(),
-    reminders: z.array(z.object({ offsetDays: z.number().int(), sentAt: InstantSchema.optional() })).default([]),
+    /** The engine's date is now earlier than the override (CORE-10): the deadline is flagged. */
+    overrideConflict: z.boolean().optional(),
+    /** The proposal the responsible lawyer last rejected: the same proposal isn't made again. */
+    declined: z
+      .object({
+        kind: z.enum(['moved', 'removed']),
+        dueDate: DateOnlySchema.optional(),
+        by: DocIdSchema,
+        at: InstantSchema,
+      })
+      .optional(),
+    /** How a done, waived or missed deadline was closed (`deadlines-complete`). */
+    resolution: z
+      .object({
+        on: DateOnlySchema,
+        by: z.string().min(1),
+        at: InstantSchema,
+        reason: z.string().max(DEADLINE_REASON_MAX).optional(),
+      })
+      .optional(),
+    /** Set by the daily missed check: past its date, waiting for a person to confirm it missed. */
+    missedCheck: z.object({ since: DateOnlySchema, at: InstantSchema }).optional(),
+    /** The task its rule created (`createsTask`), which links back with `deadlineId`. */
+    taskId: DocIdSchema.optional(),
+    reminders: z
+      .array(z.object({ offsetDays: z.number().int(), sentAt: InstantSchema.optional() }))
+      .max(DEADLINE_REMINDERS_MAX)
+      .default([]),
     assigneeUid: DocIdSchema,
     calendar: z
       .record(
@@ -170,12 +235,99 @@ export const Deadline = withMeta(
     nextReminderAt: InstantSchema.optional(),
     ackBy: DocIdSchema.optional(),
     ackAt: InstantSchema.optional(),
+    /** Already past when computed: in the review queue, never marked missed automatically. */
     pastOnCreation: z.boolean().default(false),
   },
   {
     path: `${MATTER}/deadlines`,
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'computed', 'calendar', 'nextReminderAt', 'pastOnCreation'],
+    serverOwned: [
+      'orgId',
+      'matterId',
+      'status',
+      'blockedReason',
+      'blockedCode',
+      'computed',
+      'override',
+      'overrideConflict',
+      'declined',
+      'resolution',
+      'missedCheck',
+      'taskId',
+      'calendar',
+      'nextReminderAt',
+      'pastOnCreation',
+    ],
+    // Manual deadlines change these; computed ones only assigneeUid, ackBy and ackAt (the rules).
+    updatable: ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt'],
+  },
+);
+
+export const DeadlineChangeStatusSchema = z.enum(['pending', 'accepted', 'rejected', 'superseded']);
+export type DeadlineChangeStatus = z.infer<typeof DeadlineChangeStatusSchema>;
+export const DeadlineChangeKindSchema = z.enum(['moved', 'removed']);
+export type DeadlineChangeKind = z.infer<typeof DeadlineChangeKindSchema>;
+/** What made the recompute that proposed a change. */
+export const DeadlineChangeCauseSchema = z.enum(['event', 'stage', 'recompute', 'ruleset_upgrade', 'matter_created']);
+export type DeadlineChangeCause = z.infer<typeof DeadlineChangeCauseSchema>;
+
+/**
+ * `matters/{matterId}/deadlineChanges/{changeId}` (CORE-10): a recompute's proposal for an upcoming
+ * computed deadline, never a silent change. `moved` proposes `toDueDate` (with its provenance in
+ * `computed`); `removed` proposes marking the deadline superseded (its anchor was deleted or its
+ * rule no longer applies). Decided through `deadlines-resolveChange`; a later recompute supersedes
+ * a pending proposal that no longer holds. Written by functions only; members read them.
+ */
+export const DeadlineChange = withMeta(
+  {
+    ...GroupKeys,
+    deadlineId: DocIdSchema,
+    ruleId: NonEmptyString,
+    title: NonEmptyString,
+    critical: z.boolean(),
+    kind: DeadlineChangeKindSchema,
+    cause: DeadlineChangeCauseSchema,
+    status: DeadlineChangeStatusSchema,
+    fromDueDate: DateOnlySchema,
+    toDueDate: DateOnlySchema.optional(),
+    /** The new date is earlier than the current one. */
+    earlier: z.boolean(),
+    /** The new date has already passed (critical: high-priority notification and a red banner). */
+    intoPast: z.boolean(),
+    /** Why a `removed` proposal: the engine's reason ("No grant yet"). */
+    reason: z.string().optional(),
+    computed: ComputedSchema.optional(),
+    /** Who decides: the matter's responsible lawyer when it was proposed. */
+    assigneeUid: DocIdSchema,
+    recomputeVersion: z.number().int().min(0),
+    resolvedBy: DocIdSchema.optional(),
+    resolvedAt: InstantSchema.optional(),
+  },
+  {
+    path: `${MATTER}/deadlineChanges`,
+    migratable: false,
+    serverOwned: [
+      'orgId',
+      'matterId',
+      'deadlineId',
+      'ruleId',
+      'title',
+      'critical',
+      'kind',
+      'cause',
+      'status',
+      'fromDueDate',
+      'toDueDate',
+      'earlier',
+      'intoPast',
+      'reason',
+      'computed',
+      'assigneeUid',
+      'recomputeVersion',
+      'resolvedBy',
+      'resolvedAt',
+    ],
+    updatable: [],
   },
 );
 
@@ -360,6 +512,7 @@ export type Task = z.infer<typeof Task.schema>;
 export type PersonalTask = z.infer<typeof PersonalTask.schema>;
 export type MatterEvent = z.infer<typeof MatterEvent.schema>;
 export type Deadline = z.infer<typeof Deadline.schema>;
+export type DeadlineChange = z.infer<typeof DeadlineChange.schema>;
 export type MatterDocument = z.infer<typeof MatterDocument.schema>;
 export type Chunk = z.infer<typeof Chunk.schema>;
 export type Note = z.infer<typeof Note.schema>;

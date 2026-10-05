@@ -201,11 +201,43 @@ describe('seed dataset', () => {
   it('dates deadlines relative to the anchor and denormalises the next deadline', () => {
     const doyle = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}/matters/m-doyle-estate`)?.data as D.Matter;
     expect(doyle.nextDeadline).toMatchObject({ dueDate: '2026-10-03', title: 'Send costs disclosure update' });
-    // Two open seeded tasks, plus the two template tasks of its stage (CORE-07).
-    expect(doyle.openTaskCount).toBe(4);
+    // Two open seeded tasks, the two template tasks of its stage (CORE-07) and the task the notice
+    // rule creates (CORE-10).
+    expect(doyle.openTaskCount).toBe(5);
+    expect(doyle.recomputeVersion).toBe(1);
     expect(doyle.wipCents).toBeGreaterThan(0);
     const overdue = dataset.docs.find((d) => d.path.endsWith('m-nguyen-fp-dl-1'))?.data as D.Deadline;
     expect(overdue.dueDate).toBe('2026-10-01');
+  });
+
+  it('computes the probate matter’s deadlines from its date of death and notice (CORE-10)', () => {
+    const base = `orgs/${SEED_ORG_ID}/matters/m-doyle-estate`;
+    const deadlines = dataset.docs
+      .filter((d) => d.path.startsWith(`${base}/deadlines/rule-`))
+      .map((d) => ({ id: d.path.split('/').at(-1) as string, ...(d.data as D.Deadline) }));
+    const upcoming = deadlines.filter((d) => d.status === 'upcoming').map((d) => d.id);
+    expect(upcoming).toEqual(
+      expect.arrayContaining([
+        'rule-vic.probate.advert_min',
+        'rule-vic.probate.prompt_filing',
+        'rule-au.tax.final_return',
+        'rule-org.executor_year',
+      ]),
+    );
+    for (const { id, ...deadline } of deadlines) {
+      const parsed = D.Deadline.schema.safeParse(deadline);
+      expect(parsed.error?.issues ?? [], id).toEqual([]);
+      expect(deadline.computed?.ruleSetId).toBe('vic');
+      expect(deadline.assigneeUid).toBe('user-jordan');
+    }
+    // Rules waiting on an event (grant, caveat) are blocked with the rule's reason.
+    const grant = deadlines.find((d) => d.id === 'rule-vic.fp.limitation');
+    expect(grant).toMatchObject({ status: 'blocked', blockedCode: 'anchor_missing' });
+    const advert = deadlines.find((d) => d.id === 'rule-vic.probate.advert_min');
+    expect(advert?.taskId).toBe('dlt-file-grant');
+    const task = dataset.docs.find((d) => d.path === `${base}/tasks/dlt-file-grant`)?.data as D.Task;
+    expect(task).toMatchObject({ source: 'rule', deadlineId: 'rule-vic.probate.advert_min', countedOpen: true });
+    expect(task.dueDate).toBe(advert?.dueDate);
   });
 
   it('links each document record to a fixture PDF with its real size and hash', () => {
@@ -239,7 +271,11 @@ describe('seed dataset', () => {
 
   it('seeds the conflict scenarios with conflicts.enforced on, but not in the minimal scenario (CORE-02)', () => {
     const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
-    expect(org?.['flags']).toEqual({ 'conflicts.enforced': true, 'templates.system': true });
+    expect(org?.['flags']).toEqual({
+      'conflicts.enforced': true,
+      'templates.system': true,
+      'deadlines.ruleset.vic.v1': true,
+    });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
       expect(docsUnder('contacts').some((d) => d.path.endsWith(`/${id}`))).toBe(true);
     }

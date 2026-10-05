@@ -67,7 +67,7 @@ export type TaskActivityKind =
   | 'task.restored';
 
 /**
- * What a task write means for the matter's activity feed (CORE-08). Template and migrated tasks
+ * What a task write means for the matter's activity feed (CORE-08). Template, migrated and rule (CORE-10) tasks
  * appear in bulk with the matter or a stage, so their creation isn't listed; ordering, titles,
  * dates and checklists aren't activity.
  */
@@ -75,7 +75,7 @@ export function taskActivityKinds(before: Data | undefined, after: Data | undefi
   if (!after) return [];
   if (!before) {
     const source = after['source'];
-    if (source === 'template' || source === 'migration') return [];
+    if (source === 'template' || source === 'migration' || source === 'rule') return [];
     return isLive(after) ? ['task.created'] : [];
   }
   const kinds: TaskActivityKind[] = [];
@@ -116,7 +116,7 @@ export function activitySummary(kind: TaskActivityKind, title: string): string {
 
 /**
  * Who to notify about an assignment (CORE-08, the `task_assigned` notification): the new assignee
- * of a live, open task, unless they assigned it to themselves. Template and migrated tasks created
+ * of a live, open task, unless they assigned it to themselves. Template, migrated and rule tasks created
  * in bulk with a matter or stage don't notify; reassigning them later does.
  */
 export function assignmentRecipient(before: Data | undefined, after: Data | undefined): string | null {
@@ -124,7 +124,7 @@ export function assignmentRecipient(before: Data | undefined, after: Data | unde
   const assignee = after['assigneeUid'];
   if (typeof assignee !== 'string' || !assignee) return null;
   if (before?.['assigneeUid'] === assignee) return null;
-  if (!before && (after['source'] === 'template' || after['source'] === 'migration')) return null;
+  if (!before && ['template', 'migration', 'rule'].includes(String(after['source']))) return null;
   if (actorOf(before, after) === assignee) return null;
   return assignee;
 }

@@ -203,6 +203,22 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
     matterId: DocIdSchema,
     ...notificationBase,
   }),
+  // A recompute proposed a date change or removal (`changeId`), or the engine's date fell earlier
+  // than an override (no `changeId`) (CORE-10). A critical deadline moved into the past is `high`.
+  z.object({
+    kind: z.literal('deadline_changed'),
+    deadlineId: DocIdSchema,
+    matterId: DocIdSchema,
+    changeId: DocIdSchema.optional(),
+    ...notificationBase,
+  }),
+  // The daily missed check asks the responsible lawyer to confirm a deadline missed (CORE-10).
+  z.object({
+    kind: z.literal('deadline_missed'),
+    deadlineId: DocIdSchema,
+    matterId: DocIdSchema,
+    ...notificationBase,
+  }),
   z.object({
     kind: z.literal('task_assigned'),
     taskId: DocIdSchema,
@@ -292,6 +308,9 @@ export const RuleSetVersion = withMeta(
     jurisdiction: JurisdictionSchema,
     published: z.boolean(),
     practitionerReviewed: z.boolean().default(false),
+    /** The rule set's feature flag prefix (`deadlines.ruleset.vic`; the version's flag adds `.v{n}`). */
+    flag: z.string().min(1).optional(),
+    disclaimer: z.string().min(1).optional(),
     rules: z.array(
       z.object({
         id: NonEmptyString,

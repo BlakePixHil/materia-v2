@@ -21,6 +21,7 @@ import { isDeleted, stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
 import { isEnabled } from '../core/flags';
+import { recomputeMatter } from '../deadlines/recompute';
 import { FROZEN_STATUSES } from '../templates/apply';
 import {
   anchorContext,
@@ -52,6 +53,8 @@ import {
  * from today in the org's time zone or their anchor events) and records `stageEnteredOn`.
  *
  * Audited as `matter.stage_changed` with from and to (and the direction and reason going back).
+ * Then the matter's deadlines are recomputed (CORE-10; cause `stage`), creating rule tasks that
+ * wait for the new stage.
  */
 export const changeStageDefinition = {
   name: 'matters-changeStage',
@@ -200,6 +203,25 @@ export const changeStageDefinition = {
         to: input.stageId,
         created: moved.createdTaskIds.length,
       });
+      // CORE-10: rule tasks that wait for this stage, and anything else that changed. Best effort:
+      // the stage has moved either way, and the next recompute catches up.
+      try {
+        await recomputeMatter(db, {
+          orgId,
+          matterId: input.matterId,
+          uid,
+          role,
+          requestId,
+          cause: 'stage',
+          clock,
+          log,
+        });
+      } catch (error) {
+        log.error('deadline recompute after stage change failed', {
+          matterId: input.matterId,
+          errorType: error instanceof Error ? error.name : typeof error,
+        });
+      }
     }
     return {
       matterId: input.matterId,

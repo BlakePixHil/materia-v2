@@ -165,6 +165,11 @@ describe('matter tasks tab', () => {
     await page.click('Mark deadline done', page.dialog() ?? page.body);
     await page.stable(20);
     expect(page.firestore.get(`${MATTER}/tasks/t-cert`)?.['status']).toBe('done');
+    // Through deadlines-complete (CORE-10): the rules refuse a direct status write.
+    expect(page.calls('deadlines-complete')).toEqual([
+      expect.objectContaining({ matterId: 'm-whitfield', deadlineId: 'd-notice', outcome: 'done' }),
+    ]);
+    expect(page.firestore.writes.some((w) => w.path === `${MATTER}/deadlines/d-notice`)).toBe(false);
     expect(page.firestore.get(`${MATTER}/deadlines/d-notice`)?.['status']).toBe('done');
   });
 

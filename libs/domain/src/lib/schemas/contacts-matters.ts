@@ -130,6 +130,8 @@ export const Matter = withMeta(
         grantType: z.enum(['probate', 'loa', 'loa_with_will', 'reseal']).optional(),
         grantDate: DateOnlySchema.optional(),
         grantNo: z.string().optional(),
+        /** The deceased's main residence is in the estate: the CGT main residence window applies (CORE-10). */
+        hasMainResidence: z.boolean().optional(),
       })
       .optional(),
     /** Key facts not held elsewhere (CORE-06): the will's date, the court file number, a trust's name (CORE-05). */

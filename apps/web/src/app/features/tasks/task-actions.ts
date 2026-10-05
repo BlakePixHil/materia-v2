@@ -1,12 +1,11 @@
 import { inject, Injectable, Injector, runInInjectionContext, signal } from '@angular/core';
 
 import {
-  matterDeadlinesRepository,
+  deadlineCallables,
   matterTaskRepository,
   personalTaskRepository,
   taskCallables,
   writeTaskOrders,
-  type MatterDeadline,
   type Repository,
   type TaskItem,
 } from '@materia/data-access/repository';
@@ -51,9 +50,9 @@ export class TaskActions {
   private readonly dialogs = inject(DialogService);
   private readonly toasts = inject(ToastService);
   private readonly callables = taskCallables(inject(CALLABLES));
+  private readonly deadlines = deadlineCallables(inject(CALLABLES));
   private readonly personal = personalTaskRepository();
   private readonly matterRepos = new Map<string, Repository<TaskItem>>();
-  private readonly deadlineRepos = new Map<string, Repository<MatterDeadline>>();
 
   /** The latest move or change, for the lists' polite live region. */
   readonly announcement = signal('');
@@ -67,15 +66,6 @@ export class TaskActions {
     if (!found) {
       found = runInInjectionContext(this.injector, () => matterTaskRepository(() => matterId));
       this.matterRepos.set(matterId, found);
-    }
-    return found;
-  }
-
-  private deadlinesFor(matterId: string): Repository<MatterDeadline> {
-    let found = this.deadlineRepos.get(matterId);
-    if (!found) {
-      found = runInInjectionContext(this.injector, () => matterDeadlinesRepository(() => matterId));
-      this.deadlineRepos.set(matterId, found);
     }
     return found;
   }
@@ -181,13 +171,18 @@ export class TaskActions {
       cancelLabel: 'Leave open',
     });
     if (!ok) return;
-    for (const entry of linked) {
+    // Deadlines close through deadlines-complete (CORE-10): the rules refuse direct status writes.
+    const closing = linked.flatMap((entry) => {
       const { matterId } = entry.ref;
       const deadlineId = entry.task.deadlineId;
-      if (!matterId || !deadlineId) continue;
-      this.write(this.deadlinesFor(matterId).update(deadlineId, { status: 'done' }), 'The deadline didn’t update');
+      return matterId && deadlineId ? [this.deadlines.complete({ matterId, deadlineId, outcome: 'done' })] : [];
+    });
+    try {
+      await Promise.all(closing);
+      this.say(one ? 'Deadline marked done.' : `${plural(linked.length, 'deadline')} marked done.`);
+    } catch (error) {
+      this.toasts.show({ title: 'The deadline didn’t update', description: errorCopy(error), tone: 'danger' });
     }
-    this.say(one ? 'Deadline marked done.' : `${plural(linked.length, 'deadline')} marked done.`);
   }
 
   /** Any status change; `done` goes through `complete` for its confirms. */

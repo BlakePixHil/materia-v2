@@ -34,4 +34,19 @@ describe('MtTooltip', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
     vi.useRealTimers();
   });
+
+  it('keeps the line breaks of a multi-line text, such as a deadline’s trace', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await render(`<button type="button" [mtTooltip]="trace">Due</button>`, {
+      imports: [MtTooltip],
+      componentProperties: { trace: 'Computed by rule vic.fp.limitation\n+ 6 months → 2027-03-30' },
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.tab();
+    await vi.advanceTimersByTimeAsync(450);
+    const tip = await screen.findByRole('tooltip');
+    expect(tip.hasAttribute('data-lines')).toBe(true);
+    expect(tip.textContent).toContain('vic.fp.limitation\n+ 6 months');
+    vi.useRealTimers();
+  });
 });

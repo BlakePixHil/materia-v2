@@ -47,6 +47,7 @@ import { compact, isLive } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
 import { isEnabled } from '../core/flags';
+import { recomputeMatter } from '../deadlines/recompute';
 import {
   firstActiveParalegal,
   planTemplateTasks,
@@ -157,23 +158,6 @@ export function intakeFeeAndDisclosure(input: Input): Pick<Matter, 'fee' | 'cost
       ...(estimateCents !== undefined ? { estimateCents } : {}),
     }) as Matter['costsDisclosure'];
   return { fee: { ...fee, history: fee.history ?? [] }, costsDisclosure };
-}
-
-/** What the CORE-10 hook gets: the new matter and its anchors, inside the create transaction. */
-export interface IntakeDeadlineContext {
-  orgId: string;
-  matterId: string;
-  matter: MatterInput;
-  events: readonly EventRow[];
-}
-
-/**
- * Hook for CORE-10: the deadline documents a new matter gets, written in the create transaction.
- * None yet; deadline computation (rule sets, anchors, citations) belongs to CORE-09/CORE-10.
- */
-export function planIntakeDeadlines(context: IntakeDeadlineContext): PlannedTask[] {
-  void context;
-  return [];
 }
 
 /**
@@ -429,7 +413,6 @@ export const createMatterDefinition = {
         }) as Record<string, unknown>,
       });
     }
-    const deadlines = planIntakeDeadlines({ orgId, matterId: matterRef.id, matter, events });
     // Party contacts beyond the matter's own (checked above): read in the transaction, refused there.
     const extraContactIds = [
       ...new Set(parties.filter((party) => party.inputIndex !== undefined).map((party) => party.contactId)),
@@ -523,7 +506,6 @@ export const createMatterDefinition = {
           );
         }
         for (const task of tasks) tx.create(db.doc(task.path), task.data);
-        for (const deadline of deadlines) tx.create(db.doc(deadline.path), deadline.data);
         return candidate;
       },
       { maxAttempts: CREATE_MAX_ATTEMPTS },
@@ -571,7 +553,30 @@ export const createMatterDefinition = {
         },
       );
     }
+    // CORE-10: the new matter's deadlines, from its events and the latest rule set. Best effort: the
+    // matter exists either way, and recording an event or running deadlines-recompute catches up.
+    let deadlines = 0;
+    try {
+      deadlines = (
+        await recomputeMatter(db, {
+          orgId,
+          matterId: matterRef.id,
+          uid,
+          role,
+          requestId,
+          cause: 'matter_created',
+          clock,
+          log,
+        })
+      ).created.length;
+    } catch (error) {
+      log.error('deadline recompute after create failed', {
+        matterId: matterRef.id,
+        errorType: error instanceof Error ? error.name : typeof error,
+      });
+    }
     log.info('matter created', {
+      deadlines,
       matterId: matterRef.id,
       status,
       year,

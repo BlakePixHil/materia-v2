@@ -29,6 +29,7 @@ describe('entity schemas', () => {
       'CourtOrder',
       'CreditNote',
       'Deadline',
+      'DeadlineChange',
       'Disbursement',
       'Distribution',
       'DocTemplate',
@@ -75,7 +76,7 @@ describe('entity schemas', () => {
 
   it('exports XSchema, XCreateSchema and XUpdateSchema for every entity', () => {
     const exports = D as unknown as Record<string, unknown>;
-    expect(ENTITIES.length).toBe(51);
+    expect(ENTITIES.length).toBe(52);
     for (const [name, entity] of ENTITIES) {
       expect(exports[`${name}Schema`], `${name}Schema`).toBe(entity.schema);
       expect(exports[`${name}CreateSchema`], `${name}CreateSchema`).toBe(entity.create);
