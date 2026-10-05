@@ -15,7 +15,7 @@ import { RouterLink } from '@angular/router';
 
 import { can } from '@materia/data-access';
 import type { OnboardingStep } from '@materia/domain';
-import { MT_TODAY, MtBadge, MtButton, MtEmptyState, MtIcon, MtNote, MtStat } from '@materia/ui';
+import { MT_TODAY, MtBadge, MtButton, MtEmptyState, MtIcon, MtNote } from '@materia/ui';
 
 import { TodayData } from './today-data';
 import { TodayAttention, TodayDue, TodayRecent, TodayTasks } from './today-sections';
@@ -63,6 +63,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
   styleUrls: [
     '../../../../../../libs/ui/src/generated/components/card.css',
     '../../../../../../libs/ui/src/generated/components/count.css',
+    '../../../../../../libs/ui/src/generated/components/stat.css',
     '../../../../../../libs/ui/src/generated/components/timeline.css',
     '../../../../../../libs/ui/src/generated/components/tl.css',
   ],
@@ -73,7 +74,6 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     MtIcon,
     MtNote,
     MtPageActions,
-    MtStat,
     RouterLink,
     TodayAttention,
     TodayDue,
@@ -144,17 +144,27 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
         <mt-today-tasks />
       </div>
       <div class="col side">
+        <!--
+          The design system's Stat (stat.css), drawn here rather than with MtStat: the first use of a
+          @materia/ui component from a lazy page puts it in the initial bundle.
+        -->
         <div class="stats" data-section="stats">
-          <mt-stat label="Open matters" [value]="count(data.counts().openMatters)" icon="matters">
-            <span class="caption t-3">You’re responsible for</span>
-          </mt-stat>
-          <mt-stat label="Deadlines this week" [value]="count(data.counts().deadlinesThisWeek)" icon="calendar">
-            @if (overdueCount()) {
-              <span class="caption t-danger">{{ overdueCount() }} overdue</span>
-            } @else {
-              <span class="caption t-3">Assigned to you</span>
-            }
-          </mt-stat>
+          <div class="mt-card mt-stat" data-stat="open-matters">
+            <div class="k"><mt-icon name="matters" />Open matters</div>
+            <div class="v">{{ count(data.counts().openMatters) }}</div>
+            <div class="f">You’re responsible for</div>
+          </div>
+          <div class="mt-card mt-stat" data-stat="deadlines">
+            <div class="k"><mt-icon name="calendar" />Deadlines this week</div>
+            <div class="v">{{ count(data.counts().deadlinesThisWeek) }}</div>
+            <div class="f">
+              @if (overdueCount()) {
+                <span class="t-danger">{{ overdueCount() }} overdue</span>
+              } @else {
+                Assigned to you
+              }
+            </div>
+          </div>
         </div>
         <mt-today-due />
         <mt-today-recent />

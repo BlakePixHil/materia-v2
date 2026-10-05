@@ -221,7 +221,7 @@ describe('today', () => {
 
   it('counts my open matters and this week’s deadlines', async () => {
     const page = await openToday({ configure: busyDay });
-    const stats = [...(card(page, 'stats')?.querySelectorAll('mt-stat') ?? [])].map((stat) => page.text(stat));
+    const stats = [...(card(page, 'stats')?.querySelectorAll('.mt-stat') ?? [])].map((stat) => page.text(stat));
     expect(stats[0]).toContain('Open matters 2');
     expect(stats[1]).toContain('Deadlines this week 1');
     expect(stats[1]).toContain('1 overdue');
