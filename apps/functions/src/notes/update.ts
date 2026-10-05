@@ -21,7 +21,7 @@ import { audit } from '../audit/audit';
 import { stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
-import { liveMatter, matterPath } from '../matters/shared';
+import { writableMatter, matterPath } from '../matters/shared';
 
 const iso = (value: unknown) => toDate(value)?.toISOString() ?? null;
 
@@ -56,7 +56,7 @@ export const updateDefinition = {
     const notifyCtx = { db, orgId, clock, log, ports: ctx.ports };
 
     const outcome = await db.runTransaction(async (tx) => {
-      const matter = liveMatter(await tx.get(matterRef), role, input.matterId);
+      const matter = writableMatter(await tx.get(matterRef), role, input.matterId);
       const note = liveNote(await tx.get(noteRef), role, input.noteId);
       const wasPrivileged = note['privileged'] === true;
       const privileged = matter['privileged'] === true || (input.privileged ?? wasPrivileged);

@@ -675,8 +675,13 @@ export function buildDataset(options: {
       settings: { clerk: { enabled: true, model: 'claude-sonnet-5-5' } },
       // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02), and
       // matters follow their templates' stages and tasks (CORE-07), and the illustrative Victorian
-      // statutory deadline rules apply (CORE-10).
-      flags: { 'conflicts.enforced': true, 'templates.system': true, 'deadlines.ruleset.vic.v1': true },
+      // statutory deadline rules apply (CORE-10), and the retention destruction queue runs (CORE-19).
+      flags: {
+        'conflicts.enforced': true,
+        'templates.system': true,
+        'deadlines.ruleset.vic.v1': true,
+        'matters.destruction': true,
+      },
     }),
   );
 

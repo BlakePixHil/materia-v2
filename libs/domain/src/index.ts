@@ -23,6 +23,7 @@ export * from './lib/orgs';
 export * from './lib/search';
 export * from './lib/contacts';
 export * from './lib/matters';
+export * from './lib/retention';
 export * from './lib/matter-board';
 export * from './lib/conflicts';
 export * from './lib/matter-detail';

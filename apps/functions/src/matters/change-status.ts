@@ -1,5 +1,3 @@
-import { FieldValue } from 'firebase-admin/firestore';
-
 import {
   can,
   canTransition,
@@ -15,6 +13,7 @@ import {
   type MatterStatus,
 } from '@materia/domain';
 
+import { cancelQueuedDestruction, reopenPatch } from './reopen';
 import { matterPath } from './shared';
 import { audit } from '../audit/audit';
 import { isDeleted, stamp } from '../contacts/shared';
@@ -26,8 +25,10 @@ import { defineCallable, type CallableDefinition } from '../core/callable';
  * `details.allowed`). `lead → open` needs a conflict determination that allows opening, `clear` or
  * `potential` (CORE-02); `pending` and `conflict` are FAILED_PRECONDITION with
  * `details.reason: 'conflict_check_not_clear'` and `details.conflictStatus`. Reopening a closed matter needs a reason
- * (INVALID_ARGUMENT on `reason`). Closing sets `closedAt` and `closeReason` (the reason, when
- * given); reopening clears both. Audited as `matter.status_changed`.
+ * (INVALID_ARGUMENT on `reason`). Closing goes through `matters-close` and its checklist (CORE-19):
+ * here it is FAILED_PRECONDITION with `details.reason: 'closing_checklist_required'`. Reopening a
+ * closed or archived matter clears the closing and retention fields and cancels a queued destruction,
+ * as `matters-reopen` does; archiving stamps `archivedAt`. Audited as `matter.status_changed`.
  */
 export const changeStatusDefinition = {
   name: 'matters-changeStatus',
@@ -86,18 +87,23 @@ export const changeStatusDefinition = {
             fields: { reason: ['Enter a reason for reopening'] },
           });
         }
+        if (requirement === 'closing_checklist') {
+          throw new DomainError('FAILED_PRECONDITION', 'Close the matter with its closing checklist', {
+            reason: 'closing_checklist_required',
+            matterId: input.matterId,
+          });
+        }
       }
 
+      const reopening = (current === 'closed' || current === 'archived') && input.to === 'open';
+      const cancel = reopening
+        ? await cancelQueuedDestruction(tx, db, orgId, input.matterId, 'reopened', now)
+        : () => undefined;
       const patch: Record<string, unknown> = { status: input.to, ...stamp(uid, now, requestId) };
-      if (input.to === 'closed') {
-        patch['closedAt'] = now;
-        patch['closeReason'] = reason ?? FieldValue.delete();
-      }
-      if (current === 'closed' && input.to === 'open') {
-        patch['closedAt'] = FieldValue.delete();
-        patch['closeReason'] = FieldValue.delete();
-      }
+      if (reopening) Object.assign(patch, reopenPatch());
+      if (input.to === 'archived') patch['archivedAt'] = now;
       tx.update(ref, patch);
+      cancel();
       return current;
     });
 

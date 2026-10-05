@@ -350,7 +350,8 @@ describe('matters-changeStatus', () => {
     );
 
   const pairs = STATUSES.flatMap((from) => STATUSES.map((to) => [from, to] as const));
-  const allowed = pairs.filter(([from, to]) => MATTER_TRANSITIONS[from].includes(to));
+  // Closing runs the checklist through matters-close (CORE-19, retention.spec.ts).
+  const allowed = pairs.filter(([from, to]) => MATTER_TRANSITIONS[from].includes(to) && to !== 'closed');
   const refused = pairs.filter(([from, to]) => !MATTER_TRANSITIONS[from].includes(to));
 
   it.each(allowed)('%s → %s is allowed', async (from, to) => {
@@ -384,19 +385,28 @@ describe('matters-changeStatus', () => {
     });
   });
 
-  it('closing stamps closedAt and the reason; reopening needs a reason and clears them', async () => {
-    const w = seeded('open');
-    await change(w, 'closed', 'Estate finalised');
-    expect(w.doc(`${M}/m1`)).toMatchObject({ status: 'closed', closeReason: 'Estate finalised' });
-    expect(w.doc(`${M}/m1`)?.['closedAt']).toBeInstanceOf(Timestamp);
+  it('sends closing to matters-close; reopening needs a reason and clears the closing fields', async () => {
+    const w = seeded('closed', {
+      closedAt: new Date('2026-09-01T00:00:00Z'),
+      closeReason: 'Estate finalised',
+      destroyAfter: '2033-09-01',
+      closing: { closingLetterSent: true, finalDistributionRecorded: true, tasksCancelled: 0, holds: [] },
+    });
+    for (const from of ['open', 'on_hold'] as const) {
+      expect(await failureOf(change(seeded(from), 'closed', 'Estate finalised'))).toMatchObject({
+        code: 'FAILED_PRECONDITION',
+        details: { reason: 'closing_checklist_required' },
+      });
+    }
     expect(await failureOf(change(w, 'open'))).toMatchObject({
       code: 'INVALID_ARGUMENT',
       details: { fields: { reason: expect.any(Array) } },
     });
     expect(await failureOf(change(w, 'open', '   '))).toMatchObject({ code: 'INVALID_ARGUMENT' });
     await change(w, 'open', 'Further assets found');
-    expect(w.doc(`${M}/m1`)).not.toHaveProperty('closedAt');
-    expect(w.doc(`${M}/m1`)).not.toHaveProperty('closeReason');
+    for (const field of ['closedAt', 'closeReason', 'destroyAfter', 'closing', 'archivedAt']) {
+      expect(w.doc(`${M}/m1`)).not.toHaveProperty(field);
+    }
     expect(
       w
         .audits()
@@ -405,9 +415,13 @@ describe('matters-changeStatus', () => {
     ).toMatchObject({
       data: { from: 'closed', to: 'open', reason: 'Further assets found' },
     });
-    // Closing without a reason leaves none behind.
-    await change(w, 'closed');
-    expect(w.doc(`${M}/m1`)).not.toHaveProperty('closeReason');
+    // Archiving stamps archivedAt; an archived matter reopens the same way.
+    const closed = seeded('closed', { closedAt: new Date('2026-06-01T00:00:00Z') });
+    await change(closed, 'archived');
+    expect(closed.doc(`${M}/m1`)?.['archivedAt']).toBeInstanceOf(Timestamp);
+    await change(closed, 'open', 'Further assets found');
+    expect(closed.doc(`${M}/m1`)).toMatchObject({ status: 'open' });
+    expect(closed.doc(`${M}/m1`)).not.toHaveProperty('archivedAt');
   });
 
   it('treats deleted, missing, unreadable and malformed matters as not found or invalid', async () => {

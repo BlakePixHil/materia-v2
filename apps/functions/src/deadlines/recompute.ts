@@ -53,7 +53,7 @@ import {
 import { compact, isDeleted } from '../contacts/shared';
 import { isEnabled } from '../core/flags';
 import type { Log } from '../core/log';
-import { liveMatter, matterPath } from '../matters/shared';
+import { writableMatter, matterPath } from '../matters/shared';
 import { notify, type NotifyResult } from '../notifications/notify';
 import type { Clock, Ports } from '../ports';
 import { readMatterTemplateStages, readTemplate, readWith } from '../templates/shared';
@@ -232,7 +232,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
 
   const outcome = await db.runTransaction(async (tx: Transaction) => {
     notified = [];
-    const matter = liveMatter(await tx.get(matterRef), role, matterId);
+    const matter = writableMatter(await tx.get(matterRef), role, matterId);
     const version = typeof matter['recomputeVersion'] === 'number' ? matter['recomputeVersion'] : 0;
 
     // ---- reads ----

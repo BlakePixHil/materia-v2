@@ -6,7 +6,7 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
  * code uses (doc and collection refs, `==`, `in`, `array-contains` and range filters on dotted paths,
  * paging by document id,
  * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment` and
- * `FieldValue.delete`),
+ * `FieldValue.delete`, listing a document's subcollections),
  * and an Admin Auth with users and custom claims.
  */
 
@@ -72,6 +72,16 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       update: async (data: Data) => write.update(path, data),
       create: async (data: Data) => write.create(path, data),
       delete: async () => void docs.delete(path),
+      /** The subcollections that hold documents (Firestore lists only those). */
+      listCollections: async () => {
+        const depth = path.split('/').length + 2;
+        const names = new Set(
+          [...docs.keys()]
+            .filter((doc) => doc.startsWith(`${path}/`) && doc.split('/').length >= depth)
+            .map((doc) => doc.split('/')[depth - 2] as string),
+        );
+        return [...names].sort().map((name) => collectionRef(`${path}/${name}`));
+      },
     };
     return ref;
   }
@@ -180,6 +190,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
           batch
         ),
         update: (ref: Ref, data: Data) => (ops.push(() => write.update(ref.path, data)), batch),
+        delete: (ref: Ref) => (ops.push(() => void docs.delete(ref.path)), batch),
         commit: async () => {
           for (const op of ops) op();
         },

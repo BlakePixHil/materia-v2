@@ -40,7 +40,8 @@ export async function syncNextDeadline(
   const matterRef = db.doc(matterPath(orgId, matterId));
   return db.runTransaction(async (tx) => {
     const matter = await tx.get(matterRef);
-    if (!matter.exists) return null;
+    // Gone, or a destroyed matter's tombstone (CORE-19).
+    if (!matter.exists || matter.get('destroyedAt')) return null;
     const deadlines = await tx.get(db.collection(deadlinesPath(orgId, matterId)));
     const next = nextDeadlineOf(deadlines.docs.map((doc) => asRow(doc.id, doc.data())));
     if (same(matter.get('nextDeadline'), next)) return { next, written: false };

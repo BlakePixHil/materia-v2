@@ -54,14 +54,15 @@ export async function syncTask(change: TriggerChange, ctx: TriggerContext): Prom
   const taskRef = db.doc(`${matterPath(orgId, matterId)}/tasks/${taskId}`);
   const matterRef = db.doc(matterPath(orgId, matterId));
   const matter = await matterRef.get();
+  // A destroyed matter's tombstone (CORE-19) takes no counts, notifications or activity.
+  const live = matter.exists && !matter.get('destroyedAt');
 
   const plan = await db.runTransaction(async (tx) => {
     const current = await tx.get(taskRef);
     const data = current.exists ? (current.data() as Data) : undefined;
     const planned = planTaskSync(data, before, ctx.time);
     const next = data ? { ...planned, patch: { ...planned.patch, ...titleSearch(data) } } : planned;
-    if (next.countDelta && matter.exists)
-      tx.update(matterRef, { openTaskCount: FieldValue.increment(next.countDelta) });
+    if (next.countDelta && live) tx.update(matterRef, { openTaskCount: FieldValue.increment(next.countDelta) });
     if (current.exists && Object.keys(next.patch).length) tx.update(taskRef, toWrite(next.patch));
     return next;
   });
@@ -72,7 +73,7 @@ export async function syncTask(change: TriggerChange, ctx: TriggerContext): Prom
   const meta = { createdAt: now, createdBy: 'system', updatedAt: now, updatedBy: 'system' };
 
   let notified: string | null = null;
-  const recipient = matter.exists ? assignmentRecipient(before, after) : null;
+  const recipient = live ? assignmentRecipient(before, after) : null;
   if (recipient) {
     // notify() leaves out anyone who is no longer an active member (FND-20).
     const number = matter.get('number');
@@ -92,7 +93,7 @@ export async function syncTask(change: TriggerChange, ctx: TriggerContext): Prom
     if (sent.ids.length) notified = recipient;
   }
 
-  const kinds = matter.exists ? taskActivityKinds(before, after) : [];
+  const kinds = live ? taskActivityKinds(before, after) : [];
   for (const kind of kinds) {
     const assignee = after?.['assigneeUid'];
     const activity = Activity.schema.parse({

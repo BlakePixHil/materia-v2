@@ -12,7 +12,14 @@ import {
   SearchTokensSchema,
   withMeta,
 } from './common';
-import { JurisdictionSchema, MatterStatusSchema, MatterTypeSchema, PrioritySchema } from './enums';
+import {
+  JurisdictionSchema,
+  MatterStatusSchema,
+  MatterTypeSchema,
+  OriginalsOutcomeSchema,
+  PrioritySchema,
+  RetentionHoldSchema,
+} from './enums';
 
 /**
  * `matter.conflictAlert` (CORE-02): set by `conflicts-onPartyAdded` when a party added to an open
@@ -63,6 +70,21 @@ export const Contact = withMeta(
     serverOwned: ['search', 'dedupeKey', 'sortName', 'mergedInto'],
   },
 );
+
+/**
+ * `matter.closing` (CORE-19): what the closing checklist recorded when `matters-close` closed the
+ * matter, and why it has no destruction date (`holds`) when it has none.
+ */
+export const ClosingRecordSchema = z.object({
+  originals: OriginalsOutcomeSchema.optional(),
+  closingLetterSent: z.boolean(),
+  finalDistributionRecorded: z.boolean(),
+  /** Items closed without being done, each with the lawyer's reason. */
+  overrides: z.record(z.string(), z.string()).optional(),
+  tasksCancelled: z.number().int().min(0).default(0),
+  holds: z.array(RetentionHoldSchema).default([]),
+});
+export type ClosingRecord = z.infer<typeof ClosingRecordSchema>;
 
 const FeeSchema = z.object({
   arrangement: z.enum(['hourly', 'fixed', 'capped', 'conditional', 'pro_bono']),
@@ -162,8 +184,17 @@ export const Matter = withMeta(
     relatedMatterIds: z.array(DocIdSchema).default([]),
     closedAt: InstantSchema.optional(),
     closeReason: z.string().optional(),
+    /** CORE-19: the day after which the matter may be destroyed; absent while open or held. */
     destroyAfter: DateOnlySchema.optional(),
+    closing: ClosingRecordSchema.optional(),
+    /** Set by the nightly `matters-archiveClosed` (or a manual archive): the matter is read-only. */
+    archivedAt: InstantSchema.optional(),
+    /** Placed and released by owners and admins (`matters-setLegalHold`); `on` blocks destruction. */
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: DocIdSchema, at: InstantSchema }).optional(),
+    /** On the tombstone a destroyed matter leaves (CORE-19); the certificate records what went. */
+    destroyedAt: InstantSchema.optional(),
+    destroyedBy: DocIdSchema.optional(),
+    certificateId: DocIdSchema.optional(),
     budget: z
       .object({ recordedCents: CentsSchema, billedCents: CentsSchema, basisCents: CentsSchema, pct: z.number() })
       .optional(),
@@ -213,7 +244,14 @@ export const Matter = withMeta(
       'legacyBilling',
       'budget',
       'closedAt',
+      'closeReason',
+      'destroyAfter',
+      'closing',
+      'archivedAt',
       'legalHold',
+      'destroyedAt',
+      'destroyedBy',
+      'certificateId',
       'conflictAlert',
       'stageEnteredOn',
     ],

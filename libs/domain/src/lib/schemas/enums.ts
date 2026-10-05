@@ -12,6 +12,14 @@ export type MatterType = z.infer<typeof MatterTypeSchema>;
 export const MatterStatusSchema = z.enum(['lead', 'open', 'on_hold', 'closed', 'archived']);
 export type MatterStatus = z.infer<typeof MatterStatusSchema>;
 
+/** Where a closed matter's original documents went (CORE-19 closing checklist). */
+export const OriginalsOutcomeSchema = z.enum(['returned', 'safe_custody', 'none_held']);
+export type OriginalsOutcome = z.infer<typeof OriginalsOutcomeSchema>;
+
+/** Why a closed matter has no destruction date (CORE-19): it is kept until someone acts. */
+export const RetentionHoldSchema = z.enum(['legal_hold', 'originals_in_custody', 'minor']);
+export type RetentionHold = z.infer<typeof RetentionHoldSchema>;
+
 /** PriorityIcon levels. */
 export const PrioritySchema = z.enum(['none', 'urgent', 'high', 'medium', 'low']);
 export type Priority = z.infer<typeof PrioritySchema>;

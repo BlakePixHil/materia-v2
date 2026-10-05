@@ -289,6 +289,7 @@ describe('seed dataset', () => {
       'conflicts.enforced': true,
       'templates.system': true,
       'deadlines.ruleset.vic.v1': true,
+      'matters.destruction': true,
     });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
       expect(docsUnder('contacts').some((d) => d.path.endsWith(`/${id}`))).toBe(true);

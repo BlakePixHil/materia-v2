@@ -3,7 +3,7 @@ import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 import { can, DomainError, type DocumentVersion, type Role } from '@materia/domain';
 
 import { isDeleted } from '../contacts/shared';
-import { liveMatter, matterPath } from '../matters/shared';
+import { liveMatter, matterPath, writableMatter } from '../matters/shared';
 
 type Data = Record<string, unknown>;
 
@@ -24,19 +24,23 @@ export function visibleDocument(snap: DocumentSnapshot, role: Role, docId: strin
   return data;
 }
 
-/** The matter (live, visible) and the document (visible, live) in one read. */
+/**
+ * The matter (live, visible) and the document (visible, live) in one read. `write`: the caller
+ * changes something, so an archived matter (read-only, CORE-19) is refused.
+ */
 export async function loadDocument(
   db: Firestore,
   orgId: string,
   role: Role,
   matterId: string,
   docId: string,
+  write = false,
 ): Promise<{ matter: Data; doc: Data }> {
   const [matterSnap, docSnap] = await db.getAll(
     db.doc(matterPath(orgId, matterId)),
     db.doc(documentPath(orgId, matterId, docId)),
   );
-  const matter = liveMatter(matterSnap as DocumentSnapshot, role, matterId);
+  const matter = (write ? writableMatter : liveMatter)(matterSnap as DocumentSnapshot, role, matterId);
   const doc = visibleDocument(docSnap as DocumentSnapshot, role, docId);
   return { matter, doc };
 }

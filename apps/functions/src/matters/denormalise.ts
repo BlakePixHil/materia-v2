@@ -71,7 +71,7 @@ export async function recordMatterActivity(db: Firestore, orgId: string, matterI
   const ref = db.doc(matterPath(orgId, matterId));
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists) return false;
+    if (!snap.exists || snap.get('destroyedAt')) return false;
     const last = millis(snap.get('lastActivityAt'));
     if (last !== undefined && last >= at.getTime()) return false;
     tx.update(ref, { lastActivityAt: at });
@@ -100,6 +100,8 @@ export async function denormalise(
   const result = await ctx.db.runTransaction(async (tx) => {
     const current = await tx.get(ref);
     if (!current.exists) return 'deleted' as const;
+    // A destroyed matter's tombstone (CORE-19) keeps only what `matters-destroy` wrote.
+    if (current.get('destroyedAt')) return 'unchanged' as const;
     const patch = staleMatterFields(current.data() as Data, names, activityAt);
     if (!Object.keys(patch).length) return 'unchanged' as const;
     tx.update(ref, patch);

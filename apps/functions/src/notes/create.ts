@@ -1,11 +1,11 @@
-import { CreateNoteInput, Note, parseMentions, PERMISSIONS, type SaveNoteResult } from '@materia/domain';
+import { can, CreateNoteInput, Note, parseMentions, PERMISSIONS, type SaveNoteResult } from '@materia/domain';
 
 import { assertMayMarkPrivileged, notesPath, noteMentions, notifyMentions, readPeople } from './shared';
 import { audit } from '../audit/audit';
 import { stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
-import { liveMatter, matterPath } from '../matters/shared';
+import { archivedError, liveMatter, matterPath } from '../matters/shared';
 
 /**
  * `notes-create` (CORE-13, `note.write`, idempotent). Adds a note to a live matter the caller can
@@ -14,7 +14,8 @@ import { liveMatter, matterPath } from '../matters/shared';
  * author) gets a `mention` notification. `privileged` needs `privileged.view` (PERMISSION_DENIED,
  * `details.reason: 'privileged_requires_lawyer'`); a note on a privileged matter is always
  * privileged, and members who can't open it are returned as `unreachable` instead of notified.
- * Audited as `note.created` (no note text).
+ * Audited as `note.created` (no note text). An archived matter (CORE-19) is read-only except for
+ * notes added by a lawyer or above (`matter.close` roles), which the audit entry marks `archived`.
  */
 export const createDefinition = {
   name: 'notes-create',
@@ -32,6 +33,8 @@ export const createDefinition = {
 
     const outcome = await db.runTransaction(async (tx) => {
       const matter = liveMatter(await tx.get(matterRef), role, input.matterId);
+      const archived = matter['status'] === 'archived';
+      if (archived && !can(role, 'matter.close')) throw archivedError(input.matterId);
       const privileged = input.privileged || matter['privileged'] === true;
       const people = await readPeople(tx, db, orgId, [uid, ...parseMentions(input.bodyMd).uids]);
       const mentions = noteMentions(input.bodyMd, people);
@@ -62,7 +65,7 @@ export const createDefinition = {
         after: mentions.uids,
         people,
       });
-      return { ...sent, privileged, mentioned: mentions.uids.length };
+      return { ...sent, privileged, archived, mentioned: mentions.uids.length };
     });
     await outcome.dispatch();
 
@@ -75,6 +78,7 @@ export const createDefinition = {
         data: {
           privileged: outcome.privileged,
           pinned: input.pinned,
+          ...(outcome.archived ? { archived: true } : {}),
           mentioned: outcome.mentioned,
           notified: outcome.notified.length,
         },

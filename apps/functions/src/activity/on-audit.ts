@@ -82,7 +82,8 @@ export async function projectActivity(change: TriggerChange, ctx: TriggerContext
     return 'skipped';
   }
   const matter = (await ctx.db.doc(matterPath(orgId, matterId)).get()).data();
-  if (!matter) return 'skipped';
+  // A destroyed matter (CORE-19) has no activity feed: its records are gone, the audit stays.
+  if (!matter || matter['destroyedAt']) return 'skipped';
   const facts = await factsFor(ctx, orgId, entry, matter, new Set(rule.needs ?? []));
   const mapped = rule.map(entry, facts);
   if (!mapped) {

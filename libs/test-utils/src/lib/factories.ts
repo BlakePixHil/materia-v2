@@ -786,6 +786,40 @@ export const makeIntakeDraft = (o: Partial<D.IntakeDraft> = {}) =>
     o,
   );
 
+export const makeDestructionRequest = (o: Partial<D.DestructionRequest> = {}) =>
+  build(
+    D.DestructionRequest,
+    {
+      matterId: TEST_MATTER_ID,
+      number: 'M-2018-0001',
+      type: 'probate',
+      closedAt: FIXED_INSTANT,
+      destroyAfter: d('2025-10-01'),
+      status: 'pending',
+      queuedAt: FIXED_INSTANT,
+    },
+    o,
+  );
+
+export const makeDestructionCertificate = (o: Partial<D.DestructionCertificate> = {}) =>
+  build(
+    D.DestructionCertificate,
+    {
+      matterId: TEST_MATTER_ID,
+      number: 'M-2018-0001',
+      type: 'probate',
+      closedAt: FIXED_INSTANT,
+      destroyAfter: d('2025-10-01'),
+      approvedBy: TEST_UID,
+      approvedAt: FIXED_INSTANT,
+      destroyedAt: FIXED_INSTANT,
+      counts: { files: 2, documents: 1, records: 12 },
+      storagePath: 'orgs/org-test-1/certificates/dc-matter-test-1.pdf',
+      sha256: 'a'.repeat(64),
+    },
+    o,
+  );
+
 export const makeRecentMatter = (o: Partial<D.RecentMatter> = {}) =>
   build(
     D.RecentMatter,
@@ -853,4 +887,6 @@ export const ENTITY_FACTORIES = {
   ConflictCheck: [D.ConflictCheck, makeConflictCheck],
   IntakeDraft: [D.IntakeDraft, makeIntakeDraft],
   RecentMatter: [D.RecentMatter, makeRecentMatter],
+  DestructionRequest: [D.DestructionRequest, makeDestructionRequest],
+  DestructionCertificate: [D.DestructionCertificate, makeDestructionCertificate],
 } as const;
