@@ -12,8 +12,6 @@ export interface MatterNameDialogData {
   description?: string;
   initial?: string;
   maxLength?: number;
-  /** The field may be left empty (closes with ''), to clear a value. */
-  optional?: boolean;
   /**
    * Runs on confirm; a message it returns (or throws) shows under the field and keeps the dialog
    * open. The dialog closes with the name when it resolves without one.
@@ -35,7 +33,7 @@ export interface MatterNameDialogData {
         <mt-text-field
           name="name"
           [label]="data.label"
-          [required]="!data.optional"
+          [required]="true"
           [error]="error() ?? undefined"
           [ngModel]="name()"
           (ngModelChange)="name.set($event ?? ''); error.set(null)"
@@ -64,10 +62,6 @@ export class MatterNameDialog {
   protected async save(): Promise<void> {
     const name = this.name().trim();
     const max = this.data.maxLength ?? 60;
-    if (!name && this.data.optional) {
-      this.close('');
-      return;
-    }
     if (!name) {
       this.error.set(`Enter a ${this.data.label.toLowerCase()}.`);
       return;

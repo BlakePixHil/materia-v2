@@ -61,6 +61,8 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   priority: matter.priority,
   labels: matter.labels,
   externalRef: matter.externalRef,
+  /** Read as any string: the UI links it only when `isMatterLink` (a bad value never hides the matter). */
+  externalUrl: z.string().optional(),
   conflictCheck: matter.conflictCheck.optional(),
   conflictAlert: ConflictAlertSchema.nullable().optional(),
   openTaskCount: matter.openTaskCount,

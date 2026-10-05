@@ -2,8 +2,8 @@ import { ADMIN, cleanUpOverlays, MATTER, openMatter, ORG, PARALEGAL, type FakeCa
 import { NumberingPage } from '../numbering/numbering-page';
 
 /**
- * Matter numbering (CORE-21a): changing a matter's number, its reference in the firm's other
- * system (3E) with the org's link template, and the Settings → Matter numbering page. Fictional data only.
+ * Matter numbering (CORE-21a): changing a matter's number, linking it to a web address (the same
+ * matter in 3E, say), and the Settings → Matter numbering page. Fictional data only.
  */
 
 afterEach(cleanUpOverlays);
@@ -36,43 +36,67 @@ describe('changing a matter number', () => {
     const page = await openMatter('/matters/m-whitfield/overview', { session: PARALEGAL });
     await page.click('More matter actions');
     expect(page.buttons('Change matter number…')).toHaveLength(0);
-    expect(page.buttons('Add 3E matter…')).toHaveLength(1);
+    expect(page.buttons('Add link…')).toHaveLength(1);
   });
 });
 
-describe('the 3E matter reference', () => {
-  it('links to the firm’s system through the org’s template', async () => {
-    const page = await openMatter('/matters/m-whitfield/overview', {
-      matter: { externalRef: '104233/1' },
-      configure: (fs) =>
-        fs.set(`orgs/${ORG}`, {
-          name: 'Harbour & Vine Legal',
-          externalSystem: { name: '3E', urlTemplate: 'https://3e.harbourvine.example/matter/{ref}' },
-        }),
-    });
-    const link = page.header()?.querySelector<HTMLAnchorElement>('a.ext');
-    expect(link?.getAttribute('href')).toBe('https://3e.harbourvine.example/matter/104233%2F1');
+describe('the matter link', () => {
+  const LINK = 'https://3e.harbourvine.example/matter/104233';
+
+  it('is added from the "…" menu and turns the number into a link', async () => {
+    const page = await openMatter();
+    expect(page.header()?.querySelector('a.num')).toBeNull();
+    await page.click('More matter actions');
+    expect(page.buttons('Add 3E matter…')).toHaveLength(0);
+    await page.click('Add link…');
+    await page.fill('Web address', 'not a link');
+    await page.submit(page.dialog());
+    expect(page.text(page.dialog())).toContain('Enter a web address');
+    await page.fill('Web address', '3e.harbourvine.example/matter/104233');
+    await page.submit(page.dialog());
+    expect(page.dialog()).toBeNull();
+    expect(page.firestore.get(MATTER)).toMatchObject({ externalUrl: LINK });
+
+    const link = page.header()?.querySelector<HTMLAnchorElement>('a.num');
+    expect(link?.getAttribute('href')).toBe(LINK);
     expect(link?.getAttribute('target')).toBe('_blank');
     expect(link?.getAttribute('rel')).toContain('noopener');
-    expect(link?.textContent?.replace(/\s+/g, ' ').trim()).toBe('3E 104233/1');
+    // The label is the matter number with a link icon, not the address.
+    expect(link?.textContent?.replace(/\s+/g, ' ').trim()).toBe('M-2026-0142');
+    expect(link?.querySelector('mt-icon')).not.toBeNull();
   });
 
-  it('is plain text without a template, and can be added and removed', async () => {
-    const page = await openMatter();
+  it('can be edited and removed', async () => {
+    const page = await openMatter('/matters/m-whitfield/overview', { matter: { externalUrl: LINK } });
     await page.click('More matter actions');
-    await page.click('Add 3E matter…');
-    await page.fill('3E matter number', '104233');
+    await page.click('Edit link…');
+    await page.fill('Web address', 'https://3e.harbourvine.example/matter/9');
     await page.submit(page.dialog());
-    expect(page.firestore.get(MATTER)).toMatchObject({ externalRef: '104233' });
-    expect(page.header()?.querySelector('a.ext')).toBeNull();
-    expect(page.text(page.header()?.querySelector('.ext'))).toBe('3E 104233');
+    expect(page.firestore.get(MATTER)).toMatchObject({ externalUrl: 'https://3e.harbourvine.example/matter/9' });
+    await page.click('More matter actions');
+    await page.click('Remove link');
+    expect(page.firestore.get(MATTER)?.['externalUrl']).toBeUndefined();
+    expect(page.header()?.querySelector('a.num')).toBeNull();
+  });
 
-    await page.click('More matter actions');
-    await page.click('Change 3E matter…');
-    await page.fill('3E matter number', '');
-    await page.submit(page.dialog());
-    expect(page.firestore.get(MATTER)?.['externalRef']).toBeUndefined();
-    expect(page.header()?.querySelector('.ext')).toBeNull();
+  it('is never rendered for a non-http address', async () => {
+    const page = await openMatter('/matters/m-whitfield/overview', { matter: { externalUrl: 'javascript:alert(1)' } });
+    expect(page.text(page.header())).toContain('M-2026-0142');
+    expect(page.header()?.querySelector('a.num')).toBeNull();
+  });
+
+  it('shows on the matters list as the underlined number', async () => {
+    // The list orders by last activity (matters-denormalise keeps it).
+    const page = await openMatter('/matters', {
+      matter: { externalUrl: LINK, lastActivityAt: new Date('2026-10-03T00:00:00Z') },
+    });
+    const link = page.body.querySelector<HTMLAnchorElement>('a.mt-matters-link');
+    expect(link?.getAttribute('href')).toBe(LINK);
+    expect(link?.textContent?.trim()).toBe('M-2026-0142');
+    link?.click();
+    await page.stable();
+    // Following the link doesn't also open the matter in the app.
+    expect(page.router.url).toBe('/matters');
   });
 });
 
@@ -84,7 +108,7 @@ describe('Settings → Matter numbering', () => {
         fs.set(`orgs/${ORG}`, { name: 'Harbour & Vine Legal', matterNumberFormat: 'M-{YYYY}-{seq:4}' }),
     });
 
-  it('previews the format and saves it with type codes and the 3E link template', async () => {
+  it('previews the format and saves it with type codes', async () => {
     const page = await open();
     expect(page.body.querySelector('mt-numbering-page')).not.toBeNull();
     await page.fill('Format', '{TYPE}{YY}-{seq:3}');
@@ -92,22 +116,17 @@ describe('Settings → Matter numbering', () => {
     expect(page.text(page.body.querySelector('[data-preview]'))).toContain(`PRB${year}-001`);
     await page.fill('Probate', 'EST');
     expect(page.text(page.body.querySelector('[data-preview]'))).toContain(`EST${year}-001`);
-    await page.fill('Link template', 'https://3e.harbourvine.example/matter/{ref}');
     await page.click('Save');
     expect(page.firestore.get(`orgs/${ORG}`)).toMatchObject({
       matterNumberFormat: '{TYPE}{YY}-{seq:3}',
       matterTypeCodes: { probate: 'EST' },
-      externalSystem: { name: '3E', urlTemplate: 'https://3e.harbourvine.example/matter/{ref}' },
     });
   });
 
-  it('refuses a format without {seq} and a link that isn’t https with {ref}', async () => {
+  it('refuses a format without {seq}', async () => {
     const page = await open();
     await page.fill('Format', 'M-{YYYY}');
     expect(page.text(page.body.querySelector('mt-numbering-page'))).toContain('Include {seq}');
-    await page.fill('Format', 'M-{seq}');
-    await page.fill('Link template', 'javascript:alert({ref})');
-    expect(page.text(page.body.querySelector('mt-numbering-page'))).toContain('https://');
     const save = page.buttons('Save')[0] as HTMLButtonElement;
     expect(save.disabled || save.getAttribute('aria-disabled') === 'true').toBe(true);
   });

@@ -10,7 +10,7 @@ Types used below: `DateOnly` = `YYYY-MM-DD`; `Cents` = integer AUD cents; `Minut
 
 | Path | Purpose | Key fields |
 |---|---|---|
-| `orgs/{orgId}` | Firm | `name`, `abn`, `acn?`, `practiceType`, `jurisdictions: ('NSW'\|'VIC'\|'QLD'\|'WA'\|'SA'\|'TAS'\|'ACT'\|'NT')[]`, `primaryJurisdiction`, `timezone` (default `Australia/Melbourne`), `holidayLocality` (e.g. `VIC_GREATER_GEELONG`), `billing: {unitMinutes:6, rounding:'up'\|'nearest', gstRegistered, defaultRateCents, invoicePrefix, paymentTermsDays}`, `matterNumberFormat` (e.g. `M-{YYYY}-{seq:4}`; tokens `{YYYY}`, `{YY}`, `{TYPE}`, `{seq}`/`{seq:N}`), `matterTypeCodes?` (`{TYPE}` overrides per matter type, CORE-21a), `externalSystem?: {name, urlTemplate?}` (the firm's other system, e.g. 3E; `{ref}` in the https template becomes the matter's `externalRef`, CORE-21a), `fy: {startMonth:7}`, `retentionYears` (default 7), `plan`, `security: {mfaRequired, sessionIdleMinutes}` |
+| `orgs/{orgId}` | Firm | `name`, `abn`, `acn?`, `practiceType`, `jurisdictions: ('NSW'\|'VIC'\|'QLD'\|'WA'\|'SA'\|'TAS'\|'ACT'\|'NT')[]`, `primaryJurisdiction`, `timezone` (default `Australia/Melbourne`), `holidayLocality` (e.g. `VIC_GREATER_GEELONG`), `billing: {unitMinutes:6, rounding:'up'\|'nearest', gstRegistered, defaultRateCents, invoicePrefix, paymentTermsDays}`, `matterNumberFormat` (e.g. `M-{YYYY}-{seq:4}`; tokens `{YYYY}`, `{YY}`, `{TYPE}`, `{seq}`/`{seq:N}`), `matterTypeCodes?` (`{TYPE}` overrides per matter type, CORE-21a), `fy: {startMonth:7}`, `retentionYears` (default 7), `plan`, `security: {mfaRequired, sessionIdleMinutes}` |
 | `orgs/{orgId}/members/{uid}` | Membership | `role: 'owner'\|'admin'\|'lawyer'\|'paralegal'\|'readonly'`, `status: 'active'\|'suspended'\|'removed'` (both server-owned: only the orgs callables change them), `email` (lower-case, to tell apart same names), `displayName`, `initials`, `title`, `admissionNo?`, `defaultRateCents`, `colour`, `budgets: {[fyStartYear]: Cents}`, `supervisorUid?` |
 | `orgs/{orgId}/invites/{inviteId}` | Pending invites | `email` (lower-case), `role`, `tokenHash`, `expiresAt`, `status: 'pending'\|'accepted'\|'revoked'\|'expired'`, `invitedBy`, `acceptedBy?`, `acceptedAt?`. The token is sent in the link and only its SHA-256 is stored |
 | `orgs/{orgId}/members/{uid}/tasks/{taskId}` | Personal tasks not tied to a matter (the legacy dashboard checklist). Same shape as matter tasks, with `matterId: null` and `assigneeUid` always the owner; only the owner reads or writes them (CORE-08) |
@@ -60,7 +60,7 @@ Functions (CORE-01): `contacts-create` (`contact.edit`; creates are callable-onl
 
 **Housekeeping and denormalised fields**
 - `privileged: bool`, `priority: 'none'|'urgent'|'high'|'medium'|'low'`.
-- `externalRef?` (the matter's number in another system, e.g. 3E; linked through `org.externalSystem.urlTemplate`), `boardOrder?: number`.
+- `externalRef?` (the matter's number in another system), `externalUrl?` (a link to the matter elsewhere, e.g. 3E: an absolute http(s) URL, client-updatable, CORE-21a), `boardOrder?: number`.
 - `labels[]`, `relatedMatterIds[]`.
 - `closedAt?`, `closeReason?`, `destroyAfter?: DateOnly`.
 - `search[]`.

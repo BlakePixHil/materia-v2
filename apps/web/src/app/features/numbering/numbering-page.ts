@@ -4,12 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { OrgContext } from '@materia/data-access';
 import { orgSettingsRepository } from '@materia/data-access/repository';
 import {
-  DEFAULT_EXTERNAL_SYSTEM_NAME,
   DEFAULT_MATTER_NUMBER_FORMAT,
   DEFAULT_MATTER_TYPE_CODES,
-  externalRefUrl,
   formatMatterNumber,
-  isExternalUrlTemplate,
   matterNumberFormatProblem,
   MatterTypeCodeSchema,
   MatterTypeSchema,
@@ -27,8 +24,7 @@ const emptyCodes = (): Codes => Object.fromEntries(TYPES.map((type) => [type, ''
 
 /**
  * Settings → Matter numbering (`/settings/numbering`, CORE-21a; owners and admins): the practice's
- * number format with a live preview, the `{TYPE}` code of each matter type, and the firm's other
- * system (Elite 3E, say) with an optional link template. Saved client-direct on `orgs/{orgId}`
+ * number format with a live preview and the `{TYPE}` code of each matter type. Saved client-direct on `orgs/{orgId}`
  * (the rules allow `org.settings` roles; the audit trigger records it). A new format applies to
  * new matters only; existing numbers change one at a time from the matter's "…" menu.
  */
@@ -40,8 +36,8 @@ const emptyCodes = (): Codes => Object.fromEntries(TYPES.map((type) => [type, ''
   template: `
     <h1 class="title-l" style="margin: 0">Matter numbering</h1>
     <p style="margin: 0; color: var(--text-secondary)">
-      How new matters are numbered, and where the firm keeps the same matter in another system. To change an existing
-      matter’s number, use “Change matter number” in the matter’s “…” menu.
+      How new matters are numbered. To change an existing matter’s number or link it to another system, use the matter’s
+      “…” menu.
     </p>
 
     @switch (org.status()) {
@@ -94,35 +90,6 @@ const emptyCodes = (): Codes => Object.fromEntries(TYPES.map((type) => [type, ''
         </div>
       </mt-settings-section>
 
-      <mt-settings-section
-        title="Practice management system"
-        description="The system the firm also records matters in. Each matter can hold its number there, and the matter screen links to it when you add a link template."
-        [headingLevel]="2"
-      >
-        <mt-text-field
-          name="systemName"
-          label="System name"
-          [placeholder]="defaultSystem"
-          [error]="systemNameProblem() ?? undefined"
-          [ngModel]="systemName()"
-          (ngModelChange)="systemName.set($event ?? '')"
-        />
-        <mt-text-field
-          name="urlTemplate"
-          label="Link template"
-          placeholder="https://3e.yourfirm.com.au/matter/{ref}"
-          description="Optional. {ref} is replaced with the matter’s number in that system."
-          [error]="urlProblem() ?? undefined"
-          [ngModel]="urlTemplate()"
-          (ngModelChange)="urlTemplate.set($event ?? '')"
-        />
-        @if (urlPreview(); as url) {
-          <p class="caption" style="margin: 0; color: var(--text-secondary)">
-            Example link: <span class="mono">{{ url }}</span>
-          </p>
-        }
-      </mt-settings-section>
-
       <div class="mt-row" style="gap: 8px">
         <button mtButton variant="primary" type="submit" [loading]="saving()" [disabled]="!ready()">Save</button>
         <button mtButton variant="ghost" type="button" [disabled]="!dirty()" (click)="reset()">Discard changes</button>
@@ -150,12 +117,9 @@ export class NumberingPage {
   protected readonly types = TYPES;
   protected readonly defaultCodes = DEFAULT_MATTER_TYPE_CODES;
   protected readonly defaultFormat = DEFAULT_MATTER_NUMBER_FORMAT;
-  protected readonly defaultSystem = DEFAULT_EXTERNAL_SYSTEM_NAME;
 
   protected readonly format = signal('');
   protected readonly codes = signal<Codes>(emptyCodes());
-  protected readonly systemName = signal('');
-  protected readonly urlTemplate = signal('');
   protected readonly saving = signal(false);
   private readonly loaded = signal<string | null>(null);
 
@@ -172,25 +136,7 @@ export class NumberingPage {
     }
     return problems;
   });
-  protected readonly systemNameProblem = computed(() =>
-    this.systemName().trim().length > 30 ? 'Keep it to 30 characters or fewer.' : null,
-  );
-  protected readonly urlProblem = computed(() => {
-    const value = this.urlTemplate().trim();
-    if (!value) return null;
-    if (value.length > 500) return 'Keep it to 500 characters or fewer.';
-    return isExternalUrlTemplate(value) ? null : 'Use a web address starting https:// that contains {ref}.';
-  });
-  protected readonly urlPreview = computed(() =>
-    this.urlProblem() ? null : externalRefUrl(this.urlTemplate(), '104233'),
-  );
-  private readonly valid = computed(
-    () =>
-      !this.formatProblem() &&
-      !Object.keys(this.codeProblems()).length &&
-      !this.systemNameProblem() &&
-      !this.urlProblem(),
-  );
+  private readonly valid = computed(() => !this.formatProblem() && !Object.keys(this.codeProblems()).length);
   protected readonly dirty = computed(() => this.loaded() !== null && this.loaded() !== JSON.stringify(this.patch()));
   protected readonly ready = computed(() => this.dirty() && this.valid() && !this.saving());
   protected readonly loadError = computed(() => {
@@ -207,8 +153,6 @@ export class NumberingPage {
         if (this.dirty()) return;
         this.format.set(org.matterNumberFormat || DEFAULT_MATTER_NUMBER_FORMAT);
         this.codes.set({ ...emptyCodes(), ...(org.matterTypeCodes ?? {}) } as Codes);
-        this.systemName.set(org.externalSystem?.name ?? '');
-        this.urlTemplate.set(org.externalSystem?.urlTemplate ?? '');
         this.loaded.set(JSON.stringify(this.patch()));
       });
     });
@@ -232,14 +176,9 @@ export class NumberingPage {
     const codes = Object.fromEntries(
       TYPES.map((type) => [type, this.codes()[type].trim()] as const).filter(([, value]) => !!value),
     );
-    const name = this.systemName().trim();
-    const urlTemplate = this.urlTemplate().trim();
     return {
       matterNumberFormat: this.format().trim(),
       ...(Object.keys(codes).length ? { matterTypeCodes: codes } : {}),
-      ...(name || urlTemplate
-        ? { externalSystem: { name: name || DEFAULT_EXTERNAL_SYSTEM_NAME, ...(urlTemplate ? { urlTemplate } : {}) } }
-        : {}),
     };
   }
 
@@ -248,8 +187,6 @@ export class NumberingPage {
     const org = this.org.value();
     this.format.set(org?.matterNumberFormat || DEFAULT_MATTER_NUMBER_FORMAT);
     this.codes.set({ ...emptyCodes(), ...(org?.matterTypeCodes ?? {}) } as Codes);
-    this.systemName.set(org?.externalSystem?.name ?? '');
-    this.urlTemplate.set(org?.externalSystem?.urlTemplate ?? '');
     this.loaded.set(JSON.stringify(this.patch()));
   }
 
@@ -257,7 +194,7 @@ export class NumberingPage {
     const orgId = this.context.orgId();
     if (!orgId || !this.ready()) return;
     const patch = this.patch();
-    const remove = (['matterTypeCodes', 'externalSystem'] as const).filter((field) => !(field in patch));
+    const remove = (['matterTypeCodes'] as const).filter((field) => !(field in patch));
     this.saving.set(true);
     try {
       await this.repo.update(orgId, patch, { remove });

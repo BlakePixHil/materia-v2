@@ -8,14 +8,13 @@ const org = Org.schema.shape;
 
 /**
  * What the matter numbering settings and the matter screen read from `orgs/{orgId}` (CORE-21a):
- * the number format, the `{TYPE}` codes and the firm's other system (its name and link template).
+ * the number format and the `{TYPE}` codes.
  * Other org fields are dropped, not rejected.
  */
 export const OrgNumberingSchema = /* @__PURE__ */ z.object({
   name: org.name,
   matterNumberFormat: org.matterNumberFormat,
   matterTypeCodes: org.matterTypeCodes,
-  externalSystem: org.externalSystem,
 });
 export type OrgNumbering = z.infer<typeof OrgNumberingSchema>;
 
