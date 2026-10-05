@@ -166,6 +166,24 @@ resource "google_project_iam_member" "gcs_eventarc_publisher" {
   member  = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
 }
 
+# firebase-tools reads the files bucket's location when it deploys the documents-onUpload Storage
+# trigger ("Can't find the storage bucket region" otherwise). No predefined role holds only
+# storage.buckets.get, so this custom role grants just that, on the files bucket only.
+resource "google_project_iam_custom_role" "deployer_bucket_reader" {
+  project     = google_project.this.project_id
+  role_id     = "deployerBucketReader"
+  title       = "Deployer: read bucket metadata"
+  description = "Lets the deployer read the files bucket's location when deploying Storage-triggered functions."
+  permissions = ["storage.buckets.get"]
+  depends_on  = [time_sleep.services_ready]
+}
+
+resource "google_storage_bucket_iam_member" "deployer_files_bucket_reader" {
+  bucket = google_storage_bucket.default.name
+  role   = google_project_iam_custom_role.deployer_bucket_reader.id
+  member = "serviceAccount:${google_service_account.deployer.email}"
+}
+
 resource "google_storage_bucket_iam_member" "fn_runtime_files" {
   bucket = google_storage_bucket.default.name
   role   = "roles/storage.objectAdmin"
