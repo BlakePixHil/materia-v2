@@ -74,7 +74,7 @@ function businessDaysBefore(cal: ReminderCalendar, date: DateOnly, count: number
   } catch (error) {
     if (!(error instanceof DeadlineEngineError)) throw error;
     let current = date;
-    for (let left = count; left > 0; ) {
+    for (let left = count; left > 0;) {
       current = addDays(current, -1);
       if (weekday(current) < 6) left -= 1;
     }
@@ -115,7 +115,12 @@ export function reminderSlots(
   return reminderOffsets(deadline).map((offsetDays) => {
     const date = businessDayOnOrBefore(cal, addDays(deadline.dueDate, -offsetDays));
     const sentAt = sent.get(offsetDays);
-    return { offsetDays, date, at: instantAt(date, REMINDER_MINUTE_OF_DAY, cal.timeZone), ...(sentAt ? { sentAt } : {}) };
+    return {
+      offsetDays,
+      date,
+      at: instantAt(date, REMINDER_MINUTE_OF_DAY, cal.timeZone),
+      ...(sentAt ? { sentAt } : {}),
+    };
   });
 }
 

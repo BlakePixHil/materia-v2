@@ -60,9 +60,15 @@ export async function onDeadlineWrite(ctx: TriggerContext, change?: TriggerChang
   const before = change?.before?.data();
   const after = change?.after?.data();
   if (change?.after?.exists && scheduleChanged(before, after)) {
-    const scheduled = await scheduleDeadline(ctx.db, change.after.ref, await reminderCalendar(ctx.db, orgId), (await orgClock(ctx.db, orgId, ctx.clock)).now(), {
-      dateMoved: !!before && before['dueDate'] !== after?.['dueDate'],
-    });
+    const scheduled = await scheduleDeadline(
+      ctx.db,
+      change.after.ref,
+      await reminderCalendar(ctx.db, orgId),
+      (await orgClock(ctx.db, orgId, ctx.clock)).now(),
+      {
+        dateMoved: !!before && before['dueDate'] !== after?.['dueDate'],
+      },
+    );
     ctx.log.info('reminders scheduled', {
       matterId,
       deadlineId: ctx.params['deadlineId'],

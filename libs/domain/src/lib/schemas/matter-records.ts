@@ -112,7 +112,15 @@ export const Task = withMeta(
   {
     path: `${MATTER}/tasks`,
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor', 'templateTaskKey', 'duePending', 'countedOpen'],
+    serverOwned: [
+      'orgId',
+      'matterId',
+      'completedAt',
+      'reminderSentFor',
+      'templateTaskKey',
+      'duePending',
+      'countedOpen',
+    ],
     updatable: TASK_UPDATABLE,
   },
 );

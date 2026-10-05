@@ -1,9 +1,4 @@
-import {
-  AcknowledgeDeadlineInput,
-  DomainError,
-  PERMISSIONS,
-  type AcknowledgeDeadlineResult,
-} from '@materia/domain';
+import { AcknowledgeDeadlineInput, DomainError, PERMISSIONS, type AcknowledgeDeadlineResult } from '@materia/domain';
 
 import { deadlinesPath } from './shared';
 import { audit } from '../audit/audit';

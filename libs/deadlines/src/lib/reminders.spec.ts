@@ -26,9 +26,9 @@ describe('reminderOffsets', () => {
   });
 
   it('uses the deadline’s own offsets, largest first, without repeats', () => {
-    expect(reminderOffsets({ critical: true, reminders: [{ offsetDays: 2 }, { offsetDays: 10 }, { offsetDays: 2 }] })).toEqual([
-      10, 2,
-    ]);
+    expect(
+      reminderOffsets({ critical: true, reminders: [{ offsetDays: 2 }, { offsetDays: 10 }, { offsetDays: 2 }] }),
+    ).toEqual([10, 2]);
   });
 });
 
@@ -48,7 +48,10 @@ describe('instantAt', () => {
 describe('reminderSlots', () => {
   it('moves reminders on weekends and public holidays to the previous business day', () => {
     // Due Thursday 2026-11-05: 2 days before is Tuesday 3 November (Melbourne Cup), so Monday.
-    const slots = reminderSlots({ dueDate: d('2026-11-05'), critical: false, reminders: [{ offsetDays: 2 }, { offsetDays: 4 }] }, cal);
+    const slots = reminderSlots(
+      { dueDate: d('2026-11-05'), critical: false, reminders: [{ offsetDays: 2 }, { offsetDays: 4 }] },
+      cal,
+    );
     expect(slots.map((s) => [s.offsetDays, s.date])).toEqual([
       [4, '2026-10-30'], // Sunday 1 November → Friday
       [2, '2026-11-02'],
@@ -76,7 +79,10 @@ describe('reminderSlots', () => {
 
   it('keeps sent reminders sent', () => {
     const sentAt = new Date('2026-10-05T00:00:00Z');
-    const slots = reminderSlots({ dueDate: d('2026-11-04'), critical: false, reminders: [{ offsetDays: 7, sentAt }] }, cal);
+    const slots = reminderSlots(
+      { dueDate: d('2026-11-04'), critical: false, reminders: [{ offsetDays: 7, sentAt }] },
+      cal,
+    );
     expect(slots.find((s) => s.offsetDays === 7)?.sentAt).toBe(sentAt);
   });
 });
@@ -87,7 +93,9 @@ describe('nextReminderAt and dueReminder', () => {
   it('schedules only reminders still ahead: a deadline created 5 days out gets the 3- and 1-day ones', () => {
     const slots = reminderSlots(deadline, cal);
     const created = new Date('2026-12-05T01:00:00Z');
-    expect(nextReminderAt(slots, created)?.toISOString()).toBe(instantAt(d('2026-12-07'), 480, cal.timeZone).toISOString());
+    expect(nextReminderAt(slots, created)?.toISOString()).toBe(
+      instantAt(d('2026-12-07'), 480, cal.timeZone).toISOString(),
+    );
   });
 
   it('is undefined when every reminder is sent or past', () => {
