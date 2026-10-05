@@ -7,7 +7,7 @@ import { PENDING_UPLOAD_PATH, PENDING_UPLOAD_TTL_MS } from '@materia/domain';
 
 import { filesBucket, storageFiles, type FileStore } from './files';
 import { expirePendingUploads, processUpload, type PipelineDeps, type RescanTask, type UploadResult } from './pipeline';
-import { startRenditions } from './renditions';
+import { RENDER_QUEUE, renderPreview, RenderTaskSchema, startRenditions } from './renditions';
 import { REGION } from '../config';
 import { adminDb } from '../core/admin';
 import { createLog, type Log } from '../core/log';
@@ -144,3 +144,21 @@ export const sweepPending = onSchedule(
     log.info('ok', { expired });
   },
 );
+
+/**
+ * `documents-render` (CORE-12a, Cloud Tasks): builds one version's Office or HEIC preview with the
+ * preview service. Retried with backoff while the service is down or cold; a file that can't be
+ * converted ends the chain.
+ */
+export const render = defineQueue({
+  name: RENDER_QUEUE,
+  input: RenderTaskSchema,
+  retry: { maxAttempts: 5, minBackoffSeconds: 30, maxBackoffSeconds: 600 },
+  rateLimits: { maxConcurrentDispatches: 5 },
+  timeoutSeconds: 300,
+  memory: '1GiB',
+  handler: async (task, { log, db, ports: p }) => {
+    const outcome = await renderPreview(task, { db, files: storageFiles(), ports: p, log, clock: systemClock });
+    log.info('rendered', { outcome, docId: task.docId, version: task.version });
+  },
+});

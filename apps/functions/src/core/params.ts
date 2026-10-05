@@ -11,3 +11,11 @@
 export function clamavScanUrl(env: NodeJS.ProcessEnv = process.env): string {
   return env['CLAMAV_SCAN_URL']?.trim() ?? '';
 }
+
+/**
+ * The preview service's base URL (CORE-12a, ADR-028): Office → PDF and HEIC → JPEG. Unset until
+ * the service is deployed: those files then have no preview ("download instead").
+ */
+export function previewServiceUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return env['PREVIEW_SERVICE_URL']?.trim() ?? '';
+}

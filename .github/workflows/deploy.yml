@@ -1,9 +1,9 @@
 # Reusable deploy (FND-05), called by deploy-dev.yml and deploy-prod.yml. It deploys a release
-# artifact built once by deploy-dev.yml (no rebuild; only the jobs image is assembled here from the
-# release's bundle), in a fixed order, then runs the @smoke Playwright tests against the deployed
-# site. Order: Firestore indexes → rules (Firestore and Storage) → Cloud Run jobs → functions
-# (codebase `core`) → hosting. A failure stops the run loudly; nothing is retried automatically
-# (docs/runbooks/deploy.md covers partial deploys).
+# artifact built once by deploy-dev.yml (no rebuild; only the jobs and services images are assembled
+# here from the release's bundles), in a fixed order, then runs the @smoke Playwright tests against
+# the deployed site. Order: Firestore indexes → rules (Firestore and Storage) → Cloud Run jobs →
+# Cloud Run services (ClamAV, previews) → functions (codebase `core`) → hosting. A failure stops the
+# run loudly; nothing is retried automatically (docs/runbooks/deploy.md covers partial deploys).
 #
 # Settings come from variables named <NAME>_<DEV|PROD> (repository or environment variables):
 # GCP_PROJECT_*, GCP_WIF_PROVIDER_* and GCP_DEPLOYER_SA_*. No JSON keys anywhere.
@@ -94,11 +94,12 @@ jobs:
             echo "::error::The artifact has no $WEB_DIR bundle. For web-prod, set FIREBASE_WEB_CONFIG_PROD and re-run deploy-dev for this commit."
             exit 1
           fi
-          rm -rf dist/apps/web/browser dist/apps/functions dist/apps/jobs
+          rm -rf dist/apps/web/browser dist/apps/functions dist/apps/jobs dist/apps/doc-services
           mkdir -p dist/apps/web
           mv "dist/release/$WEB_DIR" dist/apps/web/browser
           mv dist/release/functions dist/apps/functions
           if [ -d dist/release/jobs ]; then mv dist/release/jobs dist/apps/jobs; fi
+          if [ -d dist/release/doc-services ]; then mv dist/release/doc-services dist/apps/doc-services; fi
           echo "VERSION=$(node -p 'require("./dist/release/release.json").version')" >> "$GITHUB_ENV"
 
       - name: Authenticate to Google Cloud (Workload Identity Federation, no key)
@@ -146,6 +147,34 @@ jobs:
             --quiet
           echo "JOBS_IMAGE=$image" >> "$GITHUB_ENV"
 
+      # The ClamAV scan service and the Office/HEIC preview service (CORE-12a, ADR-028), private
+      # Cloud Run services the functions call with ID tokens. Images are built from the release's
+      # bundle into the `services` repository; the scanner's build pulls the day's signatures.
+      # Releases from before CORE-12a carry no bundle and skip this step.
+      - name: Deploy Cloud Run services
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          if [ ! -d dist/apps/doc-services ]; then
+            echo "::notice::This release has no document services bundle; services left as they are."
+            exit 0
+          fi
+          .github/scripts/deploy-doc-services.sh dist/apps/doc-services "$SHA" clamav preview
+
+      # Runtime configuration for the functions (apps/functions/src/core/params.ts), appended to the
+      # release's .env: the document services' URLs, read from the deployed services. A service
+      # that doesn't exist leaves its URL empty: uploads then stay "Scanning delayed" (fail closed)
+      # and Office/HEIC files have no preview.
+      - name: Point the functions at the document services
+        run: |
+          url() { gcloud run services describe "$1" --project "$PROJECT" --region "$REGION" --format 'value(status.url)' 2>/dev/null || true; }
+          clamav="$(url clamav)"
+          preview="$(url preview)"
+          printf 'CLAMAV_SCAN_URL=%s\nPREVIEW_SERVICE_URL=%s\n' "$clamav" "$preview" >> dist/apps/functions/.env
+          [ -n "$clamav" ] || echo "::warning::No clamav service in $PROJECT: uploads stay \"Scanning delayed\" (ADR-028)."
+          [ -n "$preview" ] || echo "::warning::No preview service in $PROJECT: Office and HEIC files have no preview."
+          echo "CLAMAV_SCAN_URL=$clamav" >> "$GITHUB_ENV"
+
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
       - name: Deploy functions (codebase core)
@@ -181,5 +210,6 @@ jobs:
             echo "- Commit: \`${{ inputs.sha }}\`"
             echo "- Site: https://$PROJECT.web.app/health"
             echo "- Jobs image: \`${JOBS_IMAGE:-unchanged}\`"
+            echo "- Scanner: ${CLAMAV_SCAN_URL:-not deployed}"
             echo "- Rollback: docs/runbooks/rollback.md"
           } >> "$GITHUB_STEP_SUMMARY"
