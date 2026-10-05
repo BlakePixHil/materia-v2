@@ -36,21 +36,44 @@ export const SCANNING_DELAYED_MESSAGE = 'Scanning delayed';
  * known part; `cfb` is the OLE compound file of legacy Office documents and Outlook `.msg`; `text`
  * is anything without binary bytes (plain text, CSV, `.eml`).
  */
+/**
+ * What the bytes are. `damaged_zip` has a zip signature but no readable directory: a corrupt
+ * archive or Office file, which is stored as uploaded (the matter keeps what the client sent).
+ */
 export type FileKind =
-  'pdf' | 'png' | 'jpeg' | 'webp' | 'heic' | 'zip' | 'docx' | 'xlsx' | 'pptx' | 'cfb' | 'text' | 'unknown';
+  | 'pdf'
+  | 'png'
+  | 'jpeg'
+  | 'webp'
+  | 'heic'
+  | 'zip'
+  | 'damaged_zip'
+  | 'docx'
+  | 'xlsx'
+  | 'pptx'
+  | 'cfb'
+  | 'text'
+  | 'unknown';
 
 /**
  * The upload allow-list (CORE-12): extension → the content type the client must upload with (the
  * Storage rules compare them) and the kinds of content accepted for it. A `.zip` may hold Office
- * Open XML, which is a zip too.
+ * Open XML, which is a zip too; a zip whose directory can't be read is accepted for both (corrupt
+ * files are stored, not refused).
  */
 export const UPLOAD_TYPES = {
   pdf: { mime: 'application/pdf', kinds: ['pdf'] },
-  docx: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', kinds: ['docx'] },
+  docx: {
+    mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    kinds: ['docx', 'damaged_zip'],
+  },
   doc: { mime: 'application/msword', kinds: ['cfb'] },
-  xlsx: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', kinds: ['xlsx'] },
+  xlsx: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', kinds: ['xlsx', 'damaged_zip'] },
   xls: { mime: 'application/vnd.ms-excel', kinds: ['cfb'] },
-  pptx: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', kinds: ['pptx'] },
+  pptx: {
+    mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    kinds: ['pptx', 'damaged_zip'],
+  },
   msg: { mime: 'application/vnd.ms-outlook', kinds: ['cfb'] },
   eml: { mime: 'message/rfc822', kinds: ['text'] },
   txt: { mime: 'text/plain', kinds: ['text'] },
@@ -60,7 +83,7 @@ export const UPLOAD_TYPES = {
   jpeg: { mime: 'image/jpeg', kinds: ['jpeg'] },
   heic: { mime: 'image/heic', kinds: ['heic'] },
   webp: { mime: 'image/webp', kinds: ['webp'] },
-  zip: { mime: 'application/zip', kinds: ['zip', 'docx', 'xlsx', 'pptx'] },
+  zip: { mime: 'application/zip', kinds: ['zip', 'damaged_zip', 'docx', 'xlsx', 'pptx'] },
 } as const satisfies Record<string, { mime: string; kinds: readonly FileKind[] }>;
 
 export type UploadExtension = keyof typeof UPLOAD_TYPES;
@@ -130,7 +153,8 @@ export function zipEntryNames(bytes: Uint8Array): string[] | null {
 /** Office Open XML by its parts, else a plain zip. */
 function zipKind(bytes: Uint8Array): FileKind {
   const names = zipEntryNames(bytes);
-  if (!names?.includes('[Content_Types].xml')) return 'zip';
+  if (!names) return 'damaged_zip';
+  if (!names.includes('[Content_Types].xml')) return 'zip';
   if (names.some((name) => name.startsWith('word/'))) return 'docx';
   if (names.some((name) => name.startsWith('xl/'))) return 'xlsx';
   if (names.some((name) => name.startsWith('ppt/'))) return 'pptx';

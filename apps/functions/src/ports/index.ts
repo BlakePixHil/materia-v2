@@ -111,9 +111,51 @@ export interface XeroPort {
   pushInvoice(orgId: string, invoiceId: string): Promise<{ xeroInvoiceId: string }>;
 }
 
-export type ScanVerdict = 'clean' | 'infected' | 'error';
+/** A file to scan (CORE-12): the quarantined object and its bytes, which the trigger already read. */
+export interface ScanRequest {
+  bucket: string;
+  path: string;
+  data: Uint8Array;
+}
+
+export interface ScanResult {
+  verdict: 'clean' | 'infected';
+  /** The scanner's signature name for an infected file (never file content). */
+  signature?: string;
+}
+
+/**
+ * The scanner timed out, is down or isn't configured: the upload stays quarantined, is shown as
+ * "Scanning delayed" and is retried with backoff (CORE-12). Never a verdict.
+ */
+export class ScannerUnavailableError extends Error {
+  constructor(readonly reason: 'timeout' | 'unavailable' | 'not_configured') {
+    super(`Malware scanner ${reason}`);
+    this.name = 'ScannerUnavailableError';
+  }
+}
+
+/** Malware scanning (CORE-12, ADR-028). The real adapter calls ClamAV over HTTP (`documents/clamav.ts`). */
 export interface MalwareScanPort {
-  scan(bucket: string, objectPath: string): Promise<ScanVerdict>;
+  /** Resolves with a verdict, or throws `ScannerUnavailableError`. Must honour `signal` (the trigger's timeout). */
+  scan(request: ScanRequest, signal?: AbortSignal): Promise<ScanResult>;
+}
+
+export interface SignedUrlRequest {
+  bucket: string;
+  path: string;
+  expiresAt: Date;
+  /** The `Content-Disposition` the download is served with (always `attachment`). */
+  disposition: string;
+  contentType: string;
+}
+
+/**
+ * Short-lived read URLs for Storage objects (CORE-12): V4 signed URLs in production (the runtime
+ * account signs as itself), a stand-in in the emulator, which can't sign.
+ */
+export interface SignedUrlPort {
+  sign(request: SignedUrlRequest): Promise<string>;
 }
 
 export interface TranscriptionPort {
@@ -139,6 +181,7 @@ export interface Ports {
   calendar: CalendarPort;
   xero: XeroPort;
   malwareScan: MalwareScanPort;
+  signedUrls: SignedUrlPort;
   transcription: TranscriptionPort;
   jobs: JobRunnerPort;
 }

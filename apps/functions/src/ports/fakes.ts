@@ -8,9 +8,12 @@ import type {
   MalwareScanPort,
   JobRunnerPort,
   Ports,
+  SignedUrlPort,
+  SignedUrlRequest,
   TranscriptionPort,
   XeroPort,
 } from './index';
+import { ScannerUnavailableError } from './index';
 import { FakeClerkModel } from '../clerk/providers/fake';
 
 /** A clock tests can set and advance. */
@@ -63,12 +66,38 @@ export const fakeXero: XeroPort = {
   },
 };
 
-/** Treats any object path containing "eicar" as infected (the standard test-virus name). */
+/**
+ * The EICAR anti-virus test string, which every scanner reports as infected (it is harmless).
+ * Built from two halves so this source file isn't flagged itself.
+ */
+export const EICAR_TEST_STRING = ['X5O!P%@AP[4\\PZX54(P^)7CC)7}$', 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'].join('');
+
+/** Test hook: a file containing this makes the fake scanner time out ("Scanning delayed"). */
+export const FAKE_SCANNER_TIMEOUT_MARKER = 'MATERIA-FAKE-SCANNER-TIMEOUT';
+
+/**
+ * The emulator's and tests' scanner (CORE-12): files containing the EICAR test string are
+ * infected, files containing `FAKE_SCANNER_TIMEOUT_MARKER` time out, everything else is clean.
+ */
 export const fakeMalwareScan: MalwareScanPort = {
-  async scan(_bucket, objectPath) {
-    return objectPath.toLowerCase().includes('eicar') ? 'infected' : 'clean';
+  async scan({ data }) {
+    const content = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+    if (content.includes(FAKE_SCANNER_TIMEOUT_MARKER)) throw new ScannerUnavailableError('timeout');
+    return content.includes(EICAR_TEST_STRING)
+      ? { verdict: 'infected', signature: 'Eicar-Test-Signature' }
+      : { verdict: 'clean' };
   },
 };
+
+/** Signed URLs for unit tests: records each request and returns a recognisable fake URL. */
+export class FakeSignedUrls implements SignedUrlPort {
+  readonly signed: SignedUrlRequest[] = [];
+  async sign(request: SignedUrlRequest) {
+    this.signed.push(request);
+    const expires = Math.round(request.expiresAt.getTime() / 1000);
+    return `https://storage.example.test/${request.bucket}/${encodeURIComponent(request.path)}?expires=${expires}`;
+  }
+}
 
 export const fakeTranscription: TranscriptionPort = {
   async transcribe() {
@@ -94,6 +123,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     calendar: new FakeCalendar(),
     xero: fakeXero,
     malwareScan: fakeMalwareScan,
+    signedUrls: new FakeSignedUrls(),
     transcription: fakeTranscription,
     jobs: new FakeJobRunner(),
     ...overrides,

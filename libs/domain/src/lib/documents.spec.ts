@@ -83,6 +83,8 @@ describe('detectFileKind', () => {
     expect(detectFileKind(zipOf(['notes.txt', 'word/not-really.xml']))).toBe('zip');
     // An empty archive is just the end record.
     expect(detectFileKind(zipOf([]))).toBe('zip');
+    // A zip signature with no readable directory: damaged, but still a zip.
+    expect(detectFileKind(enc('PK\u0003\u0004 truncated'))).toBe('damaged_zip');
   });
 
   it('reads zip entry names, and gives up on damaged or ZIP64 archives', () => {
@@ -159,6 +161,10 @@ describe('the allow-list', () => {
     expect(kindMatchesExtension('docx', 'docx')).toBe(true);
     expect(kindMatchesExtension('docx', 'zip')).toBe(true);
     expect(kindMatchesExtension('zip', 'docx')).toBe(false);
+    // Corrupt Office files and archives are stored as uploaded.
+    for (const ext of ['docx', 'xlsx', 'pptx', 'zip'] as const)
+      expect(kindMatchesExtension('damaged_zip', ext)).toBe(true);
+    expect(kindMatchesExtension('damaged_zip', 'pdf')).toBe(false);
     expect(kindMatchesExtension('cfb', 'msg')).toBe(true);
     expect(kindMatchesExtension('text', 'eml')).toBe(true);
     expect(kindMatchesExtension('pdf', 'png')).toBe(false);

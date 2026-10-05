@@ -1,4 +1,16 @@
-import { FakeCalendar, FakeClock, FakeJobRunner, FakeMail, fakeClerkModel, fakeTranscription, fakeXero } from './fakes';
+import {
+  EICAR_TEST_STRING,
+  FAKE_SCANNER_TIMEOUT_MARKER,
+  FakeCalendar,
+  FakeClock,
+  FakeJobRunner,
+  FakeMail,
+  FakeSignedUrls,
+  fakeClerkModel,
+  fakeMalwareScan,
+  fakeTranscription,
+  fakeXero,
+} from './fakes';
 
 describe('fakes', () => {
   it('behave deterministically', async () => {
@@ -33,5 +45,35 @@ describe('fakes', () => {
     const jobs = new FakeJobRunner();
     expect(await jobs.start('pdf', { orgId: 'o', jobId: 'j' })).toEqual({ executionId: 'fake-execution-1' });
     expect(jobs.started).toEqual([{ job: 'pdf', orgId: 'o', jobId: 'j' }]);
+  });
+
+  it('scan: EICAR is infected, the timeout marker times out, everything else is clean', async () => {
+    const scan = (text: string) =>
+      fakeMalwareScan.scan({ bucket: 'b', path: 'orgs/o/matters/m/pending/upload-1', data: Buffer.from(text) });
+    await expect(scan(`prefix ${EICAR_TEST_STRING} suffix`)).resolves.toEqual({
+      verdict: 'infected',
+      signature: 'Eicar-Test-Signature',
+    });
+    await expect(scan(FAKE_SCANNER_TIMEOUT_MARKER)).rejects.toMatchObject({ reason: 'timeout' });
+    await expect(scan('Fictional brief')).resolves.toEqual({ verdict: 'clean' });
+    // A view into a larger buffer only scans its own bytes.
+    const whole = Buffer.from(`${EICAR_TEST_STRING}clean`);
+    await expect(
+      fakeMalwareScan.scan({ bucket: 'b', path: 'p', data: whole.subarray(EICAR_TEST_STRING.length) }),
+    ).resolves.toEqual({ verdict: 'clean' });
+  });
+
+  it('signed urls: records the request and encodes the expiry', async () => {
+    const signer = new FakeSignedUrls();
+    const expiresAt = new Date('2026-01-01T00:05:00Z');
+    const url = await signer.sign({
+      bucket: 'demo-materia.appspot.com',
+      path: 'orgs/o/matters/m/documents/d/v1',
+      expiresAt,
+      disposition: 'attachment; filename="a.pdf"',
+      contentType: 'application/pdf',
+    });
+    expect(url).toContain(`expires=${expiresAt.getTime() / 1000}`);
+    expect(signer.signed).toHaveLength(1);
   });
 });
