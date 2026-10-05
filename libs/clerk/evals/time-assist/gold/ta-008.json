@@ -1,0 +1,7 @@
+{
+  "id": "ta-008",
+  "fixtures": {},
+  "fields": {
+    "entries[].units": [1, 1]
+  }
+}

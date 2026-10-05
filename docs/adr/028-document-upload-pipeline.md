@@ -46,7 +46,7 @@ The contract (`UPLOAD_TYPES`, `uploadSettings`, `UploadMetadataSchema`) lives in
 
 **Email is parsed in the function.** An .eml (mailparser) or .msg (@kenjiuno/msgreader) version gets a JSON rendition: headers, plain-text body (never HTML) and attachments. `documents-saveAttachment` writes one attachment back to the pending area as an upload by the caller, so it gets the same checks, scan and dedupe as any upload.
 
-**Pending cleanup is a sweep, not a lifecycle rule.** GCS lifecycle conditions match prefixes, and `orgs/*/matters/*/pending/` isn't one. `documents-sweepPending` runs hourly, deletes quarantined objects older than 24 hours by generation, and records them as `expired`.
+**Pending cleanup is a sweep, not a lifecycle rule.** GCS lifecycle conditions match prefixes, and `orgs/*/matters/*/pending/` isn't one. `documents-sweepPending` runs hourly, deletes quarantined objects older than 24 hours by generation, and records them as `expired`. The same sweep queues a rescan for any delayed upload whose retry chain has gone quiet for 75 minutes (the chain used up its attempts, or Cloud Tasks refused the next one), so a quarantined file is retried at least hourly until it is scanned or expires.
 
 **The web viewer renders PDFs with PDF.js, sandboxed and lazy.** `pdfjs-dist` is pinned to an exact version (5.4.624). The app uses its legacy build: the modern build needs very recent engines (`Map#getOrInsertComputed`, `Promise.try`), which current Safari and older Chromium lack.
 - The library is its own lazy chunk, loaded the first time a PDF opens. The worker, CMaps, standard fonts and wasm decoders are static assets under `assets/pdfjs/`, so none of it is in the initial bundle.

@@ -5,7 +5,7 @@ import {
   type Firestore,
   type Transaction,
 } from 'firebase-admin/firestore';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import {
   DEFAULT_ORG_TIMEZONE,

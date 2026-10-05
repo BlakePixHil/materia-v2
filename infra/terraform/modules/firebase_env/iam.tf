@@ -160,6 +160,15 @@ resource "google_service_account_iam_member" "fn_runtime_sign_self" {
   member             = "serviceAccount:${google_service_account.fn_runtime.email}"
 }
 
+# Functions enqueue Cloud Tasks for their own task-queue functions (documents-rescan,
+# documents-render, notifications-deliver, …). The Admin SDK puts an OIDC token for the runtime
+# account on each task, and Cloud Tasks only accepts that from a caller who may act as it.
+resource "google_service_account_iam_member" "fn_runtime_act_as_self" {
+  service_account_id = google_service_account.fn_runtime.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.fn_runtime.email}"
+}
+
 # documents-onUpload is a Cloud Storage trigger (CORE-12): Eventarc receives the bucket's
 # notifications through Pub/Sub, so the Cloud Storage service agent must be able to publish.
 resource "google_project_iam_member" "gcs_eventarc_publisher" {
@@ -218,6 +227,16 @@ resource "google_secret_manager_secret_iam_member" "fn_runtime" {
   secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.fn_runtime.email}"
+}
+
+# Clerk evals (AI-12): the clerk-evals workflow reads the eval-only Anthropic key from
+# ANTHROPIC_API_KEY as the deployer, on dev only. This secret and no other.
+resource "google_secret_manager_secret_iam_member" "deployer_clerk_evals_key" {
+  count     = var.env == "dev" ? 1 : 0
+  project   = google_project.this.project_id
+  secret_id = google_secret_manager_secret.this["ANTHROPIC_API_KEY"].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.deployer.email}"
 }
 
 # migration-runner: Firestore writes and the migration bucket, nothing else.

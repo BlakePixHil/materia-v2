@@ -1,0 +1,21 @@
+{
+  "id": "brief-003",
+  "description": "New documents arrived overnight",
+  "today": "2026-03-20",
+  "matter": {
+    "user": "Jordan Price",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0011",
+        "upcomingDeadlines": [],
+        "openTasks": [],
+        "newDocuments": [
+          {
+            "title": "Letter from Keane & Doyle Lawyers",
+            "received": "2026-03-19"
+          }
+        ]
+      }
+    ]
+  }
+}

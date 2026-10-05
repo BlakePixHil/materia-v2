@@ -1,0 +1,39 @@
+{
+  "id": "chat-002",
+  "description": "Date of death from the death certificate",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [
+    {
+      "id": "d-pryce-dc",
+      "fixture": "matters/pryce/death-certificate.txt",
+      "title": "Death certificate (sample)"
+    },
+    {
+      "id": "d-pryce-will",
+      "fixture": "matters/pryce/will.txt",
+      "title": "Will of Gwendolyn May Pryce (2016)"
+    }
+  ],
+  "query": "When did Gwendolyn die, and where?",
+  "today": "2026-03-20"
+}

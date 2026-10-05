@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DocIdSchema } from './schemas/common';
 import { DocumentCategorySchema } from './schemas/enums';
@@ -19,7 +19,7 @@ export const DOCUMENT_MAX_BYTES = 50 * 1024 * 1024;
 export const PENDING_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 /** How long a download link works. */
 export const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
-/** Scanner attempts before an upload is left delayed until the 24-hour sweep. */
+/** Scanner attempts in a delayed upload's backoff chain; after that the hourly sweep retries it. */
 export const SCAN_MAX_ATTEMPTS = 8;
 /** Documents per `documents-bulkUpdate` call. */
 export const DOCUMENT_BULK_MAX = 500;

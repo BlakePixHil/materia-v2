@@ -1,0 +1,10 @@
+{
+  "id": "cls-008",
+  "fixtures": {
+    "classify/share-statement.txt": "671a009dcdd27f2f"
+  },
+  "fields": {
+    "category": "financial",
+    "documentDate": "2026-01-09"
+  }
+}

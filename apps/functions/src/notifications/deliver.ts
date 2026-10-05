@@ -1,5 +1,5 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DocIdSchema, NOTIFICATION_KINDS, type NotificationDelivery, type NotificationKind } from '@materia/domain';
 

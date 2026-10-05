@@ -1,0 +1,21 @@
+{
+  "id": "brief-004",
+  "description": "Court-ordered date within a week",
+  "today": "2026-06-08",
+  "matter": {
+    "user": "Jordan Price",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0011",
+        "upcomingDeadlines": [
+          {
+            "title": "File affidavit of assets and liabilities (court order)",
+            "due": "2026-06-12"
+          }
+        ],
+        "openTasks": [],
+        "newDocuments": []
+      }
+    ]
+  }
+}

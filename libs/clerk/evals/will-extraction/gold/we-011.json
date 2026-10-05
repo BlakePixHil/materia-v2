@@ -1,0 +1,13 @@
+{
+  "id": "we-011",
+  "fixtures": {
+    "wills/fairweather.scanned.pdf": "9756dad12e45dd48"
+  },
+  "fields": {
+    "testator.name": "Beatrice Anne Fairweather",
+    "willDate": "2017-03-02",
+    "executors[].name": ["Gordon Pike"],
+    "beneficiaries[].name": ["Ocean Grove Arts Society Inc", "Tobias Reeve"],
+    "formalValidityFlags[].issue": []
+  }
+}
