@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
+import { isBusinessDay, VIC_CALENDARS } from '@materia/deadlines';
 import { addDays, addMonths, today, type DateOnly } from '@materia/domain';
 import {
   EMULATOR_PROJECT,
@@ -26,6 +27,18 @@ const CALLABLE_TIMEOUT = { timeout: 20_000 };
 
 const TODAY = today('Australia/Melbourne');
 /** DD/MM/YYYY, as the date fields take it. */
+/**
+ * The latest day on or before `from` whose rule dates all land on business days, so the expected
+ * dates don't depend on which weekday the test runs (a Saturday due date rolls to Monday).
+ */
+function onBusinessDays(from: DateOnly, ruleDates: (day: DateOnly) => [calendarId: string, due: DateOnly][]): DateOnly {
+  let day = from;
+  while (!ruleDates(day).every(([calendarId, due]) => isBusinessDay(VIC_CALENDARS, calendarId, due))) {
+    day = addDays(day, -1);
+  }
+  return day;
+}
+
 const typed = (date: DateOnly) => `${date.slice(8)}/${date.slice(5, 7)}/${date.slice(0, 4)}`;
 
 function meta(uid: string) {
@@ -120,8 +133,14 @@ test.describe('deadlines', () => {
   test('a new date of death proposes changes; accept, reject and a typed confirmation', async ({ page, request }) => {
     test.setTimeout(150_000);
     const { orgId } = await setUp(page, request);
-    const deathDay = addDays(TODAY, -60);
-    const grantDay = addDays(TODAY, -30);
+    const deathDay = onBusinessDays(addDays(TODAY, -60), (day) => [
+      ['VIC_MELBOURNE', addMonths(day, 12)],
+      ['VIC_MELBOURNE', addMonths(addDays(day, -1), 12)],
+    ]);
+    const grantDay = onBusinessDays(addDays(TODAY, -30), (day) => [
+      ['VIC_SUPREME_COURT', addMonths(day, 6)],
+      ['VIC_SUPREME_COURT', addMonths(addMonths(day, -7), 6)],
+    ]);
 
     // Recording the date of death and the grant date computes the deadlines (nothing in force yet).
     await page.goto('/matters/m-doyle/overview');

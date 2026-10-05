@@ -38,7 +38,9 @@ async function invite(page: Page, invitee: TestAccount, role: string) {
   await page.getByLabel('Email').fill(invitee.email);
   await page.getByLabel('Role', { exact: true }).selectOption({ label: role });
   await page.getByRole('button', { name: 'Send invite' }).click();
-  await expect(page.getByText(`Invite sent to ${invitee.email}`).first()).toBeVisible();
+  // The team page's first callables (the invite, and members' MFA status) can be cold starts in the
+  // emulator, which take longer than the default wait while other specs keep it busy.
+  await expect(page.getByText(`Invite sent to ${invitee.email}`).first()).toBeVisible({ timeout: 20_000 });
 }
 
 test.describe('organisations', () => {
