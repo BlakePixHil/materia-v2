@@ -2,7 +2,7 @@
 
 The redesign of materia as an AI-native practice tool for **Wills & Estates law in Australia**. This folder is the source of truth for the new app's look, components and screens. It is meant to move to the new repo with the Angular build.
 
-- **Design system (reference):** https://claude.ai/artifact/QQ8WDbjwa4QTjSRkL6TfRm. It covers tokens, typography, the 60 components with live previews and guidelines, 18 screens, icons and logos.
+- **Design system (reference):** https://claude.ai/artifact/QQ8WDbjwa4QTjSRkL6TfRm. It covers tokens, typography, the 63 components with live previews and guidelines, 33 screens, icons and logos.
 - **Screens gallery:** https://claude.ai/artifact/9pCRk8gUok8JWgn8jn8d7y (`mockups/screens.html`)
 - **Brand book:** `system/project/README.md`, covering voice, colour, type, layout, states, Clerk rules, iconography and the Angular mapping.
 
@@ -18,9 +18,9 @@ v1 (Newsreader serif, evergreen, Figma file) is superseded.
 |---|---|
 | `system/palette.py`, `system/tokens.py` | Token source: primitives, semantic colours (light and dark), type, space, radius, shadow, size |
 | `system/icons.py` | Lucide icon paths, plus the StatusIcon and PriorityIcon glyphs |
-| `system/markup.py`, `system/litigation.py`, `system/components.py`, `system/components_next.py`, `system/components_lit.py` | The component catalogue: guidelines and preview markup |
+| `system/markup.py`, `system/litigation.py`, `system/components.py`, `system/components_next.py`, `system/components_lit.py`, `system/components_pass4.py` | The component catalogue: guidelines and preview markup |
 | `system/charts.py` | Chart helpers: SVG computed from data, with hover targets and a table view |
-| `system/screens.py`, `system/screens_lit.py`, `system/screens_next.py` | The 18 screens, composed from components |
+| `system/screens.py`, `system/screens_lit.py`, `system/screens_next.py`, `system/screens_settings.py`, `system/screens_pass4.py` | The 33 screens, composed from components |
 | `system/build.py` | Generates everything below |
 | `system/project/` | The design-system files as published: `tokens.json`, `components/*/README.md` and `preview.html`, `components/bundle.css`, `fonts/` |
 | `system/project/components/bundle.css` | **The component stylesheet for Angular.** `mt-*` classes styled through Angular Primitives' `data-*` state attributes |
@@ -53,5 +53,5 @@ The README in the design system has the full component-to-directive map.
 - The existing logo uses #0364B8 and a rounded wordmark that differ from the new UI blue and from Geist. A logo refresh should bring them together.
 - Designed in pass two: Insights, Contacts, Settings (Clerk and AI), Onboarding (import from the current materia) and Mobile (Today, Matter, Record by voice). Precedents was removed.
 - Litigation (pass three): Disputes hub, dispute matter (family provision), chronology and evidence (will dispute), settlement and costs, and court book. Court rules shown (GCP Rules O 26 and O 42A; APA 1958 (Vic) s 91(4)) are illustrative and need practitioner review.
-- Not yet designed: the other Settings pages (team and roles, billing and rates, trust account, integrations), the Inbox, the Clerk full-page view, notifications, and tablet layouts.
+- Pass four (DES-01): Settings (team and roles, billing and rates, practice, trust account, integrations, security, audit log), Inbox, unfiled email, notifications, the Clerk full page, tablet layouts (Today, Matter, Matters list) and system states. New components: Banner, Skeleton, NotificationRow, and IntegrationCard's error and reconnect states. Every screen passes `check.mjs` at 1440, 1024 and 390 in light and dark.
 - Insights figures are fictional; the chart rules are in the brand book under Charts.

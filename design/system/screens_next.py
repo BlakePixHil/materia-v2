@@ -95,16 +95,18 @@ def contacts():
 
 
 # ------------------------------------------------------------------ Settings
-def settings_sidebar():
+def settings_sidebar(active="Clerk and AI"):
+    # Sidebar order follows the app's SETTINGS_SECTIONS (CORE-21); Account, Trust, Rule sets, Integrations and Security are designed ahead (DES-01).
     groups = [("Account", [("Profile", "user"), ("Preferences", "settings"), ("Notifications", "bell")]),
-              ("Firm", [("General", "matters"), ("Team and roles", "contacts"), ("Billing and rates", "billing"), ("Trust account", "shield")]),
-              ("Practice", [("Rule sets", "scale"), ("Matter types and stages", "board")]),
-              ("Clerk", [("Clerk and AI", "sparkle"), ("Activity log", "list")]),
-              ("Connections", [("Integrations", "link"), ("Security", "shield")])]
+              ("Firm", [("Practice", "matters"), ("Team and roles", "contacts"), ("Billing and rates", "billing"), ("Trust account", "lock")]),
+              ("Practice", [("Matter numbering", "list"), ("Matter templates", "board"), ("Rule sets", "scale")]),
+              ("Clerk", [("Clerk and AI", "sparkle")]),
+              ("Connections", [("Integrations", "link"), ("Security", "shield")]),
+              ("Records", [("Audit log", "eye")])]
     h = ['<aside class="mt-sidebar">', '<a class="mt-nav" href="#" onclick="return false" style="margin-bottom:6px">' + icon("chevron-left") + '<span>Back to materia</span></a>']
     for g, items in groups:
         h.append(f'<div class="mt-nav-section">{g}</div>')
-        h += [nav(l, i, active=(l == "Clerk and AI")) for l, i in items]
+        h += [nav(l, i, active=(l == active)) for l, i in items]
     h.append("</aside>")
     return "".join(h)
 

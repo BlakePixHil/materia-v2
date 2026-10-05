@@ -70,6 +70,17 @@ Tight negative tracking on 18px and above; zero tracking below. Never set body t
 
 Components read state from the `data-*` attributes Angular Primitives sets: `data-hover`, `data-press`, `data-focus-visible`, `data-disabled`, `data-checked`, `data-indeterminate`, `data-open`, `data-selected`, `data-active`, `data-highlighted`, `data-invalid`. Hover is `bg-hover`, pressed `bg-pressed`, selected `bg-selected`. Keyboard focus is always `focus-ring`: a solid 2px blue ring with a 2px surface gap, at least 3:1 on every surface. Disabled uses `bg-disabled` and `text-disabled`, with no hover.
 
+### Page states
+
+Every list has the same six states, shown together on the System states screen:
+
+- **Loading:** Skeleton rows in the real layout on first load; refreshes keep the old rows and show the 2px bar.
+- **Empty:** an EmptyState that says what the list is for and offers the one action that fills it. A filtered list that comes back empty offers Clear filters instead.
+- **Error:** what failed, that nothing is lost, Try again, and a short reference for support.
+- **Offline:** a warning Banner; cached rows stay readable with the time they were fetched, and changes queue on the device.
+- **No access:** who can open it and how to ask (Request access). Never a bare 403.
+- **Read-only role:** an info Banner; create, bulk and edit controls are hidden rather than disabled.
+
 ### Motion
 
 120ms for hover and colour changes, 150ms for switches and toggles, 200ms ease-out for popovers and panels. Nothing bounces. Clerk’s working state is three pulsing dots plus a named step. With `prefers-reduced-motion`, animations stop and transitions drop to instant.
@@ -88,6 +99,10 @@ Charts answer one question each and use one hue: `icon-brand` bars and lines on 
 ### Mobile
 
 Phones get the same tokens at the same sizes, with 44px minimum touch targets and 15px body text. Navigation is a five-item TabBar (Today, Matters, Record, Clerk, Inbox). Record is the raised centre action: speak a time entry or file note and Clerk drafts it for you to save. Short tasks open in a BottomSheet, with the primary action full-width at the bottom. Each matter leads with its next statutory step.
+
+### Tablet
+
+From 768 to 1199px the sidebar collapses to a 56px rail of icons with tooltips (the rail button or `[` expands it over the page). Pinned matters and section labels hide in the rail. Clerk opens as a 400px sheet over the right side instead of a column. Right-hand columns narrow to 340px, cards stay two-up down to 900px, and tables keep the matter, its next deadline and owner, moving the rest into the row's menu. Touch targets are at least 36px, and 44px on touch-only screens.
 
 ### Accessibility
 
@@ -140,5 +155,5 @@ The Logos asset group holds the existing marks, unchanged: the pillar mark with 
 - Put the `mt-*` class on the element that carries the Angular Primitives directive, and variants as data attributes: `<button ngpButton class="mt-btn" data-variant="primary">`.
 - Mapping: Button and IconButton → `ngpButton` · TextField → `ngpFormField`, `ngpLabel`, `ngpInput`, `ngpDescription`, `ngpError` · Select → `ngpSelect` · Checkbox → `ngpCheckbox` · Radio → `ngpRadioGroup`, `ngpRadioItem` · Switch → `ngpSwitch`, `ngpSwitchThumb` · Tabs → `ngpTabset`, `ngpTabList`, `ngpTabButton`, `ngpTabPanel` · SegmentedControl → `ngpToggleGroup` · Menu → `ngpMenuTrigger`, `ngpMenu`, `ngpMenuItem` · Tooltip → `ngpTooltipTrigger`, `ngpTooltip` · Dialog → `ngpDialog`, `ngpDialogOverlay`, `ngpDialogTitle` · CommandPalette → `ngpDialog` + `ngpListbox` · Avatar → `ngpAvatar` · Progress → `ngpProgress` · Toast → `ngpToast`.
 - `components/bundle.js` only imitates those directives so previews respond to hover, press and focus. Don’t ship it in the app.
-- The Screens group shows how the parts compose: Today, Matter, Matters (list and board), Deadlines, Time and billing, New matter intake, Command palette, Disputes, Dispute matter, Chronology and evidence, Settlement and costs, Court book, Insights, Contacts, Settings (Clerk and AI), Onboarding and Mobile.
+- The Screens group shows how the parts compose: Today, Matter, Matters (list and board), Deadlines, Time and billing, New matter intake, Command palette, Disputes, Dispute matter, Chronology and evidence, Settlement and costs, Court book, Insights, Contacts, Settings (Clerk and AI, Team and roles, Billing and rates, Practice, Trust account, Integrations, Security, Audit log), Inbox, Unfiled email, Notifications, Clerk, Onboarding, Mobile, Tablet (Today, Matter, Matters list) and System states.
 - Contacts are one record per person across every matter. Always show a person’s role together with its matter ref, because the same person is often an executor, a beneficiary and a client.

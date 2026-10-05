@@ -743,6 +743,49 @@ button.mt-search:focus-visible { box-shadow: var(--focus-ring); }
 .mt-bundle tr[data-excluded] .title { text-decoration: line-through; text-decoration-color: var(--border-strong); color: var(--text-tertiary); }
 .mt-bundle tr.section td { height: 32px; background: var(--bg-canvas); font: 600 12px/16px var(--font-sans); color: var(--text-primary); border-bottom: 1px solid var(--border-default); }
 
+/* ---------- Banner (offline, read-only, no access) ---------- */
+.mt-banner { display: flex; align-items: center; gap: var(--space-8); min-height: 40px; padding: var(--space-6) var(--space-12) var(--space-6) var(--space-20); border-bottom: 1px solid var(--border-default); background: var(--bg-info-subtle); color: var(--text-info); font: 400 13px/18px var(--font-sans); flex: none; }
+.mt-banner[data-tone="warning"] { background: var(--bg-warning-subtle); color: var(--text-warning); }
+.mt-banner[data-tone="danger"] { background: var(--bg-danger-subtle); color: var(--text-danger); }
+.mt-banner[data-tone="neutral"] { background: var(--bg-canvas); color: var(--text-secondary); }
+.mt-banner b { font-weight: 600; }
+.mt-banner > .mt-grow { min-width: 0; }
+.mt-banner > .mt-btn, .mt-banner > .mt-ibtn { flex: none; }
+
+/* ---------- Skeleton (loading) ---------- */
+.mt-skel { display: block; height: 10px; border-radius: var(--radius-xs); background: linear-gradient(90deg, var(--bg-sunken) 0%, var(--bg-hover) 50%, var(--bg-sunken) 100%); background-size: 200% 100%; animation: mt-shimmer 1.6s linear infinite; }
+.mt-skel[data-shape="circle"] { border-radius: var(--radius-full); }
+.mt-skel[data-shape="chip"] { height: 20px; }
+.mt-skel[data-static] { animation: none; background: var(--bg-hover); }
+@media (prefers-reduced-motion: reduce) { .mt-skel { animation: none; } }
+
+/* ---------- Notification row (Inbox) ---------- */
+.mt-notif { display: grid; grid-template-columns: 8px 28px minmax(0, 1fr) auto; align-items: start; column-gap: var(--space-12); padding: 10px var(--space-16) 10px var(--space-12); border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); }
+.mt-notif[data-hover], .mt-notif:hover { background: var(--bg-hover); }
+.mt-notif[data-selectable] { grid-template-columns: 16px 8px 28px minmax(0, 1fr) auto; }
+.mt-notif[data-selectable] > .mt-check { margin-top: 6px; }
+.mt-notif[data-selected] { background: var(--bg-selected); }
+.mt-notif .dot { width: 8px; height: 8px; margin-top: 10px; border-radius: var(--radius-full); }
+.mt-notif[data-unread] .dot { background: var(--icon-brand); }
+.mt-notif .ic { width: 28px; height: 28px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-sunken); color: var(--icon-default); }
+.mt-notif .ic[data-kind="mention"] { background: var(--bg-brand-subtle); color: var(--icon-brand); }
+.mt-notif .ic[data-kind="deadline"] { background: var(--bg-warning-subtle); color: var(--text-warning); }
+.mt-notif .ic[data-kind="overdue"] { background: var(--bg-danger-subtle); color: var(--text-danger); }
+.mt-notif .ic[data-kind="clerk"] { background: var(--bg-ai-subtle); color: var(--icon-ai); }
+.mt-notif .tt { font: 400 13px/18px var(--font-sans); color: var(--text-secondary); }
+.mt-notif .tt b { font-weight: 600; color: var(--text-primary); }
+.mt-notif[data-unread] .tt { color: var(--text-primary); }
+.mt-notif .ts { margin-top: 2px; font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
+.mt-notif .side { display: flex; align-items: center; gap: var(--space-8); min-height: 28px; }
+.mt-notif .when { font: 500 11px/14px var(--font-mono); color: var(--text-tertiary); white-space: nowrap; }
+.mt-notif-day { display: flex; align-items: center; gap: var(--space-8); height: 32px; padding: 0 var(--space-16) 0 var(--space-12); background: var(--bg-canvas); border-bottom: 1px solid var(--border-default); font: 500 12px/16px var(--font-sans); color: var(--text-secondary); }
+
+/* ---------- Integration states ---------- */
+.mt-integration[data-state="error"] { border-color: var(--border-danger); }
+.mt-integration[data-state="error"] .logo { background: var(--bg-danger-subtle); color: var(--text-danger); }
+.mt-integration-error { display: flex; align-items: flex-start; gap: var(--space-6); margin-top: var(--space-4); font: 400 12px/16px var(--font-sans); color: var(--text-danger); }
+.mt-integration-error .mt-i { width: 13px; height: 13px; margin-top: 2px; }
+
 /* ---------- motion ---------- */
 @keyframes mt-spin { to { transform: rotate(360deg); } }
 @keyframes mt-pulse { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }

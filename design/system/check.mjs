@@ -39,7 +39,8 @@ const FONT_CSS = [
 
 /** Runs in the page: every overflow in every screen, as readable strings. */
 function findOverflows() {
-  const FRAME = '.mt-app, .mt-phone, .mt-onboard, [data-frame]';
+  // Screens and device frames, plus the containers whose edge content must never cross.
+  const FRAME = '.mt-app, .mt-phone, .mt-onboard, [data-frame], .mt-card, .mt-clerk-card, .mt-setting, .mt-integration, .mt-dialog, .mt-menu, .mt-notif';
   const describe = (el) => {
     const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
     const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
@@ -52,6 +53,9 @@ function findOverflows() {
     for (const el of root.querySelectorAll('*')) {
       const cs = getComputedStyle(el);
       if (cs.display === 'none' || cs.visibility === 'hidden' || cs.position === 'fixed') continue;
+      // The body of a closed <details> (the charts' table views) isn't rendered, whatever its box says.
+      const shut = el.parentElement.closest('details:not([open])');
+      if (shut && !el.closest('summary')) continue;
       let r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) continue;
       let left = r.left, right = r.right, top = r.top, bottom = r.bottom;
