@@ -1,4 +1,5 @@
 import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type App } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore as getAdminFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 
 import { NOTIFICATION_BURST_LIMIT } from '@materia/domain';
@@ -99,6 +100,12 @@ beforeAll(async () => {
   db = getAdminFirestore(admin);
   await db.recursiveDelete(db.doc(`orgs/${ORG}`));
   for (const name of PEOPLE) await db.recursiveDelete(db.doc(`users/${uid(name)}`));
+  // Real accounts, so auth-syncClaims (which runs on member writes) finds them.
+  const adminAuth = getAdminAuth(admin);
+  for (const name of PEOPLE) {
+    await adminAuth.deleteUser(uid(name)).catch(() => undefined);
+    await adminAuth.createUser({ uid: uid(name), email: emailOf(name) });
+  }
   const old = await db.collection('emulatorOutbox').where('to', '==', emailOf('e2e')).get();
   await Promise.all(old.docs.map((d) => d.ref.delete()));
 
@@ -130,7 +137,9 @@ beforeEach(async () => {
   await db.recursiveDelete(db.collection(`orgs/${ORG}/digests`));
   for (const name of ['ada', 'ben', 'cy'] as const) {
     await setPrefs(name, { email: true, push: false, digestHour: 7 });
-    await db.doc(`users/${uid(name)}`).update({ emailDeliverability: FieldValue.delete() });
+    await db
+      .doc(`users/${uid(name)}`)
+      .update({ emailDeliverability: FieldValue.delete(), 'prefs.timezone': FieldValue.delete() });
   }
 });
 
@@ -266,7 +275,9 @@ describe('notify() routing', () => {
       await db.doc(`orgs/${ORG}/members/${uid('ada')}`).update({ status: 'active' });
     }
     expect(w.mail.sent).toEqual([]);
-    expect(((await data(`${N}/leaving`))['deliveries'] as unknown[])[0]).toMatchObject({ status: 'dropped' });
+    expect(((await data(`${N}/leaving-${uid('ada')}`))['deliveries'] as unknown[])[0]).toMatchObject({
+      status: 'dropped',
+    });
   });
 
   it('writes inside a transaction and queues only after it commits', async () => {
