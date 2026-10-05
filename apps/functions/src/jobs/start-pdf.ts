@@ -16,7 +16,11 @@ import { defineCallable, type CallableDefinition } from '../core/callable';
 import type { Log } from '../core/log';
 import type { Clock, Ports } from '../ports';
 
-export const StartPdfInput = z.object({ requestId: z.uuid(), job: JobRequestSchema });
+export const StartPdfInput = z.object({
+  requestId: z.uuid(),
+  // Zip downloads start through documents-startZip, which names the files.
+  job: JobRequestSchema.refine((job) => job.type !== 'documents.zip', { message: 'Not a PDF job' }),
+});
 
 export interface StartPdfResult {
   jobId: string;
@@ -26,13 +30,18 @@ export interface StartPdfResult {
 /** Firestore `getAll` is batched to keep each read bounded. */
 const READ_BATCH = 300;
 
+/** The matter document versions a job reads, if it reads any. */
+function inputPaths(request: JobRequest): readonly { storagePath: string }[] {
+  return request.type === 'pdf.merge' || request.type === 'documents.zip' ? request.input.inputs : [];
+}
+
 /**
- * Checks every merge input against the caller (FND-24): it is a live, clean document version in
- * the caller's org that the caller may see. Returns whether any input is privileged.
+ * Checks every merge or zip input against the caller (FND-24, CORE-12b): it is a live, clean
+ * document version in the caller's org that the caller may see. Returns whether any input is
+ * privileged.
  */
 async function checkInputs(db: Firestore, orgId: string, role: Role, request: JobRequest): Promise<boolean> {
-  if (request.type !== 'pdf.merge') return false;
-  const parsed = request.input.inputs.map((input, inputIndex) => {
+  const parsed = inputPaths(request).map((input, inputIndex) => {
     const match = MATTER_DOCUMENT_PATH.exec(input.storagePath);
     if (!match || match[1] !== orgId) {
       throw new DomainError('PERMISSION_DENIED', 'Input is outside this organisation', { inputIndex });
@@ -84,7 +93,7 @@ export async function createJob(ctx: CreateJobContext, requested: JobRequest): P
   const privilegedInputs = await checkInputs(db, orgId, role, requested);
   let request = requested;
 
-  if (requested.target.kind === 'matter') {
+  if (requested.type !== 'documents.zip' && requested.target.kind === 'matter') {
     const target = requested.target;
     const matter = await db.doc(`orgs/${orgId}/matters/${target.matterId}`).get();
     if (!matter.exists || matter.get('deletedAt')) throw new DomainError('NOT_FOUND', 'Matter not found');
@@ -94,8 +103,11 @@ export async function createJob(ctx: CreateJobContext, requested: JobRequest): P
       throw new DomainError('PERMISSION_DENIED', 'Privileged documents need a lawyer or above');
     }
     request = { ...requested, target: { ...target, privileged } };
-  } else if (privilegedInputs && !can(role, 'export.includePrivileged')) {
-    // Privileged material never leaves in an export without an owner or admin (invariant 7).
+  } else if (privilegedInputs && request.type !== 'documents.zip' && !can(role, 'export.includePrivileged')) {
+    // Privileged material never leaves in an export without an owner or admin (invariant 7). A zip
+    // of a selection (CORE-12b) is a download, not an export of the matter: it holds only what the
+    // member could already download one document at a time (privileged ones need privileged.view,
+    // checked above), so it doesn't need export.includePrivileged.
     throw new DomainError('PERMISSION_DENIED', 'Exporting privileged documents needs an owner or admin');
   }
 

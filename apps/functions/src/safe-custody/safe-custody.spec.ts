@@ -427,6 +427,23 @@ describe('jobs-getExportUrl', () => {
     });
   });
 
+  it('signs a zip download as a zip (CORE-12b)', async () => {
+    const w = world({
+      [`orgs/${ORG}/jobs/j1`]: job({
+        type: 'documents.zip',
+        target: { kind: 'export', name: 'Documents M-2026-0001' },
+        output: { storagePath: `orgs/${ORG}/exports/j1.zip` },
+      }),
+    });
+    const result = await w.call<{ fileName: string }>(def, { jobId: 'j1' });
+    expect(result.fileName).toBe('Documents M-2026-0001.zip');
+    expect((w.ports.signedUrls as FakeSignedUrls).signed[0]).toMatchObject({
+      path: `orgs/${ORG}/exports/j1.zip`,
+      contentType: 'application/zip',
+      disposition: expect.stringMatching(/^attachment; filename="Documents M-2026-0001.zip"/),
+    });
+  });
+
   it('hides other people’s jobs and refuses one still running', async () => {
     const w = world({
       [`orgs/${ORG}/jobs/j1`]: job(),

@@ -1,7 +1,13 @@
 import { inject, Injectable, InjectionToken, signal } from '@angular/core';
 
 import { documentCallables, matterDocumentRepository, type DocumentItem } from '@materia/data-access/repository';
-import { DomainError, type BulkDocumentChange, type DownloadRendition } from '@materia/domain';
+import {
+  DOCUMENTS_ZIP_MAX,
+  DomainError,
+  type BulkDocumentChange,
+  type DownloadRendition,
+  type StartZipResult,
+} from '@materia/domain';
 import { DialogService, ToastService } from '@materia/ui';
 
 import { DOCUMENT_CATEGORY_LABELS, documentCount } from './documents-view';
@@ -34,6 +40,16 @@ export function downloadErrorCopy(error: unknown): string {
     return 'This document isn’t available. It may have been removed, or your role can’t open it.';
   }
   return errorCopy(error);
+}
+
+/** A zip download that didn't start, in plain words. */
+export function zipErrorCopy(error: unknown): string {
+  const reason = errorReason(error);
+  if (reason === 'nothing_to_zip') {
+    return 'None of these documents can be downloaded. They may still be in the malware check, or your role can’t open them.';
+  }
+  if (reason === 'too_large') return 'These documents are more than 1 GB together. Download fewer at a time.';
+  return downloadErrorCopy(error);
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -85,6 +101,45 @@ export class DocumentActions {
       this.navigate(url);
     } catch (error) {
       this.toasts.show({ title: 'Couldn’t download the file', description: downloadErrorCopy(error), tone: 'danger' });
+    }
+  }
+
+  /**
+   * Starts a zip of documents' current versions (CORE-12b), built by a background job; watch the
+   * returned job, then call `downloadZip`. Says how many were left out. Null when it didn't start.
+   */
+  async startZip(docIds: readonly string[]): Promise<StartZipResult | null> {
+    if (docIds.length > DOCUMENTS_ZIP_MAX) {
+      this.toasts.show({
+        title: 'Too many documents for one zip',
+        description: `Select up to ${DOCUMENTS_ZIP_MAX} documents at a time.`,
+        tone: 'danger',
+      });
+      return null;
+    }
+    try {
+      const result = await this.api.startZip({ matterId: this.matterId(), docIds: [...docIds] });
+      if (result.skipped) {
+        this.toasts.show({
+          title: `${plural(result.skipped, 'document')} left out of the zip`,
+          description:
+            'Removed documents, documents still in the malware check and any your role can’t open aren’t included.',
+        });
+      }
+      return result;
+    } catch (error) {
+      this.toasts.show({ title: 'Couldn’t prepare the zip', description: zipErrorCopy(error), tone: 'danger' });
+      return null;
+    }
+  }
+
+  /** Downloads a finished zip through a 5-minute signed URL. */
+  async downloadZip(jobId: string): Promise<void> {
+    try {
+      const { url } = await this.api.exportUrl(jobId);
+      this.navigate(url);
+    } catch (error) {
+      this.toasts.show({ title: 'Couldn’t download the zip', description: errorCopy(error), tone: 'danger' });
     }
   }
 

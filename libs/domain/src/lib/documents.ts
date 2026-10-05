@@ -2,6 +2,7 @@ import * as z from 'zod';
 
 import { DocIdSchema } from './schemas/common';
 import { DocumentCategorySchema } from './schemas/enums';
+import { DOCUMENTS_ZIP_MAX } from './schemas/jobs';
 import { DOCUMENT_NAME_MAX, DOCUMENT_VERSIONS_MAX, type DocumentVersion } from './schemas/matter-records';
 
 /**
@@ -342,6 +343,35 @@ export function downloadFileName(name: string, fileName: string, rendition?: Ren
   return ext ? `${base}.${ext}` : name;
 }
 
+const ZIP_NAME_MAX = 255;
+const EXTENSION = /\.[A-Za-z0-9]{1,5}$/;
+// eslint-disable-next-line no-control-regex
+const UNSAFE_IN_ZIP = /[/\\\u0000-\u001f\u007f]+/g;
+
+/** `base` cut so that `base + suffix + ext` fits in a zip entry name. */
+function fitName(base: string, suffix: string, ext: string): string {
+  return `${base.slice(0, Math.max(1, ZIP_NAME_MAX - suffix.length - ext.length)).trimEnd()}${suffix}${ext}`;
+}
+
+/**
+ * The names of documents inside a zip download (CORE-12b), in order: each one's download name
+ * (`downloadFileName`) without folders or control characters, made unique case-insensitively
+ * (unzipping on Windows or macOS would otherwise overwrite one with another) as "Name (2).pdf".
+ */
+export function zipDownloadNames(files: readonly { name: string; fileName: string }[]): string[] {
+  const used = new Set<string>();
+  return files.map(({ name, fileName }) => {
+    let safe = downloadFileName(name, fileName).replace(UNSAFE_IN_ZIP, '_').trim();
+    if (!safe || safe === '.' || safe === '..') safe = 'document';
+    const ext = EXTENSION.exec(safe)?.[0] ?? '';
+    const base = safe.slice(0, safe.length - ext.length) || 'document';
+    let candidate = fitName(base, '', ext);
+    for (let n = 2; used.has(candidate.toLowerCase()); n++) candidate = fitName(base, ` (${n})`, ext);
+    used.add(candidate.toLowerCase());
+    return candidate;
+  });
+}
+
 // ---------- callables ----------
 
 const RequestId = z.uuid();
@@ -353,6 +383,7 @@ export const DOCUMENT_CALLABLES = {
   resolveDuplicate: 'documents-resolveDuplicate',
   bulkUpdate: 'documents-bulkUpdate',
   saveAttachment: 'documents-saveAttachment',
+  startZip: 'documents-startZip',
 } as const;
 
 export const DownloadRenditionSchema = z.enum(['original', 'previewPdf', 'previewImage', 'message']);
@@ -438,6 +469,34 @@ export type BulkDocumentSkipReason = 'not_found' | 'deleted' | 'not_deleted' | '
 export interface BulkUpdateDocumentsResult {
   updated: number;
   skipped: { docId: string; reason: BulkDocumentSkipReason }[];
+}
+
+/**
+ * `documents-startZip` (`matter.view`, idempotent; CORE-12b): starts a `documents.zip` export job
+ * with the current versions of up to 200 of a matter's documents. Removed documents, ones not
+ * scanned clean and privileged ones the role can't see are left out (counted in `skipped`);
+ * FAILED_PRECONDITION (`nothing_to_zip`) when none is left, `too_large` past
+ * `DOCUMENTS_ZIP_MAX_BYTES`. The web app watches the job and then downloads the zip through
+ * `jobs-getExportUrl`.
+ */
+export const StartZipInput = z
+  .object({
+    requestId: RequestId,
+    matterId: DocIdSchema,
+    docIds: z.array(DocIdSchema).min(1).max(DOCUMENTS_ZIP_MAX),
+  })
+  .refine((input) => new Set(input.docIds).size === input.docIds.length, {
+    message: 'Each document may be listed once',
+    path: ['docIds'],
+  });
+export type StartZipInput = z.infer<typeof StartZipInput>;
+export interface StartZipResult {
+  jobId: string;
+  executionId: string;
+  /** Documents in the zip. */
+  included: number;
+  /** Documents left out (removed, not scanned clean, or not visible to the role). */
+  skipped: number;
 }
 
 // ---------- email messages ----------

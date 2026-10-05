@@ -143,6 +143,27 @@ describe('createJob', () => {
     });
   });
 
+  it('checks zip inputs like merge inputs, but zips privileged ones for anyone who may see them', async () => {
+    const zip = (paths: string[]): JobRequest => ({
+      type: 'documents.zip',
+      input: { inputs: paths.map((storagePath, i) => ({ storagePath, fileName: `${i}.pdf` })) },
+      target: { kind: 'export', name: 'Documents' },
+    });
+    // A zip is a download, not an export: export.includePrivileged isn't needed.
+    await expect(createJob(setup('lawyer').ctx, zip([docPath('will'), docPath('advice')]))).resolves.toMatchObject({
+      jobId: 'job-1',
+    });
+    await expect(createJob(setup('paralegal').ctx, zip([docPath('advice')]))).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(createJob(setup().ctx, zip([docPath('pending')]))).rejects.toMatchObject({
+      code: 'FAILED_PRECONDITION',
+    });
+    await expect(createJob(setup().ctx, zip(['orgs/org-2/matters/m/documents/d/v1']))).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED',
+    });
+  });
+
   it('refuses a missing matter', async () => {
     const { ctx } = setup();
     const request = merge([docPath('will')], {
