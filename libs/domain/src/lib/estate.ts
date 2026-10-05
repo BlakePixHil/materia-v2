@@ -124,7 +124,9 @@ function divRound(numerator: number, denominator: number): number {
  */
 export function assetShareCents(asset: Pick<AssetValues, 'valueAtDeathCents' | 'shareBps'>): Cents {
   const share = asset.shareBps ?? SHARE_BPS_WHOLE;
-  return cents(share === SHARE_BPS_WHOLE ? asset.valueAtDeathCents : divRound(asset.valueAtDeathCents * share, SHARE_BPS_WHOLE));
+  return cents(
+    share === SHARE_BPS_WHOLE ? asset.valueAtDeathCents : divRound(asset.valueAtDeathCents * share, SHARE_BPS_WHOLE),
+  );
 }
 
 /**
@@ -183,10 +185,7 @@ export const EMPTY_ESTATE_TOTALS: EstateTotals = estateTotals([], []);
 
 /** The same totals (to skip a write that would change nothing). */
 export function sameEstateTotals(a: Partial<EstateTotals> | undefined, b: EstateTotals): boolean {
-  return (
-    !!a &&
-    (Object.keys(b) as (keyof EstateTotals)[]).every((key) => a[key] === b[key])
-  );
+  return !!a && (Object.keys(b) as (keyof EstateTotals)[]).every((key) => a[key] === b[key]);
 }
 
 /** A net estate below zero: insolvent administration rules apply and distributions are disabled. */
@@ -363,8 +362,10 @@ export function longDate(date: string | undefined): string {
 }
 
 /** Stable order: by description, then id (plain code-unit comparison, the same everywhere). */
-const byDescription = <T extends { id: string }>(text: (row: T) => string) => (a: T, b: T) =>
-  text(a) < text(b) ? -1 : text(a) > text(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+const byDescription =
+  <T extends { id: string }>(text: (row: T) => string) =>
+  (a: T, b: T) =>
+    text(a) < text(b) ? -1 : text(a) > text(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
 function shareText(asset: InventoryAsset): string {
   if (asset.shareBps === undefined || asset.shareBps === SHARE_BPS_WHOLE) return '';
@@ -378,7 +379,15 @@ function assetDetail(asset: InventoryAsset): string {
   const share = shareText(asset);
   if (share) parts.push(`${share} of ${formatCents(cents(asset.valueAtDeathCents))}`);
   if (asset.valuationSource || asset.valuedOn)
-    parts.push(['Valued', asset.valuedOn ? `on ${longDate(asset.valuedOn)}` : '', asset.valuationSource ? `(${asset.valuationSource})` : ''].filter(Boolean).join(' '));
+    parts.push(
+      [
+        'Valued',
+        asset.valuedOn ? `on ${longDate(asset.valuedOn)}` : '',
+        asset.valuationSource ? `(${asset.valuationSource})` : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
   if (asset.originalCurrency && asset.originalAmount !== undefined)
     parts.push(`${asset.originalCurrency} ${asset.originalAmount.toFixed(2)} at the date of death`);
   if (asset.realisedCents !== undefined) parts.push(`Realised ${formatCents(cents(asset.realisedCents))}`);
@@ -507,7 +516,9 @@ export function inventoryCsv(input: InventoryInput): string {
   const blank = (n: number) => Array.from({ length: n }, () => '');
   const assetRows = (section: string, list: InventoryAsset[]) => {
     for (const assetClass of Object.keys(ASSET_CLASS_LABELS) as AssetClass[]) {
-      const group = list.filter((asset) => asset.class === assetClass).sort(byDescription((asset) => asset.description));
+      const group = list
+        .filter((asset) => asset.class === assetClass)
+        .sort(byDescription((asset) => asset.description));
       if (!group.length) continue;
       for (const asset of group) {
         rows.push([
@@ -531,8 +542,14 @@ export function inventoryCsv(input: InventoryInput): string {
       rows.push([section, ASSET_CLASS_LABELS[assetClass], 'Total', '', '', csvDollars(total), ...blank(8)]);
     }
   };
-  assetRows('Assets', assets.filter((asset) => !asset.passesOutsideEstate));
-  assetRows('Passing outside the estate', assets.filter((asset) => asset.passesOutsideEstate));
+  assetRows(
+    'Assets',
+    assets.filter((asset) => !asset.passesOutsideEstate),
+  );
+  assetRows(
+    'Passing outside the estate',
+    assets.filter((asset) => asset.passesOutsideEstate),
+  );
   for (const liabilityClass of Object.keys(LIABILITY_CLASS_LABELS) as LiabilityClass[]) {
     const group = liabilities
       .filter((liability) => liability.class === liabilityClass)

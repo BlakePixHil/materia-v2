@@ -171,16 +171,14 @@ describe('estate register', () => {
         shareBps: 5000,
       }),
     );
-    await db
-      .doc(`${MATTER}/assets/a-super`)
-      .set(
-        asset({
-          class: 'superannuation',
-          description: 'Fictional Super',
-          valueAtDeathCents: 9_000_000,
-          passesOutsideEstate: true,
-        }),
-      );
+    await db.doc(`${MATTER}/assets/a-super`).set(
+      asset({
+        class: 'superannuation',
+        description: 'Fictional Super',
+        valueAtDeathCents: 9_000_000,
+        passesOutsideEstate: true,
+      }),
+    );
     await db.doc(`${MATTER}/liabilities/l-funeral`).set({
       class: 'funeral',
       creditor: 'Fictional Funerals',

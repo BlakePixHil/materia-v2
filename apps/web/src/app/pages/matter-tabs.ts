@@ -20,7 +20,13 @@ export const MATTER_TABS: readonly MatterTab[] = [
   { path: 'time', label: 'Time', ticket: 'BILL-01' },
   { path: 'parties', label: 'Parties', ticket: 'CORE-06' },
   // ESTATE_REGISTER_TYPES in libs/domain (kept literal here: the tab list is in the initial bundle).
-  { path: 'estate', label: 'Estate', ticket: 'CORE-16', types: ['probate', 'loa', 'admin', 'trust'], flag: 'estate.register' },
+  {
+    path: 'estate',
+    label: 'Estate',
+    ticket: 'CORE-16',
+    types: ['probate', 'loa', 'admin', 'trust'],
+    flag: 'estate.register',
+  },
   { path: 'litigation', label: 'Litigation', ticket: 'LIT-03', types: ['fp', 'contest'] },
   { path: 'notes', label: 'Notes', ticket: 'CORE-13' },
   { path: 'activity', label: 'Activity', ticket: 'CORE-13' },

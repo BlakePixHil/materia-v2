@@ -64,13 +64,33 @@ describe('estate totals', () => {
   it('excludes assets passing outside the estate from gross and shows them separately', () => {
     const totals = estateTotals(
       [
-        asset('house', { class: 'real_property', valueAtDeathCents: 900_000_00, shareBps: 5000, realisedCents: 455_000_00 }),
+        asset('house', {
+          class: 'real_property',
+          valueAtDeathCents: 900_000_00,
+          shareBps: 5000,
+          realisedCents: 455_000_00,
+        }),
         asset('bank', { valueAtDeathCents: 42_317_55 }),
-        asset('super', { class: 'superannuation', valueAtDeathCents: 412_000_00, passesOutsideEstate: true, realisedCents: 1 }),
-        asset('jt', { valueAtDeathCents: 20_000_00, jointlyHeld: true, jointHolding: 'joint_tenants', shareBps: 5000, passesOutsideEstate: true }),
+        asset('super', {
+          class: 'superannuation',
+          valueAtDeathCents: 412_000_00,
+          passesOutsideEstate: true,
+          realisedCents: 1,
+        }),
+        asset('jt', {
+          valueAtDeathCents: 20_000_00,
+          jointlyHeld: true,
+          jointHolding: 'joint_tenants',
+          shareBps: 5000,
+          passesOutsideEstate: true,
+        }),
         asset('gone', { valueAtDeathCents: 1_000_000_00, deletedAt: new Date() }),
       ],
-      [liability('funeral', { class: 'funeral', amountCents: 8_500_00 }), liability('card', { amountCents: 1_234_56 }), liability('x', { amountCents: 99, deletedAt: new Date() })],
+      [
+        liability('funeral', { class: 'funeral', amountCents: 8_500_00 }),
+        liability('card', { amountCents: 1_234_56 }),
+        liability('x', { amountCents: 99, deletedAt: new Date() }),
+      ],
     );
     expect(totals).toEqual({
       grossCents: 450_000_00 + 42_317_55,
@@ -84,7 +104,10 @@ describe('estate totals', () => {
   });
 
   it('goes negative for an insolvent estate', () => {
-    const totals = estateTotals([asset('a', { valueAtDeathCents: 5_000_00 })], [liability('b', { amountCents: 7_500_01 })]);
+    const totals = estateTotals(
+      [asset('a', { valueAtDeathCents: 5_000_00 })],
+      [liability('b', { amountCents: 7_500_01 })],
+    );
     expect(totals.netCents).toBe(-2_500_01);
     expect(isInsolvent(totals)).toBe(true);
     expect(isInsolvent(EMPTY_ESTATE_TOTALS)).toBe(false);
@@ -106,7 +129,9 @@ describe('estate totals', () => {
   });
 
   it('adds 500 share lines exactly', () => {
-    const lines = Array.from({ length: 500 }, (_, i) => asset(`s${i}`, { class: 'shares', valueAtDeathCents: 1_001 + i }));
+    const lines = Array.from({ length: 500 }, (_, i) =>
+      asset(`s${i}`, { class: 'shares', valueAtDeathCents: 1_001 + i }),
+    );
     expect(estateTotals(lines, []).grossCents).toBe(500 * 1_001 + (499 * 500) / 2);
   });
 });
@@ -119,7 +144,9 @@ describe('residue', () => {
 
   it('values a specific gift at its amount, else the estate’s share of the asset', () => {
     expect(distributionCents({ kind: 'specific', status: 'planned', assetId: 'house' }, assets)).toBe(400_000_00);
-    expect(distributionCents({ kind: 'specific', status: 'planned', assetId: 'car', amountCents: 25_000_00 }, assets)).toBe(25_000_00);
+    expect(
+      distributionCents({ kind: 'specific', status: 'planned', assetId: 'car', amountCents: 25_000_00 }, assets),
+    ).toBe(25_000_00);
     expect(distributionCents({ kind: 'specific', status: 'planned', assetId: 'missing' }, assets)).toBe(0);
     expect(distributionCents({ kind: 'pecuniary', status: 'planned', amountCents: 10_000_00 }, assets)).toBe(10_000_00);
     expect(distributionCents({ kind: 'residuary', status: 'planned' }, assets)).toBe(0);
@@ -150,7 +177,9 @@ describe('residue', () => {
   });
 
   it('shows a negative residue when the gifts can’t all be met (shown, not enforced)', () => {
-    expect(residueCalculation(10_00, [{ kind: 'pecuniary', status: 'planned', amountCents: 20_00 }], assets).residueCents).toBe(-10_00);
+    expect(
+      residueCalculation(10_00, [{ kind: 'pecuniary', status: 'planned', amountCents: 20_00 }], assets).residueCents,
+    ).toBe(-10_00);
   });
 });
 
@@ -170,7 +199,9 @@ describe('distribution review', () => {
   it('flags residuary gifts and unvalued specific gifts of the asset, never cancelled ones', () => {
     expect(distributionDependsOn({ kind: 'residuary', status: 'planned' }, 'a')).toBe(true);
     expect(distributionDependsOn({ kind: 'specific', status: 'paid', assetId: 'a' }, 'a')).toBe(true);
-    expect(distributionDependsOn({ kind: 'specific', status: 'planned', assetId: 'a', amountCents: 5 }, 'a')).toBe(false);
+    expect(distributionDependsOn({ kind: 'specific', status: 'planned', assetId: 'a', amountCents: 5 }, 'a')).toBe(
+      false,
+    );
     expect(distributionDependsOn({ kind: 'specific', status: 'planned', assetId: 'b' }, 'a')).toBe(false);
     expect(distributionDependsOn({ kind: 'pecuniary', status: 'planned', amountCents: 5 }, 'a')).toBe(false);
     expect(distributionDependsOn({ kind: 'residuary', status: 'cancelled' }, 'a')).toBe(false);
@@ -186,14 +217,43 @@ describe('inventory export', () => {
     dateOfDeath: '2026-07-16',
     preparedOn: '2026-10-05',
     assets: [
-      asset('b2', { description: 'Savings account', institution: 'Corio Savings Bank', valueAtDeathCents: 42_317_55, valuationSource: 'Bank letter', valuedOn: '2026-08-01', status: 'valued' }),
+      asset('b2', {
+        description: 'Savings account',
+        institution: 'Corio Savings Bank',
+        valueAtDeathCents: 42_317_55,
+        valuationSource: 'Bank letter',
+        valuedOn: '2026-08-01',
+        status: 'valued',
+      }),
       asset('b1', { description: 'Cheque account', valueAtDeathCents: 1_204_10 }),
-      asset('h', { class: 'real_property', description: '12 Example Street, Geelong', valueAtDeathCents: 900_000_00, jointlyHeld: true, jointHolding: 'tenants_in_common', shareBps: 5000 }),
-      asset('s', { class: 'superannuation', description: 'Super, "Fictional Fund", =SUM(A1)', valueAtDeathCents: 412_000_00, passesOutsideEstate: true }),
-      asset('us', { class: 'shares', description: 'US shares', valueAtDeathCents: 15_000_00, originalCurrency: 'USD', originalAmount: 9876.5, realisedCents: 15_100_00, status: 'realised' }),
+      asset('h', {
+        class: 'real_property',
+        description: '12 Example Street, Geelong',
+        valueAtDeathCents: 900_000_00,
+        jointlyHeld: true,
+        jointHolding: 'tenants_in_common',
+        shareBps: 5000,
+      }),
+      asset('s', {
+        class: 'superannuation',
+        description: 'Super, "Fictional Fund", =SUM(A1)',
+        valueAtDeathCents: 412_000_00,
+        passesOutsideEstate: true,
+      }),
+      asset('us', {
+        class: 'shares',
+        description: 'US shares',
+        valueAtDeathCents: 15_000_00,
+        originalCurrency: 'USD',
+        originalAmount: 9876.5,
+        realisedCents: 15_100_00,
+        status: 'realised',
+      }),
       asset('x', { description: 'Deleted', deletedAt: new Date() }),
     ],
-    liabilities: [liability('f', { class: 'funeral', creditor: 'Bay Funerals', amountCents: 8_500_00, status: 'paid' })],
+    liabilities: [
+      liability('f', { class: 'funeral', creditor: 'Bay Funerals', amountCents: 8_500_00, status: 'paid' }),
+    ],
   };
 
   it('groups by class in register order, with totals, outside assets apart, and the summary', () => {
@@ -218,7 +278,11 @@ describe('inventory export', () => {
     expect(schedule.assetGroups[2]?.lines[0]?.detail).toBe('USD 9876.50 at the date of death; Realised $15,100.00');
     expect(schedule.outsideGroups.map((g) => [g.label, g.total])).toEqual([['Superannuation', '$412,000.00']]);
     expect(schedule.liabilityGroups).toEqual([
-      { label: 'Funeral expenses', lines: [{ description: 'Bay Funerals', reference: '', detail: 'Paid', value: '$8,500.00' }], total: '$8,500.00' },
+      {
+        label: 'Funeral expenses',
+        lines: [{ description: 'Bay Funerals', reference: '', detail: 'Paid', value: '$8,500.00' }],
+        total: '$8,500.00',
+      },
     ]);
     expect(schedule.summary).toEqual([
       { label: 'Gross estate', value: '$508,521.65' },
@@ -240,12 +304,16 @@ describe('inventory export', () => {
     expect(lines[0]).toBe(
       'Section,Class,Description,Institution or reference,Value at date of death (AUD),Estate share (AUD),Share,Jointly held,Status,Realised (AUD),Valuation source,Valued on,Original currency,Original amount',
     );
-    expect(lines[1]).toBe('Assets,Real property,"12 Example Street, Geelong",,900000.00,450000.00,50% share,Tenants in common,Identified,,,,,');
+    expect(lines[1]).toBe(
+      'Assets,Real property,"12 Example Street, Geelong",,900000.00,450000.00,50% share,Tenants in common,Identified,,,,,',
+    );
     expect(lines).toContain('Assets,Bank accounts,Total,,,43521.65,,,,,,,,');
     expect(lines).toContain(
       'Passing outside the estate,Superannuation,"Super, ""Fictional Fund"", =SUM(A1)",,412000.00,412000.00,,No,Identified,,,,,',
     );
-    expect(lines).toContain('Assets,Shares and investments,US shares,,15000.00,15000.00,,No,Realised,15100.00,,,USD,9876.50');
+    expect(lines).toContain(
+      'Assets,Shares and investments,US shares,,15000.00,15000.00,,No,Realised,15100.00,,,USD,9876.50',
+    );
     expect(lines).toContain('Liabilities,Funeral expenses,Bay Funerals,,,8500.00,,,Paid,,,,,');
     expect(lines).toContain('Summary,,Net estate,,,500021.65,,,,,,,,');
     expect(lines.at(-2)).toBe(`Note,,${ESTATE_INVENTORY_FOOTER},,,,,,,,,,,`);
@@ -264,14 +332,18 @@ describe('inventory export', () => {
   });
 
   it('marks an insolvent estate', () => {
-    expect(inventorySchedule({ ...input, liabilities: [liability('big', { amountCents: 2_000_000_00 })] }).insolvent).toBe(true);
+    expect(
+      inventorySchedule({ ...input, liabilities: [liability('big', { amountCents: 2_000_000_00 })] }).insolvent,
+    ).toBe(true);
   });
 
   it('formats dates and file names without the locale', () => {
     expect(longDate('2026-01-09')).toBe('9 January 2026');
     expect(longDate(undefined)).toBe('');
     expect(longDate('not a date')).toBe('');
-    expect(inventoryFileName('HV/2026:1', 'pdf')).toBe('Schedule of assets and liabilities (working draft) - HV-2026-1.pdf');
+    expect(inventoryFileName('HV/2026:1', 'pdf')).toBe(
+      'Schedule of assets and liabilities (working draft) - HV-2026-1.pdf',
+    );
   });
 });
 
@@ -301,12 +373,30 @@ describe('schemas', () => {
   });
 
   it('refuses negative or fractional money, bad shares and currencies', () => {
-    const base = { class: 'bank', description: 'A', jointlyHeld: false, passesOutsideEstate: false, status: 'identified', ...meta };
+    const base = {
+      class: 'bank',
+      description: 'A',
+      jointlyHeld: false,
+      passesOutsideEstate: false,
+      status: 'identified',
+      ...meta,
+    };
     expect(Asset.schema.safeParse({ ...base, valueAtDeathCents: -1 }).success).toBe(false);
     expect(Asset.schema.safeParse({ ...base, valueAtDeathCents: 1.5 }).success).toBe(false);
     expect(Asset.schema.safeParse({ ...base, valueAtDeathCents: 1, shareBps: 10_001 }).success).toBe(false);
     expect(Asset.schema.safeParse({ ...base, valueAtDeathCents: 1, originalCurrency: 'usd' }).success).toBe(false);
-    expect(Liability.schema.safeParse({ class: 'tax', creditor: 'ATO', amountCents: -5, status: 'notified', ...meta }).success).toBe(false);
-    expect(Distribution.schema.safeParse({ beneficiaryPartyId: 'p', kind: 'pecuniary', amountCents: -1, status: 'planned', ...meta }).success).toBe(false);
+    expect(
+      Liability.schema.safeParse({ class: 'tax', creditor: 'ATO', amountCents: -5, status: 'notified', ...meta })
+        .success,
+    ).toBe(false);
+    expect(
+      Distribution.schema.safeParse({
+        beneficiaryPartyId: 'p',
+        kind: 'pecuniary',
+        amountCents: -1,
+        status: 'planned',
+        ...meta,
+      }).success,
+    ).toBe(false);
   });
 });

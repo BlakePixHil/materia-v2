@@ -227,10 +227,22 @@ describe('ruleSetReadsFacts (CORE-16)', () => {
   });
 
   it('finds a fact in a condition or an offset amount', () => {
-    const condition = { ...base, conditions: [{ fact: 'estate.netValueCents', exists: true }] } as RuleSet['rules'][number];
-    const offset = { ...base, conditions: [], offset: { days: { fact: 'estate.grossValueCents', default: 0 } } } as RuleSet['rules'][number];
+    const condition = {
+      ...base,
+      conditions: [{ fact: 'estate.netValueCents', exists: true }],
+    } as RuleSet['rules'][number];
+    const offset = {
+      ...base,
+      conditions: [],
+      offset: { days: { fact: 'estate.grossValueCents', default: 0 } },
+    } as RuleSet['rules'][number];
     expect(ruleSetReadsFacts({ rules: [condition] }, ESTATE_VALUES)).toBe(true);
     expect(ruleSetReadsFacts({ rules: [offset] }, ESTATE_VALUES)).toBe(true);
-    expect(ruleSetReadsFacts({ rules: [{ ...base, conditions: [], offset: { days: 3 } } as RuleSet['rules'][number]] }, ESTATE_VALUES)).toBe(false);
+    expect(
+      ruleSetReadsFacts(
+        { rules: [{ ...base, conditions: [], offset: { days: 3 } } as RuleSet['rules'][number]] },
+        ESTATE_VALUES,
+      ),
+    ).toBe(false);
   });
 });
