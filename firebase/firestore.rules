@@ -493,6 +493,33 @@ service cloud.firestore {
           allow read: if inOrg(orgId);
         }
       }
+      // Checklist templates (CORE-08d): every member reads and applies them to tasks; task.edit
+      // roles create them, edit the whitelisted fields and soft delete (or restore) them. Items are
+      // 1 to 30 single lines of at most 200 characters (`ChecklistTemplate` in libs/domain): joined
+      // with newlines, every line is 1 to 200 characters, and splitting gives the same strings back
+      // (no item holds a newline or isn't a string). Clients trim the items.
+      match /checklistTemplates/{templateId} {
+        function validChecklistTemplate(data) {
+          return data.name is string && data.name.trim().size() > 0 && data.name.size() <= 100
+            && data.items is list && data.items.size() >= 1 && data.items.size() <= 30
+            && data.items.join('\n').matches('[^\n]{1,200}(\n[^\n]{1,200})*')
+            && data.items.join('\n').split('\n') == data.items
+            && (!('priority' in data) || data.priority in ['none', 'urgent', 'high', 'medium', 'low'])
+            && (!('dueInDays' in data) || data.dueInDays is int && data.dueInDays >= 0 && data.dueInDays <= 365);
+        }
+        function canEditChecklistTemplates() {
+          return can(orgId, 'task.edit') && isActiveMember(orgId);
+        }
+        allow read: if inOrg(orgId);
+        allow create: if canEditChecklistTemplates()
+          && request.resource.data.keys().hasOnly(fieldsChecklistTemplate().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+          && request.resource.data.keys().hasAll(['name', 'items', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt == request.time
+          && validMeta() && request.resource.data.schemaVersion == 1
+          && validChecklistTemplate(request.resource.data);
+        allow update: if canEditChecklistTemplates()
+          && (clientUpdate(fieldsChecklistTemplate()) && validChecklistTemplate(request.resource.data) || softDelete());
+      }
       match /docTemplates/{templateId} {
         allow read: if inOrg(orgId);
         allow update: if editable(orgId, 'org.settings', fieldsDocTemplate());
@@ -613,6 +640,7 @@ service cloud.firestore {
     function fieldsAsset() { return ['class', 'description', 'valueAtDeathCents', 'valuationSource', 'jointlyHeld', 'passesOutsideEstate', 'status', 'realisedCents']; }
     function fieldsAuditEntry() { return []; }
     function fieldsCalendar() { return ['jurisdiction', 'year', 'calendarId', 'kind', 'holidays', 'closures', 'source', 'verified']; }
+    function fieldsChecklistTemplate() { return ['name', 'items', 'priority', 'dueInDays']; }
     function fieldsChronologyEntry() { return ['date', 'datePrecision', 'title', 'detail', 'sources', 'disputed', 'issueIds']; }
     function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'embedding']; }
     function fieldsClerkMessage() { return ['stopRequested']; }
@@ -638,7 +666,7 @@ service cloud.firestore {
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }
-    function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'estate', 'deceased', 'facts', 'privileged']; }
+    function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }
     function fieldsMatterEvent() { return []; }
     function fieldsMatterNumber() { return []; }
@@ -650,7 +678,7 @@ service cloud.firestore {
     function fieldsNote() { return ['bodyMd', 'pinned', 'privileged', 'source']; }
     function fieldsNotification() { return ['readAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['name', 'abn', 'acn', 'practiceType', 'jurisdictions', 'primaryJurisdiction', 'timezone', 'holidayLocality', 'billing', 'matterNumberFormat', 'matterTypeCodes', 'externalSystem', 'fy', 'retentionYears', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['name', 'abn', 'acn', 'practiceType', 'jurisdictions', 'primaryJurisdiction', 'timezone', 'holidayLocality', 'billing', 'matterNumberFormat', 'matterTypeCodes', 'fy', 'retentionYears', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }

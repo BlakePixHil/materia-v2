@@ -151,6 +151,13 @@ export const Matter = withMeta(
     privileged: z.boolean().default(false),
     priority: PrioritySchema.default('none'),
     externalRef: z.string().optional(),
+    /** A link to the matter elsewhere, e.g. in the firm's 3E (CORE-21a): an absolute http(s) URL. */
+    externalUrl: z
+      .string()
+      .trim()
+      .max(2000)
+      .refine((value) => /^https?:\/\/\S+$/i.test(value), { message: 'Enter a web address starting https://' })
+      .optional(),
     boardOrder: z.number().optional(),
     labels: z.array(z.string()).default([]),
     relatedMatterIds: z.array(DocIdSchema).default([]),
@@ -186,6 +193,7 @@ export const Matter = withMeta(
       'labels',
       'priority',
       'externalRef',
+      'externalUrl',
       'estate',
       'deceased',
       'facts',

@@ -29,6 +29,7 @@ import {
 } from '@materia/data-access/repository';
 import {
   contactDisplayName,
+  isMatterLink,
   MATTER_STATUS_LABELS,
   MatterTypeSchema,
   type ChangeMatterStatusResult,
@@ -74,11 +75,13 @@ import {
   JURISDICTIONS,
   matterGroup,
   orderForGroups,
+  readLastView,
   sameView,
   savedViewOption,
   stageLabel,
   STATUS_ORDER,
   toTableSort,
+  writeLastView,
   type MatterRow,
   type MatterViewOption,
   type MatterViewState,
@@ -226,6 +229,23 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
           (endReached)="loadMore()"
           (focusin)="onRowFocus($event)"
         >
+          <ng-template mtCell="number" let-cell>
+            @let row = asRow(cell);
+            @if (linkOf(row); as url) {
+              <a
+                class="mt-matters-link"
+                [href]="url"
+                target="_blank"
+                rel="noopener noreferrer"
+                [attr.aria-label]="row.number + '. Open the linked matter in a new tab'"
+                (click)="$event.stopPropagation()"
+                (keydown.enter)="$event.stopPropagation()"
+                >{{ row.number }}<mt-icon name="link" [size]="14"
+              /></a>
+            } @else {
+              {{ row.number }}
+            }
+          </ng-template>
           <ng-template mtCell="title" let-cell>
             @let row = asRow(cell);
             <span class="mt-matters-title">
@@ -503,6 +523,17 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
       flex: 1;
       min-height: 0;
     }
+    .mt-matters-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-4);
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .mt-matters-link:hover {
+      color: var(--text-brand);
+    }
     .mt-matters-title {
       display: flex;
       align-items: center;
@@ -656,6 +687,8 @@ export class MattersPage {
     },
   ];
   protected readonly rowKey = (row: MatterRow) => row.id;
+  /** The matter's link (CORE-21a), when it is a safe http(s) URL: its number opens it. */
+  protected readonly linkOf = (row: MatterRow) => (isMatterLink(row.externalUrl) ? row.externalUrl : null);
   protected readonly rowLabel = (row: MatterRow) => `${row.number} ${row.title}`;
 
   /** Loaded rows that pass every filter, sorted here when Firestore couldn't, in group order. */
@@ -736,13 +769,34 @@ export class MattersPage {
     ];
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
 
+    // Coming back without a view in the URL reopens the view the list was left on, edits and all.
+    let restore = readLastView();
+    if (restore && this.route.snapshot.queryParamMap.has('view')) restore = null;
+    else if (restore && restore.viewId !== DEFAULT_VIEW_ID) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { view: restore.viewId },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
+
     // A different view starts clean: no edits carried over, nothing selected.
     effect(() => {
-      this.viewId();
+      const id = this.viewId();
       untracked(() => {
-        this.draft.set(null);
+        const draft = restore?.viewId === id ? restore.draft : null;
+        if (restore?.viewId === id) restore = null;
+        this.draft.set(draft);
         this.selection.set([]);
       });
+    });
+
+    // Remember the view and its edits for next time (not while the remembered one is reopening).
+    effect(() => {
+      const viewId = this.viewId();
+      const draft = this.draft();
+      if (!restore) writeLastView({ viewId, draft });
     });
 
     // Client names for the rows on screen, read once per contact.

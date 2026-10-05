@@ -118,31 +118,35 @@ export function matterNumberKey(number: string): string {
   return encodeURIComponent(number.trim().toUpperCase()).replace(/\./g, '%2E').replace(/_/g, '%5F');
 }
 
-// ---------- external system (CORE-21a) ----------
+// ---------- matter link (CORE-21a) ----------
 
-/** What the matter screen calls the firm's other practice system when the org hasn't named it. */
-export const DEFAULT_EXTERNAL_SYSTEM_NAME = '3E';
+/** The longest `externalUrl` a matter may hold. */
+export const MATTER_LINK_MAX_LENGTH = 2000;
 
 /**
- * The link to a matter in the firm's other system (Elite 3E, say): the org's URL template with
- * `{ref}` replaced by the URI-encoded reference. Null without a template, a reference, or when the
- * template isn't an http(s) URL with `{ref}` (so a `javascript:` template can never become a link).
+ * Whether `url` may be a matter's link (`externalUrl`: the same matter in the firm's other system,
+ * a document store, anything): an absolute http(s) URL. Anything else (a `javascript:` URL, say)
+ * is never rendered as a link.
  */
-export function externalRefUrl(template: string | null | undefined, ref: string | null | undefined): string | null {
-  const value = ref?.trim();
-  if (!template || !value || !isExternalUrlTemplate(template)) return null;
-  return template.trim().replace(/\{ref\}/g, encodeURIComponent(value));
-}
-
-/** An http(s) URL containing `{ref}`. */
-export function isExternalUrlTemplate(template: string): boolean {
-  const trimmed = template.trim();
-  if (!/^https?:\/\/[^\s/]+/i.test(trimmed) || !trimmed.includes('{ref}') || /\s/.test(trimmed)) return false;
+export function isMatterLink(url: string | null | undefined): url is string {
+  const value = url?.trim();
+  if (!value || value.length > MATTER_LINK_MAX_LENGTH || /\s/.test(value)) return false;
   try {
-    return ['http:', 'https:'].includes(new URL(trimmed.replace(/\{ref\}/g, 'x')).protocol);
+    return ['http:', 'https:'].includes(new URL(value).protocol);
   } catch {
     return false;
   }
+}
+
+/**
+ * What a person typed as a matter link, made absolute ("3e.firm.com/m/1" → "https://3e.firm.com/m/1"),
+ * or null when it can't be a link.
+ */
+export function normaliseMatterLink(input: string): string | null {
+  const value = input.trim();
+  if (!value) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+  return isMatterLink(withScheme) && new URL(withScheme).hostname.includes('.') ? withScheme : null;
 }
 
 // ---------- status ----------

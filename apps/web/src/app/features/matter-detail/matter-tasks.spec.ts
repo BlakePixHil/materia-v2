@@ -277,17 +277,45 @@ describe('matter tasks tab', () => {
     expect(page.firestore.get(`${MATTER}/tasks/t-cert`)?.['title']).toBe('Order two death certificates');
 
     await page.click('Details: Order two death certificates');
+    // The add field shows only once asked for (CORE-08c).
+    expect(page.body.querySelector('mt-task-details .add')).toBeNull();
+    expect(page.text(page.body.querySelector('mt-task-details'))).toContain('Add checklist item');
+    page.body.querySelector<HTMLButtonElement>('mt-task-details .start')?.click();
+    await page.stable(5);
     const add = page.body.querySelector<HTMLInputElement>('mt-task-details .add');
-    (add as HTMLInputElement).value = 'Pay the fee';
-    add?.dispatchEvent(new Event('input'));
-    await page.press('Enter', {}, add as HTMLElement);
-    await page.stable(20);
+    expect(document.activeElement).toBe(add);
+    for (const text of ['Pay the fee', 'Post the form']) {
+      (add as HTMLInputElement).value = text;
+      add?.dispatchEvent(new Event('input'));
+      await page.press('Enter', {}, add as HTMLElement);
+      await page.stable(20);
+    }
     const checklist = page.firestore.get(`${MATTER}/tasks/t-cert`)?.['checklist'] as { text: string; done: boolean }[];
-    expect(checklist).toEqual([{ id: expect.any(String), text: 'Pay the fee', done: false }]);
+    expect(checklist).toEqual([
+      { id: expect.any(String), text: 'Pay the fee', done: false },
+      { id: expect.any(String), text: 'Post the form', done: false },
+    ]);
+    // Still open for more; Escape closes it and returns to the button.
+    const field = page.body.querySelector<HTMLInputElement>('mt-task-details .add');
+    await page.press('Escape', {}, field as HTMLElement);
+    await page.stable(5);
+    expect(page.body.querySelector('mt-task-details .add')).toBeNull();
+    expect(document.activeElement).toBe(page.body.querySelector('mt-task-details .start'));
     const box = page.body.querySelector<HTMLInputElement>('mt-task-details li input[type="checkbox"]');
     box?.click();
     await page.stable(20);
     expect((page.firestore.get(`${MATTER}/tasks/t-cert`)?.['checklist'] as { done: boolean }[])[0]?.done).toBe(true);
+  });
+
+  it('changes the priority from the details', async () => {
+    const page = await openMatter(URL);
+    await page.click('Details: Order the death certificate');
+    const selects = page.body.querySelectorAll<HTMLSelectElement>('mt-task-details select');
+    const priority = selects[1] as HTMLSelectElement;
+    priority.value = 'urgent';
+    priority.dispatchEvent(new Event('change'));
+    await page.stable(20);
+    expect(page.firestore.get(`${MATTER}/tasks/t-cert`)?.['priority']).toBe('urgent');
   });
 
   it('is read-only for read-only members', async () => {

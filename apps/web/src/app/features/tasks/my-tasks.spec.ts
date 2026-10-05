@@ -126,12 +126,26 @@ describe('my tasks', () => {
     expect(page.text(page.dialog())).toContain('Change the due date of 2 tasks');
     await page.fill('Due date', '31/02/2026', page.dialog() ?? page.body);
     await page.submit(page.dialog());
-    expect(page.text(page.dialog())).toContain('Enter a date like 14/10/2026.');
+    expect(page.text(page.dialog())).toContain('Enter a date like 14/10/2026 or fri.');
     await page.fill('Due date', '6/10/2026', page.dialog() ?? page.body);
     await page.submit(page.dialog());
     await page.stable(20);
     expect(page.firestore.get(`${MATTER}/tasks/t-late`)?.['dueDate']).toBe('2026-10-06');
     expect(page.firestore.get(`${PERSONAL}/p-renew`)?.['dueDate']).toBe('2026-10-06');
+  });
+
+  it('selects a whole section from the selection rail, and clears it again', async () => {
+    const page = await openMatter('/tasks', { configure: myTasks });
+    await page.stable(20);
+    const all = page.body.querySelector<HTMLInputElement>('input[aria-label="Select every task in Overdue"]');
+    expect(all?.checked).toBe(false);
+    all?.click();
+    await page.stable(5);
+    expect(page.text(page.body.querySelector('mt-tasks-bulk-bar'))).toContain('1 selected');
+    expect(all?.checked).toBe(true);
+    all?.click();
+    await page.stable(5);
+    expect(page.body.querySelector('mt-tasks-bulk-bar')).toBeNull();
   });
 
   it('deletes the selection after confirming', async () => {
