@@ -373,7 +373,16 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'none',
     update: 'none',
   },
-  { ...matterRecord('notes', 'Note', 'note.write'), seed: { privileged: false } },
+  // Notes (CORE-13): clients only pin, soft delete and restore; text goes through notes-update.
+  { ...matterRecord('notes', 'Note', 'note.write'), seed: { privileged: false }, change: { pinned: true } },
+  // A note's earlier versions (CORE-13): server-written, read with the note.
+  {
+    collection: 'revisions',
+    docPath: `${MATTER}/notes/doc-1/revisions/revision-1`,
+    entity: 'NoteRevision',
+    read: 'members',
+    update: 'none',
+  },
   // Offers are always privileged (without prejudice): privileged.view roles only.
   {
     ...matterRecord('offers', 'Offer'),

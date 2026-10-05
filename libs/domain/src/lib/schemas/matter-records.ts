@@ -534,16 +534,47 @@ export const Chunk = withMeta(
   { path: `${MATTER}/documents/{docId}/chunks`, migratable: false },
 );
 
-/** `matters/{matterId}/notes/{noteId}`. Mentions are `@[uid]` and `#[matterId]` tokens. */
+/** The longest note (CORE-13): 100 KB of Markdown. */
+export const NOTE_BODY_MAX = 100_000;
+
+/**
+ * `matters/{matterId}/notes/{noteId}` (CORE-13). Mentions are `@[uid]` and `#[matterId]` tokens,
+ * parsed server-side into `mentions`. Text and the privileged flag change only through
+ * `notes-create`/`notes-update`, which stamp `editedAt`/`editedBy` on edits and keep the previous
+ * text in `revisions`; clients pin, delete and restore directly. `legacyAuthor` names a migrated
+ * note's author who isn't a member.
+ */
 export const Note = withMeta(
   {
-    bodyMd: z.string().max(100_000),
+    bodyMd: z.string().max(NOTE_BODY_MAX),
     mentions: z.object({ uids: z.array(DocIdSchema), matterIds: z.array(DocIdSchema) }),
     pinned: z.boolean().default(false),
     privileged: z.boolean().default(false),
     source: z.enum(['manual', 'clerk', 'migration', 'voice']).default('manual'),
+    editedAt: InstantSchema.optional(),
+    editedBy: z.string().optional(),
+    legacyAuthor: z.string().max(200).optional(),
   },
-  { path: `${MATTER}/notes`, softDelete: true, serverOwned: ['mentions'] },
+  {
+    path: `${MATTER}/notes`,
+    softDelete: true,
+    serverOwned: ['mentions', 'editedAt', 'editedBy'],
+    updatable: ['pinned'],
+  },
+);
+
+/**
+ * `notes/{noteId}/revisions/{id}` (CORE-13): an earlier version of a note's text, appended by
+ * `notes-update` before each edit. `editedAt`/`editedBy` say who wrote that version and when.
+ */
+export const NoteRevision = withMeta(
+  {
+    bodyMd: z.string().max(NOTE_BODY_MAX),
+    privileged: z.boolean(),
+    editedAt: InstantSchema,
+    editedBy: z.string(),
+  },
+  { path: `${MATTER}/notes/{noteId}/revisions`, migratable: false, updatable: [] },
 );
 
 /** `matters/{matterId}/activity/{id}`: the feed's read model, written by triggers. */
@@ -665,6 +696,7 @@ export type DocumentHash = z.infer<typeof DocumentHash.schema>;
 export type Chunk = z.infer<typeof Chunk.schema>;
 export type Note = z.infer<typeof Note.schema>;
 export type Activity = z.infer<typeof Activity.schema>;
+export type NoteRevision = z.infer<typeof NoteRevision.schema>;
 export type TimeEntry = z.infer<typeof TimeEntry.schema>;
 export type Disbursement = z.infer<typeof Disbursement.schema>;
 export type Asset = z.infer<typeof Asset.schema>;
