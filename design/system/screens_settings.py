@@ -135,15 +135,30 @@ def practice():
 
 # ------------------------------------------------------------------ Trust account (display only)
 def trust():
-    rows = [("WE-118", "Estate of Robert Chen", "$84,210.00", "Sale proceeds, 9 Bay St", "2 Oct"), ("WE-142", "Estate of Margaret Whitfield", "$5,000.00", "Costs on account", "28 Sep"),
-            ("WE-087", "Estate of Ivy Santoro", "$12,480.55", "Trust income, Q1", "30 Sep"), ("WE-133", "Estate of Doris Fairweather", "$0.00", "No money held", "—")]
-    trs = "".join(f'<tr><td class="ref">{r}</td><td class="title">{m}</td><td class="num">{b}</td><td class="t-3">{n}</td><td class="t-3">{d}</td></tr>' for r, m, b, n, d in rows)
-    body = ('<div class="mt-col" style="gap:24px;max-width:880px">'
-            + page_head("Trust account", "Trust money is receipted, paid and reconciled in your trust accounting software, which keeps the records the Legal Services Board audits. materia only shows snapshots of the balances.", badge("Not the trust ledger", None, "lock"))
-            + '<div class="mt-integration"><span class="logo">T</span><div class="mt-grow"><div class="mt-row" style="gap:8px"><span class="mt-integration-name">Trust accounting software</span>' + badge("Linked", "success") + '</div><div class="mt-integration-desc">Balances read at 7:30 am and 1:00 pm each day. materia never writes to the trust ledger.</div></div>' + btn("Open trust software", "secondary", "sm", "external") + "</div>"
-            + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">' + stat("Held in trust", "$101,690.55", "Across 3 matters · as at 1:00 pm") + stat("Last reconciled", "30 Sep", "Monthly reconciliation done") + stat("Matters with money held", "3", "of 42 active") + "</div>"
-            + card("Balances by matter", '<div style="margin:0 -16px"><table class="mt-table"><thead><tr><th>Ref</th><th>Matter</th><th class="num">Balance</th><th>Last movement</th><th>Date</th></tr></thead><tbody>' + trs + "</tbody></table></div>", '<span class="caption t-3">Snapshot from the trust software · not the trust ledger</span>')
-            + '<div class="mt-note">' + icon("info") + "<span>To receipt or pay trust money, use the trust software. A matter shows its balance on the Billing tab, and invoices can show it when that setting is on.</span></div>"
+    # ADR-035: materia never keeps a trust ledger. It shows a balance copied from the firm's trust records, always labelled.
+    src = "in-house trust records"
+    held = (f'<div class="mt-card mt-stat"><div class="k">Held in trust<span class="mt-ml">{btn("Update", "ghost", "sm")}</span></div><div class="v">$84,210.00</div>'
+            f'<div class="f" style="flex-wrap:wrap">as at 2 Oct 2026 · from {src}</div><div class="f">{icon("info", "sm")}Not the trust ledger</div></div>')
+    stale = (f'<div class="mt-card mt-stat"><div class="k">Held in trust{badge("Out of date", "warning")}<span class="mt-ml">{btn("Update", "ghost", "sm")}</span></div><div class="v">$5,000.00</div>'
+             f'<div class="f" style="flex-wrap:wrap">as at 28 Aug 2026 · from {src}</div><div class="f">{icon("info", "sm")}Not the trust ledger</div></div>')
+    dialog = ('<div class="mt-dialog" role="dialog" aria-labelledby="trust-dlg" style="width:100%"><div class="mt-dialog-h"><div class="mt-grow"><h2 id="trust-dlg">Update trust balance</h2>'
+              '<div class="caption t-3">WE-118 · Estate of Robert Chen</div></div>' + ibtn("x", "Close", size="sm") + '</div><div class="mt-dialog-b">'
+              + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' + field("Amount", "84,210.00", ic="billing") + field("As at", "Mon 5 Oct 2026", ic="calendar") + "</div>"
+              + field("Note", placeholder="Where you read it, e.g. trust ledger report 5 Oct", optional=True)
+              + f'<div class="caption t-3">Copy the balance from your {src}. The change is recorded in the audit log.</div>'
+              + '</div><div class="mt-dialog-f">' + btn("Cancel", "ghost") + btn("Save balance", "primary") + "</div></div>")
+    body = ('<div class="mt-col" style="gap:28px;max-width:880px">'
+            + page_head("Trust account", "Trust money is receipted, paid and reconciled in your own trust records, which your external examiner checks each year. materia can show a balance you copy from them on each matter, and nothing more.", badge("Owners and admins", None, "lock"))
+            + '<div class="mt-note">' + icon("info") + "<span><b>Materia shows a trust balance you copy from your trust records. It is not the trust ledger.</b> Always check your trust records before paying money out.</span></div>"
+            + sec("Trust balances on matters", "Off until you turn it on. People with billing access then see the balance on each matter’s Billing tab, and Clerk quotes its as-at date.", [
+                setting("Show trust balances on matters", "Nothing is shown on invoices, client exports or emails.", switch(True)),
+                setting("Your trust records are kept in", "Named on every balance, as “from …”.", '<span class="mt-row" style="gap:8px">' + select_sm("Other").replace("width:220px", "width:120px") + inp("In-house trust records", 190) + "</span>"),
+                setting("Mark a balance out of date after", "Older balances get an amber Out of date chip until someone updates them.", inp("30", 96, "days")),
+            ])
+            + '<div class="mt-col" style="gap:10px"><h3 style="margin:0;font:600 14px/20px var(--font-sans)">On a matter</h3>'
+            + '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start">'
+            + '<div class="mt-col" style="gap:12px">' + held + stale + "</div>" + dialog + "</div>"
+            + '<span class="caption t-3">There are no deposit, withdraw or transfer actions anywhere in materia. “Paid from trust” on an invoice is recorded after the trust records show the withdrawal.</span></div>'
             + "</div>")
     return settings_frame("Trust account", body)
 
@@ -156,11 +171,11 @@ def integrations():
             + integration("X", "Xero", "Approved invoices and payments, matched to the matter.", "error", err="Xero refused the connection: the organisation’s subscription has lapsed, or an adviser removed materia’s access. 3 approved invoices are waiting. Reconnect with a Xero user who has the Standard role or above.")
             + integration("@", "Inbound email", "Forward or BCC mail to a matter’s address and it’s filed there; anything else waits in Inbox › Unfiled.", "connected", action=btn("Copy address", "ghost", "sm", "copy"), detail='<span class="mono">file@haleprice.in.materia.example</span> · or <span class="mono">we-142@…</span> for one matter')
             + integration("R", "RedCrest", "Probate applications and caveat searches with the Supreme Court of Victoria.", "soon")
-            + integration("T", "Trust accounting software", "Read-only trust balances by matter.", "connected", action=btn("Settings", "ghost", "sm"), detail="Linked by Daniel Kim · read only")
+            + integration("T", "Trust records (LEAP, Smokeball, Actionstep)", "Read trust balances instead of typing them in. Read-only: materia never writes to trust records.", "soon", detail="For now, copy balances in under Trust account.")
             + "</div>")
     body = ('<div class="mt-col" style="gap:24px;max-width:1000px">'
             + page_head("Integrations", "Services materia connects to. Each connection belongs to the firm; personal mail and calendars connect under Profile.")
-            + '<div class="mt-row" style="gap:6px">' + chip("All 6", selected=True) + chip("Needs attention 2", "alert") + chip("Connected 3") + "</div>"
+            + '<div class="mt-row" style="gap:6px">' + chip("All 6", selected=True) + chip("Needs attention 2", "alert") + chip("Connected 2") + "</div>"
             + grid
             + '<div class="mt-note">' + icon("shield") + "<span>Privileged documents are never sent to an integration without a person choosing to. Integrations see only the matters their connection allows.</span></div></div>")
     return settings_frame("Integrations", body)
@@ -212,7 +227,7 @@ SCREENS = [
     ("Settings: Team and roles", "Members with role, MFA and last activity, filters for a 54-person firm, pending and expired invites, suspended people, and what each role can do.", team),
     ("Settings: Billing and rates", "Default rate, unit and rounding, GST, invoice prefix and terms, rates by person and fee defaults by matter type, with an unsaved-changes bar.", billing_rates),
     ("Settings: Practice", "Firm name (a very long one), ABN, offices, jurisdictions, time zone and local holidays, matter number format with a live preview, and retention.", practice),
-    ("Settings: Trust account", "Display only: trust money stays in the firm’s trust software. The linked variant shows read-only balances by matter (depends on BILL-10).", trust),
+    ("Settings: Trust account", "Display only, per ADR-035: materia never keeps a trust ledger. Owners and admins turn on balances copied from the firm’s trust records, always labelled “Not the trust ledger” (BILL-11).", trust),
     ("Settings: Integrations", "IntegrationCard grid for Microsoft 365, Google, Xero, inbound email, RedCrest and trust software: connected, reconnect, error (a long message) and not yet available.", integrations),
     ("Settings: Security", "Required MFA, inactivity sign-out, re-confirmation for sensitive actions, your sessions and devices, and signing someone else out.", security),
     ("Settings: Audit log", "A filterable, read-only table of every change: who, action, record, change and source, with redaction and export.", audit_log),
