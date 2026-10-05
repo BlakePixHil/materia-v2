@@ -16,9 +16,12 @@ import {
   guessPhoneType,
   normalisePhone,
   postcodeMatchesState,
+  REFERRER_INDUSTRIES,
+  REFERRER_INDUSTRY_LABELS,
   type DuplicateProbe,
   type PartyRole,
   type PhoneType,
+  type ReferrerIndustry,
 } from '@materia/domain';
 import type { MtOption } from '@materia/ui';
 
@@ -53,6 +56,11 @@ export const ADDRESS_TYPE_OPTIONS: MtOption<AddressType>[] = [
   { value: 'other', label: 'Other' },
 ];
 export const STATE_OPTIONS: MtOption<string>[] = AU_STATES.map((state) => ({ value: state, label: state }));
+/** A referrer's industry (CORE-18), or '' for none. */
+export const INDUSTRY_OPTIONS: MtOption<ReferrerIndustry | ''>[] = [
+  { value: '', label: 'Not set' },
+  ...REFERRER_INDUSTRIES.map((industry) => ({ value: industry, label: REFERRER_INDUSTRY_LABELS[industry] })),
+];
 
 export const PARTY_ROLE_LABELS: Record<PartyRole, string> = {
   client: 'Client',
@@ -229,7 +237,7 @@ export function createContactForm() {
       tags: text(),
       isReferrer: new FormControl(false, { nonNullable: true }),
       referrerCompany: text(),
-      referrerIndustry: text(),
+      referrerIndustry: new FormControl<ReferrerIndustry | ''>('', { nonNullable: true }),
       notes: text(),
     },
     { validators: [nameValidator, dateOrderValidator] },
@@ -326,8 +334,11 @@ export function contactFromForm(form: ContactForm): ContactInput {
     ],
     isReferrer: value.isReferrer,
     referrerMeta:
-      value.isReferrer && (value.referrerCompany.trim() || value.referrerIndustry.trim())
-        ? { company: value.referrerCompany.trim(), industry: value.referrerIndustry.trim() }
+      value.isReferrer && (value.referrerCompany.trim() || value.referrerIndustry)
+        ? {
+            ...(value.referrerCompany.trim() ? { company: value.referrerCompany.trim() } : {}),
+            ...(value.referrerIndustry ? { industry: value.referrerIndustry } : {}),
+          }
         : undefined,
     notes: optional(value.notes),
   };

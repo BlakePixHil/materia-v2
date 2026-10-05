@@ -676,6 +676,9 @@ describe('matters (CORE-03)', () => {
           responsibleUid: uidFor('lawyer'),
           teamUids: [uidFor('paralegal')],
           externalRef: 'LEG-0042',
+          // The referral (CORE-18), edited on the matter header.
+          referrerContactId: 'contact-2',
+          referralSource: 'website',
           estate: { grossValueCents: 100, grantDate: '2026-05-01', grantNo: 'S PRB 2026 0042' },
           facts: { willDate: '2019-03-14', courtFileNo: 'S ECI 2026 01234' },
           deceased: {

@@ -441,6 +441,103 @@ describe('matters-changeStatus', () => {
   });
 });
 
+describe('referral thank-you task (CORE-18)', () => {
+  const TASK = `${M}/m1/tasks/referrer-thank-you`;
+  const settings = (thankYouTask: boolean) => ({
+    [`orgs/${ORG}`]: {
+      name: 'Fictional Bayside Legal',
+      retentionYears: 7,
+      timezone: 'Australia/Melbourne',
+      settings: { referrals: { thankYouTask } },
+    },
+    [`${C}/c-ref`]: { ...meta, kind: 'organisation', orgName: 'Lighthouse Fictional Advisers', isReferrer: true },
+  });
+  const lead = (extra: Record<string, unknown> = {}) => ({
+    [`${M}/m1`]: {
+      ...meta,
+      number: 'M-2026-0001',
+      title: 'Will of Fictional Quill',
+      status: 'lead',
+      responsibleUid: 'user-lawyer',
+      conflictCheck: { status: 'clear' },
+      referrerContactId: 'c-ref',
+      openTaskCount: 2,
+      privileged: false,
+      deletedAt: null,
+      ...extra,
+    },
+  });
+  const open = (w: ReturnType<typeof world>, to: MatterStatus = 'open') =>
+    changeStatusDefinition.handler(w.ctx({ requestId: randomUUID(), matterId: 'm1', to }) as never);
+  const tasksOf = (w: ReturnType<typeof world>, matterId: string) =>
+    [...w.docs.entries()].filter(([path]) => path.startsWith(`${M}/${matterId}/tasks/`));
+
+  it('creates "Thank …" for the responsible lawyer when a referred lead opens, once', async () => {
+    const w = world({ ...settings(true), ...lead() });
+    await open(w);
+    expect(w.doc(TASK)).toMatchObject({
+      title: 'Thank Lighthouse Fictional Advisers for the referral',
+      status: 'todo',
+      assigneeUid: 'user-lawyer',
+      dueDate: '2026-10-11',
+      group: 'Referral',
+      countedOpen: true,
+      orgId: ORG,
+      matterId: 'm1',
+    });
+    expect(w.doc(`${M}/m1`)?.['openTaskCount']).toBe(3);
+    expect(w.audits().find((a) => a['action'] === 'matter.status_changed')?.['data']).toMatchObject({
+      referrerThankYouTask: true,
+    });
+    // On hold and open again: the task exists, so nothing more.
+    await open(w, 'on_hold');
+    await open(w, 'open');
+    expect(tasksOf(w, 'm1')).toHaveLength(1);
+    expect(w.doc(`${M}/m1`)?.['openTaskCount']).toBe(3);
+  });
+
+  it('does nothing when the setting is off, the matter has no referrer, or only a source', async () => {
+    for (const w of [
+      world({ ...settings(false), ...lead() }),
+      world({ ...settings(true), ...lead({ referrerContactId: undefined }) }),
+      world({ ...settings(true), ...lead({ referrerContactId: undefined, referralSource: 'website' }) }),
+      world(lead()),
+    ]) {
+      await open(w);
+      expect(w.doc(TASK)).toBeUndefined();
+      expect(w.doc(`${M}/m1`)?.['openTaskCount']).toBe(2);
+    }
+  });
+
+  it('adds it to a referred matter created open, counted with its other tasks', async () => {
+    const w = world(settings(true));
+    const result = await w.create(newMatter({ referrerContactId: 'c-ref' }));
+    const tasks = tasksOf(w, result.matterId);
+    expect(tasks.map(([, task]) => task['title'])).toEqual(['Thank Lighthouse Fictional Advisers for the referral']);
+    expect(w.doc(`${M}/${result.matterId}`)).toMatchObject({ referrerContactId: 'c-ref', openTaskCount: 1 });
+    // A lead (conflict check pending) waits until it opens.
+    const pending = await w.create(newMatter({ referrerContactId: 'c-ref', conflictCheck: { status: 'pending' } }));
+    expect(tasksOf(w, pending.matterId)).toHaveLength(0);
+  });
+
+  it('stores a referral source instead of a referrer, and refuses an unknown referrer', async () => {
+    const w = world(settings(true));
+    const result = await w.create(newMatter({ referralSource: 'walk_in' }));
+    expect(w.doc(`${M}/${result.matterId}`)).toMatchObject({ referralSource: 'walk_in' });
+    expect(tasksOf(w, result.matterId)).toHaveLength(0);
+    expect(await failureOf(w.create(newMatter({ referrerContactId: 'c-nobody' })))).toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { fields: { 'matter.referrerContactId': ['Choose an existing contact'] } },
+    });
+    expect(
+      await failureOf(w.create(newMatter({ referrerContactId: 'c-ref', referralSource: 'website' }))),
+    ).toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { fields: { 'matter.referralSource': ['Choose a referrer or a source, not both'] } },
+    });
+  });
+});
+
 describe('matters-restore', () => {
   const DAY = 86_400_000;
   const seeded = (deletedDaysAgo: number | null) => {

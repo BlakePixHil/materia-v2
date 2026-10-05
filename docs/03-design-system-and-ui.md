@@ -2,7 +2,7 @@
 
 ## Sources of truth
 
-- **Design system (live):** https://claude.ai/artifact/QQ8WDbjwa4QTjSRkL6TfRm. It has tokens, type, 60 components with previews and guidelines, 18 screens, icons and logos.
+- **Design system (live):** https://claude.ai/artifact/QQ8WDbjwa4QTjSRkL6TfRm. It has tokens, type, 63 components with previews and guidelines, 33 screens, icons and logos.
 - **Screens gallery:** https://claude.ai/artifact/9pCRk8gUok8JWgn8jn8d7y
 - **Source code:** `design/` in the legacy repo `BlakePixHil/materia-web-app`, branch `claude/dazzling-lovelace-7nln12`. It is copied into the new repo at `design/` by FND-01. Rebuild it with `python3 design/system/build.py`.
 - **Brand book:** `design/system/project/README.md`. It covers voice, colour, type, layout, states, motion, charts, mobile, accessibility, the Clerk rules, litigation and the Angular mapping.
@@ -194,6 +194,7 @@ Each component's guidelines are on its page in the design system.
 - **Clerk:** ClerkMessage, ClerkBrief, ClerkWorking, Suggestion, Citation, Composer.
 - **Next:** BarChart, LineChart, Meter, PersonHeader, SettingsRow, IntegrationCard, StepList, ChoiceCard, TabBar, BottomSheet.
 - **Litigation:** CourtEvent, CourtOrder, ChronologyEvent, EvidenceMatrix, OfferCard, CourtBookIndex, ScenarioBars.
+- **Feedback (pass four):** Banner, Skeleton, NotificationRow. IntegrationCard gained its error and reconnect states.
 
 ## Screens
 
@@ -210,7 +211,16 @@ Each component's guidelines are on its page in the design system.
 | Command palette | CORE-15 |
 | Insights | INS-02 |
 | Contacts | CORE-01 |
-| Settings | CORE-21, CORE-22, AI-13, INT-05 |
+| Settings: Clerk and AI | AI-13, AI-02a |
+| Settings: Team and roles, Billing and rates, Practice, Audit log | CORE-21 (numbering: CORE-21a) |
+| Settings: Trust account | BILL-11 |
+| Settings: Integrations | INT-03 |
+| Settings: Security | SEC-04 |
+| Inbox and Notifications | CORE-22 |
+| Inbox: unfiled email | INT-05 |
+| Clerk (full page) | AI-14 |
+| Tablet: Today, Matter, Matters list | FND-12 (rail), MOB-02 |
+| System states | every list screen |
 | Onboarding | FND-12 (org setup), MIG-08 (import) |
 | Mobile | MOB-02, MOB-03 |
 | Disputes | LIT-02 |
@@ -230,11 +240,7 @@ Each component's guidelines are on its page in the design system.
 - **Empty and offline.** A clear day says so plainly ("Nothing needs attention", "Your week is clear"). Offline, the page keeps what it showed with a note; counts show `—`.
 - **Stats** use the design system's `.mt-stat` styles in the page rather than `MtStat`: the first use of a `@materia/ui` component from a lazy page lands in the initial bundle, and Today must not grow it.
 
-**Not yet designed** (DES-01 designs these first):
-- Settings sub-pages: team and roles, billing and rates, trust display, integrations;
-- Inbox and notifications;
-- the Clerk full-page view;
-- tablet layouts.
+Every screen above is designed. DES-01 (pass four) added the settings sub-pages, Inbox, unfiled email, notifications, the Clerk full page, tablet layouts and system states; `node design/system/check.mjs` checks the gallery for overflow at 1440, 1024 and 390 in light and dark.
 
 ## UI rules for agents
 
