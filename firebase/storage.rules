@@ -21,6 +21,11 @@ service firebase.storage {
       return inOrg(orgId)
         && firestore.get(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.status == 'active';
     }
+    // Archived matters (CORE-19) take no new files; a missing matter fails the get() and denies.
+    function matterOpenForUploads(orgId, matterId) {
+      let matter = firestore.get(/databases/(default)/documents/orgs/$(orgId)/matters/$(matterId)).data;
+      return matter.get('deletedAt', null) == null && matter.status != 'archived';
+    }
     function documentMeta(orgId, matterId, documentId) {
       return firestore.get(/databases/(default)/documents/orgs/$(orgId)/matters/$(matterId)/documents/$(documentId)).data;
     }
@@ -73,6 +78,7 @@ service firebase.storage {
         && uploadId.matches('^[A-Za-z0-9_-]{8,64}$')
         && request.resource.size > 0
         && request.resource.size <= 50 * 1024 * 1024
+        && matterOpenForUploads(orgId, matterId)
         && validUpload(orgId, matterId);
     }
 

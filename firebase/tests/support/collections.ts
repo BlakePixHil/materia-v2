@@ -258,6 +258,21 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'owner',
     update: 'none',
   },
+  // Matter destruction (CORE-19): server-written, read by owners and admins.
+  {
+    collection: 'destructionQueue',
+    docPath: `orgs/${ORG}/destructionQueue/matter-gone`,
+    entity: 'DestructionRequest',
+    read: 'matter.destroy',
+    update: 'none',
+  },
+  {
+    collection: 'destructionCertificates',
+    docPath: `orgs/${ORG}/destructionCertificates/dc-matter-gone`,
+    entity: 'DestructionCertificate',
+    read: 'matter.destroy',
+    update: 'none',
+  },
   {
     collection: 'audit',
     docPath: `orgs/${ORG}/audit/entry-1`,
