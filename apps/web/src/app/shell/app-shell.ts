@@ -46,6 +46,7 @@ import { ClerkPanel } from '../core/clerk/clerk-panel';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { NotificationsStore } from '../core/notifications/notifications-store';
 import { OfflineError, OrgService } from '../core/orgs/org-service';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterRefs, routeCrumbs } from '../core/title-strategy';
@@ -98,6 +99,8 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtNavItem,
     MtTabBar,
   ],
+  // The unread count on Inbox and urgent toasts (FND-20) follow the shell's lifetime.
+  providers: [NotificationsStore],
   host: { style: 'display: contents' },
   template: `
     <a class="mt-skip" href="#main" (click)="skipToMain($event)">Skip to content</a>
@@ -158,6 +161,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
                 [routerLink]="item.link"
                 [label]="item.label"
                 [icon]="item.icon"
+                [count]="item.id === 'inbox' ? notifications.count() : undefined"
                 [collapsed]="collapsed()"
               ></a>
             }
@@ -328,6 +332,8 @@ export class AppShellComponent {
   private readonly toasts = inject(ToastService);
   private readonly data = inject(DataLifecycle);
   protected readonly header = inject(PageHeader);
+  /** Unread in-app notifications (FND-20). */
+  protected readonly notifications = inject(NotificationsStore);
   /** The org switcher (FND-17). */
   protected readonly orgChoices = this.orgs.orgs;
 

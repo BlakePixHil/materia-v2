@@ -43,7 +43,7 @@ import { mtTooltipBinding } from '../tooltip/tooltip';
     @if (!collapsed()) {
       <span class="mt-ell">{{ label() }}</span>
       @if (count(); as n) {
-        <span class="mt-nav-count">{{ n }}</span>
+        <span class="mt-nav-count">{{ n > 99 ? '99+' : n }}</span>
       }
     }
   `,
@@ -53,6 +53,7 @@ export class MtNavItem {
   readonly icon = input<MtIconName | MtIconNode>();
   /** A pinned matter's type colour (a CSS colour or token), shown as an 8px square instead of the icon. */
   readonly dot = input<string>();
+  /** Shown as is up to 99, then "99+". */
   readonly count = input<number>();
   readonly collapsed = input(false, { transform: booleanAttribute });
 
