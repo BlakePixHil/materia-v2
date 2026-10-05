@@ -22,6 +22,7 @@ import {
   MtAvatar,
   MtBreadcrumb,
   MtButton,
+  MtBrandMark,
   MtClerkMark,
   MtIcon,
   MtIconButton,
@@ -86,6 +87,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtAvatar,
     MtBreadcrumb,
     MtButton,
+    MtBrandMark,
     MtClerkMark,
     MtIcon,
     MtIconButton,
@@ -120,7 +122,8 @@ export const MOBILE_QUERY = '(max-width: 767px)';
               ></button>
             } @else {
               <button type="button" class="mt-ws mt-grow" aria-label="Switch organisation" [mtMenuTrigger]="orgMenu">
-                <mt-avatar [name]="orgName()" size="sm" kind="org" />
+                <!-- Firms can't set a logo yet, so the materia mark stands in for one. -->
+                <mt-brand-mark [size]="20" />
                 <span class="mt-ell">{{ orgName() }}</span>
                 <mt-icon name="chevron-down" />
               </button>
