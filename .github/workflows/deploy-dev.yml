@@ -96,6 +96,7 @@ jobs:
           pnpm materia-scripts env --env dev --web-config "$WEB_CONFIG"
           pnpm materia-scripts stamp --target web --version "$VERSION" --sha "$SHA"
           pnpm nx build web --configuration=dev --skip-nx-cache
+          pnpm -s materia-scripts csp check --html dist/apps/web/browser/index.html
           mkdir -p dist/release && mv dist/apps/web/browser dist/release/web-dev
 
       - name: Build the web app for prod (same commit, prod Firebase config)
@@ -108,6 +109,7 @@ jobs:
           fi
           pnpm materia-scripts env --env prod --web-config "$WEB_CONFIG"
           pnpm nx build web --configuration=prod --skip-nx-cache
+          pnpm -s materia-scripts csp check --html dist/apps/web/browser/index.html
           mv dist/apps/web/browser dist/release/web-prod
 
       # The bundle only; deploy.yml builds the image from it with apps/jobs/Dockerfile (FND-24).

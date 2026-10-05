@@ -3,7 +3,12 @@ import path from 'node:path';
 
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
-import { expectNoA11yViolations, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import {
+  expectNoA11yViolations,
+  setEmulatorDocuments,
+  signInAsTestUser,
+  watchCspViolations,
+} from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
@@ -123,6 +128,8 @@ test.describe('matter documents', () => {
     request,
   }) => {
     test.setTimeout(240_000);
+    // Uploads, PDF.js (worker, WebAssembly, fonts), signed-URL images and previews, under the CSP.
+    const csp = watchCspViolations(page);
     const orgId = uniqueOrg();
     const account = await signInAsTestUser(page, request, {
       claims: { orgId, role: 'lawyer', orgName: 'Fictional Documents Practice' },
@@ -221,6 +228,7 @@ test.describe('matter documents', () => {
     await expect(page.getByText('schedule.txt saved to the matter', { exact: true })).toBeVisible();
     await page.goto('/matters/m-quill/documents');
     await expect(documentsTable(page).getByRole('link', { name: 'schedule.txt' })).toBeVisible(PIPELINE);
+    expect(csp(), 'Content Security Policy violations').toEqual([]);
   });
 
   test('a read-only member never sees privileged documents', async ({ page, request }) => {

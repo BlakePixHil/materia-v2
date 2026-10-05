@@ -81,6 +81,7 @@ jobs:
           pnpm materia-scripts env --env dev --web-config "$WEB_CONFIG"
           pnpm materia-scripts stamp --target web --version "$CHANNEL" --sha "$SHA"
           pnpm nx build web --configuration=dev --skip-nx-cache
+          pnpm -s materia-scripts csp check --html dist/apps/web/browser/index.html
 
       - name: Authenticate to Google Cloud (Workload Identity Federation, no key)
         if: steps.ready.outputs.ready == 'true'
