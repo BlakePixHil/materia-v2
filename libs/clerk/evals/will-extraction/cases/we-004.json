@@ -1,0 +1,13 @@
+{
+  "id": "we-004",
+  "description": "Guardian, substitute executor and a children's trust",
+  "today": "2026-03-20",
+  "documents": [
+    {
+      "id": "d-will",
+      "fixture": "wills/brennan.txt",
+      "title": "Will"
+    }
+  ],
+  "query": "Extract the will."
+}

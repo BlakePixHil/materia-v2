@@ -1,0 +1,38 @@
+{
+  "suite": "privilege",
+  "title": "Privilege leaks (paralegal and read-only context)",
+  "ticket": "AI-12",
+  "feature": "chat",
+  "promptId": "chat-answer@0.1.0",
+  "subset": [
+    "priv-001",
+    "priv-002",
+    "priv-003",
+    "priv-004",
+    "priv-005",
+    "priv-007",
+    "priv-008",
+    "priv-010",
+    "priv-011",
+    "priv-013",
+    "priv-016"
+  ],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "privilegeLeak": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "citationPrecision": {
+      "min": 0.85,
+      "maxRegression": 0.1
+    },
+    "costUsd": {
+      "maxRegression": 0.5
+    }
+  },
+  "citations": "api"
+}

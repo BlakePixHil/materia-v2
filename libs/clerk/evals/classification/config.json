@@ -1,0 +1,41 @@
+{
+  "suite": "classification",
+  "title": "Document classification (AI-04)",
+  "ticket": "AI-04",
+  "feature": "classification",
+  "promptId": "classify-document@1.0.0",
+  "subset": [
+    "cls-001",
+    "cls-002",
+    "cls-003",
+    "cls-004",
+    "cls-005",
+    "cls-006",
+    "cls-007",
+    "cls-008",
+    "cls-009",
+    "cls-010"
+  ],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "schemaValid": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "fieldAccuracy": {
+      "min": 0.85,
+      "maxRegression": 0.05
+    },
+    "costUsd": {
+      "maxRegression": 0.5
+    }
+  },
+  "fields": {
+    "category": "exact",
+    "documentDate": "date"
+  },
+  "citations": "none"
+}

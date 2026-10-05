@@ -1,0 +1,21 @@
+{
+  "id": "brief-002",
+  "description": "Quiet day: nothing due",
+  "today": "2026-03-21",
+  "matter": {
+    "user": "Jordan Price",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0007",
+        "upcomingDeadlines": [
+          {
+            "title": "Creditor notice period ends",
+            "due": "2026-04-20"
+          }
+        ],
+        "openTasks": [],
+        "newDocuments": []
+      }
+    ]
+  }
+}

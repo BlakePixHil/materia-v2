@@ -17,4 +17,8 @@ Clerk's model-independent pieces, for Functions only (AI-02). The gateway itself
 - `CLERK_PRICES` and `costMicros`: list prices and per-call cost in micro-dollars.
 - `CLERK_MODEL` and `CLERK_FALLBACK_MODELS`: the model chain (ADR-011a).
 
+- `@materia/clerk/evals` (`src/evals.ts`): the eval harness (AI-12): datasets, graders, gate and
+  report. A separate entry point, so Functions never bundles it. Datasets and how to run them:
+  `evals/README.md`.
+
 Run the tests with `nx test clerk`. Fixtures are fictional; never put real client data here.

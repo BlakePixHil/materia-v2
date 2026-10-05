@@ -144,7 +144,7 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md) and "Clerk suggestions (AI-07
 
 ## Evals (AI-12)
 
-- **Golden sets** live in `libs/clerk/evals/<feature>/*.json`. They use fictional matters and PDFs, generated or hand-written. **Never real client data.**
+- **Golden sets** live in `libs/clerk/evals/<suite>/` (`config.json`, `cases/*.json`, `gold/*.json`). They use fictional matters and PDFs, generated or hand-written. **Never real client data.**
 - **Graders:**
   - schema validity (exact);
   - field accuracy against the gold labels (exact or normalised);
@@ -155,6 +155,21 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md) and "Clerk suggestions (AI-07
   - a privilege-leak check (a paralegal context must not surface privileged text).
 - **When evals run:** in CI, on any change to `libs/clerk/**` (subset), and in full nightly. Prompt changes cannot merge if a metric regresses by more than its threshold.
 - **Cost guard:** each eval run reports its spend, and the nightly budget is capped.
+
+### As built (AI-12)
+
+The full guide is `libs/clerk/evals/README.md`. In short:
+
+- **Runner:** `pnpm nx run clerk:eval --feature=<suite>|all [--subset] [--model=…] [--runs=N] [--judge] [--provider=fake] [--accept-baseline]`. It runs each case through the real `createClerkGateway` (prompt rendering, structured-output validation, citation mapping, metering), with an in-memory store, every flag on, the model under test forced, and no availability fallbacks. At most 4 cases run at once. It writes `dist/evals/<suite>/<timestamp>.json` and `.md` (ids, scores and tokens only, never content). Code: `libs/clerk/src/lib/evals/` (datasets, graders, gate, report) and `apps/functions/src/clerk/evals/` (the gateway executor and CLI).
+- **Suites:** chat (AI-06, 13 cases), will extraction (AI-08, 11), injection (15), privilege (17), plus classification (AI-04), brief (AI-09), drafting (AI-10) and time assist (AI-11) with 10 cases each. A suite whose prompt isn't registered yet is reported **pending**; it runs as soon as its ticket adds the prompt.
+- **Graders** (`libs/clerk/src/lib/evals/graders.ts`, all pure): `schemaValid`, `fieldAccuracy` (exact, normalised, set F1 or date per field), `citationPrecision` (quote on the cited page) with the optional LLM judge as `citationSupport` (`eval-citation-judge@1.0.0`), `citationCoverage`, `privilegeLeak` (canaries planted in privileged fixtures), `injectionResistance` and `injectionFlagged`, `outcomePredictionRefusal`, `placeholderHonesty` (`[[MISSING: …]]`), `noInventions`, `latencyMs` and `costUsd`.
+- **Gate:** each suite's `config.json` sets thresholds and the allowed regression per metric. Baselines are in `libs/clerk/evals/baselines.json`, keyed by prompt version; a new prompt version is compared with the suite's latest accepted baseline. Only an explicit "accept baseline" commit changes that file.
+- **Outages** (overloaded, rate-limited, timed out) are retried, then the case is **inconclusive**, not failed. A provider 400 is a defect and fails the suite. Read-only users are refused by the gateway (`clerk.use`), and that refusal is scored as an empty answer.
+- **Budget:** `libs/clerk/evals/config.json` caps each run (subset $3, full $8). Once the cap is reached, no new case starts and the run fails as aborted.
+- **CI** (`.github/workflows/clerk-evals.yml`, check `clerk-evals`): on PRs touching Clerk it checks that fixtures and prompts are in sync and runs the harness on the fake provider (no tokens). When a PR changes a prompt or an eval dataset (and isn't from a fork), it also runs the live subset, comments the report on the PR and fails on a regression. The nightly full run (06:30 Melbourne, two runs per case to report variance) happens only when Clerk changed on main that day, or on Mondays. Manual dispatch can run any suite or model.
+- **Eval key:** the dev Secret Manager secret `ANTHROPIC_API_KEY` holds an eval-only key, read by the dev deployer through WIF (infra/MANUAL.md). It is never an org's key. Without it, live runs are skipped.
+- **Structured output and citations:** the API rejects citations combined with `output_config.format`, so the adapter turns document citations off for structured requests. Will extraction quotes its sources in its own `source` fields, and the evals check those quotes against the page text.
+- **Descoped for now:** the drafting LLM-judge rubric waits for AI-10's prompt. The privilege suite runs through the runner's own context filter (privileged documents and notes are dropped for roles without `privileged.view`) until AI-03's context builder is wired into the runner.
 
 ## Kill switches & failure modes
 
