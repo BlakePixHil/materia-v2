@@ -160,6 +160,15 @@ resource "google_service_account_iam_member" "fn_runtime_sign_self" {
   member             = "serviceAccount:${google_service_account.fn_runtime.email}"
 }
 
+# Functions enqueue Cloud Tasks for their own task-queue functions (documents-rescan,
+# documents-render, notifications-deliver, …). The Admin SDK puts an OIDC token for the runtime
+# account on each task, and Cloud Tasks only accepts that from a caller who may act as it.
+resource "google_service_account_iam_member" "fn_runtime_act_as_self" {
+  service_account_id = google_service_account.fn_runtime.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.fn_runtime.email}"
+}
+
 # documents-onUpload is a Cloud Storage trigger (CORE-12): Eventarc receives the bucket's
 # notifications through Pub/Sub, so the Cloud Storage service agent must be able to publish.
 resource "google_project_iam_member" "gcs_eventarc_publisher" {

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { BILLING_UNIT_MINUTES } from '../constants';
 import { DomainValueError } from './errors';

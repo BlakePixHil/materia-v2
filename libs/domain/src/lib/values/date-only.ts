@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
 import { DomainValueError } from './errors';
