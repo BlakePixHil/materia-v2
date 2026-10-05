@@ -225,6 +225,13 @@ export async function processUpload(event: UploadEvent, deps: PipelineDeps): Pro
     await files.remove(event.path, event.generation);
     return { outcome: 'already_done', docId };
   }
+  if (begun === 'id_taken') {
+    // A new document's id is its upload id: an upload may not name an existing document that
+    // way (new versions say `documentId`, which the rules and checkAccess check).
+    await files.remove(event.path, event.generation);
+    log.warn('upload refused', { ...ids, reason: 'id_taken' });
+    return { outcome: 'not_allowed', docId, reason: 'not_allowed' };
+  }
 
   const data = await files.read(event.path, event.generation);
   if (!data) {
@@ -337,7 +344,8 @@ export async function processUpload(event: UploadEvent, deps: PipelineDeps): Pro
 /**
  * Records the upload on its document in a transaction: creates a new document in the pipeline
  * state, or sets the target document's `upload`. `already_done` when this upload is already a
- * version (a redelivered event or a retry after the move).
+ * version (a redelivered event or a retry after the move); `id_taken` when a new-document upload's
+ * id names a document that isn't its own.
  */
 async function beginUpload(
   db: Firestore,
@@ -351,13 +359,14 @@ async function beginUpload(
     access: Access;
     now: Date;
   },
-): Promise<'begun' | 'already_done'> {
+): Promise<'begun' | 'already_done' | 'id_taken'> {
   const { meta, uploadId, now, event } = input;
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const doc = snap.data();
     if (versionsOf(doc).some((v) => v.uploadId === uploadId)) return 'already_done';
     const previous = uploadOf(doc);
+    if (doc && !meta.documentId && previous?.uploadId !== uploadId) return 'id_taken';
     const upload: DocumentUpload = {
       uploadId,
       fileName: meta.fileName,

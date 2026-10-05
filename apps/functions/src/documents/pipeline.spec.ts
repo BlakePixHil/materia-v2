@@ -323,6 +323,28 @@ describe('processUpload', () => {
     expect(w.files.objects.size).toBe(0);
   });
 
+  it('refuses a new-document upload whose id names an existing document', async () => {
+    const w = world();
+    // A document that didn't come from an upload with this id (generated, migrated or seeded).
+    const target = `${DOCS}/generated-0001`;
+    await w.db.doc(target).set({
+      orgId: ORG,
+      matterId: 'm1',
+      name: 'Fictional court book.pdf',
+      privileged: true,
+      version: 1,
+      versions: [{ version: 1, uploadId: 'job-0001' }],
+      scan: { status: 'clean' },
+      deletedAt: null,
+    });
+    const before = w.doc(target);
+    // An upload that reuses that id to slip a version in without `documentId` (and its checks).
+    const hijack = w.upload(fakePdf('theirs'), { uid: 'user-paralegal', uploadId: 'generated-0001' });
+    expect(await processUpload(hijack, w.deps())).toMatchObject({ outcome: 'not_allowed' });
+    expect(w.doc(target)).toEqual(before);
+    expect(w.files.objects.has(hijack.path)).toBe(false);
+  });
+
   it('ignores objects outside the pending area', async () => {
     const w = world();
     expect(await processUpload({ path: `${DOCS}/d1/v1`, generation: '1', size: 1, metadata: {} }, w.deps())).toEqual({
