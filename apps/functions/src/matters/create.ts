@@ -316,7 +316,6 @@ export const createMatterDefinition = {
   input: CreateMatterInput,
   roles: PERMISSIONS['matter.create'],
   idempotent: true,
-  timeoutSeconds: 120,
   handler: async (ctx): Promise<CreateMatterResult> => {
     const { input, orgId, uid, role, db, requestId, log } = ctx;
     const { fee, costsDisclosure } = intakeFeeAndDisclosure(input);
