@@ -124,7 +124,8 @@ test.describe('conflict check', () => {
     await expect(determination).toContainText('Say why the potential conflict is waived.');
     await determination.getByLabel('Reason').fill('Former matter closed; both clients gave informed consent.');
     await determination.getByRole('button', { name: 'Record determination' }).click();
-    await expect(determination.getByText('Potential conflict, waived')).toBeVisible();
+    // conflicts-determine's first call cold-starts it in the Functions emulator.
+    await expect(determination.getByText('Potential conflict, waived')).toBeVisible({ timeout: 20_000 });
     await expect(determination).toContainText('Jordan Fictional');
     await expect(determination).toContainText('both clients gave informed consent');
     await expect(page.locator('mt-matter-layout mt-badge').first()).toHaveText('Potential conflict waived');
