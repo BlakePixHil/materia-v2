@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, inject, InjectionToken, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  InjectionToken,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import {
@@ -8,7 +18,7 @@ import {
   type ContactListItem,
   type WithId,
 } from '@materia/data-access/repository';
-import { contactDisplayName } from '@materia/domain';
+import { contactDisplayName, REFERRER_INDUSTRY_LABELS } from '@materia/domain';
 import { DialogService, formatDateOnly, MtButton, MtSearchField } from '@materia/ui';
 
 import { intakeContact, type IntakeContact } from './intake-state';
@@ -50,6 +60,19 @@ const RESULTS = 6;
     />
     @if (searching()) {
       <p class="caption t-3" role="status">Searching…</p>
+    } @else if (referrersFirst() && query().length < 2 && referrers().length) {
+      <ul class="results" aria-label="Referrers">
+        @for (row of referrers(); track row.id) {
+          <li>
+            <button mtButton variant="ghost" size="sm" type="button" class="result" (click)="choose(row)">
+              {{ name(row) }}
+              @if (detail(row); as text) {
+                <span class="caption t-3">{{ text }}</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
     } @else if (query().length >= 2) {
       <ul class="results" [attr.aria-label]="'Contacts matching ' + query()">
         @for (row of results(); track row.id) {
@@ -104,6 +127,8 @@ export class IntakeContactPicker {
   readonly createLabel = input('New contact…');
   /** Contacts already chosen here (left out of the results). */
   readonly exclude = input<readonly string[]>([]);
+  /** List referrers first (CORE-18): a few before anything is typed, then ahead of other matches. */
+  readonly referrersFirst = input(false);
   readonly picked = output<PickedContact>();
 
   protected readonly text = signal('');
@@ -111,11 +136,39 @@ export class IntakeContactPicker {
   protected readonly results = signal<WithId<ContactListItem>[]>([]);
   protected readonly searching = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly referrers = signal<WithId<ContactListItem>[]>([]);
   private searchRun = 0;
+
+  constructor() {
+    effect(() => {
+      if (this.referrersFirst()) untracked(() => void this.loadReferrers());
+    });
+  }
+
+  /** The first few referrers, by name, for choosing before typing. */
+  private async loadReferrers(): Promise<void> {
+    try {
+      const rows = await this.contacts.query(contactListQuery({ referrersOnly: true }, RESULTS * 2));
+      const excluded = new Set(this.exclude());
+      this.referrers.set(
+        rows
+          .filter((row) => !excluded.has(row.id) && contactMatchesFilters(row, { referrersOnly: true }))
+          .slice(0, RESULTS),
+      );
+    } catch {
+      // Typing still searches every contact.
+    }
+  }
 
   protected readonly name = (row: ContactListItem) => contactDisplayName(row);
 
   protected detail(row: ContactListItem): string {
+    if (this.referrersFirst() && row.isReferrer) {
+      const industry = row.referrerMeta?.industry;
+      return ['Referrer', industry ? REFERRER_INDUSTRY_LABELS[industry] : null, row.referrerMeta?.company]
+        .filter(Boolean)
+        .join(' · ');
+    }
     if (row.dateOfDeath) return `Died ${formatDateOnly(row.dateOfDeath)}`;
     if (row.dateOfBirth) return `Born ${formatDateOnly(row.dateOfBirth)}`;
     return row.emails[0]?.address ?? '';
@@ -134,9 +187,10 @@ export class IntakeContactPicker {
       const rows = await this.contacts.query(contactListQuery({ query }, 50));
       if (run !== this.searchRun) return;
       const excluded = new Set(this.exclude());
-      this.results.set(
-        rows.filter((row) => !excluded.has(row.id) && contactMatchesFilters(row, { query })).slice(0, RESULTS),
-      );
+      const matches = rows.filter((row) => !excluded.has(row.id) && contactMatchesFilters(row, { query }));
+      // Referrers first when choosing a referrer (a stable sort keeps the name order otherwise).
+      if (this.referrersFirst()) matches.sort((a, b) => Number(b.isReferrer) - Number(a.isReferrer));
+      this.results.set(matches.slice(0, RESULTS));
       this.error.set(null);
     } catch (error) {
       if (run === this.searchRun) this.error.set(errorCopy(error));

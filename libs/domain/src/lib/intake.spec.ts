@@ -84,6 +84,21 @@ describe('step 2: clients', () => {
     ]);
     expect(IntakeClientsStep.safeParse({ clientContactIds: ['a/b'] }).success).toBe(false);
   });
+
+  it('takes a referrer or a referral source, not both (CORE-18)', () => {
+    expect(IntakeClientsStep.safeParse({ clientContactIds: ['c-ada'], referrerContactId: 'c-ref' }).success).toBe(true);
+    expect(IntakeClientsStep.safeParse({ clientContactIds: ['c-ada'], referralSource: 'website' }).success).toBe(true);
+    expect(IntakeClientsStep.safeParse({ clientContactIds: ['c-ada'], referralSource: 'radio' }).success).toBe(false);
+    expect(
+      messages(
+        IntakeClientsStep.safeParse({
+          clientContactIds: ['c-ada'],
+          referrerContactId: 'c-ref',
+          referralSource: 'website',
+        }),
+      ),
+    ).toEqual(['referralSource: Choose a referrer or a source, not both']);
+  });
 });
 
 describe('step 3: details', () => {
@@ -407,6 +422,16 @@ describe('the whole form', () => {
       costsDisclosure: { status: 'required', estimateCents: 330000 },
       conflictCheckId: 'chk-1',
     });
+    expect(CreateMatterInput.safeParse(input).success).toBe(true);
+  });
+
+  it('carries the referral to the matter (CORE-18)', () => {
+    const referred = probateForm({ clients: { clientContactIds: ['c-ada'], referrerContactId: 'c-ref' } });
+    expect(intakeToCreateMatterInput(form.parse(referred), REQUEST_ID).matter.referrerContactId).toBe('c-ref');
+    const walkIn = probateForm({ clients: { clientContactIds: ['c-ada'], referralSource: 'walk_in' } });
+    const input = intakeToCreateMatterInput(form.parse(walkIn), REQUEST_ID);
+    expect(input.matter.referralSource).toBe('walk_in');
+    expect(input.matter.referrerContactId).toBeUndefined();
     expect(CreateMatterInput.safeParse(input).success).toBe(true);
   });
 

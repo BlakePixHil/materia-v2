@@ -10,6 +10,7 @@ import {
   MatterTypeSchema,
   PartyRoleSchema,
   PrioritySchema,
+  ReferralSourceSchema,
   type MatterType,
   type PartyRole,
 } from './schemas/enums';
@@ -87,7 +88,21 @@ export type IntakeTypeStep = z.infer<typeof IntakeTypeStep>;
 // ---------- step 2: clients ----------
 
 /** At least one client contact (create new ones through the contacts flow first). */
-export const IntakeClientsStep = z.object({ clientContactIds: ContactIds(1, 20, 'Add at least one client') }).strict();
+/**
+ * The clients and, optionally, how the matter came in (CORE-18): the referrer contact who sent it,
+ * or a referral source when no contact did. Never both.
+ */
+export const IntakeClientsStep = z
+  .object({
+    clientContactIds: ContactIds(1, 20, 'Add at least one client'),
+    referrerContactId: DocIdSchema.optional(),
+    referralSource: ReferralSourceSchema.optional(),
+  })
+  .strict()
+  .refine((step) => !(step.referrerContactId && step.referralSource), {
+    path: ['referralSource'],
+    message: 'Choose a referrer or a source, not both',
+  });
 export type IntakeClientsStep = z.infer<typeof IntakeClientsStep>;
 
 // ---------- step 3: type-specific details ----------
@@ -513,6 +528,8 @@ export function intakeToCreateMatterInput(form: IntakeForm, requestId: string): 
       priority: form.review.priority,
       privileged: form.review.privileged,
       clientContactIds: form.clients.clientContactIds,
+      ...(form.clients.referrerContactId ? { referrerContactId: form.clients.referrerContactId } : {}),
+      ...(form.clients.referralSource ? { referralSource: form.clients.referralSource } : {}),
       ...(deceased ? { deceased } : {}),
       ...(testatorContactId ? { testator: { contactId: testatorContactId } } : {}),
       ...(facts ? { facts } : {}),

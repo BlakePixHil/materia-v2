@@ -12,13 +12,18 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
+import { contactsRepository } from '@materia/data-access/repository';
 import {
   conflictAllowsOpening,
+  contactDisplayName,
   isMatterLink,
   MATTER_LINK_MAX_LENGTH,
   MATTER_NUMBER_MAX_LENGTH,
   matterNumberProblem,
   normaliseMatterLink,
+  REFERRAL_SOURCE_LABELS,
+  referralPatch,
+  referralText,
   type MatterStatus,
 } from '@materia/domain';
 import {
@@ -39,6 +44,7 @@ import {
 
 import { MatterScreen } from './matter-screen';
 import { LONG_TITLE, matterErrorCopy, statusChoices, statusLabel, type StatusChoice } from './matter-view';
+import type { ReferralChoice, ReferralDialogData } from './referral-dialog';
 import { errorCodeOf, errorCopy } from '../../core/error-copy';
 import { CONFLICT_STATUS_TONES, conflictBadgeText } from '../conflicts/conflict-view';
 import { MatterNameDialog, type MatterNameDialogData } from '../matters/matter-name-dialog';
@@ -208,6 +214,19 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
           }
           @if (screen.editable()) {
             <button mtButton variant="ghost" size="sm" iconStart="plus" (click)="addLabel()">Label</button>
+          }
+        </span>
+        <span class="field" data-testid="matter-referral">
+          <span class="caption t-3">Referred by</span>
+          @if (m.referrerContactId) {
+            <a class="mt-chip" [routerLink]="['/contacts']" [queryParams]="{ contact: m.referrerContactId }">{{
+              referral()
+            }}</a>
+          } @else {
+            <span [class]="referral() ? 'person' : 'caption t-3'">{{ referral() ?? 'Not recorded' }}</span>
+          }
+          @if (screen.editable()) {
+            <button mtIconButton icon="compose" size="sm" label="Change referral" (click)="editReferral()"></button>
           }
         </span>
         @if (screen.canPrivileged()) {
@@ -398,6 +417,14 @@ export class MatterHeader {
     return isMatterLink(url) ? url : null;
   });
   readonly canClose = computed(() => this.statusEditable() && this.choices().some((choice) => choice.to === 'closed'));
+  /** The referrer contact (CORE-18), read for its name. */
+  private readonly referrer = contactsRepository().watch(() => this.screen.value()?.referrerContactId ?? null);
+  /** "Lighthouse Financial Advisers", "Walk-in", or null when nothing is recorded. */
+  protected readonly referral = computed(() => {
+    const matter = this.screen.value();
+    const contact = this.referrer.value();
+    return matter ? referralText(matter, contact ? contactDisplayName(contact) : null) : null;
+  });
 
   // ---------- title ----------
 
@@ -460,13 +487,41 @@ export class MatterHeader {
     if (privileged !== this.screen.value()?.privileged) void this.save({ privileged });
   }
 
+  /** Records who referred the matter, or its source, or clears it (CORE-18; client-direct). */
+  protected async editReferral(): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter || !this.screen.editable()) return;
+    const { ReferralDialog } = await import('./referral-dialog');
+    const choice = await this.dialogs.open<ReferralDialogData, ReferralChoice | undefined>(ReferralDialog, {
+      data: {
+        number: matter.number,
+        hasReferral: !!(matter.referrerContactId || matter.referralSource),
+        source: matter.referralSource,
+        exclude: matter.clientContactIds,
+      },
+    }).result;
+    if (choice === undefined) return;
+    const { set, remove } = referralPatch(choice && 'contactId' in choice ? { contactId: choice.contactId } : choice);
+    if (await this.save(set, remove)) {
+      this.toasts.show({
+        title:
+          choice === null
+            ? 'Referral cleared'
+            : 'name' in choice
+              ? `Referred by ${choice.name}`
+              : `Source: ${REFERRAL_SOURCE_LABELS[choice.source]}`,
+        tone: 'success',
+      });
+    }
+  }
+
   /** A client-direct update of the matter (last write wins); false when it was refused. */
-  private async save(patch: Record<string, unknown>): Promise<boolean> {
+  private async save(patch: Record<string, unknown>, remove: readonly string[] = []): Promise<boolean> {
     const matter = this.screen.value();
     if (!matter || !this.screen.editable()) return false;
     this.busy.set(true);
     try {
-      await this.screen.repo.update(matter.id, patch);
+      await this.screen.repo.update(matter.id, patch, remove.length ? { remove } : {});
       return true;
     } catch (error) {
       this.toasts.show({ title: 'That change didn’t save', description: errorCopy(error), tone: 'danger' });

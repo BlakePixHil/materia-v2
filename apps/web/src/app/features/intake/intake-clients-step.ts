@@ -1,16 +1,28 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 
-import { MtIcon } from '@materia/ui';
+import { REFERRAL_SOURCE_LABELS, ReferralSourceSchema, type ReferralSource } from '@materia/domain';
+import { MtIcon, MtSelect, type MtOption } from '@materia/ui';
 
 import { IntakeContactPicker, type PickedContact } from './contact-picker';
 import { IntakeContacts } from './intake-contacts';
 import { IntakeStore } from './intake-store';
 
-/** Step 2: the client or clients, found among the contacts or created (with the duplicate check). */
+/** No referral recorded, or one of the sources (CORE-18). */
+const SOURCE_OPTIONS: MtOption<ReferralSource | ''>[] = [
+  { value: '', label: 'Not recorded' },
+  ...ReferralSourceSchema.options.map((source) => ({ value: source, label: REFERRAL_SOURCE_LABELS[source] })),
+];
+
+/**
+ * Step 2: the client or clients, found among the contacts or created (with the duplicate check),
+ * and how the matter came in (CORE-18): the referrer who sent it (referrers listed first), or a
+ * source when no contact did. Optional.
+ */
 @Component({
   selector: 'mt-intake-clients-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IntakeContactPicker, IntakeContacts, MtIcon],
+  imports: [FormsModule, IntakeContactPicker, IntakeContacts, MtIcon, MtSelect],
   template: `
     <section class="mt-col" style="gap: var(--space-12)" aria-labelledby="intake-clients-h">
       <h2 id="intake-clients-h" class="heading">Who are we acting for?</h2>
@@ -30,13 +42,40 @@ import { IntakeStore } from './intake-store';
         (picked)="add($event)"
       />
     </section>
+
+    <section class="mt-col" style="gap: var(--space-12)" aria-labelledby="intake-referral-h">
+      <h3 id="intake-referral-h" class="label">How did they find us?</h3>
+      @if (referrer(); as chosen) {
+        <mt-intake-contacts label="Referred by" [people]="[chosen]" (removed)="clearReferrer()" />
+      } @else {
+        <mt-intake-contact-picker
+          label="Referred by"
+          createLabel="New referrer…"
+          [referrersFirst]="true"
+          [exclude]="store.state().clientContactIds"
+          (picked)="refer($event)"
+        />
+        <mt-select
+          label="Or the source"
+          [native]="true"
+          [options]="sources"
+          [ngModel]="store.state().referral.source ?? ''"
+          (ngModelChange)="setSource($event)"
+        />
+      }
+    </section>
   `,
 })
 export class IntakeClientsStep {
   protected readonly store = inject(IntakeStore);
+  protected readonly sources = SOURCE_OPTIONS;
   protected readonly clients = computed(() =>
     this.store.state().clientContactIds.map((id) => ({ id, name: this.store.name(id) })),
   );
+  protected readonly referrer = computed(() => {
+    const id = this.store.state().referral.referrerContactId;
+    return id ? { id, name: this.store.name(id), note: 'Referrer' } : null;
+  });
 
   protected add(picked: PickedContact): void {
     this.store.remember(picked.id, picked.contact);
@@ -47,5 +86,23 @@ export class IntakeClientsStep {
 
   protected remove(id: string): void {
     this.store.update((s) => ({ ...s, clientContactIds: s.clientContactIds.filter((c) => c !== id) }));
+  }
+
+  /** A referrer replaces any source: a matter records one or the other. */
+  protected refer(picked: PickedContact): void {
+    this.store.remember(picked.id, picked.contact);
+    this.store.update((s) => ({ ...s, referral: { referrerContactId: picked.id, source: null } }));
+  }
+
+  protected clearReferrer(): void {
+    this.store.update((s) => ({ ...s, referral: { ...s.referral, referrerContactId: null } }));
+  }
+
+  protected setSource(value: string | null): void {
+    const parsed = ReferralSourceSchema.safeParse(value);
+    this.store.update((s) => ({
+      ...s,
+      referral: { referrerContactId: null, source: parsed.success ? parsed.data : null },
+    }));
   }
 }

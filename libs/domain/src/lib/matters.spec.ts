@@ -161,6 +161,8 @@ describe('matter inputs and views', () => {
         'labels',
         'priority',
         'privileged',
+        'referralSource',
+        'referrerContactId',
         'responsibleUid',
         'teamUids',
         'title',

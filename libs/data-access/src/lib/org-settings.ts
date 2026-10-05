@@ -26,3 +26,25 @@ export type OrgNumbering = z.infer<typeof OrgNumberingSchema>;
 export function orgSettingsRepository(): Repository<OrgNumbering> {
   return repo(() => 'orgs', { schema: OrgNumberingSchema, version: Org.version, update: Org.update });
 }
+
+/**
+ * The org's referral settings (CORE-18): `settings` is read and written whole (the Clerk settings
+ * in it are kept), so a change sends the current `settings` with `referrals` replaced.
+ */
+export const OrgReferralSettingsSchema = /* @__PURE__ */ z.object({ settings: org.settings });
+export type OrgReferralSettings = z.infer<typeof OrgReferralSettingsSchema>;
+
+/** The active org's document, read for its settings and updated as `orgSettingsRepository` is. */
+export function orgReferralSettingsRepository(): Repository<OrgReferralSettings> {
+  return repo(() => 'orgs', { schema: OrgReferralSettingsSchema, version: Org.version, update: Org.update });
+}
+
+/** The `settings` an update writes to turn the "Thank referrer" task on or off. */
+export function withThankYouTask(
+  settings: OrgReferralSettings['settings'],
+  thankYouTask: boolean,
+): NonNullable<OrgReferralSettings['settings']> {
+  return { ...(settings ?? {}), referrals: { ...(settings?.referrals ?? {}), thankYouTask } } as NonNullable<
+    OrgReferralSettings['settings']
+  >;
+}

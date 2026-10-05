@@ -55,6 +55,9 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   clientContactIds: matter.clientContactIds,
   deceased: matter.deceased,
   testator: matter.testator,
+  /** The referral (CORE-18): a referrer contact or a source. */
+  referrerContactId: matter.referrerContactId,
+  referralSource: matter.referralSource,
   estate: matter.estate,
   facts: matter.facts,
   privileged: matter.privileged,

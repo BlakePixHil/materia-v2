@@ -40,6 +40,7 @@ import {
   type Template,
 } from '@materia/domain';
 
+import { thankYouTaskData, thankYouTaskPath, thankYouTaskTitle } from './referral';
 import { contactNames, counterPath, liveContactIds, matterNumberPath, mattersPath, matterSearch } from './shared';
 import { audit } from '../audit/audit';
 import { conflictChecksPath } from '../conflicts/shared';
@@ -178,6 +179,10 @@ async function checkReferences(db: Firestore, orgId: string, role: Role, matter:
     contactRefs.map(([, id]) => id),
   );
   for (const [path, id] of contactRefs) if (!live.has(id)) fields[path] = ['Choose an existing contact'];
+  // CORE-18: a referrer contact or a referral source, never both.
+  if (matter.referrerContactId && matter.referralSource) {
+    fields['matter.referralSource'] = ['Choose a referrer or a source, not both'];
+  }
 
   const uids = [...new Set([matter.responsibleUid, ...matter.teamUids])];
   const members = await db.getAll(...uids.map((uid) => db.doc(`orgs/${orgId}/members/${uid}`)));
@@ -413,6 +418,23 @@ export const createMatterDefinition = {
         }) as Record<string, unknown>,
       });
     }
+    // CORE-18: a referred matter that opens now gets a "Thank referrer" task when the org asks for it.
+    const thankYouTitle = status === 'open' ? await thankYouTaskTitle(db, orgId, org, matter) : undefined;
+    if (thankYouTitle) {
+      tasks.push({
+        path: thankYouTaskPath(orgId, matterRef.id),
+        data: thankYouTaskData({
+          orgId,
+          matterId: matterRef.id,
+          title: thankYouTitle,
+          assigneeUid: matter.responsibleUid,
+          openedOn: orgToday,
+          uid,
+          now,
+          requestId,
+        }),
+      });
+    }
     // Party contacts beyond the matter's own (checked above): read in the transaction, refused there.
     const extraContactIds = [
       ...new Set(parties.filter((party) => party.inputIndex !== undefined).map((party) => party.contactId)),
@@ -525,11 +547,12 @@ export const createMatterDefinition = {
           parties: parties.length,
           events: events.length,
           ...(deathCertificateTask ? { deathCertificateTask: true } : {}),
+          ...(thankYouTitle ? { referrerThankYouTask: true } : {}),
           ...(template
             ? {
                 templateId: template.id,
                 templateVersion: template.version,
-                tasks: tasks.length - (deathCertificateTask ? 1 : 0),
+                tasks: tasks.length - (deathCertificateTask ? 1 : 0) - (thankYouTitle ? 1 : 0),
               }
             : {}),
         },

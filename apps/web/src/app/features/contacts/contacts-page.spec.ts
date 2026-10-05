@@ -354,6 +354,117 @@ describe('contact detail', () => {
     expect(page.detail()).toContain('Organisation · ABN 12 345 678 901');
     expect(page.detail()).toContain('Referrer');
     expect(page.detail()).toContain('Not on any matters yet.');
+    expect(page.detail()).toContain('No referred matters yet.');
+  });
+
+  it('lists the matters a referrer referred, newest first, with totals (CORE-18)', async () => {
+    const referred = (id: string, extra: Seed) => ({
+      number: `WE-${id}`,
+      type: 'will',
+      status: 'open',
+      privileged: false,
+      referrerContactId: 'c-coastal',
+      deletedAt: null,
+      ...extra,
+    });
+    const seed = (fs: InMemoryFirestore) => {
+      seedPeople(fs);
+      fs.set(
+        `orgs/${ORG}/matters/m-r1`,
+        referred('0101', { title: 'Will of Fictional Ash', createdAt: new Date('2026-03-02T00:00:00Z') }),
+      );
+      fs.set(
+        `orgs/${ORG}/matters/m-r2`,
+        referred('0102', {
+          title: 'Estate of Fictional Birch',
+          type: 'probate',
+          status: 'closed',
+          createdAt: new Date('2026-08-20T00:00:00Z'),
+        }),
+      );
+      fs.set(`orgs/${ORG}/matters/m-r3`, referred('0103', { title: 'Hidden privileged matter', privileged: true }));
+      fs.set(`orgs/${ORG}/matters/m-r4`, referred('0104', { title: 'Deleted referral', deletedAt: new Date() }));
+      fs.set(`orgs/${ORG}/matters/m-x`, referred('0105', { title: 'Someone else’s', referrerContactId: 'c-bram' }));
+    };
+    const page = await open('/contacts?contact=c-coastal', READONLY, { configure: (_p, fs) => seed(fs) });
+    const section = page.body.querySelector('[data-testid="contact-referrals"]')?.textContent?.replace(/\s+/g, ' ');
+    expect(section).toContain('Referrals 2');
+    expect(section).toContain('2 matters referred · 1 active · last on 20 Aug 2026');
+    expect(section).toContain('Will · Open · Opened 2 Mar 2026');
+    expect(section).toContain('Probate · Closed · Opened 20 Aug 2026');
+    expect(section).not.toContain('Hidden privileged matter');
+    expect(section).not.toContain('Deleted referral');
+    expect(section).not.toContain('Someone else’s');
+    const titles = [...page.body.querySelectorAll('[data-testid="contact-referrals"] a.label')].map((a) =>
+      a.textContent?.trim(),
+    );
+    expect(titles).toEqual(['Estate of Fictional Birch', 'Will of Fictional Ash']);
+    TestBed.resetTestingModule();
+
+    // A lawyer (privileged.view) sees the privileged one too; a contact who isn't a referrer has no section.
+    const lawyer = await open('/contacts?contact=c-coastal', LAWYER, { configure: (_p, fs) => seed(fs) });
+    expect(lawyer.detail()).toContain('Hidden privileged matter');
+    await lawyer.router.navigateByUrl('/contacts?contact=c-avery');
+    await lawyer.stable();
+    expect(lawyer.body.querySelector('[data-testid="contact-referrals"]')).toBeNull();
+  });
+});
+
+describe('referrers (CORE-18)', () => {
+  const seedReferrers = (fs: InMemoryFirestore) => {
+    seedPeople(fs);
+    fs.set(
+      `${CONTACTS}/c-planner`,
+      contactDoc({
+        givenNames: 'Dana',
+        familyName: 'Wren',
+        isReferrer: true,
+        referrerMeta: { company: 'Fictional Wealth Partners', industry: 'financial_planner' },
+      }),
+    );
+    fs.set(
+      `${CONTACTS}/c-funeral`,
+      contactDoc({
+        kind: 'organisation',
+        orgName: 'Quiet Fictional Funerals',
+        isReferrer: true,
+        referrerMeta: { industry: 'funeral_director' },
+      }),
+    );
+    fs.set(`orgs/${ORG}`, {
+      name: 'Harbour & Vine Legal',
+      settings: { clerk: { model: 'claude-sonnet-5-5', enabled: true } },
+    });
+  };
+
+  it('filters referrers by industry and shows their industry and company', async () => {
+    const page = await open('/contacts', LAWYER, { configure: (_p, fs) => seedReferrers(fs) });
+    page.buttons('Referrers')[0]?.click();
+    await page.stable();
+    expect(page.listNames()).toEqual(['Coastal Fictional Accounting', 'Dana Wren', 'Quiet Fictional Funerals']);
+    expect(page.text()).toContain('Financial planner · Fictional Wealth Partners');
+    await page.choose('Industry', 'Funeral director');
+    expect(page.listNames()).toEqual(['Quiet Fictional Funerals']);
+    await page.choose('Industry', 'Any industry');
+    expect(page.listNames()).toHaveLength(3);
+    // A lawyer can't change the org's setting.
+    expect(page.text()).not.toContain('Thank-you task for referrers');
+  });
+
+  it('lets an owner turn the thank-you task on, keeping the other settings', async () => {
+    const page = await open('/contacts', OWNER, { configure: (_p, fs) => seedReferrers(fs) });
+    page.buttons('Referrers')[0]?.click();
+    await page.stable();
+    const toggle = page.body.querySelector<HTMLInputElement>(
+      'mt-referral-settings input[type="checkbox"], mt-referral-settings [role="switch"]',
+    );
+    expect(toggle).not.toBeNull();
+    toggle?.click();
+    await page.stable();
+    expect(page.firestore.get(`orgs/${ORG}`)?.['settings']).toMatchObject({
+      clerk: { model: 'claude-sonnet-5-5', enabled: true },
+      referrals: { thankYouTask: true },
+    });
   });
 });
 

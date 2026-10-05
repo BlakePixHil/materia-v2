@@ -16,6 +16,22 @@ export type MatterStatus = z.infer<typeof MatterStatusSchema>;
 export const PrioritySchema = z.enum(['none', 'urgent', 'high', 'medium', 'low']);
 export type Priority = z.infer<typeof PrioritySchema>;
 
+/** A referrer's industry (CORE-18): who sends work to the practice. */
+export const ReferrerIndustrySchema = z.enum([
+  'accountant',
+  'financial_planner',
+  'funeral_director',
+  'law_firm',
+  'aged_care',
+  'bank',
+  'other',
+]);
+export type ReferrerIndustry = z.infer<typeof ReferrerIndustrySchema>;
+
+/** Where a matter came from when no referrer contact sent it (CORE-18). */
+export const ReferralSourceSchema = z.enum(['unknown', 'website', 'existing_client', 'walk_in']);
+export type ReferralSource = z.infer<typeof ReferralSourceSchema>;
+
 export const RoleSchema = z.enum(['owner', 'admin', 'lawyer', 'paralegal', 'readonly']);
 export type Role = z.infer<typeof RoleSchema>;
 
