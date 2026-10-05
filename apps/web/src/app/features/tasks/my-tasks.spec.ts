@@ -1,6 +1,6 @@
 import { cleanUpOverlays, MATTER, matterDoc, meta, ME, openMatter, ORG } from '../matter-detail/testing';
 
-/** My tasks (`/tasks`) and the Today screen's short version (CORE-08). Fictional data only. */
+/** My tasks (`/tasks`, CORE-08). Fictional data only. */
 
 afterEach(cleanUpOverlays);
 
@@ -159,22 +159,5 @@ describe('my tasks', () => {
     expect(page.text(document.activeElement)).toBe('Renew my practising certificate');
     await page.press('k', {}, document.activeElement as HTMLElement);
     expect(page.text(document.activeElement)).toBe('Draft the will');
-  });
-});
-
-describe('today', () => {
-  it('shows my tasks due this week, with a link to the rest', async () => {
-    const page = await openMatter('/today', { configure: myTasks });
-    await page.stable(20);
-    expect(page.text(page.body.querySelector('h1'))).toBe('Today');
-    expect(sections(page)).toEqual(['Overdue: File the inventory', 'Today: Call the executor']);
-    expect(page.buttons('All my tasks')).toHaveLength(1);
-    expect(page.buttons('Add personal task')).toHaveLength(0);
-  });
-
-  it('says when nothing is due this week', async () => {
-    const page = await openMatter('/today');
-    await page.stable(20);
-    expect(page.text(page.body.querySelector('mt-my-tasks'))).toContain('Nothing due this week');
   });
 });

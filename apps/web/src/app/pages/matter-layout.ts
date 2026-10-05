@@ -12,7 +12,8 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
-import { ACCESS_REVOKED_HANDLER, can } from '@materia/data-access';
+import { ACCESS_REVOKED_HANDLER, can, DATA_CLOCK, OrgContext } from '@materia/data-access';
+import { recentMattersRepository, recordRecentMatter } from '@materia/data-access/repository';
 import { formatDateOnly, MtButton, MtEmptyState, MtNote, MtTabLink, MtTabNav } from '@materia/ui';
 
 import { matterTabsFor } from './matter-tabs';
@@ -168,6 +169,20 @@ export class MatterLayout {
       if (!this.tabs().some((t) => t.path === tab)) {
         untracked(() => void this.router.navigate(['overview'], { relativeTo: this.route, replaceUrl: true }));
       }
+    });
+
+    // Today's Recent matters (CORE-14): each matter opened is recorded once. Not awaited: offline,
+    // it's saved when back online; a refused write only means it isn't listed.
+    const context = inject(OrgContext);
+    const clock = inject(DATA_CLOCK);
+    const recents = recentMattersRepository();
+    let recorded: string | null = null;
+    effect(() => {
+      const matter = this.screen.value();
+      const orgId = context.orgId();
+      if (!matter || matter.deletedAt || !orgId || matter.id === recorded) return;
+      recorded = matter.id;
+      untracked(() => recordRecentMatter(recents, orgId, matter.id, new Date(clock())).catch(() => undefined));
     });
 
     // ⌘J asks Clerk about this matter while it's open.

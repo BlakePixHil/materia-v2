@@ -104,12 +104,17 @@ export const myOpenTaskCountQuery = (uid: string): QuerySpec<TaskItem> => ({
 
 const matter = Matter.schema.shape;
 
-/** A matter as Today names it: number, title and type, and whether it is still live. */
+/**
+ * A matter as Today names it: number, title and type, and whether it is still live (plus the
+ * fields its counts filter on).
+ */
 export const TodayMatterSchema = /* @__PURE__ */ z.object({
   number: matter.number,
   title: matter.title,
   type: matter.type,
   status: matter.status,
+  privileged: matter.privileged,
+  responsibleUid: matter.responsibleUid,
   deletedAt: SoftDeleteShape.deletedAt,
 });
 export type TodayMatter = z.infer<typeof TodayMatterSchema>;
@@ -128,7 +133,7 @@ export function matterCountQuery(options: {
   privilegedVisible: boolean;
   responsibleUid?: string;
   status?: TodayMatter['status'];
-}): QuerySpec<TodayMatter & { privileged: boolean; responsibleUid: string }> {
+}): QuerySpec<TodayMatter> {
   return {
     where: [
       ['deletedAt', '==', null],
