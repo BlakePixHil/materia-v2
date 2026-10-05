@@ -118,6 +118,8 @@ export class PagedQuery<T> implements QueryResource<T> {
     private readonly ctx: EngineContext<T>,
     private readonly spec: QuerySpec,
     private readonly live: boolean,
+    /** One-shot reads: publish the cached page (when it has rows) until the server answers. */
+    private readonly cacheFirst = false,
   ) {
     this.pageSize = Math.max(1, spec.pageSize ?? DEFAULT_PAGE_SIZE);
     this.status = computed(() => statusOf(this.loaded(), this.failure(), this.cached(), this.ctx.online()));
@@ -185,7 +187,27 @@ export class PagedQuery<T> implements QueryResource<T> {
       if (epoch === this.epoch) this.fail(error);
     };
     if (!this.live) {
-      this.ctx.driver.fetch(request).then(receive, fail);
+      let answered = false;
+      const { driver } = this.ctx;
+      // An empty cache says nothing (it may not have the rows yet): then wait for the server.
+      if (this.cacheFirst && driver.fetchCached) {
+        driver.fetchCached(request).then(
+          (raw) => {
+            if (!answered && raw.docs.length) receive({ ...raw, fromCache: true });
+          },
+          () => undefined,
+        );
+      }
+      driver.fetch(request).then(
+        (raw) => {
+          answered = true;
+          receive(raw);
+        },
+        (error: unknown) => {
+          answered = true;
+          fail(error);
+        },
+      );
       return;
     }
     page.closing = false;

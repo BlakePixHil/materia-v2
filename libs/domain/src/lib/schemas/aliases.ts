@@ -46,7 +46,7 @@ import {
   Counter,
 } from './org-records';
 import { Org, Member, Invite, User } from './tenancy';
-import { SavedView } from './views';
+import { RecentMatter, SavedView } from './views';
 import { ConflictCheck } from '../conflicts';
 import { IntakeDraft } from '../intake';
 
@@ -212,3 +212,6 @@ export const ConflictCheckUpdateSchema = ConflictCheck.update;
 export const IntakeDraftSchema = IntakeDraft.schema;
 export const IntakeDraftCreateSchema = IntakeDraft.create;
 export const IntakeDraftUpdateSchema = IntakeDraft.update;
+export const RecentMatterSchema = RecentMatter.schema;
+export const RecentMatterCreateSchema = RecentMatter.create;
+export const RecentMatterUpdateSchema = RecentMatter.update;

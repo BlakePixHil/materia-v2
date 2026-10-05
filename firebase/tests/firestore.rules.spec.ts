@@ -1107,6 +1107,96 @@ describe('intake drafts (CORE-05)', () => {
   });
 });
 
+describe('recent matters (CORE-14)', () => {
+  const recentOf = (uid: string) => `users/${uid}/recent`;
+  const DAY = 86_400_000;
+  const expiring = (days = 90) => Timestamp.fromMillis(Date.now() + days * DAY);
+  /** A recent matter as the matter screen writes it. */
+  const entry = (uid: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    orgId: ORG,
+    matterId: 'matter-1',
+    expireAt: expiring(),
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+
+  it.each(EVERYONE)('record, list, record again and forget a matter I opened, as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, `${recentOf(uid)}/${ORG}_matter-1`);
+    const write = setDoc(ref, entry(uid));
+    // Every member opens matters in their org; the outsider's claim names another org, and a
+    // suspended member is out of the org.
+    if (!isMember(who)) {
+      await assertFails(write);
+      return;
+    }
+    await assertSucceeds(write);
+    await assertSucceeds(getDoc(ref));
+    // Today's query: the latest in my current org.
+    await assertSucceeds(
+      getDocs(
+        query(collection(firestore, recentOf(uid)), where('orgId', '==', ORG), orderBy('updatedAt', 'desc'), limit(8)),
+      ),
+    );
+    // Opening it again writes the whole entry (an update now that it exists).
+    await assertSucceeds(setDoc(ref, entry(uid)));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it.each(ROLES)("someone else's recent matters are off limits, as %s", async (role) => {
+    const other = role === 'lawyer' ? uidFor('owner') : uidFor('lawyer');
+    const path = `${recentOf(other)}/${ORG}_matter-1`;
+    await seedAdmin(env, (f) => setDoc(doc(f, path), { ...seedData(specFor('recent')), createdBy: other }));
+    const firestore = db(env, role);
+    await assertFails(getDoc(doc(firestore, path)));
+    await assertFails(getDocs(collection(firestore, recentOf(other))));
+    await assertFails(setDoc(doc(firestore, path), entry(uidFor(role))));
+    await assertFails(updateDoc(doc(firestore, path), stamped({ expireAt: expiring() }, uidFor(role))));
+    await assertFails(deleteDoc(doc(firestore, path)));
+  });
+
+  it('refuses an invalid entry', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const ref = doc(firestore, `${recentOf(uid)}/${ORG}_matter-1`);
+    for (const bad of [
+      { orgId: OTHER_ORG },
+      { matterId: 'matter-2' },
+      { matterId: '' },
+      { expireAt: expiring(30) },
+      { expireAt: expiring(120) },
+      { expireAt: '2027-01-01' },
+      { createdBy: 'someone-else' },
+      { updatedBy: 'someone-else' },
+      { updatedAt: Timestamp.fromMillis(0) },
+      { schemaVersion: 2 },
+      { title: 'Estate of Margaret Fictional' },
+    ]) {
+      await assertFails(setDoc(ref, entry(uid, bad)));
+    }
+    const incomplete = entry(uid);
+    delete incomplete['expireAt'];
+    await assertFails(setDoc(ref, incomplete));
+    // The id names the org and the matter.
+    await assertFails(setDoc(doc(firestore, `${recentOf(uid)}/matter-1`), entry(uid)));
+    await assertFails(setDoc(doc(firestore, `${recentOf(uid)}/${OTHER_ORG}_matter-1`), entry(uid)));
+  });
+
+  it('a partial update keeps the entry valid', async () => {
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), `${recentOf(uid)}/${ORG}_matter-1`);
+    await seed(specFor('recent'));
+    // The seeded entry expires sooner than 89 days from now: a write must move it on.
+    await assertFails(updateDoc(ref, stamped({ matterId: 'matter-1' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ matterId: 'matter-2', expireAt: expiring() }, uid)));
+    await assertSucceeds(updateDoc(ref, stamped({ expireAt: expiring() }, uid)));
+  });
+});
+
 describe('tasks (CORE-08)', () => {
   const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-tasks-privileged`;
   const DELETED_MATTER = `orgs/${ORG}/matters/matter-tasks-deleted`;

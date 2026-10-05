@@ -47,6 +47,11 @@ export interface WatchOptions {
 export interface WatchQueryOptions extends WatchOptions {
   /** Keep listening (default) or read once. */
   live?: boolean;
+  /**
+   * A one-shot read (`live: false`) shows what this device has cached first, then the server's
+   * answer when it arrives. Without it, a one-shot read waits for the server.
+   */
+  cacheFirst?: boolean;
 }
 
 export interface UpdateOptions {
@@ -245,6 +250,7 @@ function createRepository<T>(
     watchQuery(input, watchOptions = {}) {
       const injector = watchOptions.injector ?? currentInjector(home);
       const live = watchOptions.live ?? true;
+      const cacheFirst = !live && !!watchOptions.cacheFirst;
       const current = signal<PagedQuery<T> | null>(null);
       effect(
         (onCleanup) => {
@@ -254,7 +260,7 @@ function createRepository<T>(
             current.set(null);
             return;
           }
-          const query = new PagedQuery(engine(orgId), scope(spec as QuerySpec, orgId), live);
+          const query = new PagedQuery(engine(orgId), scope(spec as QuerySpec, orgId), live, cacheFirst);
           untracked(() => query.start());
           current.set(query);
           onCleanup(() => query.stop());

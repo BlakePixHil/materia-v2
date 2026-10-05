@@ -34,6 +34,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   contacts: domain.Contact,
   parties: domain.Party,
   conflictChecks: domain.ConflictCheck,
+  recent: domain.RecentMatter,
 } as never;
 
 describe('firestore.indexes.json', () => {
@@ -126,6 +127,17 @@ describe('firestore.indexes.json', () => {
       (o) => o.collectionGroup === 'drafts' && o.ttl,
     );
     expect(ttl?.fieldPath).toBe('expireAt');
+  });
+
+  it('recent matters are listed newest first per org and expire through TTL on expireAt (CORE-14)', () => {
+    const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
+      (o) => o.collectionGroup === 'recent' && o.ttl,
+    );
+    expect(ttl?.fieldPath).toBe('expireAt');
+    const recent = file.indexes.filter((i) => i.collectionGroup === 'recent');
+    expect(recent.map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`)).toEqual([
+      'COLLECTION:orgId:ASCENDING,updatedAt:DESCENDING',
+    ]);
   });
 
   it('audit entries expire through TTL on expireAt, and the audit-query filters are indexed (FND-18)', () => {

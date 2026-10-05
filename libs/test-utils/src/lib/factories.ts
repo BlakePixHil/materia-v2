@@ -723,6 +723,13 @@ export const makeIntakeDraft = (o: Partial<D.IntakeDraft> = {}) =>
     o,
   );
 
+export const makeRecentMatter = (o: Partial<D.RecentMatter> = {}) =>
+  build(
+    D.RecentMatter,
+    { orgId: TEST_ORG_ID, matterId: TEST_MATTER_ID, expireAt: D.recentMatterExpireAt(FIXED_INSTANT) },
+    o,
+  );
+
 /** Every factory with its entity, for exhaustive tests (schema coverage, converter round-trips). */
 export const ENTITY_FACTORIES = {
   Org: [D.Org, makeOrg],
@@ -777,4 +784,5 @@ export const ENTITY_FACTORIES = {
   SavedView: [D.SavedView, makeSavedView],
   ConflictCheck: [D.ConflictCheck, makeConflictCheck],
   IntakeDraft: [D.IntakeDraft, makeIntakeDraft],
+  RecentMatter: [D.RecentMatter, makeRecentMatter],
 } as const;

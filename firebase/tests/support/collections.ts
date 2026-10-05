@@ -97,6 +97,19 @@ export const COLLECTIONS: CollectionSpec[] = [
     ownerCreatesAndDeletes: true,
   },
 
+  // Recently opened matters (CORE-14): the user's own, written whole each time a matter opens and
+  // deleted by the client. A write stamps a fresh `expireAt` (about 90 days on).
+  {
+    collection: 'recent',
+    docPath: `users/${OWNER}/recent/${ORG}_matter-1`,
+    entity: 'RecentMatter',
+    seed: { orgId: ORG, matterId: 'matter-1', createdBy: OWNER },
+    read: 'owner',
+    update: 'owner',
+    change: { expireAt: Timestamp.fromMillis(Date.now() + 90 * 86_400_000) },
+    ownerCreatesAndDeletes: true,
+  },
+
   // Organisation.
   { collection: 'orgs', docPath: `orgs/${ORG}`, entity: 'Org', read: 'members', update: 'org.settings' },
   {
