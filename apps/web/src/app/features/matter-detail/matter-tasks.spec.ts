@@ -352,7 +352,11 @@ describe('matter tasks tab', () => {
     }
     const bar = page.body.querySelector<HTMLElement>('mt-tasks-bulk-bar') as HTMLElement;
     await page.click('Group', bar);
-    await page.stable(20);
+    // The dialog is a lazy chunk: wait for it rather than for a fixed time.
+    await vi.waitFor(async () => {
+      await page.stable(20);
+      expect(page.body.querySelector('mt-task-group-dialog')).not.toBeNull();
+    });
     const dialog = page.body.querySelector<HTMLElement>('mt-task-group-dialog') as HTMLElement;
     expect(page.text(dialog)).toContain('Move 2 tasks to a group');
     await page.click('Letters', dialog);

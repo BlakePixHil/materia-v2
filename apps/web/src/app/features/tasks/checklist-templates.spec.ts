@@ -40,11 +40,13 @@ function seedTemplates(fs: Page['firestore']): void {
 async function openTemplates(page: Page, title = 'Order the death certificate', expand = true): Promise<HTMLElement> {
   if (expand) await page.click(`Details: ${title}`);
   await page.click(`Checklist templates for ${title}`);
-  // The dialog loads on demand.
-  await page.stable(50);
-  const dialog = page.dialog();
-  if (!dialog) throw new Error('No dialog');
-  return dialog;
+  // The dialog is a lazy chunk: wait for it rather than for a fixed time.
+  return vi.waitFor(async () => {
+    await page.stable(50);
+    const dialog = page.dialog();
+    if (!dialog) throw new Error('No dialog');
+    return dialog;
+  });
 }
 
 const names = (page: Page) =>
