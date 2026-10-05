@@ -772,7 +772,8 @@ service cloud.firestore {
     function fieldsMember() { return ['displayName', 'initials', 'title', 'admissionNo', 'defaultRateCents', 'rates', 'colour', 'budgets', 'supervisorUid']; }
     function fieldsMetrics() { return ['period', 'values']; }
     function fieldsMigrationRun() { return []; }
-    function fieldsNote() { return ['bodyMd', 'pinned', 'privileged', 'source']; }
+    function fieldsNote() { return ['pinned']; }
+    function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
     function fieldsOrg() { return ['name', 'abn', 'acn', 'practiceType', 'jurisdictions', 'primaryJurisdiction', 'timezone', 'holidayLocality', 'billing', 'matterNumberFormat', 'matterTypeCodes', 'fy', 'retentionYears', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }

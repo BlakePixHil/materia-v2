@@ -23,6 +23,7 @@ import {
   DocumentHash,
   Chunk,
   Note,
+  NoteRevision,
   Activity,
   TimeEntry,
   Disbursement,
@@ -110,6 +111,9 @@ export const ChunkUpdateSchema = Chunk.update;
 export const NoteSchema = Note.schema;
 export const NoteCreateSchema = Note.create;
 export const NoteUpdateSchema = Note.update;
+export const NoteRevisionSchema = NoteRevision.schema;
+export const NoteRevisionCreateSchema = NoteRevision.create;
+export const NoteRevisionUpdateSchema = NoteRevision.update;
 export const ActivitySchema = Activity.schema;
 export const ActivityCreateSchema = Activity.create;
 export const ActivityUpdateSchema = Activity.update;
