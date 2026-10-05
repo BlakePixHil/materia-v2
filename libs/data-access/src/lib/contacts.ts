@@ -8,6 +8,7 @@ import {
   searchQueryToken,
   searchWords,
   SoftDeleteShape,
+  type ReferrerIndustry,
 } from '@materia/domain';
 
 import type { QuerySpec, WhereOp } from './query';
@@ -55,6 +56,8 @@ export interface ContactFilters {
   tag?: string | null;
   /** Only contacts who refer work to the practice. */
   referrersOnly?: boolean;
+  /** Referrers in this industry (CORE-18); implies `referrersOnly`. */
+  industry?: ReferrerIndustry | null;
 }
 
 export const CONTACT_PAGE_SIZE = 50;
@@ -74,7 +77,7 @@ export function contactListQuery(
   let where: readonly [string, WhereOp, unknown] | null = null;
   if (token) where = ['search', 'array-contains', token];
   else if (filters.kind) where = ['kind', '==', filters.kind];
-  else if (filters.referrersOnly) where = ['isReferrer', '==', true];
+  else if (filters.referrersOnly || filters.industry) where = ['isReferrer', '==', true];
   else if (filters.tag) where = ['tags', 'array-contains', filters.tag];
   const spec: QuerySpec = { ...(where ? { where: [where] } : {}), orderBy: [['sortName', 'asc']], pageSize };
   return spec as QuerySpec<ContactListItem>;
@@ -87,7 +90,8 @@ export function contactListQuery(
 export function contactMatchesFilters(row: ContactListItem, filters: ContactFilters = {}): boolean {
   if (row.mergedInto || row.deletedAt) return false;
   if (filters.kind && row.kind !== filters.kind) return false;
-  if (filters.referrersOnly && !row.isReferrer) return false;
+  if ((filters.referrersOnly || filters.industry) && !row.isReferrer) return false;
+  if (filters.industry && row.referrerMeta?.industry !== filters.industry) return false;
   if (filters.tag && !row.tags.includes(filters.tag)) return false;
   const words = searchWords(filters.query);
   if (words.length && words.some((word) => word.length >= 2)) {
@@ -163,4 +167,42 @@ export type MatterSummary = z.infer<typeof MatterSummarySchema>;
 /** Matters, read for their number and title only (the contacts screen's "Matters" list). */
 export function matterSummariesRepository(): Repository<MatterSummary> {
   return repo((orgId) => `orgs/${orgId}/matters`, { schema: MatterSummarySchema, version: Matter.version });
+}
+
+/** A matter in a referrer's "Referrals" section (CORE-18): what it is, where it is, and when it came in. */
+export const ReferredMatterSchema = /* @__PURE__ */ z.object({
+  number: matter.number,
+  title: matter.title,
+  type: matter.type,
+  status: matter.status,
+  privileged: matter.privileged,
+  referrerContactId: matter.referrerContactId,
+  createdAt: matter.createdAt.optional(),
+  closedAt: matter.closedAt,
+  deletedAt: SoftDeleteShape.deletedAt,
+});
+export type ReferredMatter = z.infer<typeof ReferredMatterSchema>;
+
+/** The most matters a referrer's section reads (newest first, sorted here). */
+export const REFERRED_MATTERS_LIMIT = 200;
+
+/**
+ * The live matters a contact referred (`referrerContactId == id`). Equality filters only, so
+ * Firestore serves it from single-field indexes; sorted here. Without `privileged.view` the rules
+ * allow only queries that prove `privileged == false`.
+ */
+export function referredMattersQuery(contactId: string, privilegedVisible: boolean): QuerySpec<ReferredMatter> {
+  return {
+    where: [
+      ['referrerContactId', '==', contactId],
+      ['deletedAt', '==', null],
+      ...(privilegedVisible ? [] : [['privileged', '==', false] as const]),
+    ],
+    pageSize: REFERRED_MATTERS_LIMIT,
+  };
+}
+
+/** Matters as a referrer's history reads them (CORE-18). */
+export function referredMattersRepository(): Repository<ReferredMatter> {
+  return repo((orgId) => `orgs/${orgId}/matters`, { schema: ReferredMatterSchema, version: Matter.version });
 }

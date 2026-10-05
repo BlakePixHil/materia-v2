@@ -7,6 +7,7 @@ import {
   analysePdf,
   expirePendingUploads,
   processUpload,
+  resumeStalledScans,
   reserveVersion,
   scanWithTimeout,
   type AfterVersion,
@@ -534,6 +535,35 @@ describe('expirePendingUploads', () => {
       upload: { status: 'expired' },
       scan: { status: 'error' },
     });
+  });
+});
+
+describe('resumeStalledScans', () => {
+  it('queues a rescan for a delayed upload whose retry chain went quiet, and nothing else', async () => {
+    const w = world();
+    const stalled = w.upload(`${FAKE_SCANNER_TIMEOUT_MARKER} fictional`, { fileName: 'stalled.txt' });
+    await processUpload(stalled, w.deps());
+    const fresh = w.upload(`${FAKE_SCANNER_TIMEOUT_MARKER} fictional`, { fileName: 'fresh.txt' });
+    w.clock.set(new Date('2026-10-05T01:00:00Z'));
+    await processUpload(fresh, w.deps());
+    w.upload(fakePdf('not yet scanned'));
+    w.rescans.length = 0;
+
+    w.clock.set(new Date('2026-10-05T01:30:00Z'));
+    expect(await resumeStalledScans(w.deps(), 24 * 60 * 60 * 1000)).toBe(1);
+    expect(w.rescans).toEqual([
+      { task: { path: stalled.path, generation: stalled.generation, attempt: 1 }, delaySeconds: 0 },
+    ]);
+  });
+
+  it('leaves uploads past the TTL to the expiry', async () => {
+    const w = world();
+    const old = w.upload(`${FAKE_SCANNER_TIMEOUT_MARKER} fictional`, { fileName: 'old.txt' });
+    await processUpload(old, w.deps());
+    w.rescans.length = 0;
+    w.clock.set(new Date('2026-10-06T01:00:00Z'));
+    expect(await resumeStalledScans(w.deps(), 24 * 60 * 60 * 1000)).toBe(0);
+    expect(w.rescans).toEqual([]);
   });
 });
 

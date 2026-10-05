@@ -55,6 +55,18 @@ describe('review and create', () => {
     expect(page.firestore.get(`${DRAFTS}/intake-d1`)).toBeUndefined();
   });
 
+  it('sends the referral and shows it in the summary (CORE-18)', async () => {
+    const page = await resumeAt({ ...ready(), referral: { referrerContactId: 'c-bram', source: null } }, 'review');
+    const row = [...(page.page()?.querySelectorAll('.summary dt') ?? [])].find(
+      (dt) => dt.textContent === 'Referred by',
+    );
+    expect(row?.nextElementSibling?.textContent).toBe('Bram Ostler');
+    await page.click('Create matter');
+    const [call] = page.calls('matters-createMatter');
+    expect(call?.['matter']).toMatchObject({ referrerContactId: 'c-bram' });
+    expect((call?.['matter'] as Record<string, unknown>)['referralSource']).toBeUndefined();
+  });
+
   it('sends an unknown date of death as no date', async () => {
     const state = ready();
     state.details = { ...state.details, dateOfDeath: '', dateOfDeathUnknown: true };

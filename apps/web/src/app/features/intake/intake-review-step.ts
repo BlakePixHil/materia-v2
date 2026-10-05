@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 
 import { OrgContext } from '@materia/data-access';
 import { MEMBER_LIST_QUERY, membersRepository } from '@materia/data-access/repository';
-import { PrioritySchema, type IntakeStepId, type Priority } from '@materia/domain';
+import { PrioritySchema, referralText, type IntakeStepId, type Priority } from '@materia/domain';
 import {
   formatAud,
   MATTER_TYPE_LABELS,
@@ -209,6 +209,11 @@ export class IntakeReviewStep {
       { step: 'type', label: 'Type', value: s.type ? MATTER_TYPE_LABELS[s.type] : '—' },
       { step: 'clients', label: 'Clients', value: s.clientContactIds.map(name).join(', ') || '—' },
     ];
+    const referral = referralText(
+      { referrerContactId: s.referral.referrerContactId, referralSource: s.referral.source },
+      name(s.referral.referrerContactId),
+    );
+    if (referral) rows.push({ step: 'clients', label: 'Referred by', value: referral });
     const d = s.details;
     if (s.type === 'will' || s.type === 'poa') {
       rows.push({
