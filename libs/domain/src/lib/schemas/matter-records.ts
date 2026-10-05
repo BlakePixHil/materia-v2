@@ -62,7 +62,8 @@ const taskShape = {
   checklist: z.array(ChecklistItemSchema).max(TASK_CHECKLIST_MAX).default([]),
   /** Fractional sort key (CORE-08): a move writes the midpoint of its neighbours (`orderBetween`). */
   order: z.number(),
-  source: z.enum(['manual', 'template', 'clerk', 'migration']).default('manual'),
+  /** `rule`: created by a deadline rule's `createsTask` (CORE-10), linked by `deadlineId`. */
+  source: z.enum(['manual', 'template', 'clerk', 'migration', 'rule']).default('manual'),
   /** Set by `tasks-onWrite` when the status becomes `done`, removed when the task is reopened. */
   completedAt: InstantSchema.optional(),
 };

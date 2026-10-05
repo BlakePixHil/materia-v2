@@ -95,6 +95,8 @@ export interface PlannedTask {
   title: string;
   stage?: string;
   dueDate: DateOnly;
+  /** The deadline is critical (the task gets a high priority). */
+  critical: boolean;
 }
 
 export interface RecomputePlan {
@@ -255,6 +257,7 @@ export function planRecompute(input: RecomputePlanInput): RecomputePlan {
       title: deadline.task.title,
       ...(deadline.task.stage ? { stage: deadline.task.stage } : {}),
       dueDate,
+      critical: deadline.critical,
     });
   };
 

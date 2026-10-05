@@ -21,6 +21,7 @@ import {
   matterEventPath,
   monthCalendar,
   needsReview,
+  nextDeadlineOf,
   OverrideDeadlineInput,
   ProposeRulesetUpgradeInput,
   requiresTypedConfirmation,
@@ -106,6 +107,24 @@ describe('groups', () => {
       row('same', '2026-10-09', { title: 'Fictional deadline c' }),
     ].sort(compareDeadlines);
     expect(sorted.map((x) => x.id)).toEqual(['t1', 't2', 'crit', 'c', 'same', 'z']);
+  });
+});
+
+describe('nextDeadlineOf', () => {
+  it('picks the soonest live upcoming dated deadline, overdue included', () => {
+    expect(
+      nextDeadlineOf([
+        row('later', '2026-11-01'),
+        row('done', '2026-09-01', { status: 'done' }),
+        row('blocked', undefined, { status: 'blocked' }),
+        row('gone', '2026-09-02', { deletedAt: new Date() }),
+        row('late', '2026-10-01', { critical: true }),
+      ]),
+    ).toEqual({ id: 'late', dueDate: '2026-10-01', title: 'Fictional deadline late', critical: true });
+  });
+
+  it('is undefined with nothing open', () => {
+    expect(nextDeadlineOf([row('done', '2026-10-01', { status: 'waived' })])).toBeUndefined();
   });
 });
 

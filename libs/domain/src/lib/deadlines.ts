@@ -214,11 +214,15 @@ export const ProposeRulesetUpgradeInput = z.object({
 });
 export type ProposeRulesetUpgradeInput = z.input<typeof ProposeRulesetUpgradeInput>;
 export interface ProposeRulesetUpgradeResult {
+  /** Live matters recomputed in this page. */
   processed: number;
-  /** Matters whose deadlines were computed with an older rule-set version. */
+  /** Of those, matters whose deadlines changed (provenance moved to the new version, created or proposed). */
   upgraded: number;
+  /** Proposals made (decided by a lawyer in each matter's Deadlines tab). */
   proposed: number;
   created: number;
+  /** Matters whose recompute failed (logged with ids; run again to retry them). */
+  failed: string[];
   nextCursor?: string;
 }
 
@@ -339,6 +343,27 @@ export function groupDeadlines<T extends DeadlineLike>(rows: readonly T[], today
     groups.find((group) => group.id === id)?.deadlines.push(row);
   }
   return groups;
+}
+
+/** A matter's `nextDeadline` (denormalised by `deadlines-onWrite`). */
+export interface NextDeadline {
+  id: string;
+  dueDate: DateOnly;
+  title: string;
+  critical: boolean;
+}
+
+/**
+ * The matter's next deadline: the soonest live upcoming deadline with a date (overdue ones
+ * included, they're still open), by `compareDeadlines`; undefined when there's none.
+ */
+export function nextDeadlineOf(rows: readonly DeadlineLike[]): NextDeadline | undefined {
+  const next = rows
+    .filter((row) => row.status === 'upcoming' && !!row.dueDate && isLive(row))
+    .sort(compareDeadlines)[0];
+  return next
+    ? { id: next.id, dueDate: next.dueDate as DateOnly, title: next.title, critical: next.critical }
+    : undefined;
 }
 
 /** The matter a deadline belongs to, as the filters need it. */
