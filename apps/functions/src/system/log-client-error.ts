@@ -1,7 +1,7 @@
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import {
   CLIENT_ERRORS_PER_MINUTE,
