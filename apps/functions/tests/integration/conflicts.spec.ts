@@ -399,7 +399,8 @@ describe('conflicts-onPartyAdded', () => {
         contactId: C.barnaby,
         priority: 'high',
         link: `/matters/${M.probate}`,
-        channel: ['inapp'],
+        channels: ['inapp'],
+        readAt: null,
       }),
     ]);
     // Nothing is blocked retroactively.
