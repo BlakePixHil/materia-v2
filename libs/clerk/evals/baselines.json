@@ -1,1 +1,44 @@
-{}
+{
+  "classification": {
+    "classify-document@1.0.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-05",
+      "source": "2026-10-05T22-06-46-904Z",
+      "metrics": {
+        "schemaValid": 1,
+        "fieldAccuracy": 1,
+        "latencyMs": 2007.2,
+        "costUsd": 0.0014
+      }
+    }
+  },
+  "privilege": {
+    "chat-answer@0.1.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-05",
+      "source": "2026-10-05T22-06-46-904Z",
+      "metrics": {
+        "citationPrecision": 1,
+        "privilegeLeak": 1,
+        "latencyMs": 4298.2727,
+        "costUsd": 0.0063,
+        "citationCoverage": 0.4
+      }
+    }
+  },
+  "will-extraction": {
+    "will-extract@0.1.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-05",
+      "source": "2026-10-05T22-06-46-904Z",
+      "metrics": {
+        "schemaValid": 1,
+        "fieldAccuracy": 0.996,
+        "citationPrecision": 0.9429,
+        "latencyMs": 5336.1,
+        "costUsd": 0.0086,
+        "noInventions": 1
+      }
+    }
+  }
+}
