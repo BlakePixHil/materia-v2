@@ -17,6 +17,7 @@ import {
   renditionPath,
   SaveAttachmentInput,
   scanRetryDelaySeconds,
+  StartZipInput,
   UPLOAD_EXTENSIONS,
   UPLOAD_TYPES,
   uploadContentType,
@@ -24,6 +25,7 @@ import {
   UploadMetadataSchema,
   uploadSettings,
   versionHistory,
+  zipDownloadNames,
   zipEntryNames,
 } from './documents';
 import { DOCUMENT_VERSIONS_MAX, MatterDocument, type DocumentVersion } from './schemas/matter-records';
@@ -391,5 +393,43 @@ describe('email messages', () => {
     expect(SaveAttachmentInput.safeParse({ ...base, attachmentIndex: 0 }).success).toBe(true);
     expect(SaveAttachmentInput.safeParse({ ...base, attachmentIndex: -1 }).success).toBe(false);
     expect(SaveAttachmentInput.safeParse({ ...base, attachmentIndex: 0, category: 'nope' }).success).toBe(false);
+  });
+
+  it('names a zip download’s files safely and uniquely', () => {
+    expect(
+      zipDownloadNames([
+        { name: 'Will of a fictional person', fileName: 'scan.pdf' },
+        { name: 'will of a fictional person.pdf', fileName: 'other.pdf' },
+        { name: 'Will of a fictional person', fileName: 'v3.pdf' },
+        { name: 'Bank statement', fileName: 'statement.xlsx' },
+        { name: '../Letters/Advice\u0000', fileName: 'advice.docx' },
+        { name: '..', fileName: 'x' },
+      ]),
+    ).toEqual([
+      'Will of a fictional person.pdf',
+      'will of a fictional person (2).pdf',
+      'Will of a fictional person (3).pdf',
+      'Bank statement.xlsx',
+      '.._Letters_Advice_.docx',
+      'document',
+    ]);
+    const [long, longer] = zipDownloadNames([
+      { name: 'x'.repeat(300), fileName: 'a.pdf' },
+      { name: 'x'.repeat(300), fileName: 'a.pdf' },
+    ]);
+    expect(long).toHaveLength(255);
+    expect(long?.endsWith('x.pdf')).toBe(true);
+    expect(longer).toHaveLength(255);
+    expect(longer?.endsWith(' (2).pdf')).toBe(true);
+  });
+
+  it('startZip takes 1 to 200 distinct documents of one matter', () => {
+    const base = { requestId: '00000000-0000-4000-8000-000000000001', matterId: 'm-1' };
+    expect(StartZipInput.safeParse({ ...base, docIds: ['d-1', 'd-2'] }).success).toBe(true);
+    expect(StartZipInput.safeParse({ ...base, docIds: [] }).success).toBe(false);
+    expect(StartZipInput.safeParse({ ...base, docIds: ['d-1', 'd-1'] }).success).toBe(false);
+    const many = Array.from({ length: 201 }, (_, i) => `d-${i}`);
+    expect(StartZipInput.safeParse({ ...base, docIds: many.slice(0, 200) }).success).toBe(true);
+    expect(StartZipInput.safeParse({ ...base, docIds: many }).success).toBe(false);
   });
 });

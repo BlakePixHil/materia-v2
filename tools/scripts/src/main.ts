@@ -19,6 +19,8 @@ const COMMANDS = {
   'backfill-ingest': 'Have Clerk ingest documents from before AI-04 or that failed, and report ingest status (AI-04)',
   'search-load': 'Time the ⌘K search against the emulator with 5,000 matters (CORE-15)',
   'decode-stack': 'Deobfuscate a web stack trace with the private sourcemaps (FND-21)',
+  'restore-matter': 'Restore one matter from a PITR time or a restored database (SEC-03; dry run unless --apply)',
+  'backup-drill': 'Restore a backup or export into a scratch database and verify the counts (SEC-03; dev)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -59,6 +61,8 @@ export async function run(argv: string[]): Promise<number> {
       'backfill-ingest': () => import('./backfills/ingest.ts'),
       'search-load': () => import('./search-load.ts'),
       'decode-stack': () => import('./decode-stack.ts'),
+      'restore-matter': () => import('./backups/restore-matter.ts'),
+      'backup-drill': () => import('./backups/drill.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);

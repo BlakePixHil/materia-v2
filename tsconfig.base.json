@@ -29,6 +29,7 @@
       "@materia/ui/charts": ["./libs/ui/src/charts.ts"],
       "@materia/ui/command-palette": ["./libs/ui/src/command-palette.ts"],
       "@materia/ui/markdown": ["./libs/ui/src/markdown.ts"],
+      "@materia/ui/suggestion": ["./libs/ui/src/suggestion.ts"],
       "@materia/ui/timeline": ["./libs/ui/src/timeline.ts"],
       "@materia/data-access": ["./libs/data-access/src/index.ts"],
       "@materia/data-access/repository": ["./libs/data-access/src/repository.ts"],

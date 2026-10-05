@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  exportFileType,
   JobRequestSchema,
   MATTER_DOCUMENT_PATH,
   MatterDocument,
@@ -33,7 +34,7 @@ export interface RunnerDeps {
 
 export type RunOutcome = 'succeeded' | 'failed' | 'skipped';
 
-/** Where the output goes: a new matter document version, or an export file. */
+/** Where the output goes: a new matter document version, or an export file (a PDF or a zip). */
 export function outputLocation(orgId: string, jobId: string, request: JobRequest) {
   if (request.target.kind === 'matter') {
     const documentId = `job-${jobId}`;
@@ -43,13 +44,14 @@ export function outputLocation(orgId: string, jobId: string, request: JobRequest
       documentPath: `orgs/${orgId}/matters/${request.target.matterId}/documents/${documentId}`,
     };
   }
-  return { storagePath: `orgs/${orgId}/exports/${jobId}.pdf` };
+  return { storagePath: `orgs/${orgId}/exports/${jobId}.${exportFileType(request.type).extension}` };
 }
 
 /** Inputs must belong to the job's org (defence in depth: the callable checks it too). */
 function checkTenancy(orgId: string, request: JobRequest) {
-  if (request.type !== 'pdf.merge') return;
-  request.input.inputs.forEach((input, inputIndex) => {
+  if (request.type !== 'pdf.merge' && request.type !== 'documents.zip') return;
+  const inputs: readonly { storagePath: string }[] = request.input.inputs;
+  inputs.forEach((input, inputIndex) => {
     if (MATTER_DOCUMENT_PATH.exec(input.storagePath)?.[1] !== orgId) {
       throw new JobError('PERMISSION_DENIED', `Input ${inputIndex} belongs to another organisation`, { inputIndex });
     }
@@ -140,7 +142,7 @@ export async function executeJob(deps: RunnerDeps): Promise<RunOutcome> {
       pages: result.pages,
       ...(location.documentId ? { documentId: location.documentId } : {}),
     };
-    await files.upload(result.path, output.storagePath, 'application/pdf');
+    await files.upload(result.path, output.storagePath, exportFileType(request.type).contentType);
 
     if (request.target.kind === 'matter' && location.documentPath && location.documentId) {
       const now = clock();

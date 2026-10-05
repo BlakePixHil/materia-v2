@@ -18,6 +18,7 @@ import { liveMatter, matterPath } from './shared';
 import { audit } from '../audit/audit';
 import { contactPath, isDeleted, isLive, stamp } from '../contacts/shared';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
+import type { TxJoin } from '../core/tx-join';
 
 type Data = Record<string, unknown>;
 
@@ -79,12 +80,14 @@ async function changeParties(
     rows: Map<string, Row>;
     now: Date;
   }) => Promise<Omit<PartyChange, 'clientContactIds'>>,
+  join?: TxJoin,
 ): Promise<PartyChange> {
   const { input, orgId, uid, role, db, clock, requestId } = ctx;
   const matterRef = db.doc(matterPath(orgId, input.matterId));
   const now = clock.now();
   const change = await db.runTransaction(async (tx) => {
     const matter = liveMatter(await tx.get(matterRef), role, input.matterId);
+    await join?.read(tx);
     const snaps = await tx.get(db.collection(`${matterRef.path}/parties`));
     const rows = new Map(snaps.docs.map((doc) => [doc.id, asRow(doc.data() as Data)]));
     const partyRef = (partyId: string) => db.doc(`${matterRef.path}/parties/${partyId}`);
@@ -100,6 +103,7 @@ async function changeParties(
     if (JSON.stringify(clientContactIds) !== JSON.stringify(current)) {
       tx.update(matterRef, { clientContactIds, ...stamp(uid, now, requestId) });
     }
+    join?.write(tx, `${matterRef.path}/parties/${result.partyId}`);
     return { ...result, clientContactIds };
   });
   await recordMatterActivity(db, orgId, input.matterId, now);
@@ -147,9 +151,18 @@ export const upsertPartyDefinition = {
   input: UpsertPartyInput,
   roles: PERMISSIONS['matter.edit'],
   idempotent: true,
-  handler: async (ctx): Promise<PartyResult> => {
-    const { input, orgId, uid, db, requestId } = ctx;
-    const change = await changeParties(ctx, async ({ tx, partyRef, rows, now }) => {
+  handler: (ctx): Promise<PartyResult> => upsertPartyChange(ctx),
+} satisfies CallableDefinition<typeof UpsertPartyInput, PartyResult>;
+
+/**
+ * The `matters-upsertParty` logic, shared with accepting a Clerk party suggestion (AI-07), which
+ * joins its own reads and writes to the transaction (`join`).
+ */
+export async function upsertPartyChange(ctx: CallableContext<UpsertPartyInput>, join?: TxJoin): Promise<PartyResult> {
+  const { input, orgId, uid, db, requestId } = ctx;
+  const change = await changeParties(
+    ctx,
+    async ({ tx, partyRef, rows, now }) => {
       const old = input.partyId ? rows.get(input.partyId) : undefined;
       if (input.partyId && !old?.live) throw partyNotFound(input.partyId);
       const moving = !!old && (old.role !== input.role || old.contactId !== input.contactId);
@@ -223,11 +236,12 @@ export const upsertPartyDefinition = {
           ? { previousPartyId: input.partyId, previousRole: old?.role ?? 'unknown' }
           : {}),
       };
-    });
-    await auditChange(ctx, change);
-    return { matterId: input.matterId, partyId: change.partyId, clientContactIds: change.clientContactIds };
-  },
-} satisfies CallableDefinition<typeof UpsertPartyInput, PartyResult>;
+    },
+    join,
+  );
+  await auditChange(ctx, change);
+  return { matterId: input.matterId, partyId: change.partyId, clientContactIds: change.clientContactIds };
+}
 
 /**
  * `matters-removeParty` (CORE-06, `matter.edit`, privileged visibility as above). Soft-deletes a

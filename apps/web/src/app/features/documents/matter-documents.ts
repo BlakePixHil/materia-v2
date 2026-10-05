@@ -11,7 +11,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { can } from '@materia/data-access';
+import { can, type JobView } from '@materia/data-access';
 import { matterDocumentsQuery } from '@materia/data-access/repository';
 import { documentDisplayName } from '@materia/domain';
 import {
@@ -63,6 +63,7 @@ import {
 import { UploadList } from './upload-list';
 import { onIntent } from '../../core/commands/intents';
 import { errorCopy } from '../../core/error-copy';
+import { JobProgress } from '../../core/jobs/job-progress';
 import { MOBILE_QUERY } from '../../shell/app-shell';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
@@ -79,7 +80,8 @@ function storedLayout(): Layout {
 
 /**
  * A matter's Documents tab (CORE-12): its documents as a table or a grid, filtered by category,
- * type and privilege, sorted, selected in bulk (move to a category, remove, restore), and added by
+ * type and privilege, sorted, selected in bulk (download as a zip, move to a category, remove,
+ * restore), and added by
  * the Upload button or by dropping files anywhere on the tab. Uploads show their progress and then
  * the server's verdict; a possible duplicate asks to keep both or discard. Privileged documents are
  * never listed for roles without privileged.view (the query proves `privileged == false`). Listens
@@ -103,6 +105,7 @@ function storedLayout(): Layout {
     MtTable,
     MtTableCell,
     DocumentsBulkBar,
+    JobProgress,
     UploadList,
   ],
   host: {
@@ -180,6 +183,10 @@ function storedLayout(): Layout {
         <button mtButton variant="ghost" size="sm" (click)="filters.set(noFilters)">Clear filters</button>
       }
     </div>
+
+    @if (zipJob(); as jobId) {
+      <mt-job-progress [jobId]="jobId" label="Documents zip" (finished)="zipFinished(jobId, $event)" />
+    }
 
     @if (uploadCount()) {
       <mt-upload-list
@@ -339,11 +346,14 @@ function storedLayout(): Layout {
     @if (selectedRows().length) {
       <mt-documents-bulk-bar
         [count]="selectedRows().length"
+        [canDownload]="canDownload()"
         [canMove]="canUpload()"
         [canDelete]="canDelete()"
         [liveSelected]="liveSelected().length > 0"
         [removedSelected]="removedSelected().length > 0"
         [busy]="actions.busy()"
+        [zipping]="zipping()"
+        (download)="downloadSelected()"
         (move)="move($event)"
         (remove)="removeSelected()"
         (restore)="restoreSelected()"
@@ -426,10 +436,12 @@ export class MatterDocuments {
 
   protected readonly canUpload = computed(() => this.uploadAllowed() && !this.screen.deleted());
   protected readonly canDelete = computed(() => this.deleteAllowed() && !this.screen.deleted());
+  /** Every role that sees the matter can download a selection as a zip (CORE-12b). */
+  protected readonly canDownload = computed(() => !this.screen.deleted());
   protected readonly canPrivileged = can('privileged.view');
   private readonly uploadAllowed = can('document.upload');
   private readonly deleteAllowed = can('document.delete');
-  protected readonly selectable = computed(() => this.canUpload() || this.canDelete());
+  protected readonly selectable = computed(() => this.canDownload() || this.canUpload() || this.canDelete());
 
   protected readonly matterId = computed(() => this.screen.id() ?? '');
   /** Every document the role may see, removed ones included (filtered here, so uploads can follow them). */
@@ -449,6 +461,10 @@ export class MatterDocuments {
   readonly selection = signal<readonly string[]>([]);
   protected readonly dragging = signal(false);
   private dragDepth = 0;
+  /** The zip job being prepared, watched until it finishes. */
+  protected readonly zipJob = signal<string | null>(null);
+  private readonly startingZip = signal(false);
+  protected readonly zipping = computed(() => this.startingZip() || this.zipJob() !== null);
 
   protected readonly rows = computed(() =>
     sortDocuments(
@@ -639,6 +655,24 @@ export class MatterDocuments {
     const input = event.target as HTMLInputElement;
     this.add([...(input.files ?? [])]);
     input.value = '';
+  }
+
+  /** Starts a zip of the live selected documents; `zipFinished` downloads it. */
+  protected async downloadSelected(): Promise<void> {
+    if (this.zipping()) return;
+    this.startingZip.set(true);
+    try {
+      const result = await this.actions.startZip(this.liveSelected().map((row) => row.id));
+      if (result) this.zipJob.set(result.jobId);
+    } finally {
+      this.startingZip.set(false);
+    }
+  }
+
+  /** The zip job finished: download the zip, or leave the failure toast up. */
+  protected async zipFinished(jobId: string, job: JobView): Promise<void> {
+    this.zipJob.set(null);
+    if (job.status === 'succeeded') await this.actions.downloadZip(jobId);
   }
 
   protected async move(category: DocumentCategory): Promise<void> {

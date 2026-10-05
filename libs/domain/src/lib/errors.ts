@@ -70,6 +70,17 @@ export const ERROR_CODES = {
    * version (`details.stages` lists them, CORE-07).
    */
   TEMPLATE_STAGE_MAPPING_REQUIRED: 'failed-precondition',
+  /** The matter is closed or archived, so it can't be changed until it is reopened (AI-07). */
+  MATTER_CLOSED: 'failed-precondition',
+  /**
+   * A Clerk suggestion's sources changed since it was proposed (AI-07): `details.changed` lists what,
+   * `details.basis` is the basis to accept it against after a re-review.
+   */
+  SUGGESTION_STALE: 'failed-precondition',
+  /** A Clerk suggestion was already accepted, dismissed or expired (AI-07): `details.status`. */
+  ALREADY_RESOLVED: 'failed-precondition',
+  /** No accept handler is registered for this suggestion kind yet (AI-07): `details.kind`. */
+  SUGGESTION_UNSUPPORTED: 'failed-precondition',
   INTERNAL: 'internal',
 } as const;
 

@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
-import { DOCUMENT_CALLABLES, UPLOAD_METADATA_KEYS } from '@materia/domain';
+import { DOCUMENT_CALLABLES, GET_EXPORT_URL_CALLABLE, UPLOAD_METADATA_KEYS } from '@materia/domain';
 
 import { CallableClient } from './callable-client';
 import {
@@ -204,14 +204,19 @@ describe('documentCallables', () => {
     await api.resolveDuplicate({ matterId: 'm-1', docId: 'd-2', action: 'discard' });
     await api.bulkUpdate({ matterId: 'm-1', docIds: ['d-1'], change: { op: 'delete' } });
     await api.saveAttachment({ matterId: 'm-1', docId: 'd-3', attachmentIndex: 0 });
+    await api.startZip({ matterId: 'm-1', docIds: ['d-1', 'd-2'] });
+    await api.exportUrl('job-1');
     expect(calls.map((c) => c.name)).toEqual([
       DOCUMENT_CALLABLES.getDownloadUrl,
       DOCUMENT_CALLABLES.restoreVersion,
       DOCUMENT_CALLABLES.resolveDuplicate,
       DOCUMENT_CALLABLES.bulkUpdate,
       DOCUMENT_CALLABLES.saveAttachment,
+      DOCUMENT_CALLABLES.startZip,
+      GET_EXPORT_URL_CALLABLE,
     ]);
     expect(calls[0]?.data).not.toHaveProperty('requestId');
-    for (const call of calls.slice(1)) expect(call.data['requestId']).toBe('00000000-0000-4000-8000-000000000001');
+    for (const call of calls.slice(1, 6)) expect(call.data['requestId']).toBe('00000000-0000-4000-8000-000000000001');
+    expect(calls[6]?.data).toEqual({ jobId: 'job-1' });
   });
 });
