@@ -89,6 +89,7 @@ export function firestoreClerkStore(db: Firestore, now: () => number = Date.now)
           stopRequested: false,
           toolCalls: [],
           promptId: init.promptRef,
+          ...(init.manifest ? { manifest: init.manifest, privileged: init.manifest.privileged } : {}),
           createdAt: at,
           createdBy: init.uid,
           updatedAt: at,

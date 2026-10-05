@@ -1,4 +1,5 @@
 import type { ClerkCitation, ClerkUsage } from '@materia/clerk';
+import type { ContextManifest } from '@materia/domain';
 
 /** The org's Clerk settings (`orgs/{orgId}.settings.clerk`). */
 export interface OrgClerkSettings {
@@ -55,6 +56,12 @@ export interface ClerkStore {
   openMessage(
     orgId: string,
     target: { threadId: string; messageId: string },
-    init: { uid: string; promptRef: string; requestId: string },
+    init: {
+      uid: string;
+      promptRef: string;
+      requestId: string;
+      /** What Clerk was shown (AI-03); stored for audit, and its `privileged` marks the message. */
+      manifest?: ContextManifest;
+    },
   ): Promise<MessageSink>;
 }
