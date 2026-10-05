@@ -1,6 +1,13 @@
 import { FieldValue, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
 
-import { nextReminderAt, reminderSlots, VIC_CALENDARS, type ReminderCalendar, type StoredReminder } from '@materia/deadlines';
+import {
+  nextReminderAt,
+  reminderOffsets,
+  reminderSlots,
+  VIC_CALENDARS,
+  type ReminderCalendar,
+  type StoredReminder,
+} from '@materia/deadlines';
 import { validTimeZone, type DateOnly } from '@materia/domain';
 
 import { isDeleted } from '../contacts/shared';
@@ -56,11 +63,9 @@ export function slotsOf(data: Data | undefined, cal: ReminderCalendar) {
   );
 }
 
+/** The offsets in force (the defaults when none are stored), so writing the defaults out isn't a change. */
 const offsets = (data: Data | undefined) =>
-  storedReminders(data)
-    .map((r) => r.offsetDays)
-    .sort((a, b) => a - b)
-    .join(',');
+  reminderOffsets({ critical: data?.['critical'] === true, reminders: storedReminders(data) }).join(',');
 
 /**
  * Whether a write changed what the reminders depend on: the date, criticality, offsets (not their

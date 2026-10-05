@@ -32,7 +32,14 @@ function world(deadline: Data = {}, extra: Record<string, Data> = {}) {
     [`orgs/${ORG}/members/user-partner`]: member('lawyer'),
     [`orgs/${ORG}/members/user-admin`]: member('admin'),
     [`orgs/${ORG}/members/user-paralegal`]: member('paralegal'),
-    [MATTER]: { ...meta, number: 'BL-2026-0042', title: 'Estate of Fictional Person', status: 'active', responsibleUid: 'user-lawyer', deletedAt: null },
+    [MATTER]: {
+      ...meta,
+      number: 'BL-2026-0042',
+      title: 'Estate of Fictional Person',
+      status: 'active',
+      responsibleUid: 'user-lawyer',
+      deletedAt: null,
+    },
     [DEADLINE]: {
       ...meta,
       orgId: ORG,
@@ -58,7 +65,7 @@ function world(deadline: Data = {}, extra: Record<string, Data> = {}) {
   const notifications = () =>
     [...store.docs.entries()]
       .filter(([path]) => path.startsWith(`orgs/${ORG}/notifications/`))
-      .map(([path, data]) => ({ ...data, id: path.split('/').at(-1) as string }));
+      .map(([path, data]): Data & { id: string } => ({ ...(data as Data), id: path.split('/').at(-1) as string }));
   /** Runs deadlines-onWrite as the trigger would for a write from `before` to the stored deadline. */
   const written = async (before: Data | undefined, path = DEADLINE) => {
     const ref = store.db.doc(path);
@@ -279,7 +286,10 @@ describe('task reminders', () => {
   it('follows the assignee’s taskReminderDays, on business days', async () => {
     const w = world(
       { status: 'done' },
-      { ...task({ dueDate: '2026-11-02' }), 'users/user-lawyer': { prefs: { notifications: { taskReminderDays: 2 } } } },
+      {
+        ...task({ dueDate: '2026-11-02' }),
+        'users/user-lawyer': { prefs: { notifications: { taskReminderDays: 2 } } },
+      },
     );
     const cal = await reminderCalendar(w.db, ORG);
     // Two days before Monday 2 November is Saturday: the reminder goes out on Friday.

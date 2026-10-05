@@ -64,6 +64,8 @@ export const DeadlineItemSchema = /* @__PURE__ */ z.object({
   assigneeUid: deadline.assigneeUid,
   ackBy: deadline.ackBy,
   ackAt: deadline.ackAt,
+  escalatedAt: deadline.escalatedAt,
+  escalatedTo: deadline.escalatedTo,
   pastOnCreation: deadline.pastOnCreation,
   updatedAt: deadline.updatedAt.optional(),
   updatedBy: deadline.updatedBy.optional(),

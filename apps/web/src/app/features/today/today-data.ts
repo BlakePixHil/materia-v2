@@ -19,7 +19,9 @@ import {
   deadlineGroupRepository,
   matterCountQuery,
   memberCountRepository,
+  deadlineCallables,
   myDeadlinesThisWeekQuery,
+  myEscalationsQuery,
   myNextTasksQuery,
   myOpenTaskCountQuery,
   myOverdueDeadlinesQuery,
@@ -48,6 +50,7 @@ import {
   todayWindow,
   type TodayEscalationLike,
 } from '@materia/domain';
+import { ToastService } from '@materia/ui';
 
 import {
   lookupEntry,
@@ -60,6 +63,8 @@ import {
   type TodayMatterRef,
 } from './today-view';
 import { AuthState } from '../../core/auth/auth-state';
+import { CALLABLES } from '../../core/data/callables';
+import { deadlineErrorCopy } from '../deadlines/deadline-view';
 import { TaskActions } from '../tasks/task-actions';
 import { taskEntry, type TaskEntry, type TaskRecord } from '../tasks/task-view';
 
@@ -116,6 +121,8 @@ export class TodayData {
   private readonly auth = inject(AuthState);
   private readonly clock = inject(DATA_CLOCK);
   private readonly tasks = inject(TaskActions);
+  private readonly toasts = inject(ToastService);
+  private readonly deadlineApi = deadlineCallables(inject(CALLABLES));
   private readonly deviceZone = inject(DEVICE_TIME_ZONE);
   readonly online = inject(Connectivity).online;
   readonly canEditTasks = can('task.edit');
@@ -147,8 +154,19 @@ export class TodayData {
     const uid = this.context.uid();
     return uid ? myTodayChangesQuery(uid) : null;
   });
-  /** Escalations awaiting acknowledgement arrive with CORE-11. */
-  readonly escalations = signal<readonly TodayEscalationLike[]>([]);
+  /** Critical deadlines escalated to me (CORE-11) that nobody has acknowledged yet. */
+  private readonly escalated = deadlineGroupRepository().watchQuery(() => {
+    const uid = this.context.uid();
+    return uid ? myEscalationsQuery(uid) : null;
+  });
+  /** Escalations acknowledged here, hidden until the live read catches up. */
+  private readonly acknowledged = signal<ReadonlySet<string>>(new Set());
+  readonly escalations = computed((): readonly TodayEscalationLike[] => {
+    const done = this.acknowledged();
+    return (this.escalated.value() ?? [])
+      .filter((row) => !row.ackAt && !done.has(row.id))
+      .map((row) => ({ id: row.id, matterId: row.matterId, title: row.title }));
+  });
   private readonly dueDeadlines = deadlineGroupRepository().watchQuery(
     () => {
       const uid = this.context.uid();
@@ -259,10 +277,10 @@ export class TodayData {
     });
     return {
       items,
-      truncated: section.truncated || this.overdue.hasMore() || this.changes.hasMore(),
+      truncated: section.truncated || this.overdue.hasMore() || this.changes.hasMore() || this.escalated.hasMore(),
     };
   });
-  readonly attentionStatus = combinedStatus([this.overdue, this.changes]);
+  readonly attentionStatus = combinedStatus([this.overdue, this.changes, this.escalated]);
 
   /** Deadlines and tasks due from today to Sunday, merged (`dueThisWeek`). */
   readonly due = computed(() => {
@@ -406,6 +424,27 @@ export class TodayData {
     if (uid) void this.loadCounts(uid);
     const ids = [...this.requested];
     if (ids.length) void this.lookUp(ids);
+  }
+
+  /**
+   * Acknowledges an escalated deadline (`deadlines-acknowledge`), which stops it escalating and
+   * takes it off the list. A failure is a toast; the row stays.
+   */
+  async acknowledge(row: TodayEscalationLike): Promise<boolean> {
+    if (!row.matterId) return false;
+    try {
+      await this.deadlineApi.acknowledge({ matterId: row.matterId, deadlineId: row.id });
+    } catch (error) {
+      this.toasts.show({
+        title: 'Couldn’t acknowledge the deadline',
+        description: deadlineErrorCopy(error),
+        tone: 'danger',
+      });
+      return false;
+    }
+    this.acknowledged.update((ids) => new Set(ids).add(row.id));
+    this.toasts.show({ title: 'Deadline acknowledged', tone: 'success' });
+    return true;
   }
 
   /** After a deadline closed from Today: the one-shot due list reads again (the rest is live). */

@@ -55,6 +55,19 @@ export const myDeadlinesThisWeekQuery = (uid: string, window: TodayWindow): Quer
   pageSize: TODAY_SECTION_LIMIT,
 });
 
+/**
+ * Critical deadlines escalated to me (CORE-11), soonest first; the screen drops the acknowledged
+ * ones (indexed: orgId, escalatedTo contains, status, dueDate).
+ */
+export const myEscalationsQuery = (uid: string): QuerySpec<DeadlineItem> => ({
+  where: [
+    ['escalatedTo', 'array-contains', uid],
+    ['status', '==', 'upcoming'],
+  ],
+  orderBy: [['dueDate', 'asc']],
+  pageSize: TODAY_SECTION_LIMIT,
+});
+
 /** Pending proposals waiting on me, newest first (indexed: orgId, assigneeUid, status, createdAt). */
 export const myTodayChangesQuery = (uid: string): QuerySpec<DeadlineChangeItem> => ({
   where: [
