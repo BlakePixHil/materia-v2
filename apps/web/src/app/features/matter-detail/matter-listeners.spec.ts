@@ -19,7 +19,7 @@ const options = { providers: [{ provide: NOTIFICATIONS_START_DELAY_MS, useValue:
 
 describe('matter screen listeners', () => {
   it('listen to the matter plus the active tab’s collections only', async () => {
-    const page = await openMatter('/matters/m-whitfield/time', options);
+    const page = await openMatter('/matters/m-whitfield/estate', options);
     // A placeholder tab: the matter document (and whatever the shell keeps) only.
     const base = page.firestore.listenerCount;
     expect(base).toBeGreaterThan(0);
@@ -47,7 +47,12 @@ describe('matter screen listeners', () => {
     await page.stable();
     expect(page.firestore.listenerCount).toBe(base + 1);
 
+    // Time (BILL-01): the matter's time entries only (rates and settings are read once).
     await page.router.navigateByUrl('/matters/m-whitfield/time');
+    await page.stable();
+    expect(page.firestore.listenerCount).toBe(base + 1);
+
+    await page.router.navigateByUrl('/matters/m-whitfield/estate');
     await page.stable();
     expect(page.firestore.listenerCount).toBe(base);
   });
