@@ -512,6 +512,17 @@ export const makeInvoice = (o: Partial<D.Invoice> = {}) =>
     o,
   );
 
+export const makeNoteRevision = (o: Partial<D.NoteRevision> = {}) =>
+  build(
+    D.NoteRevision,
+    {
+      bodyMd: 'Called the executor.',
+      privileged: false,
+      editedAt: new Date('2026-01-02T03:04:05.000Z'),
+      editedBy: TEST_UID,
+    },
+    o,
+  );
 export const makeCreditNote = (o: Partial<D.CreditNote> = {}) =>
   build(
     D.CreditNote,
@@ -801,6 +812,7 @@ export const ENTITY_FACTORIES = {
   DocumentHash: [D.DocumentHash, makeDocumentHash],
   Chunk: [D.Chunk, makeChunk],
   Note: [D.Note, makeNote],
+  NoteRevision: [D.NoteRevision, makeNoteRevision],
   Activity: [D.Activity, makeActivity],
   TimeEntry: [D.TimeEntry, makeTimeEntry],
   Disbursement: [D.Disbursement, makeDisbursement],

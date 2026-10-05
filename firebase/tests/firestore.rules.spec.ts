@@ -2138,6 +2138,114 @@ describe('task group templates (CORE-08f)', () => {
   });
 });
 
+describe('notes (CORE-13)', () => {
+  const NOTE = `${MATTER}/notes/note-13`;
+  const PRIVILEGED_NOTE = `${MATTER}/notes/note-13-privileged`;
+  const revision = (privileged: boolean) => ({ ...seedData(specFor('revisions')), privileged });
+  const reseed = () =>
+    seedAdmin(env, async (f) => {
+      await setDoc(doc(f, NOTE), { ...seedData(specFor('notes')), privileged: false, pinned: false, deletedAt: null });
+    });
+
+  beforeAll(async () => {
+    await reseed();
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, PRIVILEGED_NOTE), { ...seedData(specFor('notes')), privileged: true });
+      await setDoc(doc(f, `${NOTE}/revisions/r-plain`), revision(false));
+      // An earlier version that was privileged, of a note that no longer is.
+      await setDoc(doc(f, `${NOTE}/revisions/r-privileged`), revision(true));
+      await setDoc(doc(f, `${PRIVILEGED_NOTE}/revisions/r-1`), revision(false));
+    });
+  });
+
+  it.each(ROLES)('pinning and unpinning follow note.write, as %s', async (role) => {
+    await reseed();
+    const ref = doc(db(env, role), NOTE);
+    const pin = updateDoc(ref, stamped({ pinned: true }, uidFor(role)));
+    await (allows(role, 'note.write') ? assertSucceeds(pin) : assertFails(pin));
+  });
+
+  it.each(ROLES)('nobody edits the text, mentions, flag or edit stamp directly, as %s', async (role) => {
+    await reseed();
+    const ref = doc(db(env, role), NOTE);
+    const uid = uidFor(role);
+    for (const change of [
+      { bodyMd: 'Rewritten by a client' },
+      { bodyMd: 'Rewritten', pinned: true },
+      { mentions: { uids: [uidFor('owner')], matterIds: [] } },
+      { privileged: true },
+      { editedAt: serverTimestamp(), editedBy: uid },
+      { source: 'clerk' },
+    ]) {
+      await assertFails(updateDoc(ref, stamped(change, uid)));
+    }
+  });
+
+  it('note.write roles soft delete and restore; readonly cannot', async () => {
+    await reseed();
+    const uid = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), NOTE);
+    await assertFails(
+      updateDoc(doc(db(env, 'readonly'), NOTE), {
+        ...stamped({}, uidFor('readonly')),
+        deletedAt: serverTimestamp(),
+        deletedBy: uidFor('readonly'),
+      }),
+    );
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: serverTimestamp(), deletedBy: uid }));
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: null, deletedBy: null }));
+  });
+
+  it('a privileged note: hidden from, and not pinnable by, roles without privileged.view', async () => {
+    for (const role of ROLES) {
+      const read = getDoc(doc(db(env, role), PRIVILEGED_NOTE));
+      await (allows(role, 'privileged.view') ? assertSucceeds(read) : assertFails(read));
+    }
+    await assertFails(
+      updateDoc(doc(db(env, 'paralegal'), PRIVILEGED_NOTE), stamped({ pinned: true }, uidFor('paralegal'))),
+    );
+    await assertSucceeds(
+      updateDoc(doc(db(env, 'lawyer'), PRIVILEGED_NOTE), stamped({ pinned: true }, uidFor('lawyer'))),
+    );
+  });
+
+  it.each(ROLES)('revisions follow the note and their own flag, as %s', async (role) => {
+    const firestore = db(env, role);
+    const sees = allows(role, 'privileged.view');
+    await assertSucceeds(getDoc(doc(firestore, `${NOTE}/revisions/r-plain`)));
+    await (sees ? assertSucceeds : assertFails)(getDoc(doc(firestore, `${NOTE}/revisions/r-privileged`)));
+    await (sees ? assertSucceeds : assertFails)(getDoc(doc(firestore, `${PRIVILEGED_NOTE}/revisions/r-1`)));
+  });
+
+  it('roles without privileged.view list a note’s history by proving privileged == false', async () => {
+    const history = collection(db(env, 'paralegal'), `${NOTE}/revisions`);
+    await assertSucceeds(getDocs(query(history, where('privileged', '==', false), orderBy('editedAt', 'desc'))));
+    await assertFails(getDocs(query(history, orderBy('editedAt', 'desc'))));
+    await assertSucceeds(
+      getDocs(query(collection(db(env, 'lawyer'), `${NOTE}/revisions`), orderBy('editedAt', 'desc'))),
+    );
+    // A privileged note's history stays hidden whatever the query proves.
+    await assertFails(
+      getDocs(
+        query(collection(db(env, 'paralegal'), `${PRIVILEGED_NOTE}/revisions`), where('privileged', '==', false)),
+      ),
+    );
+  });
+
+  it('readonly lists only non-privileged notes, newest first', async () => {
+    const notes = collection(db(env, 'readonly'), `${MATTER}/notes`);
+    await assertSucceeds(getDocs(query(notes, where('privileged', '==', false), orderBy('createdAt', 'desc'))));
+    await assertFails(getDocs(query(notes, orderBy('createdAt', 'desc'))));
+  });
+
+  it('clients never write revisions', async () => {
+    const ref = doc(db(env, 'owner'), `${NOTE}/revisions/r-plain`);
+    await assertFails(updateDoc(ref, stamped({ bodyMd: 'Rewritten history' }, uidFor('owner'))));
+    await assertFails(setDoc(doc(db(env, 'owner'), `${NOTE}/revisions/r-new`), revision(false)));
+    await assertFails(deleteDoc(ref));
+  });
+});
+
 // Last in this file, before another suite reloads the rules (which resets the emulator's report).
 describe('rules coverage', () => {
   it('evaluates at least 90% of the rule expressions', async () => {

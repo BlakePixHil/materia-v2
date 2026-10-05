@@ -130,3 +130,50 @@ describe('parseMarkdown', () => {
     expect(inlineText(parseInline('[x](https://a.example) `c`[1]'))).toBe('x c');
   });
 });
+
+describe('mentions (notes, CORE-13)', () => {
+  const NOTES = { mentions: true, citations: false, breaks: true } as const;
+
+  it('reads @[uid] and #[matterId] tokens as mention nodes', () => {
+    expect(parseInline('Ask @[user-priya] about #[m-whitfield].', false, NOTES)).toEqual([
+      { type: 'text', text: 'Ask ' },
+      { type: 'mention', kind: 'member', id: 'user-priya' },
+      { type: 'text', text: ' about ' },
+      { type: 'mention', kind: 'matter', id: 'm-whitfield' },
+      { type: 'text', text: '.' },
+    ]);
+    expect(parseInline('**@[u-1]** and *#[m-2]*', false, NOTES)).toEqual([
+      { type: 'strong', children: [{ type: 'mention', kind: 'member', id: 'u-1' }] },
+      { type: 'text', text: ' and ' },
+      { type: 'em', children: [{ type: 'mention', kind: 'matter', id: 'm-2' }] },
+    ]);
+    expect(inlineText(parseInline('Hi @[u-1]', false, NOTES))).toBe('Hi @[u-1]');
+  });
+
+  it('keeps tokens in code, broken tokens and [1] as text', () => {
+    expect(parseInline('`@[u-1]` @[] @[a/b] #[with space] @u-1 [1]', false, NOTES)).toEqual([
+      { type: 'code', text: '@[u-1]' },
+      { type: 'text', text: ' @[] @[a/b] #[with space] @u-1 [1]' },
+    ]);
+    expect(parseMarkdown('```\n@[u-1]\n```', false, NOTES)).toEqual([{ type: 'code', text: '@[u-1]' }]);
+    // A `#[m-1]` line is a mention, not a heading.
+    expect(parseMarkdown('#[m-1] is related', false, NOTES)[0]?.type).toBe('paragraph');
+  });
+
+  it('leaves Clerk unchanged: no mentions, and [1] stays a citation', () => {
+    expect(parseInline('@[u-1] said[1]')).toEqual([
+      { type: 'text', text: '@[u-1] said' },
+      { type: 'cite', refs: [1] },
+    ]);
+    expect(citedRefs(parseMarkdown('@[u-1] and #[m-1][2]'))).toEqual([2]);
+  });
+
+  it('keeps single line breaks when asked', () => {
+    expect(parseMarkdown('Called Avery.\nShe has the will.', false, NOTES)).toEqual([
+      { type: 'paragraph', children: [{ type: 'text', text: 'Called Avery.\nShe has the will.' }] },
+    ]);
+    expect(parseMarkdown('Called Avery.\nShe has the will.')).toEqual([
+      { type: 'paragraph', children: [{ type: 'text', text: 'Called Avery. She has the will.' }] },
+    ]);
+  });
+});

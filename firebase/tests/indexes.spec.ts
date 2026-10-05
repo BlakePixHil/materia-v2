@@ -36,6 +36,8 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   conflictChecks: domain.ConflictCheck,
   recent: domain.RecentMatter,
   documents: domain.MatterDocument,
+  notes: domain.Note,
+  revisions: domain.NoteRevision,
   // A union of kinds: every kind shares these fields (FND-20).
   notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
 } as never;
@@ -113,6 +115,15 @@ describe('firestore.indexes.json', () => {
       .filter((i) => i.collectionGroup === 'documents')
       .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`);
     expect(documents).toEqual(['COLLECTION:privileged:ASCENDING,createdAt:DESCENDING']);
+  });
+
+  it('a matter’s notes and a note’s history, filtered to non-privileged for roles without privileged.view (CORE-13)', () => {
+    const key = (group: string) =>
+      file.indexes
+        .filter((i) => i.collectionGroup === group)
+        .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`);
+    expect(key('notes')).toEqual(['COLLECTION:privileged:ASCENDING,createdAt:DESCENDING']);
+    expect(key('revisions')).toEqual(['COLLECTION:privileged:ASCENDING,editedAt:DESCENDING']);
   });
 
   it('the chunks vector index is flat, 768 dimensions, with orgId and matterId pre-filters', () => {

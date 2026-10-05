@@ -1,12 +1,16 @@
 /**
- * A small, safe Markdown subset for Clerk's answers, parsed to a tree that Angular templates render.
- * Nothing is ever passed to `innerHTML`: raw HTML in the model's output stays literal text.
+ * A small, safe Markdown subset for Clerk's answers and matter notes, parsed to a tree that Angular
+ * templates render. Nothing is ever passed to `innerHTML`: raw HTML in the text stays literal.
  *
  * Supported: paragraphs, headings (shown as bold lines), `-`/`*`/`1.` lists, `>` quotes, fenced code,
  * `**bold**`, `*italic*`, `` `code` ``, `[links](https://…)` (http, https and mailto only) and citation
  * markers `[1]` / `[1, 2]`. Images are never rendered (only their alt text), so remote content can't
  * load. While `streaming`, half-finished syntax at the end (an open `**`, a `[1` marker, an unclosed
  * fence) renders tolerantly instead of flashing raw markers.
+ *
+ * With `{ mentions: true }` (notes, CORE-13), `@[uid]` and `#[matterId]` tokens become `mention`
+ * nodes, which the renderer resolves to a member's name or a matter chip; Clerk leaves it off, so its
+ * `[1]` citations are unchanged. Tokens inside code stay text, as `parseMentions` in libs/domain reads them.
  */
 
 export type MdInline =
@@ -15,7 +19,8 @@ export type MdInline =
   | { type: 'em'; children: MdInline[] }
   | { type: 'code'; text: string }
   | { type: 'link'; href: string; children: MdInline[] }
-  | { type: 'cite'; refs: number[] };
+  | { type: 'cite'; refs: number[] }
+  | { type: 'mention'; kind: 'member' | 'matter'; id: string };
 
 export type MdBlock =
   | { type: 'paragraph'; children: MdInline[] }
@@ -23,6 +28,16 @@ export type MdBlock =
   | { type: 'list'; ordered: boolean; items: MdInline[][] }
   | { type: 'quote'; children: MdInline[] }
   | { type: 'code'; text: string };
+
+/** Parser options. */
+export interface MdOptions {
+  /** Read `@[uid]` and `#[matterId]` mention tokens (notes). Off by default (Clerk). */
+  mentions?: boolean;
+  /** Read `[1]` / `[1, 2]` citation markers (Clerk, the default). Notes turn them off: `[1]` stays text. */
+  citations?: boolean;
+  /** Keep single line breaks inside a paragraph as `\n` (notes; the renderer shows them) instead of spaces. */
+  breaks?: boolean;
+}
 
 const SAFE_URL = /^(https?:\/\/|mailto:)/i;
 
@@ -32,6 +47,8 @@ export function isSafeUrl(url: string): boolean {
 }
 
 const CITE = /^\[(\d+(?:\s*,\s*\d+)*)\]/;
+/** `@[uid]` or `#[matterId]` (the `MENTION_TOKEN` syntax of libs/domain): a Firestore id without `/`, `[`, `]` or spaces. */
+const MENTION = /^([@#])\[([^\][/\s]{1,128})\]/;
 const LINK = /^\[([^\]\n]+)\]\(([^)\s]*)\)/;
 const IMAGE = /^!\[([^\]\n]*)\]\(([^)\s]*)\)/;
 /** Something that could still become a citation or link once more text streams in. */
@@ -49,7 +66,8 @@ function isWordChar(char: string | undefined): boolean {
 }
 
 /** Parses inline Markdown. */
-export function parseInline(src: string, streaming = false): MdInline[] {
+export function parseInline(src: string, streaming = false, options: MdOptions = {}): MdInline[] {
+  const nested = (text: string) => parseInline(text, streaming, options);
   const out: MdInline[] = [];
   let i = 0;
   while (i < src.length) {
@@ -75,11 +93,11 @@ export function parseInline(src: string, streaming = false): MdInline[] {
       const delim = rest.slice(0, 2);
       const end = src.indexOf(delim, i + 2);
       if (end > i + 2) {
-        out.push({ type: 'strong', children: parseInline(src.slice(i + 2, end), streaming) });
+        out.push({ type: 'strong', children: nested(src.slice(i + 2, end)) });
         i = end + 2;
       } else if (streaming && end === -1) {
         const inner = src.slice(i + 2);
-        if (inner) out.push({ type: 'strong', children: parseInline(inner, streaming) });
+        if (inner) out.push({ type: 'strong', children: nested(inner) });
         i = src.length;
       } else {
         pushText(out, delim);
@@ -97,10 +115,10 @@ export function parseInline(src: string, streaming = false): MdInline[] {
         }
       }
       if (end > i + 1) {
-        out.push({ type: 'em', children: parseInline(src.slice(i + 1, end), streaming) });
+        out.push({ type: 'em', children: nested(src.slice(i + 1, end)) });
         i = end + 1;
       } else if (streaming && end === -1 && i + 1 < src.length && src[i + 1] !== ' ') {
-        out.push({ type: 'em', children: parseInline(src.slice(i + 1), streaming) });
+        out.push({ type: 'em', children: nested(src.slice(i + 1)) });
         i = src.length;
       } else if (streaming && i === src.length - 1) {
         i += 1; // a lone trailing marker: wait for more text
@@ -125,8 +143,17 @@ export function parseInline(src: string, streaming = false): MdInline[] {
       }
     }
 
+    if (options.mentions && (char === '@' || char === '#')) {
+      const mention = MENTION.exec(rest);
+      if (mention) {
+        out.push({ type: 'mention', kind: mention[1] === '@' ? 'member' : 'matter', id: mention[2] as string });
+        i += mention[0].length;
+        continue;
+      }
+    }
+
     if (char === '[') {
-      const cite = CITE.exec(rest);
+      const cite = options.citations === false ? null : CITE.exec(rest);
       if (cite) {
         const refs = (cite[1] ?? '').split(',').map((n) => Number(n.trim()));
         out.push({ type: 'cite', refs });
@@ -135,7 +162,7 @@ export function parseInline(src: string, streaming = false): MdInline[] {
       }
       const link = LINK.exec(rest);
       if (link) {
-        const children = parseInline(link[1] ?? '', streaming);
+        const children = nested(link[1] ?? '');
         const href = link[2] ?? '';
         if (isSafeUrl(href)) out.push({ type: 'link', href: href.trim(), children });
         else out.push(...children);
@@ -145,7 +172,7 @@ export function parseInline(src: string, streaming = false): MdInline[] {
       if (streaming && PARTIAL_BRACKET.test(rest)) {
         // `[1` or `[the will](htt` at the end of a chunk: show the link text, hide the markers.
         const text = /^\[([^\]\n]*)\]\(/.exec(rest)?.[1];
-        if (text) out.push(...parseInline(text, streaming));
+        if (text) out.push(...nested(text));
         i = src.length;
         continue;
       }
@@ -164,13 +191,15 @@ const NUMBERED = /^\s*\d+[.)]\s+(.*)$/;
 const QUOTE = /^\s*>\s?(.*)$/;
 
 /** Parses Markdown into blocks. */
-export function parseMarkdown(src: string, streaming = false): MdBlock[] {
+export function parseMarkdown(src: string, streaming = false, options: MdOptions = {}): MdBlock[] {
+  const inline = (text: string, partial: boolean) => parseInline(text, partial, options);
+  const joiner = options.breaks ? '\n' : ' ';
   const lines = src.replace(/\r\n?/g, '\n').split('\n');
   const blocks: MdBlock[] = [];
   let paragraph: string[] = [];
 
   const flush = () => {
-    if (paragraph.length) blocks.push({ type: 'paragraph', children: parseInline(paragraph.join(' '), streaming) });
+    if (paragraph.length) blocks.push({ type: 'paragraph', children: inline(paragraph.join(joiner), streaming) });
     paragraph = [];
   };
 
@@ -197,7 +226,7 @@ export function parseMarkdown(src: string, streaming = false): MdBlock[] {
     const heading = HEADING.exec(line);
     if (heading) {
       flush();
-      blocks.push({ type: 'heading', children: parseInline(heading[1] ?? '', tail) });
+      blocks.push({ type: 'heading', children: inline(heading[1] ?? '', tail) });
       continue;
     }
 
@@ -211,7 +240,7 @@ export function parseMarkdown(src: string, streaming = false): MdBlock[] {
       while (j < lines.length) {
         const match = (ordered ? NUMBERED : BULLET).exec(lines[j] as string);
         if (!match) break;
-        items.push(parseInline(match[1] ?? '', streaming && j === lines.length - 1));
+        items.push(inline(match[1] ?? '', streaming && j === lines.length - 1));
         j++;
       }
       blocks.push({ type: 'list', ordered, items });
@@ -230,7 +259,7 @@ export function parseMarkdown(src: string, streaming = false): MdBlock[] {
         parts.push(match[1] ?? '');
         j++;
       }
-      blocks.push({ type: 'quote', children: parseInline(parts.join(' '), streaming && j === lines.length) });
+      blocks.push({ type: 'quote', children: inline(parts.join(joiner), streaming && j === lines.length) });
       i = j - 1;
       continue;
     }
@@ -240,7 +269,7 @@ export function parseMarkdown(src: string, streaming = false): MdBlock[] {
     paragraph.push(line.trim());
   }
   if (paragraph.length) {
-    blocks.push({ type: 'paragraph', children: parseInline(paragraph.join(' '), streaming) });
+    blocks.push({ type: 'paragraph', children: inline(paragraph.join(joiner), streaming) });
   }
   return blocks;
 }
@@ -255,6 +284,8 @@ export function inlineText(nodes: readonly MdInline[]): string {
           return node.text;
         case 'cite':
           return '';
+        case 'mention':
+          return `${node.kind === 'member' ? '@' : '#'}[${node.id}]`;
         default:
           return inlineText(node.children);
       }
@@ -268,7 +299,7 @@ export function citedRefs(blocks: readonly MdBlock[]): number[] {
   const visit = (nodes: readonly MdInline[]) => {
     for (const node of nodes) {
       if (node.type === 'cite') node.refs.forEach((n) => seen.add(n));
-      else if (node.type !== 'text' && node.type !== 'code') visit(node.children);
+      else if ('children' in node) visit(node.children);
     }
   };
   for (const block of blocks) {
