@@ -4,5 +4,7 @@
 // documents-sweepPending (hourly expiry of quarantined uploads) and the callables
 // documents-getDownloadUrl, documents-restoreVersion, documents-resolveDuplicate,
 // documents-bulkUpdate and documents-saveAttachment. Clients edit document metadata directly (the rules check it).
+// documents-onWrite keeps each document's ⌘K `search` tokens from its name (CORE-15).
 export { bulkUpdate, getDownloadUrl, resolveDuplicate, restoreVersion, saveAttachment } from './callables';
 export { onUpload, render, rescan, sweepPending } from './on-upload';
+export { onWrite } from './on-write';

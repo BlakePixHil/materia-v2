@@ -20,8 +20,10 @@ import {
   myTasksThisWeekQuery,
   myTodayChangesQuery,
   orgTimeZoneRepository,
+  recentEntriesQuery,
   recentMattersQuery,
   recentMattersRepository,
+  recordRecent,
   recordRecentMatter,
   todayMatterRepository,
 } from './today';
@@ -208,6 +210,26 @@ describe('recent matters', () => {
     const rows = await recents.query(recentMattersQuery('org-a'));
     expect(rows.map((r) => r.matterId)).toEqual(['m-2', 'm-1']);
     expect(recentMattersQuery('org-a').pageSize).toBe(8);
+  });
+
+  it('records contacts, tasks and documents too; Today lists matters, the palette everything (CORE-15)', async () => {
+    const { fs, run } = setup();
+    const recents = run(() => recentMattersRepository());
+    const now = new Date('2026-10-05T01:00:00Z');
+    await recordRecentMatter(recents, 'org-a', 'm-1', now);
+    expect(await recordRecent(recents, 'org-a', { kind: 'contact', entityId: 'c-1' }, now)).toBe('org-a_contact_c-1');
+    expect(await recordRecent(recents, 'org-a', { kind: 'task', matterId: 'm-1', entityId: 't-1' }, now)).toBe(
+      'org-a_task_m-1_t-1',
+    );
+    expect(await recordRecent(recents, 'org-a', { kind: 'document', matterId: 'm-1', entityId: 'd-1' }, now)).toBe(
+      'org-a_document_m-1_d-1',
+    );
+    expect(fs.get(`users/${ME}/recent/org-a_contact_c-1`)).toMatchObject({ kind: 'contact', entityId: 'c-1' });
+    expect(fs.get(`users/${ME}/recent/org-a_contact_c-1`)).not.toHaveProperty('matterId');
+    expect(fs.get(`users/${ME}/recent/org-a_m-1`)).not.toHaveProperty('entityId');
+    expect((await recents.query(recentMattersQuery('org-a'))).map((r) => r.id)).toEqual(['org-a_m-1']);
+    expect(await recents.query(recentEntriesQuery('org-a'))).toHaveLength(4);
+    expect(recentEntriesQuery('org-a').pageSize).toBe(10);
   });
 
   it('refuses an entry the schema refuses', async () => {

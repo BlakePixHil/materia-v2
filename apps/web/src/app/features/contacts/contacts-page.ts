@@ -43,6 +43,8 @@ import { ContactDetail } from './contact-detail';
 import { ContactFormDialog, type ContactFormDialogData, type ContactFormDialogResult } from './contact-form-dialog';
 import { ContactMergeDialog, type ContactMergeDialogData, type ContactMergeDialogResult } from './contact-merge-dialog';
 import { CommandRegistry } from '../../core/commands/command-registry';
+import { onIntent } from '../../core/commands/intents';
+import { recentRecorder } from '../../core/commands/recents';
 import { errorCopy } from '../../core/error-copy';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
@@ -476,10 +478,28 @@ export class ContactsPage {
     // Open the first contact when none is chosen, as the design shows. Not while a dialog is open:
     // selecting navigates, and navigating closes the dialog (a new contact can reach the list
     // before contacts-create returns).
+    let autoSelected: string | null = null;
     effect(() => {
       const first = this.rows()[0];
-      if (first && !this.selectedId() && !this.dialogOpen()) untracked(() => this.select(first.id));
+      if (first && !this.selectedId() && !this.dialogOpen()) {
+        autoSelected = first.id;
+        untracked(() => this.select(first.id));
+      }
     });
+    // ⌘K's Recent (CORE-15): each contact opened is recorded once (not the one chosen for me above).
+    const record = recentRecorder();
+    effect(() => {
+      const id = this.selectedId();
+      if (id && id !== autoSelected) untracked(() => record({ kind: 'contact', entityId: id }));
+    });
+
+    // ⌘K's "New contact" from anywhere (CORE-15), once the list has settled on a contact: choosing
+    // one navigates, which would close the dialog.
+    onIntent(
+      'new-contact',
+      () => void this.create(),
+      () => this.contacts.status() !== 'loading' && (!!this.selectedId() || !this.rows().length),
+    );
   }
 
   /** The table's cell templates are untyped; its rows are always contacts. */

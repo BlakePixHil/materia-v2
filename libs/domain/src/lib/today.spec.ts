@@ -1,4 +1,4 @@
-import { recentMatterExpireAt, recentMatterId, RecentMatter } from './schemas/views';
+import { recentEntryId, recentMatterExpireAt, recentMatterId, RecentMatter } from './schemas/views';
 import {
   compareDueItems,
   deadlinePriority,
@@ -306,9 +306,29 @@ describe('recent matters', () => {
     expect(recentMatterExpireAt(opened).toISOString()).toBe('2027-01-03T00:00:00.000Z');
     const meta = { createdAt: opened, createdBy: 'u', updatedAt: opened, updatedBy: 'u', schemaVersion: 1 };
     const valid = { orgId: 'org-hv', matterId: 'm-doyle', expireAt: recentMatterExpireAt(opened), ...meta };
-    expect(RecentMatter.schema.safeParse(valid).success).toBe(true);
+    // Entries from before CORE-15 have no kind: they are matters.
+    expect(RecentMatter.schema.parse(valid).kind).toBe('matter');
     expect(RecentMatter.schema.safeParse({ ...valid, title: 'Estate of Margaret Doyle' }).success).toBe(false);
     expect(RecentMatter.schema.safeParse({ ...valid, matterId: 'a/b' }).success).toBe(false);
-    expect(Object.keys(RecentMatter.update.shape).sort()).toEqual(['expireAt', 'matterId', 'orgId']);
+    expect(RecentMatter.schema.safeParse({ ...valid, kind: 'invoice' }).success).toBe(false);
+    expect(Object.keys(RecentMatter.update.shape).sort()).toEqual([
+      'entityId',
+      'expireAt',
+      'kind',
+      'matterId',
+      'orgId',
+    ]);
+  });
+
+  it('names contacts, tasks and documents by kind, matter and id (CORE-15)', () => {
+    expect(recentEntryId('org-hv', { kind: 'matter', matterId: 'm-doyle' })).toBe('org-hv_m-doyle');
+    expect(recentEntryId('org-hv', { kind: 'contact', entityId: 'c-1' })).toBe('org-hv_contact_c-1');
+    expect(recentEntryId('org-hv', { kind: 'task', matterId: 'm-doyle', entityId: 'tpl-grant' })).toBe(
+      'org-hv_task_m-doyle_tpl-grant',
+    );
+    expect(recentEntryId('org-hv', { kind: 'task', entityId: 't-1' })).toBe('org-hv_task_t-1');
+    expect(recentEntryId('org-hv', { kind: 'document', matterId: 'm-doyle', entityId: 'd-1' })).toBe(
+      'org-hv_document_m-doyle_d-1',
+    );
   });
 });

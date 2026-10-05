@@ -1197,6 +1197,165 @@ describe('recent matters (CORE-14)', () => {
   });
 });
 
+describe('⌘K search and recents (CORE-15)', () => {
+  const recentOf = (uid: string) => `users/${uid}/recent`;
+  const expiring = () => Timestamp.fromMillis(Date.now() + 90 * 86_400_000);
+  const entry = (uid: string, ref: Record<string, unknown>): Record<string, unknown> => ({
+    orgId: ORG,
+    ...ref,
+    expireAt: expiring(),
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+  });
+
+  it('records contacts, tasks and documents I opened, by kind, matter and id', async () => {
+    const uid = uidFor('readonly');
+    const firestore = db(env, 'readonly');
+    const at = (id: string) => doc(firestore, `${recentOf(uid)}/${id}`);
+    await assertSucceeds(setDoc(at(`${ORG}_contact_c-1`), entry(uid, { kind: 'contact', entityId: 'c-1' })));
+    await assertSucceeds(
+      setDoc(at(`${ORG}_task_matter-1_t-1`), entry(uid, { kind: 'task', matterId: 'matter-1', entityId: 't-1' })),
+    );
+    await assertSucceeds(setDoc(at(`${ORG}_task_t-2`), entry(uid, { kind: 'task', entityId: 't-2' })));
+    await assertSucceeds(
+      setDoc(
+        at(`${ORG}_document_matter-1_doc-1`),
+        entry(uid, { kind: 'document', matterId: 'matter-1', entityId: 'doc-1' }),
+      ),
+    );
+    await assertSucceeds(setDoc(at(`${ORG}_matter-1`), entry(uid, { kind: 'matter', matterId: 'matter-1' })));
+    // The palette lists the latest of every kind; Today lists matters only.
+    await assertSucceeds(
+      getDocs(
+        query(collection(firestore, recentOf(uid)), where('orgId', '==', ORG), orderBy('updatedAt', 'desc'), limit(10)),
+      ),
+    );
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(firestore, recentOf(uid)),
+          where('orgId', '==', ORG),
+          where('kind', '==', 'matter'),
+          orderBy('updatedAt', 'desc'),
+          limit(8),
+        ),
+      ),
+    );
+  });
+
+  it('refuses an entry whose id, kind or ids disagree', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const at = (id: string) => doc(firestore, `${recentOf(uid)}/${id}`);
+    for (const [id, ref] of [
+      [`${ORG}_contact_c-1`, { kind: 'contact', entityId: 'c-2' }],
+      [`${ORG}_contact_matter-1_c-1`, { kind: 'contact', matterId: 'matter-1', entityId: 'c-1' }],
+      [`${ORG}_contact_c-1`, { kind: 'person', entityId: 'c-1' }],
+      [`${ORG}_contact_`, { kind: 'contact', entityId: '' }],
+      [`${ORG}_document_doc-1`, { kind: 'document', entityId: 'doc-1' }],
+      [`${ORG}_task_t-1`, { kind: 'task', matterId: 'matter-1', entityId: 't-1' }],
+      [`${ORG}_matter-1`, { kind: 'matter', matterId: 'matter-1', entityId: 'x' }],
+      [`${ORG}_task_t-1`, { kind: 'task', entityId: 't-1', matterId: 7 }],
+    ] as const) {
+      await assertFails(setDoc(at(id), entry(uid, ref)));
+    }
+  });
+
+  it('searches matters, contacts and my tasks as every role (non-privileged only without privileged.view)', async () => {
+    for (const role of ROLES) {
+      const firestore = db(env, role);
+      const privileged = allows(role, 'privileged.view');
+      await assertSucceeds(
+        getDocs(
+          query(
+            collection(firestore, `orgs/${ORG}/matters`),
+            where('deletedAt', '==', null),
+            ...(privileged ? [] : [where('privileged', '==', false)]),
+            where('search', 'array-contains', 'estate'),
+            orderBy('lastActivityAt', 'desc'),
+            limit(20),
+          ),
+        ),
+      );
+      await assertSucceeds(
+        getDocs(
+          query(
+            collection(firestore, `orgs/${ORG}/contacts`),
+            where('search', 'array-contains', 'doyle'),
+            orderBy('updatedAt', 'desc'),
+            limit(20),
+          ),
+        ),
+      );
+      await assertSucceeds(
+        getDocs(
+          query(
+            collectionGroup(firestore, 'tasks'),
+            where('orgId', '==', ORG),
+            where('assigneeUid', '==', uidFor(role)),
+            where('search', 'array-contains', 'probate'),
+            orderBy('updatedAt', 'desc'),
+            limit(20),
+          ),
+        ),
+      );
+    }
+  });
+
+  it('every matter task through the group needs privileged.view, and a query proving it is a matter task', async () => {
+    const everyMatterTask = (firestore: Firestore) =>
+      getDocs(
+        query(
+          collectionGroup(firestore, 'tasks'),
+          where('orgId', '==', ORG),
+          where('search', 'array-contains', 'probate'),
+          where('matterId', '!=', null),
+          limit(20),
+        ),
+      );
+    for (const role of ROLES) {
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(everyMatterTask(db(env, role)));
+    }
+    // Without the matterId filter it could include someone's personal task.
+    await assertFails(getDocs(query(collectionGroup(db(env, 'owner'), 'tasks'), where('orgId', '==', ORG), limit(20))));
+  });
+
+  it('documents through the group need privileged.view; other roles search the open matter’s, non-privileged', async () => {
+    const group = (firestore: Firestore, orgId = ORG) =>
+      getDocs(
+        query(
+          collectionGroup(firestore, 'documents'),
+          where('orgId', '==', orgId),
+          where('search', 'array-contains', 'will'),
+          orderBy('updatedAt', 'desc'),
+          limit(20),
+        ),
+      );
+    for (const role of ROLES) {
+      const firestore = db(env, role);
+      const privileged = allows(role, 'privileged.view');
+      await (privileged ? assertSucceeds : assertFails)(group(firestore));
+      await assertSucceeds(
+        getDocs(
+          query(
+            collection(firestore, `${MATTER}/documents`),
+            ...(privileged ? [] : [where('privileged', '==', false)]),
+            where('search', 'array-contains', 'will'),
+            orderBy('updatedAt', 'desc'),
+            limit(20),
+          ),
+        ),
+      );
+    }
+    await assertFails(group(db(env, 'owner', OTHER_ORG)));
+    await assertFails(group(db(env, 'owner'), OTHER_ORG));
+    await assertFails(group(db(env, 'lawyer', ORG, SUSPENDED_UID)));
+  });
+});
+
 describe('notifications (FND-20)', () => {
   const devicesOf = (uid: string) => `users/${uid}/devices`;
   /** A device as the web app registers it. */

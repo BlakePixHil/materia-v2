@@ -97,6 +97,7 @@ function busyDay(fs: Fs): void {
 function recentDoc(matterId: string, at: string): Seed {
   return {
     orgId: ORG,
+    kind: 'matter',
     matterId,
     expireAt: new Date('2026-12-31T00:00:00Z'),
     ...meta,

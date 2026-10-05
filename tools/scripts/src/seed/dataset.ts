@@ -629,6 +629,18 @@ const FIXTURE_FILES: Record<FixtureName, { name: string; category: D.MatterDocum
 };
 
 /** Builds the dataset for a scenario. Pure: the same anchor and fixtures give the same output. */
+/** A task's or document's `search`, from its title or name; other documents unchanged. */
+export function withSearchTokens(path: string, data: Record<string, unknown>): Record<string, unknown> {
+  const collection = path.split('/').at(-2);
+  if (collection === 'tasks' && typeof data['title'] === 'string') {
+    return { ...data, search: domain.taskSearchTokens(data['title']) };
+  }
+  if (collection === 'documents' && typeof data['name'] === 'string') {
+    return { ...data, search: domain.documentSearchTokens(data['name']) };
+  }
+  return data;
+}
+
 export function buildDataset(options: {
   scenario?: SeedScenario;
   anchor: D.DateOnly;
@@ -643,7 +655,10 @@ export function buildDataset(options: {
   const org = SEED_ORG_ID;
   const docs: SeedDoc[] = [];
   const files: SeedFile[] = [];
-  const add = (path: string, data: object) => docs.push({ path, data: data as Record<string, unknown> });
+  // Tasks and documents carry their ⌘K tokens as `tasks-onWrite` and `documents-onWrite` would
+  // write them (CORE-15), so search works without the functions emulator too.
+  const add = (path: string, data: object) =>
+    docs.push({ path, data: withSearchTokens(path, data as Record<string, unknown>) });
 
   add(
     `orgs/${org}`,

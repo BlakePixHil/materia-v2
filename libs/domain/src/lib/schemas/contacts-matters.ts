@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import {
   AddressSchema,
@@ -9,11 +9,10 @@ import {
   InstantSchema,
   NonEmptyString,
   PhoneSchema,
+  SearchTokensSchema,
   withMeta,
 } from './common';
 import { JurisdictionSchema, MatterStatusSchema, MatterTypeSchema, PrioritySchema } from './enums';
-
-const SearchTokens = z.array(z.string().min(1)).max(200);
 
 /**
  * `matter.conflictAlert` (CORE-02): set by `conflicts-onPartyAdded` when a party added to an open
@@ -51,7 +50,7 @@ export const Contact = withMeta(
     isReferrer: z.boolean().default(false),
     referrerMeta: z.object({ company: z.string(), industry: z.string() }).optional(),
     notes: z.string().optional(),
-    search: SearchTokens,
+    search: SearchTokensSchema,
     dedupeKey: z.string(),
     /** Lower-cased display name for `orderBy` (CORE-01), maintained by `contacts-onWrite`. */
     sortName: z.string(),
@@ -169,7 +168,7 @@ export const Matter = withMeta(
       .object({ recordedCents: CentsSchema, billedCents: CentsSchema, basisCents: CentsSchema, pct: z.number() })
       .optional(),
     // Denormalised and server-maintained
-    search: SearchTokens,
+    search: SearchTokensSchema,
     nextDeadline: z
       .object({ id: DocIdSchema, dueDate: DateOnlySchema, title: z.string(), critical: z.boolean() })
       .optional(),

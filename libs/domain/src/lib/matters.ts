@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { conflictAllowsOpening } from './conflicts';
 import { DEFAULT_ORG_TIMEZONE } from './constants';
@@ -9,7 +9,7 @@ import { MatterStatusSchema } from './schemas/enums';
 import type { MatterStatus, MatterType } from './schemas/enums';
 import { MatterTypeCodeSchema } from './schemas/tenancy';
 import type { MatterGroupBy, MatterSortField, MatterViewFilters, MatterViewSort } from './schemas/views';
-import { searchTokens } from './search';
+import { compactText, searchTokensWithNumber } from './search';
 import { dateOnlyAt } from './values/date-only';
 
 /**
@@ -200,19 +200,18 @@ export interface MatterSearchFields {
 }
 
 /**
- * Search tokens for `matters-denormalise`: the number (also without separators, so "M-2026-0007",
- * "m20260007" and "0007" all match), title, client and deceased names, and the external reference.
+ * Search tokens for `matters-denormalise` (CORE-03, CORE-15): the number first (whole, digits only
+ * and in parts, so "M-2026-0142", "2026-0142", "m20260142", "0142" and "142" all match; never cut by
+ * the cap), then the title, client and deceased names and the external reference.
  */
 export function matterSearchTokens(fields: MatterSearchFields): string[] {
-  const compact = (value?: string) => value?.replace(/[^\p{L}\p{N}]+/gu, '');
-  return searchTokens(
-    compact(fields.number),
+  return searchTokensWithNumber(
     fields.number,
     fields.title,
     ...(fields.clientNames ?? []),
     fields.deceasedName,
     fields.externalRef,
-    compact(fields.externalRef),
+    compactText(fields.externalRef),
   );
 }
 
