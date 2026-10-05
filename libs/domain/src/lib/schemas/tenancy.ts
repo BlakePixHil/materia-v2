@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { ClerkModelChoiceSchema, DEFAULT_CLERK_MODEL } from '../clerk';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
@@ -67,6 +67,8 @@ export const Org = withMeta(
             userRateLimit: z
               .object({ requests: z.number().int().positive(), windowMinutes: z.number().int().positive() })
               .optional(),
+            /** Pages per day Clerk may OCR for the org (AI-04); the ingestion default applies when unset. */
+            ocrDailyPages: z.number().int().min(0).optional(),
           })
           .optional(),
       })

@@ -82,6 +82,18 @@ The gateway is responsible for:
 - **Ports:** `clerkKms` is Cloud KMS over REST in production (`core/kms.ts`) and `FakeKms` in the emulator and tests. The fake model accepts any well-formed key, rejects keys containing `invalid`, can't reach the API for `unreachable`, and hides Opus 5.5 for `noopus`.
 - **Web:** Settings → Clerk (`/settings/clerk`, owners and admins) shows the key status, saves a key from a password field (never echoed, cleared after save, no autocomplete), removes it, switches the model, and carries the data-use disclosure. AI-13 adds budgets and usage to the same page.
 
+### As built (AI-04): document ingestion
+
+See [ADR-035](adr/035-clerk-document-ingestion.md). Code in `apps/functions/src/documents/ingest/`.
+
+- **Flow:** `documents-onIngestChange` (trigger) → `documents-ingest` (Cloud Tasks, 50-page checkpoints, continuation tasks for long files) → `documents/{docId}/chunks/{version}-{ordinal}`. `documents-backfillIngest` (`clerk.configure`) re-queues an org's documents that predate ingestion, were migrated or failed.
+- **Extraction:** PDFs page by page (pdfjs-dist); pages under 20 characters are OCR'd (`ocr@1`, Claude vision on a one-page PDF). DOCX (mammoth), emails (headers and body), text and CSV become ~3,000-character pseudo-pages. PNG and JPEG are OCR'd as one page. Spreadsheets, slides, archives, `.doc` and WebP are `skipped` (`unsupported`).
+- **Chunks:** ~800 tokens, 100 overlap, never crossing a page (`chunkPages` in libs/clerk). Each holds `{text, page, docVersion, ordinal, orgId, matterId, privileged, ocr?, embedding}`.
+- **Search:** `chunkSearch(...).searchChunks({orgId, matterId, query, k ≤ 50, allowPrivileged})` → `{documentId, version, page, ordinal, text, privileged, distance}` sorted by cosine distance.
+- **Classification:** `classify-document@1` on the first three pages → a `document_meta` suggestion (`docmeta-{docId}-v{n}`) with category, title, date and parties. It never changes the document.
+- **Cost guard:** `settings.clerk.ocrDailyPages` (default 200 pages a day per org); over it the document is `queued` until the next Melbourne day.
+- **Status:** `ingest {status: pending|running|queued|done|failed|skipped, version, pages, ocrPages, chars, chunks, lowConfidencePages?, ocrUnavailablePages?, language?, reason?, error?, checkpoint?, queuedUntil?}`.
+
 ## Context assembly (AI-03)
 
 - **The scope is resolved server-side** from the request (`orgId`, `matterId`, `uid`). Role checks run before any retrieval.

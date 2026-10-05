@@ -189,10 +189,13 @@ export function createClerkGateway(deps: GatewayDeps) {
       throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk budget used', { period });
     }
     const window = settings.userRateLimit ?? DEFAULT_USER_RATE_LIMIT;
-    const allowed = await deps.store.takeRateSlot(ctx.orgId, ctx.uid, at.getTime(), {
-      requests: window.requests,
-      windowMs: window.windowMinutes * 60_000,
-    });
+    const background = 'background' in feature && feature.background;
+    const allowed =
+      background ||
+      (await deps.store.takeRateSlot(ctx.orgId, ctx.uid, at.getTime(), {
+        requests: window.requests,
+        windowMs: window.windowMinutes * 60_000,
+      }));
     if (!allowed)
       throw new DomainError('CLERK_RATE_LIMITED', 'Too many Clerk requests', { windowMinutes: window.windowMinutes });
 

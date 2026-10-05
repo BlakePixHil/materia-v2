@@ -5,8 +5,8 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
  * Test doubles for the orgs and contacts unit tests: an in-memory Firestore with just what that
  * code uses (doc and collection refs, `==`, `in`, `array-contains` and range filters on dotted paths,
  * paging by document id,
- * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment` and
- * `FieldValue.delete`),
+ * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment`,
+ * `FieldValue.delete` and `FieldValue.vector` with `findNearest`),
  * and an Admin Auth with users and custom claims.
  */
 
@@ -15,6 +15,7 @@ type Data = Record<string, unknown>;
 /** Dates are stored as Timestamps, as Firestore does; `FieldValue.increment` and `arrayUnion` are applied. */
 function stored(value: unknown, previous: unknown): unknown {
   if (value instanceof Date) return Timestamp.fromDate(value);
+  if (value && typeof value === 'object' && value.constructor?.name === 'VectorValue') return value;
   if (value && typeof value === 'object' && value.constructor?.name === 'NumericIncrementTransform') {
     return (typeof previous === 'number' ? previous : 0) + (value as { operand: number }).operand;
   }
@@ -38,6 +39,13 @@ function apply(previous: Data | undefined, data: Data): Data {
     next[key] = isDeleteSentinel(value) ? value : stored(value, previous?.[key]);
   }
   return Object.fromEntries(Object.entries(next).filter(([, value]) => !isDeleteSentinel(value)));
+}
+
+function distance(a: number[], b: number[], measure: 'COSINE' | 'EUCLIDEAN' | 'DOT_PRODUCT'): number {
+  const dot = a.reduce((sum, v, i) => sum + v * (b[i] ?? 0), 0);
+  if (measure === 'DOT_PRODUCT') return -dot;
+  if (measure === 'EUCLIDEAN') return Math.hypot(...a.map((v, i) => v - (b[i] ?? 0)));
+  return 1 - dot / (Math.hypot(...a) * Math.hypot(...b) || 1);
 }
 
 export function memoryFirestore(initial: Record<string, Data> = {}) {
@@ -72,6 +80,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       update: async (data: Data) => write.update(path, data),
       create: async (data: Data) => write.create(path, data),
       delete: async () => void docs.delete(path),
+      collection: (name: string) => collectionRef(`${path}/${name}`),
     };
     return ref;
   }
@@ -99,7 +108,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
     },
   };
 
-  type Op = '==' | 'array-contains' | 'in' | '<' | '<=' | '>' | '>=';
+  type Op = '==' | '!=' | 'array-contains' | 'in' | '<' | '<=' | '>' | '>=';
   type Filter = [string, Op, unknown];
   /** A field by dotted path (`deceased.contactId`). */
   const valueAt = (data: Data | undefined, field: string): unknown =>
@@ -109,6 +118,8 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
     if (op === 'array-contains') return Array.isArray(actual) && actual.includes(value);
     if (op === 'in') return (value as unknown[]).includes(actual);
     if (op === '==') return actual === value;
+    // As in Firestore, `!=` never matches a document without the field.
+    if (op === '!=') return actual !== undefined && actual !== value;
     // Range filters compare strings, numbers or instants (date-only strings sort as dates); a
     // missing field never matches.
     if (actual === undefined || actual === null) return false;
@@ -133,6 +144,34 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       },
       /** A count aggregation (`query.count().get()`). */
       count: () => ({ get: async () => ({ data: () => ({ count: select().length }) }) }),
+      /** Vector search (`findNearest`), COSINE or EUCLIDEAN, with the distance in `distanceResultField`. */
+      findNearest: (options: {
+        vectorField: string;
+        queryVector: { toArray(): number[] };
+        limit: number;
+        distanceMeasure: 'COSINE' | 'EUCLIDEAN' | 'DOT_PRODUCT';
+        distanceResultField?: string;
+      }) => ({
+        get: async () => {
+          const target = options.queryVector.toArray();
+          const scored = select()
+            .map((path) => {
+              const vector = valueAt(docs.get(path), options.vectorField) as { toArray?: () => number[] } | undefined;
+              return vector?.toArray
+                ? { path, distance: distance(vector.toArray(), target, options.distanceMeasure) }
+                : null;
+            })
+            .filter((entry): entry is { path: string; distance: number } => entry !== null)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, options.limit);
+          const found = scored.map(({ path, distance: d }) => {
+            const snap = snapshot(path);
+            const field = options.distanceResultField;
+            return field ? { ...snap, data: () => ({ ...snap.data(), [field]: d }) } : snap;
+          });
+          return { docs: found, empty: found.length === 0, size: found.length };
+        },
+      }),
     };
     function select() {
       return [...docs.keys()]
@@ -180,6 +219,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
           batch
         ),
         update: (ref: Ref, data: Data) => (ops.push(() => write.update(ref.path, data)), batch),
+        delete: (ref: Ref) => (ops.push(() => void docs.delete(ref.path)), batch),
         commit: async () => {
           for (const op of ops) op();
         },
