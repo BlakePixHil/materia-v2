@@ -21,15 +21,24 @@ export interface MtTooltipContent {
 /** The design system's delay before a tooltip appears. */
 export const MT_TOOLTIP_DELAY_MS = 400;
 
-/** The floating panel (`mt-tooltip`). Rendered by ng-primitives into the overlay container. */
+/**
+ * The floating panel (`mt-tooltip`). Rendered by ng-primitives into the overlay container. Text
+ * with line breaks (a deadline's trace) wraps line by line instead of on one line.
+ */
 @Component({
   selector: 'mt-tooltip-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../generated/components/tooltip.css', '../../generated/components/kbd.css'],
+  styles: `
+    .mt-tooltip[data-lines] {
+      white-space: pre-line;
+      max-width: min(420px, calc(100vw - 32px));
+    }
+  `,
   imports: [MtKbd],
   hostDirectives: [NgpTooltip],
-  host: { class: 'mt-tooltip' },
+  host: { class: 'mt-tooltip', '[attr.data-lines]': 'content().text.includes("\\n") ? "" : null' },
   template: `
     {{ content().text }}
     @if (content().kbd; as keys) {
