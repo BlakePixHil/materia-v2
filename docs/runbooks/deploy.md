@@ -8,16 +8,29 @@ MVP mode has two environments, **dev** (`materia-v2-dev`) and **prod** (`materia
 
 | Workflow | Trigger | What it does |
 | -- | -- | -- |
-| `ci.yml` | every PR and push to `main` | Lint, tests, build, e2e; `ci-ok` is the merge gate (FND-04) |
-| `preview.yml` | PRs from branches of this repo | Builds the web app for dev and deploys it to the Hosting channel `pr-<number>` of `materia-v2-dev` (expires after 7 days), then comments the URL |
-| `deploy-dev.yml` | `ci` succeeds on a push to `main`, or a manual dispatch | Builds the release once (web for dev, web for prod, functions, the Cloud Run jobs bundle, the document services bundle) as the artifact `release-<sha>` (kept 90 days), then runs `deploy.yml` against dev |
+| `ci.yml` | every PR and push to `main`, a morning run (about 06:30 Melbourne), or a manual dispatch | Lint, tests, build, e2e; `ci-ok` is the merge gate (FND-04). The `gate` job trims runs to save Actions minutes (see [Quiet hours](#quiet-hours-and-actions-minutes)) |
+| `preview.yml` | PRs from branches of this repo that touch the web app (paths filter), outside quiet hours | Builds the web app for dev and deploys it to the Hosting channel `pr-<number>` of `materia-v2-dev` (expires after 7 days), then comments the URL |
+| `deploy-dev.yml` | `ci` succeeds on `main` with its `build` job run (a daytime push, the morning run or a dispatch of `ci`), or a manual dispatch | Builds the release once (web for dev, web for prod, functions, the Cloud Run jobs bundle, the document services bundle) as the artifact `release-<sha>` (kept 90 days), then runs `deploy.yml` against dev |
 | `deploy.yml` | called by the two deploy workflows | Deploys in order: Firestore indexes → Firestore and Storage rules → Cloud Run jobs (builds the image from the bundle, pushes it to Artifact Registry `jobs`, deploys the job `pdf`) → Cloud Run services (builds the ClamAV and preview images into Artifact Registry `services` and deploys the private services `clamav` and `preview`, CORE-12a) → the functions' service URLs (`CLAMAV_SCAN_URL`, `PREVIEW_SERVICE_URL`, read from the deployed services into the release's `.env`) → functions (`--only functions:core`) → hosting, all `--non-interactive`, then runs the Playwright `@smoke` tests against the deployed site |
-| `scanner-signatures.yml` | daily at 06:17 Melbourne, or a manual dispatch | Rebuilds the ClamAV image (its build runs freshclam) and redeploys the `clamav` service to dev, so signatures stay at most a day old (CORE-12a, ADR-032). Prod joins at launch |
+| `scanner-signatures.yml` | daily at 07:17 Melbourne (06:17 in standard time), or a manual dispatch | Rebuilds the ClamAV image (its build runs freshclam) and redeploys the `clamav` service to dev, so signatures stay at most a day old (CORE-12a, ADR-032); skipped when a dev deploy (which rebuilds the scanner) succeeded in the last 24 hours. Prod joins at launch |
 | `release.yml` | push to `main` | release-please: keeps a release PR open; merging it tags `vX.Y.Z`, publishes the changelog and starts `deploy-prod.yml` |
 | `deploy-prod.yml` | `v*` tag, or a manual dispatch with a tag | Finds the successful `deploy-dev` run for the tagged commit, waits for approval in the `production` environment, then promotes that run's artifact to prod with `deploy.yml` (no rebuild) |
 | `infra.yml` | PRs and pushes touching `infra/terraform/`, or a manual dispatch | `terraform plan` comment on PRs (dev and prod); apply to dev on merge; apply to prod by dispatch, after approval |
 
 Deploys queue rather than run in parallel (concurrency groups `deploy-dev` and `deploy-prod`, no cancelling). A failure stops the run and marks it red. Nothing retries automatically.
+
+### Quiet hours and Actions minutes
+
+Actions minutes are billed, and most of them go to CI. CI's `gate` job (`.github/scripts/ci-gate.sh`) picks a mode per run:
+
+| Mode | When | Runs |
+| -- | -- | -- |
+| `full` | PRs, the morning run, a manual dispatch | every job; PRs skip CodeQL and run e2e in Chromium only (`E2E_CHROMIUM_ONLY=1`), the morning run adds CodeQL and WebKit (iPhone Safari) |
+| `main` | a push to `main` in the day | lint, typecheck, unit, rules, integration, build (e2e, Storybook, container tests, Terraform and security already passed on the PR) |
+| `docs` | only docs changed (`docs/`, top-level Markdown, READMEs) | lint |
+| `skip` | a push to `main` in quiet hours (22:00–07:30 Melbourne), or a morning run with nothing new | nothing |
+
+`deploy-dev` deploys only CI runs whose `build` job ran, so merges in quiet hours are not deployed when they land. The morning run (cron 19:30 and 20:30 UTC; the gate keeps the one at about 06:30 Melbourne, daylight saving or not) skips when dev already runs `main`; otherwise it runs full CI against everything since the last dev deploy, and deploy-dev follows. Merges between the morning run and 07:30 deploy with the next daytime merge. Release commits (the release-please PR) are never held back, so `deploy-prod` always finds its dev deploy. To deploy overnight, for example to check a pipeline fix, dispatch `ci` on `main` (tested deploy) or `deploy-dev` (deploys without CI). PR CI is never trimmed by time: agents merge overnight on green checks.
 
 ### Release versions
 

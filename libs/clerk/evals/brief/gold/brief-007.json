@@ -1,0 +1,5 @@
+{
+  "id": "brief-007",
+  "fixtures": {},
+  "mustNotContain": ["Reply to Keane & Doyle"]
+}

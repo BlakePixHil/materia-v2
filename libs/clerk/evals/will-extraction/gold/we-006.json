@@ -1,0 +1,14 @@
+{
+  "id": "we-006",
+  "fixtures": {
+    "wills/marchetti.typed.pdf": "a9a37a252fc20d0f"
+  },
+  "fields": {
+    "testator.name": "Rosa Marchetti",
+    "willDate": null,
+    "executors[].name": ["Luca Marchetti"],
+    "beneficiaries[].name": ["Luca Marchetti", "Elena Marchetti", "Sofia Ricci"],
+    "formalValidityFlags[].issue": ["undated", "fewer_than_two_witnesses"]
+  },
+  "mustNotContain": ["2019-", "2020-", "2021-"]
+}

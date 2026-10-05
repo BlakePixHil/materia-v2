@@ -1,0 +1,33 @@
+{
+  "suite": "brief",
+  "title": "Daily brief (AI-09)",
+  "ticket": "AI-09",
+  "feature": "brief",
+  "promptId": "brief@1.0.0",
+  "subset": [
+    "brief-001",
+    "brief-002",
+    "brief-003",
+    "brief-004",
+    "brief-005",
+    "brief-006",
+    "brief-007",
+    "brief-008",
+    "brief-009",
+    "brief-010"
+  ],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "noInventions": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "costUsd": {
+      "maxRegression": 0.5
+    }
+  },
+  "citations": "none"
+}

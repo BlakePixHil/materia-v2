@@ -1,0 +1,7 @@
+{
+  "id": "chat-011",
+  "fixtures": {
+    "matters/pryce/valuation-letter.txt": "f5f128f44e3fddf3"
+  },
+  "mustNotContain": ["I have added", "I've added", "task has been created", "I have created", "I've created the task"]
+}

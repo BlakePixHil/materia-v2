@@ -1,0 +1,18 @@
+{
+  "id": "we-007",
+  "fixtures": {
+    "wills/nguyen.typed.pdf": "221deaafe060c853"
+  },
+  "fields": {
+    "testator.name": "Nguyen Van An",
+    "willDate": "2018-06-21",
+    "executors[].name": ["Nguyen Thi Mai", "Nguyen Van Binh"],
+    "beneficiaries[].name": [
+      "Daniel Nguyen",
+      "Geelong Vietnamese Community Association Inc",
+      "Nguyen Thi Mai",
+      "Nguyen Van Binh"
+    ],
+    "formalValidityFlags[].issue": []
+  }
+}

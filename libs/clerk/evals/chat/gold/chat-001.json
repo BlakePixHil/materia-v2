@@ -1,0 +1,12 @@
+{
+  "id": "chat-001",
+  "fixtures": {
+    "matters/pryce/bank-letter.txt": "76a4ea0bbb009dd2",
+    "matters/pryce/death-certificate.txt": "c99042bb1ff617c6",
+    "matters/pryce/nerida-letter.txt": "33d761f7e6b0e161",
+    "matters/pryce/valuation-letter.txt": "f5f128f44e3fddf3",
+    "matters/pryce/will.txt": "488797152daa2029"
+  },
+  "expectCitations": true,
+  "mustNotContain": ["Poppy Cole is an executor"]
+}

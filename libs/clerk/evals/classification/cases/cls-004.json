@@ -1,0 +1,13 @@
+{
+  "id": "cls-004",
+  "description": "Grant of probate",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "classify/grant.txt",
+      "title": "grant.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

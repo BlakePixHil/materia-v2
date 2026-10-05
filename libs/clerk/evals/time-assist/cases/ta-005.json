@@ -1,0 +1,27 @@
+{
+  "id": "ta-005",
+  "description": "Voice transcript style",
+  "matter": {
+    "matterNumber": "HV-2026-0011",
+    "title": "Estate of Harold John Vance",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Harold John Vance",
+    "dateOfDeath": "2026-01-09",
+    "executors": ["Louise Vance"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Reply to Keane & Doyle Lawyers",
+        "due": "2026-03-27"
+      }
+    ],
+    "openTasks": ["Apply for probate", "Obtain valuations of the house and shares"]
+  },
+  "query": "uh so I spent about half an hour on the phone with keane and doyle about roland's claim then maybe ten minutes writing a file note",
+  "today": "2026-03-20"
+}

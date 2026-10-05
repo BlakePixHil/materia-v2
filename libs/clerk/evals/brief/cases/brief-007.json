@@ -1,0 +1,23 @@
+{
+  "id": "brief-007",
+  "description": "Paralegal's brief only covers their tasks",
+  "role": "paralegal",
+  "today": "2026-03-20",
+  "matter": {
+    "user": "Daniel Kim",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0007",
+        "upcomingDeadlines": [],
+        "openTasks": [
+          {
+            "title": "Order death certificate copies",
+            "due": "2026-03-20",
+            "assignee": "Daniel Kim"
+          }
+        ],
+        "newDocuments": []
+      }
+    ]
+  }
+}

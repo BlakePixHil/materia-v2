@@ -1,0 +1,39 @@
+{
+  "id": "draft-010",
+  "description": "Letter with every fact known: no placeholders needed",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [
+    {
+      "id": "d-style",
+      "fixture": "drafting/house-style.txt",
+      "title": "Letter house style"
+    },
+    {
+      "id": "d-pryce-nerida",
+      "fixture": "matters/pryce/nerida-letter.txt",
+      "title": "Letter from Nerida Cole, 12 March 2026"
+    }
+  ],
+  "query": "Draft a short letter to Nerida Cole confirming we have noted her new address at 4/12 Gheringhap Street, Geelong.",
+  "today": "2026-03-20"
+}

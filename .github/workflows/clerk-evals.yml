@@ -1,0 +1,201 @@
+# Clerk evals (AI-12). One job, `clerk-evals`:
+#
+# - Every PR that touches Clerk: offline checks only (fixtures and prompts in sync, and a run of
+#   the harness on the fake provider). No tokens. The graders' unit tests run in ci.yml.
+# - PRs that change a prompt or an eval dataset (not from forks): also the live PR subset on the
+#   real model, gated against the thresholds and baselines, with the report as a PR comment.
+# - Every morning at 06:30 Melbourne (AEDT; 05:30 in winter): the full suites, twice each for
+#   variance, but only when Clerk changed on main in the last day, or on Mondays (model drift).
+#   Outside quiet hours' batch, and skipped otherwise so the token spend stays small.
+# - Manual dispatch: any suite, subset or full, any model, optional LLM citation judge.
+#
+# The eval key is the dev ANTHROPIC_API_KEY secret (eval-only, never an org's key), read as the dev
+# deployer through Workload Identity Federation. Without it (or while it is `unset`) live runs are
+# skipped, not failed. Every run is capped by libs/clerk/evals/config.json → budgetUsd.
+name: clerk-evals
+
+on:
+  pull_request:
+    paths:
+      - libs/clerk/**
+      - apps/functions/src/clerk/**
+      - tools/scripts/src/make-fixtures.ts
+      - .github/workflows/clerk-evals.yml
+  schedule:
+    - cron: '30 19 * * *'
+  workflow_dispatch:
+    inputs:
+      feature:
+        description: Suite id, comma-separated ids, or all
+        required: true
+        default: all
+        type: string
+      subset:
+        description: PR subset only (otherwise the full suites)
+        required: true
+        default: true
+        type: boolean
+      model:
+        description: Model under test (blank for the default in config.json)
+        required: false
+        default: ''
+        type: string
+      judge:
+        description: Also grade citations with the LLM judge
+        required: true
+        default: false
+        type: boolean
+      accept_baseline:
+        description: Record passing suites as the new baselines (commit libs/clerk/evals/baselines.json from the artifact)
+        required: true
+        default: false
+        type: boolean
+      pr:
+        description: PR number to post the report on (optional)
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: clerk-evals-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NX_NO_CLOUD: 'true'
+  NX_DAEMON: 'false'
+
+jobs:
+  clerk-evals:
+    name: clerk-evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation (live runs)
+      pull-requests: write # the report comment
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+
+      - name: Fixtures and prompts in sync
+        run: |
+          pnpm -s materia-scripts make-fixtures --check
+          pnpm -s materia-scripts clerk-prompts --check
+
+      - name: Harness on the fake provider (no tokens)
+        run: pnpm -s nx run clerk:eval --feature=all --subset --provider=fake --out=dist/evals-fake --output-style=static
+
+      - name: Decide whether to run live
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          IN_FEATURE: ${{ inputs.feature }}
+          IN_SUBSET: ${{ inputs.subset }}
+          IN_MODEL: ${{ inputs.model }}
+          IN_JUDGE: ${{ inputs.judge }}
+          IN_ACCEPT: ${{ inputs.accept_baseline }}
+          # Repository variables from the deploy pipeline (FND-05); not secrets.
+          GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          GCP_SA: ${{ vars.GCP_DEPLOYER_SA_DEV }}
+          GCP_PROJECT: ${{ vars.GCP_PROJECT_DEV }}
+        run: |
+          live=false; args=()
+          case "$EVENT" in
+            pull_request)
+              if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+                echo "Fork PR: no secrets, live evals skipped."
+              elif git diff --name-only "$NX_BASE" "$NX_HEAD" | grep -qE '^libs/clerk/(prompts|evals)/'; then
+                live=true; args=(--feature=all --subset)
+              else
+                echo "No prompt or eval dataset changed: live evals skipped."
+              fi ;;
+            schedule)
+              changed="$(git log --since='26 hours ago' --format=%H -- libs/clerk apps/functions/src/clerk | head -n 1)"
+              if [ -n "$changed" ] || [ "$(TZ=Australia/Melbourne date +%u)" = "1" ]; then
+                live=true; args=(--feature=all)
+              else
+                echo "Clerk unchanged on main since yesterday and not Monday: nightly evals skipped."
+              fi ;;
+            workflow_dispatch)
+              live=true; args=("--feature=$IN_FEATURE")
+              if [ "$IN_SUBSET" = "true" ]; then args+=(--subset); fi
+              if [ -n "$IN_MODEL" ]; then args+=("--model=$IN_MODEL"); fi
+              if [ "$IN_JUDGE" = "true" ]; then args+=(--judge); fi
+              if [ "$IN_ACCEPT" = "true" ]; then args+=(--accept-baseline); fi ;;
+          esac
+          if [ "$live" = "true" ] && { [ -z "$GCP_WIF_PROVIDER" ] || [ -z "$GCP_SA" ] || [ -z "$GCP_PROJECT" ]; }; then
+            echo "::notice::The dev WIF variables are not set: live evals skipped."
+            live=false
+          fi
+          echo "live=$live" >> "$GITHUB_OUTPUT"
+          echo "args=${args[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud as the dev deployer (Workload Identity Federation, no key)
+        if: steps.plan.outputs.live == 'true'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA_DEV }}
+
+      # The key is read and used in one step, masked, and never written to disk or the environment file.
+      - name: Live evals
+        id: live
+        if: steps.plan.outputs.live == 'true'
+        env:
+          GCP_PROJECT: ${{ vars.GCP_PROJECT_DEV }}
+          ARGS: ${{ steps.plan.outputs.args }}
+        run: |
+          key="$(gcloud secrets versions access latest --secret=ANTHROPIC_API_KEY --project="$GCP_PROJECT" 2>/dev/null || true)"
+          if [ -n "$key" ]; then echo "::add-mask::$key"; fi
+          read -ra args <<< "$ARGS"
+          status=0
+          CLERK_EVALS_API_KEY="$key" pnpm -s nx run clerk:eval "${args[@]}" --output-style=static || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [ -f dist/evals/latest.md ]; then cat dist/evals/latest.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      # Reports hold ids, scores and token counts only (no prompt or output text).
+      - name: Upload the reports
+        if: steps.plan.outputs.live == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clerk-evals-${{ github.run_id }}
+          path: |
+            dist/evals
+            libs/clerk/evals/baselines.json
+          retention-days: 30
+
+      - name: Post or update the PR comment
+        if: steps.plan.outputs.live == 'true' && (github.event_name == 'pull_request' || inputs.pr != '')
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('dist/evals/latest.md')) return;
+            const body = fs.readFileSync('dist/evals/latest.md', 'utf8');
+            const marker = '<!-- clerk-evals -->';
+            const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.PR);
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.user.type === 'Bot' && c.body.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+      - name: Gate
+        if: steps.plan.outputs.live == 'true'
+        env:
+          STATUS: ${{ steps.live.outputs.status }}
+        run: |
+          if [ "$STATUS" != "0" ]; then
+            echo "::error::Clerk evals failed (exit $STATUS): see the job summary for the failing suites and metrics."
+            exit 1
+          fi

@@ -1,0 +1,13 @@
+{
+  "id": "we-010",
+  "description": "Life-interest trust over the home",
+  "today": "2026-03-20",
+  "documents": [
+    {
+      "id": "d-will",
+      "fixture": "wills/chen.txt",
+      "title": "Will"
+    }
+  ],
+  "query": "Extract the will."
+}
