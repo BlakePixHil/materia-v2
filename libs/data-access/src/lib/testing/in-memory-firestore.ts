@@ -102,6 +102,7 @@ export class InMemoryFirestore {
   private readonly listeners = new Set<Listener>();
   private nextId = 1;
   private failure: unknown = null;
+  private failureScope: string | null = null;
   private readonly denied = new Set<string>();
   /** Served from "cache": listeners report `fromCache` and writes still apply locally. */
   offline = false;
@@ -141,9 +142,14 @@ export class InMemoryFirestore {
     return this.collections.get(path)?.get(id);
   }
 
-  /** The next read or listen fails with this error (a Firestore-style `{ code }`). */
-  failNext(error: unknown): void {
+  /**
+   * The next read or listen fails with this error (a Firestore-style `{ code }`). With `collection`
+   * (`contacts`), only the next one on a collection of that name does, so a listener elsewhere on
+   * the page (the shell's profile) doesn't take it first.
+   */
+  failNext(error: unknown, collection?: string): void {
     this.failure = error;
+    this.failureScope = collection ?? null;
   }
 
   /** Reading this document by its path is refused, as the rules refuse a privileged matter. */
@@ -176,9 +182,11 @@ export class InMemoryFirestore {
     for (const listener of [...this.listeners]) if (listener.watches(path)) listener.run();
   }
 
-  private takeFailure(): unknown {
+  private takeFailure(path: string): unknown {
+    if (this.failureScope && path.split('/').pop() !== this.failureScope) return null;
     const failure = this.failure;
     this.failure = null;
+    this.failureScope = null;
     return failure;
   }
 
@@ -225,12 +233,13 @@ export class InMemoryFirestore {
 
   /** Runs `listen` for a query: an immediate first page, then one per change it watches. */
   private listenTo(
+    source: string,
     watches: (path: string) => boolean,
     read: () => RawPage,
     next: (page: RawPage) => void,
     error: (error: unknown) => void,
   ): () => void {
-    const failure = this.takeFailure();
+    const failure = this.takeFailure(source);
     if (failure) {
       queueMicrotask(() => error(failure));
       return () => undefined;
@@ -258,13 +267,14 @@ export class InMemoryFirestore {
     return {
       listen: (request, next, error) =>
         this.listenTo(
+          collectionId,
           (path) => path.split('/').pop() === collectionId,
           () => this.page(collectionId, request, true),
           next,
           error,
         ),
       fetch: async (request) => {
-        const failure = this.takeFailure();
+        const failure = this.takeFailure(collectionId);
         if (failure) throw failure;
         return this.page(collectionId, request, true);
       },
@@ -286,18 +296,19 @@ export class InMemoryFirestore {
     return {
       listen: (request, next, error) =>
         this.listenTo(
+          path,
           (changed) => changed === path,
           () => this.page(path, request),
           next,
           error,
         ),
       fetch: async (request) => {
-        const failure = this.takeFailure();
+        const failure = this.takeFailure(path);
         if (failure) throw failure;
         return this.page(path, request);
       },
       watchDoc: (id, next, error) => {
-        const failure = this.takeFailure();
+        const failure = this.takeFailure(path);
         if (failure) {
           queueMicrotask(() => error(failure));
           return () => undefined;
@@ -318,7 +329,7 @@ export class InMemoryFirestore {
         return () => this.listeners.delete(listener);
       },
       getDoc: async (id) => {
-        const failure = this.takeFailure();
+        const failure = this.takeFailure(path);
         if (failure) throw failure;
         if (this.denied.has(`${path}/${id}`)) throw { code: 'permission-denied', message: 'Missing permissions' };
         const data = docs().get(id);
@@ -363,7 +374,7 @@ export class InMemoryFirestore {
         this.notify(path);
       },
       hardDelete: async (id) => {
-        const failure = this.takeFailure();
+        const failure = this.takeFailure(path);
         if (failure) throw failure;
         this.writes.push({ op: 'delete', path: `${path}/${id}` });
         docs().delete(id);

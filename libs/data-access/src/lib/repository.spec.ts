@@ -396,7 +396,7 @@ describe('membersRepository', () => {
       role: 'paralegal',
       status: 'suspended',
       rates: [],
-      admissionNo: 'VIC-0000',
+      legacyRef: 'L-0000',
     });
     fs.set('orgs/org-a/members/u1', {
       displayName: 'Alex Fictional',

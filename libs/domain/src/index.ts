@@ -40,3 +40,4 @@ export * from './lib/org-settings';
 export * from './lib/notes';
 export * from './lib/safe-custody';
 export * from './lib/referrals';
+export * from './lib/profile';
