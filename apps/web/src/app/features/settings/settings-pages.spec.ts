@@ -318,7 +318,9 @@ describe('Settings → Audit log', () => {
     const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined);
     try {
       await page.click('Export CSV');
-      expect(page.text(page.dialog())).toContain('Confirm it’s you');
+      // The callable client asks (SEC-04); its dialog loads lazily.
+      await vi.waitFor(() => expect(page.text(page.dialog())).toContain('Confirm it’s you'));
+      await page.stable();
       await page.type('Password', 'password');
       await page.click('Confirm', page.dialog() ?? undefined);
       await page.stable();

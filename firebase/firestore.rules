@@ -27,9 +27,28 @@ service cloud.firestore {
     // The claim names the org, and the member document must still be active: a suspended or removed
     // member loses access on their next request, without waiting for their token to refresh (FND-17,
     // ADR-021). Rules cache the get() within a request, so it costs one read per request.
-    function inOrg(orgId) {
+    function memberOf(orgId) {
       return isSignedIn() && claimOrg() == orgId
         && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(uid())).data.status == 'active';
+    }
+    // The org's security policy accepts this sign-in (SEC-04), as the callables check it
+    // (apps/functions/src/core/sessions.ts):
+    // - not from before a "sign out everywhere" (the member's `sessionsValidAfter`);
+    // - no older than the org's session length (`security.maxSessionDays`, 14 by default);
+    // - with a second factor once the org requires MFA and the grace period is over.
+    // One more cached get() (the org document) per request.
+    function sessionOk(orgId) {
+      let member = get(/databases/$(database)/documents/orgs/$(orgId)/members/$(uid())).data;
+      let security = get(/databases/$(database)/documents/orgs/$(orgId)).data.get('security', {});
+      let signedInAt = request.auth.token.get('auth_time', 0) * 1000;
+      return signedInAt >= member.get('sessionsValidAfter', timestamp.value(0)).toMillis()
+        && request.time.toMillis() - signedInAt <= security.get('maxSessionDays', 14) * 86400000
+        && (security.get('mfaRequired', false) == false
+          || request.auth.token.get('firebase', {}).get('sign_in_second_factor', null) != null
+          || request.time < security.get('mfaEnforceAfter', timestamp.value(0)));
+    }
+    function inOrg(orgId) {
+      return memberOf(orgId) && sessionOk(orgId);
     }
     function hasRole(orgId, roles) {
       return inOrg(orgId) && claimRole() in roles;
@@ -218,6 +237,12 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // The sign-in log (SEC-04): written by auth-beforeSignIn, read by its owner ("Your sessions").
+      // Firestore TTL deletes an entry at `expireAt`.
+      match /signIns/{signInId} {
+        allow read: if isSignedIn() && uid() == userId;
+      }
+
       // Saved Matters list views (CORE-03): private to their user, created, edited and deleted by the
       // client. Each names the org it was saved in, which must be the caller's current org.
       match /views/{viewId} {
@@ -319,11 +344,14 @@ service cloud.firestore {
 
     // ---------- organisations ----------
     match /orgs/{orgId} {
-      allow read: if inOrg(orgId);
+      // Readable whatever the security policy says (memberOf, not inOrg), so the app can tell a
+      // member why their session isn't accepted (MFA required, session expired, signed out).
+      allow read: if memberOf(orgId);
       allow update: if can(orgId, 'org.settings') && isActiveMember(orgId) && clientUpdate(fieldsOrg());
 
       match /members/{memberUid} {
-        allow read: if inOrg(orgId);
+        // Their own member document likewise (its `sessionsValidAfter`); everyone else's needs inOrg.
+        allow read: if inOrg(orgId) || memberOf(orgId) && uid() == memberUid;
         // Owners and admins edit any member; everyone edits their own profile fields (CORE-20).
         allow update: if can(orgId, 'members.manage') && isActiveMember(orgId) && clientUpdate(fieldsMember())
           || inOrg(orgId) && uid() == memberUid && resource.data.status == 'active'
@@ -828,7 +856,7 @@ service cloud.firestore {
     function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt', 'hiddenAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'plan', 'settings', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
@@ -836,6 +864,7 @@ service cloud.firestore {
     function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'flag', 'disclaimer', 'rules']; }
     function fieldsSafeCustody() { return []; }
     function fieldsSavedView() { return ['orgId', 'list', 'name', 'filters', 'sort', 'groupBy']; }
+    function fieldsSignIn() { return []; }
     function fieldsSubpoena() { return ['issuedTo', 'direction', 'issuedOn', 'returnDate', 'status', 'accessOrderMade', 'materialDocumentIds']; }
     function fieldsSuggestion() { return ['status']; }
     function fieldsTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }

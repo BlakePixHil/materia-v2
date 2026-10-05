@@ -45,6 +45,7 @@ import { NAV_ITEMS, type NavEntry, SETTINGS_ITEM, TAB_BAR_ITEMS } from './nav';
 import { PageHeader } from './page-header';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { AuthState } from '../core/auth/auth-state';
+import { MtMfaGraceBanner } from '../core/auth/mfa-grace-banner';
 import { ClerkPanel } from '../core/clerk/clerk-panel';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
 import { intentUrl } from '../core/commands/intents';
@@ -103,6 +104,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtMenuItem,
     MtMenuSeparator,
     MtMenuTrigger,
+    MtMfaGraceBanner,
     MtNavItem,
     MtNotificationsPopover,
     MtTabBar,
@@ -267,6 +269,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
           </div>
         </div>
         <div class="mt-page">
+          <mt-mfa-grace-banner />
           <router-outlet />
         </div>
       </main>
