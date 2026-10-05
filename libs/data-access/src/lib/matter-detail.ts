@@ -1,5 +1,5 @@
 import { inject, Injector, runInInjectionContext } from '@angular/core';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import {
   Activity,

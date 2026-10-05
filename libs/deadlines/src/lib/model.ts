@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DateOnlySchema, EventKindSchema, JurisdictionSchema, MatterTypeSchema } from '@materia/domain';
 import type { DateOnly, EventKind, Jurisdiction, MatterType } from '@materia/domain';

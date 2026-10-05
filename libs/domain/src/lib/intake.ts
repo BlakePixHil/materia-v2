@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { ConflictStatusSchema } from './conflicts';
 import { DEFAULT_ORG_TIMEZONE } from './constants';

@@ -5,7 +5,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import type { SecretParam } from 'firebase-functions/params';
 import { onCall, type CallableFunction, type CallableRequest } from 'firebase-functions/v2/https';
 import type { MemoryOption } from 'firebase-functions/v2/options';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DomainError, ROLES, type Role } from '@materia/domain';
 

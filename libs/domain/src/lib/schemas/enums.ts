@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 /** Enums from Domain model & Firestore schema. Values match the design-system tokens. */
 
