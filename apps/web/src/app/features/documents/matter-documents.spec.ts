@@ -122,6 +122,23 @@ describe('matter documents tab', () => {
     expect(localStorage.getItem('materia.documents.layout')).toBe('grid');
   });
 
+  it('shows only the name and date columns on a phone', async () => {
+    const real = globalThis.matchMedia;
+    globalThis.matchMedia = ((query: string) => ({
+      matches: query === '(max-width: 767px)',
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof matchMedia;
+    try {
+      const page = await open();
+      const headers = [...tab(page).querySelectorAll('mt-table thead th')].map((th) => page.text(th)).filter(Boolean);
+      expect(headers).toEqual(['Name', 'Added']);
+    } finally {
+      globalThis.matchMedia = real;
+    }
+  });
+
   it('filters by category, type, privilege and removal, and sorts', async () => {
     const page = await open();
     await page.click('Category', tab(page));

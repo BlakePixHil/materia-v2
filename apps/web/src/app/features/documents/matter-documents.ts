@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
@@ -53,6 +62,7 @@ import {
 } from './documents-view';
 import { UploadList } from './upload-list';
 import { errorCopy } from '../../core/error-copy';
+import { MOBILE_QUERY } from '../../shell/app-shell';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
 type Layout = 'table' | 'grid';
@@ -249,7 +259,7 @@ function storedLayout(): Layout {
             maxHeight="none"
             [selectable]="selectable()"
             [rows]="rows()"
-            [columns]="columns"
+            [columns]="shownColumns()"
             [rowKey]="rowKey"
             [rowLabel]="rowLabel"
             [sort]="tableSort()"
@@ -510,7 +520,23 @@ export class MatterDocuments {
     { id: 'added', header: 'Added', sortable: true, value: (row) => formatDateOnly(row.createdAt ?? null) },
     { id: 'version', header: 'Version', numeric: true, value: (row) => (row.version ? `v${row.version}` : '—') },
   ];
+  /** On a phone, the name and date only (the grid shows the rest), so names aren't squeezed away. */
+  private readonly narrow = signal(false);
+  private static readonly NARROW_COLUMNS = new Set(['name', 'added']);
+  protected readonly shownColumns = computed(() =>
+    this.narrow() ? this.columns.filter((column) => MatterDocuments.NARROW_COLUMNS.has(column.id)) : this.columns,
+  );
   protected readonly rowKey = (row: DocumentRow) => row.id;
+
+  constructor() {
+    const media = typeof matchMedia === 'function' ? matchMedia(MOBILE_QUERY) : null;
+    if (media) {
+      this.narrow.set(media.matches);
+      const update = (event: MediaQueryListEvent) => this.narrow.set(event.matches);
+      media.addEventListener('change', update);
+      inject(DestroyRef).onDestroy(() => media.removeEventListener('change', update));
+    }
+  }
   protected readonly rowLabel = (row: DocumentRow) => rowName(row);
 
   protected on(value: unknown): '' | null {

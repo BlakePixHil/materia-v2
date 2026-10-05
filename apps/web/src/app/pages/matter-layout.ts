@@ -58,6 +58,22 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
     { provide: ACCESS_REVOKED_HANDLER, useValue: () => undefined },
   ],
   host: { class: 'mt-col', style: 'gap: 16px; flex: 1; min-width: 0' },
+  // The section tabs scroll sideways when they don't fit (a phone), rather than widening the page.
+  // The divider is drawn inside the nav, so the scroll box doesn't clip the active tab's underline.
+  styles: `
+    nav[mttabnav] {
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      border-bottom: 0;
+      box-shadow: inset 0 -1px 0 var(--border-default);
+    }
+    nav[mttabnav] a {
+      flex: none;
+      margin-bottom: 0;
+      white-space: nowrap;
+    }
+  `,
   template: `
     @switch (state()) {
       @case ('loading') {
