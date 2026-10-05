@@ -1282,7 +1282,6 @@ export function buildDataset(options: {
             : {}),
           search: domain.packetSearchTokens(packetNo, testatorName, location),
           locationKey: domain.locationKey(location),
-          deletedAt: null,
         }),
       );
     });
