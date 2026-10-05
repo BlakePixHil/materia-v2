@@ -376,61 +376,63 @@ const MAX_EXPORT_PAGES = 50;
             Show more distributions
           </button>
         }
-        <dl class="residue" aria-label="Residue calculation">
-          <div>
-            <dt>Net estate</dt>
-            <dd>{{ money(residue().netCents) }}</dd>
-          </div>
-          <div>
-            <dt>Less specific gifts</dt>
-            <dd>{{ money(residue().specificCents) }}</dd>
-          </div>
-          <div>
-            <dt>Less pecuniary gifts</dt>
-            <dd>{{ money(residue().pecuniaryCents) }}</dd>
-          </div>
-          <div>
-            <dt>
-              Less held in reserve
-              @if (screen.editable() && !editingReserve()) {
-                <button mtButton size="sm" variant="ghost" (click)="startReserve()">Change</button>
-              }
-            </dt>
-            <dd>
-              @if (editingReserve()) {
-                <form class="reserve" aria-label="Held in reserve" (submit)="$event.preventDefault(); saveReserve()">
-                  <span class="mt-input amount" data-size="sm" [attr.data-invalid]="reserveError() ? '' : null">
-                    <input
-                      #reserveInput
-                      aria-label="Amount held in reserve"
-                      name="reserve"
-                      inputmode="decimal"
-                      autocomplete="off"
-                      [(ngModel)]="reserveText"
-                    />
-                  </span>
-                  <button mtButton size="sm" type="submit">Save</button>
-                  <button mtButton size="sm" variant="ghost" type="button" (click)="editingReserve.set(false)">
-                    Cancel
-                  </button>
-                </form>
-                @if (reserveError(); as message) {
-                  <p class="caption danger" role="alert">{{ message }}</p>
+        <section aria-label="Residue calculation">
+          <dl class="residue">
+            <div>
+              <dt>Net estate</dt>
+              <dd>{{ money(residue().netCents) }}</dd>
+            </div>
+            <div>
+              <dt>Less specific gifts</dt>
+              <dd>{{ money(residue().specificCents) }}</dd>
+            </div>
+            <div>
+              <dt>Less pecuniary gifts</dt>
+              <dd>{{ money(residue().pecuniaryCents) }}</dd>
+            </div>
+            <div>
+              <dt>
+                Less held in reserve
+                @if (screen.editable() && !editingReserve()) {
+                  <button mtButton size="sm" variant="ghost" (click)="startReserve()">Change</button>
                 }
-              } @else {
-                {{ money(residue().reservedCents) }}
-              }
-            </dd>
-          </div>
-          <div class="total">
-            <dt>Residue</dt>
-            <dd>{{ money(residue().residueCents) }}</dd>
-          </div>
-          <div>
-            <dt>Paid so far</dt>
-            <dd>{{ money(residue().paidCents) }}</dd>
-          </div>
-        </dl>
+              </dt>
+              <dd>
+                @if (editingReserve()) {
+                  <form class="reserve" aria-label="Held in reserve" (submit)="$event.preventDefault(); saveReserve()">
+                    <span class="mt-input amount" data-size="sm" [attr.data-invalid]="reserveError() ? '' : null">
+                      <input
+                        #reserveInput
+                        aria-label="Amount held in reserve"
+                        name="reserve"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        [(ngModel)]="reserveText"
+                      />
+                    </span>
+                    <button mtButton size="sm" type="submit">Save</button>
+                    <button mtButton size="sm" variant="ghost" type="button" (click)="editingReserve.set(false)">
+                      Cancel
+                    </button>
+                  </form>
+                  @if (reserveError(); as message) {
+                    <p class="caption danger" role="alert">{{ message }}</p>
+                  }
+                } @else {
+                  {{ money(residue().reservedCents) }}
+                }
+              </dd>
+            </div>
+            <div class="total">
+              <dt>Residue</dt>
+              <dd>{{ money(residue().residueCents) }}</dd>
+            </div>
+            <div>
+              <dt>Paid so far</dt>
+              <dd>{{ money(residue().paidCents) }}</dd>
+            </div>
+          </dl>
+        </section>
         @if (residue().residueCents < 0) {
           <p class="caption t-2">
             The specific and pecuniary gifts and the reserve are more than the net estate, so the gifts may abate. This
