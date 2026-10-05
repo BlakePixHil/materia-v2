@@ -6,6 +6,7 @@ import {
   EMULATOR_PROJECT,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
+  FIRST_LOAD,
   setEmulatorDocuments,
   setOrgFlags,
   signInAsTestUser,
@@ -214,7 +215,7 @@ test.describe('deadlines', () => {
 
     // Record the date of death from the Deadlines tab.
     await page.goto('/matters/m-doyle/deadlines');
-    await expect(page.getByRole('heading', { level: 2, name: 'Deadlines' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Deadlines' })).toBeVisible(FIRST_LOAD);
     await page.getByRole('button', { name: 'Record event' }).click();
     const eventDialog = page.getByRole('dialog');
     await eventDialog.getByLabel('Event').selectOption({ label: 'Date of death' });
@@ -280,9 +281,9 @@ test.describe('deadlines', () => {
 
     // The Deadlines screen: grouped, with the matter named and the trace.
     await page.goto('/deadlines');
-    await expect(page.getByRole('heading', { level: 1, name: 'Deadlines' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Deadlines' })).toBeVisible(FIRST_LOAD);
     const manual = deadlineRow(page, 'Settle the sale of the fictional house');
-    await expect(manual).toContainText(`${MATTER_NUMBER} · Estate of Margaret Doyle`);
+    await expect(manual).toContainText(`${MATTER_NUMBER} · Estate of Margaret Doyle`, FIRST_LOAD);
     await expect(page.locator('section[data-group="later"]')).toContainText('Executor');
     const later = deadlineRow(page, 'Executor');
     await later.getByText('How it’s worked out').click();

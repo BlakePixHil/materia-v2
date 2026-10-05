@@ -210,7 +210,9 @@ test.describe('new matter intake', () => {
     await next(page);
     await pick(page, 'Find a client', 'fictional', 'Bram Fictional');
     await expect(page.getByRole('list', { name: 'Clients' })).toContainText('Bram Fictional');
-    await expect(page.getByTestId('draft-status')).toHaveText('Draft saved');
+    // "Saving draft…" until the client pick is written (debounce, then the Firestore write), so the
+    // reload below only happens once the draft holds it.
+    await expect(page.getByTestId('draft-status')).toHaveText('Draft saved', { timeout: 20_000 });
 
     await page.reload();
     const offer = page.getByTestId('intake-resume');
