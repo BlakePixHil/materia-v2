@@ -100,12 +100,18 @@ const dueDateOf = async (request: APIRequestContext, orgId: string, id: string) 
 async function editDateFact(page: Page, label: string, date: DateOnly): Promise<Locator> {
   const facts = page.locator('mt-key-facts');
   await page.getByRole('button', { name: `Edit ${label}` }).click();
-  await facts.getByLabel(label).fill(typed(date));
+  // The editor renders on the next change detection, which can land after Playwright looks for the
+  // field. By role (not getByLabel, which also matches the "Copy …" and "Edit …" buttons and then
+  // fails strict mode at once) the fill waits for the text box to appear.
+  await facts.getByRole('textbox', { name: label, exact: true }).fill(typed(date));
   await facts.getByRole('button', { name: 'Save' }).click();
-  const toast = page.locator('.mt-toaster').getByText(`${label} saved`);
-  await expect(toast).toBeVisible(CALLABLE_TIMEOUT);
-  await expect(facts.locator('form')).toHaveCount(0);
-  return page.locator('.mt-toaster');
+  // The editor closes only once the save went through, so wait on that rather than the toast: an
+  // earlier "… saved" toast for the same fact can still be up. Then check the toaster as a whole,
+  // so a failure shows what it did say.
+  await expect(facts.locator('form'), `${label} editor closes after the save`).toHaveCount(0, CALLABLE_TIMEOUT);
+  const toaster = page.locator('.mt-toaster');
+  await expect(toaster).toContainText(`${label} saved`);
+  return toaster;
 }
 
 const deadlineRow = (page: Page, title: string) => page.locator('mt-deadline-row').filter({ hasText: title });

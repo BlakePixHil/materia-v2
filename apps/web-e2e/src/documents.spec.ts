@@ -171,8 +171,11 @@ test.describe('matter documents', () => {
     await copy.getByRole('button', { name: 'Discard' }).click();
     await expect(copy).toContainText('Discarded', PIPELINE);
 
+    // From here the test moves between the list and a document inside the app, as a person does.
+    // A full reload straight after this much upload and listener traffic intermittently never
+    // showed the list again on WebKit (CI: the will.pdf link missing for 3+ minutes); the deep link
+    // below is the one deliberate page load.
     // Preview the will at its second page (a citation link): PDF.js renders it from a signed URL.
-    await page.goto('/matters/m-quill/documents');
     await documentsTable(page).getByRole('link', { name: 'will.pdf' }).click();
     await expect(page).toHaveURL(/\/matters\/m-quill\/documents\/[\w-]+$/);
     const docUrl = page.url();
@@ -211,7 +214,7 @@ test.describe('matter documents', () => {
     expect(file.url()).not.toContain('firebasestorage.googleapis.com');
 
     // The email previews as headers, body and attachments; an attachment can be saved to the matter.
-    await page.goto('/matters/m-quill/documents');
+    await page.getByRole('link', { name: 'All documents' }).click();
     await documentsTable(page).getByRole('link', { name: 'schedule-letter.eml' }).click();
     const message = page.locator('mt-message-preview');
     await expect(message).toContainText('Fictional schedule of assets', PIPELINE);
@@ -219,7 +222,7 @@ test.describe('matter documents', () => {
     await expectNoA11yViolations(page);
     await message.getByRole('button', { name: 'Save schedule.txt to the matter' }).click();
     await expect(page.getByText('schedule.txt saved to the matter', { exact: true })).toBeVisible();
-    await page.goto('/matters/m-quill/documents');
+    await page.getByRole('link', { name: 'All documents' }).click();
     await expect(documentsTable(page).getByRole('link', { name: 'schedule.txt' })).toBeVisible(PIPELINE);
   });
 

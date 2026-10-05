@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { contactSearchTokens, partyDocId } from '@materia/domain';
-import { expectNoA11yViolations, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
@@ -71,7 +71,7 @@ test.describe('matter screen', () => {
     // Open the matter: it lands on the Overview.
     await page.goto('/matters/m-quill');
     await expect(page).toHaveURL(/\/matters\/m-quill\/overview$/);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Rosalind Quill');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Rosalind Quill', FIRST_LOAD);
     await expect(page).toHaveTitle(/M-2026-0310/);
     const facts = page.locator('mt-key-facts');
     await expect(facts).toContainText('Grant number');

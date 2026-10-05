@@ -4,6 +4,7 @@ import { documentSearchTokens, taskSearchTokens } from '@materia/domain';
 import {
   createTestAccount,
   expectNoA11yViolations,
+  FIRST_LOAD,
   setEmulatorDocument,
   signInAsTestUser,
   type TestAccount,
@@ -184,13 +185,14 @@ test.describe('command palette (CORE-15)', () => {
     test.setTimeout(90_000);
     await setup(page, request);
     await page.goto('/matters');
-    await expect(page.getByRole('table', { name: 'Matters' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Matters' })).toBeVisible(FIRST_LOAD);
     await openPalette(page);
     await palette(page).fill('filter by');
     await page.keyboard.press('Enter');
     await palette(page).fill('responsible me');
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('table', { name: 'Matters' })).toContainText('Estate of Margaret Wren');
+    // The filter starts a new query, and the table waits for its first answer.
+    await expect(page.getByRole('table', { name: 'Matters' })).toContainText('Estate of Margaret Wren', FIRST_LOAD);
     await expect(page.getByRole('table', { name: 'Matters' })).not.toContainText('Estate of Rupert Vale');
   });
 
