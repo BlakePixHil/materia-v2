@@ -26,6 +26,7 @@ import { DialogService, formatDateOnly, MT_ORG_TIMEZONE, MT_TODAY, ToastService 
 
 import type { ChecklistTemplatesDialogData, ChecklistTemplatesDialogResult } from './checklist-templates-dialog';
 import { TaskDueDialog, type TaskDueDialogData, type TaskDueDialogResult } from './task-due-dialog';
+import type { TaskGroupDialogData, TaskGroupDialogResult } from './task-group-dialog';
 import {
   bulkSummary,
   PRIORITY_NAMES,
@@ -295,6 +296,20 @@ export class TaskActions {
     }).result;
     if (!result) return;
     await this.bulk(targets, { op: 'dueDate', dueDate: result.dueDate });
+  }
+
+  /** Asks for a group (new, picked or none), then moves the tasks into it (CORE-08e). */
+  async changeGroup(entries: readonly TaskEntry[], groups: readonly string[]): Promise<void> {
+    const targets = entries.filter((e) => e.editable);
+    if (!targets.length) return;
+    const first = targets[0]?.task.group?.trim() || null;
+    const same = targets.every((e) => (e.task.group?.trim() || null) === first);
+    const { TaskGroupDialog } = await import('./task-group-dialog');
+    const result = await this.dialogs.open<TaskGroupDialogData, TaskGroupDialogResult | undefined>(TaskGroupDialog, {
+      data: { count: targets.length, current: same ? first : null, groups },
+    }).result;
+    if (!result) return;
+    await this.bulk(targets, { op: 'group', group: result.group });
   }
 
   async remove(entries: readonly TaskEntry[]): Promise<boolean> {

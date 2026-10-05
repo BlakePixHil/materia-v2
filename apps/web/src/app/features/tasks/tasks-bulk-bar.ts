@@ -6,8 +6,9 @@ import { MT_MENU, MtButton, MtIconButton } from '@materia/ui';
 import { PRIORITY_NAMES, PRIORITY_ORDER, TASK_STATUS_LABELS, TASK_STATUS_ORDER, type TaskPerson } from './task-view';
 
 /**
- * The bar for the selected tasks (CORE-08): status, assignee, due date, priority and delete, then
- * clear. Up to 50 tasks change directly; more go through `tasks-bulkUpdate`.
+ * The bar for the selected tasks (CORE-08): status, assignee, due date, priority, group (on a
+ * matter's Tasks tab, CORE-08e) and delete, then clear. Up to 50 tasks change directly; more go
+ * through `tasks-bulkUpdate`.
  */
 @Component({
   selector: 'mt-tasks-bulk-bar',
@@ -37,6 +38,11 @@ import { PRIORITY_NAMES, PRIORITY_ORDER, TASK_STATUS_LABELS, TASK_STATUS_ORDER, 
     <button mtButton variant="ghost" size="sm" iconStart="flag" [mtMenuTrigger]="priorityMenu" [disabled]="busy()">
       Priority
     </button>
+    @if (groupable()) {
+      <button mtButton variant="ghost" size="sm" iconStart="board" [disabled]="busy()" (click)="group.emit()">
+        Group
+      </button>
+    }
     <button mtButton variant="ghost" size="sm" iconStart="trash" [disabled]="busy()" (click)="remove.emit()">
       Delete
     </button>
@@ -97,11 +103,14 @@ export class TasksBulkBar {
   /** Who matter tasks can be assigned to (empty hides Assign). */
   readonly people = input<readonly TaskPerson[]>([]);
   readonly busy = input(false);
+  /** Shows Group (a matter's Tasks tab). */
+  readonly groupable = input(false);
 
   readonly status = output<TaskStatus>();
   readonly assign = output<string | null>();
   readonly dueDate = output();
   readonly priority = output<Priority>();
+  readonly group = output();
   readonly remove = output();
   readonly clear = output();
 
