@@ -6,7 +6,14 @@ import * as z from 'zod';
 import { PENDING_UPLOAD_PATH, PENDING_UPLOAD_TTL_MS } from '@materia/domain';
 
 import { filesBucket, storageFiles, type FileStore } from './files';
-import { expirePendingUploads, processUpload, type PipelineDeps, type RescanTask, type UploadResult } from './pipeline';
+import {
+  expirePendingUploads,
+  processUpload,
+  resumeStalledScans,
+  type PipelineDeps,
+  type RescanTask,
+  type UploadResult,
+} from './pipeline';
 import { RENDER_QUEUE, renderPreview, RenderTaskSchema, startRenditions } from './renditions';
 import { REGION } from '../config';
 import { adminDb } from '../core/admin';
@@ -135,13 +142,18 @@ export const rescan = defineQueue({
   },
 });
 
-/** `documents-sweepPending` (hourly): quarantined uploads older than 24 hours are deleted. */
+/**
+ * `documents-sweepPending` (hourly): quarantined uploads older than 24 hours are deleted, and
+ * delayed scans whose retry chain stalled are queued again.
+ */
 export const sweepPending = onSchedule(
   { schedule: 'every 60 minutes', region: REGION, timeZone: 'Australia/Melbourne', retryCount: 0 },
   async () => {
     const log = createLog({ fn: 'documents-sweepPending' });
-    const expired = await expirePendingUploads(pipelineDeps(log), PENDING_UPLOAD_TTL_MS);
-    log.info('ok', { expired });
+    const deps = pipelineDeps(log);
+    const expired = await expirePendingUploads(deps, PENDING_UPLOAD_TTL_MS);
+    const resumed = await resumeStalledScans(deps, PENDING_UPLOAD_TTL_MS);
+    log.info('ok', { expired, resumed });
   },
 );
 
