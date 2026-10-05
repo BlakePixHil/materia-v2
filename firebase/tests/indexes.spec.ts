@@ -84,6 +84,8 @@ describe('firestore.indexes.json', () => {
       'isReferrer:ASCENDING,sortName:ASCENDING',
       'tags:CONTAINS,sortName:ASCENDING',
       'search:CONTAINS,sortName:ASCENDING',
+      // ⌘K's contacts, most recently updated first (CORE-15).
+      'search:CONTAINS,updatedAt:DESCENDING',
     ]);
     const parties = file.indexes.find((i) => i.collectionGroup === 'parties');
     expect(parties?.queryScope).toBe('COLLECTION_GROUP');
@@ -113,8 +115,28 @@ describe('firestore.indexes.json', () => {
   it('a matter’s documents list newest first, and readonly’s non-privileged list is indexed (CORE-12)', () => {
     const documents = file.indexes
       .filter((i) => i.collectionGroup === 'documents')
-      .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`);
-    expect(documents).toEqual(['COLLECTION:privileged:ASCENDING,createdAt:DESCENDING']);
+      .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(',')}`);
+    expect(documents).toEqual([
+      'COLLECTION:privileged:ASCENDING,createdAt:DESCENDING',
+      // ⌘K (CORE-15): the open matter's non-privileged documents, and every document in the org.
+      'COLLECTION:privileged:ASCENDING,search:CONTAINS,updatedAt:DESCENDING',
+      'COLLECTION_GROUP:orgId:ASCENDING,search:CONTAINS,updatedAt:DESCENDING',
+    ]);
+  });
+
+  it('indexes the ⌘K providers’ queries: my tasks and every matter task by token (CORE-15)', () => {
+    const tasks = file.indexes
+      .filter((i) => i.collectionGroup === 'tasks')
+      .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(',')}`);
+    expect(tasks).toEqual(
+      expect.arrayContaining([
+        'COLLECTION_GROUP:orgId:ASCENDING,assigneeUid:ASCENDING,search:CONTAINS,updatedAt:DESCENDING',
+        // `matterId != null` proves to the rules that no personal task is read (ADR-026).
+        'COLLECTION_GROUP:orgId:ASCENDING,search:CONTAINS,matterId:ASCENDING',
+      ]),
+    );
+    // Matters by token use the Matters list's `search` indexes (CORE-03), with and without privileged.
+    expect(domain.isIndexedMatterQuery(['search'], 'lastActivityAt', 'desc')).toBe(true);
   });
 
   it('a matter’s notes and a note’s history, filtered to non-privileged for roles without privileged.view (CORE-13)', () => {
@@ -160,7 +182,7 @@ describe('firestore.indexes.json', () => {
     expect(ttl?.fieldPath).toBe('expireAt');
   });
 
-  it('recent matters are listed newest first per org and expire through TTL on expireAt (CORE-14)', () => {
+  it('recent entries are listed newest first per org (and per kind for Today) and expire through TTL on expireAt (CORE-14, CORE-15)', () => {
     const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
       (o) => o.collectionGroup === 'recent' && o.ttl,
     );
@@ -168,6 +190,7 @@ describe('firestore.indexes.json', () => {
     const recent = file.indexes.filter((i) => i.collectionGroup === 'recent');
     expect(recent.map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`)).toEqual([
       'COLLECTION:orgId:ASCENDING,updatedAt:DESCENDING',
+      'COLLECTION:orgId:ASCENDING,kind:ASCENDING,updatedAt:DESCENDING',
     ]);
   });
 

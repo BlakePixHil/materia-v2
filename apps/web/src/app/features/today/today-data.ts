@@ -324,7 +324,7 @@ export class TodayData {
     const matters = this.lookup();
     return this.recents
       .value()
-      .map((row) => matters.get(row.matterId))
+      .map((row) => (row.matterId ? matters.get(row.matterId) : undefined))
       .filter((matter): matter is TodayMatterRef => !!matter);
   });
   readonly recentStatus = this.recents.status;

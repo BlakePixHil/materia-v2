@@ -65,4 +65,50 @@ describe('MtCommandPalette', () => {
     expect(screen.getByText(/No matches/)).toHaveClass('mt-cmdk-empty');
     expect(screen.getByRole('combobox')).not.toHaveAttribute('aria-activedescendant');
   });
+
+  it('opens in a new tab with mod+Enter, drills in with Tab and leaves the scope with Backspace (CORE-15)', async () => {
+    const open = vi.fn();
+    const drill = vi.fn();
+    const back = vi.fn();
+    const groups: MtCommandGroup[] = [
+      {
+        label: 'Matters',
+        items: [{ id: 'm1', label: 'Estate of Margaret Whitfield', meta: 'M-2026-0142', mono: true, drill: true }],
+      },
+    ];
+    await render(
+      `<mt-command-palette [groups]="groups" [scope]="scope" (open)="open($event)" (drill)="drill($event)" (back)="back()" />`,
+      { imports: [MtCommandPalette], componentProperties: { groups, open, drill, back, scope: 'M-2026-0142' } },
+    );
+    const input = screen.getByRole('combobox');
+    input.focus();
+    expect(screen.getByText('M-2026-0142', { selector: '.mono-s' })).toBeInTheDocument();
+    await userEvent.keyboard('{Control>}{Enter}{/Control}');
+    expect(open).toHaveBeenLastCalledWith({ item: expect.objectContaining({ id: 'm1' }), newTab: true });
+    await userEvent.keyboard('{Enter}');
+    expect(open).toHaveBeenLastCalledWith({ item: expect.objectContaining({ id: 'm1' }), newTab: false });
+    await userEvent.keyboard('{Tab}');
+    expect(drill).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }));
+    expect(input).toHaveFocus();
+    await userEvent.keyboard('{Backspace}');
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a searching line per busy group and its note, and waits for them before "No matches"', async () => {
+    const { rerender } = await render(`<mt-command-palette [groups]="groups" />`, {
+      imports: [MtCommandPalette],
+      componentProperties: { groups: [{ label: 'Matters', items: [], busy: true }] as MtCommandGroup[] },
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Searching matters…');
+    expect(screen.queryByText(/No matches/)).toBeNull();
+    await rerender({
+      componentProperties: {
+        groups: [
+          { label: 'Matters', items: [{ id: 'm1', label: 'Estate of Example' }], note: 'Type more to narrow these.' },
+        ],
+      },
+    });
+    expect(screen.getByText('Type more to narrow these.')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
 });

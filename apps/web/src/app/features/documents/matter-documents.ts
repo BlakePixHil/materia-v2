@@ -61,6 +61,7 @@ import {
   type FileType,
 } from './documents-view';
 import { UploadList } from './upload-list';
+import { onIntent } from '../../core/commands/intents';
 import { errorCopy } from '../../core/error-copy';
 import { MOBILE_QUERY } from '../../shell/app-shell';
 import { MatterScreen } from '../matter-detail/matter-screen';
@@ -536,6 +537,12 @@ export class MatterDocuments {
       media.addEventListener('change', update);
       inject(DestroyRef).onDestroy(() => media.removeEventListener('change', update));
     }
+    // ⌘K's "Upload document" on this matter (CORE-15): opens the file picker once it's shown.
+    onIntent(
+      'upload',
+      () => this.canUpload() && this.openPicker(),
+      () => !!this.picker(),
+    );
   }
   protected readonly rowLabel = (row: DocumentRow) => rowName(row);
 
