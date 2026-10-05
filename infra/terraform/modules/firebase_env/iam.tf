@@ -68,13 +68,15 @@ locals {
 
 # firebase-tools sets the invoker policy on each function's Cloud Run service (public for blocking
 # functions, the runtime account for others). roles/run.developer can read that policy but not set it,
-# and roles/run.admin grants far more, so this custom role holds only the missing permission (ADR-023).
+# and roles/run.admin grants far more, so this custom role holds only the missing permissions (ADR-023).
+# Before creating a new HTTPS function the CLI also checks cloudfunctions.functions.setIamPolicy on the
+# project and stops without it (roles/cloudfunctions.developer lacks it).
 resource "google_project_iam_custom_role" "deployer_run_invoker" {
   project     = google_project.this.project_id
   role_id     = "deployerRunInvoker"
   title       = "Deployer: set Cloud Run invoker policy"
   description = "Lets the deployer set the invoker IAM policy on Cloud Run services created for functions."
-  permissions = ["run.services.setIamPolicy"]
+  permissions = ["run.services.setIamPolicy", "cloudfunctions.functions.setIamPolicy"]
   depends_on  = [time_sleep.services_ready]
 }
 
@@ -178,10 +180,18 @@ resource "google_project_iam_custom_role" "deployer_bucket_reader" {
   depends_on  = [time_sleep.services_ready]
 }
 
+# Cloud Storage rejects a custom role created seconds earlier ("does not exist in the resource's
+# hierarchy"), so the binding waits for the new role to propagate.
+resource "time_sleep" "deployer_bucket_reader_ready" {
+  create_duration = "60s"
+  depends_on      = [google_project_iam_custom_role.deployer_bucket_reader]
+}
+
 resource "google_storage_bucket_iam_member" "deployer_files_bucket_reader" {
-  bucket = google_storage_bucket.default.name
-  role   = google_project_iam_custom_role.deployer_bucket_reader.id
-  member = "serviceAccount:${google_service_account.deployer.email}"
+  bucket     = google_storage_bucket.default.name
+  role       = google_project_iam_custom_role.deployer_bucket_reader.id
+  member     = "serviceAccount:${google_service_account.deployer.email}"
+  depends_on = [time_sleep.deployer_bucket_reader_ready]
 }
 
 resource "google_storage_bucket_iam_member" "fn_runtime_files" {

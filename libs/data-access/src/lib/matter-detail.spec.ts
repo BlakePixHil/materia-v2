@@ -6,6 +6,7 @@ import { keyFactPatch } from '@materia/domain';
 import { CallableClient } from './callable-client';
 import {
   forMatter,
+  MATTER_ACTIVITY_QUERY,
   MATTER_PARTIES_QUERY,
   matterActivityRepository,
   matterCallables,
@@ -152,7 +153,32 @@ describe('a matter’s records', () => {
     ]);
     expect((await tasks).map((t) => t.id)).toEqual(['t-open']);
     expect((await deadlines).map((d) => d.id)).toEqual(['d-open']);
-    expect((await activity).map((a) => a.summary)).toEqual(['Day 7', 'Day 6', 'Day 5', 'Day 4', 'Day 3']);
+    // The Overview shows the three latest (CORE-13); `refs` default to none.
+    expect((await activity).map((a) => a.summary)).toEqual(['Day 7', 'Day 6', 'Day 5']);
+    expect((await activity)[0]?.refs).toEqual({});
+  });
+
+  it('pages the whole activity feed, newest first, with refs (CORE-13)', async () => {
+    const fs = setup();
+    for (let n = 1; n <= 30; n++) {
+      fs.set(`${M}/activity/a${String(n).padStart(2, '0')}`, {
+        kind: 'note.created',
+        summary: `Added note ${n}`,
+        actorUid: 'u-jordan',
+        at: new Date(Date.UTC(2026, 9, 1, 0, n)),
+        refs: { noteId: `n-${n}` },
+      });
+    }
+    const feed = TestBed.runInInjectionContext(() =>
+      matterActivityRepository(() => 'm-1').watchQuery(MATTER_ACTIVITY_QUERY),
+    );
+    await vi.waitFor(() => expect(feed.value()).toHaveLength(25));
+    expect(feed.value()[0]).toMatchObject({ summary: 'Added note 30', refs: { noteId: 'n-30' } });
+    expect(feed.hasMore()).toBe(true);
+    await feed.loadMore();
+    await vi.waitFor(() => expect(feed.value()).toHaveLength(30));
+    expect(feed.value().at(-1)?.summary).toBe('Added note 1');
+    expect(feed.hasMore()).toBe(false);
   });
 
   it('reads a template’s stages', async () => {

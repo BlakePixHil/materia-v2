@@ -2,38 +2,61 @@ import { ChangeDetectionStrategy, Component, computed, inject, ViewEncapsulation
 import { RouterLink } from '@angular/router';
 
 import {
+  compareNotes,
   forMatter,
   matterActivityRepository,
   matterDeadlinesRepository,
+  matterNoteRepository,
   matterTasksRepository,
   OPEN_DEADLINES_QUERY,
   OPEN_TASKS_QUERY,
+  pinnedNotesQuery,
   RECENT_ACTIVITY_QUERY,
 } from '@materia/data-access/repository';
 import { deadlineTraceText, STATUTORY_DISABLED_MESSAGE } from '@materia/domain';
 import { formatRelativeDate, MT_TODAY, MtClerkMark, MtDeadlineChip, MtEmptyState, type MtDateInput } from '@materia/ui';
+import { MtMarkdown } from '@materia/ui/markdown';
 
 import { MatterKeyFacts } from './matter-key-facts';
 import { MatterScreen } from './matter-screen';
 import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
 import { statutoryDisabled } from '../deadlines/statutory-flag';
+import { matterResolver, memberResolver } from '../notes/note-mentions';
+import { noteTime } from '../notes/note-time';
+import { activityTitle, mentionsAcross, noteAuthor, type NoteRecord } from '../notes/note-view';
 
 /** How many open tasks the overview lists (the count shows them all). */
 const TASKS_SHOWN = 5;
 
 /**
- * A matter's Overview tab (CORE-06): its key facts, the next five deadlines, open tasks, recent
- * activity and the Clerk brief (AI-06 fills it). Listens to the matter's deadlines, tasks and
- * activity only while this tab is shown.
+ * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the next
+ * five deadlines, open tasks, the three latest activity lines and the Clerk brief (AI-06 fills it).
+ * Listens to the matter's pinned notes, deadlines, tasks and activity only while this tab is shown.
  */
 @Component({
   selector: 'mt-matter-overview',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
-  imports: [RouterLink, MatterKeyFacts, MtClerkMark, MtDeadlineChip, MtEmptyState],
+  imports: [RouterLink, MatterKeyFacts, MtClerkMark, MtDeadlineChip, MtEmptyState, MtMarkdown],
   host: { class: 'mt-matter-overview' },
   template: `
+    @if (pinned().length) {
+      <section class="mt-card pinned" data-pad aria-labelledby="mt-ov-pinned">
+        <div class="mt-card-h">
+          <h2 class="mt-card-title" id="mt-ov-pinned">Pinned notes</h2>
+          <a class="mt-ml caption" routerLink="../notes">All notes</a>
+        </div>
+        <ul class="notes">
+          @for (note of pinned(); track note.id) {
+            <li>
+              <p class="caption t-3 who">{{ author(note) }} · {{ when(note.createdAt) }}</p>
+              <mt-markdown mentions [content]="note.bodyMd" [member]="member()" [matter]="matter()" />
+            </li>
+          }
+        </ul>
+      </section>
+    }
     <div class="mt-col col">
       <section class="mt-card" data-pad aria-labelledby="mt-ov-facts">
         <div class="mt-card-h"><h2 class="mt-card-title" id="mt-ov-facts">Key facts</h2></div>
@@ -119,8 +142,8 @@ const TASKS_SHOWN = 5;
           <ul class="list">
             @for (entry of activity.value(); track entry.id) {
               <li>
-                <span class="mt-grow">{{ entry.summary }}</span>
-                <span class="caption t-3">{{ screen.memberName(entry.actorUid) }} · {{ relative(entry.at) }}</span>
+                <span class="mt-grow">{{ activityLine(entry.actorUid, entry.summary) }}</span>
+                <span class="caption t-3">{{ relative(entry.at) }}</span>
               </li>
             } @empty {
               <li class="caption t-3">Nothing yet.</li>
@@ -156,6 +179,24 @@ const TASKS_SHOWN = 5;
     .mt-matter-overview .statutory {
       margin: 0 0 var(--space-8);
     }
+    .mt-matter-overview .pinned {
+      grid-column: 1 / -1;
+    }
+    .mt-matter-overview .notes {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+    }
+    .mt-matter-overview .notes li + li {
+      padding-top: var(--space-12);
+      border-top: 1px solid var(--border-subtle);
+    }
+    .mt-matter-overview .notes .who {
+      margin: 0 0 var(--space-4);
+    }
     .mt-matter-overview .list li {
       display: flex;
       align-items: center;
@@ -179,6 +220,14 @@ export class MatterOverview {
   );
   protected readonly tasks = matterTasksRepository(this.id).watchQuery(forMatter(this.id, OPEN_TASKS_QUERY));
   protected readonly activity = matterActivityRepository(this.id).watchQuery(forMatter(this.id, RECENT_ACTIVITY_QUERY));
+  private readonly pinnedNotes = matterNoteRepository(this.id).watchQuery(() =>
+    this.id() ? pinnedNotesQuery({ privilegedVisible: this.screen.canPrivileged() }) : null,
+  );
+  /** Pinned notes, newest first (CORE-13). */
+  protected readonly pinned = computed(() => [...this.pinnedNotes.value()].sort(compareNotes));
+  protected readonly member = memberResolver(() => this.screen.memberList());
+  protected readonly matter = matterResolver(() => mentionsAcross(this.pinned().map((note) => note.bodyMd)).matterIds);
+  protected readonly when = noteTime();
 
   protected readonly upcoming = computed(() => nextDeadlines(this.deadlines.value()));
   protected readonly openTasks = computed(() => sortOpenTasks(this.tasks.value()).slice(0, TASKS_SHOWN));
@@ -190,5 +239,14 @@ export class MatterOverview {
 
   protected relative(value: MtDateInput): string {
     return formatRelativeDate(value, this.today());
+  }
+
+  protected author(note: NoteRecord): string {
+    return noteAuthor(note, (uid) => this.screen.memberName(uid));
+  }
+
+  /** "Priya Shah opened the matter". */
+  protected activityLine(actorUid: string, summary: string): string {
+    return activityTitle(actorUid, summary, (uid) => this.screen.memberName(uid));
   }
 }
