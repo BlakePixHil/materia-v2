@@ -18,6 +18,7 @@ import {
   type DateOnly,
   type DisputeRole,
   type FeeArrangement,
+  type FeeDefault,
   type IntakeForm,
   type IntakeStepId,
   type MatterType,
@@ -711,4 +712,32 @@ export function intakeContact(contact: {
   if (contact.emails?.[0]?.address) out.email = contact.emails[0].address;
   if (contact.phones?.[0]?.number) out.phone = contact.phones[0].number;
   return out;
+}
+
+/** Cents as typed money ("1500.00"); empty for none. */
+const typedDollars = (amount: number | undefined) => (amount === undefined ? '' : (amount / 100).toFixed(2));
+
+/**
+ * The fee step for a newly chosen matter type: the practice's default for the type (CORE-21), while
+ * the fees are still empty or still the previous type's default; otherwise as they are.
+ */
+export function feesWithDefault(
+  fees: IntakeFeesState,
+  fee: FeeDefault | undefined,
+  previous?: FeeDefault,
+): IntakeFeesState {
+  const empty = emptyIntakeState().fees;
+  const untouched = [empty, prefilled(empty, previous)].some((f) => JSON.stringify(f) === JSON.stringify(fees));
+  return untouched ? prefilled(empty, fee) : fees;
+}
+
+function prefilled(fees: IntakeFeesState, fee: FeeDefault | undefined): IntakeFeesState {
+  if (!fee) return fees;
+  return {
+    ...fees,
+    arrangement: fee.arrangement,
+    amount: typedDollars(fee.amountCents),
+    cap: typedDollars(fee.capCents),
+    estimate: typedDollars(fee.estimateCents),
+  };
 }

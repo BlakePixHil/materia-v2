@@ -229,7 +229,8 @@ export const COLLECTIONS: CollectionSpec[] = [
     docPath: `orgs/${ORG}/safeCustody/packet-1`,
     entity: 'SafeCustody',
     read: 'members',
-    update: 'matter.edit',
+    // Callable-only (CORE-17): movements need an authority, a role and a recent sign-in.
+    update: 'none',
   },
   {
     collection: 'notifications',

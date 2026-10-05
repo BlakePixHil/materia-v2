@@ -127,8 +127,9 @@ describe('repositories against the emulator', () => {
     expect(stored?.['updatedBy']).toEqual({ stringValue: OWNER });
     expect(stored?.['updatedAt']?.['timestampValue']).not.toBe('2026-10-01T00:00:00Z');
 
-    // Role changes go through the callables; the rules refuse them from the client.
-    await expect(members.update('u0', { role: 'owner' })).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+    // Role changes go through the callables: the update schema refuses them before they're sent
+    // (the rules refuse them too; see firestore.rules.spec.ts).
+    await expect(members.update('u0', { role: 'owner' })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
   });
 
   it('refuses writes for roles without members.manage', async () => {

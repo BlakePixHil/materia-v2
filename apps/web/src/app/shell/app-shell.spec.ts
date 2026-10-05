@@ -158,7 +158,8 @@ describe('AppShellComponent', () => {
     expect(router.url).toBe('/matters');
     await press('g');
     await press('s');
-    expect(router.url).toBe('/settings');
+    // Settings opens on its first page the person can see (CORE-21): the team, for a lawyer.
+    expect(router.url).toBe('/settings/team');
   });
 
   it('opens the palette with mod+k and runs a navigation command', async () => {

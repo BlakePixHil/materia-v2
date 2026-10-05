@@ -338,8 +338,31 @@ describe('seed dataset', () => {
     // The client's and the deceased's names are searchable, as matters-denormalise writes them.
     expect(doyle?.search).toEqual(expect.arrayContaining(['catherine', 'doyle', 'margaret']));
     expect(docsUnder('counters').map((d) => [d.path.split('/').at(-1), d.data['next']])).toEqual([
+      ['safe-custody', 6],
       [`matter-${year}`, 13 + CONFLICT_MATTER_COUNT],
     ]);
+  });
+
+  it('seeds the safe custody register: held, out and released packets numbered from its counter (CORE-17)', () => {
+    const packets = docsUnder('safeCustody').map((d) => d.data as D.SafeCustody);
+    expect(packets.map((p) => [p.packetNo, p.testatorName, p.status])).toEqual([
+      ['SC-000001', 'Harriet Okafor', 'held'],
+      ['SC-000002', 'Alice Whitfield', 'held'],
+      ['SC-000003', 'Mei Chen', 'out'],
+      ['SC-000004', 'Margaret Doyle', 'held'],
+      ['SC-000005', 'Ruth Ellis', 'released'],
+    ]);
+    const paths = new Set(dataset.docs.map((d) => d.path));
+    for (const packet of packets) {
+      expect(paths.has(`orgs/${SEED_ORG_ID}/contacts/${packet.testatorContactId}`)).toBe(true);
+      for (const m of packet.movements) {
+        if (m.authority) {
+          expect(
+            paths.has(`orgs/${SEED_ORG_ID}/matters/${m.authority.matterId}/documents/${m.authority.documentId}`),
+          ).toBe(true);
+        }
+      }
+    }
   });
 
   it('the load scenario adds 500 varied matters on top of the practice, numbered after it', () => {
@@ -349,7 +372,7 @@ describe('seed dataset', () => {
     expect(new Set(matters.map((m) => m.number)).size).toBe(matters.length);
     expect(new Set(matters.map((m) => m.status))).toEqual(new Set(D.MatterStatusSchema.options));
     expect(new Set(matters.map((m) => m.responsibleUid)).size).toBe(3);
-    const counter = load.docs.find((d) => /\/counters\//.test(d.path));
+    const counter = load.docs.find((d) => /\/counters\/matter-/.test(d.path));
     expect(counter?.data['next']).toBe(13 + CONFLICT_MATTER_COUNT + LOAD_MATTER_COUNT);
     for (const doc of load.docs) {
       const entity = registry.find((e) => e.pattern.test(doc.path));

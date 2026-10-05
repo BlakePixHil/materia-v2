@@ -14,6 +14,7 @@ import {
   multiFactor,
   onIdTokenChanged,
   reauthenticateWithCredential,
+  reauthenticateWithPopup,
   EmailAuthProvider,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -291,6 +292,19 @@ export function createFirebaseAuthPort(): AuthPort {
         await user.getIdToken(true);
         await publish(auth.currentUser);
       }),
+    async reauthenticate(method) {
+      const user = requireUser();
+      const outcome = await attempt(() =>
+        method.kind === 'google'
+          ? reauthenticateWithPopup(user, new GoogleAuthProvider())
+          : reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email ?? '', method.password)),
+      );
+      if (outcome.kind === 'signedIn') {
+        await user.getIdToken(true);
+        await publish(auth.currentUser);
+      }
+      return outcome;
+    },
     refreshClaims: () =>
       run(async () => {
         await requireUser().getIdToken(true);

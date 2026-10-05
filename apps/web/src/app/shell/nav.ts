@@ -30,6 +30,14 @@ export const NAV_ITEMS: readonly NavEntry[] = [
     flag: 'litigation.enabled',
   },
   { id: 'contacts', label: 'Contacts', icon: 'contacts', link: '/contacts', key: 'c', section: 'workspace' },
+  {
+    id: 'safe-custody',
+    label: 'Safe custody',
+    icon: 'archive',
+    link: '/safe-custody',
+    key: 'w',
+    section: 'workspace',
+  },
   { id: 'billing', label: 'Time & billing', icon: 'billing', link: '/billing', key: 'b', section: 'workspace' },
   { id: 'insights', label: 'Insights', icon: 'insights', link: '/insights', key: 'n', section: 'workspace' },
 ];

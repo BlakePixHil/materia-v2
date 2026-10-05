@@ -214,6 +214,9 @@ export interface FakeUser {
   emailVerified?: boolean;
   displayName?: string;
   customClaims?: Record<string, unknown>;
+  /** As Auth reports them (CORE-21's team table). */
+  multiFactor?: { enrolledFactors: unknown[] };
+  metadata?: { lastSignInTime?: string; lastRefreshTime?: string };
 }
 
 /** Admin Auth with a few users: lookups, custom claims and refresh-token revocation. */
@@ -238,6 +241,13 @@ export function memoryAuth(users: FakeUser[] = []) {
       user.customClaims = claims ?? {};
     },
     revokeRefreshTokens: async (uid: string) => void revoked.push(uid),
+    getUsers: async (ids: { uid: string }[]) => ({
+      users: ids.flatMap(({ uid }) => {
+        const user = records.get(uid);
+        return user ? [{ metadata: {}, ...user } as unknown as UserRecord] : [];
+      }),
+      notFound: ids.filter(({ uid }) => !records.has(uid)),
+    }),
   };
   return { auth: auth as unknown as Auth, records, revoked };
 }
