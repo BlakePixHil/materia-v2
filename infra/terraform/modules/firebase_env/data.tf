@@ -29,6 +29,23 @@ resource "google_storage_bucket" "default" {
     enabled = true
   }
 
+  # SEC-03: a deleted or overwritten object can be brought back for 30 days from soft delete, and
+  # for 90 days as a non-current version (docs/runbooks/restore.md). Matter destruction (CORE-19)
+  # deletes every generation; soft delete still holds those bytes for 30 days.
+  soft_delete_policy {
+    retention_duration_seconds = var.files_soft_delete_days * 86400
+  }
+
+  lifecycle_rule {
+    condition {
+      days_since_noncurrent_time = var.files_noncurrent_days
+      with_state                 = "ARCHIVED"
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
   # The web app reads document bytes (PDF.js, text and email previews) with fetch() from 5-minute
   # signed URLs (`documents-getDownloadUrl`, CORE-12), which are cross-origin reads of this bucket.
   # Reads only, from the app's own origins; uploads go through Firebase Storage, which has its own
@@ -52,7 +69,8 @@ resource "google_firebase_storage_bucket" "default" {
   bucket_id = google_storage_bucket.default.name
 }
 
-# Backups (Firestore exports, Storage copies) in the backup region (SEC-03 schedules the exports).
+# Backups in the backup region (SEC-03, backups.tf): the nightly Firestore exports under daily/ and
+# monthly/, and the nightly copy of the files bucket under files/.
 resource "google_storage_bucket" "backups" {
   #checkov:skip=CKV_GCP_62:Object access is captured by Cloud Audit Logs (DATA_READ/DATA_WRITE on allServices).
   project                     = google_project.this.project_id
@@ -88,10 +106,27 @@ resource "google_storage_bucket" "backups" {
     }
   }
 
+  # Exports are never overwritten, so their non-current versions are the ones the rules above
+  # expired; drop them a week later.
   lifecycle_rule {
     condition {
       days_since_noncurrent_time = 7
       with_state                 = "ARCHIVED"
+      matches_prefix             = ["daily/", "monthly/"]
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  # The files copy mirrors deletions (a destroyed matter's documents leave the copy the next night),
+  # so what the copy deleted or overwrote stays restorable as a non-current version for as long as
+  # the daily exports are kept.
+  lifecycle_rule {
+    condition {
+      days_since_noncurrent_time = var.backup_daily_retention_days
+      with_state                 = "ARCHIVED"
+      matches_prefix             = ["files/"]
     }
     action {
       type = "Delete"

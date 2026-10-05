@@ -62,7 +62,7 @@ The contract (`UPLOAD_TYPES`, `uploadSettings`, `UploadMetadataSchema`) lives in
 - Follow-ups, not built here:
   - **The ClamAV Cloud Run service** (built in CORE-12a, [ADR-032](032-document-services-on-cloud-run.md); `clamav/clamav` with freshclam, behind `run.invoker` for `fn-runtime`). The jobs image runs as a Cloud Run *job*, not a service. A service needs its own image build and deploy step in the deploy workflow, which this ticket must not edit.
   - **Office → PDF and HEIC → JPEG previews** (`renditions.previewPdf`, `previewImage`; built in CORE-12a, ADR-032). LibreOffice and libheif belong in a container. Running a Cloud Run job execution per upload is too heavy, so it wants a preview service, which needs the same deploy-workflow change. The download callable already accepts these renditions and reports `rendition_unavailable` until they exist.
-  - **Zip download of a selection.** This needs a non-PDF job output, and a way to download exports (a signed-URL callable for `orgs/{orgId}/exports/`, plus SEC-05's 7-day lifecycle). Neither exists yet.
+  - **Zip download of a selection** (built in CORE-12b). `documents-startZip` starts a `documents.zip` job on the jobs image (FND-24), which stores the current versions in `orgs/{orgId}/exports/{jobId}.zip`; `jobs-getExportUrl` serves it through a 5-minute signed URL. Removed, unscanned and hidden privileged documents are left out; a zip is a download, not an export of the matter, so it doesn't need `export.includePrivileged`.
 
 ## Alternatives considered
 

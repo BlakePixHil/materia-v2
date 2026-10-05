@@ -6,7 +6,7 @@ import { DocumentCategorySchema } from './enums';
 const ORG = 'orgs/{orgId}';
 
 /** Heavy work run as a Cloud Run job (ADR-014, FND-24). Each type is one handler in `apps/jobs`. */
-export const JobTypeSchema = z.enum(['pdf.render', 'pdf.merge']);
+export const JobTypeSchema = z.enum(['pdf.render', 'pdf.merge', 'documents.zip']);
 export type JobType = z.infer<typeof JobTypeSchema>;
 
 export const JobStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed']);
@@ -73,6 +73,44 @@ export const PdfMergeInputSchema = z
   .strict();
 export type PdfMergeInput = z.infer<typeof PdfMergeInputSchema>;
 
+/** The most documents in one zip download (`documents.zip`, CORE-12b). */
+export const DOCUMENTS_ZIP_MAX = 200;
+/**
+ * The most bytes in one zip download. The job builds the zip in its scratch space, which counts
+ * against the job's memory, and zips without zip64 must stay under 4 GiB.
+ */
+export const DOCUMENTS_ZIP_MAX_BYTES = 1024 * 1024 * 1024;
+
+/**
+ * A file name inside a zip: no folders (`/` or `\`), no control characters, and not `.` or `..`,
+ * so unzipping can't write outside the folder it unzips into.
+ */
+export const ZipEntryNameSchema = NonEmptyString.max(255).refine(
+  // eslint-disable-next-line no-control-regex
+  (name) => !/[/\\\u0000-\u001f\u007f]/.test(name) && name !== '.' && name !== '..',
+  { message: 'Expected a file name without folders' },
+);
+
+/**
+ * `documents.zip` (CORE-12b): the current versions of a selection of matter documents, stored
+ * (not compressed) in one zip under the names given. The names are unique (case-insensitively).
+ */
+export const DocumentsZipInputSchema = z
+  .object({
+    inputs: z
+      .array(z.object({ storagePath: z.string().regex(MATTER_DOCUMENT_PATH), fileName: ZipEntryNameSchema }).strict())
+      .min(1)
+      .max(DOCUMENTS_ZIP_MAX)
+      .refine((inputs) => new Set(inputs.map((input) => input.fileName.toLowerCase())).size === inputs.length, {
+        message: 'Each file name may be used once',
+      }),
+  })
+  .strict();
+export type DocumentsZipInput = z.infer<typeof DocumentsZipInputSchema>;
+
+/** An export file, `orgs/{orgId}/exports/{jobId}.{pdf|zip}`, downloaded through `jobs-getExportUrl`. */
+export const ExportTargetSchema = z.object({ kind: z.literal('export'), name: NonEmptyString.max(250) }).strict();
+
 /** Where the output goes: a new matter document, or an export file (7-day TTL, SEC-05). */
 export const JobTargetSchema = z.discriminatedUnion('kind', [
   z
@@ -84,7 +122,7 @@ export const JobTargetSchema = z.discriminatedUnion('kind', [
       privileged: z.boolean().default(false),
     })
     .strict(),
-  z.object({ kind: z.literal('export'), name: NonEmptyString.max(250) }).strict(),
+  ExportTargetSchema,
 ]);
 export type JobTarget = z.infer<typeof JobTargetSchema>;
 
@@ -92,6 +130,8 @@ export type JobTarget = z.infer<typeof JobTargetSchema>;
 export const JobRequestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('pdf.render'), input: PdfRenderInputSchema, target: JobTargetSchema }).strict(),
   z.object({ type: z.literal('pdf.merge'), input: PdfMergeInputSchema, target: JobTargetSchema }).strict(),
+  /** A zip is never a matter document: it is only ever downloaded. */
+  z.object({ type: z.literal('documents.zip'), input: DocumentsZipInputSchema, target: ExportTargetSchema }).strict(),
 ]);
 export type JobRequest = z.infer<typeof JobRequestSchema>;
 
@@ -153,9 +193,16 @@ export const Job = withMeta(
 );
 export type Job = z.infer<typeof Job.schema>;
 
+/** An export job's file type: a zip for `documents.zip`, otherwise a PDF. */
+export function exportFileType(type: JobType | string | undefined): { extension: 'zip' | 'pdf'; contentType: string } {
+  return type === 'documents.zip'
+    ? { extension: 'zip', contentType: 'application/zip' }
+    : { extension: 'pdf', contentType: 'application/pdf' };
+}
+
 /**
- * `jobs-getExportUrl` (FND-24, CORE-17): a 5-minute signed URL for an export job's PDF, for the
- * member who started it, once it has succeeded.
+ * `jobs-getExportUrl` (FND-24, CORE-17, CORE-12b): a 5-minute signed URL for an export job's PDF
+ * or zip, for the member who started it, once it has succeeded.
  */
 export const GET_EXPORT_URL_CALLABLE = 'jobs-getExportUrl';
 export const GetExportUrlInput = z.object({ jobId: DocIdSchema });

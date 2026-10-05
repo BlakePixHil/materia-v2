@@ -354,6 +354,20 @@ async function classify(
 }
 
 /** Marks a version's ingest as failed (the task ran out of retries). */
+/**
+ * A short label for a failed ingest: the error's name, its code when it has one, and the start of
+ * its message up to the first path-like word (storage paths can hold file names).
+ */
+export function ingestErrorLabel(error: unknown): string {
+  if (!(error instanceof Error)) return 'Error';
+  const code = (error as { code?: unknown }).code;
+  // Everything from the first path-like word on goes: a storage path can end in a file name with spaces.
+  const words = error.message.split(/\s+/).filter(Boolean);
+  const cut = words.findIndex((word) => word.includes('/'));
+  const message = (cut < 0 ? words : [...words.slice(0, cut), '[path]']).join(' ').slice(0, 120);
+  return `${error.name}${code !== undefined ? ` (${String(code)})` : ''}${message ? `: ${message}` : ''}`.slice(0, 200);
+}
+
 export async function markIngestFailed(db: Firestore, task: IngestTask, error: unknown, at: Date): Promise<void> {
   const ref = db.doc(documentPath(task.orgId, task.matterId, task.docId));
   await db.runTransaction(async (tx) => {
@@ -366,7 +380,7 @@ export async function markIngestFailed(db: Firestore, task: IngestTask, error: u
         ...ingest,
         status: 'failed',
         version: task.version,
-        error: (error instanceof Error ? error.name : 'Error').slice(0, 200),
+        error: ingestErrorLabel(error),
         at,
       }),
     });
