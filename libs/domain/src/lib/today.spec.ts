@@ -37,7 +37,15 @@ function task(id: string, dueDate: string | undefined, data: Partial<TodayTaskLi
 }
 
 function change(id: string, data: Partial<TodayChangeLike> = {}): TodayChangeLike {
-  return { id, matterId: 'm-doyle', title: `Change ${id}`, critical: false, intoPast: false, status: 'pending', ...data };
+  return {
+    id,
+    matterId: 'm-doyle',
+    title: `Change ${id}`,
+    critical: false,
+    intoPast: false,
+    status: 'pending',
+    ...data,
+  };
 }
 
 describe('today window', () => {
@@ -60,7 +68,9 @@ describe('today window', () => {
 
 describe('needs attention', () => {
   it('puts urgent changes, escalations, overdue deadlines, then other changes', () => {
-    const escalations: TodayEscalationLike[] = [{ id: 'e-1', matterId: 'm-doyle', title: 'Escalated: serve affidavit' }];
+    const escalations: TodayEscalationLike[] = [
+      { id: 'e-1', matterId: 'm-doyle', title: 'Escalated: serve affidavit' },
+    ];
     const section = needsAttention(
       {
         overdue: [
