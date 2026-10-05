@@ -397,14 +397,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'privileged.view',
     update: PERMISSIONS['matter.edit'].filter((role) => PERMISSIONS['privileged.view'].includes(role as never)),
   },
+  // Clerk suggestions (AI-07): server-written; accepted and dismissed through the suggestions-* callables.
   {
     collection: 'suggestions',
     docPath: `${MATTER}/suggestions/suggestion-1`,
     entity: 'Suggestion',
-    seed: { status: 'proposed' },
+    seed: { status: 'proposed', privileged: false, orgId: ORG, matterId: 'matter-1' },
     read: 'members',
-    update: 'clerk.use',
-    change: { status: 'dismissed' },
+    update: 'none',
   },
   { ...matterRecord('parties', 'Party'), seed: { orgId: ORG, matterId: 'matter-1' } },
   // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent.

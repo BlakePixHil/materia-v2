@@ -281,13 +281,30 @@ describe('field-level rules', () => {
     await assertFails(updateDoc(doc(db(env, 'owner'), TIME), stamped({ narrative: 'x' }, uidFor('owner'))));
   });
 
-  it('clerk suggestions: only proposed → dismissed', async () => {
-    const ref = doc(db(env, 'lawyer'), `${MATTER}/suggestions/suggestion-1`);
+  it('clerk suggestions: no client writes; privileged ones need privileged.view (AI-07)', async () => {
+    const ref = (role: Role) => doc(db(env, role), `${MATTER}/suggestions/suggestion-1`);
     await reseed('suggestions');
-    await assertFails(updateDoc(ref, stamped({ status: 'accepted' }, uidFor('lawyer'))));
-    await assertSucceeds(updateDoc(ref, stamped({ status: 'dismissed' }, uidFor('lawyer'))));
-    // Once dismissed, no further client transition.
-    await assertFails(updateDoc(ref, stamped({ status: 'proposed' }, uidFor('lawyer'))));
+    await assertFails(updateDoc(ref('lawyer'), stamped({ status: 'dismissed' }, uidFor('lawyer'))));
+    await assertFails(updateDoc(ref('owner'), stamped({ status: 'accepted' }, uidFor('owner'))));
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, `${MATTER}/suggestions/suggestion-priv`), {
+        ...seedData(specFor('suggestions')),
+        privileged: true,
+      }),
+    );
+    for (const role of ROLES) {
+      const read = getDoc(doc(db(env, role), `${MATTER}/suggestions/suggestion-priv`));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(read);
+    }
+    // A list without privileged.view must prove `privileged == false`.
+    const list = (role: Role, ...filters: ReturnType<typeof where>[]) =>
+      getDocs(query(collection(db(env, role), `${MATTER}/suggestions`), ...filters));
+    await assertFails(list('paralegal', where('status', 'in', ['proposed', 'stale'])));
+    await assertSucceeds(
+      list('paralegal', where('status', 'in', ['proposed', 'stale']), where('privileged', '==', false)),
+    );
+    await assertSucceeds(list('readonly', where('privileged', '==', false)));
+    await assertSucceeds(list('lawyer', where('status', 'in', ['proposed', 'stale'])));
   });
 
   it('issued invoices are read-only for clients', async () => {

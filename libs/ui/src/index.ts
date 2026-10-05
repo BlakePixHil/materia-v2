@@ -48,7 +48,6 @@ export * from './lib/clerk/clerk-mark';
 export * from './lib/clerk/citation';
 export * from './lib/clerk/clerk-brief';
 export * from './lib/clerk/clerk-working';
-export * from './lib/clerk/suggestion';
 export * from './lib/clerk/composer';
 export * from './lib/charts/scales';
 export * from './lib/charts/chart-base';

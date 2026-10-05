@@ -23,7 +23,8 @@ export interface SuggestionVm {
 /**
  * Suggestion (`mt-suggestion`): a Clerk proposal with Accept, Edit and Dismiss. Project a preview or
  * diff as content. `stale` means the underlying data changed since Clerk suggested it: the card says
- * so and Accept becomes "Review".
+ * so and Accept becomes "Review". `canAccept`/`canDismiss` hide the actions a person can't take.
+ * Import it from `@materia/ui/suggestion` (not the barrel), so it stays out of the initial bundle.
  */
 @Component({
   selector: 'mt-suggestion',
@@ -54,11 +55,15 @@ export interface SuggestionVm {
       }
     </div>
     <span class="mt-row mt-suggestion-actions">
-      <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="dismiss.emit()">Dismiss</button>
-      <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="edit.emit()">Edit</button>
-      <button mtButton variant="clerk" size="sm" [loading]="busy()" (click)="stale() ? edit.emit() : accept.emit()">
-        {{ stale() ? 'Review' : (suggestion().acceptLabel ?? 'Accept') }}
-      </button>
+      @if (canDismiss()) {
+        <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="dismiss.emit()">Dismiss</button>
+      }
+      @if (canAccept()) {
+        <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="edit.emit()">Edit</button>
+        <button mtButton variant="clerk" size="sm" [loading]="busy()" (click)="stale() ? edit.emit() : accept.emit()">
+          {{ stale() ? 'Review' : (suggestion().acceptLabel ?? 'Accept') }}
+        </button>
+      }
     </span>
     <div class="mt-suggestion-preview"><ng-content /></div>
     @if (suggestion().citations?.length) {
@@ -75,6 +80,9 @@ export class MtSuggestion {
   readonly stale = input(false, { transform: booleanAttribute });
   /** Accepting is in progress. */
   readonly busy = input(false, { transform: booleanAttribute });
+  /** The person may accept (and edit) it: false hides both, e.g. for a role without the underlying action. */
+  readonly canAccept = input(true, { transform: booleanAttribute });
+  readonly canDismiss = input(true, { transform: booleanAttribute });
 
   readonly accept = output();
   readonly edit = output();

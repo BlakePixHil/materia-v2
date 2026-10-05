@@ -111,6 +111,21 @@ See [ADR-034](adr/034-clerk-context-assembly.md). Code: `apps/functions/src/cler
 - **Untrusted framing:** `<matter_facts>`, `<matter_note>`, `<document>`, `<excerpt>` and `<org_metrics>` are data; their text can't open or close a framing tag (escaped to `&lt;`), and JSON escapes `<`. The base system prompt `system@1.0.0` says to ignore and report instructions found inside them.
 - **Metrics scope:** `scope: {org: 'metrics'}` is allowed only for a feature whose policy lists `metrics` (none yet; INS-04 adds one) and roles with `billing.view` (as the rules on `metrics/`). It reads the newest `month-*` and `fy-*` rollups, numbers only, with no documents, notes or retrieval.
 
+## Suggestions (AI-07)
+
+### As built (AI-07)
+
+See [ADR-037](adr/037-clerk-suggestions-engine.md) and "Clerk suggestions (AI-07)" in [02-domain-model.md](02-domain-model.md). Code: `apps/functions/src/suggestions/`, `libs/domain/src/lib/suggestions.ts`, `apps/web/src/app/features/suggestions/`.
+
+- **How a feature proposes:** a Clerk feature calls `proposeSuggestions(ctx, matterId, proposals, {privileged: manifest.privileged, promptId, promptVersion, model})` with the parsed model output. Only server code writes suggestions. A proposal is a `kind` with a `payload` (`SUGGESTION_PAYLOADS[kind]`), plus `citations`, `rationale` and an optional `dedupeKey`. Invalid proposals, duplicates (open, stale or dismissed with the same `dedupeKey`) and ones whose record already exists are skipped and reported. Nothing is proposed while `clerk.features.suggestions` is off.
+- **Accepting is the only write path (rule 3):** `suggestions-accept`, `suggestions-acceptMany` and `suggestions-dismiss`. An accept runs the kind's handler, which uses the same domain logic as the matching callable, in one transaction with the suggestion's status. A second accept of the same suggestion gets `ALREADY_RESOLVED`, and a closed matter gets `MATTER_CLOSED`. Kinds without a handler (time_entry, chronology, order, evidence) get `SUGGESTION_UNSUPPORTED` until their tickets register one (`registerSuggestionHandler`).
+- **Stale sources:** the suggestion stores a basis of what it relied on: the matter's status, stage, privilege and deletion, the fact or events or party it changes, and each cited document's version, privilege and deletion. If any of these changed, the accept returns `SUGGESTION_STALE` with the changed sources. The card shows them, and the person can accept anyway against the current data (`expectedBasis`) or edit first.
+- **Privilege (rule 6):** a suggestion from privileged context, on a privileged matter or citing a privileged document is `privileged`. Roles without `privileged.view` can't read it (rules and query) or accept it (`NOT_FOUND`). A document that becomes privileged after the proposal makes the suggestion stale and hidden.
+- **Audit:** `suggestion.accepted` and `suggestion.dismissed` have the human as actor and `data.via: 'clerk'`. The applied record's own audit entry (for example `task.created`) is written too.
+- **Acceptance rates:** these are counted in the monthly Clerk metrics doc (`metrics/clerk-{YYYY-MM}`) per kind and per `promptId@promptVersion`. Use `suggestionAcceptanceRates(values)` to compare prompt versions (AI-12).
+- **UI:** `mt-suggestion` (`@materia/ui/suggestion`) is the presentational card. `mt-suggestion-card` (web, `features/suggestions`) adds Accept, inline Edit with field errors, Dismiss with a reason and the stale review, and the AI-06 panel and the Inbox should reuse it. The matter Overview's "Clerk suggests…" lists open suggestions by kind, with "Accept all N …" and a "Show expired" switch.
+- **Expiry:** suggestions are open for 14 days, after which the hourly `suggestions-expire` marks them `expired`.
+
 ## Features → tickets
 
 | Feature | Ticket | Output | Effort |
