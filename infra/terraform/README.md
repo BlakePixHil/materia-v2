@@ -2,14 +2,14 @@
 
 Terraform for the Materia v2 GCP/Firebase environments (FND-03, ADR-003/004). Manual steps are listed in [`../MANUAL.md`](../MANUAL.md).
 
-| Path                     | What                                                                                                                                                                                                            |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bootstrap/`             | Admin project `materia-v2-admin` and the state bucket `materia-tfstate-<suffix>` (local state; run once)                                                                                                        |
-| `modules/firebase_env/`  | One environment: project, APIs, Firebase, Firestore (PITR), Storage buckets, Identity Platform, KMS, Artifact Registry, web app, service accounts, WIF for GitHub, budget, `ANTHROPIC_API_KEY` secret container |
-| `*.tf` (this folder)     | Root stack that instantiates the module for one environment                                                                                                                                                     |
-| `envs/<env>.tfvars`      | Non-secret settings per environment (committed)                                                                                                                                                                 |
-| `envs/<env>.backend.hcl` | State bucket (`materia-tfstate-blakepixhil`) and prefix per environment                                                                                                                                         |
-| `imports.tf`             | Import blocks that adopt console-created resources (the projects, their Firebase projects, enabled APIs, Firebase's budget), driven by the `adopt_*` variables in `envs/<env>.tfvars`                           |
+| Path                     | What                                                                                                                                                                                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bootstrap/`             | Admin project `materia-v2-admin` and the state bucket `materia-tfstate-<suffix>` (local state; run once)                                                                                                                                                        |
+| `modules/firebase_env/`  | One environment: project, APIs, Firebase, Firestore (PITR), Storage buckets, Identity Platform, KMS, Artifact Registry, web app, service accounts, WIF for GitHub, budget, secret containers (`ANTHROPIC_API_KEY`, `POSTMARK_TOKEN`, `POSTMARK_WEBHOOK_SECRET`) |
+| `*.tf` (this folder)     | Root stack that instantiates the module for one environment                                                                                                                                                                                                     |
+| `envs/<env>.tfvars`      | Non-secret settings per environment (committed)                                                                                                                                                                                                                 |
+| `envs/<env>.backend.hcl` | State bucket (`materia-tfstate-blakepixhil`) and prefix per environment                                                                                                                                                                                         |
+| `imports.tf`             | Import blocks that adopt console-created resources (the projects, their Firebase projects, enabled APIs, Firebase's budget), driven by the `adopt_*` variables in `envs/<env>.tfvars`                                                                           |
 
 MVP mode: **dev and prod** only. `envs/staging.*` is kept for later. No organisation (owner decision): `org_id` and `folder_id` stay `null`.
 

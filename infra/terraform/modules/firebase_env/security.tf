@@ -81,7 +81,9 @@ resource "google_kms_crypto_key" "migration" {
 # Secret containers only. Values are added by the owner (`gcloud secrets versions add`) and never
 # appear in Terraform state or code. Replicated only in Australia.
 resource "google_secret_manager_secret" "this" {
-  for_each = toset(["ANTHROPIC_API_KEY"])
+  # POSTMARK_TOKEN: the Postmark server token; POSTMARK_WEBHOOK_SECRET: the basic-auth password
+  # Postmark's bounce webhook sends (FND-20, infra/MANUAL.md).
+  for_each = toset(["ANTHROPIC_API_KEY", "POSTMARK_TOKEN", "POSTMARK_WEBHOOK_SECRET"])
 
   project   = google_project.this.project_id
   secret_id = each.value
