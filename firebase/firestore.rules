@@ -180,6 +180,7 @@ service cloud.firestore {
           && n.get('digestHour', 7) is int && n.get('digestHour', 7) >= 0 && n.get('digestHour', 7) <= 23
           && n.get('kinds', {}) is map
           && n.get('kinds', {}).get('deadline_escalation', {}).get('email', true) == true
+          && n.get('taskReminderDays', 1) is int && n.get('taskReminderDays', 1) >= 0 && n.get('taskReminderDays', 1) <= 14
         );
       }
       allow read: if isSignedIn() && uid() == userId;

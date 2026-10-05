@@ -440,8 +440,7 @@ export class TodayPage {
         group: 'Today',
         scope: 'route',
         when: () => kindOfFocus() === 'escalation',
-        // Escalations (CORE-11) aren't raised yet, so there is never one to acknowledge.
-        handler: () => undefined,
+        handler: () => void this.acknowledgeFocused(),
       }),
     ];
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
@@ -487,6 +486,15 @@ export class TodayPage {
     if (!item || !key || !entry) return;
     const index = this.items().indexOf(item);
     if (await this.taskActions.complete([entry])) this.refocus = { key, index, until: Date.now() + REFOCUS_MS };
+  }
+
+  private async acknowledgeFocused(): Promise<void> {
+    const item = this.focusedItem();
+    const key = item?.dataset['key'];
+    const entry = this.data.attention().items.find((row) => row.key === key);
+    if (!item || !key || entry?.kind !== 'escalation') return;
+    const index = this.items().indexOf(item);
+    if (await this.data.acknowledge(entry.escalation)) this.refocus = { key, index, until: Date.now() + REFOCUS_MS };
   }
 
   /** A completed task left the list: focus moves to the row now in its place. */

@@ -10,6 +10,8 @@ import {
   ManualDeadlineUpdateInput,
   MatterEvent,
   SoftDeleteShape,
+  type AcknowledgeDeadlineInput,
+  type AcknowledgeDeadlineResult,
   type CompleteDeadlineInput,
   type CompleteDeadlineResult,
   type DeleteEventInput,
@@ -62,6 +64,8 @@ export const DeadlineItemSchema = /* @__PURE__ */ z.object({
   assigneeUid: deadline.assigneeUid,
   ackBy: deadline.ackBy,
   ackAt: deadline.ackAt,
+  escalatedAt: deadline.escalatedAt,
+  escalatedTo: deadline.escalatedTo,
   pastOnCreation: deadline.pastOnCreation,
   updatedAt: deadline.updatedAt.optional(),
   updatedBy: deadline.updatedBy.optional(),
@@ -288,6 +292,8 @@ export interface DeadlineCallables {
    * linked tasks so the UI can offer to complete them (`completeLinkedTasks`).
    */
   complete(input: Input<CompleteDeadlineInput>): Promise<CompleteDeadlineResult>;
+  /** `deadlines-acknowledge` (task.edit; CORE-11): marks an upcoming deadline seen, which stops it escalating. */
+  acknowledge(input: Input<AcknowledgeDeadlineInput>): Promise<AcknowledgeDeadlineResult>;
   /** `deadlines-proposeRulesetUpgrade` (org.settings): one page of the rule-set upgrade backfill. */
   proposeRulesetUpgrade(input: Input<ProposeRulesetUpgradeInput>): Promise<ProposeRulesetUpgradeResult>;
 }
@@ -301,6 +307,7 @@ export function deadlineCallables(client: Pick<CallableClient, 'call'>): Deadlin
     resolveChange: (input) => client.call(DEADLINE_CALLABLES.resolveChange, input, idempotent),
     override: (input) => client.call(DEADLINE_CALLABLES.override, input, idempotent),
     complete: (input) => client.call(DEADLINE_CALLABLES.complete, input, idempotent),
+    acknowledge: (input) => client.call(DEADLINE_CALLABLES.acknowledge, input, idempotent),
     proposeRulesetUpgrade: (input) => client.call(DEADLINE_CALLABLES.proposeRulesetUpgrade, input, idempotent),
   };
 }
