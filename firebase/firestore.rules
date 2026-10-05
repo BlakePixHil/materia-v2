@@ -125,6 +125,33 @@ service cloud.firestore {
         && validTask(data);
     }
 
+    // ---------- deadlines (CORE-10) ----------
+    // Fields a client may write when creating a manual deadline: `ManualDeadlineCreateInput` in
+    // libs/domain (the rules tests check the two agree), plus the meta fields.
+    function manualDeadlineCreateFields() {
+      return ['orgId', 'matterId', 'title', 'dueDate', 'dueTime', 'kind', 'critical', 'status', 'assigneeUid', 'reminders'];
+    }
+    // The values a manual deadline may hold after a client write.
+    function validManualDeadline(data) {
+      return data.title is string && data.title.trim().size() > 0 && data.title.size() <= 300
+        && data.dueDate is string && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (!('dueTime' in data) || data.dueTime is string && data.dueTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'))
+        && data.kind in ['contractual', 'internal', 'court']
+        && data.critical is bool
+        && data.assigneeUid is string && data.assigneeUid.size() > 0
+        && data.reminders is list && data.reminders.size() <= 10
+        && data.get('computed', null) == null;
+    }
+    // A client-created manual deadline at this path, upcoming, stamped by the caller.
+    function newManualDeadline(orgId, matterId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(manualDeadlineCreateFields().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+        && data.keys().hasAll(['orgId', 'matterId', 'title', 'dueDate', 'kind', 'critical', 'status', 'assigneeUid', 'reminders', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
+        && data.orgId == orgId && data.matterId == matterId && data.status == 'upcoming'
+        && data.createdBy == uid() && data.createdAt == request.time && validMeta() && data.schemaVersion == 1
+        && validManualDeadline(data);
+    }
+
     // ---------- global reference data (read-only for clients) ----------
     match /ruleSets/{ruleSetId} {
       allow read: if isSignedIn();
@@ -272,11 +299,39 @@ service cloud.firestore {
             && (clientUpdate(fieldsTask()) && validTask(request.resource.data) || softDelete());
         }
 
+        // Deadlines (CORE-10, ADR-027). Computed deadlines (with `computed` provenance) are written by
+        // the deadlines-* functions: clients only reassign or acknowledge them; overrides, proposals
+        // and closing go through callables. task.edit roles create manual deadlines (contractual,
+        // internal or court) on a live, visible matter, edit their whitelisted fields while upcoming,
+        // and soft delete them. Status changes (done, waived, missed) go through deadlines-complete.
         match /deadlines/{deadlineId} {
+          function deadlineMatter() {
+            return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
+          }
+          function canEditDeadlines() {
+            return can(orgId, 'task.edit') && visible(orgId, deadlineMatter()) && deadlineMatter().get('deletedAt', null) == null;
+          }
+          function acknowledged() {
+            return unchanged(['ackBy', 'ackAt'])
+              || request.resource.data.get('ackBy', null) == uid() && request.resource.data.get('ackAt', null) == request.time;
+          }
           allow read: if inOrg(orgId);
-          // Overriding a computed date needs deadline.override.
-          allow update: if editable(orgId, 'task.edit', fieldsDeadline())
-            && (unchanged(['override']) || can(orgId, 'deadline.override'));
+          allow create: if canEditDeadlines() && newManualDeadline(orgId, matterId);
+          allow update: if canEditDeadlines() && (
+            resource.data.get('computed', null) == null && (
+              resource.data.status == 'upcoming'
+                && clientUpdate(fieldsDeadline()) && acknowledged() && validManualDeadline(request.resource.data)
+              || softDelete())
+            || resource.data.get('computed', null) != null
+              && resource.data.status in ['upcoming', 'blocked']
+              && clientUpdate(['assigneeUid', 'ackBy', 'ackAt']) && acknowledged()
+              && request.resource.data.assigneeUid is string && request.resource.data.assigneeUid.size() > 0);
+        }
+
+        // Proposed changes to computed deadlines (CORE-10): server-written, decided through
+        // deadlines-resolveChange.
+        match /deadlineChanges/{changeId} {
+          allow read: if inOrg(orgId);
         }
 
         match /timeEntries/{entryId} {
@@ -328,9 +383,10 @@ service cloud.firestore {
           // the last-client rule (CORE-06). No client soft delete.
           allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsParty());
         }
+        // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent,
+        // which recompute the matter's deadlines in the same transaction.
         match /events/{eventId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsMatterEvent());
         }
         match /disbursements/{disbursementId} {
           allow read: if inOrg(orgId);
@@ -478,6 +534,10 @@ service cloud.firestore {
     match /{path=**}/deadlines/{deadlineId} {
       allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
     }
+    // Pending deadline changes across matters (CORE-10: "changes waiting on me").
+    match /{path=**}/deadlineChanges/{changeId} {
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
+    }
     match /{path=**}/timeEntries/{entryId} {
       allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
     }
@@ -540,7 +600,8 @@ service cloud.firestore {
     function fieldsCourtEvent() { return ['proceedingId', 'kind', 'date', 'time', 'location', 'outcome', 'ordersDocumentId']; }
     function fieldsCourtOrder() { return ['courtEventId', 'orderNo', 'text', 'requiresAction', 'dueDate', 'deadlineId', 'responsiblePartyRole', 'status']; }
     function fieldsCreditNote() { return []; }
-    function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'status', 'blockedReason', 'override', 'reminders', 'assigneeUid', 'ackBy', 'ackAt']; }
+    function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt']; }
+    function fieldsDeadlineChange() { return []; }
     function fieldsDisbursement() { return ['date', 'description', 'amountExGstCents', 'gstTreatment', 'payee', 'receiptDocumentId', 'status']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'status', 'paidOn']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
@@ -554,7 +615,7 @@ service cloud.firestore {
     function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'estate', 'deceased', 'facts', 'privileged']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted']; }
-    function fieldsMatterEvent() { return ['kind', 'date', 'time', 'label', 'meta', 'sourceDocumentId']; }
+    function fieldsMatterEvent() { return []; }
     function fieldsMatterNumber() { return []; }
     function fieldsMatterTemplate() { return []; }
     function fieldsMatterTemplateVersion() { return []; }
@@ -568,7 +629,7 @@ service cloud.firestore {
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
-    function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'rules']; }
+    function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'flag', 'disclaimer', 'rules']; }
     function fieldsSafeCustody() { return ['testatorContactId', 'documentIds', 'packetNo', 'location', 'receivedOn']; }
     function fieldsSavedView() { return ['orgId', 'list', 'name', 'filters', 'sort', 'groupBy']; }
     function fieldsSubpoena() { return ['issuedTo', 'direction', 'issuedOn', 'returnDate', 'status', 'accessOrderMade', 'materialDocumentIds']; }

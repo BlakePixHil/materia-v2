@@ -214,6 +214,30 @@ export const makeDeadline = (o: Partial<D.Deadline> = {}) =>
     o,
   );
 
+/** A pending proposal to move a computed deadline (CORE-10). */
+export const makeDeadlineChange = (o: Partial<D.DeadlineChange> = {}) =>
+  build(
+    D.DeadlineChange,
+    {
+      orgId: TEST_ORG_ID,
+      matterId: TEST_MATTER_ID,
+      deadlineId: 'rule-example-rule',
+      ruleId: 'example-rule',
+      title: 'Illustrative deadline (not legal advice)',
+      critical: true,
+      kind: 'moved',
+      cause: 'event',
+      status: 'pending',
+      fromDueDate: d('2027-01-14'),
+      toDueDate: d('2027-01-21'),
+      earlier: false,
+      intoPast: false,
+      assigneeUid: TEST_UID,
+      recomputeVersion: 2,
+    },
+    o,
+  );
+
 export const makeMatterDocument = (o: Partial<D.MatterDocument> = {}) =>
   build(
     D.MatterDocument,
@@ -712,6 +736,7 @@ export const ENTITY_FACTORIES = {
   PersonalTask: [D.PersonalTask, makePersonalTask],
   MatterEvent: [D.MatterEvent, makeMatterEvent],
   Deadline: [D.Deadline, makeDeadline],
+  DeadlineChange: [D.DeadlineChange, makeDeadlineChange],
   MatterDocument: [D.MatterDocument, makeMatterDocument],
   Chunk: [D.Chunk, makeChunk],
   Note: [D.Note, makeNote],

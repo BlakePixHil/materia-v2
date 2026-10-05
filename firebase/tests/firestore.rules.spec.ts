@@ -22,7 +22,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 
-import { MatterTaskCreateInput, PERMISSIONS, ROLES, type Role } from '@materia/domain';
+import { ManualDeadlineCreateInput, MatterTaskCreateInput, PERMISSIONS, ROLES, type Role } from '@materia/domain';
 import { ENTITY_FACTORIES } from '@materia/test-utils';
 
 import { changeFor, COLLECTIONS, rolesFor, seedData, specFor, type CollectionSpec } from './support/collections';
@@ -242,14 +242,24 @@ describe('field-level rules', () => {
   const TIME = `${MATTER}/timeEntries/entry-1`;
   const reseed = (name: string) => seed(specFor(name));
 
-  it('overriding a deadline needs deadline.override', async () => {
+  it('a computed deadline is reassigned or acknowledged by clients, nothing else', async () => {
     await reseed('deadlines');
-    await assertFails(
-      updateDoc(doc(db(env, 'paralegal'), DEADLINE), stamped({ override: { reason: 'x' } }, uidFor('paralegal'))),
-    );
-    await assertSucceeds(
-      updateDoc(doc(db(env, 'lawyer'), DEADLINE), stamped({ override: { reason: 'x' } }, uidFor('lawyer'))),
-    );
+    const lawyer = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), DEADLINE);
+    // Overrides, dates, status and provenance go through the deadlines-* callables (CORE-10).
+    await assertFails(updateDoc(ref, stamped({ override: { reason: 'x' } }, lawyer)));
+    await assertFails(updateDoc(ref, stamped({ dueDate: '2027-02-01' }, lawyer)));
+    await assertFails(updateDoc(ref, stamped({ status: 'done' }, lawyer)));
+    await assertFails(updateDoc(ref, stamped({ title: 'Renamed' }, lawyer)));
+    await assertFails(updateDoc(ref, stamped({ assigneeUid: '' }, lawyer)));
+    await assertFails(updateDoc(ref, { ...stamped({}, lawyer), deletedAt: serverTimestamp(), deletedBy: lawyer }));
+    await assertFails(updateDoc(ref, stamped({ ackBy: uidFor('paralegal'), ackAt: serverTimestamp() }, lawyer)));
+    await assertSucceeds(updateDoc(ref, stamped({ ackBy: lawyer, ackAt: serverTimestamp() }, lawyer)));
+    await assertSucceeds(updateDoc(ref, stamped({ assigneeUid: uidFor('paralegal') }, lawyer)));
+    // A closed computed deadline is frozen.
+    await seedAdmin(env, (f) => setDoc(doc(f, DEADLINE), { ...seedData(specFor('deadlines')), status: 'done' }));
+    await assertFails(updateDoc(ref, stamped({ assigneeUid: lawyer }, lawyer)));
+    await reseed('deadlines');
   });
 
   it('a paralegal edits only their own time entries and cannot reassign them', async () => {
@@ -1339,6 +1349,212 @@ describe('tasks (CORE-08)', () => {
         ),
       );
     });
+  });
+});
+
+describe('deadlines (CORE-10)', () => {
+  const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-deadlines-privileged`;
+  const DELETED_MATTER = `orgs/${ORG}/matters/matter-deadlines-deleted`;
+  const MANUAL = `${MATTER}/deadlines/manual-1`;
+  const PARALEGAL = uidFor('paralegal');
+
+  /** A valid client create of a manual deadline, stamped for `uid`. */
+  const newDeadline = (uid: string, matterId = 'matter-1', extra: Record<string, unknown> = {}) => ({
+    orgId: ORG,
+    matterId,
+    title: 'Settlement under the fictional contract of sale',
+    dueDate: '2026-11-20',
+    dueTime: '16:00',
+    kind: 'contractual',
+    critical: false,
+    status: 'upcoming',
+    assigneeUid: uid,
+    reminders: [{ offsetDays: 7 }],
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+  const seedManual = (extra: Record<string, unknown> = {}) =>
+    seedAdmin(env, (f) =>
+      setDoc(doc(f, MANUAL), {
+        ...newDeadline(PARALEGAL),
+        createdAt: Timestamp.fromMillis(1),
+        updatedAt: Timestamp.fromMillis(1),
+        ...extra,
+      }),
+    );
+
+  beforeAll(async () => {
+    await seedAdmin(env, async (f) => {
+      const matter = seedData(specFor('matters'));
+      await setDoc(doc(f, PRIVILEGED_MATTER), { ...matter, privileged: true });
+      await setDoc(doc(f, DELETED_MATTER), { ...matter, deletedAt: Timestamp.fromMillis(1), deletedBy: 'x' });
+    });
+  });
+
+  it('the create whitelist matches ManualDeadlineCreateInput in libs/domain', () => {
+    const rules = readFileSync(path.resolve(import.meta.dirname, '../firestore.rules'), 'utf8');
+    const listed = /function manualDeadlineCreateFields\(\) \{\s*return \[([^\]]*)\]/.exec(rules)?.[1] ?? '';
+    const fields = [...listed.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]);
+    expect(fields.sort()).toEqual(Object.keys(ManualDeadlineCreateInput.shape).sort());
+  });
+
+  it.each(ROLES)('creating a manual deadline as %s follows task.edit', async (role) => {
+    const uid = uidFor(role);
+    const create = setDoc(doc(db(env, role), `${MATTER}/deadlines/new-${role}`), newDeadline(uid));
+    await (allows(role, 'task.edit') ? assertSucceeds(create) : assertFails(create));
+  });
+
+  it('a create needs the path’s org and matter, a manual kind, upcoming and valid values', async () => {
+    const firestore = db(env, 'paralegal');
+    const attempt = (id: string, extra: Record<string, unknown>, matterId = 'matter-1') =>
+      assertFails(setDoc(doc(firestore, `${MATTER}/deadlines/${id}`), newDeadline(PARALEGAL, matterId, extra)));
+    await attempt('bad-org', { orgId: OTHER_ORG });
+    await attempt('bad-matter', {}, 'matter-2');
+    await attempt('statutory', { kind: 'statutory' });
+    await attempt('done', { status: 'done' });
+    await attempt('computed', { computed: { ruleId: 'x' } });
+    await attempt('override', { override: { dueDate: '2026-11-21' } });
+    await attempt('past', { pastOnCreation: true });
+    await attempt('blank', { title: '  ' });
+    await attempt('long', { title: 'x'.repeat(301) });
+    await attempt('date', { dueDate: '20/11/2026' });
+    await attempt('time', { dueTime: '4pm' });
+    await attempt('critical', { critical: 'yes' });
+    await attempt('assignee', { assigneeUid: '' });
+    await attempt('reminders', { reminders: Array.from({ length: 11 }, () => ({ offsetDays: 1 })) });
+    await attempt('creator', { createdBy: 'someone-else' });
+    await attempt('version', { schemaVersion: 2 });
+    const noTime = newDeadline(PARALEGAL) as Record<string, unknown>;
+    delete noTime['dueTime'];
+    await assertSucceeds(setDoc(doc(firestore, `${MATTER}/deadlines/no-time`), noTime));
+    const noKind = newDeadline(PARALEGAL) as Record<string, unknown>;
+    delete noKind['kind'];
+    await assertFails(setDoc(doc(firestore, `${MATTER}/deadlines/no-kind`), noKind));
+    for (const kind of ['internal', 'court']) {
+      await assertSucceeds(
+        setDoc(doc(firestore, `${MATTER}/deadlines/k-${kind}`), newDeadline(PARALEGAL, 'matter-1', { kind })),
+      );
+    }
+  });
+
+  it('privileged and deleted matters', async () => {
+    const paralegal = db(env, 'paralegal');
+    await assertFails(
+      setDoc(doc(paralegal, `${PRIVILEGED_MATTER}/deadlines/p`), newDeadline(PARALEGAL, 'matter-deadlines-privileged')),
+    );
+    await assertSucceeds(
+      setDoc(
+        doc(db(env, 'lawyer'), `${PRIVILEGED_MATTER}/deadlines/l`),
+        newDeadline(uidFor('lawyer'), 'matter-deadlines-privileged'),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(db(env, 'lawyer'), `${DELETED_MATTER}/deadlines/d`),
+        newDeadline(uidFor('lawyer'), 'matter-deadlines-deleted'),
+      ),
+    );
+  });
+
+  it('a manual deadline’s whitelisted fields are edited while upcoming, with valid values', async () => {
+    await seedManual();
+    const ref = doc(db(env, 'paralegal'), MANUAL);
+    await assertSucceeds(
+      updateDoc(
+        ref,
+        stamped(
+          {
+            title: 'Settlement (moved by agreement)',
+            dueDate: '2026-11-27',
+            dueTime: '12:00',
+            kind: 'internal',
+            critical: true,
+            assigneeUid: uidFor('lawyer'),
+            reminders: [{ offsetDays: 1 }, { offsetDays: 7 }],
+          },
+          PARALEGAL,
+        ),
+      ),
+    );
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, PARALEGAL), dueTime: deleteField() }));
+    await assertSucceeds(updateDoc(ref, stamped({ ackBy: PARALEGAL, ackAt: serverTimestamp() }, PARALEGAL)));
+    await assertFails(updateDoc(ref, stamped({ kind: 'statutory' }, PARALEGAL)));
+    await assertFails(updateDoc(ref, stamped({ dueDate: 'soon' }, PARALEGAL)));
+    await assertFails(updateDoc(ref, stamped({ title: '' }, PARALEGAL)));
+    await assertFails(updateDoc(ref, stamped({ status: 'done' }, PARALEGAL)));
+    await assertFails(updateDoc(ref, stamped({ computed: { ruleId: 'x' } }, PARALEGAL)));
+    await assertFails(updateDoc(ref, stamped({ pastOnCreation: true }, PARALEGAL)));
+    await assertFails(updateDoc(ref, stamped({ ackBy: uidFor('lawyer'), ackAt: serverTimestamp() }, PARALEGAL)));
+    await assertFails(updateDoc(doc(db(env, 'readonly'), MANUAL), stamped({ title: 'x' }, uidFor('readonly'))));
+    // Closed: frozen, but it can still be soft deleted.
+    await seedManual({ status: 'done' });
+    await assertFails(updateDoc(ref, stamped({ title: 'Too late' }, PARALEGAL)));
+    await assertSucceeds(
+      updateDoc(ref, { ...stamped({}, PARALEGAL), deletedAt: serverTimestamp(), deletedBy: PARALEGAL }),
+    );
+    await assertFails(deleteDoc(ref));
+  });
+
+  it('events are read-only for clients', async () => {
+    const lawyer = db(env, 'lawyer');
+    await assertSucceeds(getDoc(doc(lawyer, `${MATTER}/events/doc-1`)));
+    await assertFails(
+      setDoc(doc(lawyer, `${MATTER}/events/new`), {
+        kind: 'date_of_death',
+        date: '2026-07-14',
+        meta: {},
+        createdAt: serverTimestamp(),
+        createdBy: uidFor('lawyer'),
+        updatedAt: serverTimestamp(),
+        updatedBy: uidFor('lawyer'),
+        schemaVersion: 1,
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(lawyer, `${MATTER}/events/doc-1`), stamped({ date: '2026-07-15' }, uidFor('lawyer'))),
+    );
+  });
+
+  it('proposals are read by members, across matters too, and never written by clients', async () => {
+    const paralegal = db(env, 'paralegal');
+    await assertSucceeds(getDoc(doc(paralegal, `${MATTER}/deadlineChanges/change-1`)));
+    await assertSucceeds(
+      getDocs(
+        query(
+          collectionGroup(paralegal, 'deadlineChanges'),
+          where('orgId', '==', ORG),
+          where('assigneeUid', '==', uidFor('lawyer')),
+          where('status', '==', 'pending'),
+        ),
+      ),
+    );
+    await assertFails(
+      getDocs(query(collectionGroup(db(env, 'owner', OTHER_ORG), 'deadlineChanges'), where('orgId', '==', ORG))),
+    );
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'lawyer'), `${MATTER}/deadlineChanges/change-1`),
+        stamped({ status: 'accepted' }, uidFor('lawyer')),
+      ),
+    );
+  });
+
+  it('the Deadlines screen and review queue queries', async () => {
+    const group = collectionGroup(db(env, 'lawyer'), 'deadlines');
+    await assertSucceeds(
+      getDocs(
+        query(group, where('orgId', '==', ORG), where('status', '==', 'upcoming'), orderBy('dueDate'), limit(100)),
+      ),
+    );
+    await assertSucceeds(
+      getDocs(
+        query(group, where('orgId', '==', ORG), where('status', '==', 'upcoming'), where('pastOnCreation', '==', true)),
+      ),
+    );
   });
 });
 
