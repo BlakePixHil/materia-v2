@@ -130,6 +130,8 @@ export interface MtTabBarItem {
   icon: MtIconName | MtIconNode;
   link: string | readonly unknown[];
   fab?: boolean;
+  /** Something actionable (unread), shown as a badge on the icon: as is up to 99, then "99+". */
+  count?: number;
 }
 
 /**
@@ -141,6 +143,25 @@ export interface MtTabBarItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrl: '../../generated/components/tabbar.css',
+  // The design has no TabBar badge yet; this one follows the sidebar count's type on the icon's corner.
+  styles: `
+    .mt-tabbar a {
+      position: relative;
+    }
+    .mt-tabbar a .mt-nav-count {
+      position: absolute;
+      top: -4px;
+      left: calc(50% + 4px);
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: var(--bg-brand);
+      color: var(--text-on-brand);
+      font: 500 10px/16px var(--font-mono);
+      text-align: center;
+    }
+  `,
   imports: [MtIcon, RouterLink, RouterLinkActive],
   host: { style: 'display: contents' },
   template: `
@@ -159,6 +180,10 @@ export interface MtTabBarItem {
           } @else {
             <mt-icon [name]="item.icon" [size]="20" />
             {{ item.label }}
+            <!-- After the label, so the link reads "Inbox 3" as the sidebar's does. -->
+            @if (item.count; as n) {
+              <span class="mt-nav-count">{{ n > 99 ? '99+' : n }}</span>
+            }
           }
         </a>
       }

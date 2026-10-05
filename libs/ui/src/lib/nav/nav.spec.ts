@@ -100,4 +100,20 @@ describe('MtTabBar', () => {
     await waitFor(() => expect(screen.getByRole('link', { name: 'Matters' })).toHaveAttribute('aria-current', 'page'));
     warn.mockRestore();
   });
+
+  it('badges a count on its icon, capped at 99+', async () => {
+    const items = [
+      { label: 'Today', icon: 'today', link: '/today', count: 0 },
+      { label: 'Matters', icon: 'matters', link: '/matters', count: 120 },
+      { label: 'Inbox', icon: 'inbox', link: '/inbox', count: 3 },
+    ];
+    await render(`<mt-tab-bar [items]="items" />`, {
+      imports: [MtTabBar],
+      providers: [provideRouter(routes)],
+      componentProperties: { items },
+    });
+    expect(screen.getByRole('link', { name: /^Inbox/ }).querySelector('.mt-nav-count')).toHaveTextContent('3');
+    expect(screen.getByRole('link', { name: /^Matters/ }).querySelector('.mt-nav-count')).toHaveTextContent('99+');
+    expect(screen.getByRole('link', { name: /^Today/ }).querySelector('.mt-nav-count')).toBeNull();
+  });
 });
