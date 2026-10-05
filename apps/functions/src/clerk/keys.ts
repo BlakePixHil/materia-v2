@@ -1,5 +1,5 @@
 import type { Timestamp } from 'firebase-admin/firestore';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { clerkModelFor } from '@materia/clerk';
 import {
