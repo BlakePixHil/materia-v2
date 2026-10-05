@@ -43,9 +43,14 @@ Client personal information is often sensitive: health information in capacity d
 - Secret Manager, with rotation runbooks.
 - OAuth refresh tokens are encrypted with Cloud KMS. Clients have no read path to them.
 
-**Hosting headers**
-- A strict CSP: `default-src 'self'`; Firebase and Google endpoints allow-listed. No inline scripts; Angular's `autoCsp` or nonces.
-- `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (microphone and camera only on the mobile capture routes).
+**Hosting headers (FND-22)** (`firebase.json` → `hosting.headers`)
+- An enforced CSP: `default-src 'self'`; Firebase and Google endpoints allow-listed (`*.googleapis.com`, `*.cloudfunctions.net`, `*.run.app`, reCAPTCHA, `apis.google.com` and the `<project>.firebaseapp.com` auth iframe for the sign-in popup). `object-src 'none'`, `frame-ancestors 'none'`, `base-uri` and `form-action 'self'`.
+- Inline scripts only by hash: the theme boot script and Angular's critical-CSS (Beasties) loader, both recorded in `apps/web/csp-hashes.json`. `materia-scripts csp check` fails a build whose `index.html` has any other inline script or an inline event handler; CI, previews and releases run it.
+- Allowed loosenings: `style-src 'unsafe-inline'` (Angular injects component styles; a static host can't nonce them), `'wasm-unsafe-eval'` (PDF.js image decoders) and `worker-src blob:`.
+- e2e runs against the Hosting emulator under the same policy plus `http://127.0.0.1:*` (`materia-scripts csp emulator-config`), so a change that the policy breaks fails CI.
+- `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(self), microphone=(self), geolocation=()`, `Cross-Origin-Opener-Policy: same-origin-allow-popups` (the Google sign-in popup).
+- Caching: `no-cache` by default (so `index.html` is always fresh), hashed root bundles `immutable` for a year, fonts and PDF.js assets one day.
+- HSTS: `*.web.app` is already HSTS-preloaded; add the header when a custom domain is set up.
 
 **Uploads**
 - Content-type and extension allow-list. Size limits of 50 MB for documents and 25 MB per migrated legacy file.

@@ -20,6 +20,7 @@ export const MemberListItemSchema = /* @__PURE__ */ z.object({
   initials: shape.initials.optional(),
   colour: shape.colour.optional(),
   title: shape.title.optional(),
+  admissionNo: shape.admissionNo,
   defaultRateCents: shape.defaultRateCents.optional(),
   rates: shape.rates.optional(),
   budgets: shape.budgets.optional(),

@@ -435,8 +435,13 @@ describe('the stocktake', () => {
 describe('the contact screen', () => {
   it('lists the testator’s packets and receives a new one for them', async () => {
     const page = await open('/contacts?contact=c-bram');
-    const section = page.body.querySelector('mt-contact-packets') as HTMLElement;
-    expect(page.text(section)).toContain('SC-000001');
+    // The section renders once the contact and then its packets have loaded, which a busy full run
+    // can take longer than one settle for.
+    const section = await vi.waitFor(() => {
+      const found = page.body.querySelector<HTMLElement>('mt-contact-packets');
+      expect(page.text(found)).toContain('SC-000001');
+      return found as HTMLElement;
+    });
     expect(page.text(section)).toContain('Geelong · Safe A · 1');
     await page.click('Receive a will', section);
     await page.stable(10);

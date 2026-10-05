@@ -7,7 +7,7 @@ import { firebaseApp } from '../../core/firebase-app';
 let storage: FirebaseStorage | undefined;
 
 /** The files bucket (the web config's `storageBucket`), on the emulator in local and e2e builds. */
-function filesStorage(): FirebaseStorage {
+export function filesStorage(): FirebaseStorage {
   if (storage) return storage;
   storage = getStorage(firebaseApp());
   if (environment.useEmulators) connectStorageEmulator(storage, '127.0.0.1', 9199);

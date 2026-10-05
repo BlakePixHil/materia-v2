@@ -9,8 +9,8 @@ import { OrgService } from '../../core/orgs/org-service';
 
 /**
  * Settings (`/settings`, CORE-21): a sidebar of the pages the person can open, grouped as in the
- * design (Firm, Practice, Records), and the page itself. Only owners and admins see more than the
- * team.
+ * design (You, Firm, Practice, Clerk, Records), and the page itself. Only owners and admins see
+ * more than their own profile and preferences and the team.
  */
 @Component({
   selector: 'mt-settings-layout',

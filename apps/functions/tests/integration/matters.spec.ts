@@ -96,7 +96,7 @@ async function signInAs(who: Role) {
   await signInWithEmailAndPassword(auth, `matters-${who}@example.test`, PASSWORD);
 }
 
-// 20 parallel creates contend on one counter; on a busy CI runner they outlast the SDK's 70 s
+// Parallel creates contend on one counter; on a busy CI runner they can outlast the SDK's 70 s
 // default, so allow up to the test's own 120 s.
 function call<T>(name: string, data: Record<string, unknown>) {
   return httpsCallable<Record<string, unknown>, T>(getFunctions(client, 'australia-southeast1'), name, {
@@ -163,16 +163,24 @@ afterAll(async () => {
   await deleteAdminApp(admin);
 });
 
+/**
+ * Creates racing for the same counter. Ten still contend on every number. At twenty the emulator's
+ * lock manager timed out transactions often enough (each retry backing off, while the Functions
+ * emulator started a worker per request) that the slowest calls took over 70 s.
+ */
+const PARALLEL = 10;
+const sequential = (seq: number) => `M-2026-${String(seq).padStart(4, '0')}`;
+
 describe('matters-createMatter', () => {
-  it('gives 20 parallel creates 20 distinct, sequential numbers', async () => {
+  it(`gives ${PARALLEL} parallel creates ${PARALLEL} distinct, sequential numbers`, async () => {
     await signInAs('lawyer');
     const results = await Promise.all(
-      Array.from({ length: 20 }, (_, i) => create(`Estate of Fictional Parallel ${i + 1}`)),
+      Array.from({ length: PARALLEL }, (_, i) => create(`Estate of Fictional Parallel ${i + 1}`)),
     );
     const numbers = results.map((r) => r.number).sort();
-    expect(numbers).toEqual(Array.from({ length: 20 }, (_, i) => `M-2026-${String(i + 1).padStart(4, '0')}`));
-    expect(new Set(results.map((r) => r.matterId)).size).toBe(20);
-    expect(await data(`orgs/${ORG}/counters/matter-2026`)).toMatchObject({ next: 21 });
+    expect(numbers).toEqual(Array.from({ length: PARALLEL }, (_, i) => sequential(i + 1)));
+    expect(new Set(results.map((r) => r.matterId)).size).toBe(PARALLEL);
+    expect(await data(`orgs/${ORG}/counters/matter-2026`)).toMatchObject({ next: PARALLEL + 1 });
 
     const first = results.find((r) => r.number === 'M-2026-0001') as CreateMatterResult;
     const stored = await data(`${M}/${first.matterId}`);
@@ -181,13 +189,13 @@ describe('matters-createMatter', () => {
     expect((await data(`${M}/${first.matterId}/parties/client-c-ada`))['role']).toBe('client');
     expect((await data(`orgs/${ORG}/matterNumbers/M-2026-0001`))['matterId']).toBe(first.matterId);
     const audit = await db.collection(`orgs/${ORG}/audit`).where('action', '==', 'matter.created').get();
-    expect(audit.size).toBe(20);
+    expect(audit.size).toBe(PARALLEL);
   }, 120_000);
 
   it('rolls the number year at midnight in Melbourne (pinned clock)', async () => {
     await signInAs('lawyer');
     await pinClock('2026-12-31T12:59:59Z');
-    expect((await create('Estate of Fictional New Year Eve')).number).toBe('M-2026-0021');
+    expect((await create('Estate of Fictional New Year Eve')).number).toBe(sequential(PARALLEL + 1));
     await pinClock('2026-12-31T13:00:00Z');
     expect((await create('Estate of Fictional New Year Day')).number).toBe('M-2027-0001');
     expect(await data(`orgs/${ORG}/counters/matter-2027`)).toMatchObject({ next: 2 });

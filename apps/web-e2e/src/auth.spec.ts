@@ -8,6 +8,7 @@ import {
   signInThroughUi,
   TEST_PASSWORD,
   uniqueEmail,
+  watchCspViolations,
 } from '@materia/test-utils/e2e';
 
 /**
@@ -17,6 +18,7 @@ import {
  */
 
 test('a signed-out visit goes to sign-in, then back to where it was going', async ({ page, request }) => {
+  const csp = watchCspViolations(page);
   const account = await createTestAccount(request);
   await page.goto('/matters');
   await expect(page).toHaveURL(/\/auth\/sign-in\?returnUrl=%2Fmatters$/);
@@ -29,6 +31,8 @@ test('a signed-out visit goes to sign-in, then back to where it was going', asyn
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   // Signing in waits on the emulators (token, org and MFA policy), which other workers keep busy.
   await expect(page).toHaveURL(/\/matters$/, { timeout: 20_000 });
+  await expect(page).toHaveTitle('Matters · Materia');
+  expect(csp(), 'Content Security Policy violations').toEqual([]);
 });
 
 test('sign-out leaves no cached Firestore data', async ({ page, request, isMobile }) => {

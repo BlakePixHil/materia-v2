@@ -13,16 +13,22 @@ export interface A11yOptions {
  * Waits for finite CSS transitions and animations to finish, so axe measures the settled UI. WebKit
  * animates a freshly rendered button's background from transparent, and a contrast check taken
  * mid-transition reads white text on near-white. Infinite animations (spinners, shimmer) are skipped.
+ *
+ * It first waits two frames: ng-primitives sets a dialog's `data-enter` (and so starts its fade-in
+ * from opacity 0) on the next animation frame, which on a busy WebKit runner could come after the
+ * dialog's text was already asserted, so the scan read the dialog mid-fade (CI: color-contrast on
+ * the Note history dialog).
  */
 export async function settleAnimations(page: Page): Promise<void> {
-  await page.evaluate(() =>
-    Promise.all(
+  await page.evaluate(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await Promise.all(
       document
         .getAnimations()
         .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
         .map((animation) => animation.finished.catch(() => undefined)),
-    ),
-  );
+    );
+  });
 }
 
 /** Fails the test with a readable list if axe finds any WCAG 2.2 AA violation on the page. */

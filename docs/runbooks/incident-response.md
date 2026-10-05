@@ -34,7 +34,7 @@ What to do when an alert fires or something is broken (FND-21). Materia is a sin
 | Callable errors over 2% | SEV-2 | Error Reporting for the top error. The dashboard shows which function. If it started with a deploy, roll back hosting and functions ([rollback.md](rollback.md)). |
 | Callable p95 latency over 3 s | SEV-3 | Dashboard: latency by function, Firestore reads, Cloud Run instances (cold starts after a deploy settle within minutes). |
 | Uptime check failing | SEV-1 | Open `https://<project>.web.app/health`. Down from 2+ regions is real. Check the last deploy and Google status. |
-| Firestore reads/writes over 3× the 7-day baseline | SEV-3 | Cost guard. Usually a listener loop in the web app or a trigger writing to what it listens to. Dashboard: invocations by service. |
+| Firestore reads/writes over 3× the 24-hour baseline | SEV-3 | Cost guard. Usually a listener loop in the web app or a trigger writing to what it listens to. Dashboard: invocations by service. |
 | Clerk monthly budget at 80% | SEV-3 | Usage is in `orgs/{orgId}/metrics/clerk-YYYY-MM`. Raise the org's `monthlyTokenBudget` or let it stop at 100% (`CLERK_BUDGET_EXCEEDED`). |
 | Scheduled job not running / Reminders not running | SEV-2 | Cloud Scheduler (job paused?) and the function's logs. Reminders catch up by themselves once the job runs again. |
 | Test alert | none | A delivery test. Nothing is wrong. |
