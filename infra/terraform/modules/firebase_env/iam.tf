@@ -68,13 +68,15 @@ locals {
 
 # firebase-tools sets the invoker policy on each function's Cloud Run service (public for blocking
 # functions, the runtime account for others). roles/run.developer can read that policy but not set it,
-# and roles/run.admin grants far more, so this custom role holds only the missing permission (ADR-023).
+# and roles/run.admin grants far more, so this custom role holds only the missing permissions (ADR-023).
+# Before creating a new HTTPS function the CLI also checks cloudfunctions.functions.setIamPolicy on the
+# project and stops without it (roles/cloudfunctions.developer lacks it).
 resource "google_project_iam_custom_role" "deployer_run_invoker" {
   project     = google_project.this.project_id
   role_id     = "deployerRunInvoker"
   title       = "Deployer: set Cloud Run invoker policy"
   description = "Lets the deployer set the invoker IAM policy on Cloud Run services created for functions."
-  permissions = ["run.services.setIamPolicy"]
+  permissions = ["run.services.setIamPolicy", "cloudfunctions.functions.setIamPolicy"]
   depends_on  = [time_sleep.services_ready]
 }
 
