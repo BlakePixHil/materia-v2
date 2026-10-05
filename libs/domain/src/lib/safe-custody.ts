@@ -16,7 +16,7 @@ import { searchTokensWithNumber } from './search';
 import { DateOnlySchema } from './values/date-only';
 
 /**
- * The will safe-custody register (CORE-17, ADR-034): packets of original wills, codicils, powers of
+ * The will safe-custody register (CORE-17, ADR-036): packets of original wills, codicils, powers of
  * attorney and enduring guardianship appointments, where each one is, and every movement with the
  * authority for it. Packets are written only through the `safeCustody-*` callables.
  */
@@ -101,13 +101,15 @@ export const RecordableMovementSchema = z.enum(['out', 'returned', 'released', '
 export type RecordableMovement = z.infer<typeof RecordableMovementSchema>;
 
 /** The statuses each movement starts from, and where it leaves the packet. */
-export const MOVEMENT_TRANSITIONS: Record<RecordableMovement, { from: readonly SafeCustodyStatus[]; to: SafeCustodyStatus }> =
-  {
-    out: { from: ['held'], to: 'out' },
-    returned: { from: ['out'], to: 'held' },
-    released: { from: ['held', 'out'], to: 'released' },
-    destroyed: { from: ['held'], to: 'destroyed' },
-  };
+export const MOVEMENT_TRANSITIONS: Record<
+  RecordableMovement,
+  { from: readonly SafeCustodyStatus[]; to: SafeCustodyStatus }
+> = {
+  out: { from: ['held'], to: 'out' },
+  returned: { from: ['out'], to: 'held' },
+  released: { from: ['held', 'out'], to: 'released' },
+  destroyed: { from: ['held'], to: 'destroyed' },
+};
 
 /** Movements that need a signed authority, a lawyer or above, and a recent sign-in. */
 export const AUTHORISED_MOVEMENTS: readonly RecordableMovement[] = ['released', 'destroyed'];

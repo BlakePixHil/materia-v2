@@ -489,7 +489,7 @@ export const SafeCustodyMovementSchema = z
 export type SafeCustodyMovement = z.infer<typeof SafeCustodyMovementSchema>;
 
 /**
- * `safeCustody/{id}`: an original will packet (CORE-17, ADR-034). Written only by the
+ * `safeCustody/{id}`: an original will packet (CORE-17, ADR-036). Written only by the
  * `safeCustody-*` callables, so every movement carries its authority. `testatorName`, `search` and
  * `locationKey` are denormalised for the register's search and the stocktake's order.
  */

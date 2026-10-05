@@ -2,6 +2,7 @@ import {
   attachmentDisposition,
   DomainError,
   DOWNLOAD_URL_TTL_SECONDS,
+  GET_EXPORT_URL_CALLABLE,
   GetExportUrlInput,
   ROLES,
   type GetExportUrlResult,
@@ -27,7 +28,7 @@ export function exportFileName(name: unknown): string {
  */
 export function getExportUrlDefinition(bucket: () => string = filesBucket) {
   return {
-    name: 'jobs-getExportUrl',
+    name: GET_EXPORT_URL_CALLABLE,
     input: GetExportUrlInput,
     roles: ROLES,
     handler: async ({ input, orgId, uid, db, ports, clock, log }): Promise<GetExportUrlResult> => {

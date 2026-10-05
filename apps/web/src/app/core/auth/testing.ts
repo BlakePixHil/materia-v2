@@ -6,6 +6,7 @@ import {
   type AuthPersistence,
   type AuthPort,
   type AuthSession,
+  type ReauthMethod,
   type SignInOutcome,
   type TotpEnrolment,
 } from './auth-port';
@@ -135,6 +136,14 @@ export class FakeAuthPort implements AuthPort {
     this.fail();
     if (password !== 'password') throw new AuthFlowError('invalid-credentials');
     if (this.session) this.emit({ ...this.session, authTime: Date.now() });
+  }
+
+  async reauthenticate(method: ReauthMethod): Promise<SignInOutcome> {
+    this.fail();
+    if (method.kind === 'password' && method.password !== 'password') throw new AuthFlowError('invalid-credentials');
+    if (this.mfaOnSignIn) return { kind: 'mfaRequired' };
+    if (this.session) this.emit({ ...this.session, authTime: Date.now() });
+    return { kind: 'signedIn' };
   }
 
   async refreshClaims(): Promise<void> {
