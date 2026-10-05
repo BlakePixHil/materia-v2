@@ -6,13 +6,13 @@ import { runCallable, type CallableDefinition, type CallableDeps } from './calla
 import { assertSessionAllowed, cachedSessionLookup, type SessionPolicy } from './sessions';
 import { auditExportDefinition } from '../audit/query';
 import { setApiKeyDefinition } from '../clerk/keys';
-import { memoryFirestore } from '../orgs/testing';
 import {
   changeRoleDefinition,
   removeMemberDefinition,
   suspendMemberDefinition,
   transferOwnershipDefinition,
 } from '../orgs/members';
+import { memoryFirestore } from '../orgs/testing';
 import { FakeClock, fakePorts } from '../ports/fakes';
 import { confirmDestructionDefinition } from '../safe-custody/confirm-destruction';
 import { recordMovementDefinition } from '../safe-custody/record-movement';

@@ -13,7 +13,6 @@ import { POLICY_WAIT_MS, SESSION_NOW, SessionPolicy } from './session-policy';
 import { FakeAuthPort, testSession } from './testing';
 import { FakeTenancyPort } from '../orgs/testing';
 
-const ORG = 'org-harbour-vine';
 const NOW = new Date('2026-10-06T00:00:00.000Z').getTime();
 const MINUTE = 60_000;
 const DAY = 86_400_000;
@@ -116,6 +115,8 @@ describe('SessionPolicy (SEC-04)', () => {
     expect(t.policy.mfaEnforced()).toBe(true);
     expect(t.policy.mfaGraceUntil()).toBeNull();
     expect(t.state.mfaRequired()).toBe(true);
+    // Mid-session, so the guards won't run: straight to set-up.
+    expect(t.navigate).toHaveBeenCalledWith('/auth/mfa/enrol');
   });
 
   it('makes the MFA guard wait for the policy, then send a member without MFA to set it up', async () => {

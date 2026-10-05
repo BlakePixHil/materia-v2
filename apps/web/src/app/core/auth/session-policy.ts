@@ -48,6 +48,16 @@ export class SessionPolicy {
   private drivingMfa = false;
   private readonly waiters: (() => void)[] = [];
 
+  /** The member whose policy applies: from the auth session, none while signing out. */
+  private readonly target = computed(
+    () => {
+      const session = this.auth.session();
+      const orgId = session?.claims.orgId;
+      return session && orgId && !this.auth.signingOut() ? { uid: session.uid, orgId } : null;
+    },
+    { equal: (a, b) => a?.uid === b?.uid && a?.orgId === b?.orgId },
+  );
+
   readonly mfaEnforced = computed(() => {
     const policy = this.policy();
     return !!policy && mfaEnforced(policy, this.now());
@@ -76,20 +86,24 @@ export class SessionPolicy {
 
   constructor() {
     const destroyRef = inject(DestroyRef);
+    // Follows the signed-in member's org from the auth session (the guards wait on it before
+    // OrgContext is set), and again after OrgContext restarts every listener (`generation`).
+    let followed: string | null = null;
     effect((onCleanup) => {
-      const uid = this.context.uid();
-      const orgId = this.context.orgId();
+      const target = this.target();
       this.context.generation();
-      this.security.set(undefined);
+      const key = target && `${target.uid}/${target.orgId}`;
+      if (key !== followed) this.security.set(undefined);
+      followed = key;
       const port = this.port;
-      if (!uid || !orgId || !port?.watchSecurity) {
+      if (!target || !port?.watchSecurity) {
         this.release();
         return;
       }
       const watch = port.watchSecurity.bind(port);
       // Untracked: a port may call back at once, inside this effect.
       const stop = untracked(() =>
-        watch(orgId, uid, (security) =>
+        watch(target.orgId, target.uid, (security) =>
           untracked(() => {
             this.security.set(security);
             // Before the guards waiting on it go on, not when the effect below next runs.
@@ -99,6 +113,13 @@ export class SessionPolicy {
         ),
       );
       onCleanup(stop);
+    });
+
+    // MFA becoming mandatory mid-session (the grace period ending, or none given): set it up now.
+    effect(() => {
+      if (this.auth.status() !== 'needsMfa') return;
+      const url = untracked(() => this.router.url);
+      if (!url.startsWith('/auth/')) void untracked(() => this.router.navigateByUrl('/auth/mfa/enrol'));
     });
 
     effect(() => this.syncMfaRequired());
@@ -126,7 +147,7 @@ export class SessionPolicy {
 
   /** Resolves once the policy is known (or there's none to wait for), or after `POLICY_WAIT_MS`. */
   whenLoaded(): Promise<void> {
-    if (this.security() !== undefined || !this.context.uid() || !this.context.orgId() || !this.port?.watchSecurity) {
+    if (this.security() !== undefined || !this.target() || !this.port?.watchSecurity) {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
