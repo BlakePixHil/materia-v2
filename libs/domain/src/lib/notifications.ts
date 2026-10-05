@@ -100,6 +100,7 @@ export const INBOX_FILTER_OF = {
   document_infected: 'system',
   integration_error: 'system',
   export_ready: 'system',
+  safe_custody: 'system',
   budget_alert: 'system',
   system: 'system',
 } as const satisfies Record<NotificationKind, Exclude<InboxFilter, 'all'>>;
