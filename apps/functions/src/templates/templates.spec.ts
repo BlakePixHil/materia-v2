@@ -3,13 +3,17 @@ import { randomUUID } from 'node:crypto';
 import type { Role } from '@materia/domain';
 
 import { applyDefinition } from './apply';
+import { fillFromKeyFacts, fillPendingDueDates } from './fill-pending';
 import { cloneDefinition, publishDefinition, saveDefinition } from './manage';
 import { clearRetentionCache } from '../audit/retention';
 import { runCallable, type CallableDeps } from '../core/callable';
 import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
+import type { TriggerChange, TriggerContext } from '../core/trigger';
+import { upsertEventDefinition } from '../deadlines/events';
 import { changeStageDefinition } from '../matters/change-stage';
 import { createMatterDefinition } from '../matters/create';
+import { denormaliseDefinition } from '../matters/denormalise';
 import { upgradeTemplateDefinition } from '../matters/upgrade-template';
 import { memoryFirestore } from '../orgs/testing';
 import { FakeClock, fakePorts } from '../ports/fakes';
@@ -323,6 +327,19 @@ describe('matters-changeStage with templates', () => {
     });
   });
 
+  it('counts a cancelled task as meeting a stage’s tasksDone requirement (CORE-07b)', async () => {
+    const w = world();
+    const { matterId } = await w.create();
+    w.completeTask(matterId, 'obtain_death_certificate');
+    const cancel = `${M}/${matterId}/tasks/tpl-retrieve_original_will`;
+    w.docs.set(cancel, { ...w.doc(cancel), status: 'blocked' });
+    expect((await failureOf(w.stage(matterId, 'documents'))).details).toMatchObject({
+      tasks: ['retrieve_original_will'],
+    });
+    w.docs.set(cancel, { ...w.doc(cancel), status: 'cancelled' });
+    await expect(w.stage(matterId, 'documents')).resolves.toMatchObject({ stageId: 'documents' });
+  });
+
   it('reads the matter’s own template version, so a later publish doesn’t change its stages', async () => {
     const w = world();
     const { templateId } = await w.clone({ sourceTemplateId: 'system-will' });
@@ -499,5 +516,140 @@ describe('templates-clone, templates-save and templates-publish', () => {
       code: 'FAILED_PRECONDITION',
       details: { reason: 'stage_unmapped' },
     });
+  });
+});
+
+describe('pending template due dates (CORE-07b)', () => {
+  const pendingMatter = () =>
+    newMatter({ deceased: { contactId: 'c-bertram', domicile: 'VIC', lastAddress: 'Geelong VIC' } });
+  const taskPath = (matterId: string, key: string) => `${M}/${matterId}/tasks/tpl-${key}`;
+  /** Sets fields on the stored matter and runs `matters-denormalise` for the write. */
+  const editMatter = async (
+    w: ReturnType<typeof world>,
+    matterId: string,
+    edit: (m: Record<string, unknown>) => void,
+  ) => {
+    const path = `${M}/${matterId}`;
+    const before = structuredClone(w.doc(path) as Record<string, unknown>);
+    const after = structuredClone(before);
+    edit(after);
+    w.docs.set(path, after);
+    const change = {
+      before: { ref: { path }, data: () => before },
+      after: { ref: { path }, data: () => after },
+    } as unknown as TriggerChange;
+    const ctx = {
+      eventId: randomUUID(),
+      time: w.clock.now(),
+      params: { orgId: ORG, matterId },
+      log: createLog({ fn: 'test' }, () => undefined),
+      clock: w.clock,
+      db: w.db,
+      ports: fakePorts(),
+    } as unknown as TriggerContext;
+    return { change, ctx };
+  };
+  const recordEvent = (w: ReturnType<typeof world>, matterId: string, kind: string, date: string) =>
+    upsertEventDefinition.handler(w.ctx({ matterId, kind, date }) as never);
+
+  it('fills a date-of-death task when the event is recorded, as the maths at creation would', async () => {
+    const w = world();
+    const { matterId } = await w.create(pendingMatter());
+    expect(w.doc(taskPath(matterId, 'notify_centrelink'))).toMatchObject({ duePending: 'date_of_death' });
+    w.clock.set(new Date('2026-10-05T01:00:00.000Z'));
+    const result = await recordEvent(w, matterId, 'date_of_death', '2026-08-01');
+    expect(result.filledTaskIds).toEqual(['tpl-notify_centrelink']);
+    const task = w.doc(taskPath(matterId, 'notify_centrelink'));
+    expect(task).toMatchObject({ dueDate: '2026-08-29', updatedBy: 'user-lawyer' });
+    expect(task).not.toHaveProperty('duePending');
+    // Recording it again (or editing the date) never moves the filled date.
+    const again = await recordEvent(w, matterId, 'date_of_death', '2026-07-01');
+    expect(again.filledTaskIds).toEqual([]);
+    expect(w.doc(taskPath(matterId, 'notify_centrelink'))?.['dueDate']).toBe('2026-08-29');
+  });
+
+  it('fills it from the key fact set on the matter, through matters-denormalise, as system', async () => {
+    const w = world();
+    const { matterId } = await w.create(pendingMatter());
+    w.clock.set(new Date('2026-10-05T01:00:00.000Z'));
+    const { change, ctx } = await editMatter(w, matterId, (m) => {
+      (m['deceased'] as Record<string, unknown>)['dateOfDeath'] = '2026-08-01';
+    });
+    await denormaliseDefinition.handler(change, ctx);
+    const task = w.doc(taskPath(matterId, 'notify_centrelink'));
+    expect(task).toMatchObject({ dueDate: '2026-08-29', updatedBy: 'system' });
+    expect(task).not.toHaveProperty('duePending');
+    expect((task?.['updatedAt'] as { toDate: () => Date }).toDate()).toEqual(new Date('2026-10-05T01:00:00.000Z'));
+    // Idempotent: the same event again (and the trigger's next run) finds nothing to fill.
+    w.clock.set(new Date('2026-10-06T01:00:00.000Z'));
+    expect(await fillFromKeyFacts(change, ctx)).toEqual([]);
+    expect(w.doc(taskPath(matterId, 'notify_centrelink'))).toEqual(task);
+  });
+
+  it('fills a grant-issued task from estate.grantDate', async () => {
+    const w = world();
+    const { matterId } = await w.create();
+    const path = taskPath(matterId, 'confirm_no_fp_claim');
+    w.docs.set(path, {
+      ...w.doc(taskPath(matterId, 'take_instructions')),
+      title: 'Confirm no family provision claim',
+      templateTaskKey: 'confirm_no_fp_claim',
+      dueDate: undefined,
+      duePending: 'grant_issued',
+    });
+    const { change, ctx } = await editMatter(w, matterId, (m) => {
+      m['estate'] = { grantDate: '2026-09-01' };
+    });
+    expect(await fillFromKeyFacts(change, ctx)).toEqual(['tpl-confirm_no_fp_claim']);
+    expect(w.doc(path)).toMatchObject({ dueDate: '2027-03-04', updatedBy: 'system' });
+    expect(w.doc(path)).not.toHaveProperty('duePending');
+  });
+
+  it('leaves done, cancelled, deleted and hand-dated tasks alone', async () => {
+    const w = world();
+    const { matterId } = await w.create(pendingMatter());
+    const base = w.doc(taskPath(matterId, 'notify_centrelink')) as Record<string, unknown>;
+    const variants: Record<string, Record<string, unknown>> = {
+      done_one: { status: 'done' },
+      cancelled_one: { status: 'cancelled' },
+      deleted_one: { deletedAt: new Date('2026-10-03T00:00:00Z'), deletedBy: 'user-lawyer' },
+      // A date set by hand: clients can set dueDate but not clear the server-owned duePending.
+      hand_dated: { dueDate: '2026-11-20', updatedBy: 'user-lawyer' },
+    };
+    for (const [key, extra] of Object.entries(variants)) {
+      w.docs.set(taskPath(matterId, key), { ...base, templateTaskKey: 'notify_centrelink', ...extra });
+    }
+    const before = Object.keys(variants).map((key) => structuredClone(w.doc(taskPath(matterId, key))));
+    const { change, ctx } = await editMatter(w, matterId, (m) => {
+      (m['deceased'] as Record<string, unknown>)['dateOfDeath'] = '2026-08-01';
+    });
+    expect(await fillFromKeyFacts(change, ctx)).toEqual(['tpl-notify_centrelink']);
+    expect(Object.keys(variants).map((key) => w.doc(taskPath(matterId, key)))).toEqual(before);
+    // The event path applies the same rules.
+    w.docs.set(taskPath(matterId, 'notify_centrelink'), { ...base, status: 'cancelled' });
+    expect((await recordEvent(w, matterId, 'date_of_death', '2026-08-01')).filledTaskIds).toEqual([]);
+  });
+
+  it('does nothing for an unrelated edit, a deleted matter or one without a template', async () => {
+    const w = world();
+    const { matterId } = await w.create(pendingMatter());
+    const title = await editMatter(w, matterId, (m) => {
+      m['title'] = 'Estate of Fictional Quillon';
+    });
+    expect(await fillFromKeyFacts(title.change, title.ctx)).toEqual([]);
+    const deleted = await editMatter(w, matterId, (m) => {
+      (m['deceased'] as Record<string, unknown>)['dateOfDeath'] = '2026-08-01';
+      m['deletedAt'] = new Date('2026-10-04T00:00:00Z');
+    });
+    expect(await fillFromKeyFacts(deleted.change, deleted.ctx)).toEqual([]);
+    expect(w.doc(taskPath(matterId, 'notify_centrelink'))).toMatchObject({ duePending: 'date_of_death' });
+    const log = createLog({ fn: 'test' }, () => undefined);
+    const fill = (id: string) =>
+      fillPendingDueDates(w.db, { orgId: ORG, matterId: id, kinds: ['date_of_death'], clock: w.clock, log });
+    expect(await fill(matterId)).toEqual([]);
+    expect(await fill('missing')).toEqual([]);
+    const plain = await world({ templates: false }).create(pendingMatter());
+    expect(await fill(plain.matterId)).toEqual([]);
+    expect(await fillPendingDueDates(w.db, { orgId: ORG, matterId, kinds: [], clock: w.clock, log })).toEqual([]);
   });
 });
