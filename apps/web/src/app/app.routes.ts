@@ -4,6 +4,7 @@ import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgScopedGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
+import { startPagePath } from './core/profile/start-page';
 import { readLayout } from './features/matters/matters-layout';
 import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
 import { unsavedChangesGuard } from './features/settings/unsaved-changes';
@@ -131,7 +132,8 @@ const matterRoutes: Route[] = [
 
 /** The shell's pages (FND-12). Every feature is lazily loaded (ADR-002). */
 const shellRoutes: Route[] = [
-  { path: '', pathMatch: 'full', redirectTo: 'today' },
+  // The person's start page (CORE-20): Today unless they chose Matters.
+  { path: '', pathMatch: 'full', redirectTo: () => startPagePath() },
   // Today: what needs me, what's due this week, my tasks and recent matters (CORE-14).
   {
     path: 'today',
@@ -219,6 +221,20 @@ const shellRoutes: Route[] = [
           const role = inject(AuthState).claims().role;
           return role === 'owner' || role === 'admin' ? 'practice' : 'team';
         },
+      },
+      // The person's own profile and preferences (CORE-20): everyone.
+      {
+        path: 'profile',
+        title: 'Profile',
+        data: { crumb: 'Profile' },
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/profile/profile-page').then((m) => m.ProfilePage),
+      },
+      {
+        path: 'preferences',
+        title: 'Preferences',
+        data: { crumb: 'Preferences' },
+        loadComponent: () => import('./features/profile/preferences-page').then((m) => m.PreferencesPage),
       },
       {
         path: 'practice',

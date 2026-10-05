@@ -22,6 +22,7 @@ import {
 } from '@angular/core';
 
 import { MtIcon } from '../icon/icon';
+import { DensityService } from '../theme/density.service';
 
 export type MtSortDirection = 'asc' | 'desc';
 
@@ -228,7 +229,7 @@ export function virtualWindow(
         class="mt-table"
         [attr.aria-label]="label()"
         [attr.aria-rowcount]="virtual() ? items().length + 1 : null"
-        [attr.data-density]="density() === 'compact' ? 'compact' : null"
+        [attr.data-density]="effectiveDensity() === 'compact' ? 'compact' : null"
       >
         <thead>
           <tr [attr.aria-rowindex]="virtual() ? 1 : null">
@@ -367,7 +368,8 @@ export class MtTable<T> {
   readonly sort = model<MtSort | null>(null);
   /** `client` sorts `rows` here; `external` only reports the sort for the caller to apply. */
   readonly sortMode = input<'client' | 'external'>('client');
-  readonly density = input<MtTableDensity>('comfortable');
+  /** Row height; the person's density preference (CORE-20) when not set. */
+  readonly density = input<MtTableDensity | undefined>(undefined);
   /** Virtualise from this many rows. */
   readonly virtualThreshold = input(200);
   /** Height of the scroll container (CSS); virtual tables default to 480px. */
@@ -409,7 +411,9 @@ export class MtTable<T> {
   /** The body lines: group headers and rows. Virtual scrolling windows over these. */
   protected readonly items = computed(() => tableItems(this.sortedRows(), this.groupBy()));
   protected readonly virtual = computed(() => this.items().length >= this.virtualThreshold());
-  protected readonly rowHeight = computed(() => MT_TABLE_ROW_HEIGHT[this.density()]);
+  private readonly preferredDensity = inject(DensityService).density;
+  protected readonly effectiveDensity = computed(() => this.density() ?? this.preferredDensity());
+  protected readonly rowHeight = computed(() => MT_TABLE_ROW_HEIGHT[this.effectiveDensity()]);
   protected readonly scrollHeight = computed(() => this.maxHeight() ?? (this.virtual() ? '480px' : null));
   protected readonly window = computed(() => {
     const total = this.items().length;

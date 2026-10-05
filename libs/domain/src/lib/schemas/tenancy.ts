@@ -199,7 +199,14 @@ export const User = withMeta(
       notifications: NotificationPrefsSchema,
       /** The person's IANA time zone for quiet hours and the digest; the org's when absent. */
       timezone: z.string().min(1).max(64).optional(),
+      /** Where signing in (or `/`) lands (CORE-20); Today when absent. */
+      startPage: z.enum(['today', 'matters']).optional(),
     }),
+    /**
+     * The download URL of `users/{uid}/avatar.png` (CORE-20), set by its owner after uploading the
+     * cropped 512px square; absent shows initials.
+     */
+    avatarUrl: z.url().max(2048).optional(),
     /**
      * Set by the Postmark bounce and spam webhook (FND-20): mail to this address bounced hard or
      * was reported as spam, so nothing more is emailed to it.
@@ -217,7 +224,7 @@ export const User = withMeta(
     path: 'users',
     // The active org changes only through `orgs-switchActiveOrg`, which also sets the claims.
     serverOwned: ['orgIds', 'activeOrgId', 'claimsVersion', 'memberships', 'emailDeliverability', 'legacy'],
-    updatable: ['displayName', 'firstName', 'lastName', 'prefs'],
+    updatable: ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl'],
   },
 );
 

@@ -192,9 +192,15 @@ resource "google_monitoring_alert_policy" "clerk_budget" {
   user_labels = var.labels
 }
 
-# A scheduled job that hasn't logged "ok" for twice its period, capped at 24.5 hours: PromQL alerts
-# on log-based metrics can't look back more than 1d1h (and condition_absent stops at 23.5 hours), so
-# a daily job alerts after one missed run plus half an hour.
+# A scheduled job that hasn't logged "ok" for twice its period, capped at 24.5 hours: a PromQL query
+# that reads a log-based metric can't look back more than 1d1h anywhere in it (and condition_absent
+# stops at 23.5 hours), so a daily job alerts after one missed run plus half an hour.
+#
+# The guard keeps a new environment, or a job not deployed yet, from alerting on day one:
+# - jobs that run at least twice a day: the job logged a run in the last day, so a stopped job
+#   (paused scheduler included) alerts for a day before the guard goes quiet;
+# - daily jobs: Cloud Run served the job a request in the last day, so a job that's invoked but
+#   fails alerts (a paused daily scheduler stays silent).
 resource "google_monitoring_alert_policy" "scheduled_job" {
   for_each = var.scheduled_jobs
 
@@ -205,10 +211,12 @@ resource "google_monitoring_alert_policy" "scheduled_job" {
   conditions {
     display_name = "No ${each.key} run in ${min(each.value * 2, 88200) / 60} minutes"
     condition_prometheus_query_language {
-      # Silent until the job's Cloud Run service has served a request in the last week (Cloud
-      # Run's own metric, which can look back that far), so a new environment, or a job not
-      # deployed yet, doesn't alert on day one.
-      query               = "absent_over_time(${local.job_runs}{monitored_resource=\"cloud_run_revision\",fn=\"${each.key}\"}[${min(each.value * 2, 88200)}s]) and on() (sum(increase(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"${lower(each.key)}\"}[7d])) > 0)"
+      query = join(" and on() ", [
+        "absent_over_time(${local.job_runs}{monitored_resource=\"cloud_run_revision\",fn=\"${each.key}\"}[${min(each.value * 2, 88200)}s])",
+        each.value * 2 <= 86400
+        ? "(sum(count_over_time(${local.job_runs}{monitored_resource=\"cloud_run_revision\",fn=\"${each.key}\"}[1d])) > 0)"
+        : "(sum(increase(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"${lower(each.key)}\"}[1d])) > 0)",
+      ])
       duration            = "0s"
       evaluation_interval = "300s"
     }
