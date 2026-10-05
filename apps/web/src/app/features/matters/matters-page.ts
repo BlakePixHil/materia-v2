@@ -8,6 +8,9 @@ import {
   signal,
   untracked,
   viewChild,
+  ViewContainerRef,
+  type ComponentRef,
+  type Type,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -18,6 +21,7 @@ import {
   contactsRepository,
   hasMatterFilters,
   MATTER_CALLABLES,
+  MATTER_CLIENT_FILTER_LIMIT,
   matterMatchesFilters,
   matterQueryPlan,
   mattersRepository,
@@ -54,20 +58,25 @@ import {
   MtNote,
   MtPriorityIcon,
   MtSearchField,
+  MtSegmentedControl,
   MtTable,
   MtTableCell,
   sortRows,
   ToastService,
+  type MtOption,
   type MtSort,
   type MtTableColumn,
 } from '@materia/ui';
 
 import { MatterNameDialog, type MatterNameDialogData } from './matter-name-dialog';
+import { boardColumns, boardFilters, boardKind, onBoard } from './matters-board-view';
 import { MattersBulkBar, type MatterAssignee } from './matters-bulk-bar';
+import { readSwimlanes, writeLayout, writeSwimlanes, type MattersLayout } from './matters-layout';
 import {
   bulkStatusSummary,
   changeStatusErrorCopy,
   cleanFilters,
+  DEFAULT_SORT,
   DEFAULT_VIEW_ID,
   DEFAULT_VIEW_OPTIONS,
   formatWip,
@@ -89,6 +98,7 @@ import {
 import { CommandRegistry } from '../../core/commands/command-registry';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 
@@ -99,11 +109,20 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
   responsible: 'Responsible',
 };
 
+const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
+  { value: 'list', label: 'List', icon: 'list' },
+  { value: 'board', label: 'Board', icon: 'board' },
+];
+
 /**
  * Matters (`/matters`, CORE-03): every matter in a table, with filters, grouping, saved views and
  * bulk actions, as in the design system's Matters list. The view is in the URL (`?view=<id>`;
  * "My open matters" by default). Keyboard: `j`/`k` move, Enter opens, `x` selects, `/` searches,
  * `c` starts a new matter.
+ *
+ * The same page at `/matters/board` (route data `layout: 'board'`, CORE-04) shows the view's
+ * matters as a board instead (`MattersBoard`, loaded on first use); the List/Board switch in the
+ * header remembers the layout. Filters and views are shared; "Group by" gives way to swimlanes.
  */
 @Component({
   selector: 'mt-matters-page',
@@ -122,12 +141,19 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
     MtPageActions,
     MtPriorityIcon,
     MtSearchField,
+    MtSegmentedControl,
     MtTable,
     MtTableCell,
     MattersBulkBar,
   ],
   template: `
     <ng-template mtPageActions>
+      <mt-segmented-control
+        label="Matters layout"
+        [options]="layoutOptions"
+        [ngModel]="layout"
+        (ngModelChange)="setLayout($event)"
+      />
       @if (canCreate()) {
         <a mtButton variant="primary" size="sm" iconStart="plus" kbd="c" routerLink="/matters/new">New matter</a>
       }
@@ -162,9 +188,26 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
       >
         <mt-icon name="alert" />Has overdue
       </button>
-      <button type="button" class="mt-chip" [attr.data-selected]="on(groupBy() !== 'none')" [mtMenuTrigger]="groupMenu">
-        Group: {{ groupLabels[groupBy()] }}<mt-icon name="chevron-down" />
-      </button>
+      @if (layout === 'board') {
+        <button
+          type="button"
+          class="mt-chip"
+          [attr.data-selected]="on(swimlanes())"
+          [attr.aria-pressed]="swimlanes()"
+          (click)="toggleSwimlanes()"
+        >
+          <mt-icon name="user" />Swimlanes by responsible
+        </button>
+      } @else {
+        <button
+          type="button"
+          class="mt-chip"
+          [attr.data-selected]="on(groupBy() !== 'none')"
+          [mtMenuTrigger]="groupMenu"
+        >
+          Group: {{ groupLabels[groupBy()] }}<mt-icon name="chevron-down" />
+        </button>
+      }
       @if (filtered()) {
         <button mtButton variant="ghost" size="sm" (click)="clearFilters()">Clear filters</button>
       }
@@ -186,125 +229,156 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
     @if (plan()?.notice; as notice) {
       <p class="mt-matters-notice" role="status"><mt-icon name="info" />{{ notice }}</p>
     }
+    @if (layout === 'board' && boardBy() === 'status' && f().status?.length) {
+      <p class="mt-matters-notice">
+        <mt-icon name="info" />The board shows every status as a column, so the status filter applies to the list only.
+      </p>
+    }
 
-    <div class="mt-matters-rows">
-      @switch (matters.status()) {
-        @case ('error') {
-          <mt-note tone="danger">
-            {{ listError() }}
-            <button mtButton size="sm" (click)="matters.refresh()">Try again</button>
-          </mt-note>
+    @if (layout === 'board') {
+      <div class="mt-matters-board">
+        @switch (matters.status()) {
+          @case ('error') {
+            <mt-note tone="danger">
+              {{ listError() }}
+              <button mtButton size="sm" (click)="matters.refresh()">Try again</button>
+            </mt-note>
+          }
+          @case ('offline') {
+            <mt-note role="status"
+              >You’re offline. These are the matters as they were when you were last connected.</mt-note
+            >
+          }
         }
-        @case ('offline') {
-          <mt-note role="status"
-            >You’re offline. These are the matters as they were when you were last connected.</mt-note
-          >
-        }
-        @case ('loading') {
+        @if (ready()) {
+          <ng-container #boardHost />
+          @if (!board()) {
+            <p role="status" class="mt-matters-muted">Loading the board…</p>
+          }
+        } @else if (matters.status() === 'loading') {
           <p role="status" class="mt-matters-muted">Loading matters…</p>
         }
-      }
-      @if (matters.newItems(); as count) {
-        <button mtButton size="sm" (click)="matters.refresh()">
-          {{ count === 1 ? '1 new matter' : count + ' new matters' }}
-        </button>
-      }
-      @if (ready()) {
-        <mt-table
-          #table
-          label="Matters"
-          density="compact"
-          sortMode="external"
-          maxHeight="none"
-          [selectable]="true"
-          [rows]="rows()"
-          [columns]="columns"
-          [rowKey]="rowKey"
-          [rowLabel]="rowLabel"
-          [groupBy]="groupOf()"
-          [sort]="tableSort()"
-          (sortChange)="sortBy($event)"
-          [(selection)]="selection"
-          (open)="openMatter($event)"
-          (endReached)="loadMore()"
-          (focusin)="onRowFocus($event)"
-        >
-          <ng-template mtCell="number" let-cell>
-            @let row = asRow(cell);
-            @if (linkOf(row); as url) {
-              <a
-                class="mt-matters-link"
-                [href]="url"
-                target="_blank"
-                rel="noopener noreferrer"
-                [attr.aria-label]="row.number + '. Open the linked matter in a new tab'"
-                (click)="$event.stopPropagation()"
-                (keydown.enter)="$event.stopPropagation()"
-                >{{ row.number }}<mt-icon name="link" [size]="14"
-              /></a>
-            } @else {
-              {{ row.number }}
-            }
-          </ng-template>
-          <ng-template mtCell="title" let-cell>
-            @let row = asRow(cell);
-            <span class="mt-matters-title">
-              <mt-priority-icon [level]="row.priority" />
-              <span class="title mt-ell">{{ row.title }}</span>
-            </span>
-          </ng-template>
-          <ng-template mtCell="type" let-cell>
-            @let row = asRow(cell);
-            <mt-matter-tag [type]="row.type" />
-          </ng-template>
-          <ng-template mtCell="responsible" let-cell>
-            @let row = asRow(cell);
-            <mt-avatar
-              size="sm"
-              [name]="memberName(row.responsibleUid)"
-              [colorKey]="row.responsibleUid"
-              [tooltip]="true"
-            />
-          </ng-template>
-          <ng-template mtCell="nextDeadline" let-cell>
-            @let row = asRow(cell);
-            @if (row.nextDeadline; as next) {
-              <mt-deadline-chip [due]="next.dueDate" [critical]="next.critical" [trace]="next.title" />
-            } @else {
-              <span class="mt-matters-muted">—</span>
-            }
-          </ng-template>
-          <div mtTableEmpty>
-            @if (filtered()) {
-              <mt-empty-state
-                title="No matters match"
-                description="Nothing matches these filters. Clear them to see every matter in this view."
-                icon="search"
-                [headingLevel]="2"
-              >
-                <button mtButton size="sm" (click)="clearFilters()">Clear filters</button>
-              </mt-empty-state>
-            } @else {
-              <mt-empty-state
-                title="No matters yet"
-                description="Matters you open, from intake to grant, show here."
-                icon="matters"
-                [headingLevel]="2"
-              >
-                @if (canCreate()) {
-                  <a mtButton variant="primary" size="sm" iconStart="plus" routerLink="/matters/new">New matter</a>
-                }
-              </mt-empty-state>
-            }
-          </div>
-        </mt-table>
-      }
-      @if (plan()?.mode === 'paged' && matters.hasMore()) {
-        <button mtButton size="sm" class="mt-matters-more" [loading]="matters.loadingMore()" (click)="loadMore()">
-          Show more matters
-        </button>
-      }
-    </div>
+      </div>
+    } @else {
+      <div class="mt-matters-rows">
+        @switch (matters.status()) {
+          @case ('error') {
+            <mt-note tone="danger">
+              {{ listError() }}
+              <button mtButton size="sm" (click)="matters.refresh()">Try again</button>
+            </mt-note>
+          }
+          @case ('offline') {
+            <mt-note role="status"
+              >You’re offline. These are the matters as they were when you were last connected.</mt-note
+            >
+          }
+          @case ('loading') {
+            <p role="status" class="mt-matters-muted">Loading matters…</p>
+          }
+        }
+        @if (matters.newItems(); as count) {
+          <button mtButton size="sm" (click)="matters.refresh()">
+            {{ count === 1 ? '1 new matter' : count + ' new matters' }}
+          </button>
+        }
+        @if (ready()) {
+          <mt-table
+            #table
+            label="Matters"
+            density="compact"
+            sortMode="external"
+            maxHeight="none"
+            [selectable]="true"
+            [rows]="rows()"
+            [columns]="columns"
+            [rowKey]="rowKey"
+            [rowLabel]="rowLabel"
+            [groupBy]="groupOf()"
+            [sort]="tableSort()"
+            (sortChange)="sortBy($event)"
+            [(selection)]="selection"
+            (open)="openMatter($event)"
+            (endReached)="loadMore()"
+            (focusin)="onRowFocus($event)"
+          >
+            <ng-template mtCell="number" let-cell>
+              @let row = asRow(cell);
+              @if (linkOf(row); as url) {
+                <a
+                  class="mt-matters-link"
+                  [href]="url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  [attr.aria-label]="row.number + '. Open the linked matter in a new tab'"
+                  (click)="$event.stopPropagation()"
+                  (keydown.enter)="$event.stopPropagation()"
+                  >{{ row.number }}<mt-icon name="link" [size]="14"
+                /></a>
+              } @else {
+                {{ row.number }}
+              }
+            </ng-template>
+            <ng-template mtCell="title" let-cell>
+              @let row = asRow(cell);
+              <span class="mt-matters-title">
+                <mt-priority-icon [level]="row.priority" />
+                <span class="title mt-ell">{{ row.title }}</span>
+              </span>
+            </ng-template>
+            <ng-template mtCell="type" let-cell>
+              @let row = asRow(cell);
+              <mt-matter-tag [type]="row.type" />
+            </ng-template>
+            <ng-template mtCell="responsible" let-cell>
+              @let row = asRow(cell);
+              <mt-avatar
+                size="sm"
+                [name]="memberName(row.responsibleUid)"
+                [colorKey]="row.responsibleUid"
+                [tooltip]="true"
+              />
+            </ng-template>
+            <ng-template mtCell="nextDeadline" let-cell>
+              @let row = asRow(cell);
+              @if (row.nextDeadline; as next) {
+                <mt-deadline-chip [due]="next.dueDate" [critical]="next.critical" [trace]="next.title" />
+              } @else {
+                <span class="mt-matters-muted">—</span>
+              }
+            </ng-template>
+            <div mtTableEmpty>
+              @if (filtered()) {
+                <mt-empty-state
+                  title="No matters match"
+                  description="Nothing matches these filters. Clear them to see every matter in this view."
+                  icon="search"
+                  [headingLevel]="2"
+                >
+                  <button mtButton size="sm" (click)="clearFilters()">Clear filters</button>
+                </mt-empty-state>
+              } @else {
+                <mt-empty-state
+                  title="No matters yet"
+                  description="Matters you open, from intake to grant, show here."
+                  icon="matters"
+                  [headingLevel]="2"
+                >
+                  @if (canCreate()) {
+                    <a mtButton variant="primary" size="sm" iconStart="plus" routerLink="/matters/new">New matter</a>
+                  }
+                </mt-empty-state>
+              }
+            </div>
+          </mt-table>
+        }
+        @if (plan()?.mode === 'paged' && matters.hasMore()) {
+          <button mtButton size="sm" class="mt-matters-more" [loading]="matters.loadingMore()" (click)="loadMore()">
+            Show more matters
+          </button>
+        }
+      </div>
+    }
 
     @if (selectedRows().length) {
       <mt-matters-bulk-bar
@@ -545,6 +619,15 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
       padding: var(--space-12);
       color: var(--text-tertiary);
     }
+    .mt-matters-board {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .mt-matters-board > mt-note {
+      margin: var(--space-12) var(--space-20) 0;
+    }
     .mt-matters-more {
       align-self: center;
       margin-bottom: var(--space-12);
@@ -567,6 +650,13 @@ export class MattersPage {
   private readonly callables = inject(CALLABLES);
   private readonly context = inject(OrgContext);
   private readonly today = inject(MT_TODAY);
+  private readonly flags = inject(FeatureFlagService);
+
+  /** List (`/matters`) or board (`/matters/board`, CORE-04). */
+  protected readonly layout: MattersLayout = this.route.snapshot.data['layout'] === 'board' ? 'board' : 'list';
+  protected readonly layoutOptions = LAYOUT_OPTIONS;
+  protected readonly swimlanes = signal(readSwimlanes());
+  protected readonly templatesOn = computed(() => this.flags.isOn('templates.system'));
 
   protected readonly canCreate = can('matter.create');
   protected readonly canEdit = can('matter.edit');
@@ -621,16 +711,56 @@ export class MattersPage {
   private readonly filters = computed<MatterListFilters>(() => ({ ...this.f(), query: this.query() }));
   protected readonly filtered = computed(() => hasMatterFilters(this.filters()));
 
+  // ---------- the board (CORE-04) ----------
+
+  /** By stage when one matter type is filtered, else by status. */
+  protected readonly boardBy = computed(() => boardKind(this.f()));
+  protected readonly boardCols = computed(() => {
+    const type = this.f().type;
+    return boardColumns(this.boardBy() === 'stage' ? (type?.[0] ?? null) : null, this.templatesOn());
+  });
+  /** The filters the board reads with: its columns decide the statuses (see `boardFilters`). */
+  private readonly boardQueryFilters = computed(() => boardFilters(this.filters(), this.boardBy()));
+  /** The board's matters: every one the view matches (up to 500), not a page at a time. */
+  protected readonly boardRows = computed(() => {
+    const filters = this.boardQueryFilters();
+    const now = new Date();
+    const context = { viewerUid: this.context.uid(), today: this.today(), now };
+    const kind = this.boardBy();
+    return this.matters.value().filter((row) => matterMatchesFilters(row, filters, context) && onBoard(row, kind, now));
+  });
+  /**
+   * The board component, loaded on first use so drag and drop stays out of the list's chunk, and
+   * created by hand (no `@defer` or NgComponentOutlet: both add to the initial bundle).
+   */
+  protected readonly board = signal<Type<unknown> | null>(null);
+  protected readonly boardInputs = computed(() => ({
+    rows: this.boardRows(),
+    columns: this.boardCols(),
+    swimlanes: this.swimlanes(),
+    memberName: (uid: string) => this.memberName(uid),
+    clientsOf: (row: MatterRow) => this.clientsOf(row),
+    canEdit: this.canEdit(),
+    canStatus: this.canStatus(),
+    templatesOn: this.templatesOn(),
+    openMatter: (row: MatterRow) => this.openMatter(row),
+  }));
+
   // ---------- the list ----------
 
   protected readonly plan = computed(
     () => {
       const state = this.state();
       if (!state) return null;
-      return matterQueryPlan(this.filters(), state.sort, {
-        viewerUid: this.context.uid(),
-        privilegedVisible: this.privilegedVisible(),
-      });
+      const options = { viewerUid: this.context.uid(), privilegedVisible: this.privilegedVisible() };
+      if (this.layout === 'list') return matterQueryPlan(this.filters(), state.sort, options);
+      // The board reads every matching matter, most recently active first, and orders them itself.
+      const plan = matterQueryPlan(this.boardQueryFilters(), DEFAULT_SORT, options);
+      return {
+        ...plan,
+        mode: 'capped' as const,
+        spec: { ...plan.spec, pageSize: MATTER_CLIENT_FILTER_LIMIT },
+      };
     },
     { equal: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
   );
@@ -733,6 +863,7 @@ export class MattersPage {
   private readonly focused = signal(-1);
   private readonly search = viewChild<MtSearchField>('search');
   private readonly table = viewChild<MtTable<MatterRow>>('table');
+  private readonly boardHost = viewChild('boardHost', { read: ViewContainerRef });
   private readonly dialogOpen = signal(false);
 
   constructor() {
@@ -749,9 +880,27 @@ export class MattersPage {
         () => free() && this.canCreate(),
       ),
       shortcut('/', 'Filter matters', () => this.search()?.focus()),
-      shortcut('j', 'Next matter', () => this.move(1)),
-      shortcut('k', 'Previous matter', () => this.move(-1)),
-      shortcut('x', 'Select the focused matter', () => this.toggleFocused()),
+      ...(this.layout === 'list'
+        ? [
+            shortcut('j', 'Next matter', () => this.move(1)),
+            shortcut('k', 'Previous matter', () => this.move(-1)),
+            shortcut('x', 'Select the focused matter', () => this.toggleFocused()),
+          ]
+        : // Listed in the cheat sheet; the focused card handles them (CORE-04).
+          (
+            [
+              ['m', 'Move the focused matter to another column'],
+              ['alt+up', 'Move the focused matter up'],
+              ['alt+down', 'Move the focused matter down'],
+            ] as const
+          ).map(([combo, description]) =>
+            shortcut(
+              combo,
+              description,
+              () => undefined,
+              () => false,
+            ),
+          )),
       shortcut(
         'esc',
         'Clear the selection',
@@ -770,9 +919,31 @@ export class MattersPage {
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
 
     // Coming back without a view in the URL reopens the view the list was left on, edits and all.
+    writeLayout(this.layout);
+    if (this.layout === 'board') {
+      void import('./matters-board').then(({ MattersBoard }) => this.board.set(MattersBoard));
+      let created: ComponentRef<unknown> | null = null;
+      effect(() => {
+        const component = this.board();
+        const host = this.boardHost();
+        const inputs = this.boardInputs();
+        if (!component || !host) {
+          created = null;
+          return;
+        }
+        untracked(() => {
+          created ??= host.createComponent(component);
+          const ref = created;
+          for (const [name, value] of Object.entries(inputs)) ref.setInput(name, value);
+        });
+      });
+    }
+
+    // Switching between the list and the board keeps the view's edits too.
     let restore = readLastView();
-    if (restore && this.route.snapshot.queryParamMap.has('view')) restore = null;
-    else if (restore && restore.viewId !== DEFAULT_VIEW_ID) {
+    const urlView = this.route.snapshot.queryParamMap.get('view');
+    if (restore && urlView !== null && urlView !== restore.viewId) restore = null;
+    else if (restore && urlView === null && restore.viewId !== DEFAULT_VIEW_ID) {
       void this.router.navigate([], {
         relativeTo: this.route,
         queryParams: { view: restore.viewId },
@@ -989,6 +1160,22 @@ export class MattersPage {
     } catch (error) {
       this.toasts.show({ title: errorCopy(error), tone: 'danger' });
     }
+  }
+
+  // ---------- layout ----------
+
+  protected setLayout(layout: MattersLayout | null): void {
+    if (!layout || layout === this.layout) return;
+    writeLayout(layout);
+    void this.router.navigate(layout === 'board' ? ['/matters', 'board'] : ['/matters'], {
+      queryParamsHandling: 'preserve',
+    });
+  }
+
+  protected toggleSwimlanes(): void {
+    const on = !this.swimlanes();
+    this.swimlanes.set(on);
+    writeSwimlanes(on);
   }
 
   // ---------- rows ----------

@@ -187,6 +187,36 @@ export interface MalwareScanPort {
   scan(request: ScanRequest, signal?: AbortSignal): Promise<ScanResult>;
 }
 
+/** What a preview is converted to (CORE-12a): Office files become PDF, HEIC photos JPEG. */
+export type PreviewTarget = 'pdf' | 'jpeg';
+
+/** A stored, scanned version to convert: its allow-listed extension and its bytes. */
+export interface PreviewRequest {
+  from: string;
+  to: PreviewTarget;
+  data: Uint8Array;
+}
+
+/**
+ * No preview this time. `failed` is final (the file can't be converted: damaged, encrypted or
+ * refused); `unavailable` and `not_configured` are worth a retry.
+ */
+export class PreviewUnavailableError extends Error {
+  constructor(readonly reason: 'failed' | 'unavailable' | 'not_configured') {
+    super(`Preview ${reason}`);
+    this.name = 'PreviewUnavailableError';
+  }
+}
+
+/**
+ * Office → PDF and HEIC → JPEG previews (CORE-12a, ADR-028). The real adapter calls the preview
+ * service on Cloud Run (`documents/preview.ts`).
+ */
+export interface PreviewPort {
+  /** Resolves with the converted bytes, or throws `PreviewUnavailableError`. */
+  render(request: PreviewRequest, signal?: AbortSignal): Promise<Buffer>;
+}
+
 export interface SignedUrlRequest {
   bucket: string;
   path: string;
@@ -229,6 +259,7 @@ export interface Ports {
   calendar: CalendarPort;
   xero: XeroPort;
   malwareScan: MalwareScanPort;
+  preview: PreviewPort;
   signedUrls: SignedUrlPort;
   transcription: TranscriptionPort;
   jobs: JobRunnerPort;

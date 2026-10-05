@@ -37,3 +37,8 @@ output "sourcemaps_bucket" {
   description = "Private bucket for web sourcemaps (FND-21)."
   value       = module.monitoring.sourcemaps_bucket
 }
+
+output "doc_services" {
+  description = "Cloud Run document services (CORE-12a): runtime accounts and URLs."
+  value       = module.env.doc_services
+}
