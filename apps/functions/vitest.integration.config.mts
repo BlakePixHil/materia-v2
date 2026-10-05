@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-// Integration tests against the emulators (auth, firestore, functions, Cloud Tasks). Run them with
+// Integration tests against the emulators (auth, firestore, functions, storage, Cloud Tasks). Run them with
 // `pnpm nx run functions:test-integration`, which builds the functions first.
 // (Named so the Nx Vitest plugin doesn't infer an emulator-less target from it.)
 export default defineConfig({

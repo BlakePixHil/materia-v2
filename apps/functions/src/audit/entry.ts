@@ -20,6 +20,8 @@ export const EXCLUDED_COLLECTIONS = new Set([
   'counters',
   // Matter number reservations (CORE-03): written with the matter, which is audited.
   'matterNumbers',
+  // The documents hash index (CORE-12): written with the document version, which is audited.
+  'documentHashes',
 ]);
 
 /**

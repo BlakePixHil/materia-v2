@@ -1,7 +1,7 @@
 import { DomainError } from '@materia/domain';
 
 import { ports, setPorts } from './container';
-import { FakeMail } from './fakes';
+import { EICAR_TEST_STRING, FakeMail, FakeSignedUrls } from './fakes';
 
 describe('ports container', () => {
   const env = { ...process.env };
@@ -14,8 +14,15 @@ describe('ports container', () => {
     process.env['MATERIA_FAKES'] = '1';
     const p = ports();
     expect(p.mail).toBeInstanceOf(FakeMail);
-    await expect(p.malwareScan.scan('b', 'orgs/o/pending/eicar.txt')).resolves.toBe('infected');
-    await expect(p.malwareScan.scan('b', 'orgs/o/pending/will.pdf')).resolves.toBe('clean');
+    const scan = (text: string) =>
+      p.malwareScan.scan({
+        bucket: 'b',
+        path: 'orgs/o/matters/m/pending/upload-1',
+        data: new TextEncoder().encode(text),
+      });
+    await expect(scan(EICAR_TEST_STRING)).resolves.toMatchObject({ verdict: 'infected' });
+    await expect(scan('%PDF-1.7 fictional')).resolves.toEqual({ verdict: 'clean' });
+    expect(p.signedUrls).toBeInstanceOf(FakeSignedUrls);
     expect((await p.embedding.embed(['a', 'bb']))[0]).toHaveLength(768);
     expect(ports()).toBe(p);
   });
@@ -27,6 +34,10 @@ describe('ports container', () => {
     expect(p.clock.now()).toBeInstanceOf(Date);
     await expect(p.mail.send({ to: 'x', template: 't', model: {} })).rejects.toBeInstanceOf(DomainError);
     await expect(p.xero.pushInvoice('o', 'i')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    // No scanner URL configured: fail closed, so uploads stay quarantined ('Scanning delayed').
+    await expect(
+      p.malwareScan.scan({ bucket: 'b', path: 'orgs/o/matters/m/pending/upload-1', data: new Uint8Array([1]) }),
+    ).rejects.toMatchObject({ name: 'ScannerUnavailableError', reason: 'not_configured' });
   });
 
   it('can be replaced in tests', () => {
