@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, ViewEncapsulation } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
+import { MtBrandMark } from '@materia/ui';
+
 /** The layout for sign-in and onboarding: no shell, a centred card on the canvas. */
 @Component({
   selector: 'mt-minimal-layout',
@@ -11,10 +13,10 @@ import { RouterOutlet } from '@angular/router';
     '../../../../../libs/ui/src/generated/components/strength.css',
     '../../../../../libs/ui/src/generated/components/shimmer.css',
   ],
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, MtBrandMark],
   template: `
     <main id="main" class="mt-minimal">
-      <p class="mt-minimal-brand">Materia</p>
+      <mt-brand-mark class="mt-minimal-brand" [size]="32" wordmark />
       <div class="mt-minimal-card"><router-outlet /></div>
     </main>
   `,
@@ -28,11 +30,6 @@ import { RouterOutlet } from '@angular/router';
       gap: 24px;
       padding: 24px 16px;
       background: var(--bg-canvas);
-    }
-    .mt-minimal-brand {
-      margin: 0;
-      font: 600 16px/24px var(--font-sans);
-      letter-spacing: -0.01em;
     }
     .mt-minimal-card {
       width: min(100%, 440px);
