@@ -11,7 +11,7 @@ import {
   stripUndefined,
 } from './seed/dataset.ts';
 import { resolveSeedTarget, SeedGuardError } from './seed/guard.ts';
-import { FIXTURE_NAMES, fixtureInfo, renderFixture } from './seed/pdfs.ts';
+import { FIXTURE_NAMES, fixtureInfo, fixturePageText, renderFixture } from './seed/pdfs.ts';
 import { entityRegistry, fromFirestore, main, parseSeedArgs } from './seed.ts';
 
 const CONFLICT_MATTER_COUNT = Object.keys(CONFLICT_MATTERS).length;
@@ -325,6 +325,25 @@ describe('seed dataset', () => {
     const statuses = suggestions.map((d) => (d.data as D.Suggestion).status);
     expect(statuses.filter((status) => status === 'expired')).toHaveLength(1);
     expect(suggestions.some((d) => (d.data as D.Suggestion).privileged)).toBe(true);
+  });
+
+  it('seeds a Clerk thread whose citations quote the fixture PDFs, one of them unverified (AI-05)', () => {
+    const messages = dataset.docs.filter((d) => /\/clerkThreads\/m-doyle-estate-ct-1\/messages\/[^/]+$/.test(d.path));
+    expect(messages.map((d) => (d.data as D.ClerkMessage).role)).toEqual(['user', 'assistant']);
+    const answer = messages[1]?.data as D.ClerkMessage;
+    const citations = D.ClerkMessage.schema.parse(answer).citations;
+    const text = answer.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
+    for (let n = 1; n <= citations.length; n++) expect(text).toContain(`[${n}]`);
+    const will = fixturePageText('will');
+    const suggestions = dataset.docs
+      .filter((d) => /\/matters\/m-doyle-estate\/suggestions\/[^/]+$/.test(d.path))
+      .flatMap((d) => D.Suggestion.schema.parse(d.data).citations);
+    for (const citation of [...citations, ...suggestions].filter(D.isDocumentCitation)) {
+      expect(citation.documentId).toBe('m-doyle-estate-doc-1');
+      expect(D.verifyQuote(citation, will).verified, citation.quote).toBe(citation.verified !== false);
+    }
+    expect(citations.filter((c) => c.verified === false)).toHaveLength(1);
+    expect(citations.some((c) => c.kind === 'record')).toBe(true);
   });
 
   it('is deterministic for the same anchor', () => {

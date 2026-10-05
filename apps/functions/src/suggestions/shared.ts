@@ -58,7 +58,7 @@ export const directReader: Reader = {
 export interface BasisSubject {
   kind: SuggestionKind;
   payload: unknown;
-  citations?: readonly { documentId: string }[] | undefined;
+  citations?: readonly { documentId?: string | undefined }[] | undefined;
 }
 
 const isLiveData = (data: Data | undefined) =>

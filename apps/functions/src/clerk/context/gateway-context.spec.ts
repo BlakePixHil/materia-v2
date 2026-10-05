@@ -12,7 +12,7 @@ import { FakeChunkSearch, FakeDocumentText, MemoryContextSource } from './testin
 const HELLO_JSON = JSON.stringify({ greeting: 'Hello there.', promptRef: 'hello@1.0.0' });
 
 /** The gateway with a built context (AI-03): layout, privilege and truncation on the result and message. */
-function setup(budgetTokens: number = CONTEXT_POLICIES.chat.budgetTokens) {
+function setup(budgetTokens: number = CONTEXT_POLICIES.chat.budgetTokens, citationText?: FakeDocumentText) {
   const clock = new FakeClock(new Date('2026-10-04T22:30:00Z'));
   const log = createLog({ fn: 'test' }, () => undefined);
   const model = new FakeClerkModel([{ chunks: [HELLO_JSON] }]);
@@ -23,6 +23,7 @@ function setup(budgetTokens: number = CONTEXT_POLICIES.chat.budgetTokens) {
     keyring: new MemoryKeyring(),
     flag: async () => true,
     sleep: async () => undefined,
+    ...(citationText ? { citationText } : {}),
   });
   const builder = createContextBuilder({
     source: new MemoryContextSource(fixtureOrgs()),
@@ -113,5 +114,62 @@ describe('ClerkGateway with a built context', () => {
     expect(result.privileged).toBe(false);
     expect(result.truncated).toMatchObject({ droppedDocs: 1 });
     expect(JSON.stringify(model.requests)).not.toContain(CANARY);
+  });
+
+  it('verifies a matter reply’s citations against the chunks: fabricated quotes are flagged and counted', async () => {
+    const { model, gateway, builder, ctx, store } = setup(undefined, new FakeDocumentText(DOCUMENT_TEXT));
+    const context = await builder.buildContext({
+      ctx: ctx('lawyer'),
+      scope: { matterId: MATTER },
+      feature: 'chat',
+      query: 'Who gets the residue?',
+    });
+    const residue = context.searchResults.findIndex((chunk) => chunk.documentId === 'd-will' && chunk.page === 2);
+    expect(residue).toBeGreaterThanOrEqual(0);
+    model.push({
+      chunks: ['Quinn Ashdown takes the residue.'],
+      citations: [
+        {
+          type: 'search_result_location',
+          search_result_index: residue,
+          cited_text: 'I give the residue to Quinn Ashdown.',
+        },
+        {
+          type: 'search_result_location',
+          search_result_index: residue,
+          cited_text: 'I give my boat to Quinn Ashdown.',
+        },
+      ],
+    });
+    // The setup's scripted hello reply goes first; the cited answer is the second call.
+    await gateway.run({
+      ctx: ctx('lawyer'),
+      feature: 'hello',
+      promptId: 'hello',
+      vars: { name: 'the team', promptRef: 'hello@1.0.0' },
+    });
+    const result = await gateway.run({
+      ctx: ctx('lawyer'),
+      feature: 'chat',
+      promptId: 'chat-answer',
+      vars: { today: 'Monday 5 October 2026', role: 'lawyer', matterContext: '', question: 'Who gets the residue?' },
+      context,
+      stream: { threadId: 't-1', messageId: 'm-1' },
+    });
+    expect(result.citations).toEqual([
+      { kind: 'document', documentId: 'd-will', docVersion: 2, page: 2, quote: 'I give the residue to Quinn Ashdown.' },
+      {
+        kind: 'document',
+        documentId: 'd-will',
+        docVersion: 2,
+        page: 2,
+        quote: 'I give my boat to Quinn Ashdown.',
+        verified: false,
+      },
+    ]);
+    const final = store.messages.get('t-1/m-1')?.final;
+    expect(final?.text).toBe('Quinn Ashdown takes the residue.[1, 2]');
+    expect(final?.citations).toEqual(result.citations);
+    expect(store.meters.at(-1)?.entry.citations).toEqual({ verified: 1, unverified: 1 });
   });
 });

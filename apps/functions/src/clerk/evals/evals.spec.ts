@@ -219,7 +219,11 @@ describe('citations and the judge', () => {
 
   it('builds judge items only for citations it can place', () => {
     expect(judgeItems(content, [], new Map())).toEqual([]);
-    const items = judgeItems(content, [{ documentId: 'd', version: 1, quote }], new Map([['d', ['the page']]]));
+    const items = judgeItems(
+      content,
+      [{ kind: 'document', documentId: 'd', docVersion: 1, quote }],
+      new Map([['d', ['the page']]]),
+    );
     expect(items[0]).toContain('Page text: the page');
   });
 });
