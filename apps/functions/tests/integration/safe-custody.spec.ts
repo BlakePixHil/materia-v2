@@ -166,7 +166,11 @@ describe('the safe custody register', () => {
     // Members read packets; nobody writes them directly, so movements always go through the callable.
     expect((await getDoc(doc(firestore, packetPath))).get('status')).toBe('held');
     await expect(
-      updateDoc(doc(firestore, packetPath), { status: 'released', updatedAt: serverTimestamp(), updatedBy: uidOf('paralegal') }),
+      updateDoc(doc(firestore, packetPath), {
+        status: 'released',
+        updatedAt: serverTimestamp(),
+        updatedBy: uidOf('paralegal'),
+      }),
     ).rejects.toMatchObject({ code: 'permission-denied' });
 
     expect(await move(first.id, { kind: 'out', reason: 'Signing review', to: 'Fictional lawyer' })).toEqual({
@@ -179,7 +183,8 @@ describe('the safe custody register', () => {
     const release = { kind: 'released', reason: 'Executor’s request', to: 'Fictional Executor', authority: AUTHORITY };
     expect((await failure(move(first.id, release))).code).toBe('functions/permission-denied');
     await signInAs('lawyer');
-    const { authority: _authority, ...unauthorised } = release;
+    const unauthorised: Record<string, unknown> = { ...release };
+    delete unauthorised['authority'];
     const missing = await failure(move(first.id, unauthorised));
     expect(missing.code).toBe('functions/invalid-argument');
     expect(detailsOf(missing)['fields']).toMatchObject({ authority: ['Choose the authority document'] });
@@ -187,7 +192,12 @@ describe('the safe custody register', () => {
     expect(await move(first.id, release)).toEqual({ status: 'released', pendingConfirmation: false });
     const packet = await data(packetPath);
     expect(packet['status']).toBe('released');
-    expect((packet['movements'] as { kind: string }[]).map((m) => m.kind)).toEqual(['in', 'out', 'returned', 'released']);
+    expect((packet['movements'] as { kind: string }[]).map((m) => m.kind)).toEqual([
+      'in',
+      'out',
+      'returned',
+      'released',
+    ]);
     expect((packet['movements'] as Record<string, unknown>[])[3]).toMatchObject({
       by: uidOf('lawyer'),
       authority: AUTHORITY,
@@ -200,7 +210,9 @@ describe('the safe custody register', () => {
   it('destroys an original only when a second lawyer confirms', async () => {
     await signInAs('lawyer');
     const { id } = await receive();
-    expect(await move(id, { kind: 'destroyed', reason: 'Testator’s written instruction', authority: AUTHORITY })).toEqual({
+    expect(
+      await move(id, { kind: 'destroyed', reason: 'Testator’s written instruction', authority: AUTHORITY }),
+    ).toEqual({
       status: 'held',
       pendingConfirmation: true,
     });
