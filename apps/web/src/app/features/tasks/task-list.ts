@@ -55,8 +55,21 @@ const FOLLOW_MS = 1500;
     <div cdkDropListGroup class="sections">
       @for (section of sections(); track section.id) {
         <section class="section" [attr.data-section]="section.id" [attr.aria-labelledby]="headingId(section)">
-          <div class="head" role="heading" [attr.aria-level]="headingLevel()" [id]="headingId(section)">
-            {{ section.label }} <span class="count">{{ section.entries.length }}</span>
+          <div class="head-row">
+            <span class="rail rail-head">
+              <input
+                type="checkbox"
+                class="select"
+                [checked]="sectionState(section) === 'all'"
+                [indeterminate]="sectionState(section) === 'some'"
+                [attr.aria-label]="'Select every task in ' + section.label"
+                title="Select all"
+                (change)="toggleSection(section)"
+              />
+            </span>
+            <div class="head" role="heading" [attr.aria-level]="headingLevel()" [id]="headingId(section)">
+              {{ section.label }} <span class="count">{{ section.entries.length }}</span>
+            </div>
           </div>
           <ul
             class="rows"
@@ -76,12 +89,7 @@ const FOLLOW_MS = 1500;
                 [attr.data-key]="entry.key"
                 [attr.data-selected]="selected().has(entry.key) ? '' : null"
               >
-                <div class="line">
-                  @if (reorderable()) {
-                    <span class="handle" cdkDragHandle aria-hidden="true" title="Drag to reorder">
-                      <mt-icon name="updown" [size]="14" />
-                    </span>
-                  }
+                <span class="rail">
                   <input
                     type="checkbox"
                     class="select"
@@ -89,41 +97,50 @@ const FOLLOW_MS = 1500;
                     [attr.aria-label]="'Select ' + entry.task.title"
                     (change)="toggle(entry)"
                   />
-                  <mt-task-row
-                    [task]="entry.vm"
-                    [editable]="entry.editable"
-                    [disabled]="!entry.editable"
-                    (done)="actions.toggleDone(entry)"
-                    (titleChange)="actions.rename(entry, $event)"
-                    (open)="expand(entry)"
-                  />
-                  @if (entry.matter; as matter) {
-                    <a
-                      class="matter caption"
-                      [routerLink]="['/matters', matter.id, 'tasks']"
-                      [attr.aria-label]="
-                        matter.number ? 'Open ' + matter.number + ' ' + matter.title : 'Open the matter'
-                      "
-                      >{{ matter.number || 'Open the matter' }}</a
-                    >
+                </span>
+                <div class="body">
+                  <div class="line">
+                    @if (reorderable()) {
+                      <span class="handle" cdkDragHandle aria-hidden="true" title="Drag to reorder">
+                        <mt-icon name="updown" [size]="14" />
+                      </span>
+                    }
+                    <mt-task-row
+                      [task]="entry.vm"
+                      [editable]="entry.editable"
+                      [disabled]="!entry.editable"
+                      (done)="actions.toggleDone(entry)"
+                      (titleChange)="actions.rename(entry, $event)"
+                      (open)="expand(entry)"
+                    />
+                    @if (entry.matter; as matter) {
+                      <a
+                        class="matter caption"
+                        [routerLink]="['/matters', matter.id, 'tasks']"
+                        [attr.aria-label]="
+                          matter.number ? 'Open ' + matter.number + ' ' + matter.title : 'Open the matter'
+                        "
+                        >{{ matter.number || 'Open the matter' }}</a
+                      >
+                    }
+                    <button
+                      mtIconButton
+                      size="sm"
+                      [icon]="expanded().has(entry.key) ? 'chevron-down' : 'chevron-right'"
+                      [label]="'Details: ' + entry.task.title"
+                      [tooltip]="false"
+                      [attr.aria-expanded]="expanded().has(entry.key)"
+                      (click)="expand(entry)"
+                    ></button>
+                  </div>
+                  @if (expanded().has(entry.key)) {
+                    <mt-task-details
+                      [entry]="entry"
+                      (checklist)="actions.setChecklist(entry, $event)"
+                      (status)="actions.setStatus([entry], $event)"
+                    />
                   }
-                  <button
-                    mtIconButton
-                    size="sm"
-                    [icon]="expanded().has(entry.key) ? 'chevron-down' : 'chevron-right'"
-                    [label]="'Details: ' + entry.task.title"
-                    [tooltip]="false"
-                    [attr.aria-expanded]="expanded().has(entry.key)"
-                    (click)="expand(entry)"
-                  ></button>
                 </div>
-                @if (expanded().has(entry.key)) {
-                  <mt-task-details
-                    [entry]="entry"
-                    (checklist)="actions.setChecklist(entry, $event)"
-                    (status)="actions.setStatus([entry], $event)"
-                  />
-                }
               </li>
             }
           </ul>
@@ -138,11 +155,15 @@ const FOLLOW_MS = 1500;
       flex-direction: column;
       gap: var(--space-16);
     }
+    .mt-task-list .head-row {
+      display: flex;
+      align-items: stretch;
+    }
     .mt-task-list .head {
       display: flex;
       align-items: center;
       gap: var(--space-8);
-      padding: 0 var(--space-8) var(--space-4);
+      padding: var(--space-4) var(--space-8);
       font: 600 13px/18px var(--font-sans);
       color: var(--text-secondary);
     }
@@ -156,15 +177,43 @@ const FOLLOW_MS = 1500;
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 2px;
       min-height: 8px;
     }
+    /* Bulk selection lives in its own slate column, apart from the round done check. */
+    .mt-task-list .rail {
+      flex: none;
+      display: flex;
+      justify-content: center;
+      width: 32px;
+      background: var(--bg-sunken);
+      border-inline-end: 1px solid var(--border-subtle);
+    }
+    .mt-task-list .rail-head {
+      align-items: center;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    }
+    .mt-task-list .rows > .row:last-child > .rail {
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    }
+    .mt-task-list .rows > .row > .rail {
+      align-items: flex-start;
+      padding-top: calc((var(--row) - 14px) / 2);
+    }
     .mt-task-list .row {
-      border-radius: var(--radius-sm);
+      display: flex;
       background: var(--bg-surface);
     }
-    .mt-task-list .row[data-selected] {
+    .mt-task-list .row > .body {
+      flex: 1;
+      min-width: 0;
+      border-radius: var(--radius-sm);
+    }
+    .mt-task-list .row[data-selected] > .body,
+    .mt-task-list .row[data-selected] > .rail {
       background: var(--bg-selected);
+    }
+    .mt-task-list mt-task-row .mt-check {
+      border-radius: 50%;
     }
     .mt-task-list .line {
       display: flex;
@@ -183,7 +232,9 @@ const FOLLOW_MS = 1500;
       padding: var(--space-4) 0 var(--space-4) var(--space-4);
     }
     .mt-task-list .select {
-      margin: 0 0 0 var(--space-4);
+      width: 14px;
+      height: 14px;
+      margin: 0;
       accent-color: var(--border-focus);
     }
     .mt-task-list .matter {
@@ -295,6 +346,21 @@ export class TaskList {
     this.selection.set(
       current.includes(entry.key) ? current.filter((key) => key !== entry.key) : [...current, entry.key],
     );
+  }
+
+  /** Whether none, some or all of a section's tasks are selected (the rail header's state). */
+  protected sectionState(section: TaskSectionVm): 'none' | 'some' | 'all' {
+    const picked = section.entries.filter((entry) => this.selected().has(entry.key)).length;
+    if (!picked) return 'none';
+    return picked === section.entries.length ? 'all' : 'some';
+  }
+
+  /** The rail header: selects every task in the section, or clears them when all are selected. */
+  protected toggleSection(section: TaskSectionVm): void {
+    const keys = section.entries.map((entry) => entry.key);
+    const all = this.sectionState(section) === 'all';
+    const rest = this.selection().filter((key) => !keys.includes(key));
+    this.selection.set(all ? rest : [...rest, ...keys]);
   }
 
   /** Ctrl/⌘+A on a task: every listed task is selected (again: none). */

@@ -134,6 +134,20 @@ describe('my tasks', () => {
     expect(page.firestore.get(`${PERSONAL}/p-renew`)?.['dueDate']).toBe('2026-10-06');
   });
 
+  it('selects a whole section from the selection rail, and clears it again', async () => {
+    const page = await openMatter('/tasks', { configure: myTasks });
+    await page.stable(20);
+    const all = page.body.querySelector<HTMLInputElement>('input[aria-label="Select every task in Overdue"]');
+    expect(all?.checked).toBe(false);
+    all?.click();
+    await page.stable(5);
+    expect(page.text(page.body.querySelector('mt-tasks-bulk-bar'))).toContain('1 selected');
+    expect(all?.checked).toBe(true);
+    all?.click();
+    await page.stable(5);
+    expect(page.body.querySelector('mt-tasks-bulk-bar')).toBeNull();
+  });
+
   it('deletes the selection after confirming', async () => {
     const page = await openMatter('/tasks', { configure: myTasks });
     await page.stable(20);
