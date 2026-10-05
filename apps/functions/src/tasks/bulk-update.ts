@@ -44,6 +44,11 @@ export function bulkPatch(
     case 'dueDate':
       if ((task['dueDate'] ?? null) === change.dueDate) return { skip: 'unchanged' };
       return { patch: { dueDate: change.dueDate ?? FieldValue.delete() } };
+    case 'group': {
+      const group = change.group?.trim() || null;
+      if (((task['group'] as string | undefined)?.trim() || null) === group) return { skip: 'unchanged' };
+      return { patch: { group: group ?? FieldValue.delete() } };
+    }
     case 'delete':
       // The caller stamps deletedAt and deletedBy.
       return { patch: {} };
@@ -51,8 +56,8 @@ export function bulkPatch(
 }
 
 /**
- * `tasks-bulkUpdate` (CORE-08; idempotent): one change (status, assignee, due date, priority or
- * soft delete) to up to 500 tasks, for selections larger than the client writes itself
+ * `tasks-bulkUpdate` (CORE-08; idempotent): one change (status, assignee, due date, priority,
+ * group or soft delete) to up to 500 tasks, for selections larger than the client writes itself
  * (`TASK_CLIENT_BATCH_MAX`). Matter tasks need `task.edit` (PERMISSION_DENIED otherwise) and a
  * live matter the caller can see; personal tasks (`matterId: null`) are the caller's own. A new
  * assignee must be an active member (INVALID_ARGUMENT on `change.assigneeUid`). Tasks that are

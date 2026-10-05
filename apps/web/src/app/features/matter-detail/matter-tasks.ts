@@ -25,7 +25,15 @@ import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { TaskActions } from '../tasks/task-actions';
 import { TaskList } from '../tasks/task-list';
 import { loadQuickAddParser, TaskQuickAdd, type QuickAddTask } from '../tasks/task-quick-add';
-import { inOrder, isClosed, orderAfterLast, sectionsByGroup, sectionsByStage, taskEntry } from '../tasks/task-view';
+import {
+  inOrder,
+  isClosed,
+  orderAfterLast,
+  sectionsByGroup,
+  sectionsByStage,
+  taskEntry,
+  uniqueGroups,
+} from '../tasks/task-view';
 import { TasksBulkBar } from '../tasks/tasks-bulk-bar';
 
 type GroupBy = 'stage' | 'group';
@@ -94,10 +102,16 @@ function storedGroupBy(): GroupBy {
       }
       @default {
         @if (sections().length) {
+          @if (groupBy() === 'group' && !groupNames().length && canEdit()) {
+            <p class="caption t-3 hint">
+              No groups yet. Open a task’s details to give it a group, or select tasks and choose Group.
+            </p>
+          }
           <mt-task-list
             [sections]="sections()"
             [reorderable]="canEdit()"
             [headingLevel]="3"
+            [groups]="groupSuggestions()"
             [(selection)]="selection"
           />
         } @else {
@@ -123,6 +137,8 @@ function storedGroupBy(): GroupBy {
         (assign)="assign($event)"
         (dueDate)="actions.changeDueDate(selectedEntries())"
         (priority)="setPriority($event)"
+        [groupable]="true"
+        (group)="actions.changeGroup(selectedEntries(), groupSuggestions())"
         (remove)="remove()"
         (clear)="selection.set([])"
       />
@@ -141,6 +157,9 @@ function storedGroupBy(): GroupBy {
       gap: var(--space-8);
     }
     .mt-matter-tasks h2 {
+      margin: 0;
+    }
+    .mt-matter-tasks .hint {
       margin: 0;
     }
     .mt-matter-tasks .tools {
@@ -208,6 +227,12 @@ export class MatterTasks {
     this.groupBy() === 'stage'
       ? sectionsByStage(this.entries(), this.screen.stages())
       : sectionsByGroup(this.entries()),
+  );
+  /** The groups on this matter's tasks, in list order (CORE-08e). */
+  protected readonly groupNames = computed(() => uniqueGroups(inOrder(this.tasks.value()).map((task) => task.group)));
+  /** What the Group field and dialog suggest: the groups, then the stages not already among them. */
+  protected readonly groupSuggestions = computed(() =>
+    uniqueGroups([...this.groupNames(), ...this.screen.stages().map((stage) => stage.title)]),
   );
   protected readonly selectedEntries = computed(() => {
     const keys = new Set(this.selection());

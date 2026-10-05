@@ -137,6 +137,8 @@ const FOLLOW_MS = 1500;
                   @if (expanded().has(entry.key)) {
                     <mt-task-details
                       [entry]="entry"
+                      [groups]="groups()"
+                      (group)="actions.bulk([entry], { op: 'group', group: $event })"
                       (checklist)="actions.setChecklist(entry, $event)"
                       (status)="actions.setStatus([entry], $event)"
                       (priority)="actions.bulk([entry], { op: 'priority', priority: $event })"
@@ -278,6 +280,8 @@ export class TaskList {
   readonly headingLevel = input(3);
   /** Selected task keys (`x`). */
   readonly selection = model<readonly string[]>([]);
+  /** Groups suggested in a task's details (CORE-08e); `null` hides its Group field. */
+  readonly groups = input<readonly string[] | null>(null);
 
   protected readonly actions = inject(TaskActions);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);

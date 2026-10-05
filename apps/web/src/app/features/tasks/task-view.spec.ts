@@ -11,6 +11,7 @@ import {
   sectionsByGroup,
   sectionsByStage,
   taskEntry,
+  uniqueGroups,
   usesBulkCallable,
   type TaskRecord,
 } from './task-view';
@@ -91,7 +92,7 @@ describe('sections', () => {
     task('d', { group: 'Letters', order: 4 }),
   ]).map((t) => taskEntry(t, { members, canEdit: true }));
 
-  it('groups by stage, matching titles or ids without case, in stage order', () => {
+  it('groups by stage, matching titles or ids without case, in stage order, then other groups', () => {
     const sections = sectionsByStage(entries, [
       { id: 'intake', title: 'Intake' },
       { id: 'grant', title: 'Grant application' },
@@ -100,7 +101,8 @@ describe('sections', () => {
     expect(sections.map((s) => [s.label, s.entries.map((e) => e.task.id), s.group])).toEqual([
       ['Intake', ['b'], 'Intake'],
       ['Grant application', ['a'], 'Grant application'],
-      ['Other tasks', ['c', 'd'], null],
+      ['Letters', ['d'], 'Letters'],
+      ['Other tasks', ['c'], null],
     ]);
   });
 
@@ -111,6 +113,10 @@ describe('sections', () => {
       ['Letters', ['d']],
       ['No group', ['c']],
     ]);
+  });
+
+  it('lists group names once each, ignoring case and blanks', () => {
+    expect(uniqueGroups(['Letters', ' letters ', null, '', 'Intake', undefined, '  '])).toEqual(['Letters', 'Intake']);
   });
 });
 
@@ -139,6 +145,19 @@ describe('writes', () => {
       patch: { dueDate: '2026-10-10' },
     });
     expect(clientWrite(t, { op: 'delete' })).toEqual({ kind: 'delete' });
+    const grouped = task('g', { group: 'Letters' });
+    expect(clientWrite(grouped, { op: 'group', group: ' Letters ' })).toBeNull();
+    expect(clientWrite(grouped, { op: 'group', group: ' Intake ' })).toEqual({
+      kind: 'update',
+      patch: { group: 'Intake' },
+      remove: [],
+    });
+    expect(clientWrite(grouped, { op: 'group', group: '  ' })).toEqual({
+      kind: 'update',
+      patch: {},
+      remove: ['group'],
+    });
+    expect(clientWrite(task('n'), { op: 'group', group: null })).toBeNull();
   });
 
   it('uses the callable above 50 tasks', () => {
@@ -162,6 +181,8 @@ describe('words', () => {
     expect(bulkSummary({ op: 'dueDate', dueDate: null }, 2)).toBe('Due date cleared on 2 tasks');
     expect(bulkSummary({ op: 'dueDate', dueDate: '2026-10-10' as never }, 1)).toBe('Due date changed on 1 task');
     expect(bulkSummary({ op: 'delete' }, 4)).toBe('4 tasks deleted');
+    expect(bulkSummary({ op: 'group', group: 'Letters' }, 2)).toBe('2 tasks moved to Letters');
+    expect(bulkSummary({ op: 'group', group: null }, 1)).toBe('1 task taken out of its group');
   });
 
   it('announces moves', () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { dateOnly, type Role } from '@materia/domain';
 
@@ -499,5 +499,12 @@ describe('tasks-bulkUpdate', () => {
       skip: 'unchanged',
     });
     expect(bulkPatch(task(), { op: 'assignee', assigneeUid: null }, false)).toEqual({ skip: 'unchanged' });
+    expect(bulkPatch(task({ group: 'Letters' }), { op: 'group', group: ' Letters ' }, true)).toEqual({
+      skip: 'unchanged',
+    });
+    expect(bulkPatch(task(), { op: 'group', group: ' Letters ' }, true)).toEqual({ patch: { group: 'Letters' } });
+    expect(bulkPatch(task({ group: 'Letters' }), { op: 'group', group: null }, false)).toEqual({
+      patch: { group: FieldValue.delete() },
+    });
   });
 });

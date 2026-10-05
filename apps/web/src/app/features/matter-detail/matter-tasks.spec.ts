@@ -53,7 +53,8 @@ describe('matter tasks tab', () => {
     expect(page.text(page.body.querySelector('mt-matter-tasks .head'))).toContain('4 open');
     expect(sections(page)).toEqual([
       'Intake: Locate the original will, Verify the executor’s identity',
-      'Other tasks: Order the death certificate, Write to the bank',
+      'Letters: Write to the bank',
+      'Other tasks: Order the death certificate',
     ]);
     await page.click('Group');
     expect(sections(page)).toEqual([
@@ -316,6 +317,50 @@ describe('matter tasks tab', () => {
     priority.dispatchEvent(new Event('change'));
     await page.stable(20);
     expect(page.firestore.get(`${MATTER}/tasks/t-cert`)?.['priority']).toBe('urgent');
+  });
+
+  it('starts a new group from the details, and clears it again', async () => {
+    const page = await openMatter(URL, { configure: moreTasks });
+    await page.click('Group');
+    await page.click('Details: Order the death certificate');
+    const field = page.body.querySelector<HTMLInputElement>('mt-task-details input.group') as HTMLInputElement;
+    expect(field.value).toBe('');
+    const suggestions = [...page.body.querySelectorAll<HTMLOptionElement>('mt-task-details datalist option')];
+    // The list's groups first, then the matter's other stages.
+    expect(suggestions.map((option) => option.value).slice(0, 3)).toEqual(['Intake', 'Letters', 'Grant application']);
+    field.value = '  Checklist A ';
+    field.dispatchEvent(new Event('change'));
+    await page.stable(20);
+    expect(page.firestore.get(`${MATTER}/tasks/t-cert`)?.['group']).toBe('Checklist A');
+    expect(sections(page)).toContain('Checklist A: Order the death certificate');
+
+    const again = page.body.querySelector<HTMLInputElement>('mt-task-details input.group') as HTMLInputElement;
+    again.value = '';
+    again.dispatchEvent(new Event('change'));
+    await page.stable(20);
+    expect(page.firestore.get(`${MATTER}/tasks/t-cert`)?.['group']).toBeUndefined();
+    expect(sections(page)).toContain('No group: Order the death certificate');
+    localStorage.removeItem('materia.tasks.groupBy');
+  });
+
+  it('moves the selection into a group from the bulk bar', async () => {
+    const page = await openMatter(URL, { configure: moreTasks });
+    for (const text of ['Order the death certificate', 'Locate the original will']) {
+      const t = title(page, text);
+      t.focus();
+      await page.press('x', {}, t);
+    }
+    const bar = page.body.querySelector<HTMLElement>('mt-tasks-bulk-bar') as HTMLElement;
+    await page.click('Group', bar);
+    await page.stable(20);
+    const dialog = page.body.querySelector<HTMLElement>('mt-task-group-dialog') as HTMLElement;
+    expect(page.text(dialog)).toContain('Move 2 tasks to a group');
+    await page.click('Letters', dialog);
+    await page.click('Move to group', dialog);
+    await page.stable(20);
+    expect(page.firestore.get(`${MATTER}/tasks/t-cert`)?.['group']).toBe('Letters');
+    expect(page.firestore.get(`${MATTER}/tasks/t-will`)?.['group']).toBe('Letters');
+    expect(page.text(page.body.querySelector('.mt-toaster'))).toContain('2 tasks moved to Letters');
   });
 
   it('is read-only for read-only members', async () => {

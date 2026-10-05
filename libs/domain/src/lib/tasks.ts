@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { DocIdSchema } from './schemas/common';
 import { PrioritySchema, TaskStatusSchema, type Priority, type TaskStatus } from './schemas/enums';
-import { PersonalTask, Task } from './schemas/matter-records';
+import { PersonalTask, Task, TASK_GROUP_MAX } from './schemas/matter-records';
 import { addDays, compareDates, DateOnlySchema, weekday, type DateOnly } from './values/date-only';
 
 /**
@@ -290,6 +290,8 @@ export const BulkTaskChangeSchema = z.discriminatedUnion('op', [
   /** `null` clears the due date. */
   z.object({ op: z.literal('dueDate'), dueDate: DateOnlySchema.nullable() }),
   z.object({ op: z.literal('priority'), priority: PrioritySchema }),
+  /** The task's group (CORE-08e): `null` (or blank) takes it out of any group. */
+  z.object({ op: z.literal('group'), group: z.string().max(TASK_GROUP_MAX).nullable() }),
   /** Soft delete. */
   z.object({ op: z.literal('delete') }),
 ]);
