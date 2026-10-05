@@ -37,6 +37,7 @@ export const NOTIFICATION_KINDS = {
   mention: { label: 'Mentions', channels: ['inapp', 'email'], priority: 'normal' },
   assignment: { label: 'Matters assigned to you', channels: ['inapp', 'email'], priority: 'normal' },
   task_assigned: { label: 'Tasks assigned to you', channels: ['inapp', 'email'], priority: 'normal' },
+  task_reminder: { label: 'Task due reminders', channels: ['inapp', 'email'], priority: 'normal' },
   deadline_reminder: { label: 'Deadline reminders', channels: ['inapp', 'email'], priority: 'normal' },
   deadline_escalation: { label: 'Deadline escalations', channels: ['inapp', 'email', 'push'], priority: 'critical' },
   deadline_changed: { label: 'Deadline changes to decide', channels: ['inapp'], priority: 'normal' },
@@ -89,6 +90,10 @@ export const ChannelPrefsSchema = z
   .strict();
 export type ChannelPrefs = z.infer<typeof ChannelPrefsSchema>;
 
+/** A task's reminder goes out this many days before it is due unless its assignee chose otherwise. */
+export const DEFAULT_TASK_REMINDER_DAYS = 1;
+export const TASK_REMINDER_DAYS_MAX = 14;
+
 /**
  * `users/{uid}.prefs.notifications`. `email` and `push` switch a channel off for everything
  * except critical notifications, which always email; `kinds` turns a channel on or off for one
@@ -102,6 +107,8 @@ export const NotificationPrefsSchema = z.object({
   digest: z.boolean().optional(),
   quietHours: QuietHoursSchema.nullable().optional(),
   kinds: z.record(z.string().regex(/^[a-z][a-z_]{0,39}$/), ChannelPrefsSchema).optional(),
+  /** Days before a task's due date that its reminder goes out, at 08:00 (CORE-11; default 1). */
+  taskReminderDays: z.number().int().min(0).max(TASK_REMINDER_DAYS_MAX).optional(),
 });
 export type NotificationPrefs = z.infer<typeof NotificationPrefsSchema>;
 
@@ -134,6 +141,8 @@ export function readNotificationPrefs(raw: unknown): NotificationPrefs {
   }
   const kinds = NotificationPrefsSchema.shape.kinds.safeParse(data['kinds']);
   if (kinds.success && kinds.data) prefs.kinds = kinds.data;
+  const taskDays = NotificationPrefsSchema.shape.taskReminderDays.safeParse(data['taskReminderDays']);
+  if (taskDays.success && taskDays.data !== undefined) prefs.taskReminderDays = taskDays.data;
   return prefs;
 }
 

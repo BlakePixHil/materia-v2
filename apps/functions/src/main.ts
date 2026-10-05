@@ -17,5 +17,6 @@ export * as tasks from './tasks/index';
 export * as deadlines from './deadlines/index';
 export * as documents from './documents/index';
 export * as notifications from './notifications/index';
+export * as reminders from './reminders/index';
 // Emulator-only tools (the dev mail preview): undefined, so never deployed, anywhere else.
 export * as dev from './dev/index';

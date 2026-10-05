@@ -193,6 +193,7 @@ describe('deadlineCallables', () => {
     await api.resolveChange({ matterId: 'm-1', changeId: 'c-1', accept: true, confirmation: 'HV-2026-0001' });
     await api.override({ matterId: 'm-1', deadlineId: 'd-1', dueDate: null });
     await api.complete({ matterId: 'm-1', deadlineId: 'd-1', outcome: 'done' });
+    await api.acknowledge({ matterId: 'm-1', deadlineId: 'd-1' });
     await api.proposeRulesetUpgrade({});
     expect(calls.map((c) => c.name)).toEqual([
       DEADLINE_CALLABLES.upsertEvent,
@@ -201,6 +202,7 @@ describe('deadlineCallables', () => {
       DEADLINE_CALLABLES.resolveChange,
       DEADLINE_CALLABLES.override,
       DEADLINE_CALLABLES.complete,
+      DEADLINE_CALLABLES.acknowledge,
       DEADLINE_CALLABLES.proposeRulesetUpgrade,
     ]);
     expect(calls[2]?.data).toEqual({ matterId: 'm-1' });

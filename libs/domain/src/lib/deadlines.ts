@@ -44,6 +44,7 @@ export const DEADLINE_CALLABLES = {
   resolveChange: 'deadlines-resolveChange',
   override: 'deadlines-override',
   complete: 'deadlines-complete',
+  acknowledge: 'deadlines-acknowledge',
   proposeRulesetUpgrade: 'deadlines-proposeRulesetUpgrade',
 } as const;
 
@@ -165,6 +166,24 @@ export interface OverrideDeadlineResult {
   deadlineId: string;
   dueDate: string;
   overrideConflict: boolean;
+}
+
+/**
+ * `deadlines-acknowledge` (task.edit, idempotent; CORE-11): records that someone has seen an
+ * upcoming deadline (`ackBy`, `ackAt`), which stops a critical one escalating. Acknowledging again
+ * keeps the first acknowledgement.
+ */
+export const AcknowledgeDeadlineInput = z
+  .object({ requestId: RequestId, matterId: DocIdSchema, deadlineId: DocIdSchema })
+  .strict();
+export type AcknowledgeDeadlineInput = z.input<typeof AcknowledgeDeadlineInput>;
+export interface AcknowledgeDeadlineResult {
+  deadlineId: string;
+  ackBy: string;
+  /** ISO 8601. */
+  ackAt: string;
+  /** False when it was already acknowledged. */
+  acknowledged: boolean;
 }
 
 /** How a deadline is closed: done, waived (lawyer and above, reason) or missed (after the missed check). */

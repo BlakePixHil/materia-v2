@@ -74,6 +74,8 @@ const taskShape = {
   source: z.enum(['manual', 'template', 'clerk', 'migration', 'rule']).default('manual'),
   /** Set by `tasks-onWrite` when the status becomes `done`, removed when the task is reopened. */
   completedAt: InstantSchema.optional(),
+  /** The due date its reminder went out for (`reminders-dispatch`, CORE-11): one per due date. */
+  reminderSentFor: DateOnlySchema.optional(),
 };
 
 /**
@@ -110,7 +112,7 @@ export const Task = withMeta(
   {
     path: `${MATTER}/tasks`,
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'completedAt', 'templateTaskKey', 'duePending', 'countedOpen'],
+    serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor', 'templateTaskKey', 'duePending', 'countedOpen'],
     updatable: TASK_UPDATABLE,
   },
 );
@@ -125,7 +127,7 @@ export const PersonalTask = withMeta(
   {
     path: 'orgs/{orgId}/members/{uid}/tasks',
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'completedAt'],
+    serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor'],
     updatable: TASK_UPDATABLE,
   },
 );
@@ -178,6 +180,8 @@ export type DeadlineComputed = z.infer<typeof ComputedSchema>;
 /** Limits on client-entered (manual) deadlines (CORE-10); the rules enforce them too. */
 export const DEADLINE_TITLE_MAX = 300;
 export const DEADLINE_REMINDERS_MAX = 10;
+/** At most this many people are told of one escalation (the supervisor and the admins). */
+export const DEADLINE_ESCALATION_RECIPIENTS_MAX = 50;
 export const DEADLINE_REASON_MAX = 1000;
 
 /**
@@ -243,6 +247,9 @@ export const Deadline = withMeta(
     nextReminderAt: InstantSchema.optional(),
     ackBy: DocIdSchema.optional(),
     ackAt: InstantSchema.optional(),
+    /** When `reminders-dispatch` escalated it (CORE-11), and to whom; cleared when the date moves. */
+    escalatedAt: InstantSchema.optional(),
+    escalatedTo: z.array(DocIdSchema).max(DEADLINE_ESCALATION_RECIPIENTS_MAX).optional(),
     /** Already past when computed: in the review queue, never marked missed automatically. */
     pastOnCreation: z.boolean().default(false),
   },
@@ -264,6 +271,8 @@ export const Deadline = withMeta(
       'taskId',
       'calendar',
       'nextReminderAt',
+      'escalatedAt',
+      'escalatedTo',
       'pastOnCreation',
     ],
     // Manual deadlines change these; computed ones only assigneeUid, ackBy and ackAt (the rules).
