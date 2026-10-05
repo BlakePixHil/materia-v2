@@ -357,6 +357,8 @@ export class IntakePage {
   private draftKey: string = crypto.randomUUID();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private saving: Promise<void> = Promise.resolve();
+  /** Draft writes started and not yet finished. */
+  private inFlight = 0;
   private lastSaved = '';
   /** Created or discarded: nothing more is saved. */
   private finished = false;
@@ -471,8 +473,16 @@ export class IntakePage {
   }
 
   private schedule(snapshot: string): void {
-    if (this.finished || snapshot === this.lastSaved) return;
+    if (this.finished) return;
     clearTimeout(this.timer);
+    this.timer = undefined;
+    if (snapshot === this.lastSaved) {
+      this.settle();
+      return;
+    }
+    // "Saving" from the edit itself, not only once the debounce fires: otherwise "Draft saved"
+    // stays up while a newer edit is still waiting to be written.
+    this.saveState.set('saving');
     this.timer = setTimeout(() => {
       this.timer = undefined;
       void this.save();
@@ -484,18 +494,31 @@ export class IntakePage {
     const step = this.store.step();
     const state = this.store.state();
     const snapshot = JSON.stringify({ step, state });
-    if (snapshot === this.lastSaved || !state.type) return this.saving;
+    if (snapshot === this.lastSaved || !state.type) {
+      this.settle();
+      return this.saving;
+    }
     this.saveState.set('saving');
+    this.inFlight++;
     this.saving = this.saving
       .then(() => this.drafts.save(this.draftKey, step, intakeStateJson(state)))
       .then(
         () => {
+          this.inFlight--;
           this.lastSaved = snapshot;
-          this.saveState.set('saved');
+          this.settle();
         },
-        () => this.saveState.set('error'),
+        () => {
+          this.inFlight--;
+          this.saveState.set('error');
+        },
       );
     return this.saving;
+  }
+
+  /** "Draft saved" once nothing is waiting on the debounce or being written. */
+  private settle(): void {
+    if (this.saveState() === 'saving' && !this.timer && this.inFlight === 0) this.saveState.set('saved');
   }
 
   /** Stops saving and deletes the draft (after a create, or when discarding). */

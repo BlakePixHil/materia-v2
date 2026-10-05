@@ -290,7 +290,10 @@ jobs:
           retention-days: 30
       - name: Build the e2e web app (emulator environment)
         if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.e2e == 'true'
-        run: pnpm nx build web --configuration=e2e
+        run: |
+          pnpm nx build web --configuration=e2e
+          # Every inline script in the built index.html must be allowed by the Hosting CSP (FND-22).
+          pnpm -s materia-scripts csp check --html dist/apps/web/browser/index.html
       - name: Upload the e2e web app
         if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.e2e == 'true'
         uses: actions/upload-artifact@v4
@@ -339,6 +342,9 @@ jobs:
       - name: Install Playwright system dependencies
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium webkit
+      # The Hosting emulator serves the app with the real CSP plus the emulator origins (FND-22).
+      - name: Write the e2e Firebase config
+        run: pnpm -s materia-scripts csp emulator-config --out firebase.e2e.json
       - name: Run e2e against the emulators (project demo-materia)
         env:
           BASE_URL: http://127.0.0.1:5000
@@ -347,7 +353,7 @@ jobs:
           E2E_CHROMIUM_ONLY: ${{ github.event_name == 'pull_request' && '1' || '' }}
         run: >-
           pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting
-          --project demo-materia --config firebase.json
+          --project demo-materia --config firebase.e2e.json
           "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --shard=${{ matrix.shard }}/2"
       - name: Upload the Playwright report
         if: failure()

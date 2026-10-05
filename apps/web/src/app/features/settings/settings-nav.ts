@@ -7,7 +7,7 @@ export interface SettingsSection {
   path: string;
   label: string;
   icon: MtIconName;
-  group: 'Firm' | 'Practice' | 'Clerk' | 'Records';
+  group: 'You' | 'Firm' | 'Practice' | 'Clerk' | 'Records';
   /** Who sees it in the sidebar; the route's own guard enforces the same. Everyone when absent. */
   roles?: readonly Role[];
   /** Shown only while this flag is on. */
@@ -21,6 +21,9 @@ export const SETTINGS_ADMIN_ROLES: readonly Role[] = ['owner', 'admin'];
  * app.routes.ts and an entry here (Clerk settings, AI-13; integrations, INT-03; security, SEC-04).
  */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
+  // The person's own (CORE-20).
+  { path: 'profile', label: 'Profile', icon: 'user', group: 'You' },
+  { path: 'preferences', label: 'Preferences', icon: 'settings', group: 'You' },
   { path: 'practice', label: 'Practice', icon: 'matters', group: 'Firm', roles: SETTINGS_ADMIN_ROLES },
   { path: 'team', label: 'Team and roles', icon: 'contacts', group: 'Firm' },
   { path: 'billing', label: 'Billing and rates', icon: 'billing', group: 'Firm', roles: SETTINGS_ADMIN_ROLES },

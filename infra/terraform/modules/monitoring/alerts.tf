@@ -126,22 +126,23 @@ resource "google_monitoring_alert_policy" "uptime" {
   user_labels = var.labels
 }
 
-# A cost guard: the last hour's Firestore rate against the 7-day average, with a floor so a quiet
-# project doesn't alert on a handful of extra reads.
+# A cost guard: the last hour's Firestore rate against the 24-hour average, with a floor so a quiet
+# project doesn't alert on a handful of extra reads. PromQL policies with a retest window (duration)
+# can't look back more than 1d1h, so the baseline is a day, not a week.
 resource "google_monitoring_alert_policy" "firestore_spike" {
   # A PromQL policy takes one condition, so reads and writes are separate policies.
   for_each = { read = 2, write = 0.5 }
 
   project      = var.project_id
-  display_name = "Firestore ${each.key}s over 3x the 7-day baseline (${var.env})"
+  display_name = "Firestore ${each.key}s over 3x the 24-hour baseline (${var.env})"
   combiner     = "OR"
 
   conditions {
-    display_name = "Document ${each.key}s over 3x the 7-day average (and over ${each.value}/s)"
+    display_name = "Document ${each.key}s over 3x the 24-hour average (and over ${each.value}/s)"
     condition_prometheus_query_language {
       query               = <<-EOT
         sum(rate(firestore_googleapis_com:document_${each.key}_count{monitored_resource="firestore_instance"}[1h]))
-          > 3 * sum(rate(firestore_googleapis_com:document_${each.key}_count{monitored_resource="firestore_instance"}[7d]))
+          > 3 * sum(rate(firestore_googleapis_com:document_${each.key}_count{monitored_resource="firestore_instance"}[1d]))
         and sum(rate(firestore_googleapis_com:document_${each.key}_count{monitored_resource="firestore_instance"}[1h])) > ${each.value}
       EOT
       duration            = "900s"
@@ -191,8 +192,15 @@ resource "google_monitoring_alert_policy" "clerk_budget" {
   user_labels = var.labels
 }
 
-# A scheduled job that hasn't logged "ok" for twice its period. PromQL, because condition_absent
-# windows stop at 23.5 hours, which a daily job needs to exceed.
+# A scheduled job that hasn't logged "ok" for twice its period, capped at 24.5 hours: a PromQL query
+# that reads a log-based metric can't look back more than 1d1h anywhere in it (and condition_absent
+# stops at 23.5 hours), so a daily job alerts after one missed run plus half an hour.
+#
+# The guard keeps a new environment, or a job not deployed yet, from alerting on day one:
+# - jobs that run at least twice a day: the job logged a run in the last day, so a stopped job
+#   (paused scheduler included) alerts for a day before the guard goes quiet;
+# - daily jobs: Cloud Run served the job a request in the last day, so a job that's invoked but
+#   fails alerts (a paused daily scheduler stays silent).
 resource "google_monitoring_alert_policy" "scheduled_job" {
   for_each = var.scheduled_jobs
 
@@ -201,11 +209,14 @@ resource "google_monitoring_alert_policy" "scheduled_job" {
   combiner     = "OR"
 
   conditions {
-    display_name = "No ${each.key} run in ${each.value * 2 / 60} minutes"
+    display_name = "No ${each.key} run in ${min(each.value * 2, 88200) / 60} minutes"
     condition_prometheus_query_language {
-      # Silent until the job has run at least once in the last week, so a new environment (or a
-      # job not deployed yet) doesn't alert on day one.
-      query               = "absent_over_time(${local.job_runs}{monitored_resource=\"cloud_run_revision\",fn=\"${each.key}\"}[${each.value * 2}s]) and on() (count_over_time(${local.job_runs}{monitored_resource=\"cloud_run_revision\",fn=\"${each.key}\"}[7d]) > 0)"
+      query = join(" and on() ", [
+        "absent_over_time(${local.job_runs}{monitored_resource=\"cloud_run_revision\",fn=\"${each.key}\"}[${min(each.value * 2, 88200)}s])",
+        each.value * 2 <= 86400
+        ? "(sum(count_over_time(${local.job_runs}{monitored_resource=\"cloud_run_revision\",fn=\"${each.key}\"}[1d])) > 0)"
+        : "(sum(increase(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"${lower(each.key)}\"}[1d])) > 0)",
+      ])
       duration            = "0s"
       evaluation_interval = "300s"
     }
@@ -214,7 +225,7 @@ resource "google_monitoring_alert_policy" "scheduled_job" {
   notification_channels = var.notification_channels
   documentation {
     mime_type = "text/markdown"
-    content   = "${each.key} hasn't finished a run in twice its period. Check its logs in Cloud Run and Cloud Scheduler (paused job, failed deploy). ${local.runbook}"
+    content   = "${each.key} hasn't finished a run in twice its period (at most 24.5 hours). Check its logs in Cloud Run and Cloud Scheduler (paused job, failed deploy). ${local.runbook}"
   }
   user_labels = var.labels
   depends_on  = [time_sleep.metrics_ready]

@@ -444,6 +444,60 @@ describe('org settings (CORE-21)', () => {
   });
 });
 
+describe('profile (CORE-20)', () => {
+  it('a member edits their own name, title, admission number, initials and colour, and nothing else', async () => {
+    const uid = uidFor('paralegal');
+    const own = doc(db(env, 'paralegal'), `orgs/${ORG}/members/${uid}`);
+    const profile = {
+      displayName: 'Robin Fictional',
+      initials: 'RF',
+      title: 'Law clerk',
+      admissionNo: '',
+      colour: '#0E9F6E',
+    };
+    await assertSucceeds(updateDoc(own, stamped(profile, uid)));
+    await assertFails(updateDoc(own, stamped({ displayName: '' }, uid)));
+    // Rates, roles and supervisors stay with owners and admins.
+    await assertFails(updateDoc(own, stamped({ defaultRateCents: 99900 }, uid)));
+    await assertFails(updateDoc(own, stamped({ supervisorUid: uid }, uid)));
+    await assertFails(updateDoc(own, stamped({ role: 'owner' }, uid)));
+    // Not someone else's, and not stamped as someone else.
+    await assertFails(
+      updateDoc(doc(db(env, 'paralegal'), `orgs/${ORG}/members/${uidFor('lawyer')}`), stamped(profile, uid)),
+    );
+    await assertFails(updateDoc(own, stamped(profile, uidFor('lawyer'))));
+    // A suspended member can't.
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'lawyer', ORG, SUSPENDED_UID), `orgs/${ORG}/members/${SUSPENDED_UID}`),
+        stamped(profile, SUSPENDED_UID),
+      ),
+    );
+  });
+
+  it('a person sets their own avatar URL, start page and in-app choices, but not off for escalations', async () => {
+    const uid = uidFor('lawyer');
+    await seedAdmin(env, (f) => setDoc(doc(f, `users/${uid}`), seedData(specFor('users'))));
+    const ref = doc(db(env, 'lawyer'), `users/${uid}`);
+    const notifications = { email: true, push: false, digestHour: 7, kinds: { mention: { inapp: false } } };
+    const prefs = { theme: 'dark', density: 'compact', shortcuts: true, startPage: 'matters', notifications };
+    await assertSucceeds(
+      updateDoc(ref, stamped({ prefs, avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/x/o/a.png' }, uid)),
+    );
+    await assertFails(
+      updateDoc(
+        ref,
+        stamped(
+          {
+            prefs: { ...prefs, notifications: { ...notifications, kinds: { deadline_escalation: { inapp: false } } } },
+          },
+          uid,
+        ),
+      ),
+    );
+  });
+});
+
 describe('soft delete', () => {
   const softDelete = (uid: string) => ({
     deletedAt: serverTimestamp(),
