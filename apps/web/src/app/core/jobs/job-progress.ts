@@ -39,6 +39,7 @@ const STAGE_COPY: Record<string, string> = {
   stamping: 'Adding stamps and page numbers',
   bookmarks: 'Adding bookmarks',
   finalising: 'Finishing the PDF',
+  zipping: 'Adding the documents to the zip',
   saving: 'Saving',
 };
 

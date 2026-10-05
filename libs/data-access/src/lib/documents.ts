@@ -4,6 +4,7 @@ import * as z from 'zod';
 import {
   DOCUMENT_CALLABLES,
   DomainError,
+  GET_EXPORT_URL_CALLABLE,
   MatterDocument,
   pendingUploadPath,
   SoftDeleteShape,
@@ -11,6 +12,7 @@ import {
   type BulkUpdateDocumentsInput,
   type BulkUpdateDocumentsResult,
   type GetDownloadUrlInput,
+  type GetExportUrlResult,
   type GetDownloadUrlResult,
   type ResolveDuplicateInput,
   type ResolveDuplicateResult,
@@ -18,6 +20,8 @@ import {
   type RestoreVersionResult,
   type SaveAttachmentInput,
   type SaveAttachmentResult,
+  type StartZipInput,
+  type StartZipResult,
   type UploadRequest,
 } from '@materia/domain';
 
@@ -170,6 +174,14 @@ export interface DocumentCallables {
    * is the returned `docId`, and it appears once scanned.
    */
   saveAttachment(input: Input<SaveAttachmentInput>): Promise<SaveAttachmentResult>;
+  /**
+   * `documents-startZip`: starts a zip of up to 200 documents' current versions (CORE-12b).
+   * Removed, unscanned and hidden privileged documents are left out (`skipped`); watch the
+   * returned job, then fetch the zip with `exportUrl`.
+   */
+  startZip(input: Input<StartZipInput>): Promise<StartZipResult>;
+  /** `jobs-getExportUrl`: a 5-minute link to a finished zip this member started. */
+  exportUrl(jobId: string): Promise<GetExportUrlResult>;
 }
 
 export function documentCallables(client: Pick<CallableClient, 'call'>): DocumentCallables {
@@ -192,5 +204,8 @@ export function documentCallables(client: Pick<CallableClient, 'call'>): Documen
       client.call<Input<SaveAttachmentInput>, SaveAttachmentResult>(DOCUMENT_CALLABLES.saveAttachment, input, {
         idempotent: true,
       }),
+    startZip: (input) =>
+      client.call<Input<StartZipInput>, StartZipResult>(DOCUMENT_CALLABLES.startZip, input, { idempotent: true }),
+    exportUrl: (jobId) => client.call<{ jobId: string }, GetExportUrlResult>(GET_EXPORT_URL_CALLABLE, { jobId }),
   };
 }
