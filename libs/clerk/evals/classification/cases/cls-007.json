@@ -1,0 +1,13 @@
+{
+  "id": "cls-007",
+  "description": "Court orders",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "classify/court-order.txt",
+      "title": "orders-15may.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

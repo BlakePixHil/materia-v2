@@ -1,0 +1,13 @@
+{
+  "id": "we-004",
+  "fixtures": {
+    "wills/brennan.txt": "982a080471b0fb12"
+  },
+  "fields": {
+    "testator.name": "Declan Patrick Brennan",
+    "willDate": "2020-02-03",
+    "executors[].name": ["Fiona Brennan", "Kieran Walsh"],
+    "guardians[].name": ["Fiona Brennan"],
+    "formalValidityFlags[].issue": []
+  }
+}

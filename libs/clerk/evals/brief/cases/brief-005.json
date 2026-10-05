@@ -1,0 +1,42 @@
+{
+  "id": "brief-005",
+  "description": "Several matters, sorted by urgency",
+  "today": "2026-03-20",
+  "matter": {
+    "user": "Jordan Price",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0007",
+        "upcomingDeadlines": [
+          {
+            "title": "Creditor notice period ends",
+            "due": "2026-04-20"
+          }
+        ],
+        "openTasks": [
+          {
+            "title": "List house for sale",
+            "due": "2026-04-07"
+          }
+        ],
+        "newDocuments": []
+      },
+      {
+        "matterNumber": "HV-2026-0011",
+        "upcomingDeadlines": [
+          {
+            "title": "Reply to Keane & Doyle Lawyers",
+            "due": "2026-03-27"
+          }
+        ],
+        "openTasks": [
+          {
+            "title": "Apply for probate",
+            "due": "2026-03-20"
+          }
+        ],
+        "newDocuments": []
+      }
+    ]
+  }
+}

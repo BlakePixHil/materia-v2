@@ -1,0 +1,39 @@
+{
+  "id": "draft-004",
+  "description": "Letter to opposing solicitors: their reference unknown",
+  "matter": {
+    "matterNumber": "HV-2026-0011",
+    "title": "Estate of Harold John Vance",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Harold John Vance",
+    "dateOfDeath": "2026-01-09",
+    "executors": ["Louise Vance"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Reply to Keane & Doyle Lawyers",
+        "due": "2026-03-27"
+      }
+    ],
+    "openTasks": ["Apply for probate", "Obtain valuations of the house and shares"]
+  },
+  "documents": [
+    {
+      "id": "d-style",
+      "fixture": "drafting/house-style.txt",
+      "title": "Letter house style"
+    },
+    {
+      "id": "d-vance-roland",
+      "fixture": "matters/vance/roland-letter.txt",
+      "title": "Letter from Keane & Doyle Lawyers"
+    }
+  ],
+  "query": "Draft a letter to Keane & Doyle Lawyers acknowledging their letter and quoting their file reference.",
+  "today": "2026-03-20"
+}

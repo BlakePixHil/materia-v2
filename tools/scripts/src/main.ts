@@ -11,6 +11,7 @@ const COMMANDS = {
   seed: 'Wipe the emulators and seed the fictional practice (FND-06)',
   dev: 'Run the emulators, seed and web app together: pnpm dev (FND-06)',
   'fixture-pdfs': 'Regenerate the fictional fixture PDFs in libs/test-utils (FND-06)',
+  'make-fixtures': 'Render the Clerk eval fixture PDFs, typed and scanned (AI-12; --check)',
   'flags-report': 'Check the feature flag registry and report stale flags (FND-23)',
   'platform-admin': 'Grant or revoke the platformAdmin claim (FND-23; humans only)',
 } as const;
@@ -45,6 +46,7 @@ export async function run(argv: string[]): Promise<number> {
       seed: () => import('./seed.ts'),
       dev: () => import('./dev.ts'),
       'fixture-pdfs': () => import('./seed/pdfs.ts'),
+      'make-fixtures': () => import('./make-fixtures.ts'),
       'flags-report': () => import('./flags-report.ts'),
       'platform-admin': () => import('./platform-admin.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;

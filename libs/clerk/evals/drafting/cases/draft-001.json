@@ -1,0 +1,39 @@
+{
+  "id": "draft-001",
+  "description": "Letter to the bank: account numbers known, grant date unknown",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [
+    {
+      "id": "d-style",
+      "fixture": "drafting/house-style.txt",
+      "title": "Letter house style"
+    },
+    {
+      "id": "d-pryce-bank",
+      "fixture": "matters/pryce/bank-letter.txt",
+      "title": "Letter from Surfcoast Community Bank"
+    }
+  ],
+  "query": "Draft a letter to Surfcoast Community Bank enclosing the grant of probate and asking them to close the accounts.",
+  "today": "2026-03-20"
+}

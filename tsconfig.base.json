@@ -23,6 +23,7 @@
       "@materia/domain": ["./libs/domain/src/index.ts"],
       "@materia/deadlines": ["./libs/deadlines/src/index.ts"],
       "@materia/clerk": ["./libs/clerk/src/index.ts"],
+      "@materia/clerk/evals": ["./libs/clerk/src/evals.ts"],
       "@materia/test-utils": ["./libs/test-utils/src/index.ts"],
       "@materia/ui": ["./libs/ui/src/index.ts"],
       "@materia/ui/markdown": ["./libs/ui/src/markdown.ts"],

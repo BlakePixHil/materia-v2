@@ -1,0 +1,6 @@
+{
+  "concurrency": 4,
+  "budgetUsd": { "subset": 3, "full": 8 },
+  "defaultModel": "claude-sonnet-5-5",
+  "attempts": 3
+}

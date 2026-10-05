@@ -1,0 +1,10 @@
+{
+  "id": "cls-002",
+  "fixtures": {
+    "classify/codicil.txt": "1c498f293798874f"
+  },
+  "fields": {
+    "category": "codicil",
+    "documentDate": "2024-08-08"
+  }
+}

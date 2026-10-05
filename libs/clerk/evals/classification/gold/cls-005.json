@@ -1,0 +1,10 @@
+{
+  "id": "cls-005",
+  "fixtures": {
+    "classify/affidavit.txt": "602065c9f614eed8"
+  },
+  "fields": {
+    "category": "affidavit",
+    "documentDate": "2026-02-10"
+  }
+}

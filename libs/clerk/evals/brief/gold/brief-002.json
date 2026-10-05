@@ -1,0 +1,5 @@
+{
+  "id": "brief-002",
+  "fixtures": {},
+  "mustNotContain": ["overdue", "due today"]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "cls-005",
+  "description": "Affidavit",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "classify/affidavit.txt",
+      "title": "affidavit-executor.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

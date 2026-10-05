@@ -1,0 +1,49 @@
+{
+  "suite": "will-extraction",
+  "title": "Will extraction (AI-08)",
+  "ticket": "AI-08",
+  "feature": "willExtraction",
+  "promptId": "will-extract@0.1.0",
+  "subset": ["we-001", "we-002", "we-003", "we-004", "we-005", "we-006", "we-007", "we-008", "we-009", "we-010"],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "schemaValid": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "fieldAccuracy": {
+      "min": 0.8,
+      "maxRegression": 0.05
+    },
+    "citationPrecision": {
+      "min": 0.8,
+      "maxRegression": 0.05
+    },
+    "citationSupport": {
+      "min": 0.8,
+      "maxRegression": 0.1
+    },
+    "noInventions": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "latencyMs": {
+      "maxRegression": 1.0
+    },
+    "costUsd": {
+      "maxRegression": 0.5
+    }
+  },
+  "fields": {
+    "testator.name": "normalised",
+    "willDate": "date",
+    "executors[].name": "setF1",
+    "beneficiaries[].name": "setF1",
+    "guardians[].name": "setF1",
+    "formalValidityFlags[].issue": "setF1"
+  },
+  "citations": "parsed"
+}

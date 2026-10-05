@@ -1,0 +1,39 @@
+{
+  "id": "draft-002",
+  "description": "Letter to a beneficiary: share amount not yet known",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [
+    {
+      "id": "d-style",
+      "fixture": "drafting/house-style.txt",
+      "title": "Letter house style"
+    },
+    {
+      "id": "d-pryce-nerida",
+      "fixture": "matters/pryce/nerida-letter.txt",
+      "title": "Letter from Nerida Cole, 12 March 2026"
+    }
+  ],
+  "query": "Draft a letter to Nerida Cole telling her the expected amount of her share of the residue.",
+  "today": "2026-03-20"
+}
