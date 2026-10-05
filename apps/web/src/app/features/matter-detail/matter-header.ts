@@ -14,9 +14,11 @@ import { Router, RouterLink } from '@angular/router';
 
 import {
   conflictAllowsOpening,
-  externalRefUrl,
+  isMatterLink,
+  MATTER_LINK_MAX_LENGTH,
   MATTER_NUMBER_MAX_LENGTH,
   matterNumberProblem,
+  normaliseMatterLink,
   type MatterStatus,
 } from '@materia/domain';
 import {
@@ -71,22 +73,20 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
   template: `
     @if (screen.value(); as m) {
       <div class="mt-row mt-wrap meta">
-        <span class="num">{{ m.number }}</span>
-        <mt-matter-tag [type]="m.type" />
-        @if (m.externalRef) {
-          @if (externalUrl(); as url) {
-            <a
-              class="mt-chip ext"
-              [href]="url"
-              target="_blank"
-              rel="noopener noreferrer"
-              [attr.aria-label]="'Open ' + screen.externalSystemName() + ' matter ' + m.externalRef + ' in a new tab'"
-              >{{ screen.externalSystemName() }} {{ m.externalRef }}<mt-icon name="external"
-            /></a>
-          } @else {
-            <span class="mt-chip ext">{{ screen.externalSystemName() }} {{ m.externalRef }}</span>
-          }
+        @if (link(); as url) {
+          <a
+            class="num linked"
+            [href]="url"
+            target="_blank"
+            rel="noopener noreferrer"
+            [mtTooltip]="url"
+            [attr.aria-label]="m.number + '. Open the linked matter in a new tab'"
+            >{{ m.number }}<mt-icon name="link" [size]="14"
+          /></a>
+        } @else {
+          <span class="num">{{ m.number }}</span>
         }
+        <mt-matter-tag [type]="m.type" />
         <mt-badge [tone]="conflictTone()">{{ conflictText() }}</mt-badge>
         @if (m.privileged) {
           <mt-badge tone="warning"><mt-icon name="shield" />Privileged</mt-badge>
@@ -268,9 +268,10 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
             <button mtMenuItem icon="compose" (click)="renumber()">Change matter number…</button>
           }
           @if (screen.editable()) {
-            <button mtMenuItem icon="link" (click)="editExternalRef()">
-              {{ m.externalRef ? 'Change' : 'Add' }} {{ screen.externalSystemName() }} matter…
-            </button>
+            <button mtMenuItem icon="link" (click)="editLink()">{{ link() ? 'Edit link…' : 'Add link…' }}</button>
+            @if (m.externalUrl) {
+              <button mtMenuItem icon="x" (click)="removeLink()">Remove link</button>
+            }
           }
           @if (upgradeTo(); as version) {
             <button mtMenuItem icon="arrow-up-right" (click)="upgradeTemplate(version)">
@@ -339,14 +340,16 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
       gap: var(--space-6);
       font: 500 12px/16px var(--font-sans);
     }
-    .mt-matter-head .mt-chip.ext {
-      font: 500 12px/16px var(--font-mono);
+    .mt-matter-head a.num.linked {
+      display: inline-flex;
+      align-items: center;
       gap: var(--space-4);
-      text-decoration: none;
-      cursor: default;
+      color: var(--text-primary);
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
-    .mt-matter-head a.mt-chip.ext {
-      cursor: pointer;
+    .mt-matter-head a.num.linked:hover {
+      color: var(--text-brand);
     }
     .mt-matter-head .mt-chip.label {
       cursor: default;
@@ -389,10 +392,11 @@ export class MatterHeader {
   protected readonly upgradeTo = computed(() => (this.screen.editable() ? this.screen.upgradeVersion() : null));
   /** Lawyers and above can change the number (CORE-21a), never on a deleted matter. */
   protected readonly canRenumber = computed(() => this.screen.canRenumber() && !this.screen.deleted());
-  /** The link to the matter in the firm's other system (3E), when the org has a link template. */
-  protected readonly externalUrl = computed(() =>
-    externalRefUrl(this.screen.org.value()?.externalSystem?.urlTemplate, this.screen.value()?.externalRef),
-  );
+  /** The matter's link (CORE-21a: the same matter in 3E, say), when it is a safe http(s) URL. */
+  protected readonly link = computed(() => {
+    const url = this.screen.value()?.externalUrl;
+    return isMatterLink(url) ? url : null;
+  });
   protected readonly canClose = computed(
     () => this.statusEditable() && this.choices().some((choice) => choice.to === 'closed'),
   );
@@ -549,28 +553,38 @@ export class MatterHeader {
     });
   }
 
-  /** Sets or clears the matter's reference in the firm's other system (client-direct, `externalRef`). */
-  protected async editExternalRef(): Promise<void> {
+  /** Links the matter to a web address (client-direct `externalUrl`); the number then opens it. */
+  protected async editLink(): Promise<void> {
     const matter = this.screen.value();
     if (!matter || !this.screen.editable()) return;
-    const system = this.screen.externalSystemName();
-    const ref = await this.ask({
-      title: `${system} matter`,
-      label: `${system} matter number`,
-      confirm: 'Save',
-      description: `The matter’s number in ${system}. Leave it empty to remove it.`,
-      initial: matter.externalRef ?? '',
-      maxLength: 60,
-      optional: true,
+    await this.ask({
+      title: matter.externalUrl ? `Edit the link for ${matter.number}` : `Link ${matter.number}`,
+      label: 'Web address',
+      confirm: 'Save link',
+      description: 'Where the matter also lives, such as the firm’s 3E. The matter number opens it.',
+      initial: matter.externalUrl ?? '',
+      maxLength: MATTER_LINK_MAX_LENGTH,
+      submit: async (input) => {
+        const url = normaliseMatterLink(input);
+        if (!url) return 'Enter a web address, like https://3e.yourfirm.com.au/matter/1234.';
+        if (url === matter.externalUrl) return undefined;
+        try {
+          await this.screen.repo.update(matter.id, { externalUrl: url });
+          return undefined;
+        } catch (error) {
+          return errorCopy(error);
+        }
+      },
     });
-    if (ref === undefined || ref === (matter.externalRef ?? '')) return;
-    if (ref) {
-      await this.save({ externalRef: ref });
-      return;
-    }
+  }
+
+  protected async removeLink(): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter?.externalUrl || !this.screen.editable()) return;
     this.busy.set(true);
     try {
-      await this.screen.repo.update(matter.id, {}, { remove: ['externalRef'] });
+      await this.screen.repo.update(matter.id, {}, { remove: ['externalUrl'] });
+      this.toasts.show({ title: 'Link removed', tone: 'success' });
     } catch (error) {
       this.toasts.show({ title: 'That change didn’t save', description: errorCopy(error), tone: 'danger' });
     } finally {

@@ -29,6 +29,7 @@ import {
 } from '@materia/data-access/repository';
 import {
   contactDisplayName,
+  isMatterLink,
   MATTER_STATUS_LABELS,
   MatterTypeSchema,
   type ChangeMatterStatusResult,
@@ -226,6 +227,23 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
           (endReached)="loadMore()"
           (focusin)="onRowFocus($event)"
         >
+          <ng-template mtCell="number" let-cell>
+            @let row = asRow(cell);
+            @if (linkOf(row); as url) {
+              <a
+                class="mt-matters-link"
+                [href]="url"
+                target="_blank"
+                rel="noopener noreferrer"
+                [attr.aria-label]="row.number + '. Open the linked matter in a new tab'"
+                (click)="$event.stopPropagation()"
+                (keydown.enter)="$event.stopPropagation()"
+                >{{ row.number }}<mt-icon name="link" [size]="14"
+              /></a>
+            } @else {
+              {{ row.number }}
+            }
+          </ng-template>
           <ng-template mtCell="title" let-cell>
             @let row = asRow(cell);
             <span class="mt-matters-title">
@@ -503,6 +521,17 @@ const GROUP_LABELS: Record<MatterGroupBy, string> = {
       flex: 1;
       min-height: 0;
     }
+    .mt-matters-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-4);
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .mt-matters-link:hover {
+      color: var(--text-brand);
+    }
     .mt-matters-title {
       display: flex;
       align-items: center;
@@ -656,6 +685,8 @@ export class MattersPage {
     },
   ];
   protected readonly rowKey = (row: MatterRow) => row.id;
+  /** The matter's link (CORE-21a), when it is a safe http(s) URL: its number opens it. */
+  protected readonly linkOf = (row: MatterRow) => (isMatterLink(row.externalUrl) ? row.externalUrl : null);
   protected readonly rowLabel = (row: MatterRow) => `${row.number} ${row.title}`;
 
   /** Loaded rows that pass every filter, sorted here when Firestore couldn't, in group order. */

@@ -5,10 +5,10 @@ import {
   CreateMatterInput,
   DEFAULT_MATTER_TYPE_CODES,
   DEFAULT_MATTER_VIEWS,
-  externalRefUrl,
   formatMatterNumber,
   initialMatterStatus,
   isIndexedMatterQuery,
+  isMatterLink,
   isMatterNumberFormat,
   MATTER_INDEXED_QUERIES,
   MATTER_RESTORE_WINDOW_DAYS,
@@ -22,6 +22,7 @@ import {
   matterNumberYear,
   matterSearchTokens,
   matterTypeCode,
+  normaliseMatterLink,
   RenumberMatterInput,
   RestoreMatterInput,
   transitionRequirements,
@@ -77,15 +78,18 @@ describe('matter numbers', () => {
     expect(RenumberMatterInput.safeParse({ requestId, matterId: 'm1', number: '' }).success).toBe(false);
   });
 
-  it('links an external reference only through an http(s) template', () => {
-    const template = 'https://3e.example.com/matters/{ref}';
-    expect(externalRefUrl(template, ' 104233/1 ')).toBe('https://3e.example.com/matters/104233%2F1');
-    expect(externalRefUrl(template, '')).toBeNull();
-    expect(externalRefUrl(undefined, '1')).toBeNull();
-    expect(externalRefUrl('https://3e.example.com/matters', '1')).toBeNull();
-    expect(externalRefUrl('javascript:alert({ref})', '1')).toBeNull();
-    expect(externalRefUrl('https://3e.example.com/a b/{ref}', '1')).toBeNull();
-    expect(externalRefUrl('http://intranet/3e?m={ref}', 'A 1')).toBe('http://intranet/3e?m=A%201');
+  it('accepts only http(s) matter links', () => {
+    expect(isMatterLink('https://3e.example.com/matters/104233')).toBe(true);
+    expect(isMatterLink('http://intranet/3e?m=1')).toBe(true);
+    expect(isMatterLink('javascript:alert(1)')).toBe(false);
+    expect(isMatterLink('https://a b')).toBe(false);
+    expect(isMatterLink('')).toBe(false);
+    expect(isMatterLink(undefined)).toBe(false);
+    expect(normaliseMatterLink(' 3e.example.com/m/1 ')).toBe('https://3e.example.com/m/1');
+    expect(normaliseMatterLink('https://3e.example.com/m/1')).toBe('https://3e.example.com/m/1');
+    expect(normaliseMatterLink('javascript:alert(1)')).toBeNull();
+    expect(normaliseMatterLink('not a link')).toBeNull();
+    expect(normaliseMatterLink('')).toBeNull();
   });
 
   it('rolls the year over at midnight in Melbourne, not UTC', () => {
@@ -151,6 +155,7 @@ describe('matter inputs and views', () => {
         'deceased',
         'estate',
         'externalRef',
+        'externalUrl',
         'facts',
         'labels',
         'priority',

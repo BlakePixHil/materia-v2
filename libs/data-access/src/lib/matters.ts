@@ -42,6 +42,8 @@ export const MatterListItemSchema = /* @__PURE__ */ z.object({
   privileged: matter.privileged,
   priority: matter.priority,
   labels: matter.labels,
+  /** Read as any string: the UI links it only when `isMatterLink` (a bad value never hides the matter). */
+  externalUrl: z.string().optional(),
   search: matter.search.default([]),
   nextDeadline: matter.nextDeadline,
   openTaskCount: matter.openTaskCount,
