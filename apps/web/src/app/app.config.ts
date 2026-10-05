@@ -2,6 +2,7 @@ import {
   ApplicationConfig,
   ErrorHandler,
   inject,
+  Injector,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
@@ -20,10 +21,14 @@ import { ThemeService } from '@materia/ui';
 
 import { appRoutes } from './app.routes';
 import { accessRevokedHandler, SessionWatcher } from './core/auth/session-watcher';
-import { GlobalErrorHandler } from './core/error-handler';
+import { CALLABLES } from './core/data/callables';
+import { ERROR_REPORTER, GlobalErrorHandler } from './core/error-handler';
+import { clientErrorReporter } from './core/observability/client-error-reporter';
+import { startPerformanceMonitoring } from './core/observability/perf';
 import { OrgService } from './core/orgs/org-service';
 import { MateriaTitleStrategy } from './core/title-strategy';
 import { environment } from '../environments/environment';
+import { RELEASE } from '../environments/version';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -33,8 +38,26 @@ export const appConfig: ApplicationConfig = {
     provideRouter(appRoutes),
     // `Matter · M-2026-0142 · Materia` (FND-12).
     { provide: TitleStrategy, useClass: MateriaTitleStrategy },
-    // A toast and a report for unexpected errors (FND-12; FND-21 adds the reporter).
+    // A toast and a report for unexpected errors (FND-12).
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
+    // Unexpected errors go, scrubbed and batched, to system-logClientError (FND-21). The sender
+    // (and the scrubber) load on the first error.
+    {
+      provide: ERROR_REPORTER,
+      useFactory: () => {
+        const injector = inject(Injector);
+        return clientErrorReporter({
+          version: `${RELEASE.version}+${RELEASE.sha}`,
+          send: async (input) =>
+            (await import('./core/observability/send-client-errors')).sendClientErrors(injector.get(CALLABLES), input),
+        });
+      },
+    },
+    // Performance Monitoring (FND-21): page load, Web Vitals and custom traces, in deployed builds
+    // only, loaded once the app is idle.
+    provideAppInitializer(() => {
+      if (!environment.useEmulators) setTimeout(() => startPerformanceMonitoring(), 3000);
+    }),
     // Starts following the theme preference and prefers-color-scheme (FND-07).
     provideAppInitializer(() => {
       inject(ThemeService);

@@ -1,2 +1,2 @@
 export { onMatterWrite, onOrgWrite } from './on-write';
-export { query } from './query';
+export { exportCsv, query } from './query';

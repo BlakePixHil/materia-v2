@@ -2,7 +2,7 @@ import { ErrorHandler, Injectable, InjectionToken, inject, Injector } from '@ang
 
 import { ToastService } from '@materia/ui';
 
-/** Where unexpected errors are reported (FND-21 provides Sentry). Must not log personal data. */
+/** Where unexpected errors are reported (the app provides FND-21's client error reporter). Must not log personal data. */
 export type ErrorReporter = (error: unknown) => void;
 
 export const ERROR_REPORTER = new InjectionToken<ErrorReporter>('ERROR_REPORTER', {

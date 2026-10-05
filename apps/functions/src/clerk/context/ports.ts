@@ -44,9 +44,6 @@ export interface ChunkSearchPort {
   searchChunks(input: ChunkSearchInput): Promise<ChunkHit[]>;
 }
 
-/** Production until AI-04 merges: no chunks, so retrieval adds nothing. */
-export const noChunkSearch: ChunkSearchPort = { searchChunks: async () => [] };
-
 // ---------- document text ----------
 
 export interface DocumentPage {
@@ -62,9 +59,6 @@ export interface DocumentPage {
 export interface DocumentTextPort {
   pages(input: { orgId: string; matterId: string; documentId: string; version: number }): Promise<DocumentPage[]>;
 }
-
-/** Production until AI-04 merges: no extracted text yet. */
-export const noDocumentText: DocumentTextPort = { pages: async () => [] };
 
 // ---------- token counting ----------
 

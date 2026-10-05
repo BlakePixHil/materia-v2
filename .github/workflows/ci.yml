@@ -10,7 +10,8 @@
 #   skip  pushes to main in quiet hours (22:00-07:30 Melbourne, nobody is testing), and morning
 #         runs with nothing new to deploy. deploy-dev only deploys runs whose `build` job ran,
 #         so quiet-hour merges wait for the morning run (about 06:30 Melbourne), which tests
-#         everything merged since the last dev deploy and deploys it. Release commits (the
+#         everything merged since the last dev deploy and deploys it. A 07:40 catch-up does the
+#         same for merges between 06:30 and 07:30. Release commits (the
 #         release-please PR) are never held back. To deploy overnight anyway, dispatch this
 #         workflow (or deploy-dev) on main.
 # Reproduce any job locally with the commands in AGENTS.md → "CI jobs locally".
@@ -23,11 +24,15 @@ on:
   pull_request:
   push:
     branches: [main]
-  # The morning run. Cron is UTC: 19:30 is 06:30 in Melbourne in daylight saving (AEDT), 20:30 is
-  # 06:30 in standard time (AEST); the gate lets through only the one that lands 06:00-07:15 local.
+  # The morning run and a catch-up. Cron is UTC, so each has one line per Melbourne offset:
+  # 19:30/20:30 are 06:30 in daylight saving (AEDT) / standard time (AEST), 20:40/21:40 are 07:40.
+  # The gate lets through only the line that lands in its local window, and skips when dev already
+  # runs main, so the catch-up costs about a minute unless something merged 06:30-07:30.
   schedule:
     - cron: '30 19 * * *'
     - cron: '30 20 * * *'
+    - cron: '40 20 * * *'
+    - cron: '40 21 * * *'
   workflow_dispatch:
 
 # Per event, so a quiet-hours push never cancels the morning run on main.
@@ -67,6 +72,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           PR: ${{ github.event.pull_request.number }}
           BEFORE: ${{ github.event.before }}
+          CRON: ${{ github.event.schedule }}
         run: .github/scripts/ci-gate.sh
 
   changes:

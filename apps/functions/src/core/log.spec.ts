@@ -1,4 +1,4 @@
-import { createLog, type LogSink } from './log';
+import { createLog, errorReportFields, type LogSink } from './log';
 
 describe('createLog', () => {
   it('writes structured entries with context, durationMs and redacted data', () => {
@@ -30,5 +30,19 @@ describe('createLog', () => {
     const entries: Record<string, unknown>[] = [];
     createLog({ fn: 'f', uid: 'real' }, (_s, _m, e) => entries.push(e)).info('x', { uid: 'spoofed' });
     expect(entries[0]?.['uid']).toBe('real');
+  });
+});
+
+describe('errorReportFields', () => {
+  it('gives Error Reporting a stack without the message', () => {
+    // Fictional data only.
+    const fields = errorReportFields(new TypeError('Failed for Margaret Whitfield'));
+    expect(fields.errorType).toBe('TypeError');
+    expect(fields.stack_trace).toMatch(/^TypeError: message withheld\n\s+at /);
+    expect(JSON.stringify(fields)).not.toContain('Margaret');
+  });
+
+  it('gives the type only for non-errors', () => {
+    expect(errorReportFields('boom')).toEqual({ errorType: 'string' });
   });
 });

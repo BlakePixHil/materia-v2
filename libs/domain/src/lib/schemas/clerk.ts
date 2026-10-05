@@ -33,6 +33,8 @@ export const SuggestionPayloadSchema = z.discriminatedUnion('kind', [
       category: DocumentCategorySchema,
       title: z.string(),
       date: DateOnlySchema.optional(),
+      /** People and organisations the document names (AI-04 classification). */
+      parties: z.array(z.string().max(200)).max(20).optional(),
     }),
   }),
   z.object({ kind: z.literal('evidence'), payload: Evidence.create }),
