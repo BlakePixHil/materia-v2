@@ -1,0 +1,13 @@
+{
+  "id": "we-009",
+  "description": "Unsigned and unwitnessed, scanned PDF",
+  "today": "2026-03-20",
+  "documents": [
+    {
+      "id": "d-will",
+      "fixture": "wills/kowalski.scanned.pdf",
+      "title": "Will"
+    }
+  ],
+  "query": "Extract the will."
+}

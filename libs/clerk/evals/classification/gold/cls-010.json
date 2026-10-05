@@ -1,0 +1,10 @@
+{
+  "id": "cls-010",
+  "fixtures": {
+    "matters/vance/roland-letter.txt": "88e51d75fa797805"
+  },
+  "fields": {
+    "category": "correspondence",
+    "documentDate": "2026-01-28"
+  }
+}

@@ -1,0 +1,15 @@
+SAMPLE - FICTIONAL DOCUMENT FOR SOFTWARE TESTING ONLY
+
+WILL OF ROSA MARCHETTI
+
+I, ROSA MARCHETTI of 3 Pakington Street, Geelong West, Victoria, make this will.
+
+1. I appoint my son LUCA MARCHETTI to be my executor.
+
+2. I give my house at 3 Pakington Street, Geelong West to my son LUCA MARCHETTI.
+
+3. I give the rest of my estate to my daughters ELENA MARCHETTI and SOFIA RICCI in equal shares.
+
+Signed by Rosa Marchetti in the presence of:
+R. Marchetti
+Witness: Paolo Conti, 9 Church Street, Geelong West

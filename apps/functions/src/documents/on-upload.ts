@@ -1,7 +1,7 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { PENDING_UPLOAD_PATH, PENDING_UPLOAD_TTL_MS } from '@materia/domain';
 

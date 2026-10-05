@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DocIdSchema } from './schemas/common';
 import { NOTE_BODY_MAX } from './schemas/matter-records';

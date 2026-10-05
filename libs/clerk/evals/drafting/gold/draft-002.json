@@ -1,0 +1,16 @@
+{
+  "id": "draft-002",
+  "fixtures": {
+    "drafting/house-style.txt": "b10f21eb0048ba53",
+    "matters/pryce/nerida-letter.txt": "33d761f7e6b0e161"
+  },
+  "placeholders": {
+    "missing": [
+      {
+        "fact": "amount of the share",
+        "keywords": ["amount", "share", "residue", "figure"]
+      }
+    ],
+    "forbidden": ["$300,000", "$320,000"]
+  }
+}

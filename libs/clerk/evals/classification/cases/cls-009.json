@@ -1,0 +1,13 @@
+{
+  "id": "cls-009",
+  "description": "Identity document",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "classify/drivers-licence.txt",
+      "title": "id-front.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

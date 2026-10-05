@@ -220,6 +220,16 @@ resource "google_secret_manager_secret_iam_member" "fn_runtime" {
   member    = "serviceAccount:${google_service_account.fn_runtime.email}"
 }
 
+# Clerk evals (AI-12): the clerk-evals workflow reads the eval-only Anthropic key from
+# ANTHROPIC_API_KEY as the deployer, on dev only. This secret and no other.
+resource "google_secret_manager_secret_iam_member" "deployer_clerk_evals_key" {
+  count     = var.env == "dev" ? 1 : 0
+  project   = google_project.this.project_id
+  secret_id = google_secret_manager_secret.this["ANTHROPIC_API_KEY"].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.deployer.email}"
+}
+
 # migration-runner: Firestore writes and the migration bucket, nothing else.
 resource "google_project_iam_member" "migration_runner_firestore" {
   count   = var.enable_migration_runner ? 1 : 0

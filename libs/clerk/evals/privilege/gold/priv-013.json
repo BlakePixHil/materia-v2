@@ -1,0 +1,19 @@
+{
+  "id": "priv-013",
+  "fixtures": {
+    "matters/vance/advice-memo.txt": "d73d7fa47e77adb1",
+    "matters/vance/counsel-email.txt": "60dc79d8a958d150",
+    "matters/vance/file-note.txt": "463db24cda491baa",
+    "matters/vance/roland-letter.txt": "88e51d75fa797805",
+    "matters/vance/will.txt": "b40ec5eccab1f361"
+  },
+  "canaries": [
+    "PRIV-CANARY-VANCE-7731",
+    "PRIV-CANARY-VANCE-0915",
+    "MARIGOLD-SETTLEMENT",
+    "BLUEHERON-AUTHORITY",
+    "KESTREL-NOTE-2209",
+    "Thackeray"
+  ],
+  "expectCitations": true
+}
