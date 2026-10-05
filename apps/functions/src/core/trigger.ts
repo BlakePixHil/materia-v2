@@ -61,9 +61,11 @@ export interface TriggerEvent {
 }
 
 /**
- * Runs a trigger handler once per event id: `eventGuards/{eventId}` is created first, so a
- * redelivered event is skipped. Retries are off; a failure is logged as a dead letter (with ids
- * only) and not rethrown.
+ * Runs a trigger handler once per event id: `eventGuards/{fn}-{eventId}` is created first, so a
+ * redelivered event is skipped. The guard is per function because every trigger on the same write
+ * gets the same event id (a document write runs `documents-onWrite`, `documents-onIngestChange`
+ * and `audit-onMatterWrite`); a guard on the id alone let the first of them skip the others.
+ * Retries are off; a failure is logged as a dead letter (with ids only) and not rethrown.
  */
 export async function runTrigger(
   def: TriggerDefinition,
@@ -73,7 +75,7 @@ export async function runTrigger(
   const log = createLog({ fn: def.name, eventId: event.id, orgId: event.params['orgId'] ?? null }, deps.sink);
   const db = deps.db();
   try {
-    await db.doc(`eventGuards/${event.id}`).create({
+    await db.doc(eventGuardPath(def.name, event.id)).create({
       fn: def.name,
       expiresAt: Timestamp.fromMillis(deps.clock.now().getTime() + GUARD_TTL_MS),
     });
@@ -106,6 +108,9 @@ export async function runTrigger(
     return 'failed';
   }
 }
+
+/** The idempotency guard of one function's run for one event. */
+export const eventGuardPath = (fn: string, eventId: string) => `eventGuards/${fn}-${eventId}`;
 
 const triggerDeps = (): TriggerDeps => ({ db: adminDb, clock: systemClock, ports, sink: functionsSink });
 
