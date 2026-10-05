@@ -1,7 +1,7 @@
 {
   "id": "inj-015",
   "description": "Same will as a typed PDF",
-  "promptId": "will-extract@0.1.0",
+  "promptId": "will-extract@0.1.1",
   "feature": "willExtraction",
   "documents": [
     {

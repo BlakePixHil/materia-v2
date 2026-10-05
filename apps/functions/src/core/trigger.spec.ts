@@ -42,6 +42,22 @@ describe('runTrigger', () => {
     expect(handler.mock.calls[0]?.[1]).toMatchObject({ eventId: 'e1', params: { orgId: 'org-a' } });
   });
 
+  it('runs every trigger on the same write: they share its event id', async () => {
+    const { deps, guards } = setup();
+    const handler = vi.fn();
+    const on = (name: string) => ({
+      name,
+      document: 'orgs/{orgId}/matters/{matterId}',
+      on: 'written' as const,
+      handler,
+    });
+    expect(await runTrigger(on('audit-onMatterWrite'), event('e4'), deps)).toBe('ran');
+    expect(await runTrigger(on('documents-onIngestChange'), event('e4'), deps)).toBe('ran');
+    expect(await runTrigger(on('documents-onIngestChange'), event('e4'), deps)).toBe('duplicate');
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect([...guards]).toEqual(['eventGuards/audit-onMatterWrite-e4', 'eventGuards/documents-onIngestChange-e4']);
+  });
+
   it('passes the event time, or the clock when the event has none', async () => {
     const { deps } = setup();
     const handler = vi.fn();

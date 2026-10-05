@@ -50,6 +50,10 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   ALREADY_MEMBER: 'This person is already a member of the practice.',
   LAST_OWNER: 'A practice needs at least one owner. Make someone else an owner first.',
   EMAIL_NOT_VERIFIED: 'Confirm your email first, then try again.',
+  MATTER_CLOSED: 'This matter is closed, so it can’t be changed. Reopen it first.',
+  SUGGESTION_STALE: 'The matter changed since Clerk suggested this. Review the changes, then accept again.',
+  ALREADY_RESOLVED: 'Someone has already dealt with this suggestion.',
+  SUGGESTION_UNSUPPORTED: 'This kind of suggestion can’t be accepted yet. Make the change by hand instead.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 

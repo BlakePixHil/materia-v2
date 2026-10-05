@@ -33,6 +33,12 @@ class FakeStore implements IngestStore {
   }
 }
 
+class CountingStore extends FakeStore {
+  async triggerRuns(fns: readonly string[]) {
+    return Object.fromEntries(fns.map((fn) => [fn, fn === 'documents-onIngestChange' ? 1 : 12]));
+  }
+}
+
 const clean = { scan: { status: 'clean' }, version: 2 };
 const doc = (id: string) => `orgs/org-a/matters/m-1/documents/${id}`;
 
@@ -83,10 +89,33 @@ describe('backfill-ingest', () => {
       inProgress: 2,
       due: 3,
       ocrPages: 1,
+      reasons: {
+        'due: failed (Timeout)': 1,
+        'due: never ingested': 1,
+        'due: older version': 1,
+        'in progress: queued': 1,
+        'in progress: running': 1,
+        'skipped: encrypted': 1,
+      },
     });
     expect(store.writes).toEqual([]);
     expect(lines.join('\n')).toContain('3 to queue');
+    expect(lines).toContain('  due: failed (Timeout): 1');
     expect(lines.join('\n')).not.toContain('d-legacy');
+  });
+
+  it('reports how often the document triggers ran, when the store can count them', async () => {
+    const store = new CountingStore();
+    const lines: string[] = [];
+    const report = await backfillIngest(store, { dryRun: true, log: (line) => lines.push(line) });
+    expect(report.triggerRuns).toEqual({
+      'documents-onWrite': 12,
+      'documents-onIngestChange': 1,
+      'audit-onMatterWrite': 12,
+    });
+    expect(lines).toContain(
+      'trigger runs in the last week: documents-onWrite 12, documents-onIngestChange 1, audit-onMatterWrite 12',
+    );
   });
 
   it('moves each due document through queued to pending for its current version, so the trigger queues it', async () => {

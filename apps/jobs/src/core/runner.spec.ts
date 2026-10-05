@@ -35,9 +35,13 @@ class MemoryStore implements JobStore {
 }
 
 const uploads = new Map<string, Buffer>();
+const contentTypes = new Map<string, string>();
 const files: JobFiles = {
   download: async () => undefined,
-  upload: async (localPath, storagePath) => void uploads.set(storagePath, await readFile(localPath)),
+  upload: async (localPath, storagePath, contentType) => {
+    uploads.set(storagePath, await readFile(localPath));
+    contentTypes.set(storagePath, contentType);
+  },
 };
 const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
@@ -56,14 +60,25 @@ function deps(store: JobStore, handler: JobHandler = pdfHandler, extra: Partial<
     store,
     files,
     log,
-    handlers: { 'pdf.merge': handler, 'pdf.render': handler },
+    handlers: { 'pdf.merge': handler, 'pdf.render': handler, 'documents.zip': handler },
     timeoutMs: 5_000,
     clock: () => new Date('2026-10-04T10:00:00Z'),
     ...extra,
   };
 }
 
-beforeEach(() => uploads.clear());
+beforeEach(() => {
+  uploads.clear();
+  contentTypes.clear();
+});
+
+/** A `documents.zip` job (CORE-12b) of the given document versions. */
+const zipJob = (...storagePaths: string[]) =>
+  jobDoc({
+    type: 'documents.zip',
+    input: { inputs: storagePaths.map((storagePath, i) => ({ storagePath, fileName: `${i}.pdf` })) },
+    target: { kind: 'export', name: 'Documents' },
+  });
 
 describe('executeJob', () => {
   it('runs the handler, uploads the PDF and records a generated matter document', async () => {
@@ -95,6 +110,16 @@ describe('executeJob', () => {
     const store = new MemoryStore(jobDoc({ target: { kind: 'export', name: 'Export' } }));
     expect(await executeJob(deps(store))).toBe('succeeded');
     expect(uploads.has('orgs/org-1/exports/job-1.pdf')).toBe(true);
+    expect(contentTypes.get('orgs/org-1/exports/job-1.pdf')).toBe('application/pdf');
+    expect(store.documents.size).toBe(0);
+  });
+
+  it('writes a zip download as a zip export', async () => {
+    const store = new MemoryStore(zipJob('orgs/org-1/matters/m-1/documents/d-1/v2'));
+    expect(await executeJob(deps(store))).toBe('succeeded');
+    expect(uploads.has('orgs/org-1/exports/job-1.zip')).toBe(true);
+    expect(contentTypes.get('orgs/org-1/exports/job-1.zip')).toBe('application/zip');
+    expect(store.result?.output?.storagePath).toBe('orgs/org-1/exports/job-1.zip');
     expect(store.documents.size).toBe(0);
   });
 
@@ -149,6 +174,12 @@ describe('executeJob', () => {
     expect(store.result?.error).toMatchObject({ code: 'PERMISSION_DENIED', inputIndex: 0 });
   });
 
+  it('refuses zip inputs from another organisation', async () => {
+    const store = new MemoryStore(zipJob('orgs/org-1/matters/m/documents/d/v1', 'orgs/org-2/matters/m/documents/d/v1'));
+    expect(await executeJob(deps(store))).toBe('failed');
+    expect(store.result?.error).toMatchObject({ code: 'PERMISSION_DENIED', inputIndex: 1 });
+  });
+
   it('refuses an input that does not match the job type', async () => {
     const store = new MemoryStore(jobDoc({ input: { templateId: 'sample-letter', data: {} } }));
     expect(await executeJob(deps(store))).toBe('failed');
@@ -181,6 +212,14 @@ describe('outputLocation', () => {
       documentId: 'job-j',
       documentPath: 'orgs/o/matters/m-9/documents/job-j',
     });
+  });
+
+  it('names exports after the job, as a PDF or a zip', () => {
+    const target = { kind: 'export', name: 'x' } as const;
+    const render = { type: 'pdf.render', input: { templateId: 't', data: {} }, target } as const;
+    const zip = { type: 'documents.zip', input: { inputs: [] }, target } as const;
+    expect(outputLocation('o', 'j', render as never)).toEqual({ storagePath: 'orgs/o/exports/j.pdf' });
+    expect(outputLocation('o', 'j', zip as never)).toEqual({ storagePath: 'orgs/o/exports/j.zip' });
   });
 });
 

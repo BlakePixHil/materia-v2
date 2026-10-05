@@ -29,7 +29,15 @@ export interface IngestStore {
   setIngest(path: string, ingest: Data): Promise<void>;
   /** Whether one of the document's chunks for this version carries a 768-dimension embedding. */
   embedded(path: string, version: number): Promise<boolean>;
+  /** How many times each trigger function ran in the last week, from its `eventGuards` (optional). */
+  triggerRuns?(fns: readonly string[]): Promise<Record<string, number>>;
 }
+
+/**
+ * The triggers every document write runs. If `documents-onIngestChange` ran far less often than
+ * `documents-onWrite`, the trigger isn't seeing the writes that should queue ingestion.
+ */
+export const DOCUMENT_TRIGGERS = ['documents-onWrite', 'documents-onIngestChange', 'audit-onMatterWrite'] as const;
 
 export const EMBEDDING_DIMENSIONS = 768;
 
@@ -47,6 +55,10 @@ export interface IngestReport {
   /** Pending (never ingested, or an older version) or failed: queued by this run. */
   due: number;
   ocrPages: number;
+  /** Why documents are due, skipped or in progress (`failed: TypeError`, `skipped: encrypted`, …). Counts only. */
+  reasons: Record<string, number>;
+  /** Runs of the document triggers in the last week (when the store can count them). */
+  triggerRuns?: Record<string, number>;
 }
 
 const isDeleted = (doc: Data) => doc['deletedAt'] !== undefined && doc['deletedAt'] !== null;
@@ -74,6 +86,25 @@ export function ingestState(doc: Data): IngestState {
   }
 }
 
+/** A short, name-free label for why a document is in its state (logged as a count). */
+export function stateReason(doc: Data, state: IngestState): string | null {
+  const version = Number(doc['version'] ?? 0);
+  const ingest = doc['ingest'] as { status?: string; version?: number; reason?: string; error?: string } | undefined;
+  switch (state) {
+    case 'due':
+      if (!ingest) return 'due: never ingested';
+      if (ingest.version !== undefined && ingest.version !== version) return 'due: older version';
+      if (ingest.status === 'failed') return `due: failed (${ingest.error ?? 'no error recorded'})`;
+      return `due: ${ingest.status ?? 'pending'}`;
+    case 'skipped':
+      return `skipped: ${ingest?.reason ?? 'no reason recorded'}`;
+    case 'inProgress':
+      return `in progress: ${ingest?.status}`;
+    default:
+      return null;
+  }
+}
+
 /** Runs the backfill; with `dryRun`, only reports. */
 export async function backfillIngest(
   store: IngestStore,
@@ -90,6 +121,7 @@ export async function backfillIngest(
     inProgress: 0,
     due: 0,
     ocrPages: 0,
+    reasons: {},
   };
   let after: string | null = null;
   for (;;) {
@@ -101,6 +133,8 @@ export async function backfillIngest(
       report.read++;
       const state = ingestState(doc.data);
       report[state]++;
+      const reason = stateReason(doc.data, state);
+      if (reason) report.reasons[reason] = (report.reasons[reason] ?? 0) + 1;
       const version = Number(doc.data['version']);
       const ingest = (doc.data['ingest'] ?? {}) as { chunks?: number; ocrPages?: number };
       if (state === 'done') {
@@ -116,6 +150,7 @@ export async function backfillIngest(
     after = page[page.length - 1]?.path ?? null;
     if (page.length < pageSize) break;
   }
+  if (store.triggerRuns) report.triggerRuns = await store.triggerRuns(DOCUMENT_TRIGGERS);
   const log = options.log;
   if (log) {
     log(`documents: ${report.read} read, ${report.notReady} not ready (deleted, unscanned or infected)`);
@@ -125,6 +160,11 @@ export async function backfillIngest(
     );
     log(`skipped: ${report.skipped}, in progress: ${report.inProgress}`);
     log(`due (never ingested, older version or failed): ${report.due} ${options.dryRun ? 'to queue' : 'queued'}`);
+    for (const [reason, count] of Object.entries(report.reasons).sort()) log(`  ${reason}: ${count}`);
+    if (report.triggerRuns) {
+      const runs = Object.entries(report.triggerRuns).map(([fn, count]) => `${fn} ${count}`);
+      log(`trigger runs in the last week: ${runs.join(', ')}`);
+    }
   }
   return report;
 }
@@ -151,6 +191,12 @@ export function adminStore(db: Firestore): IngestStore {
       // A VectorValue (FieldValue.vector) reads back with toArray().
       const embedding = snap.docs[0]?.get('embedding') as { toArray?: () => number[] } | undefined;
       return embedding?.toArray?.().length === EMBEDDING_DIMENSIONS;
+    },
+    async triggerRuns(fns) {
+      const counts = await Promise.all(
+        fns.map(async (fn) => (await db.collection('eventGuards').where('fn', '==', fn).count().get()).data().count),
+      );
+      return Object.fromEntries(fns.map((fn, i) => [fn, counts[i] ?? 0]));
     },
   };
 }

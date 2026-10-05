@@ -87,11 +87,12 @@ Client personal information is often sensitive: health information in capacity d
 - **Retention:** `expireAt` is the event time plus the org's `retentionYears` (default 7), deleted by a TTL policy on `audit.expireAt`.
 - **Failures:** a failed trigger never blocks the user's write. It is logged as a dead letter (ids only), and FND-21 adds the alert.
 
-**Backups**
+**Backups** (SEC-03; [restore runbook](runbooks/restore.md))
 - Firestore PITR (7 days).
+- Firestore managed backups in the database's region: daily, kept 7 days, and weekly, kept 14 weeks (Firestore's maximums).
 - Daily managed exports to `australia-southeast2`, with a 35-day retention and monthly copies kept for 1 year.
-- Storage soft-delete and object versioning on the document bucket.
-- A quarterly restore drill.
+- Storage soft-delete (30 days) and object versioning (non-current versions kept 90 days) on the document bucket, plus a nightly copy to `australia-southeast2`.
+- A quarterly restore drill (the `backup-drill` workflow on dev).
 
 **Supply chain**
 - Renovate or Dependabot with grouped updates, `pnpm audit`, CodeQL and gitleaks.

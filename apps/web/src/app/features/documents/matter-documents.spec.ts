@@ -1,5 +1,10 @@
+import type { JobSource, JobView } from '@materia/data-access';
+import { DomainError } from '@materia/domain';
+
+import { DOWNLOAD_NAVIGATOR } from './document-actions';
 import { FakeUploadPort, pipelineUpload, storedDocument } from './testing';
 import { UPLOAD_PORT } from './upload-port';
+import { JOB_SOURCE } from '../../core/jobs/job-progress';
 import { cleanUpOverlays, MATTER, openMatter, PARALEGAL, READONLY, type FakeCallable } from '../matter-detail/testing';
 
 /** The matter's Documents tab (CORE-12). Fictional data only. */
@@ -55,6 +60,17 @@ function documentCallables(): Record<string, FakeCallable> {
       }
       return { updated: ids.length, skipped: [] };
     },
+    'documents-startZip': (data) => ({
+      jobId: 'job-zip',
+      executionId: 'execution-1',
+      included: (data['docIds'] as string[]).length,
+      skipped: 0,
+    }),
+    'jobs-getExportUrl': (data) => ({
+      url: `https://storage.example.test/${String(data['jobId'])}.zip`,
+      expiresAt: '2026-10-05T00:05:00.000Z',
+      fileName: 'Documents BL-2026-0042.zip',
+    }),
     'documents-resolveDuplicate': (data, fs) => {
       const id = String(data['docId']);
       if (data['action'] === 'keep') {
@@ -69,15 +85,34 @@ function documentCallables(): Record<string, FakeCallable> {
   };
 }
 
+/** Zip jobs the test finishes by hand (CORE-12b). */
+function fakeJobs() {
+  const watchers: { jobId: string; next: (job: JobView | null) => void }[] = [];
+  const source: JobSource = {
+    watch(_orgId, jobId, next) {
+      watchers.push({ jobId, next });
+      return () => undefined;
+    },
+  };
+  return { source, watchers };
+}
+
 async function open(options: Parameters<typeof openMatter>[1] = {}) {
   const port = new FakeUploadPort();
+  const jobs = fakeJobs();
+  const navigated: string[] = [];
   const page = await openMatter(URL, {
     configure: documents,
     callables: documentCallables(),
-    providers: [{ provide: UPLOAD_PORT, useValue: port }],
     ...options,
+    providers: [
+      { provide: UPLOAD_PORT, useValue: port },
+      { provide: JOB_SOURCE, useValue: jobs.source },
+      { provide: DOWNLOAD_NAVIGATOR, useValue: (url: string) => navigated.push(url) },
+      ...(options.providers ?? []),
+    ],
   });
-  return { ...page, uploads: port };
+  return { ...page, uploads: port, jobs: jobs.watchers, navigated };
 }
 
 const names = (page: Page) =>
@@ -194,7 +229,15 @@ describe('matter documents tab', () => {
     expect(page.buttons('Upload', tab(page))).toHaveLength(0);
     expect(page.buttons('Privileged', tab(page))).toHaveLength(0);
     expect(page.buttons('Show removed', tab(page))).toHaveLength(0);
-    expect(tab(page).querySelector('[role="checkbox"]')).toBeNull();
+    // Read-only members can select documents to download them as a zip, and do nothing else.
+    tab(page)
+      .querySelector<HTMLElement>('mt-table [role="checkbox"][aria-label="Select Bank statement.xlsx"]')
+      ?.click();
+    await page.stable();
+    const bar = page.body.querySelector<HTMLElement>('mt-documents-bulk-bar') ?? page.body;
+    expect(page.buttons('Download', bar)).toHaveLength(1);
+    expect(page.buttons('Move to category', bar)).toHaveLength(0);
+    expect(page.buttons('Remove', bar)).toHaveLength(0);
   });
 
   it('lets a paralegal upload but not remove, and hides privileged documents', async () => {
@@ -396,5 +439,74 @@ describe('matter documents tab', () => {
     await settle(page);
     expect(page.text(page.body)).toContain('Couldn’t change the documents');
     expect(page.body.querySelector('mt-documents-bulk-bar')).not.toBeNull();
+  });
+
+  it('downloads the selected documents as one zip once the job is done', async () => {
+    const page = await open();
+    for (const name of ['Bank statement.xlsx', 'Will of Margaret Whitfield.pdf']) {
+      tab(page).querySelector<HTMLElement>(`mt-table [role="checkbox"][aria-label="Select ${name}"]`)?.click();
+      await page.stable();
+    }
+    const bar = () => page.body.querySelector<HTMLElement>('mt-documents-bulk-bar') ?? page.body;
+    await page.click('Download', bar());
+    await settle(page);
+    expect(page.calls('documents-startZip')).toEqual([
+      { matterId: 'm-whitfield', docIds: ['d-bank', 'd-will'], requestId: expect.any(String) },
+    ]);
+    expect(page.jobs.map((job) => job.jobId)).toEqual(['job-zip']);
+    expect(page.buttons('Preparing zip…', bar())).toHaveLength(1);
+    expect(page.buttons('Preparing zip…', bar())[0]?.getAttribute('aria-busy')).toBe('true');
+
+    page.jobs[0]?.next({ status: 'running', progress: { done: 1, total: 2, stage: 'zipping' }, warnings: [] });
+    await settle(page);
+    const bar2 = tab(page).querySelector('[role="progressbar"]');
+    expect(bar2?.getAttribute('aria-label')).toBe('Documents zip');
+    expect(page.text(tab(page))).toContain('Adding the documents to the zip…');
+    // A second click while it is being prepared starts nothing.
+    await page.click('Preparing zip…', bar());
+    expect(page.calls('documents-startZip')).toHaveLength(1);
+
+    page.jobs[0]?.next({
+      status: 'succeeded',
+      progress: { done: 2, total: 2 },
+      warnings: [],
+      output: { storagePath: 'orgs/org-a/exports/job-zip.zip', pages: 0 },
+    });
+    await settle(page);
+    expect(page.calls('jobs-getExportUrl')).toEqual([{ jobId: 'job-zip' }]);
+    expect(page.navigated).toEqual(['https://storage.example.test/job-zip.zip']);
+    expect(tab(page).querySelector('mt-job-progress')).toBeNull();
+    expect(page.buttons('Download', bar())).toHaveLength(1);
+  });
+
+  it('says when documents were left out of the zip, or none could be zipped', async () => {
+    const page = await open({
+      callables: {
+        'documents-startZip': (data) => {
+          const ids = data['docIds'] as string[];
+          if (ids.length === 1) {
+            throw new DomainError('FAILED_PRECONDITION', 'Nothing to zip', { reason: 'nothing_to_zip' });
+          }
+          return { jobId: 'job-zip', executionId: 'x', included: 1, skipped: ids.length - 1 };
+        },
+      },
+    });
+    const check = async (name: string) => {
+      tab(page).querySelector<HTMLElement>(`mt-table [role="checkbox"][aria-label="Select ${name}"]`)?.click();
+      await page.stable();
+    };
+    const bar = () => page.body.querySelector<HTMLElement>('mt-documents-bulk-bar') ?? page.body;
+    await check('Bank statement.xlsx');
+    await page.click('Download', bar());
+    await settle(page);
+    expect(page.text(page.body)).toContain('Couldn’t prepare the zip');
+    expect(page.text(page.body)).toContain('None of these documents can be downloaded');
+    expect(page.jobs).toHaveLength(0);
+
+    await check('Will of Margaret Whitfield.pdf');
+    await page.click('Download', bar());
+    await settle(page);
+    expect(page.text(page.body)).toContain('1 document left out of the zip');
+    expect(page.jobs).toHaveLength(1);
   });
 });

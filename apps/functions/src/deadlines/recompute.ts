@@ -53,6 +53,7 @@ import {
 import { compact, isDeleted } from '../contacts/shared';
 import { isEnabled } from '../core/flags';
 import type { Log } from '../core/log';
+import type { TxJoin } from '../core/tx-join';
 import { liveMatter, matterPath } from '../matters/shared';
 import { notify, type NotifyResult } from '../notifications/notify';
 import type { Clock, Ports } from '../ports';
@@ -91,6 +92,11 @@ export interface RecomputeRequest {
   clock: Clock;
   log: Log;
   event?: EventChange | undefined;
+  /**
+   * Joins the caller's reads and writes to the recompute's transaction (AI-07: accepting a Clerk
+   * event suggestion); `write` gets the event's path.
+   */
+  join?: TxJoin | undefined;
 }
 
 export interface RecomputeOutcome extends RecomputeSummary {
@@ -233,6 +239,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
   const outcome = await db.runTransaction(async (tx: Transaction) => {
     notified = [];
     const matter = liveMatter(await tx.get(matterRef), role, matterId);
+    await request.join?.read(tx);
     const version = typeof matter['recomputeVersion'] === 'number' ? matter['recomputeVersion'] : 0;
 
     // ---- reads ----
@@ -369,6 +376,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
       calendarMissing: [...new Set((plan?.calendarMissing ?? []).map((m) => m.deadlineId))],
     };
     const calendarMissing = plan?.calendarMissing ?? [];
+    if (request.join) request.join.write(tx, eventId ? `${eventsPath(orgId, matterId)}/${eventId}` : matterRef.path);
     if (!writes) return { summary, calendarMissing };
 
     if (event && eventId && eventData) tx.set(db.doc(`${eventsPath(orgId, matterId)}/${eventId}`), eventData);
