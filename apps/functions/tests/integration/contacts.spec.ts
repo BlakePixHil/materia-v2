@@ -235,6 +235,7 @@ describe('contacts-merge', () => {
           { type: 'home', number: '+61352220000' },
         ],
         isReferrer: true,
+        referrerMeta: { company: 'Fictional Okafur Accounting', industry: 'accountant' },
       }),
     );
     batch.set(
@@ -287,7 +288,15 @@ describe('contacts-merge', () => {
     expect(beneficiary['deletedAt']).toBeUndefined();
 
     const kept = await data(`${C}/m-keep`);
-    expect(kept).toMatchObject({ dateOfBirth: '1961-04-05', isReferrer: true });
+    // CORE-18: the kept contact is a referrer (and still a client), and the referral history follows it.
+    expect(kept).toMatchObject({
+      dateOfBirth: '1961-04-05',
+      isReferrer: true,
+      referrerMeta: { company: 'Fictional Okafur Accounting', industry: 'accountant' },
+    });
+    const referred = await db.collection(M).where('referrerContactId', '==', 'm-keep').get();
+    expect(referred.docs.map((d) => d.id)).toEqual(['mm-3']);
+    expect((await db.collection(M).where('referrerContactId', '==', 'm-merge').get()).empty).toBe(true);
     expect((kept['phones'] as { number: string }[]).map((p) => p.number)).toEqual(['+61400000101', '+61352220000']);
     const tombstone = await data(`${C}/m-merge`);
     expect(tombstone['mergedInto']).toBe('m-keep');

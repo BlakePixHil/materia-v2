@@ -120,6 +120,8 @@ type ContactSpec = {
   suburb?: string;
   tags?: string[];
   referrer?: boolean;
+  /** A referrer's company and industry (CORE-18). */
+  referrerMeta?: { company?: string; industry: D.ReferrerIndustry };
 };
 
 /** About 25 fictional contacts (a few of them near-duplicates). `dateOfDeath` is days before the anchor. */
@@ -153,9 +155,21 @@ const CONTACTS: ContactSpec[] = [
   { id: 'c-wei-chen', given: 'Wei', family: 'Chen', suburb: 'Leopold' },
   { id: 'c-kim-ho', given: 'Kim', family: 'Ho', suburb: 'Geelong', tags: ['other side'] },
   { id: 'c-rose-patel', given: 'Rose', family: 'Patel', suburb: 'Geelong', tags: ['counsel'] },
-  { id: 'c-bay-funerals', org: 'Bayside Funerals Pty Ltd (fictional)', tags: ['supplier'] },
+  {
+    id: 'c-bay-funerals',
+    org: 'Bayside Funerals Pty Ltd (fictional)',
+    tags: ['supplier'],
+    referrer: true,
+    referrerMeta: { industry: 'funeral_director' },
+  },
   { id: 'c-corio-bank', org: 'Corio Savings Bank (fictional)', tags: ['institution'] },
-  { id: 'c-lighthouse-advisers', org: 'Lighthouse Financial Advisers (fictional)', referrer: true, tags: ['referrer'] },
+  {
+    id: 'c-lighthouse-advisers',
+    org: 'Lighthouse Financial Advisers (fictional)',
+    referrer: true,
+    referrerMeta: { company: 'Lighthouse Financial Advisers (fictional)', industry: 'financial_planner' },
+    tags: ['referrer'],
+  },
   // Near-duplicates, for trying duplicate detection and merge (CORE-01).
   { id: 'c-katherine-doyle', given: 'Katherine', family: 'Doyle', suburb: 'Newtown' },
   { id: 'c-alice-whitfield-2', given: 'Alice', family: 'Whitfeld', dateOfBirth: '1938-11-02', suburb: 'Barwon Heads' },
@@ -175,6 +189,9 @@ interface MatterSpec {
   clients: string[];
   deceased?: string;
   testator?: string;
+  /** Who referred the matter, or where it came from (CORE-18). */
+  referrer?: string;
+  referralSource?: D.ReferralSource;
   dispute?: 'family_provision' | 'will_contest';
   parties: [contactId: string, role: D.PartyRole][];
   events: [kind: D.EventKind, offset: Offset, label?: string][];
@@ -201,6 +218,7 @@ const MATTERS: MatterSpec[] = [
     title: 'Estate of Margaret Doyle',
     type: 'probate',
     status: 'open',
+    referrer: 'c-bay-funerals',
     priority: 'urgent',
     responsible: JORDAN,
     team: [JORDAN, DANIEL],
@@ -328,6 +346,7 @@ const MATTERS: MatterSpec[] = [
     title: 'Harriet and Paul Okafor',
     type: 'will',
     status: 'lead',
+    referrer: 'c-lighthouse-advisers',
     priority: 'low',
     responsible: JORDAN,
     team: [JORDAN],
@@ -349,6 +368,7 @@ const MATTERS: MatterSpec[] = [
     title: 'Alice Whitfield — enduring power of attorney',
     type: 'poa',
     status: 'open',
+    referralSource: 'existing_client',
     priority: 'medium',
     responsible: JORDAN,
     team: [JORDAN],
@@ -446,6 +466,7 @@ const MATTERS: MatterSpec[] = [
     title: 'Mei and Wei Chen',
     type: 'will',
     status: 'archived',
+    referrer: 'c-lighthouse-advisers',
     priority: 'none',
     responsible: JORDAN,
     team: [JORDAN],
@@ -822,6 +843,7 @@ export function buildDataset(options: {
         ],
         tags: spec.tags ?? [],
         isReferrer: spec.referrer ?? false,
+        referrerMeta: spec.referrerMeta,
         ...domain.contactDerivedFields({
           kind: person ? 'person' : 'organisation',
           givenNames: spec.given,
@@ -955,6 +977,8 @@ export function buildDataset(options: {
               }
             : undefined,
         testator: spec.testator ? { contactId: spec.testator } : undefined,
+        referrerContactId: spec.referrer,
+        referralSource: spec.referralSource,
         dispute: spec.dispute ? { kind: spec.dispute, proceedingIds: [] } : undefined,
         fee:
           spec.type === 'will' || spec.type === 'poa'
@@ -1155,6 +1179,114 @@ export function buildDataset(options: {
       files.push({ storagePath, fixture });
     });
   });
+
+  // The will safe custody register (CORE-17): held, out, released, and a deceased testator's will.
+  if (scenario !== 'minimal') {
+    const packets: {
+      testator: string;
+      matterId?: string;
+      items: D.SafeCustodyItem[];
+      slot: string;
+      cabinet?: string;
+      receivedDaysAgo: number;
+      status?: 'out' | 'released';
+      verifiedDaysAgo?: number;
+      authority?: D.MatterDocumentRef;
+    }[] = [
+      {
+        testator: 'c-harriet-okafor',
+        matterId: 'm-okafor-wills',
+        items: [
+          { kind: 'will', date: rel(-30), description: 'Last will' },
+          { kind: 'poa', date: rel(-30), description: 'Enduring power of attorney' },
+        ],
+        slot: '1',
+        receivedDaysAgo: 28,
+      },
+      {
+        testator: 'c-alice-whitfield',
+        matterId: 'm-whitfield-poa',
+        items: [
+          { kind: 'will', date: domain.dateOnly('2012-05-09'), description: '' },
+          { kind: 'codicil', date: domain.dateOnly('2019-08-21'), description: 'Changes the executor' },
+          { kind: 'eg', date: domain.dateOnly('2019-08-21'), description: '' },
+        ],
+        slot: '2',
+        receivedDaysAgo: 4000,
+        verifiedDaysAgo: 300,
+      },
+      {
+        testator: 'c-mei-chen',
+        matterId: 'm-chen-wills',
+        items: [{ kind: 'will', date: rel(-400), description: '' }],
+        slot: '12',
+        receivedDaysAgo: 398,
+        status: 'out',
+      },
+      {
+        testator: 'c-margaret-doyle',
+        items: [{ kind: 'will', date: domain.dateOnly('2016-11-03'), description: 'Last will' }],
+        cabinet: 'Strongroom',
+        slot: 'B4',
+        receivedDaysAgo: 3200,
+      },
+      {
+        testator: 'c-ruth-ellis',
+        items: [{ kind: 'will', date: domain.dateOnly('2011-02-17'), description: '' }],
+        cabinet: 'Strongroom',
+        slot: 'A1',
+        receivedDaysAgo: 4500,
+        status: 'released',
+        authority: { matterId: 'm-ellis-estate', documentId: 'm-ellis-estate-doc-2' },
+      },
+    ];
+    const ago = (days: number) => new Date(now.getTime() - days * 86_400_000);
+    packets.forEach((spec, i) => {
+      const packetNo = domain.formatPacketNo(i + 1);
+      const testatorName = nameOf(spec.testator) ?? '';
+      const location = { site: 'Geelong', cabinet: spec.cabinet ?? 'Safe A', slot: spec.slot };
+      const movements: D.SafeCustodyMovement[] = [
+        { at: ago(spec.receivedDaysAgo), by: DANIEL, kind: 'in', reason: 'Received into safe custody', location },
+      ];
+      if (spec.status === 'out') {
+        movements.push({ at: ago(3), by: JORDAN, kind: 'out', reason: 'Signing a new will', to: 'Jordan Price' });
+      }
+      if (spec.status === 'released') {
+        movements.push({
+          at: ago(500),
+          by: JORDAN,
+          kind: 'released',
+          reason: 'Executor’s request after death',
+          to: 'Oliver Ellis, executor',
+          toContactId: 'c-oliver-ellis',
+          ...(spec.authority ? { authority: spec.authority } : {}),
+        });
+      }
+      add(
+        `orgs/${org}/safeCustody/sc-seed-${i + 1}`,
+        F.makeSafeCustody({
+          ...meta,
+          packetNo,
+          testatorContactId: spec.testator,
+          testatorName,
+          responsibleUid: JORDAN,
+          ...(spec.matterId ? { matterId: spec.matterId } : {}),
+          items: spec.items,
+          location,
+          receivedOn: domain.addDays(anchor, -spec.receivedDaysAgo),
+          status: spec.status ?? 'held',
+          movements,
+          pendingDestruction: null,
+          ...(spec.verifiedDaysAgo
+            ? { lastVerified: { on: domain.addDays(anchor, -spec.verifiedDaysAgo), by: DANIEL } }
+            : {}),
+          search: domain.packetSearchTokens(packetNo, testatorName, location),
+          locationKey: domain.locationKey(location),
+        }),
+      );
+    });
+    add(`orgs/${org}/counters/${domain.SAFE_CUSTODY_COUNTER}`, makeCounter({ ...meta, next: packets.length + 1 }));
+  }
 
   // Conflict-check scenarios (CORE-02): 5 adverse and 5 benign, with their own contacts and matters.
   if (scenario !== 'minimal') {

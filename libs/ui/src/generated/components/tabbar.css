@@ -1,5 +1,5 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-tabbar). Regenerate with `pnpm materia-scripts sync-design`. */
-.mt-tabbar { flex: none; display: grid; grid-template-columns: repeat(5, 1fr); align-items: start; height: calc(50px + env(safe-area-inset-bottom, 34px)); padding-top: 8px; padding-bottom: env(safe-area-inset-bottom, 34px); border-top: 1px solid var(--border-default); background: var(--bg-surface); }
+.mt-tabbar { flex: none; display: grid; grid-template-columns: repeat(5, 1fr); align-items: start; min-height: calc(53px + env(safe-area-inset-bottom, 34px)); padding-top: 8px; padding-bottom: env(safe-area-inset-bottom, 34px); border-top: 1px solid var(--border-default); background: var(--bg-surface); }
 .mt-tabbar a { display: flex; flex-direction: column; align-items: center; gap: 4px; font: 500 10px/12px var(--font-sans); color: var(--text-tertiary); text-decoration: none; min-height: 44px; }
 .mt-tabbar a .mt-i { width: 24px; height: 24px; stroke-width: 1.6; }
 .mt-tabbar a[data-active] { color: var(--text-brand); }

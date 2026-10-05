@@ -16,7 +16,7 @@ def billed_chart(w=760):
 
 
 def grant_chart(w=560):
-    return charts.line(GRANT, 38, "NSW registry median 38", w=w, unit=" days") + charts.table_view(["Month", "Median days to grant"], [(t, v) for _, v, t in GRANT])
+    return charts.line(GRANT, 38, "Registry median 38", w=w, unit=" days") + charts.table_view(["Month", "Median days to grant"], [(t, v) for _, v, t in GRANT])
 
 
 comp("BarChart", "Charts", 330, """
@@ -55,7 +55,7 @@ comp("PersonHeader", "Contacts", 170, """
 The top of a contact: name, the roles they hold across matters, and compliance status (identity verification, conflict check).
 
 Roles are chips that name the matter ref, because the same person is often an executor on one matter, a beneficiary on another and a client in their own right. Never show a role without its matter.
-""", '<div class="mt-col" style="gap:12px;width:100%"><div class="mt-person">' + avatar("CW", "xl") + '<div class="mt-col" style="gap:2px"><span class="nm">Catherine Whitfield</span><span class="body-s t-3">Mosman NSW · client since 2019</span></div><span class="mt-ml mt-row">' + badge("ID verified", "success") + badge("Conflict check clear", "success") + '</span></div><div class="mt-roles"><span class="mt-role">Executor<span class="ref">WE-142</span></span><span class="mt-role">Beneficiary 50%<span class="ref">WE-142</span></span><span class="mt-role">Will client<span class="ref">WE-031</span></span></div></div>', col=True)
+""", '<div class="mt-col" style="gap:12px;width:100%"><div class="mt-person">' + avatar("CW", "xl") + '<div class="mt-col" style="gap:2px"><span class="nm">Catherine Whitfield</span><span class="body-s t-3">Belmont VIC · client since 2019</span></div><span class="mt-ml mt-row">' + badge("ID verified", "success") + badge("Conflict check clear", "success") + '</span></div><div class="mt-roles"><span class="mt-role">Executor<span class="ref">WE-142</span></span><span class="mt-role">Beneficiary 50%<span class="ref">WE-142</span></span><span class="mt-role">Will client<span class="ref">WE-031</span></span></div></div>', col=True)
 
 comp("SettingsRow", "Settings", 260, """
 # SettingsRow
@@ -72,7 +72,7 @@ comp("IntegrationCard", "Settings", 150, """
 # IntegrationCard
 
 A connected service: its mark (supplied by the service; a monogram until then), what materia uses it for, its status and one action.
-""", '<div class="mt-col" style="width:520px;gap:8px">' + f'<div class="mt-integration"><span class="logo">O</span><div class="mt-grow"><div class="label">Outlook and Microsoft 365</div><div class="caption t-3">Email filing, calendar sync, time capture</div></div>{badge("Connected", "success")}{btn("Manage", "ghost", "sm")}</div>' + f'<div class="mt-integration"><span class="logo">N</span><div class="mt-grow"><div class="label">NSW Online Registry</div><div class="caption t-3">Probate notices and caveat searches</div></div>{btn("Connect", "secondary", "sm")}</div></div>')
+""", '<div class="mt-col" style="width:520px;gap:8px">' + f'<div class="mt-integration"><span class="logo">O</span><div class="mt-grow"><div class="label">Outlook and Microsoft 365</div><div class="caption t-3">Email filing, calendar sync, time capture</div></div>{badge("Connected", "success")}{btn("Manage", "ghost", "sm")}</div>' + f'<div class="mt-integration"><span class="logo">R</span><div class="mt-grow"><div class="label">RedCrest</div><div class="caption t-3">Probate applications and caveat searches, Supreme Court of Victoria</div></div>{btn("Connect", "secondary", "sm")}</div></div>')
 
 comp("StepList", "Onboarding", 280, """
 # StepList

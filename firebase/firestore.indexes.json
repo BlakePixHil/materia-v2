@@ -1704,6 +1704,48 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "safeCustody",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "search",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "packetNo",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "safeCustody",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "packetNo",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "safeCustody",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationKey",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

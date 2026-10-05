@@ -43,7 +43,7 @@ def insights():
     util = card("Utilisation by fee earner", '<div class="mt-col" style="gap:14px">' + "".join(
         f'<div class="mt-row" style="gap:10px">{avatar(a, hue=h)}<span class="label" style="width:96px">{n}</span><div class="mt-meter mt-grow"{" data-tone=warning" if v < 65 else ""} tabindex="0" data-tip="{v}%|{n} · target 75%"><i style="width:{v}%"></i><b style="left:75%"></b></div><span class="mono" style="width:36px;text-align:right">{v}%</span></div>'
         for a, n, h, v in [("MT", "Mia Torres", "4", 82), ("PS", "Priya Shah", "2", 78), ("JP", "Jordan Price", None, 71), ("DK", "Daniel Kim", "3", 62)]) + '<span class="caption t-3">Tick marks the 75% target. Daniel’s hours include 14 h of unbillable mentoring.</span></div>', "", 4)
-    refs = [("Hale Accounting", "Peter Hale", 9, "$38,200"), ("Existing clients", "Will reviews and family", 11, "$44,100"), ("Mosman Financial Planning", "Sarah Lin", 6, "$21,400"), ("Uniting Church Mosman", "Bequest program", 4, "$9,800"), ("Website enquiries", "Form and phone", 5, "$8,300")]
+    refs = [("Hale Accounting", "Peter Hale", 9, "$38,200"), ("Existing clients", "Will reviews and family", 11, "$44,100"), ("Geelong Financial Planning", "Sarah Lin", 6, "$21,400"), ("Uniting Church Newtown", "Bequest program", 4, "$9,800"), ("Website enquiries", "Form and phone", 5, "$8,300")]
     ref_rows = "".join(f'<tr><td><div class="title">{n}</div><div class="caption t-3">{c}</div></td><td class="num">{m}</td><td class="num">{v}</td></tr>' for n, c, m, v in refs)
     referrers = card("Where new matters come from", f'<div style="margin:0 -16px"><table class="mt-table"><thead><tr><th>Referrer</th><th class="num">Matters</th><th class="num">Billed FY</th></tr></thead><tbody>{ref_rows}</tbody></table></div>', btn("Contacts", "ghost", "sm", trail="arrow-right"), 5)
     clerk = ('<div class="mt-clerk-card" style="grid-column:span 3"><div class="in"><div class="mt-clerk-head">' + clerk_av() + 'Clerk this year</div>'
@@ -62,7 +62,7 @@ def clerk_av():
 PEOPLE = [("CW", None, "Catherine Whitfield", "Executor · beneficiary · client", "3"), ("PH", "2", "Peter Hale", "Executor · referrer · Hale Accounting", "12"),
           ("TW", "risk", "Thomas Whitfield", "Son of the deceased · WE-142", "1"), ("SL", "4", "Susan Lambert", "Executor · WE-160", "1"),
           ("HO", "3", "Harriet Okafor", "Client · wills and EPA", "1"), ("KH", "2", "Kevin Ho", "Opposing solicitor · Ho Legal", "1"),
-          ("AB", None, "Alan Brooks", "Client · power of attorney", "1"), ("SL", "3", "Sarah Lin", "Referrer · Mosman Financial Planning", "6"),
+          ("AB", None, "Alan Brooks", "Client · power of attorney", "1"), ("SL", "3", "Sarah Lin", "Referrer · Geelong Financial Planning", "6"),
           ("DF", "4", "Doris Fairweather (dec.)", "Deceased · intestate · WE-133", "1")]
 
 
@@ -81,11 +81,11 @@ def contacts():
     activity = ('<div class="mt-timeline">' + tl("done", "Call: will drop original will and statements on Friday", "Jordan Price · 29 Sep · 12 min · 0.2 h recorded", "", "phone")
                 + tl("done", "Email: CBA statements (3 attachments)", "Filed to WE-142 · 30 Sep", "", "mail") + tl("upcoming", "Signing appointment for her own will review", "Not booked yet", "", "calendar") + "</div>")
     detail = ('<div class="mt-page" style="flex:1;min-width:0">'
-              + '<div class="mt-col" style="gap:12px"><div class="mt-person">' + avatar("CW", "xl") + '<div class="mt-col" style="gap:2px"><span class="nm">Catherine Whitfield</span><span class="body-s t-3">Mosman NSW · client since 2019</span></div><span class="mt-ml mt-row" style="gap:6px">' + badge("ID verified 4 Aug", "success") + badge("Conflict check clear", "success") + ibtn("more", "More", size="sm") + "</span></div>"
+              + '<div class="mt-col" style="gap:12px"><div class="mt-person">' + avatar("CW", "xl") + '<div class="mt-col" style="gap:2px"><span class="nm">Catherine Whitfield</span><span class="body-s t-3">Belmont VIC · client since 2019</span></div><span class="mt-ml mt-row" style="gap:6px">' + badge("ID verified 4 Aug", "success") + badge("Conflict check clear", "success") + ibtn("more", "More", size="sm") + "</span></div>"
               + '<div class="mt-roles"><span class="mt-role">Executor<span class="ref">WE-142</span></span><span class="mt-role">Beneficiary 50%<span class="ref">WE-142</span></span><span class="mt-role">Will client<span class="ref">WE-031</span></span><span class="mt-role">Beneficiary<span class="ref">WE-019</span></span></div></div>'
               + '<div class="mt-suggestion">' + clerk_av() + '<div class="mt-grow"><div class="tt">Catherine’s own will names her mother as substitute executor. Margaret has died, so the will needs review.</div><div class="ts">From will WE-031 cl. 3 and the death certificate on WE-142</div></div>' + btn("Dismiss", "ghost", "sm") + btn("Create review task", "ai", "sm") + "</div>"
               + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">'
-              + card("Contact", '<dl class="mt-facts"><dt>Mobile</dt><dd class="mono">0412 555 018</dd><dt>Email</dt><dd>cwhitfield@example.com.au</dd><dt>Address</dt><dd>9 Raglan St, Mosman NSW 2088</dd><dt>Born</dt><dd>14 Jun 1968</dd><dt>Prefers</dt><dd>Phone, after 3 pm</dd></dl>', btn("Edit", "ghost", "sm"))
+              + card("Contact", '<dl class="mt-facts"><dt>Mobile</dt><dd class="mono">0412 555 018</dd><dt>Email</dt><dd>cwhitfield@example.com.au</dd><dt>Address</dt><dd>9 Raglan St, Belmont VIC 3216</dd><dt>Born</dt><dd>14 Jun 1968</dd><dt>Prefers</dt><dd>Phone, after 3 pm</dd></dl>', btn("Edit", "ghost", "sm"))
               + card("Family", family, btn("Tree", "ghost", "sm", "family-tree"))
               + card("Matters", matters, '<span class="mono-s t-3">3</span>')
               + card("Recent activity", activity, btn("Log call", "ghost", "sm", "phone"))
@@ -95,16 +95,18 @@ def contacts():
 
 
 # ------------------------------------------------------------------ Settings
-def settings_sidebar():
+def settings_sidebar(active="Clerk and AI"):
+    # Sidebar order follows the app's SETTINGS_SECTIONS (CORE-21); Account, Trust, Rule sets, Integrations and Security are designed ahead (DES-01).
     groups = [("Account", [("Profile", "user"), ("Preferences", "settings"), ("Notifications", "bell")]),
-              ("Firm", [("General", "matters"), ("Team and roles", "contacts"), ("Billing and rates", "billing"), ("Trust account", "shield")]),
-              ("Practice", [("Rule sets", "scale"), ("Matter types and stages", "board")]),
-              ("Clerk", [("Clerk and AI", "sparkle"), ("Activity log", "list")]),
-              ("Connections", [("Integrations", "link"), ("Security", "shield")])]
+              ("Firm", [("Practice", "matters"), ("Team and roles", "contacts"), ("Billing and rates", "billing"), ("Trust account", "lock")]),
+              ("Practice", [("Matter numbering", "list"), ("Matter templates", "board"), ("Rule sets", "scale")]),
+              ("Clerk", [("Clerk and AI", "sparkle")]),
+              ("Connections", [("Integrations", "link"), ("Security", "shield")]),
+              ("Records", [("Audit log", "eye")])]
     h = ['<aside class="mt-sidebar">', '<a class="mt-nav" href="#" onclick="return false" style="margin-bottom:6px">' + icon("chevron-left") + '<span>Back to materia</span></a>']
     for g, items in groups:
         h.append(f'<div class="mt-nav-section">{g}</div>')
-        h += [nav(l, i, active=(l == "Clerk and AI")) for l, i in items]
+        h += [nav(l, i, active=(l == active)) for l, i in items]
     h.append("</aside>")
     return "".join(h)
 
@@ -203,7 +205,7 @@ def phone_today():
     brief_items = "".join(f'<div class="mt-row" style="gap:10px;padding:10px 0;border-top:1px solid var(--border-subtle);align-items:flex-start">{icon(ic, None, "t-" + tn)}<div class="mt-grow body-s t-2"><b class="t-1">{m}</b> {t}</div>{icon("chevron-right", None, "t-3")}</div>' for ic, tn, m, t in [
         ("alert", "danger", "Nguyen.", "Affidavit service is 2 days late. Extension letter drafted."), ("court", "brand", "Whitfield.", "Publish the probate notice today."), ("draft", "warning", "Okafor.", "Thursday’s signing needs a second witness.")])
     dls = "".join(f'<div class="mt-mrow"><span class="mono-s t-3" style="width:44px">{d}</span><div class="mt-grow"><div class="tt mt-ell">{t}</div><div class="ts mt-ell">{m}</div></div>{c}</div>' for d, t, m, c in [
-        ("WED", "Serve plaintiff’s affidavit", "Nguyen v Nguyen", deadline("2d", "overdue")), ("TODAY", "Publish probate notice", "Whitfield · UCPR r 78.3", deadline("Today", "today")), ("THU", "Will and EPA signing", "Okafor · 10:00 am", deadline("Thu", "soon"))])
+        ("WED", "Serve plaintiff’s affidavit", "Nguyen v Nguyen", deadline("2d", "overdue")), ("TODAY", "Publish probate notice", "Whitfield · A&amp;P Rules 2014", deadline("Today", "today")), ("THU", "Will and EPA signing", "Okafor · 10:00 am", deadline("Thu", "soon"))])
     body = ('<div class="mt-mbody"><div class="mt-col" style="gap:2px"><span class="eyebrow t-3">Friday 2 October</span><span class="title-l">Good morning, Jordan</span></div>'
             '<div class="mt-clerk-card"><div class="in" style="gap:4px"><div class="mt-clerk-head" style="padding-bottom:6px">' + avatar(kind="clerk", size="sm") + 'Morning brief</div>' + brief_items + "</div></div>"
             '<div class="mt-col" style="gap:0"><div class="mt-row"><span class="heading">This week</span><span class="mt-ml caption t-brand">All deadlines</span></div>' + dls + "</div>"
@@ -217,7 +219,7 @@ def phone_matter(dim=False):
     actions = "".join(f'<button class="mt-btn" data-variant="{v}" style="flex-direction:column;height:64px;flex:1;gap:4px;font-size:12px">{icon(i)}{l}</button>' for i, l, v in [("phone", "Call executor", "secondary"), ("timer", "Record time", "secondary"), ("sparkle", "Ask Clerk", "ai")])
     body = ('<div class="mt-mbody"><div class="mt-col" style="gap:8px"><div class="mt-row" style="gap:6px">' + tag("probate") + badge("Notice period", "brand") + '</div><span class="title-l" style="font-size:22px;line-height:28px">Estate of Margaret Whitfield</span>'
             '<div class="mt-row" style="gap:10px"><div class="mt-progress mt-grow" data-size="md"><div class="mt-progress-bar" style="width:28%"></div></div><span class="caption t-3">Stage 3 of 9 · Notice</span></div></div>'
-            '<div class="mt-card" data-pad style="background:var(--bg-selected);border-color:transparent"><div class="mt-row"><span class="label">Next</span><span class="mt-ml">' + deadline("Today", "today") + '</span></div><div class="body">Publish notice of intended application</div><div class="caption t-3">UCPR r 78.3 · filing opens 16 Oct</div>'
+            '<div class="mt-card" data-pad style="background:var(--bg-selected);border-color:transparent"><div class="mt-row"><span class="label">Next</span><span class="mt-ml">' + deadline("Today", "today") + '</span></div><div class="body">Publish notice of intended application</div><div class="caption t-3">A&amp;P Rules 2014 · filing opens 16 Oct</div>'
             + btn("Publish notice", "primary", "lg", "court").replace('class="mt-btn"', 'class="mt-btn" style="width:100%"') + "</div>"
             f'<div class="mt-row" style="gap:8px">{actions}</div>'
             '<div class="mt-col" style="gap:0"><span class="heading" style="padding-bottom:4px">Key people</span>'

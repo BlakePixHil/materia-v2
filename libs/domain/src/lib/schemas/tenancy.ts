@@ -92,6 +92,12 @@ export const Org = withMeta(
               .optional(),
           })
           .optional(),
+        referrals: z
+          .object({
+            /** A "Thank referrer" task when a referred matter opens (CORE-18). Off unless set. */
+            thankYouTask: z.boolean().optional(),
+          })
+          .optional(),
       })
       .optional(),
     /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */

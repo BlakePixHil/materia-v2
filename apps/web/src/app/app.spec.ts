@@ -75,6 +75,7 @@ describe('app routes', () => {
       'Matters',
       'Deadlines',
       'Contacts',
+      'Safe custody',
       'Time & billing',
       'Insights',
       'Settings',
