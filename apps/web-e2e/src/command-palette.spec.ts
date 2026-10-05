@@ -130,7 +130,8 @@ test.describe('command palette (CORE-15)', () => {
     await expect(groupLabels(page).first()).toHaveText('Tasks');
     await option(page, /Lodge the inventory of assets/).click();
     await expect(page).toHaveURL(/\/matters\/m-wren\/tasks\?task=t-inventory$/);
-    await expect(page.getByText('Lodge the inventory of assets')).toBeVisible();
+    // By role: the pointer is left over the task's title, so its tooltip can repeat the text.
+    await expect(page.getByRole('button', { name: 'Edit title: Lodge the inventory of assets' })).toBeVisible();
   });
 
   test('Tab drills into a matter’s actions; Add task opens quick add on its tasks', async ({ page, request }) => {
@@ -187,10 +188,16 @@ test.describe('command palette (CORE-15)', () => {
     await page.goto('/matters');
     await expect(page.getByRole('table', { name: 'Matters' })).toBeVisible(FIRST_LOAD);
     await openPalette(page);
+    // Enter runs whichever row is active, and the row list can still change after typing (providers
+    // answer after a debounce), so check the intended row is the active one first.
     await palette(page).fill('filter by');
+    await expect(option(page, 'Filter by…')).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('Enter');
+    await expect(page.locator('.mt-cmdk-input .scope')).toHaveText('Filter by');
     await palette(page).fill('responsible me');
+    await expect(option(page, 'Responsible: me')).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('Enter');
+    await expect(palette(page)).toHaveCount(0);
     // The filter starts a new query, and the table waits for its first answer.
     await expect(page.getByRole('table', { name: 'Matters' })).toContainText('Estate of Margaret Wren', FIRST_LOAD);
     await expect(page.getByRole('table', { name: 'Matters' })).not.toContainText('Estate of Rupert Vale');
