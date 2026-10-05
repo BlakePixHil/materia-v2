@@ -56,12 +56,14 @@ service cloud.firestore {
     function can(orgId, action) {
       return hasRole(orgId, perm(action));
     }
-    // Kept at sensitive paths for clarity; inOrg() already checks the member document.
+    // Kept at sensitive paths for clarity; can() and inOrg() already check the member document and
+    // the session. Not inOrg() again: rules evaluate at most 1000 expressions per request, and
+    // sessionOk() isn't cached like get() is.
     function isActiveMember(orgId) {
-      return inOrg(orgId);
+      return memberOf(orgId);
     }
     function canViewPrivileged(orgId) {
-      return can(orgId, 'privileged.view') && isActiveMember(orgId);
+      return can(orgId, 'privileged.view');
     }
     // Privileged documents are readable only by roles with privileged.view (never readonly).
     // No get() default here: in a list query, `data.get(field, default)` on a field the query does
@@ -98,9 +100,11 @@ service cloud.firestore {
           || (request.resource.data.get('deletedAt', null) == null && request.resource.data.get('deletedBy', null) == null)
         );
     }
-    // Changing the privileged flag needs privileged.view.
-    function privilegedFlagOk(orgId) {
-      return unchanged(['privileged']) || canViewPrivileged(orgId);
+    // An update to records with these privileged flags (the record's, and its matter's): it sees
+    // them all (visible()), and changing the flag needs privileged.view. One canViewPrivileged()
+    // rather than one per record: rules evaluate at most 1000 expressions per request.
+    function visibleAndFlagOk(orgId, flags) {
+      return flags.toSet().hasOnly([false]) && unchanged(['privileged']) || canViewPrivileged(orgId);
     }
     // Soft delete only (no client restore): the document is live and the caller stamps the delete.
     function softDeleteOnly() {
@@ -394,7 +398,7 @@ service cloud.firestore {
       // a deleted matter is frozen until an owner or admin restores it (matters-restore, 30 days).
       match /matters/{matterId} {
         allow read: if inOrg(orgId) && visible(orgId, resource.data);
-        allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
+        allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
           && resource.data.get('deletedAt', null) == null
           && (can(orgId, 'matter.edit') && clientUpdate(fieldsMatter()) || can(orgId, 'matter.delete') && softDeleteOnly());
 
@@ -485,7 +489,7 @@ service cloud.firestore {
               && (!('notes' in data) || data.notes is string && data.notes.size() <= 5000);
           }
           allow read: if inOrg(orgId) && visible(orgId, resource.data) && visible(orgId, documentMatter());
-          allow update: if visible(orgId, resource.data) && visible(orgId, documentMatter()) && privilegedFlagOk(orgId)
+          allow update: if visibleAndFlagOk(orgId, [resource.data.privileged, documentMatter().privileged])
             && (can(orgId, 'document.upload') && clientUpdate(fieldsMatterDocument()) && validDocumentMeta(request.resource.data)
               || can(orgId, 'document.delete') && softDelete());
 
@@ -502,10 +506,10 @@ service cloud.firestore {
 
         // Notes (CORE-13): created and their text edited only through notes-create and notes-update
         // (mentions, revisions, notifications). note.write roles pin, soft delete and restore
-        // directly; the privileged flag isn't client-writable (privilegedFlagOk stays as a guard).
+        // directly; the privileged flag isn't client-writable (visibleAndFlagOk stays as a guard).
         match /notes/{noteId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
-          allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
+          allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
             && editable(orgId, 'note.write', fieldsNote());
 
           // Earlier versions, appended by notes-update. Readable by whoever can read the note, and
@@ -519,7 +523,7 @@ service cloud.firestore {
 
         match /offers/{offerId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
-          allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
+          allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
             && editable(orgId, 'matter.edit', fieldsOffer());
         }
 
