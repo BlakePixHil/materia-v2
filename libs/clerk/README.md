@@ -8,6 +8,10 @@ Clerk's model-independent pieces, for Functions only (AI-02). The gateway itself
   After editing, run `pnpm materia-scripts clerk-prompts`. The unit tests fail if
   `src/lib/prompt-sources.generated.ts` is stale.
 - `renderPrompt(ref, vars)`: strict rendering. A missing or unused variable throws.
+- `system@<semver>`: the base system prompt (AI-03): the Clerk rules, untrusted framing, today and
+  the org time zone (`{{today}}`, `{{todayIso}}`, `{{timeZone}}`). `buildContext` renders its
+  System section ahead of each feature prompt's; its User section is empty and its `effort` and
+  `maxTokens` are unused.
 - `OUTPUT_SCHEMAS`: zod schemas for structured output, named by a prompt's `outputSchema`.
 - `mapCitations`: maps the API's citation locations to `{documentId, version, page, quote}`.
 - `CLERK_PRICES` and `costMicros`: list prices and per-call cost in micro-dollars.
