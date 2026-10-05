@@ -54,9 +54,10 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     // The day, deadline chips and dialogs on this page follow the org's time zone.
     {
       provide: MT_TODAY,
+      // Resolved on call: TaskActions (which TodayData uses) injects MT_TODAY itself.
       useFactory: () => {
-        const data = inject(TodayData);
-        return () => data.today();
+        const injector = inject(Injector);
+        return () => injector.get(TodayData).today();
       },
     },
   ],
