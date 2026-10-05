@@ -1558,6 +1558,129 @@ describe('deadlines (CORE-10)', () => {
   });
 });
 
+describe('checklist templates (CORE-08d)', () => {
+  const PATH = `orgs/${ORG}/checklistTemplates`;
+  const TEMPLATE = `${PATH}/checklist-1`;
+
+  /** A valid client create, stamped for `uid`. */
+  const newTemplate = (uid: string, extra: Record<string, unknown> = {}) => ({
+    name: 'Probate kick-off',
+    items: ['Order the death certificate', 'Locate the original will'],
+    priority: 'high',
+    dueInDays: 7,
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+
+  it.each(EVERYONE)('creating a template as %s follows task.edit', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const create = setDoc(doc(firestore, `${PATH}/new-${who}`), newTemplate(uid));
+    await (allows(who, 'task.edit') ? assertSucceeds(create) : assertFails(create));
+  });
+
+  it('members list the org’s templates; other orgs can’t', async () => {
+    const list = (firestore: Firestore) => getDocs(query(collection(firestore, PATH), orderBy('name'), limit(100)));
+    await assertSucceeds(list(db(env, 'readonly')));
+    await assertSucceeds(list(db(env, 'paralegal')));
+    await assertFails(list(db(env, 'owner', OTHER_ORG)));
+    await assertFails(list(db(env, 'lawyer', ORG, SUSPENDED_UID)));
+  });
+
+  it('a create needs valid values, the caller’s stamps and no server fields', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const attempt = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${PATH}/${id}`), newTemplate(uid, extra)));
+    await attempt('blank', { name: '   ' });
+    await attempt('long-name', { name: 'n'.repeat(101) });
+    await attempt('no-items', { items: [] });
+    await attempt('too-many', { items: Array.from({ length: 31 }, (_, i) => `Item ${i}`) });
+    await attempt('empty-item', { items: ['Order the death certificate', ''] });
+    await attempt('long-item', { items: ['i'.repeat(201)] });
+    await attempt('two-lines', { items: ['Order the\ndeath certificate'] });
+    await attempt('not-text', { items: [42] });
+    await attempt('items-text', { items: 'Order the death certificate' });
+    await attempt('priority', { priority: 'p1' });
+    await attempt('days-negative', { dueInDays: -1 });
+    await attempt('days-long', { dueInDays: 366 });
+    await attempt('days-fraction', { dueInDays: 1.5 });
+    await attempt('extra', { matterId: 'matter-1' });
+    await attempt('deleted', { deletedAt: serverTimestamp(), deletedBy: uid });
+    await attempt('creator', { createdBy: 'someone-else' });
+    await attempt('created-at', { createdAt: Timestamp.fromMillis(0) });
+    await attempt('updater', { updatedBy: 'someone-else' });
+    await attempt('version', { schemaVersion: 2 });
+    const withoutItems = newTemplate(uid) as Record<string, unknown>;
+    delete withoutItems['items'];
+    await assertFails(setDoc(doc(firestore, `${PATH}/no-items-field`), withoutItems));
+    // The minimum: a name and one item, no priority or due offset; and the most: 30 items of 200.
+    const minimal = newTemplate(uid, { items: ['File the inventory'] }) as Record<string, unknown>;
+    delete minimal['priority'];
+    delete minimal['dueInDays'];
+    await assertSucceeds(setDoc(doc(firestore, `${PATH}/minimal`), minimal));
+    await assertSucceeds(
+      setDoc(
+        doc(firestore, `${PATH}/largest`),
+        newTemplate(uid, {
+          name: 'n'.repeat(100),
+          items: Array.from({ length: 30 }, (_, i) => `${i}`.padEnd(200, 'x')),
+          dueInDays: 365,
+        }),
+      ),
+    );
+  });
+
+  it('updates the whitelisted fields with valid values only', async () => {
+    await seed(specFor('checklistTemplates'));
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), TEMPLATE);
+    await assertSucceeds(
+      updateDoc(
+        ref,
+        stamped({ name: 'Grant application', items: ['Swear the affidavit'], priority: 'urgent', dueInDays: 0 }, uid),
+      ),
+    );
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), priority: deleteField(), dueInDays: deleteField() }));
+    await assertFails(updateDoc(ref, stamped({ name: '' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ items: [] }, uid)));
+    await assertFails(updateDoc(ref, stamped({ items: ['x'.repeat(201)] }, uid)));
+    await assertFails(updateDoc(ref, stamped({ dueInDays: 400 }, uid)));
+    await assertFails(updateDoc(ref, stamped({ priority: 'top' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ matterId: 'matter-1' }, uid)));
+    await assertFails(
+      updateDoc(doc(db(env, 'readonly'), TEMPLATE), stamped({ name: 'Read-only rename' }, uidFor('readonly'))),
+    );
+  });
+
+  it('soft delete and restore by task.edit roles, never a hard delete', async () => {
+    await seed(specFor('checklistTemplates'));
+    const uid = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), TEMPLATE);
+    await assertFails(updateDoc(ref, { ...stamped({}, uid), deletedAt: serverTimestamp(), deletedBy: 'someone-else' }));
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: serverTimestamp(), deletedBy: uid }));
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: null, deletedBy: null }));
+    await assertFails(deleteDoc(ref));
+    await assertFails(
+      updateDoc(doc(db(env, 'readonly'), TEMPLATE), {
+        ...stamped({}, uidFor('readonly')),
+        deletedAt: serverTimestamp(),
+        deletedBy: uidFor('readonly'),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(db(env, 'owner', OTHER_ORG), TEMPLATE), {
+        ...stamped({}, uidFor('owner', OTHER_ORG)),
+        deletedAt: serverTimestamp(),
+        deletedBy: uidFor('owner', OTHER_ORG),
+      }),
+    );
+  });
+});
+
 // Last in this file, before another suite reloads the rules (which resets the emulator's report).
 describe('rules coverage', () => {
   it('evaluates at least 90% of the rule expressions', async () => {

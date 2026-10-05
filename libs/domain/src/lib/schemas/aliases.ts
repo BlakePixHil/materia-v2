@@ -35,6 +35,7 @@ import {
   MatterTemplate,
   MatterTemplateVersion,
   DocTemplate,
+  ChecklistTemplate,
   Metrics,
   AuditEntry,
   Notification,
@@ -170,6 +171,9 @@ export const MatterTemplateVersionUpdateSchema = MatterTemplateVersion.update;
 export const DocTemplateSchema = DocTemplate.schema;
 export const DocTemplateCreateSchema = DocTemplate.create;
 export const DocTemplateUpdateSchema = DocTemplate.update;
+export const ChecklistTemplateSchema = ChecklistTemplate.schema;
+export const ChecklistTemplateCreateSchema = ChecklistTemplate.create;
+export const ChecklistTemplateUpdateSchema = ChecklistTemplate.update;
 export const MetricsSchema = Metrics.schema;
 export const MetricsCreateSchema = Metrics.create;
 export const MetricsUpdateSchema = Metrics.update;

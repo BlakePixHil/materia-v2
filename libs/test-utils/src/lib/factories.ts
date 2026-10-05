@@ -548,6 +548,18 @@ export const makeDocTemplate = (o: Partial<D.DocTemplate> = {}) =>
     o,
   );
 
+export const makeChecklistTemplate = (o: Partial<D.ChecklistTemplate> = {}) =>
+  build(
+    D.ChecklistTemplate,
+    {
+      name: 'Probate kick-off',
+      items: ['Order the death certificate', 'Locate the original will', 'Search the will bank'],
+      priority: 'high',
+      dueInDays: 7,
+    },
+    o,
+  );
+
 export const makeMetrics = (o: Partial<D.Metrics> = {}) =>
   build(D.Metrics, { period: 'month-2026-10', values: { mattersOpened: 3, wipCents: 125000 } }, o);
 
@@ -763,6 +775,7 @@ export const ENTITY_FACTORIES = {
   MatterTemplate: [D.MatterTemplate, makeMatterTemplate],
   MatterTemplateVersion: [D.MatterTemplateVersion, makeMatterTemplateVersion],
   DocTemplate: [D.DocTemplate, makeDocTemplate],
+  ChecklistTemplate: [D.ChecklistTemplate, makeChecklistTemplate],
   Metrics: [D.Metrics, makeMetrics],
   AuditEntry: [D.AuditEntry, makeAuditEntry],
   Notification: [D.Notification, makeNotification],

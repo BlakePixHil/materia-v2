@@ -6,24 +6,29 @@ import {
   personalTaskRepository,
   taskCallables,
   writeTaskOrders,
+  type ChecklistTemplateItem,
   type Repository,
   type TaskItem,
 } from '@materia/data-access/repository';
 import {
+  applyChecklistTemplate,
   asksToCompleteDeadline,
   openChecklistItems,
   planMove,
   TASK_BULK_MAX,
+  TASK_CHECKLIST_MAX,
   toggledStatus,
   type BulkTaskChange,
   type ChecklistItem,
   type TaskStatus,
 } from '@materia/domain';
-import { DialogService, ToastService } from '@materia/ui';
+import { DialogService, formatDateOnly, MT_ORG_TIMEZONE, MT_TODAY, ToastService } from '@materia/ui';
 
+import type { ChecklistTemplatesDialogData, ChecklistTemplatesDialogResult } from './checklist-templates-dialog';
 import { TaskDueDialog, type TaskDueDialogData, type TaskDueDialogResult } from './task-due-dialog';
 import {
   bulkSummary,
+  PRIORITY_NAMES,
   clientWrite,
   isClosed,
   moveAnnouncement,
@@ -49,6 +54,8 @@ export class TaskActions {
   private readonly injector = inject(Injector);
   private readonly dialogs = inject(DialogService);
   private readonly toasts = inject(ToastService);
+  private readonly today = inject(MT_TODAY);
+  private readonly timeZone = inject(MT_ORG_TIMEZONE);
   private readonly callables = taskCallables(inject(CALLABLES));
   private readonly deadlines = deadlineCallables(inject(CALLABLES));
   private readonly personal = personalTaskRepository();
@@ -100,6 +107,58 @@ export class TaskActions {
   setChecklist(entry: TaskEntry, checklist: ChecklistItem[]): void {
     if (!entry.editable) return;
     this.write(this.repoFor(entry.ref.matterId).update(entry.task.id, { checklist }), 'The checklist didn’t save');
+  }
+
+  /**
+   * "Templates" in a task's details (CORE-08d): the checklist templates dialog (loaded on demand),
+   * then the chosen template applied to the task.
+   */
+  async openChecklistTemplates(entry: TaskEntry): Promise<void> {
+    if (!entry.editable) return;
+    const { ChecklistTemplatesDialog } = await import('./checklist-templates-dialog');
+    const result = await this.dialogs.open<ChecklistTemplatesDialogData, ChecklistTemplatesDialogResult | undefined>(
+      ChecklistTemplatesDialog,
+      { data: { title: entry.task.title, checklist: entry.task.checklist ?? [] } },
+    ).result;
+    if (result) this.applyChecklistTemplate(entry, result.template);
+  }
+
+  /**
+   * Applies a checklist template (`applyChecklistTemplate`): the new items, plus the template's
+   * priority and due date where the task has none, in one write. A toast says what changed.
+   */
+  applyChecklistTemplate(
+    entry: TaskEntry,
+    template: Pick<ChecklistTemplateItem, 'name' | 'items' | 'priority' | 'dueInDays'>,
+  ): void {
+    if (!entry.editable) return;
+    const result = applyChecklistTemplate(entry.task, template, { today: this.today() });
+    const notes: string[] = [];
+    if (result.duplicates) {
+      notes.push(`${plural(result.duplicates, 'item')} ${result.duplicates === 1 ? 'was' : 'were'} already there.`);
+    }
+    if (result.overLimit) {
+      notes.push(
+        `${plural(result.overLimit, 'item')} didn’t fit: a checklist holds up to ${TASK_CHECKLIST_MAX} items.`,
+      );
+    }
+    const { priority, dueDate } = result.patch;
+    if (priority) notes.push(`Priority set to ${PRIORITY_NAMES[priority].toLowerCase()}.`);
+    if (dueDate) notes.push(`Due ${formatDateOnly(dueDate, this.timeZone)}.`);
+    const name = `“${template.name}”`;
+    const description = notes.length ? { description: notes.join(' ') } : {};
+    if (!result.changed) {
+      this.toasts.show({ title: `Nothing to add from ${name}`, ...description });
+      this.say(`Nothing to add from ${name}.`);
+      return;
+    }
+    this.write(
+      this.repoFor(entry.ref.matterId).update(entry.task.id, { ...result.patch }),
+      'The checklist didn’t save',
+    );
+    const title = result.added ? `Added ${plural(result.added, 'item')} from ${name}` : `Applied ${name}`;
+    this.toasts.show({ title, ...description, tone: 'success' });
+    this.say(`${title}.`);
   }
 
   /**

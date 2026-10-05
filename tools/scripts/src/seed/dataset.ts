@@ -22,6 +22,7 @@ const {
   buildConflictFixture,
   buildLoadMatters,
   makeContact,
+  makeChecklistTemplate,
   makeCounter,
   makeDeadline,
   makeMatter,
@@ -714,6 +715,24 @@ export function buildDataset(options: {
   );
 
   if (scenario === 'empty') return { accounts: [...SEED_ACCOUNTS], docs, files };
+
+  // A checklist template to apply from a task's details (CORE-08d).
+  add(
+    `orgs/${org}/checklistTemplates/ct-probate-kick-off`,
+    makeChecklistTemplate({
+      ...meta,
+      name: 'Probate kick-off',
+      items: [
+        'Order the death certificate',
+        'Locate the original will',
+        'Search the will bank',
+        'Ask the bank for date-of-death balances',
+        'Diarise the notice of intended application',
+      ],
+      priority: 'high',
+      dueInDays: 7,
+    }),
+  );
 
   const matters = scenario === 'minimal' ? MATTERS.filter((m) => m.minimal) : MATTERS;
   const contactIds = new Set(
