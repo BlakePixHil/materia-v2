@@ -1,0 +1,13 @@
+{
+  "id": "cls-001",
+  "description": "Will",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "wills/okafor.txt",
+      "title": "okafor-will.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

@@ -1,5 +1,5 @@
 import { FieldPath, Timestamp, type Query } from 'firebase-admin/firestore';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { can, DocIdSchema, DomainError, PERMISSIONS } from '@materia/domain';
 

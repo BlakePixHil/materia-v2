@@ -2,13 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { deleteApp, initializeApp, type FirebaseApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, signInWithEmailAndPassword, signOut, type Auth } from 'firebase/auth';
-import {
-  connectFunctionsEmulator,
-  getFunctions,
-  httpsCallable,
-  type FunctionsError,
-  type HttpsCallableOptions,
-} from 'firebase/functions';
+import { connectFunctionsEmulator, getFunctions, httpsCallable, type FunctionsError } from 'firebase/functions';
 import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type App } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
@@ -102,19 +96,15 @@ async function signInAs(who: Role) {
   await signInWithEmailAndPassword(auth, `matters-${who}@example.test`, PASSWORD);
 }
 
-function call<T>(name: string, data: Record<string, unknown>, options?: HttpsCallableOptions) {
-  return httpsCallable<Record<string, unknown>, T>(
-    getFunctions(client, 'australia-southeast1'),
-    name,
-    options,
-  )(data).then((result) => result.data);
+// Parallel creates contend on one counter; on a busy CI runner they can outlast the SDK's 70 s
+// default, so allow up to the test's own 120 s.
+function call<T>(name: string, data: Record<string, unknown>) {
+  return httpsCallable<Record<string, unknown>, T>(getFunctions(client, 'australia-southeast1'), name, {
+    timeout: 110_000,
+  })(data).then((result) => result.data);
 }
-const create = (
-  title: string,
-  extra: Record<string, unknown> = {},
-  requestId = randomUUID(),
-  options?: HttpsCallableOptions,
-) => call<CreateMatterResult>('matters-createMatter', { requestId, matter: newMatter(title, extra) }, options);
+const create = (title: string, extra: Record<string, unknown> = {}, requestId = randomUUID()) =>
+  call<CreateMatterResult>('matters-createMatter', { requestId, matter: newMatter(title, extra) });
 const changeStatus = (matterId: string, to: MatterStatus, reason?: string) =>
   call('matters-changeStatus', { requestId: randomUUID(), matterId, to, ...(reason ? { reason } : {}) });
 
@@ -176,21 +166,16 @@ afterAll(async () => {
 /**
  * Creates racing for the same counter. Ten still contend on every number. At twenty the emulator's
  * lock manager timed out transactions often enough (each retry backing off, while the Functions
- * emulator started a worker per request) that the last calls passed the client's default 70 s
- * deadline. This test is about numbering under contention, not latency, so its calls also wait
- * longer.
+ * emulator started a worker per request) that the slowest calls took over 70 s.
  */
 const PARALLEL = 10;
-const RACING = { timeout: 110_000 };
 const sequential = (seq: number) => `M-2026-${String(seq).padStart(4, '0')}`;
 
 describe('matters-createMatter', () => {
   it(`gives ${PARALLEL} parallel creates ${PARALLEL} distinct, sequential numbers`, async () => {
     await signInAs('lawyer');
     const results = await Promise.all(
-      Array.from({ length: PARALLEL }, (_, i) =>
-        create(`Estate of Fictional Parallel ${i + 1}`, {}, randomUUID(), RACING),
-      ),
+      Array.from({ length: PARALLEL }, (_, i) => create(`Estate of Fictional Parallel ${i + 1}`)),
     );
     const numbers = results.map((r) => r.number).sort();
     expect(numbers).toEqual(Array.from({ length: PARALLEL }, (_, i) => sequential(i + 1)));

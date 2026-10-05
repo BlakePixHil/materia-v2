@@ -15,6 +15,10 @@ const baseURL = process.env['BASE_URL'];
 // Playwright at it instead of downloading browsers.
 const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'];
 
+// To save Actions minutes, PR CI sets E2E_CHROMIUM_ONLY=1 and skips WebKit; CI's morning run on
+// main runs both browsers.
+const chromiumOnly = process.env['E2E_CHROMIUM_ONLY'] === '1';
+
 /**
  * Playwright e2e for apps/web (ADR-017). Chromium on desktop plus WebKit on a mobile viewport.
  * Without WebKit installed, run `pnpm e2e -- --project=chromium`.
@@ -50,17 +54,21 @@ export default defineConfig({
       testIgnore: /\/load\//,
       use: { ...devices['Desktop Chrome'], ...(executablePath ? { launchOptions: { executablePath } } : {}) },
     },
-    {
-      name: 'webkit-mobile',
-      testIgnore: /\/load\//,
-      use: { ...devices['iPhone 13'] },
-    },
+    ...(chromiumOnly
+      ? []
+      : [
+          {
+            name: 'webkit-mobile',
+            testIgnore: /\/load\//,
+            use: { ...devices['iPhone 13'] },
+          },
+        ]),
     // Tests that flood the emulators (src/load) run once everything else has finished. Locally:
     // `--project=chromium-load --no-deps`.
     {
       name: 'chromium-load',
       testMatch: /\/load\/.*\.spec\.ts$/,
-      dependencies: ['chromium', 'webkit-mobile'],
+      dependencies: chromiumOnly ? ['chromium'] : ['chromium', 'webkit-mobile'],
       use: { ...devices['Desktop Chrome'], ...(executablePath ? { launchOptions: { executablePath } } : {}) },
     },
   ],

@@ -100,8 +100,9 @@ resource "google_kms_crypto_key_iam_member" "fn_runtime_clerk_api_keys" {
 # Secret containers only. Values are added by the owner (`gcloud secrets versions add`) and never
 # appear in Terraform state or code. Replicated only in Australia.
 resource "google_secret_manager_secret" "this" {
-  # ANTHROPIC_API_KEY is unused since AI-02a (each org brings its own key, KMS-encrypted above); the
-  # container stays so removing it is a separate, deliberate change (infra/MANUAL.md).
+  # ANTHROPIC_API_KEY: no longer used by the app since AI-02a (each org brings its own key,
+  # KMS-encrypted above). On dev it holds the eval-only key the clerk-evals workflow uses (AI-12,
+  # infra/MANUAL.md); on prod it stays empty.
   # POSTMARK_TOKEN: the Postmark server token; POSTMARK_WEBHOOK_SECRET: the basic-auth password
   # Postmark's bounce webhook sends (FND-20, infra/MANUAL.md).
   for_each = toset(["ANTHROPIC_API_KEY", "POSTMARK_TOKEN", "POSTMARK_WEBHOOK_SECRET"])

@@ -1,0 +1,13 @@
+{
+  "id": "we-005",
+  "fixtures": {
+    "wills/lindqvist.txt": "e63a29e297bdcbeb"
+  },
+  "fields": {
+    "testator.name": "Ingrid Maria Lindqvist",
+    "willDate": "2022-11-09",
+    "executors[].name": ["Hugo Barnes"],
+    "beneficiaries[].name": ["Hugo Barnes", "Geelong Animal Rescue Society Inc"],
+    "formalValidityFlags[].issue": ["witness_is_beneficiary"]
+  }
+}

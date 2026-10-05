@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 /**
  * Clerk bring-your-own-key (AI-02a, ADR-011b): the models an org can choose, the shape of an

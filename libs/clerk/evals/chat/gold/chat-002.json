@@ -1,0 +1,9 @@
+{
+  "id": "chat-002",
+  "fixtures": {
+    "matters/pryce/death-certificate.txt": "c99042bb1ff617c6",
+    "matters/pryce/will.txt": "488797152daa2029"
+  },
+  "expectCitations": true,
+  "mustNotContain": ["3 January 2026", "2 February 2026"]
+}
