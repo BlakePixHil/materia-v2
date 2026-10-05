@@ -27,6 +27,8 @@ export const CONTEXT_POLICIES = {
   willExtraction: { budgetTokens: 120_000, scopes: ['matter'] },
   drafting: { budgetTokens: 40_000, scopes: ['matter'] },
   timeAssist: { budgetTokens: 12_000, scopes: ['matter'] },
+  /** The eval harness's citation judge (AI-12): sent only test items, never a matter's context. */
+  evalJudge: { budgetTokens: 16_000, scopes: ['matter'] },
   // OCR (AI-04) sends one page image and no assembled context; the entry only completes the map.
   ocr: { budgetTokens: 8_000, scopes: ['matter'] },
 } as const satisfies Record<ClerkFeature, ContextPolicy>;

@@ -25,12 +25,13 @@ const EPHEMERAL = { type: 'ephemeral' } as const;
 type ApiBlock = Record<string, unknown>;
 
 /**
- * One of our content blocks as an API block. Citations are on for documents and search results,
- * except with structured output, which the API rejects in combination with citations (OCR and
- * classification send a document and want JSON back).
+ * One user content block. Citations are on for documents and search results, except with
+ * structured output: the API rejects citations combined with `output_config.format`, so a
+ * structured feature quotes its sources in its own fields instead (will extraction, AI-06).
  */
-function toApiBlock(block: ClerkContentBlock, citations: boolean): ApiBlock {
+function toApiBlock(block: ClerkContentBlock, citable: boolean): ApiBlock {
   const cache = block.cache ? { cache_control: EPHEMERAL } : {};
+  const citations = citable ? { citations: { enabled: true } } : {};
   switch (block.type) {
     case 'text':
       return { type: 'text', text: block.text, ...cache };
@@ -42,7 +43,7 @@ function toApiBlock(block: ClerkContentBlock, citations: boolean): ApiBlock {
             ? { type: 'base64', media_type: 'application/pdf', data: block.source.base64 }
             : { type: 'text', media_type: 'text/plain', data: block.source.text },
         ...(block.title ? { title: block.title } : {}),
-        ...(citations ? { citations: { enabled: true } } : {}),
+        ...citations,
         ...cache,
       };
     case 'search_result':
@@ -51,7 +52,7 @@ function toApiBlock(block: ClerkContentBlock, citations: boolean): ApiBlock {
         source: block.source,
         title: block.title,
         content: [{ type: 'text', text: block.text }],
-        ...(citations ? { citations: { enabled: true } } : {}),
+        ...citations,
         ...cache,
       };
   }

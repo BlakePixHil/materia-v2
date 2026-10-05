@@ -6,6 +6,10 @@ inputs:
     description: Install a Java runtime for the Firebase emulators.
     required: false
     default: 'false'
+  base:
+    description: Nx base commit to use instead of the event's (CI's gate sets it for the morning run).
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -25,15 +29,17 @@ runs:
       shell: bash
       run: pnpm install --frozen-lockfile
 
-    # Equivalent of nx-set-shas: PRs compare with the base commit, pushes with the previous head.
+    # Equivalent of nx-set-shas: PRs compare with the base commit, pushes with the previous head,
+    # the morning run with the last commit deployed to dev (the `base` input).
     # When no usable base exists (first commit, force-push), fall back to the root commit: run all.
     - name: Set Nx base and head
       shell: bash
       env:
+        INPUT_BASE: ${{ inputs.base }}
         PR_BASE: ${{ github.event.pull_request.base.sha }}
         PUSH_BEFORE: ${{ github.event.before }}
       run: |
-        base="${PR_BASE:-$PUSH_BEFORE}"
+        base="${INPUT_BASE:-${PR_BASE:-$PUSH_BEFORE}}"
         if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
           base="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
           echo "No usable base commit; running everything from the root commit."

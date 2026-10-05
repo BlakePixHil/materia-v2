@@ -1,0 +1,13 @@
+{
+  "id": "cls-008",
+  "description": "Share holding statement",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "classify/share-statement.txt",
+      "title": "bb-statement.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

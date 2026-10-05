@@ -1,0 +1,13 @@
+{
+  "id": "cls-002",
+  "description": "Codicil",
+  "documents": [
+    {
+      "id": "d-doc",
+      "fixture": "classify/codicil.txt",
+      "title": "fairweather-codicil.pdf"
+    }
+  ],
+  "query": "",
+  "today": "2026-03-20"
+}

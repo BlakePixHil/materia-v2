@@ -1,4 +1,4 @@
-# ADR-035: Clerk document ingestion runs as a checkpointed Cloud Tasks pipeline
+# ADR-036: Clerk document ingestion runs as a checkpointed Cloud Tasks pipeline
 
 - **Status:** Accepted
 - **Date:** 2026-10-05

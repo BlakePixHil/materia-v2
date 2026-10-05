@@ -1,0 +1,22 @@
+{
+  "id": "brief-006",
+  "description": "Pending Clerk suggestions to review",
+  "today": "2026-03-20",
+  "matter": {
+    "user": "Jordan Price",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0007",
+        "upcomingDeadlines": [],
+        "openTasks": [],
+        "newDocuments": []
+      }
+    ],
+    "pendingSuggestions": [
+      {
+        "kind": "task",
+        "title": "Request final meter readings"
+      }
+    ]
+  }
+}
