@@ -20,6 +20,7 @@ import { MtButton, MtEmptyState, MtNote, MtSegmentedControl, ToastService, type 
 
 import { MatterScreen } from './matter-screen';
 import { duePendingText } from './matter-view';
+import { onIntent } from '../../core/commands/intents';
 import { errorCopy } from '../../core/error-copy';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { TaskActions } from '../tasks/task-actions';
@@ -273,6 +274,12 @@ export class MatterTasks {
       }),
     ];
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+    // ⌘K's "Add task" on this matter (CORE-15).
+    onIntent(
+      'add-task',
+      () => this.openQuickAdd(),
+      () => !!this.screen.matter.value(),
+    );
   }
 
   protected setGroupBy(value: GroupBy | null): void {

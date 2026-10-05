@@ -3,6 +3,8 @@ import * as z from 'zod';
 import {
   anthropicModel,
   buildParams,
+  CLIENT_TTL_MS,
+  LIST_MODELS_TIMEOUT_MS,
   mapError,
   SERVER_FALLBACK_BETA,
   toResult,
@@ -10,8 +12,12 @@ import {
 } from './anthropic';
 import { ClerkModelError, type ClerkModelRequest } from '../../ports';
 
+const KEY_A = 'sk-ant-fictional-key-aaaaaaaaaaaaaaaaaaaa';
+const KEY_B = 'sk-ant-fictional-key-bbbbbbbbbbbbbbbbbbbb';
+
 const request = (over: Partial<ClerkModelRequest> = {}): ClerkModelRequest => ({
   model: 'claude-opus-5-5',
+  credentials: { orgId: 'org-a', apiKey: KEY_A },
   system: 'You are Clerk.',
   messages: [
     {
@@ -158,14 +164,14 @@ describe('Anthropic adapter', () => {
 
   it('streams text deltas and returns the final message through a client', async () => {
     const seen: unknown[] = [];
-    const client: StreamingClient = {
+    const client = {
       beta: {
         messages: {
-          stream(params, options) {
+          stream(params: unknown, options: unknown) {
             seen.push(params, options);
             let listener: ((delta: string) => void) | undefined;
             return {
-              on(_event, cb) {
+              on(_event: 'text', cb: (delta: string) => void) {
                 listener = cb;
                 return this;
               },
@@ -178,8 +184,9 @@ describe('Anthropic adapter', () => {
           },
         },
       },
-    };
-    const model = anthropicModel({ apiKey: () => 'unused', client });
+      models: { list: async () => ({ data: [] }) },
+    } as unknown as StreamingClient;
+    const model = anthropicModel({ createClient: async () => client });
     const deltas: string[] = [];
     const result = await model.run(request(), (event) => deltas.push(event.text));
     expect(deltas).toEqual(['Ms Quill ', 'is the executor.']);
@@ -188,7 +195,7 @@ describe('Anthropic adapter', () => {
   });
 
   it('maps stream failures and needs an API key before loading the SDK', async () => {
-    const failing: StreamingClient = {
+    const failing = {
       beta: {
         messages: {
           stream: () => ({
@@ -197,10 +204,69 @@ describe('Anthropic adapter', () => {
           }),
         },
       },
-    };
-    await expect(anthropicModel({ apiKey: () => '', client: failing }).run(request())).rejects.toMatchObject({
+    } as unknown as StreamingClient;
+    await expect(anthropicModel({ createClient: async () => failing }).run(request())).rejects.toMatchObject({
       kind: 'overloaded',
     });
-    await expect(anthropicModel({ apiKey: () => '' }).run(request())).rejects.toMatchObject({ kind: 'auth' });
+    await expect(anthropicModel().run(request({ credentials: { orgId: 'org-a', apiKey: '' } }))).rejects.toMatchObject({
+      kind: 'auth',
+    });
+  });
+
+  it('caches a client per org for a short time, and makes a new one when the key changes', async () => {
+    const created: string[] = [];
+    let now = 0;
+    const stub = {
+      beta: {
+        messages: { stream: () => ({ on: () => undefined, finalMessage: async () => apiMessage }) },
+      },
+    } as unknown as StreamingClient;
+    const model = anthropicModel({
+      createClient: async (apiKey) => (created.push(apiKey), stub),
+      now: () => now,
+    });
+    await model.run(request());
+    await model.run(request());
+    expect(created).toEqual([KEY_A]);
+    // Another org never shares the client.
+    await model.run(request({ credentials: { orgId: 'org-b', apiKey: KEY_A } }));
+    expect(created).toHaveLength(2);
+    // A rotated key: the next call uses a client for the new key.
+    await model.run(request({ credentials: { orgId: 'org-a', apiKey: KEY_B } }));
+    expect(created.at(-1)).toBe(KEY_B);
+    // After the TTL the client is built again.
+    now += CLIENT_TTL_MS + 1;
+    await model.run(request({ credentials: { orgId: 'org-a', apiKey: KEY_B } }));
+    expect(created).toEqual([KEY_A, KEY_A, KEY_B, KEY_B]);
+  });
+
+  it('validates a key with one models.list call and maps a rejected key to auth', async () => {
+    const calls: unknown[] = [];
+    const ok = {
+      models: {
+        list: async (params: unknown, options: unknown) => (
+          calls.push(params, options),
+          { data: [{ id: 'claude-sonnet-5-5' }, { id: 'claude-opus-5-5' }] }
+        ),
+      },
+    } as unknown as StreamingClient;
+    expect(await anthropicModel({ createClient: async () => ok }).listModels(KEY_A)).toEqual([
+      'claude-sonnet-5-5',
+      'claude-opus-5-5',
+    ]);
+    expect(calls).toEqual([{ limit: 100 }, { timeout: LIST_MODELS_TIMEOUT_MS }]);
+    const rejected = {
+      models: { list: () => Promise.reject({ name: 'AuthenticationError', status: 401 }) },
+    } as unknown as StreamingClient;
+    await expect(anthropicModel({ createClient: async () => rejected }).listModels(KEY_A)).rejects.toMatchObject({
+      kind: 'auth',
+      status: 401,
+    });
+    const offline = {
+      models: { list: () => Promise.reject({ name: 'APIConnectionError' }) },
+    } as unknown as StreamingClient;
+    await expect(anthropicModel({ createClient: async () => offline }).listModels(KEY_A)).rejects.toMatchObject({
+      kind: 'disconnected',
+    });
   });
 });

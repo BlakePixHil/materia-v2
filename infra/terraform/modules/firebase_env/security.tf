@@ -78,9 +78,30 @@ resource "google_kms_crypto_key" "migration" {
   }
 }
 
+# Each org's own Anthropic API key for Clerk (AI-02a, ADR-011b), stored encrypted in
+# orgs/{orgId}/integrations/anthropic. Only fn-runtime can encrypt or decrypt with it.
+resource "google_kms_crypto_key" "clerk_api_keys" {
+  name            = "clerk-api-keys"
+  key_ring        = google_kms_key_ring.materia.id
+  rotation_period = "7776000s" # 90 days
+  labels          = local.labels
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_kms_crypto_key_iam_member" "fn_runtime_clerk_api_keys" {
+  crypto_key_id = google_kms_crypto_key.clerk_api_keys.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = "serviceAccount:${google_service_account.fn_runtime.email}"
+}
+
 # Secret containers only. Values are added by the owner (`gcloud secrets versions add`) and never
 # appear in Terraform state or code. Replicated only in Australia.
 resource "google_secret_manager_secret" "this" {
+  # ANTHROPIC_API_KEY is unused since AI-02a (each org brings its own key, KMS-encrypted above); the
+  # container stays so removing it is a separate, deliberate change (infra/MANUAL.md).
   # POSTMARK_TOKEN: the Postmark server token; POSTMARK_WEBHOOK_SECRET: the basic-auth password
   # Postmark's bounce webhook sends (FND-20, infra/MANUAL.md).
   for_each = toset(["ANTHROPIC_API_KEY", "POSTMARK_TOKEN", "POSTMARK_WEBHOOK_SECRET"])

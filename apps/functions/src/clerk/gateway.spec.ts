@@ -1,6 +1,5 @@
 import * as z from 'zod';
 
-import { CLERK_MODEL } from '@materia/clerk';
 import type { FlagKey } from '@materia/domain';
 
 import { createLog, type Severity } from '../core/log';
@@ -9,8 +8,10 @@ import { meteringPeriod } from './features';
 import { backoffMs, createClerkGateway, type ClerkRunInput } from './gateway';
 import { FakeClock } from '../ports/fakes';
 import { FakeClerkModel, type FakeStep } from './providers/fake';
-import { MemoryClerkStore } from './testing';
+import { MemoryClerkStore, MemoryKeyring } from './testing';
 
+// Most cases run on Opus 5.5, the org's opt-in, so its fallback chain and prices are exercised.
+const CLERK_MODEL = 'claude-opus-5-5';
 const HELLO_JSON = JSON.stringify({ greeting: 'Hello there.', promptRef: 'hello@1.0.0' });
 // A fictional document; the logging test checks none of this text reaches the logs.
 const SECRET_DOC = 'Fictional will of Avery Quill: the residue to the Lantern Trust.';
@@ -18,6 +19,8 @@ const SECRET_DOC = 'Fictional will of Avery Quill: the residue to the Lantern Tr
 function setup(script: FakeStep[] = [], flags: Partial<Record<FlagKey, boolean>> = { 'clerk.enabled': true }) {
   const model = new FakeClerkModel(script);
   const store = new MemoryClerkStore();
+  store.settings = { model: CLERK_MODEL };
+  const keyring = new MemoryKeyring();
   const logs: { severity: Severity; message: string; entry: Record<string, unknown> }[] = [];
   const log = createLog({ fn: 'test', requestId: 'req-1', orgId: 'org-a', uid: 'u-1' }, (severity, message, entry) =>
     logs.push({ severity, message, entry }),
@@ -28,6 +31,7 @@ function setup(script: FakeStep[] = [], flags: Partial<Record<FlagKey, boolean>>
   const gateway = createClerkGateway({
     model,
     store,
+    keyring,
     flag: async (_orgId, key) => flags[key] ?? false,
     sleep: async (ms) => void slept.push(ms),
     random: () => 0.5,
@@ -40,7 +44,7 @@ function setup(script: FakeStep[] = [], flags: Partial<Record<FlagKey, boolean>>
     vars: { name: 'the team', promptRef: 'hello@1.0.0' },
     ...over,
   });
-  return { model, store, logs, gateway, input, slept, clock };
+  return { model, store, keyring, logs, gateway, input, slept, clock };
 }
 
 describe('ClerkGateway', () => {
@@ -338,5 +342,80 @@ describe('gateway helpers', () => {
   it('meters by calendar month in Melbourne time', () => {
     expect(meteringPeriod(new Date('2026-03-31T13:30:00Z'))).toBe('clerk-2026-04');
     expect(meteringPeriod(new Date('2026-03-31T12:00:00Z'))).toBe('clerk-2026-03');
+  });
+
+  describe('bring your own key (AI-02a)', () => {
+    it('passes the org key with each request, and defaults to Sonnet 5.5 and its chain', async () => {
+      const overloaded = { error: new ClerkModelError('overloaded', 'x', 529) };
+      const { gateway, input, model, store, keyring } = setup([
+        overloaded,
+        overloaded,
+        overloaded,
+        { chunks: [HELLO_JSON], model: 'claude-sonnet-5' },
+      ]);
+      store.settings = {};
+      const result = await gateway.run(input());
+      expect(result).toMatchObject({ status: 'done', model: 'claude-sonnet-5', fallbackUsed: true });
+      expect(model.requests.map((r) => r.model)).toEqual([
+        'claude-sonnet-5-5',
+        'claude-sonnet-5-5',
+        'claude-sonnet-5-5',
+        'claude-sonnet-5',
+      ]);
+      const key = keyring.key as { apiKey: string };
+      expect(model.requests.every((r) => r.credentials.apiKey === key.apiKey && r.credentials.orgId === 'org-a')).toBe(
+        true,
+      );
+      // The unpriced fallback is costed at the primary's (Sonnet 5.5) price and flagged estimated.
+      expect(store.meters[0]?.entry).toMatchObject({ costEstimated: true });
+    });
+
+    it('uses Opus 5.5 and its chain when the org opted in', async () => {
+      const down = { error: new ClerkModelError('server', 'x', 503) };
+      const { gateway, input, model } = setup([down, down, down, down, { chunks: [HELLO_JSON] }]);
+      await gateway.run(input());
+      expect(model.requests.map((r) => r.model)).toEqual([
+        'claude-opus-5-5',
+        'claude-opus-5-5',
+        'claude-opus-5-5',
+        'claude-opus-5',
+        'claude-sonnet-5-5',
+      ]);
+    });
+
+    it('is off for an org without a key (CLERK_DISABLED, org.byok.missing), checked after the kill switches', async () => {
+      const { gateway, input, model, keyring } = setup();
+      keyring.key = { state: 'missing' };
+      await expect(gateway.run(input())).rejects.toMatchObject({
+        code: 'CLERK_DISABLED',
+        details: { switch: 'org.byok.missing' },
+      });
+      expect(model.requests).toHaveLength(0);
+      const off = setup([], {});
+      off.keyring.key = { state: 'missing' };
+      await expect(off.gateway.run(off.input())).rejects.toMatchObject({ details: { switch: 'clerk.enabled' } });
+    });
+
+    it('checks the key before the limits, so an org without one spends no rate slot', async () => {
+      const { gateway, input, store, keyring } = setup();
+      keyring.key = { state: 'missing' };
+      await expect(gateway.run(input())).rejects.toMatchObject({ code: 'CLERK_DISABLED' });
+      expect(store.hits.size).toBe(0);
+    });
+
+    it('marks a rejected key invalid and returns CLERK_KEY_INVALID; later calls stop before the provider', async () => {
+      const { gateway, input, model, keyring, store, logs } = setup([
+        { error: new ClerkModelError('auth', 'Provider rejected the credentials (401)', 401) },
+      ]);
+      await expect(gateway.run(input({ stream: { threadId: 't', messageId: 'm' } }))).rejects.toMatchObject({
+        code: 'CLERK_KEY_INVALID',
+      });
+      expect(keyring.invalidated).toEqual(['v1']);
+      expect(model.requests).toHaveLength(1);
+      expect(store.messages.get('t/m')?.final?.status).toBe('error');
+      await expect(gateway.run(input())).rejects.toMatchObject({ code: 'CLERK_KEY_INVALID' });
+      expect(model.requests).toHaveLength(1);
+      expect(JSON.stringify(logs)).not.toContain('sk-ant-');
+    });
   });
 });

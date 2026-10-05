@@ -1,6 +1,6 @@
 import { FieldValue } from 'firebase-admin/firestore';
 
-import { Activity } from '@materia/domain';
+import { Activity, taskSearchTokens } from '@materia/domain';
 
 import {
   activitySummary,
@@ -12,6 +12,7 @@ import {
   taskActivityKinds,
   type TaskSyncPlan,
 } from './shared';
+import { searchPatch } from '../core/search';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
 import { recordMatterActivity } from '../matters/denormalise';
 import { matterPath } from '../matters/shared';
@@ -35,7 +36,8 @@ export interface TaskWriteOutcome {
  * `tasks-onWrite` (CORE-08), on every write of `orgs/{orgId}/matters/{matterId}/tasks/{taskId}`:
  *
  * 1. In one transaction on the task, brings `countedOpen`, `completedAt` and the matter's
- *    `openTaskCount` (a server increment) in line with the task's current state (`planTaskSync`).
+ *    `openTaskCount` (a server increment) in line with the task's current state (`planTaskSync`),
+ *    and `search` with its title (CORE-15, `titleSearch`).
  *    The transaction reads the task again, so concurrent and out-of-order events converge on the
  *    exact count; its own write plans nothing next time, so it doesn't loop.
  * 2. Notifies a new assignee (`task_assigned` in-app notification, one per event).
@@ -55,7 +57,9 @@ export async function syncTask(change: TriggerChange, ctx: TriggerContext): Prom
 
   const plan = await db.runTransaction(async (tx) => {
     const current = await tx.get(taskRef);
-    const next = planTaskSync(current.exists ? (current.data() as Data) : undefined, before, ctx.time);
+    const data = current.exists ? (current.data() as Data) : undefined;
+    const planned = planTaskSync(data, before, ctx.time);
+    const next = data ? { ...planned, patch: { ...planned.patch, ...titleSearch(data) } } : planned;
     if (next.countDelta && matter.exists)
       tx.update(matterRef, { openTaskCount: FieldValue.increment(next.countDelta) });
     if (current.exists && Object.keys(next.patch).length) tx.update(taskRef, toWrite(next.patch));
@@ -116,9 +120,15 @@ export const onWriteDefinition: TriggerDefinition = {
   handler: async (change, ctx) => void (await syncTask(change, ctx)),
 };
 
+/** `search` from a task's title when it's out of date (CORE-15). */
+export function titleSearch(task: Data): { search?: string[] } {
+  return searchPatch(task, taskSearchTokens(typeof task['title'] === 'string' ? task['title'] : ''));
+}
+
 /**
  * `tasks-onPersonalWrite` (CORE-08): a personal task's `completedAt` follows its status, as a
- * matter task's does. Personal tasks have no matter, count, notification or activity.
+ * matter task's does, and its `search` its title (CORE-15). Personal tasks have no matter, count,
+ * notification or activity.
  */
 export async function syncPersonalTask(change: TriggerChange, ctx: TriggerContext): Promise<string[]> {
   if (!change.after) return [];
@@ -126,7 +136,8 @@ export async function syncPersonalTask(change: TriggerChange, ctx: TriggerContex
   const patched = await ctx.db.runTransaction(async (tx) => {
     const current = await tx.get(ref);
     if (!current.exists) return [];
-    const patch = completionPatch(current.data() as Data, ctx.time);
+    const data = current.data() as Data;
+    const patch = { ...completionPatch(data, ctx.time), ...titleSearch(data) };
     if (Object.keys(patch).length) tx.update(ref, toWrite(patch));
     return Object.keys(patch);
   });

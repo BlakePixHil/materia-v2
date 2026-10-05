@@ -7,6 +7,7 @@ import {
   DocIdSchema,
   InstantSchema,
   NonEmptyString,
+  SearchTokensSchema,
   withMeta,
 } from './common';
 import {
@@ -76,6 +77,8 @@ const taskShape = {
   completedAt: InstantSchema.optional(),
   /** The due date its reminder went out for (`reminders-dispatch`, CORE-11): one per due date. */
   reminderSentFor: DateOnlySchema.optional(),
+  /** Title tokens for ⌘K (CORE-15), kept by `tasks-onWrite`/`tasks-onPersonalWrite`; empty until then. */
+  search: SearchTokensSchema.default([]),
 };
 
 /**
@@ -120,6 +123,7 @@ export const Task = withMeta(
       'templateTaskKey',
       'duePending',
       'countedOpen',
+      'search',
     ],
     updatable: TASK_UPDATABLE,
   },
@@ -135,7 +139,7 @@ export const PersonalTask = withMeta(
   {
     path: 'orgs/{orgId}/members/{uid}/tasks',
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor'],
+    serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor', 'search'],
     updatable: TASK_UPDATABLE,
   },
 );
@@ -484,6 +488,8 @@ export const MatterDocument = withMeta(
     encrypted: z.boolean().default(false),
     accessRestricted: z.boolean().default(false),
     renditions: DocumentRenditionsSchema.optional(),
+    /** Name tokens for ⌘K (CORE-15), kept by `documents-onWrite`; empty until then. */
+    search: SearchTokensSchema.default([]),
   },
   {
     path: `${MATTER}/documents`,
@@ -506,6 +512,7 @@ export const MatterDocument = withMeta(
       'renditions',
       'pageCount',
       'encrypted',
+      'search',
     ],
     updatable: ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes'],
   },

@@ -1,0 +1,81 @@
+# One-off data scripts against materia-v2-dev (backfills after a schema change, for example
+# `backfill-search-tokens` after CORE-15). Runs a `materia-scripts` command from main as
+# terraform-agent, through the same Workload Identity pool as infra.yml (GitHub environment
+# infra-dev), with Application Default Credentials and `--project` set to the dev project.
+# Dev only: there is no prod input. Only `backfill-*` and `migrate-*` commands are accepted.
+# Run it with dry_run first, read the log, then run it again without.
+name: dev-script
+run-name: dev-script ${{ inputs.command }}${{ inputs.dry_run && ' (dry run)' || '' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: materia-scripts command (backfill-* or migrate-*)
+        required: true
+        type: string
+      args:
+        description: Extra arguments, space-separated (--project is added for you)
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: Pass --dry-run
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: dev-script
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    name: ${{ inputs.command }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: infra-dev
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+    env:
+      PROJECT: ${{ vars.GCP_PROJECT_DEV }}
+      COMMAND: ${{ inputs.command }}
+      ARGS: ${{ inputs.args }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - name: Check the inputs
+        run: |
+          if [ -z "$PROJECT" ]; then
+            echo "::error::GCP_PROJECT_DEV is not set."
+            exit 1
+          fi
+          if ! [[ "$COMMAND" =~ ^(backfill|migrate)-[a-z0-9-]+$ ]]; then
+            echo "::error::Only backfill-* and migrate-* commands can run here (got '$COMMAND')."
+            exit 1
+          fi
+          if [[ " $ARGS " == *" --project"* ]]; then
+            echo "::error::Don't pass --project; this workflow always targets $PROJECT."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Authenticate to Google Cloud as terraform-agent (Workload Identity Federation, no key)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.TF_WIF_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Run materia-scripts ${{ inputs.command }}
+        run: |
+          read -ra extra <<< "$ARGS"
+          if [ "$DRY_RUN" = "true" ]; then extra+=(--dry-run); fi
+          echo "materia-scripts $COMMAND --project $PROJECT ${extra[*]}"
+          pnpm -s materia-scripts "$COMMAND" --project "$PROJECT" "${extra[@]}"

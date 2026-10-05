@@ -393,15 +393,28 @@ export const Notification = {
 };
 export type Notification = z.infer<typeof Notification.schema>;
 
-/** `integrations/{uid_provider}`: server-only; refresh tokens are KMS-encrypted (ADR-019). */
+/**
+ * `integrations/{uid_provider}`: server-only; secrets are KMS-encrypted (ADR-019). OAuth providers
+ * store a refresh token; `integrations/anthropic` holds the org's own Anthropic API key (AI-02a,
+ * ADR-011b), with only its last four characters in clear.
+ */
 export const Integration = withMeta(
   {
-    provider: z.enum(['microsoft', 'google', 'xero']),
+    provider: z.enum(['microsoft', 'google', 'xero', 'anthropic']),
     uid: DocIdSchema.nullable(),
-    status: z.enum(['connected', 'error', 'revoked']),
-    scopes: z.array(z.string()),
-    encryptedRefreshToken: z.string(),
+    /** `valid` and `invalid` are the Anthropic key's states (invalid: Anthropic rejected it). */
+    status: z.enum(['connected', 'error', 'revoked', 'valid', 'invalid']),
+    scopes: z.array(z.string()).default([]),
+    encryptedRefreshToken: z.string().optional(),
+    encryptedApiKey: z.string().optional(),
     kmsKeyVersion: z.string(),
+    last4: z.string().max(4).optional(),
+    setBy: DocIdSchema.optional(),
+    setAt: InstantSchema.optional(),
+    validatedAt: InstantSchema.optional(),
+    invalidAt: InstantSchema.optional(),
+    /** Whether the Anthropic key could see Opus 5.5 when it was saved. */
+    opusAvailable: z.boolean().optional(),
     lastSyncAt: InstantSchema.optional(),
     error: z.string().optional(),
   },

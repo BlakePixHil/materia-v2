@@ -8,8 +8,9 @@ import { anthropicModel } from '../clerk/providers/anthropic';
 import { adminDb } from '../core/admin';
 import { cloudTasks } from '../core/enqueue';
 import { isEmulator, useFakes } from '../core/env';
+import { cloudKms } from '../core/kms';
 import { clamavScanUrl, previewServiceUrl } from '../core/params';
-import { ANTHROPIC_API_KEY, POSTMARK_TOKEN, secretValue } from '../core/secrets';
+import { POSTMARK_TOKEN, secretValue } from '../core/secrets';
 import { clamavScanner } from '../documents/clamav';
 import { previewService } from '../documents/preview';
 import { emulatorSignedUrls, storageSignedUrls } from '../documents/signed-urls';
@@ -38,8 +39,9 @@ function realPorts(): Ports {
     mail: postmarkMail({ token: () => secretValue(() => POSTMARK_TOKEN.value()), from: mailFrom }),
     push: fcmPush(), // FND-20
     tasks: cloudTasks,
-    // AI-02 (ADR-011a). The key is read on first use, so only functions that declare the secret can call it.
-    clerkModel: anthropicModel({ apiKey: () => ANTHROPIC_API_KEY.value() }),
+    // AI-02a (ADR-011b): no platform key. Each call carries the org's own key, decrypted with KMS.
+    clerkModel: anthropicModel(),
+    clerkKms: cloudKms({ cryptoKey: 'clerk-api-keys' }),
     embedding: notConfigured('EmbeddingPort'), // AI-03
     calendar: notConfigured('CalendarPort'), // INT-01
     xero: notConfigured('XeroPort'), // BILL-08
