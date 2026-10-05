@@ -57,6 +57,7 @@ export const upsertEventDefinition = {
       requestId,
       cause: 'event',
       clock,
+      ports: ctx.ports,
       log,
       event: {
         eventId: input.eventId,
@@ -109,6 +110,7 @@ export const deleteEventDefinition = {
       requestId,
       cause: 'event',
       clock,
+      ports: ctx.ports,
       log,
       event: { eventId: input.eventId, fields: null },
     });
@@ -144,6 +146,7 @@ export const recomputeDefinition = {
       requestId,
       cause: 'recompute',
       clock,
+      ports: ctx.ports,
       log,
     });
     return summary(outcome);

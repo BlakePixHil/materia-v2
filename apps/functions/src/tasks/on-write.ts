@@ -1,6 +1,6 @@
 import { FieldValue } from 'firebase-admin/firestore';
 
-import { Activity, Notification } from '@materia/domain';
+import { Activity } from '@materia/domain';
 
 import {
   activitySummary,
@@ -15,6 +15,7 @@ import {
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
 import { recordMatterActivity } from '../matters/denormalise';
 import { matterPath } from '../matters/shared';
+import { notify } from '../notifications/notify';
 
 type Data = Record<string, unknown>;
 
@@ -69,24 +70,22 @@ export async function syncTask(change: TriggerChange, ctx: TriggerContext): Prom
   let notified: string | null = null;
   const recipient = matter.exists ? assignmentRecipient(before, after) : null;
   if (recipient) {
-    const member = await db.doc(`orgs/${orgId}/members/${recipient}`).get();
-    if (member.get('status') === 'active') {
-      const number = matter.get('number');
-      const notification = Notification.schema.parse({
+    // notify() leaves out anyone who is no longer an active member (FND-20).
+    const number = matter.get('number');
+    const sent = await notify(
+      { db, orgId, clock: ctx.clock, log, ports: ctx.ports },
+      {
         kind: 'task_assigned',
         taskId,
         matterId,
-        recipientUid: recipient,
+        recipients: [recipient],
         title: 'Task assigned to you',
         body: typeof number === 'string' && number ? `${title} · ${number}` : title,
         link: `/matters/${matterId}/tasks`,
-        channel: ['inapp'],
-        ...meta,
-        schemaVersion: Notification.version,
-      });
-      await db.doc(`orgs/${orgId}/notifications/task-${eventId}`).set(notification);
-      notified = recipient;
-    }
+        key: `task-${eventId}`,
+      },
+    );
+    if (sent.ids.length) notified = recipient;
   }
 
   const kinds = matter.exists ? taskActivityKinds(before, after) : [];

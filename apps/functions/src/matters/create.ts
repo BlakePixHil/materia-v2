@@ -566,6 +566,7 @@ export const createMatterDefinition = {
           requestId,
           cause: 'matter_created',
           clock,
+          ports: ctx.ports,
           log,
         })
       ).created.length;

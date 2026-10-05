@@ -12,11 +12,15 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 
 type Data = Record<string, unknown>;
 
-/** Dates are stored as Timestamps, as Firestore does; `FieldValue.increment` is applied. */
+/** Dates are stored as Timestamps, as Firestore does; `FieldValue.increment` and `arrayUnion` are applied. */
 function stored(value: unknown, previous: unknown): unknown {
   if (value instanceof Date) return Timestamp.fromDate(value);
   if (value && typeof value === 'object' && value.constructor?.name === 'NumericIncrementTransform') {
     return (typeof previous === 'number' ? previous : 0) + (value as { operand: number }).operand;
+  }
+  if (value && typeof value === 'object' && value.constructor?.name === 'ArrayUnionTransform') {
+    const items = (value as unknown as { elements: unknown[] }).elements.map((item) => stored(item, undefined));
+    return [...(Array.isArray(previous) ? previous : []), ...items];
   }
   if (Array.isArray(value)) return value.map((item) => stored(item, undefined));
   if (value && typeof value === 'object' && !(value instanceof Timestamp)) {
@@ -48,7 +52,8 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       ref,
       exists: data !== undefined,
       data: () => (data === undefined ? undefined : { ...data }),
-      get: (field: string) => data?.[field],
+      // A dotted path reads into maps, as Firestore's `get('prefs.notifications')` does.
+      get: (field: string) => valueAt(data, field),
     };
   };
 
@@ -107,10 +112,13 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
     if (op === 'array-contains') return Array.isArray(actual) && actual.includes(value);
     if (op === 'in') return (value as unknown[]).includes(actual);
     if (op === '==') return actual === value;
-    // Range filters compare strings or numbers (date-only strings sort as dates); a missing field never matches.
+    // Range filters compare strings, numbers or instants (date-only strings sort as dates); a
+    // missing field never matches.
     if (actual === undefined || actual === null) return false;
-    const a = actual as string | number;
-    const b = value as string | number;
+    const comparable = (v: unknown) =>
+      v instanceof Timestamp ? v.toMillis() : v instanceof Date ? v.getTime() : (v as string | number);
+    const a = comparable(actual);
+    const b = comparable(value);
     return op === '<' ? a < b : op === '<=' ? a <= b : op === '>' ? a > b : a >= b;
   };
   function query(matches: (path: string) => boolean, filters: Filter[] = [], max = Infinity, after?: string) {
@@ -123,16 +131,20 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       /** Pages by document id (with `orderBy(FieldPath.documentId())`). */
       startAfter: (id: string) => query(matches, filters, max, id),
       get: async () => {
-        const found = [...docs.keys()]
-          .filter((path) => matches(path))
-          .filter((path) => after === undefined || (path.split('/').at(-1) as string) > after)
-          .filter((path) => filters.every((filter) => matchesFilter(docs.get(path), filter)))
-          .sort()
-          .slice(0, max)
-          .map(snapshot);
+        const found = select().map(snapshot);
         return { docs: found, empty: found.length === 0, size: found.length };
       },
+      /** A count aggregation (`query.count().get()`). */
+      count: () => ({ get: async () => ({ data: () => ({ count: select().length }) }) }),
     };
+    function select() {
+      return [...docs.keys()]
+        .filter((path) => matches(path))
+        .filter((path) => after === undefined || (path.split('/').at(-1) as string) > after)
+        .filter((path) => filters.every((filter) => matchesFilter(docs.get(path), filter)))
+        .sort()
+        .slice(0, max);
+    }
   }
 
   function collectionRef(path: string): Record<string, unknown> {

@@ -214,6 +214,7 @@ export const changeStageDefinition = {
           requestId,
           cause: 'stage',
           clock,
+          ports: ctx.ports,
           log,
         });
       } catch (error) {

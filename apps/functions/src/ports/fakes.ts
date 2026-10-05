@@ -3,15 +3,42 @@ import type {
   CalendarPort,
   Clock,
   EmbeddingPort,
+  EnqueueOptions,
   MailMessage,
   MailPort,
   MalwareScanPort,
   JobRunnerPort,
   Ports,
+  PushMessage,
+  PushPort,
+  PushResult,
+  TaskQueuePort,
   TranscriptionPort,
   XeroPort,
 } from './index';
 import { FakeClerkModel } from '../clerk/providers/fake';
+
+/**
+ * Push (FND-20): records each message. Tokens starting `invalid-` are reported as gone (FCM's
+ * "not registered"), `flaky-` ones as a transient failure.
+ */
+export class FakePush implements PushPort {
+  readonly sent: { token: string; message: PushMessage }[] = [];
+  async send(token: string, message: PushMessage): Promise<PushResult> {
+    if (token.startsWith('invalid-')) return { ok: false, reason: 'invalid_token' };
+    if (token.startsWith('flaky-')) return { ok: false, reason: 'transient' };
+    this.sent.push({ token, message });
+    return { ok: true, id: `push-${this.sent.length}` };
+  }
+}
+
+/** Cloud Tasks (FND-20): records what would be enqueued; nothing runs. */
+export class FakeTaskQueue implements TaskQueuePort {
+  readonly queued: { queue: string; payload: Record<string, unknown>; options: EnqueueOptions }[] = [];
+  async enqueue(queue: string, payload: Record<string, unknown>, options: EnqueueOptions = {}) {
+    this.queued.push({ queue, payload, options });
+  }
+}
 
 /** A clock tests can set and advance. */
 export class FakeClock implements Clock {
@@ -89,6 +116,8 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
   return {
     clock: new FakeClock(),
     mail: new FakeMail(),
+    push: new FakePush(),
+    tasks: new FakeTaskQueue(),
     clerkModel: fakeClerkModel,
     embedding: fakeEmbedding,
     calendar: new FakeCalendar(),

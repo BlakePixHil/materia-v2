@@ -293,7 +293,9 @@ describe('tasks-onWrite', () => {
       title: 'Task assigned to you',
       body: 'Lodge the inventory · M-2026-0042',
       link: '/matters/m1/tasks',
-      channel: ['inapp'],
+      channels: ['inapp', 'email'],
+      priority: 'normal',
+      readAt: null,
       createdBy: 'system',
     });
     // Editing something else doesn't notify again.

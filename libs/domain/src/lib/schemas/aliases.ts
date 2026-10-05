@@ -46,7 +46,7 @@ import {
   Calendar,
   Counter,
 } from './org-records';
-import { Org, Member, Invite, User } from './tenancy';
+import { Org, Member, Invite, User, Device } from './tenancy';
 import { RecentMatter, SavedView } from './views';
 import { ConflictCheck } from '../conflicts';
 import { IntakeDraft } from '../intake';
@@ -69,6 +69,9 @@ export const InviteUpdateSchema = Invite.update;
 export const UserSchema = User.schema;
 export const UserCreateSchema = User.create;
 export const UserUpdateSchema = User.update;
+export const DeviceSchema = Device.schema;
+export const DeviceCreateSchema = Device.create;
+export const DeviceUpdateSchema = Device.update;
 export const ContactSchema = Contact.schema;
 export const ContactCreateSchema = Contact.create;
 export const ContactUpdateSchema = Contact.update;

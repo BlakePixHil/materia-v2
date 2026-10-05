@@ -3,6 +3,7 @@
  * the container picks fakes in the emulator and tests. Payloads carry ids and content only as
  * needed for the call; adapters must not log content.
  */
+import { DomainError } from '@materia/domain';
 
 export interface Clock {
   now(): Date;
@@ -15,7 +16,52 @@ export interface MailMessage {
   idempotencyKey?: string;
 }
 export interface MailPort {
+  /** Sends one email, or throws a `MailError` saying why not. */
   send(message: MailMessage): Promise<{ id: string }>;
+}
+
+/**
+ * Why an email wasn't sent (FND-20): `not_configured` (no POSTMARK_TOKEN yet), `inactive_recipient`
+ * (the provider suppresses the address after a bounce or complaint), `rejected` (a request the
+ * provider refuses, such as an unverified sender) or `transient` (worth retrying).
+ */
+export type MailFailure = 'not_configured' | 'inactive_recipient' | 'rejected' | 'transient';
+
+/** A mail failure, classified. Never carries the address or content. */
+export class MailError extends DomainError {
+  constructor(
+    readonly failure: MailFailure,
+    message: string = failure,
+    readonly providerCode?: number,
+  ) {
+    super('UNAVAILABLE', message, { failure, ...(providerCode !== undefined ? { providerCode } : {}) });
+    this.name = 'MailError';
+  }
+}
+
+/** A push notification (FND-20): what a lock screen may show, and where a tap goes. */
+export interface PushMessage {
+  title: string;
+  body: string;
+  /** An app path (`/matters/m1`). */
+  link: string;
+}
+export type PushResult =
+  | { ok: true; id: string }
+  /** `invalid_token`: the device is gone (the caller deletes it); `transient`: worth retrying. */
+  | { ok: false; reason: 'invalid_token' | 'transient' | 'rejected' };
+export interface PushPort {
+  send(token: string, message: PushMessage): Promise<PushResult>;
+}
+
+export interface EnqueueOptions {
+  scheduleTime?: Date;
+  /** Tasks with the same key are created once (Cloud Tasks deduplicates by task id). */
+  dedupeKey?: string;
+}
+/** Cloud Tasks, as a port so code that enqueues can be tested without them (FND-20). */
+export interface TaskQueuePort {
+  enqueue(queue: string, payload: Record<string, unknown>, options?: EnqueueOptions): Promise<void>;
 }
 
 /**
@@ -134,6 +180,8 @@ export interface JobRunnerPort {
 export interface Ports {
   clock: Clock;
   mail: MailPort;
+  push: PushPort;
+  tasks: TaskQueuePort;
   clerkModel: ClerkModelPort;
   embedding: EmbeddingPort;
   calendar: CalendarPort;

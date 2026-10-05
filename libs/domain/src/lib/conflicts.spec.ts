@@ -104,7 +104,7 @@ describe('alerts', () => {
         title: 'Possible conflict on M-2026-0001',
         body: 'A party added to this matter is on other matters.',
         link: '/matters/m1',
-        channel: ['inapp'],
+        channels: ['inapp'],
         priority: 'high',
       }).success,
     ).toBe(true);

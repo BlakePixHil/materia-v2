@@ -31,3 +31,4 @@ export * from './lib/tasks';
 export * from './lib/checklist-templates';
 export * from './lib/deadlines';
 export * from './lib/today';
+export * from './lib/notifications';
