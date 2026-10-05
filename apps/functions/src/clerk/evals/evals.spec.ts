@@ -111,6 +111,12 @@ describe('the eval executor', () => {
     expect(model.requests[0]?.output?.name).toBe('willExtraction');
   });
 
+  it('frames classification text by page, as ingestion does (AI-04)', () => {
+    const textCase = willSuite.cases.find((c) => c.documents.every((d) => d.fixture.endsWith('.txt'))) as EvalCase;
+    const [doc] = caseDocuments(textCase, undefined, 'classification');
+    expect(doc?.source).toMatchObject({ kind: 'text', text: expect.stringMatching(/^--- Page 1 ---\n/) });
+  });
+
   it('passes only the variables a prompt uses', () => {
     expect(promptPlaceholders('will-extract@0.1.0')).toEqual(['today']);
     expect(Object.keys(caseVariables('chat-answer@0.1.0', restricted)).sort()).toEqual([

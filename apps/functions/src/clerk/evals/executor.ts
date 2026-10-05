@@ -5,6 +5,7 @@ import { CLERK_MODELS, getPrompt, type ClerkCitation, type PromptVariables } fro
 import {
   EVALS_DIR,
   EvalOutageError,
+  fixturePages,
   readTextFixture,
   sourcePages,
   type CaseExecutor,
@@ -101,12 +102,15 @@ export function matterContext(evalCase: EvalCase): string {
   return Object.keys(context).length ? JSON.stringify(context, null, 2) : 'No matter context for this request.';
 }
 
-export function caseVariables(promptRef: string, evalCase: EvalCase): PromptVariables {
+export function caseVariables(promptRef: string, evalCase: EvalCase, root: string = EVALS_DIR): PromptVariables {
+  const [first] = visibleContext(evalCase).documents;
   const known: PromptVariables = {
     today: evalCase.today,
     role: evalCase.role,
     matterContext: matterContext(evalCase),
     question: evalCase.query,
+    // Document prompts (classification, AI-04): the file's name and how many pages were sent.
+    ...(first ? { fileName: first.title, pageCount: Math.max(1, fixturePages(root, first.fixture).length) } : {}),
   };
   const vars: PromptVariables = {};
   for (const name of promptPlaceholders(promptRef)) {
@@ -117,10 +121,23 @@ export function caseVariables(promptRef: string, evalCase: EvalCase): PromptVari
   return vars;
 }
 
-/** The case's visible documents as gateway documents: text with page offsets, or a PDF. */
-export function caseDocuments(evalCase: EvalCase, root: string = EVALS_DIR): GatewayDocument[] {
+/**
+ * The case's visible documents as gateway documents: text with page offsets, or a PDF. Text sent
+ * for classification is framed as ingestion frames it (AI-04): each page after a `--- Page N ---` line.
+ */
+export function caseDocuments(
+  evalCase: EvalCase,
+  root: string = EVALS_DIR,
+  feature?: CaseRequest['feature'],
+): GatewayDocument[] {
   return visibleContext(evalCase).documents.map((doc) => {
     const base = { documentId: doc.id, version: doc.version, title: doc.title };
+    if (feature === 'classification') {
+      const text = fixturePages(root, doc.fixture)
+        .map((page, index) => `--- Page ${index + 1} ---\n${page}`)
+        .join('\n');
+      return { ...base, source: { kind: 'text', text } };
+    }
     if (doc.fixture.endsWith('.pdf')) {
       const base64 = readFileSync(path.join(root, 'fixtures', doc.fixture)).toString('base64');
       return { ...base, source: { kind: 'pdf', base64 } };
@@ -237,8 +254,8 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
         ctx,
         feature: FEATURES[request.feature],
         promptId: promptRef,
-        vars: caseVariables(promptRef, evalCase),
-        documents: caseDocuments(evalCase, root),
+        vars: caseVariables(promptRef, evalCase, root),
+        documents: caseDocuments(evalCase, root, request.feature),
       });
     } catch (error) {
       if (error instanceof DomainError && error.code === 'PERMISSION_DENIED')
