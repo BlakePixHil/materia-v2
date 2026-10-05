@@ -7,15 +7,16 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type 
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
 
-import { CLERK_MODEL } from '@materia/clerk';
-import type { FlagKey } from '@materia/domain';
+import type { FlagKey, Role } from '@materia/domain';
 
 import { meteringPeriod } from '../../src/clerk/features';
 import { firestoreClerkStore } from '../../src/clerk/firestore-store';
 import { createClerkGateway, type ClerkRunInput } from '../../src/clerk/gateway';
+import { anthropicKeyPath, firestoreKeyring } from '../../src/clerk/keyring';
 import { FakeClerkModel, type FakeStep } from '../../src/clerk/providers/fake';
 import { createLog } from '../../src/core/log';
 import { ClerkModelError } from '../../src/ports';
+import { FakeKms } from '../../src/ports/fakes';
 
 /**
  * AI-02 acceptance tests through the emulators, against the fake model (fictional data only):
@@ -28,6 +29,12 @@ const ORG = 'org-clerk-gw';
 const HELLO_ORG = 'org-clerk-hello';
 const OFF_ORG = 'org-clerk-off';
 const UID = 'clerk-lawyer';
+/** The org default (AI-02a): Sonnet 5.5. */
+const CLERK_MODEL = 'claude-sonnet-5-5';
+/** A fictional Anthropic key; the emulator's fake model accepts it (AI-02a). */
+const ORG_KEY = 'sk-ant-api03-fictional-integration-key-0000';
+/** The emulator's fake KMS is deterministic, so tests can seal keys the functions can open. */
+const kms = new FakeKms();
 const HELLO_JSON = JSON.stringify({ greeting: 'Hello there.', promptRef: 'hello@1.0.0' });
 
 let admin: App;
@@ -43,6 +50,7 @@ function gatewayWith(script: FakeStep[], flags: Partial<Record<FlagKey, boolean>
   const gateway = createClerkGateway({
     model,
     store: firestoreClerkStore(db),
+    keyring: firestoreKeyring(db, kms),
     flag: async (_orgId, key) => flags[key] ?? false,
     sleep: async () => undefined,
   });
@@ -77,9 +85,26 @@ async function newThread(orgId = ORG): Promise<{ threadId: string; messageId: st
 const message = (target: { threadId: string; messageId: string }, orgId = ORG) =>
   db.doc(`orgs/${orgId}/clerkThreads/${target.threadId}/messages/${target.messageId}`);
 
-async function resetOrg(orgId: string, data: Record<string, unknown> = {}) {
+/** Stores an Anthropic key for the org as `clerk-setApiKey` would (sealed with the fake KMS). */
+async function storeKey(orgId: string, apiKey = ORG_KEY, extra: Record<string, unknown> = {}) {
+  const sealed = await kms.encrypt(apiKey, anthropicKeyPath(orgId));
+  await db.doc(anthropicKeyPath(orgId)).set({
+    provider: 'anthropic',
+    uid: null,
+    status: 'valid',
+    scopes: [],
+    encryptedApiKey: sealed.ciphertext,
+    kmsKeyVersion: sealed.keyVersion,
+    last4: apiKey.slice(-4),
+    opusAvailable: true,
+    ...extra,
+  });
+}
+
+async function resetOrg(orgId: string, data: Record<string, unknown> = {}, options: { key?: boolean } = {}) {
   await db.recursiveDelete(db.doc(`orgs/${orgId}`));
   await db.doc(`orgs/${orgId}`).set({ name: 'Fictional Clerk Practice', ...data });
+  if (options.key ?? true) await storeKey(orgId);
 }
 
 beforeAll(async () => {
@@ -133,10 +158,10 @@ describe('ClerkGateway on Firestore (fake model)', () => {
       inputTokens: 1000,
       outputTokens: 50,
       cacheReadTokens: 200,
-      costMicros: 5040,
+      costMicros: 2540,
       'feature.hello.calls': 1,
       'feature.hello.tokens': 1250,
-      [`user.${UID}.costMicros`]: 5040,
+      [`user.${UID}.costMicros`]: 2540,
     });
     expect(metrics.get('createdBy')).toBe('system');
   });
@@ -226,10 +251,162 @@ describe('ClerkGateway on Firestore (fake model)', () => {
       overloaded,
       overloaded,
       overloaded,
-      { chunks: [HELLO_JSON], model: 'claude-opus-5' },
+      { chunks: [HELLO_JSON], model: 'claude-sonnet-5' },
     ]);
     expect(await gateway.run(input({ stream: target }))).toMatchObject({ status: 'done', fallbackUsed: true });
-    expect((await message(target).get()).data()).toMatchObject({ model: 'claude-opus-5', fallbackUsed: true });
+    expect((await message(target).get()).data()).toMatchObject({ model: 'claude-sonnet-5', fallbackUsed: true });
+  });
+});
+
+async function signInMember(uid: string, orgId: string, role: Role = 'lawyer') {
+  const adminAuth = getAdminAuth(admin);
+  await adminAuth.deleteUser(uid).catch(() => undefined);
+  await adminAuth.createUser({ uid, email: `${uid}@example.test`, password: PASSWORD });
+  await adminAuth.setCustomUserClaims(uid, { orgId, role });
+  await db.doc(`orgs/${orgId}/members/${uid}`).set({ role, status: 'active' });
+  await signOut(auth);
+  await signInWithEmailAndPassword(auth, `${uid}@example.test`, PASSWORD);
+}
+
+async function callError(promise: Promise<unknown>): Promise<[string | undefined, string | undefined]> {
+  try {
+    await promise;
+    return [undefined, undefined];
+  } catch (caught) {
+    const error = caught as FunctionsError;
+    return [error.code, (error.details as { code?: string } | undefined)?.code];
+  }
+}
+
+describe('ClerkGateway with each org’s own key (AI-02a)', () => {
+  beforeEach(() => resetOrg(ORG));
+
+  it('no key gives CLERK_DISABLED (org.byok.missing)', async () => {
+    await resetOrg(ORG, {}, { key: false });
+    const { gateway, model } = gatewayWith([]);
+    await expect(gateway.run(input())).rejects.toMatchObject({
+      code: 'CLERK_DISABLED',
+      details: { switch: 'org.byok.missing' },
+    });
+    expect(model.requests).toHaveLength(0);
+  });
+
+  it('a rejected key gives CLERK_KEY_INVALID and marks the integration invalid', async () => {
+    const { gateway, model } = gatewayWith([{ error: new ClerkModelError('auth', 'rejected', 401) }]);
+    await expect(gateway.run(input())).rejects.toMatchObject({ code: 'CLERK_KEY_INVALID' });
+    expect(model.requests[0]?.credentials).toEqual({ orgId: ORG, apiKey: ORG_KEY });
+    expect((await db.doc(anthropicKeyPath(ORG)).get()).get('status')).toBe('invalid');
+    await expect(gatewayWith([]).gateway.run(input())).rejects.toMatchObject({ code: 'CLERK_KEY_INVALID' });
+  });
+
+  it('the model setting picks Sonnet 5.5 or Opus 5.5 and the matching fallback chain', async () => {
+    const down: FakeStep = { error: new ClerkModelError('server', 'x', 503) };
+    const sonnet = gatewayWith([down, down, down, down]);
+    await expect(sonnet.gateway.run(input())).rejects.toMatchObject({ code: 'CLERK_UNAVAILABLE' });
+    expect(sonnet.model.requests.map((r) => r.model)).toEqual([
+      'claude-sonnet-5-5',
+      'claude-sonnet-5-5',
+      'claude-sonnet-5-5',
+      'claude-sonnet-5',
+    ]);
+
+    await resetOrg(ORG, { settings: { clerk: { model: 'claude-opus-5-5' } } });
+    const opus = gatewayWith([down, down, down, down, down]);
+    await expect(opus.gateway.run(input())).rejects.toMatchObject({ code: 'CLERK_UNAVAILABLE' });
+    expect(opus.model.requests.map((r) => r.model)).toEqual([
+      'claude-opus-5-5',
+      'claude-opus-5-5',
+      'claude-opus-5-5',
+      'claude-opus-5',
+      'claude-sonnet-5-5',
+    ]);
+  });
+});
+
+describe('Clerk key callables through the Functions emulator (AI-02a)', () => {
+  const KEY_ORG = 'org-clerk-byok';
+  const fn =
+    <O>(name: string) =>
+    (data: Record<string, unknown> = {}) =>
+      httpsCallable<Record<string, unknown>, O>(
+        getFunctions(client, 'australia-southeast1'),
+        name,
+      )({
+        requestId: randomUUID(),
+        ...data,
+      });
+  const setKey = fn<Record<string, unknown>>('clerk-setApiKey');
+  const status = fn<Record<string, unknown>>('clerk-getApiKeyStatus');
+  const setModel = fn<Record<string, unknown>>('clerk-setModel');
+  const removeKey = fn<Record<string, unknown>>('clerk-removeApiKey');
+  const NEW_KEY = 'sk-ant-api03-fictional-callable-key-5678';
+
+  beforeEach(() => resetOrg(KEY_ORG, { flags: { 'clerk.enabled': true } }, { key: false }));
+
+  it('round-trips the key through KMS: saved encrypted, usable by clerk-hello, never returned', async () => {
+    await signInMember('clerk-byok-owner', KEY_ORG, 'owner');
+    const { data: saved } = await setKey({ apiKey: NEW_KEY });
+    expect(saved).toMatchObject({ last4: '5678', opusAvailable: true });
+
+    const stored = (await db.doc(anthropicKeyPath(KEY_ORG)).get()).data() ?? {};
+    expect(stored).toMatchObject({ status: 'valid', last4: '5678', setBy: 'clerk-byok-owner' });
+    expect(JSON.stringify(stored)).not.toContain(NEW_KEY);
+    expect(await kms.decrypt(stored['encryptedApiKey'] as string, anthropicKeyPath(KEY_ORG))).toBe(NEW_KEY);
+
+    const { data: shown } = await status();
+    expect(shown).toMatchObject({ set: true, status: 'valid', last4: '5678', model: CLERK_MODEL });
+    expect(JSON.stringify(shown)).not.toContain(stored['encryptedApiKey'] as string);
+
+    const audit = await db.collection(`orgs/${KEY_ORG}/audit`).where('action', '==', 'clerk.api_key_set').get();
+    expect(audit.docs.map((entry) => entry.get('data'))).toEqual([{ last4: '5678', opusAvailable: true }]);
+    expect(JSON.stringify(audit.docs.map((entry) => entry.data()))).not.toContain(NEW_KEY);
+    // The audit trigger's own entry for the write drops the ciphertext.
+    await vi.waitFor(
+      async () => {
+        const written = await db
+          .collection(`orgs/${KEY_ORG}/audit`)
+          .where('entity.collection', '==', 'integrations')
+          .get();
+        expect(written.size).toBeGreaterThan(0);
+        const text = JSON.stringify(written.docs.map((entry) => entry.data()));
+        expect(text).not.toContain(stored['encryptedApiKey'] as string);
+        expect(text).not.toContain(NEW_KEY);
+      },
+      { timeout: 10_000, interval: 250 },
+    );
+
+    const { data: hello } = await fn<Record<string, unknown>>('clerk-hello')();
+    expect(hello).toMatchObject({ status: 'done', model: CLERK_MODEL });
+    expect((await setModel({ model: 'claude-opus-5-5' })).data).toEqual({ model: 'claude-opus-5-5' });
+    expect((await fn<Record<string, unknown>>('clerk-hello')()).data).toMatchObject({ model: 'claude-opus-5-5' });
+
+    expect((await removeKey()).data).toEqual({ removed: true });
+    expect((await db.doc(anthropicKeyPath(KEY_ORG)).get()).exists).toBe(false);
+    expect(await callError(fn('clerk-hello')())).toEqual(['functions/failed-precondition', 'CLERK_DISABLED']);
+  });
+
+  it('refuses a key Anthropic rejects, and stores nothing', async () => {
+    await signInMember('clerk-byok-owner', KEY_ORG, 'owner');
+    expect(await callError(setKey({ apiKey: 'sk-ant-api03-fictional-invalid-key-0000' }))).toEqual([
+      'functions/failed-precondition',
+      'CLERK_KEY_INVALID',
+    ]);
+    expect((await db.doc(anthropicKeyPath(KEY_ORG)).get()).exists).toBe(false);
+  });
+
+  it('roles: a lawyer can’t set or read the key', async () => {
+    await storeKey(KEY_ORG);
+    await signInMember('clerk-byok-lawyer', KEY_ORG, 'lawyer');
+    const calls = [
+      () => setKey({ apiKey: NEW_KEY }),
+      () => status(),
+      () => removeKey(),
+      () => setModel({ model: 'claude-opus-5-5' }),
+    ];
+    for (const call of calls) {
+      expect(await callError(call())).toEqual(['functions/permission-denied', 'PERMISSION_DENIED']);
+    }
+    expect((await db.doc(anthropicKeyPath(KEY_ORG)).get()).get('last4')).toBe(ORG_KEY.slice(-4));
   });
 });
 
@@ -239,16 +416,6 @@ describe('clerk-hello through the Functions emulator', () => {
       getFunctions(client, 'australia-southeast1'),
       'clerk-hello',
     )({ requestId: randomUUID(), ...data });
-
-  async function signInMember(uid: string, orgId: string) {
-    const adminAuth = getAdminAuth(admin);
-    await adminAuth.deleteUser(uid).catch(() => undefined);
-    await adminAuth.createUser({ uid, email: `${uid}@example.test`, password: PASSWORD });
-    await adminAuth.setCustomUserClaims(uid, { orgId, role: 'lawyer' });
-    await db.doc(`orgs/${orgId}/members/${uid}`).set({ role: 'lawyer', status: 'active' });
-    await signOut(auth);
-    await signInWithEmailAndPassword(auth, `${uid}@example.test`, PASSWORD);
-  }
 
   it('streams the hello prompt into a new thread with the fake model', async () => {
     await resetOrg(HELLO_ORG, { flags: { 'clerk.enabled': true } });

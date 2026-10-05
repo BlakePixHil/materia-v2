@@ -5,7 +5,6 @@ import { defineSecret } from 'firebase-functions/params';
  * ones a function needs in `defineCallable({ secrets: [...] })` and read them with `.value()` inside
  * the handler. Never read secrets from `process.env`.
  */
-export const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY'); // AI-01b (MAT-120)
 /** Postmark server token (FND-20). Until it has a real value, email is recorded as `not_configured`. */
 export const POSTMARK_TOKEN = defineSecret('POSTMARK_TOKEN');
 /** The password Postmark's bounce and spam webhook sends with basic auth (FND-20). */

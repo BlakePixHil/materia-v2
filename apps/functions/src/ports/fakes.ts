@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type {
   CalendarEvent,
   CalendarPort,
@@ -9,6 +11,7 @@ import type {
   MalwareScanPort,
   PreviewPort,
   JobRunnerPort,
+  KmsPort,
   Ports,
   PushMessage,
   PushPort,
@@ -68,6 +71,34 @@ export class FakeMail implements MailPort {
 
 /** The default fake model: a plain reply, or a sample object for structured output (AI-02). */
 export const fakeClerkModel = new FakeClerkModel();
+
+/**
+ * KMS for the emulator and tests (AI-02a): a reversible scramble that never contains the plaintext,
+ * bound to its `aad` like Cloud KMS (decrypting with another `aad` fails).
+ */
+export class FakeKms implements KmsPort {
+  readonly calls: { op: 'encrypt' | 'decrypt'; aad: string }[] = [];
+  constructor(private readonly keyVersion = 'fake-kms/cryptoKeyVersions/1') {}
+
+  private static mask(data: Buffer, aad: string): Buffer {
+    const pad = createHash('sha256').update(`materia-fake-kms:${aad}`).digest();
+    return Buffer.from(data.map((byte, i) => byte ^ (pad[i % pad.length] as number) ^ 0x5a));
+  }
+
+  async encrypt(plaintext: string, aad: string) {
+    this.calls.push({ op: 'encrypt', aad });
+    const body = FakeKms.mask(Buffer.from(`ok:${plaintext}`), aad);
+    return { ciphertext: `fakekms.${body.toString('base64')}`, keyVersion: this.keyVersion };
+  }
+
+  async decrypt(ciphertext: string, aad: string) {
+    this.calls.push({ op: 'decrypt', aad });
+    if (!ciphertext.startsWith('fakekms.')) throw new Error('Not a fake KMS ciphertext');
+    const plain = FakeKms.mask(Buffer.from(ciphertext.slice('fakekms.'.length), 'base64'), aad).toString();
+    if (!plain.startsWith('ok:')) throw new Error('Decryption failed (wrong additional authenticated data)');
+    return plain.slice(3);
+  }
+}
 
 /** Deterministic 768-d vectors, so similarity tests are stable. */
 export const fakeEmbedding: EmbeddingPort = {
@@ -188,6 +219,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     push: new FakePush(),
     tasks: new FakeTaskQueue(),
     clerkModel: fakeClerkModel,
+    clerkKms: new FakeKms(),
     embedding: fakeEmbedding,
     calendar: new FakeCalendar(),
     xero: fakeXero,

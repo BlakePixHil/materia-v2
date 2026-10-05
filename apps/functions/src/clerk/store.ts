@@ -1,9 +1,11 @@
 import type { ClerkCitation, ClerkUsage } from '@materia/clerk';
-import type { ContextManifest } from '@materia/domain';
+import type { ClerkModelChoice, ContextManifest } from '@materia/domain';
 
 /** The org's Clerk settings (`orgs/{orgId}.settings.clerk`). */
 export interface OrgClerkSettings {
   enabled?: boolean;
+  /** The org's model (AI-02a); Sonnet 5.5 when unset. */
+  model?: ClerkModelChoice;
   monthlyTokenBudget?: number;
   userRateLimit?: { requests: number; windowMinutes: number };
 }

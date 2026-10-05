@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
@@ -18,6 +18,7 @@ import {
   type DocumentRow,
 } from './documents-view';
 import { UploadList } from './upload-list';
+import { recentRecorder } from '../../core/commands/recents';
 import { errorCopy } from '../../core/error-copy';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
@@ -250,6 +251,17 @@ export class DocumentPage {
   protected readonly notReady = computed(
     () => this.status().detail ?? 'The file is still being checked. It opens here once the malware check is done.',
   );
+
+  constructor() {
+    // ⌘K's Recent (CORE-15): each document opened is recorded once.
+    const record = recentRecorder();
+    effect(() => {
+      const doc = this.doc();
+      const matterId = this.matterId();
+      if (!doc || doc.deletedAt || !matterId) return;
+      untracked(() => record({ kind: 'document', matterId, entityId: doc.id }));
+    });
+  }
 
   /** Keeps `?page=` in step with the page in view, so the address is a citation of it. */
   protected followPage(page: number): void {

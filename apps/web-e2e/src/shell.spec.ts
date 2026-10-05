@@ -41,15 +41,15 @@ test.describe('desktop shell', () => {
     const input = page.getByRole('combobox');
     await expect(input).toBeFocused();
     await input.fill('deadl');
-    await expect(page.getByRole('option').first()).toContainText('Go to Deadlines');
-    await page.keyboard.press('Enter');
+    // Search results come first (CORE-15); the command is in Actions.
+    await page.getByRole('option', { name: /Go to Deadlines/ }).click();
     await expect(page).toHaveURL(/\/deadlines$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Deadlines' })).toBeVisible();
     await expect(input).toHaveCount(0);
 
     // The command is now recent.
     await page.keyboard.press('ControlOrMeta+k');
-    await expect(page.locator('.mt-menu-label').first()).toHaveText('Recent');
+    await expect(page.locator('.mt-menu-label').first()).toHaveText('Recent commands');
     await page.keyboard.press('Escape');
     await expect(page.getByRole('combobox')).toHaveCount(0);
   });

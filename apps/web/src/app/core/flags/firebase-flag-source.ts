@@ -1,4 +1,3 @@
-import { isDevMode } from '@angular/core';
 import { connectFirestoreEmulator, doc, getDoc, getFirestore } from 'firebase/firestore/lite';
 import { fetchAndActivate, getAll, getRemoteConfig } from 'firebase/remote-config';
 
@@ -8,8 +7,11 @@ import type { FlagValueSource } from './feature-flags';
 import { environment } from '../../../environments/environment';
 import { firebaseApp } from '../firebase-app';
 
-/** Remote Config is fetched at most this often: 1 minute in dev builds, 1 hour in production. */
-export const fetchIntervalMs = () => (isDevMode() ? 60_000 : 3_600_000);
+/**
+ * Remote Config is fetched at most this often: 1 hour in prod, 1 minute everywhere else (the
+ * deployed dev site included, so a flag flipped in the dev console shows up on the next reload).
+ */
+export const fetchIntervalMs = (env: string = environment.name) => (env === 'prod' ? 3_600_000 : 60_000);
 
 /**
  * Remote Config and the org document, through the Firebase SDK (lazy-loaded). The emulators have

@@ -33,7 +33,7 @@ describe('search tokens', () => {
     expect(searchTokens('a')).toEqual([]);
   });
 
-  it('stops at 50 tokens and turns a query into its first token', () => {
+  it('stops at the token cap and turns a query into its first token', () => {
     expect(
       searchTokens('alphabetical bystanders catastrophe dangerously enthusiasm fragmented gregarious'),
     ).toHaveLength(SEARCH_TOKENS_LIMIT);

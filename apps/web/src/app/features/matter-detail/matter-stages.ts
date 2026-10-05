@@ -114,7 +114,7 @@ export class MatterStages {
 
   protected readonly moving = signal(false);
   /** Stages move while the matter is live and not closed or archived. */
-  protected readonly movable = computed(() => {
+  readonly movable = computed(() => {
     const status = this.screen.value()?.status;
     return this.screen.editable() && status !== 'closed' && status !== 'archived';
   });
@@ -125,7 +125,7 @@ export class MatterStages {
   private readonly backNeedsLawyer = computed(() => this.screen.templatesOn() && !this.screen.canStatus());
 
   private readonly currentIndex = computed(() => stageIndex(this.screen.stages(), this.screen.value()?.stageId));
-  protected readonly stages = computed<StageVm[]>(() =>
+  readonly stages = computed<StageVm[]>(() =>
     this.screen.stages().map((stage, i) => ({
       id: stage.id,
       title: stage.title,
@@ -133,7 +133,7 @@ export class MatterStages {
       locked: this.backNeedsLawyer() && i < this.currentIndex() ? STAGE_BACK_LOCKED : undefined,
     })),
   );
-  protected readonly current = computed(() => this.screen.stages()[this.currentIndex()]?.id ?? null);
+  readonly current = computed(() => this.screen.stages()[this.currentIndex()]?.id ?? null);
 
   /** The blocked move's facts still not recorded, including events a key fact stands for (date of death, grant date). */
   protected readonly missing = computed(() => {
@@ -157,7 +157,8 @@ export class MatterStages {
     (this.blocked()?.tasks ?? []).map((key) => this.screen.taskTitle(key)).join(', '),
   );
 
-  protected move(stage: StageVm): void {
+  /** Moves the matter to `stage` (the stepper, or ⌘K's "Change stage…", CORE-15). */
+  move(stage: StageVm): void {
     if (stage.id === this.current() || stage.locked) return;
     const back = this.screen.stages().findIndex((s) => s.id === stage.id) < this.currentIndex();
     if (back && this.screen.templatesOn()) void this.moveBack(stage);
