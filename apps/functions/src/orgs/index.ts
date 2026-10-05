@@ -3,3 +3,4 @@ export { acceptInvite, inviteMember, resendInvite, revokeInvite } from './invite
 export { changeRole, removeMember, suspendMember, transferOwnership } from './members';
 export { switchActiveOrg } from './switch';
 export { memberSecurity, updateSettings } from './settings';
+export { onProfileWrite } from './on-profile-write';

@@ -3,6 +3,7 @@ export * from './generated/icons';
 export * from './icons/custom';
 export * from './lib/icon/icon';
 export * from './lib/theme/theme.service';
+export * from './lib/theme/density.service';
 export * from './lib/forms/error-messages';
 export * from './lib/forms/options';
 export * from './lib/kbd/kbd';

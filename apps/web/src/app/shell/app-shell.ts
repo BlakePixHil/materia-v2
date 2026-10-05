@@ -53,6 +53,7 @@ import { FeatureFlagService } from '../core/flags/feature-flags';
 import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
 import { OfflineError, OrgService } from '../core/orgs/org-service';
+import { UserPrefsService } from '../core/profile/user-prefs';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterRefs, routeCrumbs } from '../core/title-strategy';
 
@@ -231,7 +232,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
               [mtMenuTrigger]="userMenu"
               mtMenuPlacement="top-start"
             >
-              <mt-avatar [name]="userName()" [colorKey]="userId()" size="sm" />
+              <mt-avatar [name]="userName()" [colorKey]="userId()" [src]="avatarUrl()" size="sm" />
               @if (!collapsed()) {
                 <span class="mt-ell mt-grow" style="text-align: left">{{ userName() }}</span>
                 <mt-icon name="updown" />
@@ -336,6 +337,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     </ng-template>
     <ng-template #userMenu>
       <mt-menu>
+        <a mtMenuItem icon="user" routerLink="/settings/profile">Profile</a>
         <a mtMenuItem icon="settings" routerLink="/settings">Settings</a>
         <button mtMenuItem icon="eye" (click)="toggleTheme()">{{ themeLabel() }}</button>
         <button mtMenuItem icon="help" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
@@ -352,6 +354,8 @@ export class AppShellComponent {
   private readonly commands = inject(CommandRegistry);
   private readonly dialogs = inject(DialogService);
   private readonly theme = inject(ThemeService);
+  /** The person's profile and preferences (CORE-20): applies their theme and density as they load. */
+  private readonly userPrefs = inject(UserPrefsService);
   private readonly document = inject(DOCUMENT);
   private readonly orgs = inject(OrgService);
   private readonly toasts = inject(ToastService);
@@ -390,7 +394,10 @@ export class AppShellComponent {
   protected readonly workspaceNav = computed(() => this.visibleNav().filter((i) => i.section === 'workspace'));
 
   protected readonly userId = computed(() => this.auth.user()?.uid ?? 'anonymous');
-  protected readonly userName = computed(() => this.auth.user()?.displayName ?? 'Account');
+  protected readonly userName = computed(
+    () => this.userPrefs.profile.value()?.displayName || this.auth.user()?.displayName || 'Account',
+  );
+  protected readonly avatarUrl = computed(() => this.userPrefs.profile.value()?.avatarUrl ?? null);
   protected readonly orgName = computed(() => this.auth.user()?.orgName ?? 'Materia');
   protected readonly themeLabel = computed(() =>
     this.theme.resolved() === 'dark' ? 'Use light theme' : 'Use dark theme',
@@ -487,7 +494,8 @@ export class AppShellComponent {
   }
 
   toggleTheme(): void {
-    this.theme.setTheme(this.theme.resolved() === 'dark' ? 'light' : 'dark');
+    // Saved to the profile too, so it follows the person to other tabs and devices (CORE-20).
+    void this.userPrefs.save({ theme: this.theme.resolved() === 'dark' ? 'light' : 'dark' }).catch(() => undefined);
   }
 
   /** Opens the ⌘K palette on top of whatever is open; focus returns to the opener on close. */

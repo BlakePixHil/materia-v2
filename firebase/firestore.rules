@@ -169,8 +169,9 @@ service cloud.firestore {
     // ---------- users ----------
     match /users/{userId} {
       // Notification preferences (FND-20), when present, hold sensible values, and never switch off
-      // email for deadline escalations. The server enforces the real constraint whatever is stored
-      // (critical notifications always email); this only keeps the stored choice honest.
+      // email or in-app for deadline escalations (the locked rows in Settings → Preferences, CORE-20).
+      // The server enforces the real constraint whatever is stored (critical notifications always
+      // email); this only keeps the stored choice honest.
       function notificationPrefsOk(data) {
         let prefs = data.get('prefs', {});
         let n = prefs.get('notifications', null);
@@ -180,6 +181,7 @@ service cloud.firestore {
           && n.get('digestHour', 7) is int && n.get('digestHour', 7) >= 0 && n.get('digestHour', 7) <= 23
           && n.get('kinds', {}) is map
           && n.get('kinds', {}).get('deadline_escalation', {}).get('email', true) == true
+          && n.get('kinds', {}).get('deadline_escalation', {}).get('inapp', true) == true
           && n.get('taskReminderDays', 1) is int && n.get('taskReminderDays', 1) >= 0 && n.get('taskReminderDays', 1) <= 14
         );
       }
@@ -322,7 +324,12 @@ service cloud.firestore {
 
       match /members/{memberUid} {
         allow read: if inOrg(orgId);
-        allow update: if can(orgId, 'members.manage') && isActiveMember(orgId) && clientUpdate(fieldsMember());
+        // Owners and admins edit any member; everyone edits their own profile fields (CORE-20).
+        allow update: if can(orgId, 'members.manage') && isActiveMember(orgId) && clientUpdate(fieldsMember())
+          || inOrg(orgId) && uid() == memberUid && resource.data.status == 'active'
+            && clientUpdate(['displayName', 'initials', 'title', 'admissionNo', 'colour'])
+            && request.resource.data.displayName is string && request.resource.data.displayName.size() > 0
+            && request.resource.data.displayName.size() <= 80;
 
         // Personal tasks (CORE-08): the member's own, invisible to everyone else (admins included).
         // Created by their owner with `matterId: null` and the owner as the assignee, which never
@@ -834,7 +841,7 @@ service cloud.firestore {
     function fieldsTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsTaskGroupTemplate() { return ['name', 'tasks']; }
     function fieldsTimeEntry() { return ['uid', 'date', 'minutes', 'rateCents', 'narrative', 'billable', 'status', 'source', 'taskId']; }
-    function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs']; }
+    function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl']; }
     // </generated:rules-sync>
 
     // Everything else is denied.

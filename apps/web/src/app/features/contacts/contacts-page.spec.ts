@@ -251,7 +251,7 @@ describe('contacts list', () => {
     const failing = await open('/contacts', LAWYER, {
       configure: (_p, fs) => {
         seedPeople(fs);
-        fs.failNext({ code: 'unavailable' });
+        fs.failNext({ code: 'unavailable' }, 'contacts');
       },
     });
     expect(failing.text()).toContain('This service is temporarily unavailable');
