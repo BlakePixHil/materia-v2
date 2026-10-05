@@ -187,6 +187,8 @@ interface MatterSpec {
   time: [daysAgo: number, minutes: number, uid: string, narrative: string][];
   documents: FixtureName[];
   minimal?: boolean;
+  /** Its deadlines also come from the engine (CORE-10), as deadlines-recompute would write them. */
+  computeDeadlines?: boolean;
 }
 
 /** Twelve matters: every type and every status. Offsets are days from the anchor. */
@@ -217,11 +219,8 @@ const MATTERS: MatterSpec[] = [
       ['Prepare probate summons and affidavit', 'in_progress', 'urgent', 0, JORDAN],
       ['Request date-of-death valuation for the residence', 'todo', 'medium', 5, DANIEL],
     ],
-    deadlines: [
-      ['File probate application (14 days after notice)', 13, 'statutory', true, 'upcoming'],
-      ['Family provision claim period ends (illustrative)', 100, 'statutory', true, 'upcoming'],
-      ['Send costs disclosure update', 0, 'internal', false, 'upcoming'],
-    ],
+    // A manual deadline; the statutory ones are computed from the events (computeDeadlines).
+    deadlines: [['Send costs disclosure update', 0, 'internal', false, 'upcoming']],
     notes: [
       'Called Catherine about the asset schedule. She will send the bank statements by Friday.',
       'Thomas has asked for a copy of the will; confirm entitlement before sending.',
@@ -233,6 +232,7 @@ const MATTERS: MatterSpec[] = [
     ],
     documents: ['will', 'death-certificate'],
     minimal: true,
+    computeDeadlines: true,
   },
   {
     id: 'm-nguyen-fp',
@@ -560,6 +560,61 @@ export function seedParties(spec: {
   });
 }
 
+/**
+ * A seeded matter's computed deadlines (CORE-10): the Victorian rule set (its statutory rules on,
+ * as the seeded org's flag says), limited to the template's rules, planned against no stored
+ * deadlines; plus the tasks those rules create for the stages the matter has reached.
+ */
+function seedComputedDeadlines(input: {
+  type: D.MatterType;
+  estate: Record<string, unknown>;
+  events: { id: string; kind: D.EventKind; date: D.DateOnly }[];
+  template: D.Template;
+  stageAt: number;
+  today: D.DateOnly;
+}) {
+  const selection = deadlines.selectRules(deadlines.VIC_RULESET_V1, {
+    statutoryEnabled: true,
+    ruleIds: input.template.deadlineRuleIds.length ? input.template.deadlineRuleIds : undefined,
+  });
+  const filed = input.events.some((event) => event.kind === 'probate_filed' || event.kind === 'grant_issued');
+  const results = deadlines.computeSafely({
+    matter: {
+      type: input.type,
+      jurisdiction: 'VIC',
+      facts: { estate: input.estate, grant: filed ? { filed: true } : {}, org: {} },
+    },
+    events: input.events,
+    ruleSet: selection.ruleSet,
+    calendars: deadlines.VIC_CALENDARS,
+    localityCalendar: deadlines.LOCALITY_CALENDARS['VIC_GREATER_GEELONG'] as string,
+    today: input.today,
+  });
+  const plan = deadlines.planRecompute({
+    results,
+    skipped: selection.skipped,
+    existing: [],
+    pending: [],
+    today: input.today,
+  });
+  const stages = input.template.stages;
+  const tasks = plan.tasks
+    .filter((task) => {
+      const at = task.stage ? stages.findIndex((stage) => stage.id === task.stage) : -1;
+      return at < 0 || at <= input.stageAt;
+    })
+    .map((task) => {
+      const stage = task.stage ? stages.find((s) => s.id === task.stage) : undefined;
+      return {
+        ...task,
+        id: deadlines.linkedTaskId(task.dedupeKey),
+        group: (stage as { name?: string } | undefined)?.name ?? 'Deadlines',
+      };
+    });
+  // One task per dedupe key, linked to the first deadline that wants it (as the recompute does).
+  return { creates: plan.creates, tasks: tasks.filter((task, i) => tasks.findIndex((t) => t.id === task.id) === i) };
+}
+
 const FIXTURE_FILES: Record<FixtureName, { name: string; category: D.MatterDocument['category'] }> = {
   will: { name: 'Will (fictional sample).pdf', category: 'will' },
   'death-certificate': { name: 'Death certificate (SAMPLE).pdf', category: 'death_certificate' },
@@ -597,8 +652,9 @@ export function buildDataset(options: {
       security: { mfaRequired: false, sessionIdleMinutes: 60 },
       settings: { clerk: { enabled: true } },
       // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02), and
-      // matters follow their templates' stages and tasks (CORE-07).
-      flags: { 'conflicts.enforced': true, 'templates.system': true },
+      // matters follow their templates' stages and tasks (CORE-07), and the illustrative Victorian
+      // statutory deadline rules apply (CORE-10).
+      flags: { 'conflicts.enforced': true, 'templates.system': true, 'deadlines.ruleset.vic.v1': true },
     }),
   );
 
@@ -724,16 +780,14 @@ export function buildDataset(options: {
     const number = domain.formatMatterNumber(SEED_MATTER_NUMBER_FORMAT, year, nextSeq++);
     const deceased = spec.deceased ? contactById.get(spec.deceased) : undefined;
     const openTasks = spec.tasks.filter(([, status]) => status !== 'done' && status !== 'cancelled');
-    const upcoming = spec.deadlines
-      .map(([title, due, , critical, status], i) => ({
-        id: `${spec.id}-dl-${i + 1}`,
-        title,
-        dueDate: rel(due),
-        critical,
-        status,
-      }))
-      .filter((d) => d.status === 'upcoming')
-      .sort((a, b) => domain.compareDates(a.dueDate, b.dueDate))[0];
+    const staticDeadlines = spec.deadlines.map(([title, due, kind, critical, status], i) => ({
+      id: `${spec.id}-dl-${i + 1}`,
+      title,
+      dueDate: rel(due),
+      kind,
+      critical,
+      status,
+    }));
     const wip = spec.time.reduce((sum, [, minutes, uid]) => {
       const units = Math.ceil(minutes / 6);
       return sum + Math.round((units * (MEMBERS[uid]?.rate ?? 0)) / 10);
@@ -794,6 +848,24 @@ export function buildDataset(options: {
       });
     const openTemplateTasks = templateTasks.filter((task) => !task.done).length;
 
+    // CORE-10: the engine's deadlines from the matter's events and its template's rules, planned as
+    // deadlines-recompute plans them (a recompute of the seeded matter finds nothing to change),
+    // with the tasks their rules create once the matter has reached the rule's stage.
+    const engine = spec.computeDeadlines
+      ? seedComputedDeadlines({
+          type: spec.type,
+          estate: estate ?? {},
+          events: spec.events.map(([kind, offset], i) => ({ id: `${spec.id}-ev-${i + 1}`, kind, date: rel(offset) })),
+          template,
+          stageAt,
+          today: anchor,
+        })
+      : { creates: [], tasks: [] };
+    const next = domain.nextDeadlineOf([
+      ...staticDeadlines,
+      ...engine.creates.map((create) => ({ id: create.id, ...create.fields })),
+    ]);
+
     add(`orgs/${org}/matterNumbers/${domain.matterNumberKey(number)}`, {
       ...makeMatterNumber({ ...meta, number, matterId: spec.id, year }),
     });
@@ -841,10 +913,9 @@ export function buildDataset(options: {
           clientNames: spec.clients.map(nameOf).filter((name): name is string => !!name),
           ...(spec.deceased && nameOf(spec.deceased) ? { deceasedName: nameOf(spec.deceased) as string } : {}),
         }),
-        nextDeadline: upcoming
-          ? { id: upcoming.id, dueDate: upcoming.dueDate, title: upcoming.title, critical: upcoming.critical }
-          : undefined,
-        openTaskCount: openTasks.length + openTemplateTasks,
+        nextDeadline: next,
+        openTaskCount: openTasks.length + openTemplateTasks + engine.tasks.length,
+        recomputeVersion: spec.computeDeadlines ? 1 : 0,
         wipCents: wip as D.Cents,
         // Most recent first in the order above, a few hours apart.
         lastActivityAt: new Date(now.getTime() - index * 5 * HOUR),
@@ -915,13 +986,48 @@ export function buildDataset(options: {
           critical,
           status,
           assigneeUid: spec.responsible,
-          // Static until the deadline engine (CORE-09) computes them.
+          // Manual (no rule): entered by the firm, or illustrative on matters the engine doesn't seed.
           computed: undefined,
           reminders: [{ offsetDays: -7 }, { offsetDays: -1 }],
           pastOnCreation: false,
         }),
       ),
     );
+    for (const { id, fields } of engine.creates) {
+      const task = engine.tasks.find((t) => t.deadlineId === id);
+      add(
+        `${base}/deadlines/${id}`,
+        makeDeadline({
+          ...meta,
+          ...fields,
+          dueDate: fields.dueDate,
+          orgId: org,
+          matterId: spec.id,
+          assigneeUid: spec.responsible,
+          ...(task ? { taskId: task.id } : {}),
+        }),
+      );
+    }
+    for (const task of engine.tasks) {
+      add(
+        `${base}/tasks/${task.id}`,
+        makeTask({
+          ...meta,
+          orgId: org,
+          matterId: spec.id,
+          title: task.title,
+          status: 'todo',
+          priority: task.critical ? 'high' : 'medium',
+          assigneeUid: spec.responsible,
+          dueDate: task.dueDate,
+          deadlineId: task.deadlineId,
+          group: task.group,
+          order: 1_000_000,
+          source: 'rule',
+          countedOpen: true,
+        }),
+      );
+    }
     spec.notes.forEach((body, i) =>
       add(
         `${base}/notes/${spec.id}-n-${i + 1}`,
