@@ -22,7 +22,13 @@ import {
   type ContactListItem,
   type WithId,
 } from '@materia/data-access/repository';
-import { contactDisplayName, formatPhone } from '@materia/domain';
+import {
+  contactDisplayName,
+  formatPhone,
+  REFERRER_INDUSTRIES,
+  REFERRER_INDUSTRY_LABELS,
+  type ReferrerIndustry,
+} from '@materia/domain';
 import {
   DialogService,
   MtAvatar,
@@ -42,6 +48,7 @@ import { ContactDeleteDialog, type ContactDeleteDialogData } from './contact-del
 import { ContactDetail } from './contact-detail';
 import { ContactFormDialog, type ContactFormDialogData, type ContactFormDialogResult } from './contact-form-dialog';
 import { ContactMergeDialog, type ContactMergeDialogData, type ContactMergeDialogResult } from './contact-merge-dialog';
+import { ReferralSettings } from './referral-settings';
 import { CommandRegistry } from '../../core/commands/command-registry';
 import { onIntent } from '../../core/commands/intents';
 import { recentRecorder } from '../../core/commands/recents';
@@ -50,6 +57,12 @@ import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 
 type Row = WithId<ContactListItem>;
+
+/** The Referrers filter's industry facet (CORE-18). */
+const INDUSTRY_FILTERS: MtOption<string>[] = [
+  { value: '', label: 'Any industry' },
+  ...REFERRER_INDUSTRIES.map((industry) => ({ value: industry, label: REFERRER_INDUSTRY_LABELS[industry] })),
+];
 
 const KIND_FILTERS: MtOption<string>[] = [
   { value: '', label: 'All' },
@@ -78,6 +91,7 @@ const KIND_FILTERS: MtOption<string>[] = [
     MtTable,
     MtTableCell,
     ContactDetail,
+    ReferralSettings,
   ],
   host: { class: 'mt-contacts' },
   template: `
@@ -114,11 +128,21 @@ const KIND_FILTERS: MtOption<string>[] = [
             class="mt-chip"
             [attr.data-selected]="referrersOnly() ? '' : null"
             [attr.aria-pressed]="referrersOnly()"
-            (click)="referrersOnly.set(!referrersOnly())"
+            (click)="referrersOnly.set(!referrersOnly()); industry.set('')"
           >
             Referrers
           </button>
         </div>
+        @if (referrersOnly()) {
+          <mt-select
+            label="Industry"
+            [native]="true"
+            [options]="industryFilters"
+            [ngModel]="industry()"
+            (ngModelChange)="industry.set($event ?? '')"
+          />
+          <mt-referral-settings />
+        }
         @if (tagOptions().length > 1) {
           <mt-select
             label="Tag"
@@ -373,11 +397,14 @@ export class ContactsPage {
   protected readonly kind = signal('');
   protected readonly tag = signal('');
   protected readonly referrersOnly = signal(false);
+  protected readonly industryFilters = INDUSTRY_FILTERS;
+  protected readonly industry = signal('');
   private readonly filters = computed<ContactFilters>(() => ({
     query: this.query(),
     kind: (this.kind() || null) as 'person' | 'organisation' | null,
     tag: this.tag() || null,
     referrersOnly: this.referrersOnly(),
+    industry: this.referrersOnly() ? ((this.industry() || null) as ReferrerIndustry | null) : null,
   }));
   protected readonly filtered = computed(() => {
     const f = this.filters();
@@ -513,6 +540,11 @@ export class ContactsPage {
 
   /** The row's second line: the first email or phone, or the organisation. */
   protected caption(row: ContactListItem): string {
+    if (this.referrersOnly() && row.referrerMeta) {
+      const { industry, company } = row.referrerMeta;
+      const meta = [industry ? REFERRER_INDUSTRY_LABELS[industry] : null, company].filter(Boolean).join(' · ');
+      if (meta) return meta;
+    }
     const email = row.emails[0]?.address;
     if (email) return email;
     const phone = row.phones[0]?.number;

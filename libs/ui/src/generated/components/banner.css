@@ -1,0 +1,8 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-banner). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-banner { display: flex; align-items: center; gap: var(--space-8); min-height: 40px; padding: var(--space-6) var(--space-12) var(--space-6) var(--space-20); border-bottom: 1px solid var(--border-default); background: var(--bg-info-subtle); color: var(--text-info); font: 400 13px/18px var(--font-sans); flex: none; }
+.mt-banner[data-tone="warning"] { background: var(--bg-warning-subtle); color: var(--text-warning); }
+.mt-banner[data-tone="danger"] { background: var(--bg-danger-subtle); color: var(--text-danger); }
+.mt-banner[data-tone="neutral"] { background: var(--bg-canvas); color: var(--text-secondary); }
+.mt-banner b { font-weight: 600; }
+.mt-banner > .mt-grow { min-width: 0; }
+.mt-banner > .mt-btn, .mt-banner > .mt-ibtn { flex: none; }

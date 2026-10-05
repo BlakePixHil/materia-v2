@@ -39,6 +39,7 @@ import {
   EMAIL_TYPE_OPTIONS,
   emailGroup,
   fillContactForm,
+  INDUSTRY_OPTIONS,
   KIND_OPTIONS,
   PHONE_TYPE_OPTIONS,
   phoneGroup,
@@ -301,12 +302,7 @@ export function duplicateReasons(match: Pick<DuplicateMatch, 'reasons'>): string
                   formControlName="referrerCompany"
                   optional
                 />
-                <mt-text-field
-                  [errorMessages]="messages"
-                  label="Industry"
-                  formControlName="referrerIndustry"
-                  optional
-                />
+                <mt-select label="Industry" formControlName="referrerIndustry" [options]="industries" [native]="true" />
               </div>
             }
             <mt-textarea label="Notes" formControlName="notes" optional />
@@ -395,6 +391,7 @@ export class ContactFormDialog {
   protected readonly form = createContactForm();
   protected readonly kindOptions = KIND_OPTIONS;
   protected readonly emailTypes = EMAIL_TYPE_OPTIONS;
+  protected readonly industries = INDUSTRY_OPTIONS;
   protected readonly phoneTypes = PHONE_TYPE_OPTIONS;
   protected readonly addressTypes = ADDRESS_TYPE_OPTIONS;
   protected readonly states = STATE_OPTIONS;
