@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
+import { inventorySchedule } from '@materia/domain';
+
 import {
   docPath,
   FIXTURES,
@@ -232,6 +234,41 @@ describe('pdf.render', () => {
       const objects = (await qpdfJson(output, ['qpdf'])).qpdf[1];
       const info = objects[`obj:${objects['trailer']?.value['/Info']}`]?.value;
       expect(info).toMatchObject({ '/Producer': 'u:Materia', '/CreationDate': 'u:D:20000101000000Z' });
+    }
+    expect(shas[0]).toBe(shas[1]);
+  });
+
+  it('renders the estate inventory schedule (CORE-16) deterministically, saved to the matter', async () => {
+    const schedule = inventorySchedule({
+      matterNumber: 'HV-2026-0001',
+      matterTitle: 'Estate of Margaret Doyle',
+      deceasedName: 'Margaret Doyle',
+      dateOfDeath: '2026-07-16',
+      preparedOn: '2026-10-05',
+      assets: Array.from({ length: 60 }, (_, i) => ({
+        id: `s${i}`,
+        class: 'shares' as const,
+        description: `Fictional Holdings Ltd parcel ${i + 1}`,
+        valueAtDeathCents: 1_000_00 + i,
+        jointlyHeld: false,
+        passesOutsideEstate: false,
+        status: 'valued' as const,
+      })),
+      liabilities: [{ id: 'l1', class: 'funeral', creditor: 'Bay Funerals', amountCents: 8_500_00, status: 'paid' }],
+    });
+    const job = {
+      type: 'pdf.render',
+      input: { templateId: 'estate-inventory', data: { ...schedule } },
+      target: { kind: 'matter', matterId: 'm-1', name: 'Schedule of assets and liabilities', category: 'financial' },
+    };
+    const shas = [];
+    for (let i = 0; i < 2; i++) {
+      const dir = await jobFolder(job);
+      const result = await runJob(dir);
+      expect(result.code, result.stdout).toBe(0);
+      const done = await readJob(dir);
+      expect(done.output.pages).toBeGreaterThanOrEqual(2);
+      shas.push(sha(await readFile(join(dir, 'storage', OUTPUT))));
     }
     expect(shas[0]).toBe(shas[1]);
   });

@@ -23,6 +23,7 @@ import { onIntent } from '../core/commands/intents';
 import { matterCommands } from '../core/commands/matter-commands';
 import { recentRecorder } from '../core/commands/recents';
 import { errorCopy } from '../core/error-copy';
+import { FeatureFlagService } from '../core/flags/feature-flags';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterHeader } from '../features/matter-detail/matter-header';
 import { MatterScreen } from '../features/matter-detail/matter-screen';
@@ -152,7 +153,8 @@ export class MatterLayout {
     ),
     { initialValue: this.childPath() },
   );
-  protected readonly tabs = computed(() => matterTabsFor(this.screen.value()?.type));
+  private readonly flags = inject(FeatureFlagService);
+  protected readonly tabs = computed(() => matterTabsFor(this.screen.value()?.type, (key) => this.flags.isOn(key)));
 
   protected readonly state = computed<MatterState>(() => {
     const matter = this.screen.matter;

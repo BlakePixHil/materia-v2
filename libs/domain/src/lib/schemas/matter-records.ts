@@ -23,6 +23,7 @@ import {
   TimeEntryStatusSchema,
 } from './enums';
 import { MinutesSchema } from '../values/minutes';
+import { NonNegativeCentsSchema } from '../values/money';
 
 const TimeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'Expected HH:MM (24h)' });
 const MATTER = 'orgs/{orgId}/matters/{matterId}';
@@ -644,50 +645,110 @@ export const Disbursement = withMeta(
   { path: `${MATTER}/disbursements`, softDelete: true, serverOwned: ['gstCents', 'invoiceId'] },
 );
 
-/** `matters/{matterId}/assets/{id}`: the estate register. */
+/** What an estate register asset is (CORE-16; the classes await practitioner review, CORE-16a). */
+export const AssetClassSchema = z.enum([
+  'real_property',
+  'bank',
+  'shares',
+  'superannuation',
+  'insurance',
+  'vehicle',
+  'personal',
+  'business',
+  'debt_owed_to_estate',
+  'other',
+]);
+export type AssetClass = z.infer<typeof AssetClassSchema>;
+
+/** An asset's progress through the administration, in order. */
+export const AssetStatusSchema = z.enum(['identified', 'valued', 'realised', 'transferred']);
+export type AssetStatus = z.infer<typeof AssetStatusSchema>;
+
+/** How a jointly held asset is held: joint tenants (survivorship) or tenants in common (a share). */
+export const JointHoldingSchema = z.enum(['joint_tenants', 'tenants_in_common']);
+export type JointHolding = z.infer<typeof JointHoldingSchema>;
+
+export const LiabilityClassSchema = z.enum(['funeral', 'tax', 'debt', 'mortgage', 'costs', 'other']);
+export type LiabilityClass = z.infer<typeof LiabilityClassSchema>;
+export const LiabilityStatusSchema = z.enum(['notified', 'paid', 'disputed']);
+export type LiabilityStatus = z.infer<typeof LiabilityStatusSchema>;
+
+export const DistributionKindSchema = z.enum(['specific', 'pecuniary', 'residuary']);
+export type DistributionKind = z.infer<typeof DistributionKindSchema>;
+export const DistributionStatusSchema = z.enum(['planned', 'approved', 'paid', 'cancelled']);
+export type DistributionStatus = z.infer<typeof DistributionStatusSchema>;
+
+/** Limits the rules enforce on estate register records (CORE-16). */
+export const ESTATE_TEXT_MAX = 300;
+export const ESTATE_NOTES_MAX = 2000;
+export const ASSET_DOCUMENTS_MAX = 20;
+/** A whole share in basis points: `shareBps` 5000 is a half. */
+export const SHARE_BPS_WHOLE = 10_000;
+
+/**
+ * `matters/{matterId}/assets/{id}`: the estate register (CORE-16), written by clients directly
+ * (`matter.edit`). `valueAtDeathCents` is the whole asset's AUD value at the date of death; a share
+ * held as tenants in common (or a joint tenant's share) is `shareBps`, and the estate counts that
+ * share of the value (`assetShareCents`). A foreign asset keeps its original currency and amount as
+ * metadata only (no live FX). `estate-onWrite` keeps the matter's totals.
+ */
 export const Asset = withMeta(
   {
-    class: z.enum([
-      'real_property',
-      'bank',
-      'shares',
-      'superannuation',
-      'insurance',
-      'vehicle',
-      'personal',
-      'business',
-      'debt_owed_to_estate',
-      'other',
-    ]),
-    description: NonEmptyString,
-    valueAtDeathCents: CentsSchema,
-    valuationSource: z.string(),
+    class: AssetClassSchema,
+    description: NonEmptyString.max(ESTATE_TEXT_MAX),
+    /** The institution, account or title reference ("Corio Savings Bank, account ending 4471"). */
+    institution: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
+    valueAtDeathCents: NonNegativeCentsSchema,
+    valuationSource: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
+    valuedOn: DateOnlySchema.optional(),
     jointlyHeld: z.boolean(),
+    jointHolding: JointHoldingSchema.optional(),
+    shareBps: z.number().int().min(1).max(SHARE_BPS_WHOLE).optional(),
+    /** Superannuation, a joint tenancy or a nominated policy: recorded, not part of the estate. */
     passesOutsideEstate: z.boolean(),
-    status: z.enum(['identified', 'valued', 'realised', 'transferred']),
-    realisedCents: CentsSchema.optional(),
+    status: AssetStatusSchema,
+    realisedCents: NonNegativeCentsSchema.optional(),
+    /** ISO 4217 code of a foreign asset (`USD`); `originalAmount` is in that currency. */
+    originalCurrency: z.string().regex(/^[A-Z]{3}$/, { message: 'Expected a currency code like USD' }).optional(),
+    originalAmount: z.number().min(0).optional(),
+    /** Valuation documents on the matter (bank letters, valuations). */
+    documentIds: z.array(DocIdSchema).max(ASSET_DOCUMENTS_MAX).default([]),
+    notes: z.string().max(ESTATE_NOTES_MAX).optional(),
   },
   { path: `${MATTER}/assets`, softDelete: true },
 );
 
 export const Liability = withMeta(
   {
-    class: z.enum(['mortgage', 'credit_card', 'loan', 'tax', 'funeral', 'medical', 'utility', 'other']),
-    creditor: NonEmptyString,
-    amountCents: CentsSchema,
-    status: z.enum(['notified', 'paid', 'disputed']),
+    class: LiabilityClassSchema,
+    creditor: NonEmptyString.max(ESTATE_TEXT_MAX),
+    reference: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
+    amountCents: NonNegativeCentsSchema,
+    status: LiabilityStatusSchema,
+    notes: z.string().max(ESTATE_NOTES_MAX).optional(),
   },
   { path: `${MATTER}/liabilities`, softDelete: true },
 );
 
+/**
+ * A planned or paid distribution to a beneficiary party (CORE-16). A specific gift names an asset
+ * (`assetId`, valued at the estate's share of it unless `amountCents` says otherwise); a pecuniary
+ * gift is an amount; a residuary gift is a share of what's left. `needsReview` is set by
+ * `estate-onWrite` when an asset's value changes after the distribution was recorded, and cleared
+ * by a person.
+ */
 export const Distribution = withMeta(
   {
     beneficiaryPartyId: DocIdSchema,
-    kind: z.enum(['specific', 'pecuniary', 'residuary']),
-    amountCents: CentsSchema.optional(),
+    kind: DistributionKindSchema,
+    amountCents: NonNegativeCentsSchema.optional(),
     assetId: DocIdSchema.optional(),
-    status: z.enum(['planned', 'approved', 'paid', 'cancelled']),
+    /** A residuary beneficiary's share ("One half"), as the will words it. */
+    share: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
+    status: DistributionStatusSchema,
     paidOn: DateOnlySchema.optional(),
+    notes: z.string().max(ESTATE_NOTES_MAX).optional(),
+    needsReview: z.boolean().optional(),
   },
   { path: `${MATTER}/distributions`, softDelete: true },
 );

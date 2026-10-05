@@ -124,6 +124,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'estate.register': defineFlag({
+    key: 'estate.register',
+    description:
+      'The Estate tab: assets, liabilities, distributions and the inventory export (off until a practitioner reviews the asset classes and summary wording, CORE-16a).',
+    owner: 'CORE-16',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'litigation.enabled': defineFlag({
     key: 'litigation.enabled',
     description: 'Disputes: contested estates, proceedings and court deadlines.',

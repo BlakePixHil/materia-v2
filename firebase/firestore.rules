@@ -125,6 +125,67 @@ service cloud.firestore {
         && validTask(data);
     }
 
+    // ---------- estate register (CORE-16) ----------
+    function estateMatter(orgId, matterId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
+    }
+    function canEditEstate(orgId, matterId) {
+      return can(orgId, 'matter.edit') && visible(orgId, estateMatter(orgId, matterId))
+        && estateMatter(orgId, matterId).get('deletedAt', null) == null;
+    }
+    // A client-created register record: only its own fields plus meta, created and stamped by the caller.
+    function newEstateRecord(fields, required) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(fields.concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+        && data.keys().hasAll(required.concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+        && data.createdBy == uid() && data.createdAt == request.time && validMeta() && data.schemaVersion == 1;
+    }
+    function cents(data, field) {
+      return data[field] is int && data[field] >= 0;
+    }
+    function optionalCents(data, field) {
+      return !(field in data) || cents(data, field);
+    }
+    function text(data, field, max) {
+      return data[field] is string && data[field].trim().size() > 0 && data[field].size() <= max;
+    }
+    function optionalText(data, field, max) {
+      return !(field in data) || data[field] is string && data[field].size() <= max;
+    }
+    function optionalDate(data, field) {
+      return !(field in data) || data[field] is string && data[field].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+    function validAsset(data) {
+      return data['class'] in ['real_property', 'bank', 'shares', 'superannuation', 'insurance', 'vehicle', 'personal', 'business', 'debt_owed_to_estate', 'other']
+        && text(data, 'description', 300)
+        && optionalText(data, 'institution', 300) && optionalText(data, 'valuationSource', 300) && optionalText(data, 'notes', 2000)
+        && cents(data, 'valueAtDeathCents') && optionalCents(data, 'realisedCents')
+        && optionalDate(data, 'valuedOn')
+        && data.jointlyHeld is bool && data.passesOutsideEstate is bool
+        && (!('jointHolding' in data) || data.jointHolding in ['joint_tenants', 'tenants_in_common'])
+        && (!('shareBps' in data) || data.shareBps is int && data.shareBps >= 1 && data.shareBps <= 10000)
+        && data.status in ['identified', 'valued', 'realised', 'transferred']
+        && (!('originalCurrency' in data) || data.originalCurrency is string && data.originalCurrency.matches('^[A-Z]{3}$'))
+        && (!('originalAmount' in data) || (data.originalAmount is int || data.originalAmount is float) && data.originalAmount >= 0)
+        && data.documentIds is list && data.documentIds.size() <= 20;
+    }
+    function validLiability(data) {
+      return data['class'] in ['funeral', 'tax', 'debt', 'mortgage', 'costs', 'other']
+        && text(data, 'creditor', 300) && optionalText(data, 'reference', 300) && optionalText(data, 'notes', 2000)
+        && cents(data, 'amountCents')
+        && data.status in ['notified', 'paid', 'disputed'];
+    }
+    function validDistribution(data) {
+      return data.beneficiaryPartyId is string && data.beneficiaryPartyId.size() > 0
+        && data.kind in ['specific', 'pecuniary', 'residuary']
+        && optionalCents(data, 'amountCents')
+        && (!('assetId' in data) || data.assetId is string && data.assetId.size() > 0)
+        && optionalText(data, 'share', 300) && optionalText(data, 'notes', 2000)
+        && data.status in ['planned', 'approved', 'paid', 'cancelled']
+        && optionalDate(data, 'paidOn')
+        && (!('needsReview' in data) || data.needsReview is bool);
+    }
+
     // ---------- deadlines (CORE-10) ----------
     // Fields a client may write when creating a manual deadline: `ManualDeadlineCreateInput` in
     // libs/domain (the rules tests check the two agree), plus the meta fields.
@@ -513,17 +574,38 @@ service cloud.firestore {
           allow read: if inOrg(orgId);
           allow update: if editable(orgId, 'time.record', fieldsDisbursement());
         }
+        // The estate register (CORE-16): assets, liabilities and distributions follow the matter's
+        // access (a privileged matter's need privileged.view). matter.edit roles create them, edit
+        // the whitelisted fields and soft delete (or restore) them on a live matter, with every
+        // amount integer cents of 0 or more. estate-onWrite keeps the matter's totals and flags
+        // distributions for review; neither is client-written.
         match /assets/{assetId} {
-          allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsAsset());
+          allow read: if inOrg(orgId) && visible(orgId, estateMatter(orgId, matterId));
+          allow create: if canEditEstate(orgId, matterId)
+            && newEstateRecord(fieldsAsset(), ['class', 'description', 'valueAtDeathCents', 'jointlyHeld', 'passesOutsideEstate', 'status', 'documentIds'])
+            && validAsset(request.resource.data);
+          allow update: if canEditEstate(orgId, matterId)
+            && (clientUpdate(fieldsAsset()) && validAsset(request.resource.data) || softDelete());
         }
         match /liabilities/{liabilityId} {
-          allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsLiability());
+          allow read: if inOrg(orgId) && visible(orgId, estateMatter(orgId, matterId));
+          allow create: if canEditEstate(orgId, matterId)
+            && newEstateRecord(fieldsLiability(), ['class', 'creditor', 'amountCents', 'status'])
+            && validLiability(request.resource.data);
+          allow update: if canEditEstate(orgId, matterId)
+            && (clientUpdate(fieldsLiability()) && validLiability(request.resource.data) || softDelete());
         }
         match /distributions/{distributionId} {
-          allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsDistribution());
+          allow read: if inOrg(orgId) && visible(orgId, estateMatter(orgId, matterId));
+          allow create: if canEditEstate(orgId, matterId)
+            && newEstateRecord(fieldsDistribution(), ['beneficiaryPartyId', 'kind', 'status'])
+            && request.resource.data.get('needsReview', false) == false
+            && validDistribution(request.resource.data);
+          // A person clears needsReview; only estate-onWrite sets it.
+          allow update: if canEditEstate(orgId, matterId)
+            && (clientUpdate(fieldsDistribution()) && validDistribution(request.resource.data)
+                && (unchanged(['needsReview']) || request.resource.data.get('needsReview', false) == false)
+              || softDelete());
         }
         match /proceedings/{proceedingId} {
           allow read: if inOrg(orgId);
@@ -770,7 +852,7 @@ service cloud.firestore {
     }
     // Client-writable fields per entity (each entity's update schema keys).
     function fieldsActivity() { return ['kind', 'summary', 'actorUid', 'at', 'refs']; }
-    function fieldsAsset() { return ['class', 'description', 'valueAtDeathCents', 'valuationSource', 'jointlyHeld', 'passesOutsideEstate', 'status', 'realisedCents']; }
+    function fieldsAsset() { return ['class', 'description', 'institution', 'valueAtDeathCents', 'valuationSource', 'valuedOn', 'jointlyHeld', 'jointHolding', 'shareBps', 'passesOutsideEstate', 'status', 'realisedCents', 'originalCurrency', 'originalAmount', 'documentIds', 'notes']; }
     function fieldsAuditEntry() { return []; }
     function fieldsCalendar() { return ['jurisdiction', 'year', 'calendarId', 'kind', 'holidays', 'closures', 'source', 'verified']; }
     function fieldsChecklistTemplate() { return ['name', 'items', 'priority', 'dueInDays']; }
@@ -789,7 +871,7 @@ service cloud.firestore {
     function fieldsDeadlineChange() { return []; }
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'amountExGstCents', 'gstTreatment', 'payee', 'receiptDocumentId', 'status']; }
-    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'status', 'paidOn']; }
+    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'notes', 'needsReview']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
     function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }
@@ -799,7 +881,7 @@ service cloud.firestore {
     function fieldsInvoice() { return ['lines', 'dueDate']; }
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
-    function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }
+    function fieldsLiability() { return ['class', 'creditor', 'reference', 'amountCents', 'status', 'notes']; }
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged', 'boardOrder']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }
     function fieldsMatterEvent() { return []; }

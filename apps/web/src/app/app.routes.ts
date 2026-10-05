@@ -46,13 +46,14 @@ function planned(
   return { path, title, loadComponent: placeholder, data: { placeholder: { heading: title, ...data } }, ...extra };
 }
 
-/** The matter tabs built so far (CORE-06, CORE-08, CORE-10, CORE-12); the others show a placeholder. */
+/** The matter tabs built so far (CORE-06, CORE-08, CORE-10, CORE-12, CORE-13, CORE-16); the others show a placeholder. */
 const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
   overview: () => import('./features/matter-detail/matter-overview').then((m) => m.MatterOverview),
   tasks: () => import('./features/matter-detail/matter-tasks').then((m) => m.MatterTasks),
   deadlines: () => import('./features/deadlines/matter-deadlines').then((m) => m.MatterDeadlines),
   documents: () => import('./features/documents/matter-documents').then((m) => m.MatterDocuments),
   parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
+  estate: () => import('./features/estate/matter-estate').then((m) => m.MatterEstate),
   notes: () => import('./features/notes/matter-notes').then((m) => m.MatterNotes),
   activity: () => import('./features/matter-detail/matter-activity').then((m) => m.MatterActivityTab),
 };
