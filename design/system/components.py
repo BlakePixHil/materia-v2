@@ -341,7 +341,7 @@ A short label and shortcut for icon buttons and truncated text. Appears after 40
 ```html
 <button ngpTooltipTrigger [ngpTooltipTrigger]="tip">…</button><ng-template #tip><div ngpTooltip class="mt-tooltip">Record time <kbd class="mt-kbd">T</kbd></div></ng-template>
 ```
-""", '<span class="mt-tooltip">Record time ' + kbd("T") + '</span><span class="mt-tooltip">Ask Clerk ' + kbd("⌘", "J") + '</span><span class="mt-tooltip">Succession Act 2006 (NSW) s 58(2)</span>')
+""", '<span class="mt-tooltip">Record time ' + kbd("T") + '</span><span class="mt-tooltip">Ask Clerk ' + kbd("⌘", "J") + '</span><span class="mt-tooltip">Administration and Probate Act 1958 (Vic) s 99</span>')
 
 comp("Dialog", "Overlays", 300, """
 # Dialog
@@ -353,7 +353,7 @@ Confirm a consequential action or collect a few fields without leaving the page.
 ```html
 <ng-template #confirm><div ngpDialogOverlay class="mt-overlay"><div ngpDialog class="mt-dialog"><h2 ngpDialogTitle>…</h2></div></div></ng-template>
 ```
-""", '<div class="mt-dialog" role="dialog" aria-labelledby="dlg-t"><div class="mt-dialog-h"><div class="mt-grow"><h2 id="dlg-t">Publish notice of intended application?</h2></div>' + ibtn("x", "Close", size="sm") + '</div><div class="mt-dialog-b"><p style="margin:0">This publishes the probate notice for <b class="t-1">Estate of Margaret Whitfield</b> on the NSW Online Registry. You can file the summons from <b class="t-1">16 Oct</b>.</p>' + check("on", "Add “File probate summons” to the matter’s deadlines") + '</div><div class="mt-dialog-f">' + btn("Cancel", "ghost") + btn("Publish notice", "primary", ic="court") + "</div></div>", canvas=True)
+""", '<div class="mt-dialog" role="dialog" aria-labelledby="dlg-t"><div class="mt-dialog-h"><div class="mt-grow"><h2 id="dlg-t">Publish notice of intended application?</h2></div>' + ibtn("x", "Close", size="sm") + '</div><div class="mt-dialog-b"><p style="margin:0">This publishes the probate notice for <b class="t-1">Estate of Margaret Whitfield</b> on the Supreme Court of Victoria’s website. You can file the application in RedCrest from <b class="t-1">16 Oct</b>.</p>' + check("on", "Add “File probate application” to the matter’s deadlines") + '</div><div class="mt-dialog-f">' + btn("Cancel", "ghost") + btn("Publish notice", "primary", ic="court") + "</div></div>", canvas=True)
 
 comp("Toast", "Overlays", 230, """
 # Toast
@@ -380,8 +380,8 @@ The card has a 2px violet-to-orange top edge, `border-ai` and `ai-glow`. Each it
     + '<div class="title-m">Three things need you today</div>'
     + '<div class="mt-col" style="gap:0">' + "".join(f'<div class="mt-row" style="align-items:flex-start;gap:12px;padding:10px 0;border-top:1px solid var(--border-subtle)">{icon(ic, None, "t-" + tone)}<div class="mt-grow mt-col" style="gap:6px"><div class="body t-2"><b class="t-1">{m}</b> {txt}</div><div class="mt-cites">{cs}</div></div>{btn(a, "secondary", "sm")}</div>' for ic, tone, m, txt, cs, a in [
         ("alert", "danger", "Nguyen v Nguyen.", "Service of the plaintiff’s affidavit was due Wednesday. I’ve drafted a consent-extension letter to the other side.", cite("Orders 12 Sep", 1) + cite("Email · K. Ho", 2), "Review draft"),
-        ("court", "brand", "Whitfield.", "Publish the probate notice this morning and the summons can be filed from 16 Oct. Doing it before the long weekend starts the 14 days now.", cite("UCPR r 78.3", 3), "Open matter"),
-        ("draft", "warning", "Okafor.", "Thursday’s signing still needs a second witness for the enduring power of attorney.", cite("POA Act 2003 (NSW) s 19", 4), "Add task")]) + "</div>"
+        ("court", "brand", "Whitfield.", "Publish the probate notice this morning and the application can be filed from 16 Oct. Doing it today starts the 14 days now.", cite("A&amp;P Rules 2014", 3), "Open matter"),
+        ("draft", "warning", "Okafor.", "Thursday’s will signing still needs a second witness.", cite("Wills Act 1997 (Vic) s 7", 4), "Add task")]) + "</div>"
     + '<div class="mt-clerk-foot">Read 14 matters, 37 emails and your calendar · 7:42 am</div></div></div>', col=True)
 
 comp("ClerkMessage", "Clerk", 380, """
@@ -391,7 +391,7 @@ A turn in a conversation with Clerk. People’s messages sit right on `bg-sunken
 
 Clerk answers lead with the conclusion in bold, give the reasons as a short list, cite every factual claim with a numbered `mt-cite` (superscript in text), and end with at most two follow-up actions. Clerk never presents legal advice as settled; it points to the rule and leaves the judgement to the lawyer.
 """, '<div class="mt-col" style="gap:16px;width:440px">' + '<div class="mt-msg" data-role="user">Is anyone likely to bring a family provision claim?</div>'
-    + '<div class="mt-msg" data-role="clerk">' + clerk("sm") + '<div class="body"><p><b>Most likely Thomas Whitfield, the son.</b> He is an eligible person under s 57(1)(c), and clause 6 of the will leaves him nothing.<sup>1 2</sup></p><ul><li>The $412k super could be designated notional estate because the binding nomination lapsed.<sup>3</sup></li><li>The file note of 14 Aug records Thomas asking for a copy of the will.<sup>4</sup></li></ul><p>A claim must be filed by <b>22 Jul 2027</b>.</p><div class="mt-cites">' + cite("Will · cl. 6", 1) + cite("Succession Act s 57", 2) + cite("Super statement p 2", 3) + cite("File note 14 Aug", 4) + '</div><div class="mt-row">' + btn("Add risk flag", "secondary", "sm", "flag") + btn("Draft advice", "ai", "sm", "sparkle") + "</div></div></div></div>")
+    + '<div class="mt-msg" data-role="clerk">' + clerk("sm") + '<div class="body"><p><b>Most likely Thomas Whitfield, the son.</b> He is an eligible person under s 90 as her child, and clause 6 of the will leaves him nothing.<sup>1 2</sup></p><ul><li>The $412k super sits outside the estate. Victoria has no notional estate, so a claim reaches only the estate itself.<sup>3</sup></li><li>The file note of 14 Aug records Thomas asking for a copy of the will.<sup>4</sup></li></ul><p>He has <b>6 months from the grant</b> to apply (s 99).</p><div class="mt-cites">' + cite("Will · cl. 6", 1) + cite("APA 1958 (Vic) s 90", 2) + cite("Super statement p 2", 3) + cite("File note 14 Aug", 4) + '</div><div class="mt-row">' + btn("Add risk flag", "secondary", "sm", "flag") + btn("Draft advice", "ai", "sm", "sparkle") + "</div></div></div></div>")
 
 comp("Composer", "Clerk", 200, """
 # Composer
@@ -406,8 +406,8 @@ comp("Citation", "Clerk", 110, """
 
 Points from a Clerk claim to its source: a document and pinpoint, an email, or a provision. Opens the source at that spot in a side panel.
 
-Format: `Source · pinpoint` in mono (“Will · cl. 6”, “UCPR r 78.3”, “File note 14 Aug”). Numbered when the text uses superscripts.
-""", cite("Will · cl. 6", 1) + cite("Death certificate") + cite("Succession Act 2006 (NSW) s 58(2)") + cite("Email · K. Ho 30 Sep") + cite("Westpac statement p 3"))
+Format: `Source · pinpoint` in mono (“Will · cl. 6”, “APA 1958 (Vic) s 99”, “File note 14 Aug”). Numbered when the text uses superscripts.
+""", cite("Will · cl. 6", 1) + cite("Death certificate") + cite("Administration and Probate Act 1958 (Vic) s 99") + cite("Email · K. Ho 30 Sep") + cite("Westpac statement p 3"))
 
 comp("Suggestion", "Clerk", 170, """
 # Suggestion
@@ -415,7 +415,7 @@ comp("Suggestion", "Clerk", 170, """
 Something Clerk proposes (a task, a deadline, a time entry) that becomes real only when a person accepts it.
 
 Dashed `border-ai` on `bg-ai-subtle` until accepted. Says what it would create and why (the source). Two actions only: Dismiss (ghost) and the accept verb (ai).
-""", '<div class="mt-col" style="width:620px;gap:8px">' + suggestion("Request date-of-death valuation for 14 Ashby St, Mosman", "From will cl. 4(b) and the title search") + suggestion("Add deadline: File probate summons from 16 Oct", "UCPR r 78.3 · 14 days after the notice is published", "Add deadline") + "</div>")
+""", '<div class="mt-col" style="width:620px;gap:8px">' + suggestion("Request date-of-death valuation for 14 Ashby St, Newtown", "From will cl. 4(b) and the title search") + suggestion("Add deadline: File probate application from 16 Oct", "A&amp;P Rules 2014 · 14 days after the notice is published", "Add deadline") + "</div>")
 
 comp("ClerkWorking", "Clerk", 120, """
 # ClerkWorking
@@ -451,7 +451,7 @@ comp("Timeline", "Matter patterns", 290, """
 Statutory and procedural deadlines in date order. Every item names its rule (Act and section, or court rule) and jurisdiction, so it can be checked rather than trusted.
 
 Node states: done (green check), next (blue, haloed), upcoming (outline), overdue (red). Generated by the deadline engine from the matter type, jurisdiction and date of death; manual items are marked “Added by …”.
-""", '<div class="mt-timeline" style="width:520px">' + tl("done", "Caveat search: none lodged", "NSW Online Registry · 2 Oct", deadline("Done", "done")) + tl("next", "Publish notice of intended application", "<code>UCPR r 78.3</code> · at least 14 days before filing", deadline("Today", "today")) + tl("upcoming", "File probate summons", "From 16 Oct · explain any delay after 22 Jan 2027", deadline("16 Oct", "upcoming")) + tl("upcoming", "Family provision claim period ends", "<code>Succession Act 2006 (NSW) s 58(2)</code> · 12 months from death", deadline("22 Jul 2027", "upcoming"), "scale") + "</div>")
+""", '<div class="mt-timeline" style="width:520px">' + tl("done", "Caveat search: none lodged", "RedCrest · 2 Oct", deadline("Done", "done")) + tl("next", "Publish notice of intended application", "<code>A&amp;P Rules 2014</code> · at least 14 days before filing", deadline("Today", "today")) + tl("upcoming", "File probate application", "From 16 Oct · explain any delay after 22 Jan 2027", deadline("16 Oct", "upcoming")) + tl("upcoming", "Family provision window ends", "<code>APA 1958 (Vic) s 99</code> · 6 months from the grant", badge("No grant yet"), "scale") + "</div>")
 
 comp("TimeEntry", "Matter patterns", 200, """
 # TimeEntry
@@ -459,7 +459,7 @@ comp("TimeEntry", "Matter patterns", 200, """
 A unit of recorded work in 6-minute units (0.1 h), with its matter, source and value.
 
 Manual entries are solid. Clerk-captured entries are dashed `border-ai` with the source (email, calendar, document) until a fee earner accepts them; nothing is billed without that. Hours and amounts are right-aligned mono.
-""", '<div class="mt-col" style="gap:8px;width:600px">' + time_entry("Drafted probate summons and affidavit", "WE-142 · Whitfield · 1 Oct", "1.8 h", "$792.00") + time_entry("Emails with executor re: asset schedule", "3 emails · 10:42–11:05 · WE-142", "0.4 h", "$176.00", "mail", True) + time_entry("Conference with Ms Okafor re: attorneys", "Calendar · 25 min · WE-151", "0.5 h", "Fixed fee", "calendar", True) + "</div>")
+""", '<div class="mt-col" style="gap:8px;width:600px">' + time_entry("Drafted probate application and affidavit", "WE-142 · Whitfield · 1 Oct", "1.8 h", "$792.00") + time_entry("Emails with executor re: asset schedule", "3 emails · 10:42–11:05 · WE-142", "0.4 h", "$176.00", "mail", True) + time_entry("Conference with Ms Okafor re: attorneys", "Calendar · 25 min · WE-151", "0.5 h", "Fixed fee", "calendar", True) + "</div>")
 
 STAGES = ["Intake", "Will & assets", "Notice", "Filed", "Grant", "Collect", "Debts & tax", "Distribute", "Finalise"]
 comp("EstateStepper", "Matter patterns", 110, """
@@ -476,7 +476,7 @@ comp("KeyFacts", "Matter patterns", 220, """
 The facts every later step depends on, as a two-column definition list: deceased, date of death, last address, will, executors, jurisdiction.
 
 Values Clerk extracted show a citation until a person confirms them.
-""", '<div class="mt-card" data-pad style="width:440px"><div class="mt-card-h"><h3>Key facts</h3><span class="mt-ml">' + btn("Edit", "ghost", "sm") + '</span></div><dl class="mt-facts"><dt>Deceased</dt><dd>Margaret Anne Whitfield</dd><dt>Date of death</dt><dd>22 Jul 2026 · aged 81</dd><dt>Last address</dt><dd>14 Ashby St, Mosman NSW 2088</dd><dt>Will</dt><dd>3 May 2019 · original held</dd><dt>Executors</dt><dd>Catherine Whitfield, Peter Hale</dd></dl></div>', canvas=True)
+""", '<div class="mt-card" data-pad style="width:440px"><div class="mt-card-h"><h3>Key facts</h3><span class="mt-ml">' + btn("Edit", "ghost", "sm") + '</span></div><dl class="mt-facts"><dt>Deceased</dt><dd>Margaret Anne Whitfield</dd><dt>Date of death</dt><dd>22 Jul 2026 · aged 81</dd><dt>Last address</dt><dd>14 Ashby St, Newtown VIC 3220</dd><dt>Will</dt><dd>3 May 2019 · original held</dd><dt>Executors</dt><dd>Catherine Whitfield, Peter Hale</dd></dl></div>', canvas=True)
 
 comp("Note", "Matter patterns", 160, """
 # Note

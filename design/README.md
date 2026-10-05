@@ -26,8 +26,9 @@ v1 (Newsreader serif, evergreen, Figma file) is superseded.
 | `system/project/components/bundle.css` | **The component stylesheet for Angular.** `mt-*` classes styled through Angular Primitives' `data-*` state attributes |
 | `tokens/materia.tokens.css` | Generated tokens as CSS custom properties, with `[data-theme]` and `prefers-color-scheme` dark blocks and `@font-face` |
 | `mockups/screens.html` | Generated standalone screens gallery |
+| `system/check.mjs` | Render-overflow harness: renders the gallery at 1440, 1024 and 390 in light and dark, and fails if anything spills out of its frame |
 
-Rebuild after any change with `python3 design/system/build.py`. Don't edit generated files by hand.
+Rebuild after any change with `python3 design/system/build.py`, then check it with `node design/system/check.mjs` (set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use a pre-installed Chromium; `--write-heights` records screen heights, `--shots <dir>` saves PNGs). Don't edit generated files by hand. `system/project/components/bundle.css` and `system/project/README.md` are hand-written sources.
 
 ## Using it in Angular
 
@@ -48,9 +49,9 @@ The README in the design system has the full component-to-directive map.
 
 ## Open items
 
-- **Jurisdiction:** the launch firm is in Victoria (Melbourne and Geelong). The mocks still cite NSW law (Succession Act 2006 ss 57–58, 75–80, 92–93; UCPR; NSW Online Registry). They are illustrative and are retargeted to Victorian law in ticket DES-01: Administration and Probate Act 1958 s 99 (family provision window runs 6 months from the grant), Wills Act 1997, and the Supreme Court Rules O 26 and O 42A. A practitioner reviews all legal rules.
+- **Jurisdiction:** the launch firm is in Victoria (Melbourne and Geelong), and the mocks cite Victorian law (DES-01): the Administration and Probate Act 1958 (Vic) s 99 family provision window (6 months from the grant), ss 33, 90, 91(4) and 99A; the Wills Act 1997 (Vic) s 7; the Supreme Court (Administration and Probate) Rules 2014; the Supreme Court (General Civil Procedure) Rules 2015 O 26 and O 42A; the Supreme Court of Victoria, the County Court and RedCrest. Victoria has no notional estate. All of it is illustrative until a practitioner reviews it.
 - The existing logo uses #0364B8 and a rounded wordmark that differ from the new UI blue and from Geist. A logo refresh should bring them together.
 - Designed in pass two: Insights, Contacts, Settings (Clerk and AI), Onboarding (import from the current materia) and Mobile (Today, Matter, Record by voice). Precedents was removed.
-- Litigation (pass three): Disputes hub, dispute matter (family provision), chronology and evidence (will dispute), settlement and costs, and court book. Court rules shown (UCPR r 20.26, r 42.15, Pt 33; Succession Act s 60(2)) are illustrative and need practitioner review.
+- Litigation (pass three): Disputes hub, dispute matter (family provision), chronology and evidence (will dispute), settlement and costs, and court book. Court rules shown (GCP Rules O 26 and O 42A; APA 1958 (Vic) s 91(4)) are illustrative and need practitioner review.
 - Not yet designed: the other Settings pages (team and roles, billing and rates, trust account, integrations), the Inbox, the Clerk full-page view, notifications, and tablet layouts.
 - Insights figures are fictional; the chart rules are in the brand book under Charts.

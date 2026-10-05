@@ -24,7 +24,7 @@ Build every screen from these tokens and components. When something is missing, 
 - Money: AUD with no code in the UI: `$4,860`, `$2.84m` in summaries, `$42.9k` in Stat tiles. Tabular figures always.
 - Time: hours to one decimal in 6-minute units: `0.4 h`.
 - Matter refs: `WE-142` in `mono-s`. People’s names in full the first time, initials in avatars.
-- Rules: `Succession Act 2006 (NSW) s 58(2)`, `UCPR r 78.3`. Cite the jurisdiction on first mention.
+- Rules: `Administration and Probate Act 1958 (Vic) s 99`, then `APA 1958 (Vic) s 99A`; `GCP Rules O 26`. Cite the jurisdiction on first mention. Every rule in the mocks is illustrative until a practitioner signs it off.
 
 **Errors and empty states** say what is wrong and how to fix it: “That date doesn’t exist. Check the death certificate.” Never “Invalid input” or “Something went wrong”.
 
@@ -109,13 +109,13 @@ Clerk is the assistant’s name. It reads the practice’s matters, documents, e
 
 Contested estates are matters with a court attached: family provision claims, will disputes (capacity, knowledge and approval, undue influence, informal wills) and estate administration disputes. They live under **Disputes** in the sidebar and use the same Matter screen, with litigation tabs: Overview, Orders, Chronology, Evidence, Offers, Costs and Court book.
 
-- **Track.** Disputes use their own stepper: Instructions · Summons filed · Evidence · Mediation · Directions · Hearing · Judgment · Costs. A contested probate can name its own stages (Caveat, Subpoenas, Expert reports).
-- **Header.** Always show the court and proceedings number (`NSWSC 2026/00187412`) and who we act for (“Acting for the plaintiff”).
+- **Track.** Disputes use their own stepper: Instructions · Proceeding filed · Evidence · Mediation · Directions · Hearing · Judgment · Costs. A contested probate can name its own stages (Caveat, Subpoenas, Expert reports).
+- **Header.** Always show the court and proceedings number (`S ECI 2026 04127`, or `CI-26-01842` in the County Court) and who we act for (“Acting for the plaintiff”).
 - **Orders drive the timetable.** Each CourtOrder shows the order’s own words and what it becomes: a deadline, a court event or nothing. Clerk proposes; a person confirms. Orders with a date that depends on another event are flagged until it is known.
 - **Court events** (CourtEvent) carry the list, time, attendance mode and what must be ready. Hearings fill the date block with `bg-brand`.
 - **Chronology** (ChronologyEvent) is built from the file. Every event cites a source with a pinpoint, and key events are marked by a person. Issue tags use letter codes so they still read in print. Clerk flags gaps in the evidence where they matter, for example around the date a will was made.
-- **Evidence** (EvidenceMatrix) maps each issue to the elements that must be proved: Banks v Goodfellow for capacity, the s 60(2) factors for family provision. Strength is the fee earner’s call.
-- **Offers** (OfferCard) record Calderbank offers and offers of compromise (UCPR r 20.26) with their expiry. They are without prejudice and stay out of court books.
+- **Evidence** (EvidenceMatrix) maps each issue to the elements that must be proved: Banks v Goodfellow for capacity, the s 91(4) factors for family provision (Administration and Probate Act 1958 (Vic)). Strength is the fee earner’s call.
+- **Offers** (OfferCard) record Calderbank offers and offers of compromise (Supreme Court (General Civil Procedure) Rules 2015 O 26) with their expiry. They are without prejudice and stay out of court books.
 - **Costs** are tracked against the disclosed estimate, with a prompt to update the disclosure before it is exceeded. ScenarioBars compare what the client nets under each outcome.
 - **Court book** (CourtBookIndex) is an index that renumbers as documents move. Clerk checks for missing exhibits, duplicates and privileged material before anyone generates the PDF. Generating never files or serves anything.
 - **Limitation periods** for possible claims against estates we act for appear under “To watch” on the Disputes hub until they expire.
