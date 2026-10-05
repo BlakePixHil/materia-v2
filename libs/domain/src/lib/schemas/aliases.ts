@@ -18,6 +18,7 @@ import {
   PersonalTask,
   MatterEvent,
   Deadline,
+  DeadlineChange,
   MatterDocument,
   Chunk,
   Note,
@@ -88,6 +89,9 @@ export const MatterEventUpdateSchema = MatterEvent.update;
 export const DeadlineSchema = Deadline.schema;
 export const DeadlineCreateSchema = Deadline.create;
 export const DeadlineUpdateSchema = Deadline.update;
+export const DeadlineChangeSchema = DeadlineChange.schema;
+export const DeadlineChangeCreateSchema = DeadlineChange.create;
+export const DeadlineChangeUpdateSchema = DeadlineChange.update;
 export const MatterDocumentSchema = MatterDocument.schema;
 export const MatterDocumentCreateSchema = MatterDocument.create;
 export const MatterDocumentUpdateSchema = MatterDocument.update;

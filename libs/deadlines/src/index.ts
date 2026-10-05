@@ -4,3 +4,5 @@ export * from './lib/calendar';
 export * from './lib/engine';
 export * from './lib/data';
 export * from './lib/storage';
+export * from './lib/rulesets';
+export * from './lib/persist';
