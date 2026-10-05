@@ -23,6 +23,8 @@ test.use({ timezoneId: ZONE });
 
 const TODAY = today(ZONE);
 const MATTER_NUMBER = 'M-2026-0614';
+/** The first answer from the emulators after a page load, which can be slow while other specs run. */
+const FIRST_LOAD = { timeout: 20_000 };
 
 function meta(uid: string) {
   return { createdAt: new Date(), createdBy: uid, updatedAt: new Date(), updatedBy: uid, schemaVersion: 1 };
@@ -140,7 +142,9 @@ test.describe('today', () => {
     await expect(page.locator('[data-zone-hint]')).toHaveCount(0);
 
     const attention = region(page, 'Needs attention');
-    await expect(attention.getByRole('link', { name: 'Overdue: Lodge the inventory of assets' })).toBeVisible();
+    await expect(attention.getByRole('link', { name: 'Overdue: Lodge the inventory of assets' })).toBeVisible(
+      FIRST_LOAD,
+    );
     await expect(
       attention.getByRole('link', { name: 'Change to review: Send the costs disclosure update' }),
     ).toBeVisible();
@@ -164,7 +168,9 @@ test.describe('today', () => {
     await seedDay(request, orgId, uid);
     await page.goto('/today');
     const attention = region(page, 'Needs attention');
-    await expect(attention.getByRole('link', { name: 'Overdue: Lodge the inventory of assets' })).toBeVisible();
+    await expect(attention.getByRole('link', { name: 'Overdue: Lodge the inventory of assets' })).toBeVisible(
+      FIRST_LOAD,
+    );
     await expect(region(page, 'My tasks')).toContainText('Call the executor about the bank accounts');
 
     await page.keyboard.press('j');
@@ -211,7 +217,7 @@ test.describe('today', () => {
     ]);
     await page.goto('/today');
     await expect(greeting(page)).toBeVisible();
-    await expect(region(page, 'Needs attention')).toContainText('Nothing needs attention');
+    await expect(region(page, 'Needs attention')).toContainText('Nothing needs attention', FIRST_LOAD);
     await expect(region(page, 'Due today and this week')).toContainText('Your week is clear');
     await expect(page.locator('.mt-today')).not.toContainText('!');
     await expect(page.locator('[data-section="onboarding"]')).toHaveCount(0);
@@ -223,7 +229,7 @@ test.describe('today', () => {
     await signIn(page, request, 'owner');
     await page.goto('/today');
     const checklist = page.getByRole('region', { name: 'Set up your practice' });
-    await expect(checklist).toBeVisible();
+    await expect(checklist).toBeVisible(FIRST_LOAD);
     await expect(checklist.getByRole('link', { name: 'Create a matter' })).toHaveAttribute('href', '/matters/new');
     await expect(checklist.getByRole('link', { name: 'Invite people' })).toHaveAttribute('href', '/settings/team');
     await expect(checklist.getByRole('button', { name: 'Connect a calendar' })).toBeDisabled();
@@ -238,7 +244,9 @@ test.describe('today', () => {
     await page.goto('/matters/m-pell/overview');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Harold Pell');
     await page.goto('/today');
-    await expect(region(page, 'Recent matters').getByRole('link', { name: /Estate of Harold Pell/ })).toBeVisible();
+    await expect(region(page, 'Recent matters').getByRole('link', { name: /Estate of Harold Pell/ })).toBeVisible(
+      FIRST_LOAD,
+    );
   });
 
   test('keeps showing the day when the connection drops', async ({ page, request, context }) => {
@@ -247,7 +255,9 @@ test.describe('today', () => {
     await seedDay(request, orgId, uid);
     await page.goto('/today');
     const attention = region(page, 'Needs attention');
-    await expect(attention.getByRole('link', { name: 'Overdue: Lodge the inventory of assets' })).toBeVisible();
+    await expect(attention.getByRole('link', { name: 'Overdue: Lodge the inventory of assets' })).toBeVisible(
+      FIRST_LOAD,
+    );
     await expect(region(page, 'My tasks')).toContainText('Call the executor about the bank accounts');
 
     await context.setOffline(true);
@@ -271,6 +281,7 @@ test.describe('today on a device in another time zone', () => {
     await page.goto('/today');
     await expect(page.locator('[data-zone-hint]')).toHaveText(
       'Dates follow Melbourne time, the practice’s time zone. This device is on London time.',
+      FIRST_LOAD,
     );
     await expectNoA11yViolations(page);
   });
