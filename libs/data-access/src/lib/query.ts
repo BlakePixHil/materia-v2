@@ -71,8 +71,17 @@ export interface CollectionDriver {
   count(spec: QuerySpec): Promise<number>;
   /** Creates a document with a new id, or with `id` when given (a client-made id, such as a draft's). */
   create(data: Record<string, unknown>, meta: WriteMeta, id?: string): Promise<string>;
-  /** Merges `patch`; `remove` lists fields to delete (`deleteField()`), for clearing optional values. */
-  update(id: string, patch: Record<string, unknown>, meta: WriteMeta, remove?: readonly string[]): Promise<void>;
+  /**
+   * Merges `patch`; `remove` lists fields to delete (`deleteField()`), for clearing optional values;
+   * `stamp` lists fields set to the server's time (`serverTimestamp()`).
+   */
+  update(
+    id: string,
+    patch: Record<string, unknown>,
+    meta: WriteMeta,
+    remove?: readonly string[],
+    stamp?: readonly string[],
+  ): Promise<void>;
   softDelete(id: string, meta: WriteMeta): Promise<void>;
   /** Removes the document. Only where the rules allow one (a person's own saved views). */
   hardDelete(id: string): Promise<void>;

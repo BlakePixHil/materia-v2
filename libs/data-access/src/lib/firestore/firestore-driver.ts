@@ -127,12 +127,14 @@ export function firestoreDriver(source: FirestoreSource, path: string, options: 
       });
       return docRef.id;
     },
-    async update(id, patch, meta, remove = []) {
+    async update(id, patch, meta, remove = [], stamp = []) {
       const { handle, ref: docRef } = await ref(id);
       const removed = Object.fromEntries(remove.map((field) => [field, handle.sdk.deleteField()]));
+      const stamped = Object.fromEntries(stamp.map((field) => [field, handle.sdk.serverTimestamp()]));
       await handle.sdk.updateDoc(docRef, {
         ...patch,
         ...removed,
+        ...stamped,
         updatedAt: handle.sdk.serverTimestamp(),
         updatedBy: meta.uid,
       });

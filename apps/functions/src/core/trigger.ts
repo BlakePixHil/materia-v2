@@ -12,7 +12,7 @@ import {
 import { REGION } from '../config';
 import type { Clock, Ports } from '../ports';
 import { adminDb } from './admin';
-import { createLog, functionsSink, type Log, type LogSink } from './log';
+import { createLog, errorReportFields, functionsSink, type Log, type LogSink } from './log';
 import { ports, systemClock } from '../ports/container';
 
 const GUARD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -101,7 +101,7 @@ export async function runTrigger(
       deadLetter: true,
       document: def.document,
       params: event.params,
-      errorType: error instanceof Error ? error.name : typeof error,
+      ...errorReportFields(error),
     });
     return 'failed';
   }

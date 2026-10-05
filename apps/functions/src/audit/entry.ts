@@ -48,6 +48,8 @@ export const NOISE_FIELDS = new Set([
   // Contacts (CORE-01): recomputed by contacts-onWrite.
   'dedupeKey',
   'sortName',
+  // Documents (AI-04): Clerk ingestion progress, written by documents-ingest.
+  'ingest',
 ]);
 
 /** Bookkeeping fields: never listed as changes. */

@@ -100,10 +100,41 @@ export class FakeKms implements KmsPort {
   }
 }
 
-/** Deterministic 768-d vectors, so similarity tests are stable. */
+/** Words too common to tell passages apart. */
+const STOPWORDS = new Set(
+  (
+    'a an and are as at be by for from has have he her his i in is it its me my of on or our she that the their ' +
+    'them they this to was we were what when where which who will with you your'
+  ).split(' '),
+);
+
+/** A crude stem, so "executors" and "executor" land in the same bucket. */
+const stem = (word: string) => word.replace(/(ing|ed|es|s)$/, '');
+
+/**
+ * A deterministic 768-d embedding: hashed word counts (FNV-1a), L2-normalised. Texts that share
+ * words are close in cosine distance, so retrieval tests and the emulator behave like the real
+ * thing without the network.
+ */
+export function hashedEmbedding(text: string, dimensions = 768): number[] {
+  const vector = new Array<number>(dimensions).fill(0);
+  for (const raw of text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []) {
+    if (raw.length < 2 || STOPWORDS.has(raw)) continue;
+    const word = stem(raw);
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < word.length; i++) hash = Math.imul(hash ^ word.charCodeAt(i), 0x01000193);
+    const index = (hash >>> 0) % dimensions;
+    vector[index] = (vector[index] ?? 0) + 1;
+  }
+  const norm = Math.hypot(...vector);
+  // An empty text still needs a valid (non-zero) vector for cosine distance.
+  return norm ? vector.map((v) => v / norm) : vector.map((_, i) => (i === 0 ? 1 : 0));
+}
+
+/** Deterministic 768-d vectors from word overlap, so similarity tests are stable. */
 export const fakeEmbedding: EmbeddingPort = {
   async embed(texts) {
-    return texts.map((text) => Array.from({ length: 768 }, (_, i) => ((text.length + i) % 7) / 7));
+    return texts.map((text) => hashedEmbedding(text));
   },
 };
 

@@ -15,7 +15,9 @@ const COMMANDS = {
   'flags-report': 'Check the feature flag registry and report stale flags (FND-23)',
   'platform-admin': 'Grant or revoke the platformAdmin claim (FND-23; humans only)',
   'backfill-search-tokens': 'Rewrite search tokens and stamp recent entries (CORE-15; idempotent)',
+  'backfill-ingest': 'Have Clerk ingest documents from before AI-04 or that failed, and report ingest status (AI-04)',
   'search-load': 'Time the ⌘K search against the emulator with 5,000 matters (CORE-15)',
+  'decode-stack': 'Deobfuscate a web stack trace with the private sourcemaps (FND-21)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -52,7 +54,9 @@ export async function run(argv: string[]): Promise<number> {
       'flags-report': () => import('./flags-report.ts'),
       'platform-admin': () => import('./platform-admin.ts'),
       'backfill-search-tokens': () => import('./backfills/search-tokens.ts'),
+      'backfill-ingest': () => import('./backfills/ingest.ts'),
       'search-load': () => import('./search-load.ts'),
+      'decode-stack': () => import('./decode-stack.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);

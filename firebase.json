@@ -19,7 +19,7 @@
   ],
   "hosting": {
     "public": "dist/apps/web/browser",
-    "ignore": ["firebase.json", "**/.*"],
+    "ignore": ["firebase.json", "**/.*", "**/*.map"],
     "rewrites": [
       {
         "source": "**",

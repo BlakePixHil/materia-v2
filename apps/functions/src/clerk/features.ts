@@ -9,14 +9,17 @@ export const CLERK_FEATURES = {
   hello: { flag: null, timeoutMs: 30_000 },
   chat: { flag: 'clerk.features.chat', timeoutMs: 120_000 },
   suggestions: { flag: 'clerk.features.suggestions', timeoutMs: 90_000 },
-  classification: { flag: 'clerk.features.classification', timeoutMs: 60_000 },
+  // Background features (AI-04 ingestion) run without a person waiting, so the per-user request
+  // window doesn't apply; the org's daily OCR page budget and the monthly token budget do.
+  classification: { flag: 'clerk.features.classification', timeoutMs: 60_000, background: true },
+  ocr: { flag: null, timeoutMs: 120_000, background: true },
   brief: { flag: 'clerk.features.brief', timeoutMs: 90_000 },
   willExtraction: { flag: 'clerk.features.willExtraction', timeoutMs: 300_000 },
   drafting: { flag: 'clerk.features.drafting', timeoutMs: 180_000 },
   timeAssist: { flag: 'clerk.features.timeAssist', timeoutMs: 60_000 },
   /** The citation judge in the eval harness (AI-12): never called by the app. */
   evalJudge: { flag: null, timeoutMs: 60_000 },
-} as const satisfies Record<string, { flag: FlagKey | null; timeoutMs: number }>;
+} as const satisfies Record<string, { flag: FlagKey | null; timeoutMs: number; background?: boolean }>;
 
 export type ClerkFeature = keyof typeof CLERK_FEATURES;
 
