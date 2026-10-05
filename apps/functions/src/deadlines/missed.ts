@@ -1,15 +1,16 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
-import { Notification, today, type DateOnly } from '@materia/domain';
+import { today, type DateOnly } from '@materia/domain';
 
 import { REGION } from '../config';
 import { isDeleted } from '../contacts/shared';
 import { adminDb } from '../core/admin';
 import { orgClock } from '../core/emulator-clock';
 import { createLog, functionsSink, type Log } from '../core/log';
-import type { Clock } from '../ports';
-import { systemClock } from '../ports/container';
+import { notify, type NotifyResult } from '../notifications/notify';
+import type { Clock, Ports } from '../ports';
+import { ports as container, systemClock } from '../ports/container';
 import { orgTimeZone } from '../templates/shared';
 
 /** Why a deadline was or wasn't asked about. */
@@ -31,6 +32,7 @@ export async function flagMissedDeadlines(
   orgId: string,
   baseClock: Clock,
   log: Log,
+  ports: Pick<Ports, 'tasks'>,
 ): Promise<MissedCheckOutcome> {
   const clock = await orgClock(db, orgId, baseClock);
   const now = clock.now();
@@ -42,8 +44,11 @@ export async function flagMissedDeadlines(
     .where('dueDate', '<', todayDate)
     .get();
   const flagged: string[] = [];
+  const notifyCtx = { db, orgId, clock, log, ports };
   for (const doc of snap.docs) {
+    let notified: NotifyResult | undefined;
     const done = await db.runTransaction(async (tx) => {
+      notified = undefined;
       const current = await tx.get(doc.ref);
       const data = current.data();
       if (!data || isDeleted(data) || data['status'] !== 'upcoming') return false;
@@ -58,28 +63,25 @@ export async function flagMissedDeadlines(
       });
       const recipient = data['assigneeUid'];
       if (typeof recipient === 'string' && recipient) {
-        tx.set(
-          db.doc(`orgs/${orgId}/notifications/dlmissed-${matterId}-${doc.id}-${dueDate}`),
-          Notification.schema.parse({
+        notified = await notify(
+          notifyCtx,
+          {
             kind: 'deadline_missed',
             deadlineId: doc.id,
             matterId,
-            recipientUid: recipient,
+            recipients: [recipient],
             title: 'Was this deadline missed?',
             body: `${String(data['title'] ?? 'Deadline')} was due ${dueDate}. Mark it done, move it or confirm it was missed.`,
             link: `/matters/${matterId}/deadlines`,
-            channel: ['inapp'],
             priority: data['critical'] === true ? 'high' : 'normal',
-            createdAt: now,
-            createdBy: 'system',
-            updatedAt: now,
-            updatedBy: 'system',
-            schemaVersion: Notification.version,
-          }),
+            key: `dlmissed-${matterId}-${doc.id}-${dueDate}`,
+          },
+          { tx },
         );
       }
       return true;
     });
+    await notified?.dispatch();
     if (done) flagged.push(`${String(doc.get('matterId'))}/${doc.id}`);
   }
   log.info('missed deadlines checked', { orgId, checked: snap.size, flagged: flagged.length });
@@ -87,13 +89,18 @@ export async function flagMissedDeadlines(
 }
 
 /** Runs the missed check for every active org; one org's failure doesn't stop the others. */
-export async function flagMissedAllOrgs(db: Firestore, clock: Clock, log: Log): Promise<number> {
+export async function flagMissedAllOrgs(
+  db: Firestore,
+  clock: Clock,
+  log: Log,
+  ports: Pick<Ports, 'tasks'>,
+): Promise<number> {
   const orgs = await db.collection('orgs').get();
   let flagged = 0;
   for (const org of orgs.docs) {
     if (isDeleted(org.data())) continue;
     try {
-      flagged += (await flagMissedDeadlines(db, org.id, clock, log)).flagged.length;
+      flagged += (await flagMissedDeadlines(db, org.id, clock, log, ports)).flagged.length;
     } catch (error) {
       log.error('missed check failed', {
         orgId: org.id,
@@ -109,7 +116,7 @@ export const flagMissed = onSchedule(
   { schedule: '30 5 * * *', timeZone: 'Australia/Melbourne', region: REGION, retryCount: 0 },
   async () => {
     const log = createLog({ fn: 'deadlines-flagMissed' }, functionsSink);
-    const flagged = await flagMissedAllOrgs(adminDb(), systemClock, log);
+    const flagged = await flagMissedAllOrgs(adminDb(), systemClock, log, container());
     log.info('ok', { flagged });
   },
 );

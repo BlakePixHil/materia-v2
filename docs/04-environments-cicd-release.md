@@ -20,7 +20,7 @@
   - `cloudfunctions.developer`, `run.developer`, `iam.serviceAccountUser` on the runtime SA, `firebasehosting.admin`, `datastore.indexAdmin` and `firebaserules.admin`.
 - **Runtime service accounts:** one per function group. The default compute SA is not used.
 - **Secrets:** Secret Manager, accessed with `defineSecret()` in functions. Examples:
-  - `POSTMARK_TOKEN`;
+  - `POSTMARK_TOKEN` and `POSTMARK_WEBHOOK_SECRET` (FND-20, infra/MANUAL.md);
   - `ANTHROPIC_API_KEY`, only if the Anthropic API is chosen;
   - `XERO_CLIENT_SECRET`, `MS_CLIENT_SECRET`, `GOOGLE_CLIENT_SECRET`.
 - **Client config** (the Firebase web config) is not secret. It is generated per env into `apps/web/src/environments/` by `tools/scripts/env.ts` from Terraform outputs.

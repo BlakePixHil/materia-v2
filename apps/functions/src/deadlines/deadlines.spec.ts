@@ -63,10 +63,11 @@ function world({ statutory = true, matters = { m1: matterDoc() } as Record<strin
   });
   // 11:00 on 5 October 2026 in Melbourne.
   const clock = new FakeClock(new Date('2026-10-05T00:00:00.000Z'));
+  const ports = fakePorts();
   const deps = (): CallableDeps => ({
     db: () => store.db,
     clock,
-    ports: () => fakePorts(),
+    ports: () => ports,
     memberLookup: async () => true,
     idempotency: {
       begin: async () => ({ replay: false }),
@@ -87,7 +88,7 @@ function world({ statutory = true, matters = { m1: matterDoc() } as Record<strin
       .map(([p, data]): Data & { id: string } => ({ ...data, id: p.split('/').at(-1) as string }));
   const doc = (path: string) => store.docs.get(path) as Data | undefined;
   const log = createLog({ fn: 'test' }, () => undefined);
-  return { ...store, clock, call, under, doc, log };
+  return { ...store, clock, call, under, doc, log, ports };
 }
 
 type World = ReturnType<typeof world>;
@@ -284,6 +285,7 @@ describe('deadlines-upsertEvent and recompute', () => {
       cause: 'stage',
       clock: w.clock,
       log: w.log,
+      ports: w.ports,
     });
     expect(outcome.createdTaskIds).toEqual(['dlt-plan-distribution']);
     expect((w.doc(MATTER) as Data)['openTaskCount']).toBe(2);
@@ -362,6 +364,7 @@ describe('deadlines-resolveChange', () => {
       cause: 'recompute',
       clock: w.clock,
       log: w.log,
+      ports: w.ports,
     });
     expect(again.proposed).toEqual([]);
   });
@@ -587,14 +590,14 @@ describe('deadlines-complete and the missed check', () => {
     );
     expect(notYet.details['reason']).toBe('not_past_due');
 
-    const outcome = await flagMissedDeadlines(w.db, ORG, w.clock, w.log);
+    const outcome = await flagMissedDeadlines(w.db, ORG, w.clock, w.log, w.ports);
     expect(outcome.flagged).toEqual(['m1/rule-vic.probate.prompt_filing']);
     expect(w.doc(`${D}/rule-vic.probate.prompt_filing`)).toMatchObject({ missedCheck: { since: '2026-10-01' } });
     expect(w.doc(`orgs/${ORG}/notifications/dlmissed-m1-rule-vic.probate.prompt_filing-2026-10-01`)).toMatchObject({
       kind: 'deadline_missed',
       recipientUid: 'user-lawyer',
     });
-    expect(await flagMissedAllOrgs(w.db, w.clock, w.log)).toBe(0);
+    expect(await flagMissedAllOrgs(w.db, w.clock, w.log, w.ports)).toBe(0);
 
     const missed = await w.call(completeDefinition as never, {
       matterId: 'm1',
@@ -615,6 +618,7 @@ describe('nextDeadline', () => {
       db: w.db,
       params: { orgId: ORG, matterId: 'm1', deadlineId: 'rule-vic.caveat.expiry' },
       log: w.log,
+      ports: w.ports,
     } as unknown as TriggerContext;
     await onDeadlineWrite(ctx);
     expect((w.doc(MATTER) as Data)['nextDeadline']).toMatchObject({ id: 'rule-vic.caveat.expiry', critical: true });
@@ -668,6 +672,7 @@ describe('deadlines-proposeRulesetUpgrade', () => {
       cause: 'recompute',
       clock: w.clock,
       log: w.log,
+      ports: w.ports,
     });
     expect((w.doc(`${D}/rule-org.executor_year`) as Data)['dueDate']).toBe('2027-08-02');
     const v2 = {

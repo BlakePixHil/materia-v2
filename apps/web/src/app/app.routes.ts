@@ -24,6 +24,11 @@ const devRoutes: Route[] =
           title: 'Deadline lab',
           loadComponent: () => import('./dev/deadline-lab').then((m) => m.DeadlineLabPage),
         },
+        {
+          path: '__dev/mail',
+          title: 'Dev mail',
+          loadComponent: () => import('./dev/mail-page').then((m) => m.MailDevPage),
+        },
       ]
     : [];
 

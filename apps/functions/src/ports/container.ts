@@ -6,12 +6,15 @@ import { fakePorts } from './fakes';
 import type { MailPort, Ports } from './index';
 import { anthropicModel } from '../clerk/providers/anthropic';
 import { adminDb } from '../core/admin';
+import { cloudTasks } from '../core/enqueue';
 import { isEmulator, useFakes } from '../core/env';
-import { CLAMAV_SCAN_URL } from '../core/params';
-import { ANTHROPIC_API_KEY } from '../core/secrets';
+import { clamavScanUrl } from '../core/params';
+import { ANTHROPIC_API_KEY, POSTMARK_TOKEN, secretValue } from '../core/secrets';
 import { clamavScanner } from '../documents/clamav';
 import { emulatorSignedUrls, storageSignedUrls } from '../documents/signed-urls';
 import { cloudRunJobs } from '../jobs/cloud-run';
+import { mailFrom, postmarkMail } from '../mail/postmark';
+import { emulatorPush, fcmPush } from '../notifications/push';
 
 export const systemClock = { now: () => new Date() };
 
@@ -29,7 +32,11 @@ function notConfigured<T extends object>(port: string): T {
 function realPorts(): Ports {
   return {
     clock: systemClock,
-    mail: notConfigured('MailPort'), // FND-20 (Postmark)
+    // FND-20. The token is read on each send, so only functions that declare the secret can email;
+    // without a value every send is `not_configured`.
+    mail: postmarkMail({ token: () => secretValue(() => POSTMARK_TOKEN.value()), from: mailFrom }),
+    push: fcmPush(), // FND-20
+    tasks: cloudTasks,
     // AI-02 (ADR-011a). The key is read on first use, so only functions that declare the secret can call it.
     clerkModel: anthropicModel({ apiKey: () => ANTHROPIC_API_KEY.value() }),
     embedding: notConfigured('EmbeddingPort'), // AI-03
@@ -37,7 +44,7 @@ function realPorts(): Ports {
     xero: notConfigured('XeroPort'), // BILL-08
     // CORE-12: ClamAV over HTTP. Until the scanner service is deployed (CLAMAV_SCAN_URL empty),
     // every upload stays quarantined as "Scanning delayed": fail closed.
-    malwareScan: clamavScanner({ url: () => CLAMAV_SCAN_URL.value() }),
+    malwareScan: clamavScanner({ url: clamavScanUrl }),
     signedUrls: storageSignedUrls(), // CORE-12
     transcription: notConfigured('TranscriptionPort'), // MOB-03
     jobs: cloudRunJobs(), // FND-24
@@ -48,7 +55,8 @@ let current: Ports | undefined;
 
 /**
  * The emulator's mail: each message is written to `emulatorOutbox/{id}` (server-only), so e2e tests
- * and developers can open the links an email would carry (FND-17 invites).
+ * and developers can open the links an email would carry (FND-17 invites) and preview it at the
+ * dev mail page (FND-20).
  */
 export function emulatorOutboxMail(db: () => Firestore): MailPort {
   return {
@@ -61,13 +69,23 @@ export function emulatorOutboxMail(db: () => Firestore): MailPort {
   };
 }
 
-/** Fakes in the emulator or with MATERIA_FAKES=1, real adapters otherwise. */
+/**
+ * Fakes in the emulator or with MATERIA_FAKES=1, real adapters otherwise. The emulator keeps mail
+ * and push in Firestore outboxes and runs Cloud Tasks for real (the emulator has them).
+ */
 export function ports(): Ports {
   current ??= useFakes()
     ? {
         ...fakePorts(),
         clock: systemClock,
-        ...(isEmulator() ? { mail: emulatorOutboxMail(adminDb), signedUrls: emulatorSignedUrls() } : {}),
+        ...(isEmulator()
+          ? {
+              mail: emulatorOutboxMail(adminDb),
+              push: emulatorPush(adminDb),
+              tasks: cloudTasks,
+              signedUrls: emulatorSignedUrls(),
+            }
+          : {}),
       }
     : realPorts();
   return current;

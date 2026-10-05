@@ -22,7 +22,6 @@ import {
   MatterEvent,
   MatterTypeSchema,
   matterStages,
-  Notification,
   stageIndex,
   Task,
   templateTaskDue,
@@ -55,7 +54,8 @@ import { compact, isDeleted } from '../contacts/shared';
 import { isEnabled } from '../core/flags';
 import type { Log } from '../core/log';
 import { liveMatter, matterPath } from '../matters/shared';
-import type { Clock } from '../ports';
+import { notify, type NotifyResult } from '../notifications/notify';
+import type { Clock, Ports } from '../ports';
 import { readMatterTemplateStages, readTemplate, readWith } from '../templates/shared';
 
 type Data = Record<string, unknown>;
@@ -85,6 +85,8 @@ export interface RecomputeRequest {
   role: Role;
   requestId?: string | undefined;
   cause: DeadlineChangeCause;
+  /** Cloud Tasks, for the notifications' email and push (FND-20). */
+  ports: Pick<Ports, 'tasks'>;
   /** The org's clock (pinned in the emulator by `emulatorClock/{orgId}`). */
   clock: Clock;
   log: Log;
@@ -224,8 +226,12 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
   const matterRef = db.doc(matterPath(orgId, matterId));
   const stamp = { updatedAt: now, updatedBy: uid, ...(requestId ? { _requestId: requestId } : {}) };
   const created = { createdAt: now, createdBy: uid, ...stamp };
+  // Notifications are written in the transaction and delivered once it commits (FND-20).
+  const notifyCtx = { db, orgId, clock: { now: () => now }, log, ports: request.ports };
+  let notified: NotifyResult[] = [];
 
   const outcome = await db.runTransaction(async (tx: Transaction) => {
+    notified = [];
     const matter = liveMatter(await tx.get(matterRef), role, matterId);
     const version = typeof matter['recomputeVersion'] === 'number' ? matter['recomputeVersion'] : 0;
 
@@ -346,7 +352,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
     const proposals = plan?.proposals ?? [];
     const conflicts = plan?.overrideConflicts ?? [];
     const responsibleUid = String(matter['responsibleUid'] ?? '');
-    const notify =
+    const shouldNotify =
       (proposals.length || conflicts.length) && responsibleUid
         ? (await tx.get(db.doc(`orgs/${orgId}/members/${responsibleUid}`))).get('status') === 'active'
         : false;
@@ -478,59 +484,55 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
         ),
       );
       summary.proposed.push(changeId);
-      if (!notify) continue;
+      if (!shouldNotify) continue;
       const urgent = proposal.critical && proposal.intoPast;
-      // set, not create: the id repeats if a matter id is ever reused (one proposal, one notification).
-      tx.set(
-        db.doc(`orgs/${orgId}/notifications/dlchange-${matterId}-${changeId}`),
-        Notification.schema.parse({
-          kind: 'deadline_changed',
-          deadlineId: proposal.deadlineId,
-          matterId,
-          changeId,
-          recipientUid: responsibleUid,
-          title: urgent
-            ? 'A critical deadline would move into the past'
-            : proposal.kind === 'moved'
-              ? 'A deadline date change needs your decision'
-              : 'A deadline may no longer apply',
-          body:
-            proposal.kind === 'moved'
-              ? `${proposal.title}${number ? ` · ${number}` : ''}: ${proposal.fromDueDate} → ${proposal.toDueDate ?? ''}`
-              : `${proposal.title}${number ? ` · ${number}` : ''}: ${proposal.reason ?? 'its anchor was removed'}`,
-          link: `/matters/${matterId}/deadlines`,
-          channel: ['inapp'],
-          ...(urgent ? { priority: 'high' } : {}),
-          createdAt: now,
-          createdBy: 'system',
-          updatedAt: now,
-          updatedBy: 'system',
-          schemaVersion: Notification.version,
-        }),
+      // A stable id: it repeats only if a matter id is ever reused (one proposal, one notification).
+      notified.push(
+        await notify(
+          notifyCtx,
+          {
+            kind: 'deadline_changed',
+            deadlineId: proposal.deadlineId,
+            matterId,
+            changeId,
+            recipients: [responsibleUid],
+            title: urgent
+              ? 'A critical deadline would move into the past'
+              : proposal.kind === 'moved'
+                ? 'A deadline date change needs your decision'
+                : 'A deadline may no longer apply',
+            body:
+              proposal.kind === 'moved'
+                ? `${proposal.title}${number ? ` · ${number}` : ''}: ${proposal.fromDueDate} → ${proposal.toDueDate ?? ''}`
+                : `${proposal.title}${number ? ` · ${number}` : ''}: ${proposal.reason ?? 'its anchor was removed'}`,
+            link: `/matters/${matterId}/deadlines`,
+            priority: urgent ? 'high' : 'normal',
+            key: `dlchange-${matterId}-${changeId}`,
+          },
+          { tx },
+        ),
       );
     }
-    if (notify) {
+    if (shouldNotify) {
       for (const deadlineId of conflicts) {
         const update = plan?.updates.find((u) => u.id === deadlineId);
         const computedDue = (update?.set['computed'] as DeadlineComputed | undefined)?.dueDate ?? '';
-        tx.set(
-          db.doc(`orgs/${orgId}/notifications/dlconflict-${matterId}-${deadlineId}-${computedDue}`),
-          Notification.schema.parse({
-            kind: 'deadline_changed',
-            deadlineId,
-            matterId,
-            recipientUid: responsibleUid,
-            title: 'The computed date is now earlier than your override',
-            body: `${String(update?.set['title'] ?? 'Deadline')}${number ? ` · ${number}` : ''}: the rule now gives ${computedDue}`,
-            link: `/matters/${matterId}/deadlines`,
-            channel: ['inapp'],
-            priority: 'high',
-            createdAt: now,
-            createdBy: 'system',
-            updatedAt: now,
-            updatedBy: 'system',
-            schemaVersion: Notification.version,
-          }),
+        notified.push(
+          await notify(
+            notifyCtx,
+            {
+              kind: 'deadline_changed',
+              deadlineId,
+              matterId,
+              recipients: [responsibleUid],
+              title: 'The computed date is now earlier than your override',
+              body: `${String(update?.set['title'] ?? 'Deadline')}${number ? ` · ${number}` : ''}: the rule now gives ${computedDue}`,
+              link: `/matters/${matterId}/deadlines`,
+              priority: 'high',
+              key: `dlconflict-${matterId}-${deadlineId}-${computedDue}`,
+            },
+            { tx },
+          ),
         );
       }
     }
@@ -543,6 +545,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
     });
     return { summary, calendarMissing };
   });
+  for (const result of notified) await result.dispatch();
 
   const { summary, calendarMissing: missing } = outcome;
   if (missing.length) {

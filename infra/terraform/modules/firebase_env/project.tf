@@ -46,6 +46,7 @@ locals {
     "recaptchaenterprise.googleapis.com",
     "firebasehosting.googleapis.com",
     "firebaseremoteconfig.googleapis.com",
+    "fcm.googleapis.com", # push notifications (FND-20)
     "aiplatform.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",

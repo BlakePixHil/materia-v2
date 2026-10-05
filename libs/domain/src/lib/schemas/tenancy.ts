@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
+import { NotificationPrefsSchema } from '../notifications';
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
 import {
   InviteStatusSchema,
@@ -146,21 +147,45 @@ export const User = withMeta(
       theme: ThemeSchema,
       density: z.enum(['comfortable', 'compact']),
       shortcuts: z.boolean(),
-      notifications: z.object({
-        email: z.boolean(),
-        push: z.boolean(),
-        digestHour: z.number().int().min(0).max(23),
-      }),
+      /** Per kind and channel, quiet hours and the daily digest (FND-20, notifications.ts). */
+      notifications: NotificationPrefsSchema,
+      /** The person's IANA time zone for quiet hours and the digest; the org's when absent. */
+      timezone: z.string().min(1).max(64).optional(),
     }),
+    /**
+     * Set by the Postmark bounce and spam webhook (FND-20): mail to this address bounced hard or
+     * was reported as spam, so nothing more is emailed to it.
+     */
+    emailDeliverability: z
+      .object({
+        status: z.literal('undeliverable'),
+        reason: z.enum(['hard_bounce', 'spam_complaint']),
+        at: InstantSchema,
+      })
+      .optional(),
     legacy: z.object({ uid: z.string(), migratedAt: InstantSchema }).optional(),
   },
   {
     path: 'users',
     // The active org changes only through `orgs-switchActiveOrg`, which also sets the claims.
-    serverOwned: ['orgIds', 'activeOrgId', 'claimsVersion', 'memberships', 'legacy'],
+    serverOwned: ['orgIds', 'activeOrgId', 'claimsVersion', 'memberships', 'emailDeliverability', 'legacy'],
     updatable: ['displayName', 'firstName', 'lastName', 'prefs'],
   },
 );
+
+/**
+ * `users/{uid}/devices/{deviceId}`: a push token (FCM) for one browser or phone (FND-20, MOB-04).
+ * Written by its owner; `notifications-deliver` deletes a token FCM reports as invalid.
+ */
+export const Device = withMeta(
+  {
+    token: z.string().min(1).max(4096),
+    platform: z.enum(['web', 'ios', 'android']),
+    lastSeenAt: InstantSchema,
+  },
+  { path: 'users/{uid}/devices', migratable: false },
+);
+export type Device = z.infer<typeof Device.schema>;
 
 export type Org = z.infer<typeof Org.schema>;
 export type Member = z.infer<typeof Member.schema>;

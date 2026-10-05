@@ -45,6 +45,7 @@ export const proposeRulesetUpgradeDefinition = {
           requestId,
           cause: 'ruleset_upgrade',
           clock,
+          ports: ctx.ports,
           log,
         });
         result.processed += 1;

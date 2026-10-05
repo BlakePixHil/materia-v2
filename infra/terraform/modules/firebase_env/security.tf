@@ -81,7 +81,9 @@ resource "google_kms_crypto_key" "migration" {
 # Secret containers only. Values are added by the owner (`gcloud secrets versions add`) and never
 # appear in Terraform state or code. Replicated only in Australia.
 resource "google_secret_manager_secret" "this" {
-  for_each = toset(["ANTHROPIC_API_KEY"])
+  # POSTMARK_TOKEN: the Postmark server token; POSTMARK_WEBHOOK_SECRET: the basic-auth password
+  # Postmark's bounce webhook sends (FND-20, infra/MANUAL.md).
+  for_each = toset(["ANTHROPIC_API_KEY", "POSTMARK_TOKEN", "POSTMARK_WEBHOOK_SECRET"])
 
   project   = google_project.this.project_id
   secret_id = each.value
@@ -96,4 +98,20 @@ resource "google_secret_manager_secret" "this" {
   }
 
   depends_on = [time_sleep.services_ready]
+}
+
+# The functions that read the Postmark secrets don't deploy while a secret has no version, so each
+# starts with the placeholder `unset` (FND-20: email is then recorded `skipped: not_configured` and
+# the webhook answers 503). Not a secret value. The owner's real token is a newer version, which
+# `latest` picks up; Terraform never changes or removes this one.
+resource "google_secret_manager_secret_version" "placeholder" {
+  for_each = toset(["POSTMARK_TOKEN", "POSTMARK_WEBHOOK_SECRET"])
+
+  secret          = google_secret_manager_secret.this[each.value].id
+  secret_data     = "unset"
+  deletion_policy = "ABANDON"
+
+  lifecycle {
+    ignore_changes = [secret_data, enabled]
+  }
 }

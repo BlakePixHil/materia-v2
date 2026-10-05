@@ -12,7 +12,6 @@ import {
   documentVersionPath,
   kindMatchesExtension,
   MatterDocument,
-  Notification,
   PENDING_UPLOAD_PATH,
   ROLES,
   SCAN_MAX_ATTEMPTS,
@@ -34,7 +33,8 @@ import { versionsOf } from './shared';
 import { isDeleted } from '../contacts/shared';
 import type { Log } from '../core/log';
 import { matterPath } from '../matters/shared';
-import { ScannerUnavailableError, type Clock, type MalwareScanPort } from '../ports';
+import { notify } from '../notifications/notify';
+import { ScannerUnavailableError, type Clock, type MalwareScanPort, type Ports } from '../ports';
 
 type Data = Record<string, unknown>;
 
@@ -76,6 +76,8 @@ export interface PipelineDeps {
   clock: Clock;
   log: Log;
   scheduleRescan: (task: RescanTask, delaySeconds: number) => Promise<void>;
+  /** Cloud Tasks, for the infected-upload notification's email (FND-20). */
+  ports: Pick<Ports, 'tasks'>;
   afterVersion?: AfterVersion;
   scanTimeoutMs?: number;
 }
@@ -285,9 +287,8 @@ export async function processUpload(event: UploadEvent, deps: PipelineDeps): Pro
     await files.remove(event.path, event.generation);
     await markUpload(db, docRef, uploadId, { status: 'infected' }, clock.now(), { infected: true });
     await notifyInfected(
-      db,
-      { orgId, matterId, docId, uploadId, uploaderUid: meta.uploaderUid, matter: access.matter },
-      clock.now(),
+      { db, orgId, clock, log, ports: deps.ports },
+      { matterId, docId, uploadId, uploaderUid: meta.uploaderUid, matter: access.matter },
     );
     log.warn('upload infected', { ...ids, signature: verdict.signature ?? 'unknown', sizeBytes: data.length });
     return { outcome: 'infected', docId };
@@ -533,42 +534,33 @@ const hashEntry = (documentId: string, now: Date) =>
   });
 
 /**
- * An infected upload: a high-priority in-app notification to the uploader and to every active
- * owner and admin (one each, idempotent by upload id). No file name: names can carry personal data.
+ * An infected upload: a high-priority `document_infected` notification (through `notify()`, in-app
+ * and by email) to the uploader and to every active owner and admin, one each, keyed by the upload
+ * id so a rerun replaces rather than repeats it. No file name: names can carry personal data.
  */
 async function notifyInfected(
-  db: Firestore,
-  input: { orgId: string; matterId: string; docId: string; uploadId: string; uploaderUid: string; matter: Data },
-  now: Date,
+  ctx: Parameters<typeof notify>[0],
+  input: { matterId: string; docId: string; uploadId: string; uploaderUid: string; matter: Data },
 ): Promise<string[]> {
-  const admins = await db
-    .collection(`orgs/${input.orgId}/members`)
+  const admins = await ctx.db
+    .collection(`orgs/${ctx.orgId}/members`)
     .where('status', '==', 'active')
     .where('role', 'in', ['owner', 'admin'])
     .get();
   const recipients = [...new Set([input.uploaderUid, ...admins.docs.map((doc) => doc.id)])];
   const number =
     typeof input.matter['number'] === 'string' && input.matter['number'] ? input.matter['number'] : 'a matter';
-  for (const recipientUid of recipients) {
-    const notification = Notification.schema.parse({
-      kind: 'document_infected',
-      matterId: input.matterId,
-      documentId: input.docId,
-      recipientUid,
-      title: 'Infected file removed',
-      body: `A file uploaded to ${number} failed the malware scan and was deleted.`,
-      link: `/matters/${input.matterId}/documents`,
-      channel: ['inapp'],
-      priority: 'high',
-      createdAt: now,
-      createdBy: 'system',
-      updatedAt: now,
-      updatedBy: 'system',
-      schemaVersion: Notification.version,
-    });
-    await db.doc(`orgs/${input.orgId}/notifications/infected-${input.uploadId}-${recipientUid}`).set(notification);
-  }
-  return recipients;
+  const result = await notify(ctx, {
+    kind: 'document_infected',
+    matterId: input.matterId,
+    documentId: input.docId,
+    recipients,
+    title: 'Infected file removed',
+    body: `A file uploaded to ${number} failed the malware scan and was deleted.`,
+    link: `/matters/${input.matterId}/documents`,
+    key: `infected-${input.uploadId}`,
+  });
+  return result.ids;
 }
 
 /**
