@@ -69,6 +69,8 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   estate: matter.estate,
   facts: matter.facts,
   privileged: matter.privileged,
+  /** The fee arrangement (BILL-01: a rate override, and fixed-fee time isn't billable by default). */
+  fee: matter.fee.optional(),
   priority: matter.priority,
   labels: matter.labels,
   externalRef: matter.externalRef,

@@ -105,6 +105,7 @@ export const DocumentCategorySchema = z.enum([
 export const DocumentSourceSchema = z.enum(['upload', 'email', 'clerk_draft', 'migration', 'camera', 'generated']);
 
 export const TimeEntryStatusSchema = z.enum(['draft', 'final', 'billed', 'written_off']);
+export type TimeEntryStatus = z.infer<typeof TimeEntryStatusSchema>;
 export const GstTreatmentSchema = z.enum(['taxable', 'gst_free', 'input_taxed']);
 
 export const SuggestionKindSchema = z.enum([

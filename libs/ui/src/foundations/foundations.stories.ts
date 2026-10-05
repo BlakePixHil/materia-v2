@@ -1,12 +1,15 @@
-import type { Meta, StoryObj } from '@storybook/angular';
+import { moduleMetadata, type Meta, type StoryObj } from '@storybook/angular';
 import { expect } from 'storybook/test';
 
+import { MT_ICONS, type MtIconName } from '../generated/icons';
+import { MtIcon } from '../lib/icon/icon';
 import { MT_TOKENS } from '../tokens';
 
 /** Foundations rendered from the generated token map (libs/ui/src/generated/tokens.ts). */
 const meta: Meta = {
   title: 'Foundations',
   parameters: { layout: 'padded' },
+  decorators: [moduleMetadata({ imports: [MtIcon] })],
 };
 export default meta;
 
@@ -147,5 +150,25 @@ export const Spacing: Story = {
   }),
   play: async ({ canvas }) => {
     await expect(canvas.getByText(/space-16/)).toBeTruthy();
+  },
+};
+
+const iconNames = Object.keys(MT_ICONS) as MtIconName[];
+
+export const Icons: Story = {
+  render: () => ({
+    props: { iconNames },
+    template: `
+      <div class="fd">
+        <h2>Icons</h2>
+        <div class="fd-grid">
+          @for (name of iconNames; track name) {
+            <div class="fd-swatch"><mt-icon [name]="name" [size]="20" /><span class="fd-name">{{ name }}</span></div>
+          }
+        </div>
+      </div>`,
+  }),
+  play: async ({ canvas }) => {
+    for (const name of ['moon', 'keyboard', 'log-out']) await expect(canvas.getByText(name)).toBeTruthy();
   },
 };

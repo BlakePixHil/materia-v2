@@ -873,11 +873,14 @@ export function buildDataset(options: {
       critical,
       status,
     }));
-    const wip = spec.time.reduce((sum, [, minutes, uid]) => {
-      const units = Math.ceil(minutes / 6);
-      return sum + Math.round((units * (MEMBERS[uid]?.rate ?? 0)) / 10);
-    }, 0);
     const closed = spec.status === 'closed' || spec.status === 'archived';
+    // Unbilled time is work in progress (BILL-01): a closed matter's time is all billed.
+    const wip = closed
+      ? 0
+      : spec.time.reduce((sum, [, minutes, uid]) => {
+          const units = Math.ceil(minutes / 6);
+          return sum + domain.timeAmountCents(units, MEMBERS[uid]?.rate ?? 0);
+        }, 0);
     const detail = MATTER_DETAILS[spec.id];
     const estate =
       detail && (detail.grantDate !== undefined || detail.grantNo || detail.grossValueCents !== undefined)
@@ -1124,6 +1127,7 @@ export function buildDataset(options: {
     spec.time.forEach(([daysAgo, minutes, uid, narrative], i) => {
       const units = Math.ceil(minutes / 6);
       const rate = MEMBERS[uid]?.rate ?? 0;
+      const amount = domain.timeAmountCents(units, rate);
       add(
         `${base}/timeEntries/${spec.id}-te-${i + 1}`,
         makeTimeEntry({
@@ -1135,10 +1139,13 @@ export function buildDataset(options: {
           minutes: minutes as D.Minutes,
           units,
           rateCents: rate as D.Cents,
-          amountCents: Math.round((units * rate) / 10) as D.Cents,
+          amountCents: amount as D.Cents,
           narrative,
           billable: true,
           status: closed ? 'billed' : 'draft',
+          source: 'manual',
+          // Counted into the matter's wipCents above, so time-onWrite doesn't count it again.
+          wipCountedCents: (closed ? 0 : amount) as D.Cents,
         }),
       );
     });

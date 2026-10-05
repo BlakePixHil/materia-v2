@@ -8,7 +8,7 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 
-import type { RoundingMode } from '@materia/domain';
+import { BILLING_UNIT_MINUTES, formatUnits, type RoundingMode } from '@materia/domain';
 
 import { MtButton } from '../button/button';
 import { MtIcon } from '../icon/icon';
@@ -22,9 +22,13 @@ export interface TimeEntryVm {
   /** Secondary line, such as "WE-142 · Whitfield · 1 Oct" or "3 emails · 10:42–11:05". */
   meta?: string | undefined;
   minutes: number;
-  /** Value in cents; null for no charge. Ignored when `fixedFee`. */
+  /** Billing units already worked out (a recorded entry's snapshot); otherwise from `minutes`. */
+  units?: number | undefined;
+  /** Value in cents; null for no charge. Ignored when `fixedFee` or `valueLabel`. */
   amountCents?: number | null | undefined;
   fixedFee?: boolean | undefined;
+  /** Shown instead of the value, such as "Non-billable". */
+  valueLabel?: string | undefined;
   /** `captured` is a suggestion from email or calendar that a person accepts. */
   source: 'manual' | 'captured';
   /** Billing unit in minutes (default 6) and rounding, from the org settings. */
@@ -78,12 +82,15 @@ export class MtTimeEntry {
 
   protected readonly units = computed(() => {
     const entry = this.entry();
+    if (entry.units !== undefined) return formatUnits(entry.units, entry.unit ?? BILLING_UNIT_MINUTES);
     return formatMinutes(entry.minutes, 'decimal', {
       ...(entry.unit === undefined ? {} : { unit: entry.unit }),
       ...(entry.rounding === undefined ? {} : { rounding: entry.rounding }),
     });
   });
-  protected readonly value = computed(() =>
-    this.entry().fixedFee ? 'Fixed fee' : formatAud(this.entry().amountCents),
-  );
+  protected readonly value = computed(() => {
+    const entry = this.entry();
+    if (entry.valueLabel) return entry.valueLabel;
+    return entry.fixedFee ? 'Fixed fee' : formatAud(entry.amountCents);
+  });
 }
