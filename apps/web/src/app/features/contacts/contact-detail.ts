@@ -7,13 +7,22 @@ import {
   contactPartiesRepository,
   contactsRepository,
   matterSummariesRepository,
+  referredMattersQuery,
+  referredMattersRepository,
   type ContactListItem,
   type MatterSummary,
   type WithId,
 } from '@materia/data-access/repository';
-import { contactDisplayName, formatPhone } from '@materia/domain';
+import {
+  contactDisplayName,
+  formatPhone,
+  MATTER_STATUS_LABELS,
+  referralTotals,
+  REFERRER_INDUSTRY_LABELS,
+} from '@materia/domain';
 import {
   formatDateOnly,
+  MATTER_TYPE_LABELS,
   MtBadge,
   MtButton,
   MtEmptyState,
@@ -143,6 +152,41 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
               }
             </section>
 
+            @if (c.isReferrer || referred().length) {
+              <section class="mt-contact-card" aria-labelledby="contact-referrals-h" data-testid="contact-referrals">
+                <h2 id="contact-referrals-h">
+                  Referrals
+                  <span class="mt-contact-count">{{ totals().count }}</span>
+                </h2>
+                @switch (referrals.status()) {
+                  @case ('loading') {
+                    <p role="status" class="mt-contact-muted">Loading referrals…</p>
+                  }
+                  @case ('error') {
+                    <p class="mt-contact-muted">{{ referralsError() }}</p>
+                  }
+                  @default {
+                    @if (totals().count) {
+                      <p class="caption mt-contact-muted" data-testid="referral-totals">{{ totalsText() }}</p>
+                    }
+                    <ul class="mt-contact-matters" aria-label="Matters referred">
+                      @for (matter of referred(); track matter.id) {
+                        <li>
+                          <span class="mono-s mt-contact-muted">{{ matter.number }}</span>
+                          <div class="mt-col mt-grow" style="gap: 2px; min-width: 0">
+                            <a class="label" [routerLink]="['/matters', matter.id]">{{ matter.title }}</a>
+                            <span class="caption mt-contact-muted">{{ matter.caption }}</span>
+                          </div>
+                        </li>
+                      } @empty {
+                        <li class="mt-contact-muted">No referred matters yet.</li>
+                      }
+                    </ul>
+                  }
+                }
+              </section>
+            }
+
             <section class="mt-contact-card" aria-labelledby="contact-activity-h">
               <h2 id="contact-activity-h">Activity</h2>
               <ul class="mt-contact-activity">
@@ -240,6 +284,42 @@ export class ContactDetail {
   private readonly doc = contactsRepository().watch(() => this.contactId());
   protected readonly parties = contactPartiesRepository().watchQuery(() => contactPartiesQuery(this.contactId()));
   private readonly matterRepo = matterSummariesRepository();
+  private readonly canSeePrivileged = can('privileged.view');
+  /** Matters this contact referred (CORE-18): live, and privileged ones only for privileged.view. */
+  protected readonly referrals = referredMattersRepository().watchQuery(() =>
+    referredMattersQuery(this.contactId(), this.canSeePrivileged()),
+  );
+  protected readonly referralsError = computed(() => errorCopy(this.referrals.error()));
+  protected readonly totals = computed(() => referralTotals(this.referrals.value()));
+  protected readonly referred = computed(() =>
+    this.referrals
+      .value()
+      .filter((m) => !m.deletedAt)
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+      .map((m) => ({
+        id: m.id,
+        number: m.number,
+        title: m.title,
+        caption: [
+          MATTER_TYPE_LABELS[m.type],
+          MATTER_STATUS_LABELS[m.status],
+          m.createdAt ? `Opened ${formatDateOnly(m.createdAt)}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+  );
+  /** "3 matters referred · 2 active · last on 5 Oct 2026" (billed fees join with BILL-07). */
+  protected readonly totalsText = computed(() => {
+    const { count, active, lastReferredAt } = this.totals();
+    return [
+      count === 1 ? '1 matter referred' : `${count} matters referred`,
+      `${active} active`,
+      lastReferredAt ? `last on ${formatDateOnly(lastReferredAt)}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  });
   private readonly matterCache = signal<ReadonlyMap<string, MatterLookup>>(new Map());
   private readonly requested = new Set<string>();
 
@@ -321,7 +401,10 @@ export class ContactDetail {
     if (c.dateOfBirth) facts.push({ id: 'born', label: 'Born', value: formatDateOnly(c.dateOfBirth) });
     if (c.dateOfDeath) facts.push({ id: 'died', label: 'Died', value: formatDateOnly(c.dateOfDeath) });
     if (c.isReferrer) {
-      const meta = [c.referrerMeta?.company, c.referrerMeta?.industry].filter(Boolean).join(' · ');
+      const industry = c.referrerMeta?.industry;
+      const meta = [industry ? REFERRER_INDUSTRY_LABELS[industry] : null, c.referrerMeta?.company]
+        .filter(Boolean)
+        .join(' · ');
       facts.push({ id: 'referrer', label: 'Referrer', value: meta || 'Yes', copyable: false });
     }
     if (c.tags.length) facts.push({ id: 'tags', label: 'Tags', value: c.tags.join(', '), copyable: false });
