@@ -22,5 +22,6 @@ export * as activity from './activity/index';
 export * as reminders from './reminders/index';
 export * as safeCustody from './safe-custody/index';
 export * as time from './time/index';
+export * as backups from './backups/index';
 // Emulator-only tools (the dev mail preview): undefined, so never deployed, anywhere else.
 export * as dev from './dev/index';

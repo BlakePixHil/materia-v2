@@ -107,6 +107,30 @@ variable "backup_monthly_retention_days" {
   default     = 400
 }
 
+variable "files_soft_delete_days" {
+  description = "Days a deleted object in the files bucket stays in soft delete (SEC-03; 7 to 90)."
+  type        = number
+  default     = 30
+}
+
+variable "files_noncurrent_days" {
+  description = "Days a non-current (overwritten or deleted) version in the files bucket is kept (SEC-03)."
+  type        = number
+  default     = 90
+}
+
+variable "firestore_daily_backup_retention_days" {
+  description = "Retention of the daily Firestore managed backups (SEC-03). Firestore caps daily schedules at 7 days."
+  type        = number
+  default     = 7
+}
+
+variable "firestore_weekly_backup_retention_weeks" {
+  description = "Retention of the weekly Firestore managed backups (SEC-03). Firestore caps backups at 14 weeks."
+  type        = number
+  default     = 14
+}
+
 variable "migration_retention_days" {
   description = "Days to keep objects in the migration bucket."
   type        = number

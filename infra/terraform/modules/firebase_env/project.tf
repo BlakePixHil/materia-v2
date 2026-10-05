@@ -46,7 +46,8 @@ locals {
     "recaptchaenterprise.googleapis.com",
     "firebasehosting.googleapis.com",
     "firebaseremoteconfig.googleapis.com",
-    "fcm.googleapis.com", # push notifications (FND-20)
+    "fcm.googleapis.com",             # push notifications (FND-20)
+    "storagetransfer.googleapis.com", # nightly files backup (SEC-03)
     "aiplatform.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
