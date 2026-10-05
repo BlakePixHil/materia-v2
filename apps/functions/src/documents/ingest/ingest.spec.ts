@@ -23,6 +23,7 @@ import { sampleDocx, samplePng, textPdf } from './testing';
 import { createClerkGateway } from '../../clerk/gateway';
 import { FakeClerkModel } from '../../clerk/providers/fake';
 import { MemoryClerkStore, MemoryKeyring } from '../../clerk/testing';
+import { clearFlagCaches, setRemoteFlagLoader } from '../../core/flags';
 import { createLog } from '../../core/log';
 import type { TriggerContext } from '../../core/trigger';
 import { memoryFirestore } from '../../orgs/testing';
@@ -91,6 +92,8 @@ function world(options: WorldOptions = {}) {
   const store = memoryFirestore({
     [`orgs/${ORG}`]: {
       name: 'Harbour & Vine Legal (fictional)',
+      // Classification proposes through AI-07's suggestions engine, which has its own flag.
+      flags: { 'clerk.features.suggestions': true },
       ...(options.ocrDailyPages !== undefined ? { settings: { clerk: { ocrDailyPages: options.ocrDailyPages } } } : {}),
     },
     [MATTER]: { title: 'Estate of Margaret Doyle (fictional)', privileged: false, deletedAt: null },
@@ -183,6 +186,11 @@ function world(options: WorldOptions = {}) {
 }
 
 const ingestOf = (doc: Data) => doc['ingest'] as Data;
+
+beforeEach(() => {
+  setRemoteFlagLoader(async () => ({}));
+  clearFlagCaches();
+});
 
 describe('ingestDocument', () => {
   it('ingests a text PDF: one chunk per page here, with provenance, embeddings and a classification suggestion', async () => {

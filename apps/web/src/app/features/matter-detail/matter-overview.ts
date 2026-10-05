@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, ViewEncapsulation } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+import { can } from '@materia/data-access';
 import {
   compareNotes,
   forMatter,
@@ -20,17 +21,20 @@ import { MtMarkdown } from '@materia/ui/markdown';
 import { MatterKeyFacts } from './matter-key-facts';
 import { MatterScreen } from './matter-screen';
 import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { statutoryDisabled } from '../deadlines/statutory-flag';
 import { matterResolver, memberResolver } from '../notes/note-mentions';
 import { noteTime } from '../notes/note-time';
 import { activityTitle, mentionsAcross, noteAuthor, type NoteRecord } from '../notes/note-view';
+import { MatterSuggestions } from '../suggestions/matter-suggestions';
 
 /** How many open tasks the overview lists (the count shows them all). */
 const TASKS_SHOWN = 5;
 
 /**
  * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the next
- * five deadlines, open tasks, the three latest activity lines and the Clerk brief (AI-06 fills it).
+ * five deadlines, open tasks, the three latest activity lines, "Clerk suggests…" (AI-07) and the
+ * Clerk brief (AI-06 fills it).
  * Listens to the matter's pinned notes, deadlines, tasks and activity only while this tab is shown.
  */
 @Component({
@@ -38,7 +42,7 @@ const TASKS_SHOWN = 5;
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
-  imports: [RouterLink, MatterKeyFacts, MtClerkMark, MtDeadlineChip, MtEmptyState, MtMarkdown],
+  imports: [RouterLink, MatterKeyFacts, MatterSuggestions, MtClerkMark, MtDeadlineChip, MtEmptyState, MtMarkdown],
   host: { class: 'mt-matter-overview' },
   template: `
     @if (pinned().length) {
@@ -62,6 +66,12 @@ const TASKS_SHOWN = 5;
         <div class="mt-card-h"><h2 class="mt-card-title" id="mt-ov-facts">Key facts</h2></div>
         <mt-matter-key-facts />
       </section>
+      @if (suggestionsOn()) {
+        <!-- Its own chunk (AI-07): the card, its editor and the callables load only when Clerk can suggest. -->
+        @defer (on idle) {
+          <mt-matter-suggestions />
+        }
+      }
       <section class="mt-card" data-pad aria-labelledby="mt-ov-brief">
         <div class="mt-card-h">
           <mt-clerk-mark size="xs" />
@@ -213,6 +223,10 @@ const TASKS_SHOWN = 5;
 export class MatterOverview {
   protected readonly screen = inject(MatterScreen);
   private readonly today = inject(MT_TODAY);
+  private readonly flags = inject(FeatureFlagService);
+  private readonly canClerk = can('clerk.use');
+  /** Clerk suggestions are on for the org and the role may use Clerk (AI-07). */
+  protected readonly suggestionsOn = computed(() => this.flags.isOn('clerk.features.suggestions') && this.canClerk());
   private readonly id = this.screen.id;
 
   protected readonly deadlines = matterDeadlinesRepository(this.id).watchQuery(

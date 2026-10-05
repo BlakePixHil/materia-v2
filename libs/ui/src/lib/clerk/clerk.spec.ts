@@ -243,6 +243,13 @@ describe('MtSuggestion', () => {
     expect(edit).toHaveBeenCalled();
     expect(accept).not.toHaveBeenCalled();
   });
+
+  it('hides the actions a person can’t take', async () => {
+    await render(MtSuggestion, {
+      inputs: { suggestion: { id: 's', kind: 'Task', title: 'Do it' }, canAccept: false, canDismiss: false },
+    });
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
 });
 
 @Component({
