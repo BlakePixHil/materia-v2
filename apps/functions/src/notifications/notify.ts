@@ -104,7 +104,7 @@ interface Writer {
  * - the channels follow their preferences (`resolveChannels`: critical always emails);
  * - after `NOTIFICATION_BURST_LIMIT` in a minute (critical aside), the rest are written in-app
  *   only, marked with the burst's summary, and the summary counts them;
- * - otherwise `orgs/{orgId}/notifications/{id}` is written (`readAt: null`) and each email and
+ * - otherwise `orgs/{orgId}/notifications/{id}` is written (`readAt` and `summaryId` null) and each email and
  *   push delivery is enqueued on `notifications-deliver`, held until the end of the recipient's
  *   quiet hours when it isn't critical.
  *
@@ -158,7 +158,7 @@ export async function notify(
       }
       const id = key ? (uids.length === 1 ? key : `${key}-${uid}`) : db.collection(notificationsPath(orgId)).doc().id;
       const ref = db.doc(`${notificationsPath(orgId)}/${id}`);
-      const base = { ...payload, recipientUid: uid, priority, readAt: null, ...meta };
+      const base = { ...payload, recipientUid: uid, priority, readAt: null, summaryId: null, ...meta };
 
       if (priority !== 'critical' && (await recentCount(db, orgId, uid, now)) >= NOTIFICATION_BURST_LIMIT) {
         const summaryId = burstSummaryId(uid, now);
@@ -172,6 +172,7 @@ export async function notify(
           channels: ['inapp'],
           priority: 'normal',
           readAt: null,
+          summaryId: null,
           collapsedCount: 1,
           ...meta,
           createdBy: 'system',

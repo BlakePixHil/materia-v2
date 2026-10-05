@@ -246,8 +246,11 @@ const notificationBase = {
   deliveries: z.array(NotificationDeliverySchema).optional(),
   /** Email and push wait until then (the recipient's quiet hours). */
   deliverAfter: InstantSchema.optional(),
-  /** Part of a burst for this recipient: listed in the inbox but not delivered; its summary is. */
-  summaryId: DocIdSchema.optional(),
+  /**
+   * Part of a burst for this recipient: listed in the inbox but not delivered or counted; its
+   * summary is. `null` otherwise (stored explicitly, so the unread badge can leave bursts out).
+   */
+  summaryId: DocIdSchema.nullable().optional(),
   /** On a burst summary: how many notifications it stands for. */
   collapsedCount: z.number().int().min(1).optional(),
 };

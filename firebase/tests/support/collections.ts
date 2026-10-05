@@ -1,4 +1,4 @@
-import { Timestamp } from 'firebase/firestore';
+import { serverTimestamp, Timestamp } from 'firebase/firestore';
 
 import { PERMISSIONS, ROLES, type Action, type Role } from '@materia/domain';
 import { ENTITY_FACTORIES } from '@materia/test-utils';
@@ -110,6 +110,18 @@ export const COLLECTIONS: CollectionSpec[] = [
     ownerCreatesAndDeletes: true,
   },
 
+  // Push devices (FND-20): the user's own, registered, refreshed and removed by the client.
+  {
+    collection: 'devices',
+    docPath: `users/${OWNER}/devices/device-1`,
+    entity: 'Device',
+    seed: { createdBy: OWNER },
+    read: 'owner',
+    update: 'owner',
+    change: { lastSeenAt: serverTimestamp() },
+    ownerCreatesAndDeletes: true,
+  },
+
   // Organisation.
   { collection: 'orgs', docPath: `orgs/${ORG}`, entity: 'Org', read: 'members', update: 'org.settings' },
   {
@@ -218,6 +230,16 @@ export const COLLECTIONS: CollectionSpec[] = [
     seed: { recipientUid: OWNER },
     read: 'owner',
     update: 'owner',
+    // Marking it read stamps the server's time (FND-20).
+    change: { readAt: serverTimestamp() },
+  },
+  {
+    // Daily digest records (FND-20): server-only.
+    collection: 'digests',
+    docPath: `orgs/${ORG}/digests/digest-${OWNER}-2026-10-06`,
+    seed: { uid: OWNER, date: '2026-10-06', status: 'sent' },
+    read: 'none',
+    update: 'none',
   },
   {
     // Background job progress (FND-24): only the member who started the job reads it.

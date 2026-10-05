@@ -1197,6 +1197,147 @@ describe('recent matters (CORE-14)', () => {
   });
 });
 
+describe('notifications (FND-20)', () => {
+  const devicesOf = (uid: string) => `users/${uid}/devices`;
+  /** A device as the web app registers it. */
+  const device = (uid: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    token: 'fake-fcm-token-rules',
+    platform: 'web',
+    lastSeenAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+  const INBOX = `orgs/${ORG}/notifications`;
+
+  it.each(EVERYONE)('register, refresh, list and remove my own device, as %s', async (who) => {
+    // Devices belong to the account, not the org: anyone signed in manages their own.
+    const { firestore, uid } = firestoreOf(who);
+    const ref = doc(firestore, `${devicesOf(uid)}/device-mine`);
+    await assertSucceeds(setDoc(ref, device(uid)));
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(getDocs(collection(firestore, devicesOf(uid))));
+    await assertSucceeds(updateDoc(ref, stamped({ lastSeenAt: serverTimestamp(), token: 'fake-fcm-token-2' }, uid)));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it.each(ROLES)("someone else's devices are off limits, as %s", async (role) => {
+    const other = role === 'lawyer' ? uidFor('owner') : uidFor('lawyer');
+    const path = `${devicesOf(other)}/device-theirs`;
+    await seedAdmin(env, (f) => setDoc(doc(f, path), { ...seedData(specFor('devices')), createdBy: other }));
+    const firestore = db(env, role);
+    await assertFails(getDoc(doc(firestore, path)));
+    await assertFails(getDocs(collection(firestore, devicesOf(other))));
+    await assertFails(setDoc(doc(firestore, `${devicesOf(other)}/device-planted`), device(uidFor(role))));
+    await assertFails(updateDoc(doc(firestore, path), stamped({ token: 'stolen' }, uidFor(role))));
+    await assertFails(deleteDoc(doc(firestore, path)));
+  });
+
+  it('refuses an invalid device', async () => {
+    const uid = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), `${devicesOf(uid)}/device-bad`);
+    for (const bad of [
+      { token: '' },
+      { token: 'x'.repeat(4097) },
+      { token: 42 },
+      { platform: 'fax' },
+      { lastSeenAt: '2026-10-05' },
+      { createdBy: 'someone-else' },
+      { updatedBy: 'someone-else' },
+      { createdAt: Timestamp.fromMillis(0) },
+      { schemaVersion: 2 },
+      { ownerEmail: 'someone@example.com' },
+    ]) {
+      await assertFails(setDoc(ref, device(uid, bad)));
+    }
+    const incomplete = device(uid);
+    delete incomplete['platform'];
+    await assertFails(setDoc(ref, incomplete));
+  });
+
+  it('a recipient marks a notification read with the server time, or unread; nothing else', async () => {
+    const uid = uidFor('lawyer');
+    const path = `${INBOX}/notification-read`;
+    await seedAdmin(env, (f) => setDoc(doc(f, path), { ...seedData(specFor('notifications')), recipientUid: uid }));
+    const ref = doc(db(env, 'lawyer'), path);
+    await assertSucceeds(updateDoc(ref, stamped({ readAt: serverTimestamp() }, uid)));
+    await assertSucceeds(updateDoc(ref, stamped({ readAt: null }, uid)));
+    await assertFails(updateDoc(ref, stamped({ readAt: Timestamp.fromMillis(0) }, uid)));
+    await assertFails(updateDoc(ref, stamped({ readAt: 'yesterday' }, uid)));
+    for (const field of ['channels', 'deliveries', 'priority', 'recipientUid', 'body', 'deliverAfter']) {
+      await assertFails(updateDoc(ref, stamped({ readAt: serverTimestamp(), [field]: null }, uid)));
+    }
+  });
+
+  it.each(EVERYONE)('lists only my unread in-app notifications, as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    // The nav badge's query: mine, in-app, unread, newest first.
+    const unread = (recipient: string) =>
+      getDocs(
+        query(
+          collection(firestore, INBOX),
+          where('recipientUid', '==', recipient),
+          where('channels', 'array-contains', 'inapp'),
+          where('readAt', '==', null),
+          where('summaryId', '==', null),
+          orderBy('createdAt', 'desc'),
+          limit(100),
+        ),
+      );
+    await (isMember(who) ? assertSucceeds(unread(uid)) : assertFails(unread(uid)));
+    await assertFails(unread(uid === uidFor('lawyer') ? uidFor('owner') : uidFor('lawyer')));
+    await assertFails(getDocs(query(collection(firestore, INBOX), limit(10))));
+  });
+
+  it('notification preferences are the owner’s, and never turn off email for deadline escalations', async () => {
+    const uid = uidFor('paralegal');
+    await seedAdmin(env, (f) => setDoc(doc(f, `users/${uid}`), seedData(specFor('users'))));
+    const ref = doc(db(env, 'paralegal'), `users/${uid}`);
+    const prefs = (notifications: unknown) => ({
+      prefs: { theme: 'system', density: 'comfortable', shortcuts: true, notifications },
+    });
+    const valid = {
+      email: true,
+      push: true,
+      digestHour: 6,
+      quietHours: { start: '20:00', end: '06:30' },
+      kinds: { mention: { email: false }, deadline_escalation: { push: false } },
+    };
+    await assertSucceeds(updateDoc(ref, stamped(prefs(valid), uid)));
+    // Switching email off is allowed: critical notifications still email (enforced by notify()).
+    await assertSucceeds(updateDoc(ref, stamped(prefs({ ...valid, email: false }), uid)));
+    await assertSucceeds(
+      updateDoc(ref, stamped(prefs({ ...valid, kinds: { deadline_escalation: { email: true } } }), uid)),
+    );
+    for (const bad of [
+      { ...valid, kinds: { deadline_escalation: { email: false } } },
+      { ...valid, digestHour: 24 },
+      { ...valid, digestHour: '7' },
+      { ...valid, email: 'yes' },
+      { ...valid, push: 1 },
+      { ...valid, kinds: 'all' },
+      'off',
+    ]) {
+      await assertFails(updateDoc(ref, stamped(prefs(bad), uid)));
+    }
+    // Someone else's preferences are not mine to change.
+    const other = doc(db(env, 'paralegal'), `users/${uidFor('lawyer')}`);
+    await assertFails(updateDoc(other, stamped(prefs(valid), uid)));
+    // The server-owned undeliverable flag isn't the owner's either.
+    await assertFails(updateDoc(ref, stamped({ emailDeliverability: null }, uid)));
+  });
+
+  it.each(EVERYONE)('digest records are server-only, as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    await assertFails(getDoc(doc(firestore, `orgs/${ORG}/digests/digest-${uid}-2026-10-06`)));
+    await assertFails(getDocs(collection(firestore, `orgs/${ORG}/digests`)));
+    await assertFails(setDoc(doc(firestore, `orgs/${ORG}/digests/digest-${uid}-2026-10-07`), { uid }));
+  });
+});
+
 describe('tasks (CORE-08)', () => {
   const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-tasks-privileged`;
   const DELETED_MATTER = `orgs/${ORG}/matters/matter-tasks-deleted`;

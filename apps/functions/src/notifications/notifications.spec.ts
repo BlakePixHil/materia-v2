@@ -253,14 +253,14 @@ describe('notify()', () => {
     // Ben isn't in a burst; a critical notification to Ada is never collapsed.
     await notify(w.ctx, assigned({ recipients: ['user-ben'], key: 'calm' }));
     await notify(w.ctx, assigned({ key: 'critical', priority: 'critical' }));
-    expect(w.doc(`${N}/calm`)?.['summaryId']).toBeUndefined();
-    expect(w.doc(`${N}/critical`)?.['summaryId']).toBeUndefined();
+    expect(w.doc(`${N}/calm`)?.['summaryId']).toBeNull();
+    expect(w.doc(`${N}/critical`)?.['summaryId']).toBeNull();
     expect(w.tasks.queued.map((q) => q.payload['notificationId'])).toEqual(['calm', 'critical']);
 
     // A minute later the burst is over.
     w.clock.advance(61_000);
     await notify(w.ctx, assigned({ key: 'later' }));
-    expect(w.doc(`${N}/later`)?.['summaryId']).toBeUndefined();
+    expect(w.doc(`${N}/later`)?.['summaryId']).toBeNull();
   });
 
   it('writes in a transaction and queues only when dispatched after it commits', async () => {

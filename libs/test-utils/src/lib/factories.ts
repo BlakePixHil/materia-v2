@@ -597,6 +597,7 @@ export const makeNotification = (o: Partial<D.Notification> = {}) =>
       channels: ['inapp'],
       priority: 'normal',
       readAt: null,
+      summaryId: null,
     },
     o as never,
   );
