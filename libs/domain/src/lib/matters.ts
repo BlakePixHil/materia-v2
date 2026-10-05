@@ -6,7 +6,8 @@ import { CostsDisclosureInput, FeeInput, IntakeEventInput, IntakePartyInput } fr
 import { DocIdSchema } from './schemas/common';
 import { Matter } from './schemas/contacts-matters';
 import { MatterStatusSchema } from './schemas/enums';
-import type { MatterStatus } from './schemas/enums';
+import type { MatterStatus, MatterType } from './schemas/enums';
+import { MatterTypeCodeSchema } from './schemas/tenancy';
 import type { MatterGroupBy, MatterSortField, MatterViewFilters, MatterViewSort } from './schemas/views';
 import { searchTokens } from './search';
 import { dateOnlyAt } from './values/date-only';
@@ -19,21 +20,83 @@ import { dateOnlyAt } from './values/date-only';
 // ---------- numbers ----------
 
 export const DEFAULT_MATTER_NUMBER_FORMAT = 'M-{YYYY}-{seq:4}';
-const FORMAT_TOKEN = /\{(YYYY|YY|seq(?::(\d))?)\}/g;
+const FORMAT_TOKEN = /\{(YYYY|YY|TYPE|seq(?::(\d))?)\}/g;
 
-/** A format must contain `{seq}` (or `{seq:N}`, zero-padded to N digits) and may use `{YYYY}` and `{YY}`. */
+/** The longest matter number a format may produce or a person may type (CORE-21a). */
+export const MATTER_NUMBER_MAX_LENGTH = 40;
+
+/**
+ * The default `{TYPE}` code of each matter type (CORE-21a); a practice can override them in
+ * `org.matterTypeCodes`.
+ */
+export const DEFAULT_MATTER_TYPE_CODES: Readonly<Record<MatterType, string>> = {
+  will: 'WIL',
+  poa: 'POA',
+  probate: 'PRB',
+  loa: 'LOA',
+  admin: 'ADM',
+  fp: 'FP',
+  contest: 'CON',
+  trust: 'TRU',
+};
+
+/** The `{TYPE}` code for a matter type: the practice's override, else the default. */
+export function matterTypeCode(type: MatterType, overrides?: Partial<Record<MatterType, string>> | null): string {
+  const override = overrides?.[type]?.trim();
+  return override && MatterTypeCodeSchema.safeParse(override).success ? override : DEFAULT_MATTER_TYPE_CODES[type];
+}
+
+/**
+ * A format must contain `{seq}` (or `{seq:N}`, zero-padded to N digits) and may use `{YYYY}`,
+ * `{YY}` and `{TYPE}` (the matter type's code, CORE-21a). Anything else is literal text.
+ */
 export function isMatterNumberFormat(format: string): boolean {
   return /\{seq(?::\d)?\}/.test(format) && format.replace(FORMAT_TOKEN, '').indexOf('{') === -1;
 }
 
-/** `formatMatterNumber('M-{YYYY}-{seq:4}', 2026, 7)` → `M-2026-0007`. */
-export function formatMatterNumber(format: string, year: number, seq: number): string {
+/**
+ * `formatMatterNumber('M-{YYYY}-{seq:4}', 2026, 7)` → `M-2026-0007`;
+ * `formatMatterNumber('{TYPE}{YY}-{seq:3}', 2026, 7, 'PRB')` → `PRB26-007`.
+ */
+export function formatMatterNumber(format: string, year: number, seq: number, typeCode = ''): string {
   const pattern = isMatterNumberFormat(format) ? format : DEFAULT_MATTER_NUMBER_FORMAT;
   return pattern.replace(FORMAT_TOKEN, (_match, token: string, width?: string) => {
     if (token === 'YYYY') return String(year);
     if (token === 'YY') return String(year % 100).padStart(2, '0');
+    if (token === 'TYPE') return typeCode;
     return String(seq).padStart(width ? Number(width) : 1, '0');
   });
+}
+
+/**
+ * Why a format can't be saved, or null when it can (the settings page and its preview): it needs
+ * `{seq}`, known tokens only, and numbers no longer than MATTER_NUMBER_MAX_LENGTH.
+ */
+export function matterNumberFormatProblem(format: string): string | null {
+  const trimmed = format.trim();
+  if (!trimmed) return 'Enter a format.';
+  if (!/\{seq(?::\d)?\}/.test(trimmed)) return 'Include {seq} (or {seq:4} for 0001) so every number is different.';
+  if (trimmed.replace(FORMAT_TOKEN, '').indexOf('{') !== -1 || trimmed.replace(FORMAT_TOKEN, '').indexOf('}') !== -1) {
+    return 'Use only {YYYY}, {YY}, {TYPE} and {seq} or {seq:N}.';
+  }
+  const longest = formatMatterNumber(trimmed, 2026, 99999, 'XXXXXX');
+  if (longest.length > MATTER_NUMBER_MAX_LENGTH) {
+    return `Numbers would be longer than ${MATTER_NUMBER_MAX_LENGTH} characters.`;
+  }
+  return null;
+}
+
+/**
+ * Why a typed matter number can't be used, or null (renumbering, CORE-21a): 1 to
+ * MATTER_NUMBER_MAX_LENGTH characters, no line breaks or control characters.
+ */
+export function matterNumberProblem(number: string): string | null {
+  const trimmed = number.trim();
+  if (!trimmed) return 'Enter a matter number.';
+  if (trimmed.length > MATTER_NUMBER_MAX_LENGTH) return `Keep it to ${MATTER_NUMBER_MAX_LENGTH} characters or fewer.`;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(trimmed)) return 'Use letters, digits and punctuation only.';
+  return null;
 }
 
 /** The numbering year: the calendar year in the org's time zone (1 January in Melbourne, not UTC). */
@@ -53,6 +116,33 @@ export function matterCounterId(year: number): string {
  */
 export function matterNumberKey(number: string): string {
   return encodeURIComponent(number.trim().toUpperCase()).replace(/\./g, '%2E').replace(/_/g, '%5F');
+}
+
+// ---------- external system (CORE-21a) ----------
+
+/** What the matter screen calls the firm's other practice system when the org hasn't named it. */
+export const DEFAULT_EXTERNAL_SYSTEM_NAME = '3E';
+
+/**
+ * The link to a matter in the firm's other system (Elite 3E, say): the org's URL template with
+ * `{ref}` replaced by the URI-encoded reference. Null without a template, a reference, or when the
+ * template isn't an http(s) URL with `{ref}` (so a `javascript:` template can never become a link).
+ */
+export function externalRefUrl(template: string | null | undefined, ref: string | null | undefined): string | null {
+  const value = ref?.trim();
+  if (!template || !value || !isExternalUrlTemplate(template)) return null;
+  return template.trim().replace(/\{ref\}/g, encodeURIComponent(value));
+}
+
+/** An http(s) URL containing `{ref}`. */
+export function isExternalUrlTemplate(template: string): boolean {
+  const trimmed = template.trim();
+  if (!/^https?:\/\/[^\s/]+/i.test(trimmed) || !trimmed.includes('{ref}') || /\s/.test(trimmed)) return false;
+  try {
+    return ['http:', 'https:'].includes(new URL(trimmed.replace(/\{ref\}/g, 'x')).protocol);
+  } catch {
+    return false;
+  }
 }
 
 // ---------- status ----------
@@ -338,6 +428,27 @@ export const ChangeMatterStatusInput = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 export type ChangeMatterStatusInput = z.infer<typeof ChangeMatterStatusInput>;
+
+/** `matters-renumber` (CORE-21a, `matter.renumber`: lawyer and above). */
+export const RenumberMatterInput = z.object({
+  requestId: RequestId,
+  matterId: DocIdSchema,
+  number: z
+    .string()
+    .trim()
+    .superRefine((value, ctx) => {
+      const problem = matterNumberProblem(value);
+      if (problem) ctx.addIssue({ code: 'custom', message: problem });
+    }),
+});
+export type RenumberMatterInput = z.infer<typeof RenumberMatterInput>;
+
+export interface RenumberMatterResult {
+  matterId: string;
+  number: string;
+  /** False when the matter already had that number (nothing changed). */
+  changed: boolean;
+}
 
 export interface CreateMatterResult {
   matterId: string;

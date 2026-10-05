@@ -299,6 +299,9 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         @if (showTemplates()) {
           <a mtMenuItem icon="list" routerLink="/settings/templates">Matter templates</a>
         }
+        @if (showNumbering()) {
+          <a mtMenuItem icon="settings" routerLink="/settings/numbering">Matter numbering</a>
+        }
         <a mtMenuItem icon="plus" routerLink="/onboarding">Create a practice</a>
       </mt-menu>
     </ng-template>
@@ -332,6 +335,11 @@ export class AppShellComponent {
   protected readonly tabBarItems = TAB_BAR_ITEMS;
   private readonly flags = inject(FeatureFlagService);
   /** Settings → Templates (CORE-07): owners and admins, while matter templates are on. */
+  /** Matter numbering settings (CORE-21a): owners and admins. */
+  protected readonly showNumbering = computed(() => {
+    const role = this.orgs.role();
+    return role === 'owner' || role === 'admin';
+  });
   protected readonly showTemplates = computed(() => {
     const role = this.orgs.role();
     return this.flags.isOn('templates.system') && (role === 'owner' || role === 'admin');

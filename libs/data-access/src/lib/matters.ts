@@ -287,6 +287,8 @@ export const MATTER_CALLABLES = {
   removeParty: 'matters-removeParty',
   /** `UpgradeMatterTemplateInput` → `UpgradeMatterTemplateResult` (matter.edit, CORE-07). */
   upgradeTemplate: 'matters-upgradeTemplate',
+  /** `RenumberMatterInput` → `RenumberMatterResult` (matter.renumber, CORE-21a). */
+  renumber: 'matters-renumber',
 } as const;
 
 // ---------- saved views ----------

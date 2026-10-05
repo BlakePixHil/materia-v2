@@ -5,11 +5,18 @@ import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString
 import {
   InviteStatusSchema,
   JurisdictionSchema,
+  MatterTypeSchema,
   MemberStatusSchema,
   RoleSchema,
   RoundingSchema,
   ThemeSchema,
 } from './enums';
+
+/** A matter number `{TYPE}` code (CORE-21a): 1 to 6 letters or digits. */
+export const MatterTypeCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9]{1,6}$/, { message: 'Use 1 to 6 letters or digits' });
 
 /** `orgs/{orgId}`: the firm. */
 export const Org = withMeta(
@@ -38,6 +45,18 @@ export const Org = withMeta(
       paymentTermsDays: z.number().int().min(0).max(365),
     }),
     matterNumberFormat: z.string().min(1).default('M-{YYYY}-{seq:4}'),
+    /** `{TYPE}` codes that replace DEFAULT_MATTER_TYPE_CODES in matter numbers (CORE-21a). */
+    matterTypeCodes: z.partialRecord(MatterTypeSchema, MatterTypeCodeSchema).optional(),
+    /**
+     * The firm's other practice system (Elite 3E, say; CORE-21a): its name on the matter screen and
+     * an optional `https://…{ref}…` template that turns a matter's `externalRef` into a link.
+     */
+    externalSystem: z
+      .object({
+        name: z.string().trim().min(1).max(30),
+        urlTemplate: z.string().trim().max(500).optional(),
+      })
+      .optional(),
     fy: z.object({ startMonth: z.number().int().min(1).max(12) }),
     retentionYears: z.number().int().min(1).default(7),
     plan: z.enum(['trial', 'standard', 'enterprise']),
