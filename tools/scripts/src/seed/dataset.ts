@@ -1086,7 +1086,6 @@ export function buildDataset(options: {
               pageCount: info.pages,
             },
           ],
-          deletedAt: null,
           category: FIXTURE_FILES[fixture].category,
           scan: { status: 'clean' },
           ingest: { status: 'done', pages: info.pages },

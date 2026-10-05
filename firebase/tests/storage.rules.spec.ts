@@ -114,8 +114,12 @@ describe('uploads to pending/ (CORE-12)', () => {
     const orgId = options.orgId ?? ORG;
     const uid = options.uid ?? uidFor(role, orgId);
     const fileName = options.fileName ?? 'Will (fictional).pdf';
-    const customMetadata: Record<string, string> = { uploaderUid: uid, fileName, sha256: SHA, ...options.metadata };
-    for (const key of options.without ?? []) delete customMetadata[key];
+    const without = new Set(options.without ?? []);
+    const customMetadata = Object.fromEntries(
+      Object.entries({ uploaderUid: uid, fileName, sha256: SHA, ...options.metadata }).filter(
+        ([key]) => !without.has(key),
+      ),
+    );
     const storage = ctx(env, role, orgId, uid).storage();
     const path = options.path ?? `orgs/${orgId}/matters/matter-1/pending/${uploadId()}`;
     return uploadBytes(ref(storage, path), bytes(options.size ?? 64), {
