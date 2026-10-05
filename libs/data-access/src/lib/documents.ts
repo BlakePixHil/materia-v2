@@ -15,6 +15,8 @@ import {
   type ResolveDuplicateResult,
   type RestoreVersionInput,
   type RestoreVersionResult,
+  type SaveAttachmentInput,
+  type SaveAttachmentResult,
   type UploadRequest,
 } from '@materia/domain';
 
@@ -155,6 +157,12 @@ export interface DocumentCallables {
    * restore need document.delete). Skipped documents come back with a reason.
    */
   bulkUpdate(input: Input<BulkUpdateDocumentsInput>): Promise<BulkUpdateDocumentsResult>;
+  /**
+   * `documents-saveAttachment`: saves one attachment of an email document (the `index` from its
+   * message rendition) to the matter. It goes through the upload pipeline; the new document's id
+   * is the returned `docId`, and it appears once scanned.
+   */
+  saveAttachment(input: Input<SaveAttachmentInput>): Promise<SaveAttachmentResult>;
 }
 
 export function documentCallables(client: Pick<CallableClient, 'call'>): DocumentCallables {
@@ -171,6 +179,10 @@ export function documentCallables(client: Pick<CallableClient, 'call'>): Documen
       }),
     bulkUpdate: (input) =>
       client.call<Input<BulkUpdateDocumentsInput>, BulkUpdateDocumentsResult>(DOCUMENT_CALLABLES.bulkUpdate, input, {
+        idempotent: true,
+      }),
+    saveAttachment: (input) =>
+      client.call<Input<SaveAttachmentInput>, SaveAttachmentResult>(DOCUMENT_CALLABLES.saveAttachment, input, {
         idempotent: true,
       }),
   };

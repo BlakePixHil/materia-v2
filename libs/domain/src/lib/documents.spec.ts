@@ -8,11 +8,14 @@ import {
   downloadFileName,
   findVersion,
   GetDownloadUrlInput,
+  isEmailFile,
+  MessageRenditionSchema,
   kindMatchesExtension,
   PENDING_UPLOAD_PATH,
   pendingUploadPath,
   REMOVED_DOCUMENT_LABEL,
   renditionPath,
+  SaveAttachmentInput,
   scanRetryDelaySeconds,
   UPLOAD_EXTENSIONS,
   UPLOAD_TYPES,
@@ -355,5 +358,38 @@ describe('callable inputs', () => {
         change: { op: 'category', category: 'financial' },
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('email messages', () => {
+  it('recognises .eml and .msg files', () => {
+    expect(isEmailFile('Letter from the bank.EML')).toBe(true);
+    expect(isEmailFile('Outlook export.msg')).toBe(true);
+    expect(isEmailFile('notes.txt')).toBe(false);
+    expect(isEmailFile('eml')).toBe(false);
+  });
+
+  it('describes a message rendition', () => {
+    const rendition = {
+      format: 'message.v1',
+      subject: 'Fictional valuation',
+      from: { name: 'Rowan Example', address: 'rowan@example.test' },
+      to: [],
+      cc: [],
+      date: null,
+      text: 'Please find the valuation attached.',
+      textTruncated: false,
+      attachments: [{ index: 0, fileName: 'valuation.pdf', mime: 'application/pdf', sizeBytes: 10, savable: true }],
+      attachmentsTruncated: false,
+    };
+    expect(MessageRenditionSchema.parse(rendition)).toEqual(rendition);
+    expect(MessageRenditionSchema.safeParse({ ...rendition, format: 'message.v2' }).success).toBe(false);
+  });
+
+  it('saveAttachment names one attachment of one version', () => {
+    const base = { requestId: '00000000-0000-4000-8000-000000000001', matterId: 'm-1', docId: 'd-1' };
+    expect(SaveAttachmentInput.safeParse({ ...base, attachmentIndex: 0 }).success).toBe(true);
+    expect(SaveAttachmentInput.safeParse({ ...base, attachmentIndex: -1 }).success).toBe(false);
+    expect(SaveAttachmentInput.safeParse({ ...base, attachmentIndex: 0, category: 'nope' }).success).toBe(false);
   });
 });

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { FieldValue, type DocumentReference } from 'firebase-admin/firestore';
 
 import {
@@ -9,20 +11,28 @@ import {
   documentVersionPath,
   DomainError,
   downloadFileName,
+  DOCUMENT_MAX_BYTES,
   DOWNLOAD_URL_TTL_SECONDS,
   findVersion,
+  isEmailFile,
+  pendingUploadPath,
   GetDownloadUrlInput,
   PERMISSIONS,
   ResolveDuplicateInput,
   RestoreVersionInput,
+  SaveAttachmentInput,
+  uploadContentType,
+  UploadMetadataSchema,
   type BulkUpdateDocumentsResult,
   type DocumentVersion,
   type GetDownloadUrlResult,
   type RenditionKind,
   type ResolveDuplicateResult,
   type RestoreVersionResult,
+  type SaveAttachmentResult,
 } from '@materia/domain';
 
+import { parseMessage, type MessageAttachment } from './email';
 import { filesBucket, storageFiles, type FileStore } from './files';
 import { commitVersion, reserveVersion } from './pipeline';
 import { documentPath, isClean, loadDocument, versionsOf } from './shared';
@@ -247,7 +257,77 @@ export const bulkUpdateDefinition = {
   },
 } satisfies CallableDefinition<typeof BulkUpdateDocumentsInput, BulkUpdateDocumentsResult>;
 
+/**
+ * `documents-saveAttachment` (CORE-12; `document.upload`, idempotent): saves one attachment of an
+ * email document to the matter. The bytes go to the pending area as an upload by the caller, so
+ * the upload pipeline checks, scans, dedupes and stores them like any upload, and the new document
+ * appears when it has (its id is the returned `uploadId`). The attachment is privileged when the
+ * email is, and filed as correspondence unless `category` says otherwise.
+ */
+export function saveAttachmentDefinition(files: () => FileStore = () => storageFiles()) {
+  return {
+    name: DOCUMENT_CALLABLES.saveAttachment,
+    input: SaveAttachmentInput,
+    roles: PERMISSIONS['document.upload'],
+    idempotent: true,
+    handler: async ({ input, orgId, uid, role, db, log, requestId }): Promise<SaveAttachmentResult> => {
+      const { doc } = await loadDocument(db, orgId, role, input.matterId, input.docId);
+      if (!isClean(doc)) {
+        throw new DomainError('FAILED_PRECONDITION', 'The document hasn’t passed the malware scan', {
+          reason: 'not_scanned',
+        });
+      }
+      const version = findVersion({ version: doc['version'], versions: versionsOf(doc) }, input.version);
+      if (!version) throw new DomainError('NOT_FOUND', 'Version not found', { version: input.version ?? null });
+      if (!isEmailFile(version.fileName)) {
+        throw new DomainError('FAILED_PRECONDITION', 'This document isn’t an email', { reason: 'not_email' });
+      }
+      const store = files();
+      const data = await store.read(version.storagePath);
+      if (!data) throw new DomainError('UNAVAILABLE', 'The stored version couldn’t be read');
+      let attachment: MessageAttachment | null;
+      try {
+        attachment = (await parseMessage(version.fileName, data)).attachment(input.attachmentIndex);
+      } catch {
+        throw new DomainError('FAILED_PRECONDITION', 'The email couldn’t be read', { reason: 'unreadable' });
+      }
+      if (!attachment) {
+        throw new DomainError('NOT_FOUND', 'Attachment not found', { reason: 'attachment_not_found' });
+      }
+      const contentType = uploadContentType(attachment.fileName);
+      if (!contentType) {
+        throw new DomainError('FAILED_PRECONDITION', 'This file type is not accepted', { reason: 'type_not_allowed' });
+      }
+      if (attachment.data.length === 0 || attachment.data.length > DOCUMENT_MAX_BYTES) {
+        throw new DomainError('FAILED_PRECONDITION', 'The attachment is empty or too large', { reason: 'too_large' });
+      }
+      // The same request always writes the same upload, so a retry can't add a second copy.
+      const uploadId = `att-${createHash('sha256').update(`${orgId}/${requestId}`).digest('hex').slice(0, 40)}`;
+      const metadata = UploadMetadataSchema.parse({
+        uploaderUid: uid,
+        fileName: attachment.fileName,
+        sha256: createHash('sha256').update(attachment.data).digest('hex'),
+        category: input.category ?? 'correspondence',
+        ...(doc['privileged'] === true ? { privileged: 'true' } : {}),
+      });
+      await store.write(pendingUploadPath(orgId, input.matterId, uploadId), attachment.data, {
+        contentType,
+        metadata: metadata as Record<string, string>,
+      });
+      log.info('attachment saved', {
+        matterId: input.matterId,
+        docId: input.docId,
+        version: version.version,
+        uploadId,
+        sizeBytes: attachment.data.length,
+      });
+      return { uploadId, docId: uploadId, fileName: attachment.fileName };
+    },
+  } satisfies CallableDefinition<typeof SaveAttachmentInput, SaveAttachmentResult>;
+}
+
 export const getDownloadUrl = defineCallable(getDownloadUrlDefinition());
 export const restoreVersion = defineCallable(restoreVersionDefinition());
 export const resolveDuplicate = defineCallable(resolveDuplicateDefinition);
 export const bulkUpdate = defineCallable(bulkUpdateDefinition);
+export const saveAttachment = defineCallable(saveAttachmentDefinition());

@@ -353,7 +353,6 @@ export const DOCUMENT_CALLABLES = {
   resolveDuplicate: 'documents-resolveDuplicate',
   bulkUpdate: 'documents-bulkUpdate',
   saveAttachment: 'documents-saveAttachment',
-  startZip: 'documents-startZip',
 } as const;
 
 export const DownloadRenditionSchema = z.enum(['original', 'previewPdf', 'previewImage', 'message']);
@@ -439,4 +438,78 @@ export type BulkDocumentSkipReason = 'not_found' | 'deleted' | 'not_deleted' | '
 export interface BulkUpdateDocumentsResult {
   updated: number;
   skipped: { docId: string; reason: BulkDocumentSkipReason }[];
+}
+
+// ---------- email messages ----------
+
+/** The most body text a message rendition keeps (the original is always downloadable). */
+export const MESSAGE_TEXT_MAX = 200_000;
+/** The most attachments a message rendition lists. */
+export const MESSAGE_ATTACHMENTS_MAX = 200;
+
+const MessageAddressSchema = z.object({ name: z.string().max(500), address: z.string().max(500) });
+export type MessageAddress = z.infer<typeof MessageAddressSchema>;
+
+/**
+ * An email's JSON rendition (`renditions/v{n}/message.json`, CORE-12), parsed from a stored .eml
+ * or .msg version: the headers people read, the plain-text body (never HTML) and the attachments.
+ * `savable` attachments have an allow-listed type and can be saved to the matter
+ * (`documents-saveAttachment`); `index` names one.
+ */
+export const MessageRenditionSchema = z.object({
+  format: z.literal('message.v1'),
+  subject: z.string(),
+  from: MessageAddressSchema.nullable(),
+  to: z.array(MessageAddressSchema),
+  cc: z.array(MessageAddressSchema),
+  /** ISO 8601, when the message has a date. */
+  date: z.string().nullable(),
+  text: z.string().max(MESSAGE_TEXT_MAX),
+  textTruncated: z.boolean(),
+  attachments: z
+    .array(
+      z.object({
+        index: z.number().int().min(0),
+        fileName: z.string(),
+        mime: z.string(),
+        sizeBytes: z.number().int().min(0),
+        savable: z.boolean(),
+      }),
+    )
+    .max(MESSAGE_ATTACHMENTS_MAX),
+  attachmentsTruncated: z.boolean(),
+});
+export type MessageRendition = z.infer<typeof MessageRenditionSchema>;
+
+/** Whether a stored file is an email this pipeline parses (by its allow-listed extension). */
+export function isEmailFile(fileName: string): boolean {
+  const ext = uploadExtension(fileName);
+  return ext === 'eml' || ext === 'msg';
+}
+
+/**
+ * `documents-saveAttachment` (`document.upload`, idempotent): saves one attachment of an email
+ * document's version (current by default) to the matter as a new document. The attachment goes
+ * through the upload pipeline like any upload (type, scan, duplicates), uploaded as the caller;
+ * it is privileged when the email is. FAILED_PRECONDITION (`not_email`, `not_scanned`,
+ * `type_not_allowed`, `too_large`); NOT_FOUND (`attachment_not_found`).
+ */
+export const SaveAttachmentInput = z.object({
+  requestId: RequestId,
+  matterId: DocIdSchema,
+  docId: DocIdSchema,
+  version: z.number().int().min(1).optional(),
+  attachmentIndex: z
+    .number()
+    .int()
+    .min(0)
+    .max(MESSAGE_ATTACHMENTS_MAX - 1),
+  category: DocumentCategorySchema.optional(),
+});
+export type SaveAttachmentInput = z.infer<typeof SaveAttachmentInput>;
+export interface SaveAttachmentResult {
+  /** The pending upload; it also names the new document once the pipeline has stored it. */
+  uploadId: string;
+  docId: string;
+  fileName: string;
 }

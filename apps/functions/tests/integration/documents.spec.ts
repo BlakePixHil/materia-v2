@@ -18,7 +18,7 @@ import {
   type Role,
 } from '@materia/domain';
 
-import { samplePdf } from '../../src/documents/testing';
+import { sampleEml, samplePdf } from '../../src/documents/testing';
 import { EICAR_TEST_STRING, FAKE_SCANNER_TIMEOUT_MARKER } from '../../src/ports/fakes';
 
 /**
@@ -123,6 +123,9 @@ function callable<T>(name: string) {
 const getDownloadUrl = callable<GetDownloadUrlResult>(DOCUMENT_CALLABLES.getDownloadUrl);
 const restoreVersion = callable<{ version: number; restoredFrom: number }>(DOCUMENT_CALLABLES.restoreVersion);
 const resolveDuplicate = callable<Data>(DOCUMENT_CALLABLES.resolveDuplicate);
+const saveAttachment = callable<{ uploadId: string; docId: string; fileName: string }>(
+  DOCUMENT_CALLABLES.saveAttachment,
+);
 
 async function failure(promise: Promise<unknown>) {
   try {
@@ -320,5 +323,36 @@ describe('versions and downloads', () => {
     });
     await signInAs('lawyer');
     await expect(getDownloadUrl({ matterId: MATTER_ID, docId })).resolves.toMatchObject({ version: 1 });
+  });
+});
+
+describe('email documents', () => {
+  it('parses an .eml into a message rendition and saves an attachment through the pipeline', async () => {
+    const docId = await upload('lawyer', new Uint8Array(sampleEml()), { fileName: 'Valuation letter.eml' });
+    await settled(docId, docId);
+    const doc = await poll(
+      () => data(`${DOCS}/${docId}`),
+      (d) => !!(d['renditions'] as Data | undefined)?.['message'],
+    );
+    expect(doc).toMatchObject({ mime: 'message/rfc822', scan: { status: 'clean' } });
+
+    await signInAs('lawyer');
+    const rendition = await getDownloadUrl({ matterId: MATTER_ID, docId, rendition: 'message' });
+    const message = (await (await fetch(rendition.url)).json()) as Data;
+    expect(message).toMatchObject({
+      format: 'message.v1',
+      subject: 'Fictional valuation letter',
+      attachments: [{ index: 0, fileName: 'Inventory of assets.txt', savable: true }],
+    });
+
+    const saved = await saveAttachment({ requestId: randomUUID(), matterId: MATTER_ID, docId, attachmentIndex: 0 });
+    const attachment = await settled(saved.docId, saved.uploadId);
+    expect(attachment).toMatchObject({
+      name: 'Inventory of assets.txt',
+      category: 'correspondence',
+      mime: 'text/plain',
+      scan: { status: 'clean' },
+      createdBy: uidOf('lawyer'),
+    });
   });
 });

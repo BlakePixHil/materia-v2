@@ -203,11 +203,13 @@ describe('documentCallables', () => {
     await api.restoreVersion({ matterId: 'm-1', docId: 'd-1', version: 1 });
     await api.resolveDuplicate({ matterId: 'm-1', docId: 'd-2', action: 'discard' });
     await api.bulkUpdate({ matterId: 'm-1', docIds: ['d-1'], change: { op: 'delete' } });
+    await api.saveAttachment({ matterId: 'm-1', docId: 'd-3', attachmentIndex: 0 });
     expect(calls.map((c) => c.name)).toEqual([
       DOCUMENT_CALLABLES.getDownloadUrl,
       DOCUMENT_CALLABLES.restoreVersion,
       DOCUMENT_CALLABLES.resolveDuplicate,
       DOCUMENT_CALLABLES.bulkUpdate,
+      DOCUMENT_CALLABLES.saveAttachment,
     ]);
     expect(calls[0]?.data).not.toHaveProperty('requestId');
     for (const call of calls.slice(1)) expect(call.data['requestId']).toBe('00000000-0000-4000-8000-000000000001');
