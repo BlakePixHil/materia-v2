@@ -65,6 +65,16 @@ describe('firestore.indexes.json', () => {
     expect(groups).toContain('invites');
   });
 
+  it('reminders-dispatch finds due reminders, and Today finds escalations, through group indexes (CORE-11)', () => {
+    const deadlines = file.indexes
+      .filter((i) => i.collectionGroup === 'deadlines' && i.queryScope === 'COLLECTION_GROUP')
+      .map((i) => i.fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(','));
+    expect(deadlines).toContain('orgId:ASCENDING,nextReminderAt:ASCENDING');
+    expect(deadlines).toContain('orgId:ASCENDING,escalatedTo:CONTAINS,status:ASCENDING,dueDate:ASCENDING');
+    // Escalation candidates: orgId, status, critical and a dueDate range.
+    expect(deadlines).toContain('orgId:ASCENDING,status:ASCENDING,critical:ASCENDING,dueDate:ASCENDING');
+  });
+
   it('contacts sort by sortName under each list filter, and parties are found by contact (CORE-01)', () => {
     const contacts = file.indexes
       .filter((i) => i.collectionGroup === 'contacts')

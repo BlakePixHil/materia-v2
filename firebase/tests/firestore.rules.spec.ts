@@ -1305,6 +1305,7 @@ describe('notifications (FND-20)', () => {
       digestHour: 6,
       quietHours: { start: '20:00', end: '06:30' },
       kinds: { mention: { email: false }, deadline_escalation: { push: false } },
+      taskReminderDays: 2,
     };
     await assertSucceeds(updateDoc(ref, stamped(prefs(valid), uid)));
     // Switching email off is allowed: critical notifications still email (enforced by notify()).
@@ -1316,6 +1317,9 @@ describe('notifications (FND-20)', () => {
       { ...valid, kinds: { deadline_escalation: { email: false } } },
       { ...valid, digestHour: 24 },
       { ...valid, digestHour: '7' },
+      { ...valid, taskReminderDays: 15 },
+      { ...valid, taskReminderDays: -1 },
+      { ...valid, taskReminderDays: 1.5 },
       { ...valid, email: 'yes' },
       { ...valid, push: 1 },
       { ...valid, kinds: 'all' },

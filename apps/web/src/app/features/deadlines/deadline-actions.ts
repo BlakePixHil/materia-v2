@@ -110,6 +110,18 @@ export class DeadlineActions {
 
   // ---------- closing ----------
 
+  /** Acknowledges a critical deadline (`deadlines-acknowledge`, CORE-11), which stops it escalating. */
+  async acknowledge(row: DeadlineRowVm): Promise<boolean> {
+    const { deadline, matterId } = row;
+    const result = await this.run(row.key, 'The deadline wasn’t acknowledged', () =>
+      this.api.acknowledge({ matterId, deadlineId: deadline.id }),
+    );
+    if (!result) return false;
+    this.toasts.show({ title: 'Deadline acknowledged', tone: 'success' });
+    this.say(`Acknowledged: ${deadline.title}.`);
+    return true;
+  }
+
   /** Done, waived or missed (`deadlines-complete`), offering to close its linked task too. */
   async complete(row: DeadlineRowVm, outcome: DeadlineOutcome): Promise<boolean> {
     const { deadline, matterId } = row;

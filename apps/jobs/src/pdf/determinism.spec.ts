@@ -5,7 +5,7 @@ import { canonicaliseStructureIds } from './determinism';
 
 /** A tagged table the way Chromium writes it: header ids from DOM node ids, cells pointing at them. */
 async function canonical(ids: [string, string]) {
-  const doc = await PDFDocument.create();
+  const doc = await PDFDocument.create({ updateMetadata: false });
   const { context } = doc;
   const headers = ids.map((id) => context.register(context.obj({ Type: 'StructElem', S: 'TH', ID: PDFString.of(id) })));
   for (const id of ids) {
@@ -43,7 +43,7 @@ describe('canonicaliseStructureIds', () => {
   });
 
   it('leaves an untagged document alone', async () => {
-    const doc = await PDFDocument.create();
+    const doc = await PDFDocument.create({ updateMetadata: false });
     doc.addPage();
     const before = await doc.save({ useObjectStreams: false });
     canonicaliseStructureIds(doc);

@@ -293,6 +293,13 @@ export function deadlineServerCallables(): Record<string, FakeCallable> {
         completedTaskIds: taskId && data['completeLinkedTasks'] ? [taskId] : [],
       };
     },
+    // CORE-11: records the acknowledgement, which takes an escalation off Today.
+    'deadlines-acknowledge': (data, fs) => {
+      const path = `${MATTER}/deadlines/${String(data['deadlineId'])}`;
+      const at = new Date();
+      fs.set(path, { ...(fs.get(path) as Seed), ackBy: ME, ackAt: at });
+      return { deadlineId: data['deadlineId'], ackBy: ME, ackAt: at.toISOString(), acknowledged: true };
+    },
     'deadlines-override': (data, fs) => {
       const path = `${MATTER}/deadlines/${String(data['deadlineId'])}`;
       const deadline = fs.get(path) as Seed & { computed?: Seed };

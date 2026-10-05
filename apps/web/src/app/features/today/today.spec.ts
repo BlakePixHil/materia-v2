@@ -350,6 +350,64 @@ describe('today', () => {
     expect(focused(page)).toBe('Draft the will');
   });
 
+  it('lists a critical deadline escalated to me, and acknowledges it (CORE-11)', async () => {
+    const escalated = (fs: Fs) => {
+      busyDay(fs);
+      fs.set(
+        `${MATTER}/deadlines/d-grant`,
+        deadlineDoc('Apply for the grant', {
+          dueDate: '2026-10-08',
+          critical: true,
+          assigneeUid: 'user-daniel',
+          escalatedAt: new Date('2026-10-04T21:00:00Z'),
+          escalatedTo: [ME],
+        }),
+      );
+      fs.set(
+        `${MATTER}/deadlines/d-seen`,
+        deadlineDoc('Already acknowledged', {
+          dueDate: '2026-10-08',
+          critical: true,
+          escalatedTo: [ME],
+          ackBy: ME,
+          ackAt: new Date('2026-10-04T22:00:00Z'),
+        }),
+      );
+    };
+    const page = await openToday({ configure: escalated });
+    expect(items(page, 'attention')).toEqual([
+      'Escalation: Apply for the grant',
+      'Overdue: File the inventory of assets',
+      'Change to review: Advertise notice of intended application',
+    ]);
+    await page.click('Acknowledge', card(page, 'attention') as HTMLElement);
+    await page.stable(20);
+    expect(page.calls('deadlines-acknowledge')).toEqual([
+      expect.objectContaining({ matterId: 'm-whitfield', deadlineId: 'd-grant' }),
+    ]);
+    expect(items(page, 'attention')).toEqual([
+      'Overdue: File the inventory of assets',
+      'Change to review: Advertise notice of intended application',
+    ]);
+  });
+
+  it('acknowledges the focused escalation with a', async () => {
+    const page = await openToday({
+      configure: (fs) => {
+        busyDay(fs);
+        fs.set(
+          `${MATTER}/deadlines/d-grant`,
+          deadlineDoc('Apply for the grant', { dueDate: '2026-10-08', critical: true, escalatedTo: [ME] }),
+        );
+      },
+    });
+    await page.press('j', {}, (document.activeElement ?? page.body) as HTMLElement);
+    expect(focused(page)).toBe('Escalation: Apply for the grant');
+    await page.press('a', {}, document.activeElement as HTMLElement);
+    await page.stable(20);
+    expect(page.calls('deadlines-acknowledge')).toHaveLength(1);
+  });
+
   it('accepts a change waiting on me', async () => {
     const page = await openToday({ configure: busyDay });
     await page.click('Accept', card(page, 'attention') as HTMLElement);

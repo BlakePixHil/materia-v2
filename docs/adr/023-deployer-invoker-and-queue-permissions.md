@@ -12,11 +12,15 @@ With builds working, `deploy-dev` deployed 20 of 24 functions and failed on the 
   services (`run.services.setIamPolicy`). `roles/run.developer` can read but not set it.
 - `system-recordEcho` (a task queue function): `cloudtasks.queues.get` was denied. The CLI creates and updates the queue and sets its
   IAM policy.
+- Later (CORE-12): `documents-onUpload`, a Cloud Storage trigger, failed with "Can't find the storage bucket region". firebase-tools
+  reads the bucket (`storage.buckets.get`) to place the trigger, and the deployer had no storage permission.
 
 ## Decision
 
 - A custom role `deployerRunInvoker` holding only `run.services.setIamPolicy`, bound to the deployer.
 - `roles/cloudtasks.queueAdmin` for the deployer.
+- A custom role `deployerBucketReader` holding only `storage.buckets.get`, bound to the deployer on the files bucket only (not the
+  project), so it can read bucket metadata but no objects.
 
 ## Alternatives
 

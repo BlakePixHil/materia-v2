@@ -116,6 +116,21 @@ describe('AppShellComponent', () => {
     expect(el.querySelectorAll('nav[aria-label="Main"] .mt-nav-count')).toHaveLength(1);
   });
 
+  it('shows the unread count on the Inbox tab on a phone (FND-20)', async () => {
+    const firestore = new InMemoryFirestore();
+    const session = testSession();
+    const orgId = session.claims.orgId as string;
+    firestore.set(`orgs/${orgId}/notifications/n1`, {
+      ...makeNotification({ recipientUid: session.uid }),
+      createdAt: new Date('2026-10-05T00:00:00.000Z'),
+    });
+    const { el, fixture } = await setup('/today', { mobile: true, session, firestore });
+    await settle();
+    await fixture.whenStable();
+    const counts = [...el.querySelectorAll('.mt-tabbar a')].map((a) => a.querySelector('.mt-nav-count')?.textContent);
+    expect(counts).toEqual([undefined, undefined, undefined, undefined, '1']);
+  });
+
   it('ignores [ while typing in a field', async () => {
     const { app, fixture, el } = await setup();
     const input = document.createElement('input');
