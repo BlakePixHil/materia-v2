@@ -5,5 +5,6 @@
 .mt-toast[data-tone="success"] .ic { background: var(--status-success); color: #FFFFFF; }
 .mt-toast[data-tone="danger"] .ic { background: var(--status-danger); color: #FFFFFF; }
 .mt-toast[data-tone="ai"] .ic { background: linear-gradient(135deg, var(--ai-from), var(--ai-to)); color: #FFFFFF; }
+.mt-toast > .mt-btn, .mt-toast > .mt-ibtn { margin-block: calc((18px - var(--control-sm)) / 2); }
 .mt-toast .tt { font-weight: 500; color: var(--text-primary); }
 .mt-toast .ts { color: var(--text-tertiary); }

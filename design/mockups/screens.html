@@ -46,7 +46,7 @@ html, body { background: var(--bg-surface); }
 .mt-kbd + .mt-kbd { margin-left: 2px; }
 
 /* ---------- Button ---------- */
-.mt-btn { --h: var(--control-md); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-6); height: var(--h); padding: 0 var(--space-12); border-radius: var(--radius-sm); border: 1px solid transparent; font: 500 13px/18px var(--font-sans); white-space: nowrap; cursor: pointer; background: none; color: var(--text-primary); user-select: none; outline: none; transition: background-color .12s, border-color .12s, color .12s, box-shadow .12s; }
+.mt-btn { --h: var(--control-md); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-6); height: var(--h); padding: 0 var(--space-12); border-radius: var(--radius-sm); border: 1px solid transparent; font: 500 13px/18px var(--font-sans); white-space: nowrap; cursor: pointer; text-decoration: none; background: none; color: var(--text-primary); user-select: none; outline: none; transition: background-color .12s, border-color .12s, color .12s, box-shadow .12s; }
 .mt-btn[data-size="sm"] { --h: var(--control-sm); padding: 0 var(--space-8); gap: var(--space-4); font-size: 12px; }
 .mt-btn[data-size="lg"] { --h: var(--control-lg); padding: 0 var(--space-16); }
 .mt-btn .mt-kbd { margin-left: var(--space-2); }
@@ -342,6 +342,8 @@ ol.mt-crumbs { list-style: none; margin: 0; padding: 0; }
 .mt-toast[data-tone="success"] .ic { background: var(--status-success); color: #FFFFFF; }
 .mt-toast[data-tone="danger"] .ic { background: var(--status-danger); color: #FFFFFF; }
 .mt-toast[data-tone="ai"] .ic { background: linear-gradient(135deg, var(--ai-from), var(--ai-to)); color: #FFFFFF; }
+/* Buttons are taller than a line: pull them in so they centre on the title line and the padding stays even. */
+.mt-toast > .mt-btn, .mt-toast > .mt-ibtn { margin-block: calc((18px - var(--control-sm)) / 2); }
 .mt-toast .tt { font-weight: 500; color: var(--text-primary); }
 .mt-toast .ts { color: var(--text-tertiary); }
 .mt-toaster { position: fixed; right: var(--space-16); bottom: var(--space-16); z-index: var(--layer-toast); display: flex; flex-direction: column; align-items: flex-end; gap: 10px; outline: none; }

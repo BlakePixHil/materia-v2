@@ -339,6 +339,8 @@ ol.mt-crumbs { list-style: none; margin: 0; padding: 0; }
 .mt-toast[data-tone="success"] .ic { background: var(--status-success); color: #FFFFFF; }
 .mt-toast[data-tone="danger"] .ic { background: var(--status-danger); color: #FFFFFF; }
 .mt-toast[data-tone="ai"] .ic { background: linear-gradient(135deg, var(--ai-from), var(--ai-to)); color: #FFFFFF; }
+/* Buttons are taller than a line: pull them in so they centre on the title line and the padding stays even. */
+.mt-toast > .mt-btn, .mt-toast > .mt-ibtn { margin-block: calc((18px - var(--control-sm)) / 2); }
 .mt-toast .tt { font-weight: 500; color: var(--text-primary); }
 .mt-toast .ts { color: var(--text-tertiary); }
 .mt-toaster { position: fixed; right: var(--space-16); bottom: var(--space-16); z-index: var(--layer-toast); display: flex; flex-direction: column; align-items: flex-end; gap: 10px; outline: none; }
