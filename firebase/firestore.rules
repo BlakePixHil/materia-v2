@@ -446,10 +446,21 @@ service cloud.firestore {
           allow read, write: if false;
         }
 
+        // Notes (CORE-13): created and their text edited only through notes-create and notes-update
+        // (mentions, revisions, notifications). note.write roles pin, soft delete and restore
+        // directly; the privileged flag isn't client-writable (privilegedFlagOk stays as a guard).
         match /notes/{noteId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
           allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
             && editable(orgId, 'note.write', fieldsNote());
+
+          // Earlier versions, appended by notes-update. Readable by whoever can read the note, and
+          // a version that was privileged needs privileged.view itself (so a list by a role without
+          // it proves `privileged == false`). Server-only writes.
+          match /revisions/{revisionId} {
+            allow read: if inOrg(orgId) && visible(orgId, resource.data)
+              && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)/notes/$(noteId)).data);
+          }
         }
 
         match /offers/{offerId} {

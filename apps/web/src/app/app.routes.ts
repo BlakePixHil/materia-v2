@@ -51,6 +51,8 @@ const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
   deadlines: () => import('./features/deadlines/matter-deadlines').then((m) => m.MatterDeadlines),
   documents: () => import('./features/documents/matter-documents').then((m) => m.MatterDocuments),
   parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
+  notes: () => import('./features/notes/matter-notes').then((m) => m.MatterNotes),
+  activity: () => import('./features/matter-detail/matter-activity').then((m) => m.MatterActivityTab),
 };
 
 const matterRoutes: Route[] = [
@@ -74,7 +76,7 @@ const matterRoutes: Route[] = [
     loadComponent: () => import('./pages/matter-layout').then((m) => m.MatterLayout),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'overview' },
-      // `/matters/:id/:tab` (CORE-06): the overview and parties are built; the rest are placeholders
+      // `/matters/:id/:tab` (CORE-06): tabs without a page in MATTER_TAB_PAGES are placeholders
       // until their tickets. Each tab reads only its own collections while it's shown.
       ...MATTER_TABS.map((tab): Route => ({
         path: tab.path,
