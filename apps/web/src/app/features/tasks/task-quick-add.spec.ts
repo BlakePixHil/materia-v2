@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
-import { TaskQuickAdd, type QuickAddTask } from './task-quick-add';
+import { loadQuickAddParser, TaskQuickAdd, type QuickAddTask } from './task-quick-add';
 import type { TaskPerson } from './task-view';
 
 /** The quick-add line (CORE-08). Fictional people only. */
@@ -29,6 +29,8 @@ class Host {
 const settle = (ms = 30) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function setup(personal = false) {
+  // The parser chunk loads before the line is created, so typed tokens are read straight away.
+  await loadQuickAddParser();
   const fixture = TestBed.createComponent(Host);
   fixture.componentInstance.personal.set(personal);
   await fixture.whenStable();
@@ -92,5 +94,33 @@ describe('TaskQuickAdd', () => {
     await key('Enter');
     expect(text()).toContain('Keep the title to 500 characters or fewer.');
     expect(host.saved).toEqual([]);
+  });
+
+  it('reads a date typed anywhere, and × drops the date but keeps the words', async () => {
+    const { type, key, el, host, fixture } = await setup();
+    await type('Do the laundry 14/10/2027');
+    expect(el.querySelector('mark[data-kind="due"]')?.textContent).toBe('14/10/2027');
+    const drop = el.querySelector<HTMLButtonElement>('button[aria-label="Remove the due date"]');
+    expect(drop).not.toBeNull();
+    drop?.click();
+    await fixture.whenStable();
+    expect(el.querySelector('button[aria-label="Remove the due date"]')).toBeNull();
+    await key('Enter');
+    expect(host.saved).toEqual([{ title: 'Do the laundry 14/10/2027' }]);
+  });
+
+  it('saves the typed date, and × on the priority chip clears a typed priority', async () => {
+    const { type, key, el, host, fixture } = await setup();
+    await type('Lodge the caveat by 3/2/2027 !high');
+    el.querySelector<HTMLButtonElement>('button[aria-label="Remove the priority"]')?.click();
+    await fixture.whenStable();
+    await key('Enter');
+    expect(host.saved).toEqual([{ title: 'Lodge the caveat', priority: 'none', dueDate: '2027-02-03' }]);
+  });
+
+  it('has buttons to set a due date and a priority by hand', async () => {
+    const { el } = await setup();
+    expect(el.querySelector('button[aria-label="Set a due date"]')).not.toBeNull();
+    expect(el.querySelector('button[aria-label="Set a priority"]')).not.toBeNull();
   });
 });

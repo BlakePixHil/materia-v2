@@ -126,7 +126,7 @@ describe('my tasks', () => {
     expect(page.text(page.dialog())).toContain('Change the due date of 2 tasks');
     await page.fill('Due date', '31/02/2026', page.dialog() ?? page.body);
     await page.submit(page.dialog());
-    expect(page.text(page.dialog())).toContain('Enter a date like 14/10/2026.');
+    expect(page.text(page.dialog())).toContain('Enter a date like 14/10/2026 or fri.');
     await page.fill('Due date', '6/10/2026', page.dialog() ?? page.body);
     await page.submit(page.dialog());
     await page.stable(20);
