@@ -103,6 +103,16 @@ describe('Anthropic adapter', () => {
     expect(params).not.toHaveProperty('betas');
   });
 
+  it('turns citations off with structured output (the API rejects the two together)', async () => {
+    const params = (await buildParams(
+      request({ output: { name: 'hello', schema: z.object({ greeting: z.string() }) } }),
+    )) as unknown as { messages: { content: Record<string, unknown>[] }[] };
+    const content = params.messages[0]?.content ?? [];
+    expect(content[0]).toMatchObject({ type: 'document' });
+    expect(content[0]).not.toHaveProperty('citations');
+    expect(content[1]).not.toHaveProperty('citations');
+  });
+
   it('replays assistant turns verbatim, thinking blocks included', async () => {
     const turn = apiMessage.content;
     const params = (await buildParams(

@@ -91,7 +91,6 @@ describe('app routes', () => {
   });
 
   it.each([
-    ['/inbox', 'Inbox', 'CORE-22'],
     ['/billing', 'Time & billing', 'BILL-03'],
     ['/insights', 'Insights', 'INS-02'],
   ])('%s is a placeholder for its ticket', async (url, heading, ticket) => {
@@ -99,6 +98,14 @@ describe('app routes', () => {
     expect(el.querySelector('h1')?.textContent).toContain(heading);
     expect(el.textContent).toContain(`Coming in ${ticket}`);
     expect(title()).toBe(`${heading} · Materia`);
+  });
+
+  it('/inbox is the Inbox (CORE-22)', async () => {
+    const { el, title } = await setup('/inbox');
+    expect(el.querySelector('h1')?.textContent).toContain('Inbox');
+    expect(el.querySelector('mt-inbox-page')).not.toBeNull();
+    expect(el.textContent).not.toContain('Coming in CORE-22');
+    expect(title()).toBe('Inbox · Materia');
   });
 
   it('/settings opens Practice for owners and the team for everyone else (CORE-21)', async () => {

@@ -9,13 +9,16 @@ import {
   inject,
   signal,
   untracked,
+  viewChild,
   ViewEncapsulation,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { NgpPopover, NgpPopoverTrigger } from 'ng-primitives/popover';
 import { filter, map } from 'rxjs';
 
 import { DataLifecycle } from '@materia/data-access';
+import { UNREAD_BADGE_LIMIT } from '@materia/data-access/repository';
 import { can, type Action } from '@materia/domain';
 import {
   DialogService,
@@ -47,6 +50,7 @@ import { CommandRegistry, type Command } from '../core/commands/command-registry
 import { intentUrl } from '../core/commands/intents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
 import { OfflineError, OrgService } from '../core/orgs/org-service';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
@@ -99,7 +103,10 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtMenuSeparator,
     MtMenuTrigger,
     MtNavItem,
+    MtNotificationsPopover,
     MtTabBar,
+    NgpPopover,
+    NgpPopoverTrigger,
   ],
   // The unread count on Inbox and urgent toasts (FND-20) follow the shell's lifetime.
   providers: [NotificationsStore],
@@ -244,6 +251,17 @@ export const MOBILE_QUERY = '(max-width: 767px)';
             }
             @if (mobile()) {
               <button mtIconButton icon="search" size="sm" label="Search" (click)="openPalette()"></button>
+            } @else {
+              <!-- The bell (CORE-22): the newest unread notifications, and the way into the Inbox. -->
+              <button
+                mtIconButton
+                icon="bell"
+                size="sm"
+                data-bell
+                [label]="bellLabel()"
+                [ngpPopoverTrigger]="bellPopover"
+                ngpPopoverTriggerPlacement="bottom-end"
+              ></button>
             }
           </div>
         </div>
@@ -288,6 +306,10 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     @if (mobile()) {
       <div class="mt-app-tabbar"><mt-tab-bar [items]="tabBarItems()" /></div>
     }
+
+    <ng-template #bellPopover>
+      <mt-notifications-popover ngpPopover (closed)="bell()?.hide()" />
+    </ng-template>
 
     <ng-template #orgMenu>
       <mt-menu>
@@ -337,6 +359,13 @@ export class AppShellComponent {
   protected readonly header = inject(PageHeader);
   /** Unread in-app notifications (FND-20). */
   protected readonly notifications = inject(NotificationsStore);
+  protected readonly bell = viewChild(NgpPopoverTrigger);
+  /** The bell's name says how many are unread (CORE-22). */
+  protected readonly bellLabel = computed(() => {
+    const n = this.notifications.count();
+    if (!n) return 'Notifications';
+    return `Notifications, ${n > UNREAD_BADGE_LIMIT ? `${UNREAD_BADGE_LIMIT}+` : n} unread`;
+  });
   /** The org switcher (FND-17). */
   protected readonly orgChoices = this.orgs.orgs;
 

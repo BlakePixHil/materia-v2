@@ -24,6 +24,7 @@ import { matterCommands } from '../core/commands/matter-commands';
 import { recentRecorder } from '../core/commands/recents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { startTrace } from '../core/observability/perf';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterHeader } from '../features/matter-detail/matter-header';
 import { MatterScreen } from '../features/matter-detail/matter-screen';
@@ -184,6 +185,17 @@ export class MatterLayout {
     effect(() => {
       const id = this.id();
       untracked(() => this.screen.id.set(id || null));
+    });
+
+    // The matter_open trace (FND-21): from the route to the matter shown (or an error state).
+    let opening: (() => void) | null = null;
+    effect(() => {
+      if (this.id()) opening = startTrace('matter_open');
+    });
+    effect(() => {
+      if (this.state() === 'loading' || !opening) return;
+      opening();
+      opening = null;
     });
 
     // Litigation is for disputes only: elsewhere its URL lands on the overview. A tab's own pages

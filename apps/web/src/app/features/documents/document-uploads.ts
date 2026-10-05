@@ -274,7 +274,7 @@ function serverView(
     };
   }
   if (status.kind === 'removed') return { ...base, text: 'Discarded', tone: 'neutral', finished: true };
-  if (status.kind === 'ready') {
+  if (status.kind === 'ready' || status.kind === 'queued') {
     const version = findVersion(doc);
     return {
       ...base,

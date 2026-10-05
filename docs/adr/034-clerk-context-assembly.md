@@ -25,7 +25,7 @@ We will build every Clerk context with one function, `buildContext` (`apps/funct
 ## Consequences
 
 - Each feature calls `buildContext` and passes `context` to `gateway.run`; no feature reads matter data for Clerk itself.
-- Until AI-04 merges, production wires `noChunkSearch` and `noDocumentText` (`clerk/context/ports.ts`, used by `clerk/context/service.ts`): retrieval adds nothing and attachments count as still processing. AI-04 swaps in `chunkSearch({ db, embedding })` and a page reader.
+- Production wires AI-04's `chunkSearch({ db, embedding })` and `chunkDocumentText(db)` (`documents/ingest/`, ADR-038) in `clerk/context/service.ts`. Document text is read back from the version's chunks, so a version not yet ingested counts as still processing.
 - The estimate over-counts English prose slightly, so contexts run a little under budget; an exact counter can replace it without other changes.
 - Privileged messages are marked but not yet hidden by the rules in shared threads: a shared reader without `privileged.view` could read one. The chat panel (AI-06), which introduces sharing in the UI, must add `visible(orgId, resource.data)` to the message read rule (new messages always store `privileged`).
 - Rejected ids are `NOT_FOUND` rather than a new error code, matching the documents and matters callables.

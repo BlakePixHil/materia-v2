@@ -16,6 +16,8 @@ test-results/
 
 # Firebase
 .firebase/
+# Written by `materia-scripts csp emulator-config` for e2e (FND-22).
+firebase.e2e.json
 firebase-debug.log
 firebase-debug.*.log
 firestore-debug.log

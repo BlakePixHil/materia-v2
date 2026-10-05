@@ -340,10 +340,11 @@ export class InMemoryFirestore {
         this.notify(path);
         return id;
       },
-      update: async (id, patch, meta, remove = []) => {
+      update: async (id, patch, meta, remove = [], now = []) => {
         const current = docs().get(id);
         if (!current) throw { code: 'not-found', message: `No document ${path}/${id}` };
-        const change = { ...patch, ...stamp(meta) };
+        const at = new Date();
+        const change = { ...patch, ...Object.fromEntries(now.map((field) => [field, at])), ...stamp(meta) };
         this.writes.push({
           op: 'update',
           path: `${path}/${id}`,

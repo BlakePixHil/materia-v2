@@ -448,6 +448,54 @@ export const DocumentUploadSchema = z
   .strict();
 export type DocumentUpload = z.infer<typeof DocumentUploadSchema>;
 
+/** Why a document wasn't ingested for Clerk (AI-04). */
+export const IngestSkipReasonSchema = z.enum([
+  /** Password-protected PDF. */
+  'encrypted',
+  /** A type Clerk doesn't read (spreadsheets, slides, archives, HEIC photos, legacy .doc). */
+  'unsupported',
+  /** No text, and no OCR could be done. */
+  'empty',
+  /** Every page needs OCR, and Clerk (which does the OCR) is off for the org. */
+  'ocr_unavailable',
+  /** The file couldn't be parsed. */
+  'damaged',
+]);
+export type IngestSkipReason = z.infer<typeof IngestSkipReasonSchema>;
+
+/**
+ * Where a document is in Clerk's ingestion (AI-04): `pending` (waiting for the `documents-ingest`
+ * task), `running`, `queued` (over the org's daily OCR page budget: resumes the next day, shown as
+ * "Queued"), `done`, `failed` (`error`) or `skipped` (`reason`). Ingestion is idempotent by
+ * `(docId, version)`: `version` is the document version the chunks were built from. `checkpoint`
+ * lets a long PDF resume where it stopped (every 50 pages).
+ */
+export const DocumentIngestSchema = z.object({
+  status: z.enum(['pending', 'running', 'queued', 'done', 'failed', 'skipped']),
+  version: z.number().int().min(1).optional(),
+  pages: z.number().int().min(0).optional(),
+  /** Pages read by OCR (no text layer). */
+  ocrPages: z.number().int().min(0).optional(),
+  /** Whether any page was read by OCR. */
+  ocr: z.boolean().optional(),
+  /** Pages the OCR model flagged as hard to read (handwriting, poor scans). */
+  lowConfidencePages: z.array(z.number().int().min(1)).max(1000).optional(),
+  /** Pages that needed OCR but got none (Clerk off for the org): ingested without them. */
+  ocrUnavailablePages: z.number().int().min(0).optional(),
+  chars: z.number().int().min(0).optional(),
+  chunks: z.number().int().min(0).optional(),
+  /** ISO 639-1 language when it isn't English (`und` when unknown); absent for English. */
+  language: z.string().min(2).max(8).optional(),
+  reason: IngestSkipReasonSchema.optional(),
+  error: z.string().max(200).optional(),
+  /** Resume point: the next page to read and the next chunk ordinal. */
+  checkpoint: z.object({ nextPage: z.number().int().min(1), nextOrdinal: z.number().int().min(0) }).optional(),
+  /** When a `queued` document resumes. */
+  queuedUntil: InstantSchema.optional(),
+  at: InstantSchema.optional(),
+});
+export type DocumentIngest = z.infer<typeof DocumentIngestSchema>;
+
 /**
  * `matters/{matterId}/documents/{docId}` (CORE-12). Created by `documents-onUpload` when an upload
  * arrives, with `scan.status: 'pending'` and no version; each clean upload appends to `versions`,
@@ -478,12 +526,7 @@ export const MatterDocument = withMeta(
     upload: DocumentUploadSchema.optional(),
     /** Another live document in the matter with the same content: the UI offers keep both or discard. */
     duplicateOf: DocIdSchema.optional(),
-    ingest: z.object({
-      status: z.enum(['pending', 'done', 'failed', 'skipped']),
-      pages: z.number().int().optional(),
-      ocr: z.boolean().optional(),
-      error: z.string().optional(),
-    }),
+    ingest: DocumentIngestSchema,
     source: DocumentSourceSchema,
     pageCount: z.number().int().optional(),
     encrypted: z.boolean().default(false),
@@ -530,14 +573,29 @@ export const DocumentHash = withMeta(
   { path: `${MATTER}/documentHashes`, migratable: false, updatable: [] },
 );
 
-/** `documents/{docId}/chunks/{n}`. Written by functions only. */
+/** The embedding size of every chunk (ADR-012: Vertex AI text embeddings at 768 dimensions). */
+export const CHUNK_EMBEDDING_DIMENSIONS = 768;
+
+/**
+ * `documents/{docId}/chunks/{n}` (AI-04): one passage of a document version, never crossing a
+ * page, with its embedding. `n` is the zero-padded `ordinal`. `orgId`, `matterId` and
+ * `privileged` are the vector index's pre-filters, so `privileged` follows the document (a
+ * trigger). Written by functions only; old versions' chunks are deleted on re-ingest.
+ */
 export const Chunk = withMeta(
   {
     ...GroupKeys,
     text: z.string(),
     page: z.number().int().min(1),
+    /** The document version the text came from (citations pin it). */
+    docVersion: z.number().int().min(1),
+    /** Position in the document version, from 0. */
+    ordinal: z.number().int().min(0),
+    privileged: z.boolean(),
+    /** The page was read by OCR. */
+    ocr: z.boolean().optional(),
     // Vector(768) in Firestore; a number array in the domain model (ADR-012).
-    embedding: z.array(z.number()).length(768),
+    embedding: z.array(z.number()).length(CHUNK_EMBEDDING_DIMENSIONS),
   },
   { path: `${MATTER}/documents/{docId}/chunks`, migratable: false },
 );

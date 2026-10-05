@@ -5,10 +5,14 @@ import {
   digestDueDate,
   digestId,
   digestSubject,
+  INBOX_FILTER_OF,
+  INBOX_FILTERS,
+  inInboxFilter,
   NOTIFICATION_KIND_IDS,
   NOTIFICATION_KINDS,
   notificationKindSpec,
   NotificationPrefsSchema,
+  notificationExpiry,
   quietHoursEnd,
   readNotificationPrefs,
   resolveChannels,
@@ -96,6 +100,33 @@ describe('the kind registry', () => {
     expect(Notification.version).toBe(2);
     expect(Notification.update.safeParse({ readAt: null }).success).toBe(true);
     expect(Notification.update.safeParse({ title: 'x' }).success).toBe(false);
+    // The inbox (CORE-22) archives with `hiddenAt`; `expireAt` drives the TTL.
+    expect(Notification.update.safeParse({ hiddenAt: new Date() }).success).toBe(true);
+    expect(Notification.update.safeParse({ hiddenAt: null, readAt: new Date() }).success).toBe(true);
+    expect(Notification.update.safeParse({ expireAt: new Date() }).success).toBe(false);
+    expect(
+      NotificationPayloadSchema.safeParse({ ...base, kind: 'system', hiddenAt: null, expireAt: new Date() }).success,
+    ).toBe(true);
+  });
+});
+
+describe('the inbox (CORE-22)', () => {
+  it('keeps notifications for 90 days', () => {
+    expect(notificationExpiry(new Date('2026-10-05T00:00:00Z'))).toEqual(new Date('2027-01-03T00:00:00Z'));
+  });
+
+  it('files every kind under exactly one filter chip', () => {
+    expect(Object.keys(INBOX_FILTER_OF).sort()).toEqual([...NOTIFICATION_KIND_IDS].sort());
+    for (const kind of NOTIFICATION_KIND_IDS) {
+      expect(inInboxFilter(kind, 'all')).toBe(true);
+      expect(INBOX_FILTERS.filter((f) => f !== 'all' && inInboxFilter(kind, f))).toHaveLength(1);
+    }
+    expect(inInboxFilter('mention', 'mentions')).toBe(true);
+    expect(inInboxFilter('task_assigned', 'assigned')).toBe(true);
+    expect(inInboxFilter('deadline_escalation', 'deadlines')).toBe(true);
+    expect(inInboxFilter('suggestion', 'clerk')).toBe(true);
+    expect(inInboxFilter('integration_error', 'system')).toBe(true);
+    expect(inInboxFilter('integration_error', 'clerk')).toBe(false);
   });
 });
 

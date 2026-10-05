@@ -57,3 +57,20 @@ module "env" {
   budget_currency              = var.budget_currency
   budget_alert_emails          = var.budget_alert_emails
 }
+
+# Observability (FND-21): log-based metrics, alerts, uptime checks, the Ops overview dashboard and
+# the private sourcemaps bucket.
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  env                   = var.env
+  project_id            = module.env.project_id
+  region                = var.region
+  notification_channels = module.env.alert_channels
+  deployer_sa           = module.env.deployer_sa
+  deletion_protection   = var.deletion_protection
+  labels = {
+    app = "materia"
+    env = var.env
+  }
+}

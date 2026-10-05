@@ -6,6 +6,7 @@ import {
   EMULATOR_PROJECT,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
+  FIRST_LOAD,
   setEmulatorDocuments,
   setOrgFlags,
   signInAsTestUser,
@@ -113,12 +114,18 @@ const dueDateOf = async (request: APIRequestContext, orgId: string, id: string) 
 async function editDateFact(page: Page, label: string, date: DateOnly): Promise<Locator> {
   const facts = page.locator('mt-key-facts');
   await page.getByRole('button', { name: `Edit ${label}` }).click();
-  await facts.getByLabel(label).fill(typed(date));
+  // The editor renders on the next change detection, which can land after Playwright looks for the
+  // field. By role (not getByLabel, which also matches the "Copy …" and "Edit …" buttons and then
+  // fails strict mode at once) the fill waits for the text box to appear.
+  await facts.getByRole('textbox', { name: label, exact: true }).fill(typed(date));
   await facts.getByRole('button', { name: 'Save' }).click();
-  const toast = page.locator('.mt-toaster').getByText(`${label} saved`);
-  await expect(toast).toBeVisible(CALLABLE_TIMEOUT);
-  await expect(facts.locator('form')).toHaveCount(0);
-  return page.locator('.mt-toaster');
+  // The editor closes only once the save went through, so wait on that rather than the toast: an
+  // earlier "… saved" toast for the same fact can still be up. Then check the toaster as a whole,
+  // so a failure shows what it did say.
+  await expect(facts.locator('form'), `${label} editor closes after the save`).toHaveCount(0, CALLABLE_TIMEOUT);
+  const toaster = page.locator('.mt-toaster');
+  await expect(toaster).toContainText(`${label} saved`);
+  return toaster;
 }
 
 const deadlineRow = (page: Page, title: string) => page.locator('mt-deadline-row').filter({ hasText: title });
@@ -208,7 +215,7 @@ test.describe('deadlines', () => {
 
     // Record the date of death from the Deadlines tab.
     await page.goto('/matters/m-doyle/deadlines');
-    await expect(page.getByRole('heading', { level: 2, name: 'Deadlines' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Deadlines' })).toBeVisible(FIRST_LOAD);
     await page.getByRole('button', { name: 'Record event' }).click();
     const eventDialog = page.getByRole('dialog');
     await eventDialog.getByLabel('Event').selectOption({ label: 'Date of death' });
@@ -216,7 +223,9 @@ test.describe('deadlines', () => {
     await expectNoA11yViolations(page);
     await eventDialog.getByRole('button', { name: 'Record event' }).click();
     await expect(eventDialog).toBeHidden(CALLABLE_TIMEOUT);
-    await expect(page.locator('[data-event="date_of_death"]')).toContainText('Date of death');
+    // The dialog closes before deadlines-upsertEvent runs, so the event shows only once the callable
+    // and its recompute are done.
+    await expect(page.locator('[data-event="date_of_death"]')).toContainText('Date of death', CALLABLE_TIMEOUT);
     const executor = deadlineRow(page, 'Executor');
     await expect(executor).toBeVisible(CALLABLE_TIMEOUT);
     // A deadline waiting on the grant says why.
@@ -272,9 +281,9 @@ test.describe('deadlines', () => {
 
     // The Deadlines screen: grouped, with the matter named and the trace.
     await page.goto('/deadlines');
-    await expect(page.getByRole('heading', { level: 1, name: 'Deadlines' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Deadlines' })).toBeVisible(FIRST_LOAD);
     const manual = deadlineRow(page, 'Settle the sale of the fictional house');
-    await expect(manual).toContainText(`${MATTER_NUMBER} · Estate of Margaret Doyle`);
+    await expect(manual).toContainText(`${MATTER_NUMBER} · Estate of Margaret Doyle`, FIRST_LOAD);
     await expect(page.locator('section[data-group="later"]')).toContainText('Executor');
     const later = deadlineRow(page, 'Executor');
     await later.getByText('How it’s worked out').click();

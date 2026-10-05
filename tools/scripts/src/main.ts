@@ -4,6 +4,7 @@ const COMMANDS = {
   'clerk-prompts': 'Compile the Clerk prompt registry (libs/clerk/prompts) for Functions (AI-02)',
   env: 'Write apps/web environment files from Terraform outputs (FND-03)',
   'bundle-size': 'Check the apps/web gzip bundle budgets (FND-04)',
+  csp: 'Check the built index.html against the Hosting CSP; write the e2e emulator config (FND-22)',
   'ci-summary': 'Render the coverage and bundle PR comment (FND-04)',
   'sync-design': 'Sync design tokens, component CSS and fonts into libs/ui (FND-07)',
   'rules-sync': 'Sync the Firestore rules role lists and field whitelists from libs/domain (FND-14)',
@@ -15,7 +16,9 @@ const COMMANDS = {
   'flags-report': 'Check the feature flag registry and report stale flags (FND-23)',
   'platform-admin': 'Grant or revoke the platformAdmin claim (FND-23; humans only)',
   'backfill-search-tokens': 'Rewrite search tokens and stamp recent entries (CORE-15; idempotent)',
+  'backfill-ingest': 'Have Clerk ingest documents from before AI-04 or that failed, and report ingest status (AI-04)',
   'search-load': 'Time the ⌘K search against the emulator with 5,000 matters (CORE-15)',
+  'decode-stack': 'Deobfuscate a web stack trace with the private sourcemaps (FND-21)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -41,6 +44,7 @@ export async function run(argv: string[]): Promise<number> {
       'clerk-prompts': () => import('./clerk-prompts.ts'),
       env: () => import('./env.ts'),
       'bundle-size': () => import('./bundle-size.ts'),
+      csp: () => import('./csp.ts'),
       'ci-summary': () => import('./ci-summary.ts'),
       'sync-design': () => import('./sync-design.ts'),
       'rules-sync': () => import('./rules-sync.ts'),
@@ -52,7 +56,9 @@ export async function run(argv: string[]): Promise<number> {
       'flags-report': () => import('./flags-report.ts'),
       'platform-admin': () => import('./platform-admin.ts'),
       'backfill-search-tokens': () => import('./backfills/search-tokens.ts'),
+      'backfill-ingest': () => import('./backfills/ingest.ts'),
       'search-load': () => import('./search-load.ts'),
+      'decode-stack': () => import('./decode-stack.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);
