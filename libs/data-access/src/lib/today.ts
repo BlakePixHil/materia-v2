@@ -1,15 +1,17 @@
 import { inject } from '@angular/core';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import {
   Matter,
   Member,
   OPEN_TASK_STATUSES,
   Org,
+  RECENT_ENTRIES_SHOWN,
   RECENT_MATTERS_SHOWN,
   RecentMatter,
+  recentEntryId,
   recentMatterExpireAt,
-  recentMatterId,
+  type RecentRef,
   SoftDeleteShape,
   TODAY_SECTION_LIMIT,
   type DateOnly,
@@ -183,34 +185,64 @@ export function orgTimeZoneRepository(): Repository<z.infer<typeof OrgTimeZoneSc
 export type RecentMatterItem = z.infer<typeof RecentMatter.schema>;
 
 /**
- * The signed-in person's recently opened matters (`users/{uid}/recent/{orgId}_{matterId}`,
- * CORE-14). Private to them; the matter screen records each open with `recordRecentMatter`. Call
- * it in an injection context.
+ * The signed-in person's recently opened things (`users/{uid}/recent/{id}`, CORE-14, CORE-15):
+ * matters, contacts, tasks and documents. Private to them; each screen records an open with
+ * `recordRecent`. Call it in an injection context.
  */
 export function recentMattersRepository(): Repository<RecentMatterItem> {
   const context = inject(OrgContext);
   return repo(() => `users/${context.requireUid()}/recent`, RecentMatter);
 }
 
-/** The latest matters I opened in an org (indexed: orgId, updatedAt desc). */
+/**
+ * The latest matters I opened in an org (indexed: orgId, kind, updatedAt desc). Entries written
+ * before CORE-15 have no `kind`; the search-tokens backfill stamps them `matter`, and opening the
+ * matter again rewrites the entry anyway.
+ */
 export const recentMattersQuery = (orgId: string): QuerySpec<RecentMatterItem> => ({
-  where: [['orgId', '==', orgId]],
+  where: [
+    ['orgId', '==', orgId],
+    ['kind', '==', 'matter'],
+  ],
   orderBy: [['updatedAt', 'desc']],
   pageSize: RECENT_MATTERS_SHOWN,
 });
 
+/** The latest things of any kind I opened in an org, for the ⌘K palette (indexed: orgId, updatedAt desc). */
+export const recentEntriesQuery = (orgId: string): QuerySpec<RecentMatterItem> => ({
+  where: [['orgId', '==', orgId]],
+  orderBy: [['updatedAt', 'desc']],
+  pageSize: RECENT_ENTRIES_SHOWN,
+});
+
 /**
- * Records that I opened a matter: the whole entry is written again, so `updatedAt` moves to now
+ * Records that I opened something: the whole entry is written again, so `updatedAt` moves to now
  * and `expireAt` 90 days on. Not awaited by callers: offline, it's saved when back online.
  */
+export function recordRecent(
+  recents: Pick<Repository<RecentMatterItem>, 'create'>,
+  orgId: string,
+  ref: RecentRef,
+  now: Date,
+): Promise<string> {
+  return recents.create(
+    {
+      orgId,
+      kind: ref.kind,
+      ...(ref.matterId ? { matterId: ref.matterId } : {}),
+      ...(ref.kind !== 'matter' && ref.entityId ? { entityId: ref.entityId } : {}),
+      expireAt: recentMatterExpireAt(now),
+    },
+    { id: recentEntryId(orgId, ref) },
+  );
+}
+
+/** Records that I opened a matter (CORE-14). */
 export function recordRecentMatter(
   recents: Pick<Repository<RecentMatterItem>, 'create'>,
   orgId: string,
   matterId: string,
   now: Date,
 ): Promise<string> {
-  return recents.create(
-    { orgId, matterId, expireAt: recentMatterExpireAt(now) },
-    { id: recentMatterId(orgId, matterId) },
-  );
+  return recordRecent(recents, orgId, { kind: 'matter', matterId }, now);
 }

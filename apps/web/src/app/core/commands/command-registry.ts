@@ -6,7 +6,7 @@ import type { MtIconName } from '@materia/ui';
 export interface Command {
   id: string;
   title: string;
-  /** Palette group ("Navigation", "General"). */
+  /** Palette group ("Navigation", "General", "This matter"). */
   group: string;
   icon?: MtIconName | undefined;
   keywords?: readonly string[] | undefined;
@@ -14,16 +14,36 @@ export interface Command {
   shortcut?: string | undefined;
   /** Only offered while this returns true. */
   when?: (() => boolean) | undefined;
+  /** Where it goes, for ⌘↵ (open in a new tab); commands that act in place have none. */
+  href?: string | undefined;
+  /**
+   * Sub-commands (CORE-15): the palette drills into them (Tab or ↵) instead of running the command,
+   * as "Go to…" lists the destinations and "Change stage…" the stages.
+   */
+  children?: (() => readonly Command[]) | undefined;
   run: () => unknown;
 }
 
-/** A search result from a provider (matters, contacts, tasks; CORE-15). */
+/** A search result from a provider (matters, contacts, tasks, documents; CORE-15). */
 export interface CommandResult {
   id: string;
   title: string;
   meta?: string | undefined;
+  /** Shows `meta` in the mono face (a matter number). */
+  mono?: boolean | undefined;
   icon?: MtIconName | undefined;
+  /** Its page, for ⌘↵ (open in a new tab). */
+  href?: string | undefined;
+  /** Its own commands, which Tab drills into (a matter's: add a task, upload a document…). */
+  children?: (() => readonly Command[]) | undefined;
   run: () => unknown;
+}
+
+/** A provider's answer: its results, and whether its token had more than it read (a hot token). */
+export interface CommandResultPage {
+  results: readonly CommandResult[];
+  /** Showing the first few only: the palette says to type more. */
+  more?: boolean | undefined;
 }
 
 /** Async search results for the palette, such as matters by number or title (CORE-15). */
@@ -31,7 +51,12 @@ export interface CommandProvider {
   id: string;
   group: string;
   /** Called as the query changes (debounced); abort when `signal` aborts. */
-  search: (query: string, signal: AbortSignal) => Promise<readonly CommandResult[]>;
+  search: (query: string, signal: AbortSignal) => Promise<readonly CommandResult[] | CommandResultPage>;
+}
+
+/** A provider's answer as a page. */
+export function resultPage(answer: readonly CommandResult[] | CommandResultPage): CommandResultPage {
+  return Array.isArray(answer) ? { results: answer } : (answer as CommandResultPage);
 }
 
 /**
@@ -69,6 +94,15 @@ export function commandScore(query: string, command: Pick<Command, 'title' | 'ke
   return scores.length ? Math.max(...scores) : null;
 }
 
+/** The commands matching the query, best first (ties keep their order). */
+export function searchCommands(query: string, commands: readonly Command[]): Command[] {
+  return commands
+    .map((command, index) => ({ command, index, score: commandScore(query, command) }))
+    .filter((r): r is { command: Command; index: number; score: number } => r.score !== null)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((r) => r.command);
+}
+
 const RECENT_KEY = 'materia.commands.recent';
 const RECENT_MAX = 5;
 
@@ -99,11 +133,7 @@ export class CommandRegistry {
 
   /** Commands matching the query, best first (ties keep registration order). */
   search(query: string): Command[] {
-    return this.available()
-      .map((command, index) => ({ command, index, score: commandScore(query, command) }))
-      .filter((r): r is { command: Command; index: number; score: number } => r.score !== null)
-      .sort((a, b) => b.score - a.score || a.index - b.index)
-      .map((r) => r.command);
+    return searchCommands(query, this.available());
   }
 
   /** Recently run commands that are still available, most recent first. */
@@ -114,13 +144,21 @@ export class CommandRegistry {
       .filter((c): c is Command => c !== undefined);
   }
 
+  /** The registered providers, in registration order. */
+  allProviders(): readonly CommandProvider[] {
+    return this.providers();
+  }
+
   /** Every provider's results for a query (a failing provider contributes nothing). */
   async searchProviders(
     query: string,
     signal: AbortSignal,
   ): Promise<{ provider: CommandProvider; results: readonly CommandResult[] }[]> {
     const settled = await Promise.allSettled(
-      this.providers().map(async (provider) => ({ provider, results: await provider.search(query, signal) })),
+      this.providers().map(async (provider) => ({
+        provider,
+        results: resultPage(await provider.search(query, signal)).results,
+      })),
     );
     return settled.filter((r) => r.status === 'fulfilled').map((r) => r.value);
   }

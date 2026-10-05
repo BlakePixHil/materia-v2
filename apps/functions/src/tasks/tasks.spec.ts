@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
-import { dateOnly, type Role } from '@materia/domain';
+import { dateOnly, taskSearchTokens, type Role } from '@materia/domain';
 
 import { bulkPatch, bulkUpdateDefinition } from './bulk-update';
 import {
@@ -268,7 +268,12 @@ describe('tasks-onWrite', () => {
     const w = world({ [M]: { ...meta, number: 'M-1', openTaskCount: 1 } });
     const outcome = await w.writeTask(
       'tpl-x',
-      task({ source: 'template', countedOpen: true, assigneeUid: 'user-para' }),
+      task({
+        source: 'template',
+        countedOpen: true,
+        assigneeUid: 'user-para',
+        search: taskSearchTokens('Lodge the inventory'),
+      }),
     );
     expect(outcome).toEqual({ countDelta: 0, patched: [], notified: null, activity: [] });
     expect(w.count()).toBe(1);
@@ -325,14 +330,26 @@ describe('tasks-onWrite', () => {
     expect(w.under(`${M}/activity/`).at(-1)?.['refs']).toEqual({ taskId: 't1', assigneeUid: 'user-lawyer' });
   });
 
-  it('personal tasks: completedAt only', async () => {
+  it('keeps search in step with the title, writing it only when it changed (CORE-15)', async () => {
+    const w = world();
+    const first = await w.writeTask('t1', task({ title: 'Lodge the Inventory of Assets' }));
+    expect(first.patched).toEqual(['countedOpen', 'search']);
+    expect(w.doc(`${T}/t1`)?.['search']).toEqual(taskSearchTokens('Lodge the Inventory of Assets'));
+    expect((await w.writeTask('t1', { status: 'in_progress' })).patched).toEqual([]);
+    expect((await w.writeTask('t1', { title: 'Publish the notice' })).patched).toEqual(['search']);
+    expect(w.doc(`${T}/t1`)?.['search']).toEqual(expect.arrayContaining(['publish', 'notice']));
+    expect(w.doc(`${T}/t1`)?.['search']).not.toContain('inventory');
+  });
+
+  it('personal tasks: completedAt and search only', async () => {
     const w = world();
     const P = `orgs/${ORG}/members/user-lawyer/tasks`;
-    expect(await w.write('p1', task({ matterId: null, status: 'done' }), P)).toEqual(['completedAt']);
+    expect(await w.write('p1', task({ matterId: null, status: 'done' }), P)).toEqual(['completedAt', 'search']);
     expect(w.doc(`${P}/p1`)).toHaveProperty('completedAt');
     expect(await w.write('p1', { status: 'todo' }, P)).toEqual(['completedAt']);
     expect(w.doc(`${P}/p1`)).not.toHaveProperty('completedAt');
-    expect(await w.write('p1', { title: 'Renamed' }, P)).toEqual([]);
+    expect(await w.write('p1', { title: 'Renamed' }, P)).toEqual(['search']);
+    expect(await w.write('p1', { status: 'blocked' }, P)).toEqual([]);
     expect(await w.write('p1', undefined, P)).toEqual([]);
     expect(w.count()).toBe(0);
   });

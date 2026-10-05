@@ -28,6 +28,8 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   CLERK_BUDGET_EXCEEDED: 'Your practice has used this month’s Clerk allowance. An admin can raise it in settings.',
   CLERK_BUSY: 'Clerk is busy. Try again in a moment.',
   CLERK_UNAVAILABLE: 'Clerk is unavailable right now. You can carry on without it.',
+  CLERK_KEY_INVALID:
+    'Anthropic rejected your practice’s API key. An owner or admin can add a new key in Settings → Clerk.',
   PDF_ENCRYPTED: 'One of the PDFs is password-protected. Remove the password and upload it again.',
   PDF_INVALID: 'One of the PDFs is damaged or isn’t a PDF. Upload a fresh copy and try again.',
   JOB_TIMEOUT: 'This took too long and was stopped. Try again.',
@@ -55,9 +57,19 @@ export function errorCodeOf(error: unknown): ErrorCode {
   return isErrorCode(code) ? code : 'INTERNAL';
 }
 
+/** CLERK_DISABLED because the practice hasn't added its own Anthropic key (AI-02a). */
+export const CLERK_KEY_MISSING_COPY =
+  'Clerk needs your practice’s Anthropic API key. An owner or admin can add it in Settings → Clerk.';
+
 /** User-facing copy for any error thrown by a callable. */
 export function errorCopy(error: unknown): string {
-  return ERROR_COPY[errorCodeOf(error)];
+  const code = errorCodeOf(error);
+  if (
+    code === 'CLERK_DISABLED' &&
+    (error as { details?: { switch?: unknown } } | null)?.details?.switch === 'org.byok.missing'
+  )
+    return CLERK_KEY_MISSING_COPY;
+  return ERROR_COPY[code];
 }
 
 /** ORG_CLAIM_MISMATCH means: refresh the ID token and retry the call once. */

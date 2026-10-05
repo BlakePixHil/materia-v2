@@ -34,6 +34,9 @@ export const REDACTED_KEYS = [
   'password',
   'token',
   'secret',
+  // Clerk BYOK (AI-02a): the org's Anthropic key and its ciphertext.
+  'apikey',
+  'encryptedapikey',
 ] as const;
 
 const REDACTED = new Set<string>(REDACTED_KEYS);

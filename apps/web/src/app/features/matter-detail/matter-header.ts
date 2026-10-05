@@ -397,9 +397,7 @@ export class MatterHeader {
     const url = this.screen.value()?.externalUrl;
     return isMatterLink(url) ? url : null;
   });
-  protected readonly canClose = computed(
-    () => this.statusEditable() && this.choices().some((choice) => choice.to === 'closed'),
-  );
+  readonly canClose = computed(() => this.statusEditable() && this.choices().some((choice) => choice.to === 'closed'));
 
   // ---------- title ----------
 
@@ -437,7 +435,8 @@ export class MatterHeader {
 
   // ---------- people, labels, privileged ----------
 
-  protected setResponsible(uid: string): void {
+  /** Makes `uid` the responsible lawyer (the header's menu, or ⌘K's "Assign…", CORE-15). */
+  setResponsible(uid: string): void {
     if (uid !== this.screen.value()?.responsibleUid) void this.save({ responsibleUid: uid });
   }
 
@@ -500,7 +499,8 @@ export class MatterHeader {
     await this.moveTo(choice.to, reason);
   }
 
-  protected closeMatter(): void {
+  /** Closes the matter, asking for what closing needs (the header's menu, or ⌘K, CORE-15). */
+  closeMatter(): void {
     const close = this.choices().find((choice) => choice.to === 'closed');
     if (close) void this.changeStatus(close);
   }

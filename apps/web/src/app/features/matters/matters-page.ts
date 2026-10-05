@@ -95,7 +95,7 @@ import {
   type MatterViewOption,
   type MatterViewState,
 } from './matters-view';
-import { CommandRegistry } from '../../core/commands/command-registry';
+import { CommandRegistry, type Command } from '../../core/commands/command-registry';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
@@ -915,6 +915,26 @@ export class MattersPage {
         shortcut: '/',
         run: () => this.search()?.focus(),
       }),
+      // ⌘K's list commands (CORE-15): the filter chips' choices, and saving the edited view.
+      commands.register({
+        id: 'matters.filter-by',
+        title: 'Filter by…',
+        group: 'This list',
+        icon: 'filter',
+        keywords: ['status', 'type', 'mine', 'overdue', 'narrow'],
+        when: free,
+        children: () => this.filterCommands(),
+        run: () => undefined,
+      }),
+      commands.register({
+        id: 'matters.save-view',
+        title: 'Save view…',
+        group: 'This list',
+        icon: 'plus',
+        keywords: ['filters', 'remember', 'saved view'],
+        when: () => free() && this.modified(),
+        run: () => void this.saveView(),
+      }),
     ];
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
 
@@ -1028,6 +1048,32 @@ export class MattersPage {
       });
       return next;
     });
+  }
+
+  /** "Filter by…" in ⌘K (CORE-15): one command per chip choice. */
+  private filterCommands(): Command[] {
+    const filter = (id: string, title: string, patch: Partial<MatterViewFilters>, group: string): Command => ({
+      id: `matters.filter-by.${id}`,
+      title,
+      group,
+      run: () => this.setFilters(patch),
+    });
+    return [
+      filter('mine', 'Responsible: me', { responsible: 'me' }, 'Responsible'),
+      filter('overdue', 'Has overdue', { hasOverdue: true }, 'Deadlines'),
+      ...this.statuses.map((status) =>
+        filter(`status.${status}`, `Status: ${this.statusLabels[status]}`, { status: [status] }, 'Status'),
+      ),
+      ...this.types.map((type) => filter(`type.${type}`, `Type: ${this.typeLabels[type]}`, { type: [type] }, 'Type')),
+      {
+        id: 'matters.filter-by.clear',
+        title: 'Clear filters',
+        group: 'Filters',
+        icon: 'x',
+        when: () => this.filtered(),
+        run: () => this.clearFilters(),
+      },
+    ];
   }
 
   // ---------- changing the view ----------

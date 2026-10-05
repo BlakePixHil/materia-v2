@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DateOnlySchema } from '../values/date-only';
 import { CentsSchema } from '../values/money';
@@ -17,6 +17,9 @@ export const DocIdSchema = z
   .regex(/^[^/]+$/, { message: 'Ids cannot contain "/"' });
 
 export const NonEmptyString = z.string().trim().min(1);
+
+/** A denormalised `search` field (ADR-013): prefix tokens kept by a trigger (`searchTokens`). */
+export const SearchTokensSchema = z.array(z.string().min(1)).max(200);
 
 /** Fields every document carries (Architecture & ADRs, cross-cutting conventions). */
 export const MetaShape = {

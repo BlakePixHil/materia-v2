@@ -22,6 +22,7 @@ import { EventTimeline } from './event-timeline';
 import { rememberEventsView, storedEventsView, type EventsView } from './event-timeline-view';
 import { PendingChanges } from './pending-changes';
 import { statutoryDisabled } from './statutory-flag';
+import { onIntent } from '../../core/commands/intents';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
 /**
@@ -302,6 +303,14 @@ export class MatterDeadlines {
   protected readonly eventsView = signal<EventsView>(storedEventsView());
 
   protected readonly isBusy = (key: string) => this.actions.isBusy(key);
+
+  constructor() {
+    // ⌘K's "Add deadline" and "Record event" on this matter (CORE-15), once the matter and the
+    // people the dialog offers have loaded.
+    const ready = () => !!this.screen.value() && this.screen.assignees().length > 0;
+    onIntent('add-deadline', () => this.canAdd() && this.addDeadline(), ready);
+    onIntent('record-event', () => this.canEditEvents() && this.recordEvent(), ready);
+  }
 
   protected setEventsView(value: EventsView | null): void {
     const next = value === 'scale' ? 'scale' : 'linked';

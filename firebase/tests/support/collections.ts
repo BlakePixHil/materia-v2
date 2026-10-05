@@ -288,6 +288,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
   },
   {
+    // The org's own Anthropic key (AI-02a): no client reads it, owners and admins included.
+    collection: 'integrations (anthropic key)',
+    docPath: `orgs/${ORG}/integrations/anthropic`,
+    entity: 'Integration',
+    read: 'none',
+    update: 'none',
+  },
+  {
     collection: 'counters',
     docPath: `orgs/${ORG}/counters/matter-2026`,
     entity: 'Counter',

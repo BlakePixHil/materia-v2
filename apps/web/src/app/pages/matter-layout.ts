@@ -12,19 +12,25 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
-import { ACCESS_REVOKED_HANDLER, can, DATA_CLOCK, OrgContext } from '@materia/data-access';
-import { recentMattersRepository, recordRecentMatter } from '@materia/data-access/repository';
+import { ACCESS_REVOKED_HANDLER, can, OrgContext } from '@materia/data-access';
 import { formatDateOnly, MtButton, MtEmptyState, MtNote, MtTabLink, MtTabNav } from '@materia/ui';
 
 import { matterTabsFor } from './matter-tabs';
 import { NotFoundPage } from './not-found';
 import { ClerkPanel } from '../core/clerk/clerk-panel';
+import { CommandRegistry, type Command } from '../core/commands/command-registry';
+import { onIntent } from '../core/commands/intents';
+import { matterCommands } from '../core/commands/matter-commands';
+import { recentRecorder } from '../core/commands/recents';
 import { errorCopy } from '../core/error-copy';
 import { startTrace } from '../core/observability/perf';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterHeader } from '../features/matter-detail/matter-header';
 import { MatterScreen } from '../features/matter-detail/matter-screen';
 import { MatterStages } from '../features/matter-detail/matter-stages';
+
+/** The matter commands ⌘K offers for the open matter that act on a tab (CORE-15). */
+const TAB_ACTIONS = new Set(['matter.add-task', 'matter.add-deadline', 'matter.record-event', 'matter.upload']);
 
 /** What the matter screen can show while (or instead of) the matter. */
 type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' | 'error';
@@ -118,7 +124,7 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
               <a routerLink="conflicts">Review the conflict check</a>
             </mt-note>
           }
-          <mt-matter-stages />
+          <mt-matter-stages #stages />
           <nav mtTabNav aria-label="Matter sections">
             @for (tab of tabs(); track tab.path) {
               <a mtTabLink [routerLink]="tab.path">{{ tab.label }}</a>
@@ -136,6 +142,7 @@ export class MatterLayout {
   private readonly router = inject(Router);
   private readonly clerk = inject(ClerkPanel);
   private readonly header = viewChild<MatterHeader>('header');
+  private readonly stages = viewChild<MatterStages>('stages');
 
   private readonly id = toSignal(this.route.paramMap.pipe(map((p) => p.get('id') ?? '')), { initialValue: '' });
   /** The active tab's path (`overview`, `parties`…). */
@@ -200,18 +207,12 @@ export class MatterLayout {
       }
     });
 
-    // Today's Recent matters (CORE-14): each matter opened is recorded once. Not awaited: offline,
-    // it's saved when back online; a refused write only means it isn't listed.
-    const context = inject(OrgContext);
-    const clock = inject(DATA_CLOCK);
-    const recents = recentMattersRepository();
-    let recorded: string | null = null;
+    // Today's Recent matters (CORE-14) and ⌘K's Recent (CORE-15): each matter opened is recorded once.
+    const record = recentRecorder();
     effect(() => {
       const matter = this.screen.value();
-      const orgId = context.orgId();
-      if (!matter || matter.deletedAt || !orgId || matter.id === recorded) return;
-      recorded = matter.id;
-      untracked(() => recordRecentMatter(recents, orgId, matter.id, new Date(clock())).catch(() => undefined));
+      if (!matter || matter.deletedAt) return;
+      untracked(() => record({ kind: 'matter', matterId: matter.id }));
     });
 
     // ⌘J asks Clerk about this matter while it's open.
@@ -227,8 +228,15 @@ export class MatterLayout {
     });
     destroyRef.onDestroy(() => releaseScope?.());
 
-    const cleanups = this.registerShortcuts();
+    const cleanups = [...this.registerShortcuts(), ...this.registerCommands()];
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+
+    // ⌘K's "Close matter…" on a matter result (CORE-15) lands here from any tab.
+    onIntent(
+      'close',
+      () => this.header()?.closeMatter(),
+      () => !!this.header(),
+    );
   }
 
   private childPath(): string | null {
@@ -242,6 +250,96 @@ export class MatterLayout {
   private async addParty(): Promise<void> {
     if (this.activeTab() !== 'parties' && !(await this.goTo('parties'))) return;
     this.screen.addPartyRequest.update((n) => n + 1);
+  }
+
+  /**
+   * ⌘K's "This matter" commands while a matter is open (CORE-15): the actions with a tab of their
+   * own go there with an intent (`?do=add-task`); stage, responsible lawyer and closing act here.
+   */
+  private registerCommands(): (() => void)[] {
+    const commands = inject(CommandRegistry);
+    const context = inject(OrgContext);
+    const group = 'This matter';
+    const ready = () => this.state() === 'ready' && !this.screen.deleted();
+
+    // The tab actions follow the matter (its id and number) and the role.
+    const target = computed(
+      () => {
+        const matter = this.screen.value();
+        return matter ? { id: matter.id, number: matter.number } : null;
+      },
+      { equal: (a, b) => a?.id === b?.id && a?.number === b?.number },
+    );
+    let releaseActions: (() => void)[] = [];
+    effect(() => {
+      const matter = target();
+      const role = context.role();
+      untracked(() => {
+        releaseActions.forEach((release) => release());
+        const actions = matter
+          ? matterCommands(matter, role, (url) => this.router.navigateByUrl(url), group).filter((command) =>
+              TAB_ACTIONS.has(command.id),
+            )
+          : [];
+        releaseActions = actions.map((command) =>
+          commands.register({ ...command, when: () => ready() && (command.when?.() ?? true) }),
+        );
+      });
+    });
+
+    const changeStage: Command = {
+      id: 'this-matter.stage',
+      title: 'Change stage…',
+      group,
+      icon: 'arrow-right',
+      keywords: ['move', 'advance', 'stage'],
+      when: () => ready() && !!this.stages()?.movable(),
+      children: () => {
+        const stepper = this.stages();
+        if (!stepper) return [];
+        return stepper.stages().map((stage) => ({
+          id: `this-matter.stage.${stage.id}`,
+          title: stage.title,
+          group: 'Stage',
+          icon: stage.id === stepper.current() ? 'check' : undefined,
+          when: () => stage.id !== stepper.current() && !stage.locked,
+          run: () => stepper.move(stage),
+        }));
+      },
+      run: () => undefined,
+    };
+    const assign: Command = {
+      id: 'this-matter.assign',
+      title: 'Assign…',
+      group,
+      icon: 'user',
+      keywords: ['responsible', 'lawyer', 'owner'],
+      when: () => ready() && this.screen.editable(),
+      children: () =>
+        this.screen.assignees().map((person) => ({
+          id: `this-matter.assign.${person.uid}`,
+          title: person.name,
+          group: 'Responsible lawyer',
+          icon: person.uid === this.screen.value()?.responsibleUid ? 'check' : undefined,
+          run: () => this.header()?.setResponsible(person.uid),
+        })),
+      run: () => undefined,
+    };
+    const close: Command = {
+      id: 'this-matter.close',
+      title: 'Close matter…',
+      group,
+      icon: 'archive',
+      keywords: ['finish', 'archive', 'status'],
+      when: () => ready() && !!this.header()?.canClose(),
+      run: () => this.header()?.closeMatter(),
+    };
+    return [
+      () => releaseActions.forEach((release) => release()),
+      commands.register(changeStage),
+      commands.register(assign),
+      commands.register(close),
+    ];
   }
 
   private registerShortcuts(): (() => void)[] {
