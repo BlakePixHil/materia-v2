@@ -279,6 +279,20 @@ describe('matter deadlines tab', () => {
     });
   });
 
+  it('acknowledges a critical deadline, which stops it escalating (CORE-11)', async () => {
+    const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON });
+    await page.click('More actions for Earliest date to file for probate');
+    await page.click('Acknowledge');
+    await page.stable(20);
+    expect(page.calls('deadlines-acknowledge')).toEqual([
+      expect.objectContaining({ matterId: 'm-whitfield', deadlineId: 'rule-vic.probate.advert_min' }),
+    ]);
+    expect(page.text(page.body.querySelector('.mt-toaster'))).toContain('Deadline acknowledged');
+    // Acknowledged: no longer offered.
+    await page.click('More actions for Earliest date to file for probate');
+    expect(page.buttons('Acknowledge')).toHaveLength(0);
+  });
+
   it('confirms a deadline past on creation as missed', async () => {
     const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON });
     await page.click('More actions for Lodge the caveat response');

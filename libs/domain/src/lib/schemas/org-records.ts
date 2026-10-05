@@ -325,6 +325,13 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
     matterId: DocIdSchema.optional(),
     ...notificationBase,
   }),
+  // A task is due soon (CORE-11, reminders-dispatch); `matterId` is absent for personal tasks.
+  z.object({
+    kind: z.literal('task_reminder'),
+    taskId: DocIdSchema,
+    matterId: DocIdSchema.optional(),
+    ...notificationBase,
+  }),
   z.object({ kind: z.literal('mention'), noteId: DocIdSchema, matterId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('suggestion'), suggestionId: DocIdSchema, matterId: DocIdSchema, ...notificationBase }),
   // A party added to an open matter is on other matters (CORE-02, conflicts-onPartyAdded).

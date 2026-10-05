@@ -6,3 +6,4 @@ export * from './lib/data';
 export * from './lib/storage';
 export * from './lib/rulesets';
 export * from './lib/persist';
+export * from './lib/reminders';

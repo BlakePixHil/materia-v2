@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, ViewEncapsulation
 import { Router, RouterLink } from '@angular/router';
 
 import { can } from '@materia/data-access';
-import { deadlineChangeSummary, deadlineTraceText, groupDueItems } from '@materia/domain';
+import { deadlineChangeSummary, deadlineTraceText, groupDueItems, type TodayEscalationLike } from '@materia/domain';
 import {
   MtBadge,
   MtButton,
@@ -56,6 +56,10 @@ abstract class TodayCard {
 
   protected async markDone(vm: TodayDeadlineVm): Promise<void> {
     if (await this.deadlines.complete(asDeadlineRow(vm), 'done')) this.data.refreshDeadlines();
+  }
+
+  protected acknowledge(row: TodayEscalationLike): void {
+    void this.data.acknowledge(row);
   }
 
   protected complete(entry: TaskEntry): void {
@@ -213,7 +217,17 @@ abstract class TodayCard {
                           <span data-today-focus tabindex="-1">{{ item.escalation.title }}</span>
                         }
                       </div>
+                      @if (matterLabel(item.matter); as label) {
+                        <div class="rule">{{ label }}</div>
+                      }
                     </div>
+                    @if (canEdit()) {
+                      <div class="side">
+                        <button mtButton size="sm" iconStart="check" (click)="acknowledge(item.escalation)">
+                          Acknowledge<span class="mt-sr">: {{ item.escalation.title }}</span>
+                        </button>
+                      </div>
+                    }
                   </li>
                 }
               }

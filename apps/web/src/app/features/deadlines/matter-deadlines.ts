@@ -346,6 +346,9 @@ export class MatterDeadlines {
       case 'missed':
         void this.actions.complete(row, action);
         return;
+      case 'acknowledge':
+        void this.actions.acknowledge(row);
+        return;
       case 'override':
         void this.actions.override(row);
         return;

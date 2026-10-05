@@ -111,9 +111,9 @@ export async function flagMissedAllOrgs(
   return flagged;
 }
 
-/** `deadlines-flagMissed` (CORE-10): the daily missed check, early morning Melbourne time. */
+/** `deadlines-flagMissed` (CORE-10, CORE-11): the daily missed check, at 00:15 Melbourne time (every org is Victorian in the MVP). */
 export const flagMissed = onSchedule(
-  { schedule: '30 5 * * *', timeZone: 'Australia/Melbourne', region: REGION, retryCount: 0 },
+  { schedule: '15 0 * * *', timeZone: 'Australia/Melbourne', region: REGION, retryCount: 0 },
   async () => {
     const log = createLog({ fn: 'deadlines-flagMissed' }, functionsSink);
     const flagged = await flagMissedAllOrgs(adminDb(), systemClock, log, container());
