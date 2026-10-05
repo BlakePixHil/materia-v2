@@ -255,7 +255,11 @@ describe('matters-changeStatus', () => {
     await signInAs('lawyer');
     for (const [from, to] of pairs) {
       const matterId = `t-${from}-${to}`;
-      if (MATTER_TRANSITIONS[from].includes(to)) {
+      if (MATTER_TRANSITIONS[from].includes(to) && to === 'closed') {
+        // Closing goes through matters-close and its checklist (CORE-19).
+        const error = await failure(changeStatus(matterId, to, 'Fictional reason'));
+        expect(detailsOf(error), `${from} → ${to}`).toMatchObject({ reason: 'closing_checklist_required' });
+      } else if (MATTER_TRANSITIONS[from].includes(to)) {
         expect(await changeStatus(matterId, to, 'Fictional reason'), `${from} → ${to}`).toEqual({
           matterId,
           status: to,
@@ -277,18 +281,19 @@ describe('matters-changeStatus', () => {
     expect(detailsOf(error)).toMatchObject({ code: 'FAILED_PRECONDITION', reason: 'conflict_check_not_clear' });
   });
 
-  it('reopening needs a reason, and clears closedAt', async () => {
-    await db.doc(`${M}/to-reopen`).set(rawMatter('open'));
+  it('reopening needs a reason, and clears the closing fields', async () => {
+    // Closed through matters-close (CORE-19); written directly here.
+    await db
+      .doc(`${M}/to-reopen`)
+      .set(rawMatter('closed', { closedAt: new Date(), closeReason: 'Estate finalised', destroyAfter: '2033-10-05' }));
     await signInAs('lawyer');
-    await changeStatus('to-reopen', 'closed', 'Estate finalised');
-    expect(await data(`${M}/to-reopen`)).toMatchObject({ status: 'closed', closeReason: 'Estate finalised' });
-    expect((await data(`${M}/to-reopen`))['closedAt']).toBeDefined();
     const error = await failure(changeStatus('to-reopen', 'open'));
     expect(error.code).toBe('functions/invalid-argument');
     await changeStatus('to-reopen', 'open', 'Further assets found');
     const reopened = await data(`${M}/to-reopen`);
     expect(reopened['status']).toBe('open');
     expect(reopened['closedAt']).toBeUndefined();
+    expect(reopened['destroyAfter']).toBeUndefined();
     const audit = await db.collection(`orgs/${ORG}/audit`).where('action', '==', 'matter.status_changed').get();
     expect(audit.docs.map((d) => d.data()['entity']['path'])).toContain(`${M}/to-reopen`);
   });
