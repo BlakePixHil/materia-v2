@@ -1169,7 +1169,9 @@ export function buildDataset(options: {
           ],
           category: FIXTURE_FILES[fixture].category,
           scan: { status: 'clean' },
-          ingest: { status: 'done', pages: info.pages },
+          // Clerk ingestion (AI-04) picks these up when the functions emulator runs: the
+          // documents-onIngestChange trigger queues them as the seed writes them.
+          ingest: { status: 'pending' },
           pageCount: info.pages,
           source: 'upload',
         }),

@@ -218,6 +218,17 @@ describe('ClerkGateway', () => {
     await expect(gateway.run(input())).resolves.toMatchObject({ status: 'done' });
   });
 
+  it('skips the per-user window for background features (ingestion OCR)', async () => {
+    const { gateway, input, store } = setup();
+    store.settings = { enabled: true, userRateLimit: { requests: 1, windowMinutes: 10 } };
+    const ocr = () =>
+      gateway.run(input({ feature: 'ocr', promptId: 'ocr', vars: { page: 1, fileName: 'Fictional scan.pdf' } }));
+    await ocr();
+    await ocr();
+    await expect(ocr()).resolves.toMatchObject({ status: 'done' });
+    expect(store.hits.size).toBe(0);
+  });
+
   it('blocks the next call once the monthly budget is used (the current call finishes)', async () => {
     const { gateway, input, store } = setup([{ chunks: [HELLO_JSON], usage: { inputTokens: 900, outputTokens: 200 } }]);
     store.settings = { monthlyTokenBudget: 1000 };
@@ -227,6 +238,25 @@ describe('ClerkGateway', () => {
       details: { period: 'clerk-2026-03' },
     });
     expect(store.hits.get('u-1')).toHaveLength(1);
+  });
+
+  it('logs metering, and warns once when the month passes 80% of the budget (FND-21)', async () => {
+    const usage = { inputTokens: 300, outputTokens: 100 };
+    const { gateway, input, store, logs } = setup([
+      { chunks: [HELLO_JSON], usage },
+      { chunks: [HELLO_JSON], usage },
+      { chunks: [HELLO_JSON], usage },
+    ]);
+    store.settings = { monthlyTokenBudget: 1000 };
+    await gateway.run(input());
+    await gateway.run(input());
+    const warnings = () => logs.filter((l) => l.message === 'clerk budget threshold');
+    expect(warnings()).toEqual([
+      expect.objectContaining({ severity: 'warn', entry: expect.objectContaining({ percent: 80, limit: 1000 }) }),
+    ]);
+    await gateway.run(input()).catch(() => undefined);
+    expect(warnings()).toHaveLength(1);
+    expect(logs.find((l) => l.message === 'clerk metered')?.entry).toMatchObject({ tokens: 400 });
   });
 
   it('retries 529, 5xx and timeouts with jittered backoff, then succeeds', async () => {

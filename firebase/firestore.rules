@@ -778,7 +778,7 @@ service cloud.firestore {
     function fieldsCalendar() { return ['jurisdiction', 'year', 'calendarId', 'kind', 'holidays', 'closures', 'source', 'verified']; }
     function fieldsChecklistTemplate() { return ['name', 'items', 'priority', 'dueInDays']; }
     function fieldsChronologyEntry() { return ['date', 'datePrecision', 'title', 'detail', 'sources', 'disputed', 'issueIds']; }
-    function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'embedding']; }
+    function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'docVersion', 'ordinal', 'privileged', 'ocr', 'embedding']; }
     function fieldsClerkMessage() { return ['stopRequested']; }
     function fieldsClerkThread() { return ['title', 'ownerUid', 'matterId', 'shared']; }
     function fieldsConflictCheck() { return []; }
@@ -816,7 +816,7 @@ service cloud.firestore {
     function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['name', 'abn', 'acn', 'practiceType', 'jurisdictions', 'primaryJurisdiction', 'timezone', 'holidayLocality', 'billing', 'matterNumberFormat', 'matterTypeCodes', 'fy', 'retentionYears', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }

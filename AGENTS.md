@@ -60,6 +60,7 @@ Materia v2: a practice tool for Australian Wills & Estates lawyers (launching in
 | `pnpm nx run clerk:eval --feature=<suite>`          | Clerk evals on the real gateway (`--subset`, `--model=…`, `--provider=fake` for no tokens; needs `CLERK_EVALS_API_KEY` live). See `libs/clerk/evals/README.md`          |
 | `pnpm materia-scripts make-fixtures`                | Render the Clerk eval fixture PDFs, typed and scanned (`--check` for CI)                                                                                                |
 | `pnpm materia-scripts <command>`                    | Ops scripts (`clerk-bench`, …)                                                                                                                                          |
+| `pnpm materia-scripts decode-stack --maps <dir>`    | Deobfuscate a minified web stack from Error Reporting with a release's private sourcemaps (FND-21; [incident response](docs/runbooks/incident-response.md))             |
 | `pnpm materia-migrate <step>`                       | Legacy migration CLI (MIG-02 onwards)                                                                                                                                   |
 | `python3 design/system/build.py`                    | Regenerate the design system output. `git status` must stay clean afterwards                                                                                            |
 

@@ -32,6 +32,11 @@ const upload = (status: string, extra = {}) => pipelineUpload(status, extra) as 
 describe('documentStatus', () => {
   it('says where a document is in the pipeline, in plain words', () => {
     expect(documentStatus(docRow('d1', 'Will.pdf'))).toMatchObject({ kind: 'ready', label: 'Ready' });
+    // Over the org's daily OCR budget (AI-04): the file is ready, Clerk reads it tomorrow.
+    expect(documentStatus(docRow('d1', 'Scan.pdf', { ingest: { status: 'queued' } } as never))).toMatchObject({
+      kind: 'queued',
+      label: 'Queued',
+    });
     expect(documentStatus(docRow('d1', 'Will.pdf', { deletedAt: at(3) }))).toMatchObject({ kind: 'removed' });
     expect(documentStatus(docRow('d1', 'Will.pdf', { upload: upload('scanning') }))).toMatchObject({
       label: 'Scanning…',

@@ -23,6 +23,17 @@ export interface FakeStep {
 /** Replies for structured-output schemas when no script is given (the emulator default). */
 const SAMPLE_OUTPUT: Record<string, unknown> = {
   hello: { greeting: 'Hello from the fake Clerk model.', promptRef: 'fake' },
+  ocrPage: {
+    text: 'Fictional scanned page read by the fake OCR model. I appoint Sam Sample as executor of this will.',
+    lowConfidence: false,
+    language: 'en',
+  },
+  documentClassification: {
+    category: 'other',
+    suggestedTitle: 'Fictional document (fake Clerk model)',
+    parties: [],
+    language: 'en',
+  },
 };
 
 function defaultStep(request: ClerkModelRequest): FakeStep {

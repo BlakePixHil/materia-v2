@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 
 import { DomainError, type FieldErrors } from '@materia/domain';
 
-import type { Log } from './log';
+import { errorReportFields, type Log } from './log';
 
 /** Zod issues as field errors, keyed by dotted path ('' for the root). */
 export function fieldErrors(error: ZodError): FieldErrors {
@@ -31,10 +31,7 @@ export function toHttpsError(error: unknown, log: Log): HttpsError {
       fields: fieldErrors(error),
     });
   }
-  // Log the type and stack only: messages from libraries can contain personal data.
-  log.error('unhandled error', {
-    errorType: error instanceof Error ? error.name : typeof error,
-    stack: error instanceof Error ? error.stack?.split('\n').slice(1, 8).join('\n') : undefined,
-  });
+  // Log the type and stack only (Error Reporting picks it up): messages can contain personal data.
+  log.error('unhandled error', errorReportFields(error));
   return new HttpsError('internal', 'Internal error', { code: 'INTERNAL' });
 }
