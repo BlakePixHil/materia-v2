@@ -32,6 +32,7 @@ export function pipelineDeps(
     scanner: p.malwareScan,
     clock: overrides.clock ?? systemClock,
     log,
+    ports: p,
     scheduleRescan: (task, delaySeconds) =>
       enqueue(
         RESCAN_QUEUE,

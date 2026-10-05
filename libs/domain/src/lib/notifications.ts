@@ -46,6 +46,9 @@ export const NOTIFICATION_KINDS = {
   conflict_alert: { label: 'Conflict alerts', channels: ['inapp'], priority: 'high' },
   invite_accepted: { label: 'Invitations accepted', channels: ['inapp'], priority: 'normal' },
   document_ready: { label: 'Documents ready', channels: ['inapp'], priority: 'normal' },
+  // CORE-12: an upload failed the malware scan and was deleted. High (a toast while online) and
+  // emailed, so the uploader and the owners and admins hear of it even if they've moved on.
+  document_infected: { label: 'Infected uploads removed', channels: ['inapp', 'email'], priority: 'high' },
   integration_error: { label: 'Integration problems', channels: ['inapp', 'email'], priority: 'high' },
   export_ready: { label: 'Exports ready', channels: ['inapp', 'email'], priority: 'normal' },
   budget_alert: { label: 'Budget alerts', channels: ['inapp'], priority: 'normal' },

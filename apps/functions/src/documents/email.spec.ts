@@ -247,6 +247,7 @@ describe('documents-saveAttachment', () => {
         scanner: fakeMalwareScan,
         clock: w.clock,
         log: w.log,
+        ports: fakePorts(),
         scheduleRescan: async () => undefined,
       },
     );

@@ -17,7 +17,13 @@ import { MemoryFiles, samplePdf, sha256Of } from './testing';
 import { createLog } from '../core/log';
 import { memoryFirestore } from '../orgs/testing';
 import { ScannerUnavailableError, type MalwareScanPort } from '../ports';
-import { EICAR_TEST_STRING, FAKE_SCANNER_TIMEOUT_MARKER, FakeClock, fakeMalwareScan } from '../ports/fakes';
+import {
+  EICAR_TEST_STRING,
+  FAKE_SCANNER_TIMEOUT_MARKER,
+  FakeClock,
+  FakeTaskQueue,
+  fakeMalwareScan,
+} from '../ports/fakes';
 
 /** Unit tests for the documents pipeline (CORE-12). Every org, person, matter and file is fictional. */
 
@@ -56,6 +62,7 @@ function world() {
   const rescans: { task: RescanTask; delaySeconds: number }[] = [];
   const after: Parameters<AfterVersion>[0][] = [];
   const logged: { message: string; entry: Data }[] = [];
+  const tasks = new FakeTaskQueue();
   const log = createLog({ fn: 'test' }, (_severity, message, entry) => void logged.push({ message, entry }));
   const deps = (overrides: Partial<PipelineDeps> = {}): PipelineDeps => ({
     db: store.db,
@@ -63,6 +70,7 @@ function world() {
     scanner: fakeMalwareScan,
     clock,
     log,
+    ports: { tasks },
     scheduleRescan: async (task, delaySeconds) => void rescans.push({ task, delaySeconds }),
     afterVersion: async (stored) => void after.push(stored),
     ...overrides,
@@ -86,7 +94,7 @@ function world() {
     return { path, generation: object.generation, size: object.size, metadata, uploadId };
   };
   const doc = (path: string) => store.docs.get(path) as Data | undefined;
-  return { ...store, files, clock, rescans, after, logged, deps, upload, doc };
+  return { ...store, files, clock, rescans, after, logged, tasks, deps, upload, doc };
 }
 
 const fakePdf = (label: string) => `%PDF-1.7\n% fictional ${label}\n%%EOF\n`;
@@ -190,11 +198,16 @@ describe('processUpload', () => {
         matterId: 'm1',
         documentId: event.uploadId,
         priority: 'high',
-        channel: ['inapp'],
+        // Through notify() (FND-20): the kind's channels after each person's preferences.
+        channels: ['inapp', 'email'],
+        readAt: null,
+        summaryId: null,
       });
       // No file names (they can carry personal data).
       expect(JSON.stringify(notification)).not.toContain('Fictional notes');
     }
+    // One email delivery queued per recipient.
+    expect(w.tasks.queued.map((q) => q.payload['channel'])).toEqual(['email', 'email', 'email']);
     expect(w.after).toEqual([]);
     expect(JSON.stringify(w.logged)).not.toContain('Fictional notes');
   });

@@ -30,7 +30,7 @@ We will route every notification through `notify(ctx, input, {tx?})` in `apps/fu
 
 ## Consequences
 
-- Existing writers (`tasks-onWrite`, `conflicts-onPartyAdded`/`onPartyRevived`, deadline recomputes, `deadlines-flagMissed`) call `notify()`. Task assignments now also email by default.
+- Existing writers (`tasks-onWrite`, `conflicts-onPartyAdded`/`onPartyRevived`, deadline recomputes, `deadlines-flagMissed`, and the documents upload pipeline's `document_infected` from CORE-12) call `notify()`. Task assignments and infected uploads now also email by default.
 - Every notify call reads each recipient's member and user documents, and counts their last minute of notifications (an index on recipientUid, createdAt). That is cheap at practice scale and keeps the rules in one place.
 - `notifications` is server-written except `readAt`, which the recipient may set to the server time or null. Devices and preferences are owner-only, with values checked in the rules.
 - Two secrets (`POSTMARK_TOKEN`, `POSTMARK_WEBHOOK_SECRET`) and the FCM API must exist before deploy; infra/MANUAL.md lists the steps, including sender signature and SPF/DKIM/DMARC.

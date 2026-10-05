@@ -51,6 +51,7 @@ describe('the kind registry', () => {
       'suggestion',
       'conflict_alert',
       'invite_accepted',
+      'document_infected',
     ]) {
       expect(NOTIFICATION_KIND_IDS).toContain(kind);
     }
@@ -61,6 +62,8 @@ describe('the kind registry', () => {
     expect(notificationKindSpec('assignment').channels).toEqual(['inapp', 'email']);
     expect(notificationKindSpec('task_assigned').channels).toEqual(['inapp', 'email']);
     expect(notificationKindSpec('deadline_escalation').priority).toBe('critical');
+    // An infected upload (CORE-12) is high priority and emailed: the uploader may have moved on.
+    expect(notificationKindSpec('document_infected')).toMatchObject({ channels: ['inapp', 'email'], priority: 'high' });
     for (const spec of Object.values(NOTIFICATION_KINDS)) {
       expect(spec.channels.length).toBeGreaterThan(0);
       expect(spec.label.length).toBeGreaterThan(0);
