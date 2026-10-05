@@ -778,7 +778,7 @@ service cloud.firestore {
     function fieldsCalendar() { return ['jurisdiction', 'year', 'calendarId', 'kind', 'holidays', 'closures', 'source', 'verified']; }
     function fieldsChecklistTemplate() { return ['name', 'items', 'priority', 'dueInDays']; }
     function fieldsChronologyEntry() { return ['date', 'datePrecision', 'title', 'detail', 'sources', 'disputed', 'issueIds']; }
-    function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'embedding']; }
+    function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'docVersion', 'ordinal', 'privileged', 'ocr', 'embedding']; }
     function fieldsClerkMessage() { return ['stopRequested']; }
     function fieldsClerkThread() { return ['title', 'ownerUid', 'matterId', 'shared']; }
     function fieldsConflictCheck() { return []; }

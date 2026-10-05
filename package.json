@@ -118,6 +118,7 @@
     "libphonenumber-js": "^1.13.14",
     "lucide": "^1.51.0",
     "mailparser": "^3.9.35",
+    "mammoth": "^1.13.0",
     "ng-primitives": "0.131.2",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "5.4.624",

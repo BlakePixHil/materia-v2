@@ -218,6 +218,17 @@ describe('ClerkGateway', () => {
     await expect(gateway.run(input())).resolves.toMatchObject({ status: 'done' });
   });
 
+  it('skips the per-user window for background features (ingestion OCR)', async () => {
+    const { gateway, input, store } = setup();
+    store.settings = { enabled: true, userRateLimit: { requests: 1, windowMinutes: 10 } };
+    const ocr = () =>
+      gateway.run(input({ feature: 'ocr', promptId: 'ocr', vars: { page: 1, fileName: 'Fictional scan.pdf' } }));
+    await ocr();
+    await ocr();
+    await expect(ocr()).resolves.toMatchObject({ status: 'done' });
+    expect(store.hits.size).toBe(0);
+  });
+
   it('blocks the next call once the monthly budget is used (the current call finishes)', async () => {
     const { gateway, input, store } = setup([{ chunks: [HELLO_JSON], usage: { inputTokens: 900, outputTokens: 200 } }]);
     store.settings = { monthlyTokenBudget: 1000 };

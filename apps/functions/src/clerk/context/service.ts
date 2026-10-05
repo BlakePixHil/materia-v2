@@ -2,19 +2,21 @@ import type { Firestore } from 'firebase-admin/firestore';
 
 import { createContextBuilder, type ContextBuilder } from './build-context';
 import { firestoreContextSource } from './firestore-source';
-import { charEstimateCounter, noChunkSearch, noDocumentText } from './ports';
+import { charEstimateCounter } from './ports';
+import { chunkSearch } from '../../documents/ingest/search';
+import { chunkDocumentText } from '../../documents/ingest/text';
+import type { EmbeddingPort } from '../../ports';
 
 /**
- * `buildContext` as callables use it. Chunk search and document text are stubs until AI-04 merges
- * (swap `noChunkSearch` for `chunkSearch({ db, embedding: ports.embedding })` from
- * `documents/ingest/search.ts`, and `noDocumentText` for its page reader). Tokens are a character
- * estimate until the provider adapter exposes the token-counting endpoint.
+ * `buildContext` as callables use it: chunk search and document text from AI-04's chunks
+ * (`documents/ingest`). Tokens are a character estimate until the provider adapter exposes the
+ * token-counting endpoint.
  */
-export function clerkContext(deps: { db: Firestore }): ContextBuilder {
+export function clerkContext(deps: { db: Firestore; embedding: EmbeddingPort }): ContextBuilder {
   return createContextBuilder({
     source: firestoreContextSource(deps.db),
-    chunks: noChunkSearch,
-    documentText: noDocumentText,
+    chunks: chunkSearch({ db: deps.db, embedding: deps.embedding }),
+    documentText: chunkDocumentText(deps.db),
     tokens: charEstimateCounter,
   });
 }
