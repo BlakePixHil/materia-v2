@@ -173,6 +173,31 @@ const shellRoutes: Route[] = [
     title: 'Contacts',
     loadComponent: () => import('./features/contacts/contacts-page').then((m) => m.ContactsPage),
   },
+  // The will safe custody register (CORE-17): original wills, where each is kept and its chain of custody.
+  {
+    path: 'safe-custody',
+    data: { crumb: 'Safe custody' },
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        title: 'Safe custody',
+        loadComponent: () => import('./features/safe-custody/register-page').then((m) => m.SafeCustodyRegisterPage),
+      },
+      {
+        path: 'stocktake',
+        title: 'Stocktake',
+        data: { crumb: 'Stocktake' },
+        loadComponent: () => import('./features/safe-custody/stocktake-page').then((m) => m.SafeCustodyStocktakePage),
+      },
+      {
+        path: ':id',
+        title: 'Packet',
+        data: { crumb: 'Packet' },
+        loadComponent: () => import('./features/safe-custody/packet-page').then((m) => m.SafeCustodyPacketPage),
+      },
+    ],
+  },
   planned('billing', 'Time & billing', {
     ticket: 'BILL-03',
     icon: 'billing',

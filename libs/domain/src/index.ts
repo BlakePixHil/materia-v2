@@ -38,4 +38,5 @@ export * from './lib/today';
 export * from './lib/notifications';
 export * from './lib/documents';
 export * from './lib/notes';
+export * from './lib/safe-custody';
 export * from './lib/referrals';

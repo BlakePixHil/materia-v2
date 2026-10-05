@@ -1,0 +1,95 @@
+<!doctype html>
+<!-- The testator's safe custody receipt (CORE-17): the firm, the packet and each original it holds.
+     It doesn't say where in the firm the packet sits (cabinet or slot). -->
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <title>Safe custody receipt {{packetNo}}</title>
+    {{> styles}}
+    <style>
+      .sc-firm {
+        margin: 0 0 18pt;
+        color: #6e6e73;
+      }
+      .sc-facts {
+        width: auto;
+        margin: 0 0 14pt;
+      }
+      .sc-facts th {
+        padding-left: 0;
+        font-weight: 500;
+        color: #6e6e73;
+      }
+      .sc-current {
+        font-size: 8.5pt;
+        color: #6e6e73;
+      }
+      .sc-sign {
+        margin-top: 36pt;
+        display: flex;
+        gap: 36pt;
+      }
+      .sc-sign div {
+        flex: 1;
+        border-top: 0.5pt solid #1d1d1f;
+        padding-top: 4pt;
+        font-size: 9pt;
+        color: #6e6e73;
+      }
+    </style>
+  </head>
+  <body>
+    <p class="sc-firm">{{firmName}}{{#if firmAbn}} · ABN {{firmAbn}}{{/if}}</p>
+    <h1>Safe custody receipt</h1>
+    <table class="sc-facts">
+      <tbody>
+        <tr>
+          <th scope="row">Packet</th>
+          <td>{{packetNo}}</td>
+        </tr>
+        <tr>
+          <th scope="row">Held for</th>
+          <td>{{testatorName}}{{#if testatorAddress}}, {{testatorAddress}}{{/if}}</td>
+        </tr>
+        <tr>
+          <th scope="row">Received</th>
+          <td>{{receivedOn}}</td>
+        </tr>
+        {{#if site}}
+        <tr>
+          <th scope="row">Held at</th>
+          <td>{{site}}</td>
+        </tr>
+        {{/if}}
+      </tbody>
+    </table>
+    <p>{{firmName}} holds these original documents in safe custody for you:</p>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Document</th>
+          <th scope="col">Dated</th>
+          <th scope="col">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+        <tr>
+          <td>{{kind}}{{#if current}} <span class="sc-current">(latest)</span>{{/if}}</td>
+          <td>{{date}}</td>
+          <td>{{description}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    <p>
+      We will release them only on your signed written authority, or after your death to your executor on proof of death
+      and identity, or as a court orders. Please keep this receipt with your important papers and quote the packet
+      number when you contact us.
+    </p>
+    <div class="sc-sign">
+      <div>For {{firmName}}</div>
+      <div>Issued {{issuedOn}}</div>
+    </div>
+  </body>
+</html>

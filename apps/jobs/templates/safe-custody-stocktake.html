@@ -1,0 +1,78 @@
+<!doctype html>
+<!-- The annual safe custody stocktake (CORE-17): every held packet by site, cabinet and slot, with a
+     box to tick as each one is found. -->
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <title>Safe custody stocktake</title>
+    {{> styles}}
+    <style>
+      .sc-meta {
+        margin: 0 0 14pt;
+        color: #6e6e73;
+      }
+      h2 {
+        font-size: 12pt;
+        font-weight: 600;
+        margin: 16pt 0 6pt;
+      }
+      h3 {
+        font-size: 10.5pt;
+        font-weight: 600;
+        margin: 10pt 0 4pt;
+        color: #3a3a3c;
+      }
+      .sc-box {
+        width: 28pt;
+        text-align: center;
+      }
+      .sc-box span {
+        display: inline-block;
+        width: 9pt;
+        height: 9pt;
+        border: 0.75pt solid #1d1d1f;
+      }
+      tr {
+        break-inside: avoid;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Safe custody stocktake{{#if site}}: {{site}}{{/if}}</h1>
+    <p class="sc-meta">{{firmName}} · {{count}} packets held · prepared {{preparedOn}}</p>
+    {{#each sites}}
+    <section>
+      <h2>{{site}}</h2>
+      {{#each cabinets}}
+      <h3>{{cabinet}}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col" class="sc-box">Found</th>
+            <th scope="col">Slot</th>
+            <th scope="col">Packet</th>
+            <th scope="col">Testator</th>
+            <th scope="col">Originals</th>
+            <th scope="col">Last verified</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each packets}}
+          <tr>
+            <td class="sc-box"><span></span></td>
+            <td>{{slot}}</td>
+            <td>{{packetNo}}</td>
+            <td>{{testatorName}}</td>
+            <td>{{items}}</td>
+            <td>{{lastVerified}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      {{/each}}
+    </section>
+    {{else}}
+    <p>No packets are held.</p>
+    {{/each}}
+  </body>
+</html>

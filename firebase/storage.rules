@@ -128,7 +128,9 @@ service firebase.storage {
         'org.delete': ['owner'],
         'audit.view': ['owner', 'admin'],
         'export.run': ['owner', 'admin'],
-        'export.includePrivileged': ['owner', 'admin']
+        'export.includePrivileged': ['owner', 'admin'],
+        'safeCustody.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'safeCustody.release': ['owner', 'admin', 'lawyer']
       }[action];
     }
     // Accepted uploads: extension → the content type they must be uploaded with (UPLOAD_TYPES).

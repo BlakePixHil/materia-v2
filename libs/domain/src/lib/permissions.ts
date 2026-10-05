@@ -43,6 +43,10 @@ export const PERMISSIONS = {
   'audit.view': ['owner', 'admin'],
   'export.run': ['owner', 'admin'],
   'export.includePrivileged': ['owner', 'admin'],
+  /** Receive, move, return and stocktake original wills in safe custody (CORE-17). */
+  'safeCustody.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
+  /** Release an original or destroy it on instructions, or confirm a destruction (CORE-17). */
+  'safeCustody.release': ['owner', 'admin', 'lawyer'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Action = keyof typeof PERMISSIONS;
