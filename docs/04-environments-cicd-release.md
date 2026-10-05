@@ -63,7 +63,7 @@ All of these jobs are required checks on `main`. Branch protection requires 1 re
 These are created by the tickets that introduce them:
 - deploy;
 - rollback;
-- restore from PITR or export;
+- restore from PITR, a backup or an export ([restore.md](runbooks/restore.md), SEC-03);
 - rotate secret;
 - incident response;
 - migration cutover;
