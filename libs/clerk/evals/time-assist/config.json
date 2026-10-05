@@ -1,0 +1,33 @@
+{
+  "suite": "time-assist",
+  "title": "Time-capture assist (AI-11)",
+  "ticket": "AI-11",
+  "feature": "timeAssist",
+  "promptId": "time-assist@1.0.0",
+  "subset": ["ta-001", "ta-002", "ta-003", "ta-004", "ta-005", "ta-006", "ta-007", "ta-008", "ta-009", "ta-010"],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "schemaValid": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "fieldAccuracy": {
+      "min": 0.8,
+      "maxRegression": 0.05
+    },
+    "noInventions": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "costUsd": {
+      "maxRegression": 0.5
+    }
+  },
+  "fields": {
+    "entries[].units": "setF1"
+  },
+  "citations": "none"
+}

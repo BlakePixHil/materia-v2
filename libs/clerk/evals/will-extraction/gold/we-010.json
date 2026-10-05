@@ -1,0 +1,13 @@
+{
+  "id": "we-010",
+  "fixtures": {
+    "wills/chen.txt": "5d0f349d6304b966"
+  },
+  "fields": {
+    "testator.name": "Chen Wei-Ling",
+    "willDate": "2021-10-05",
+    "executors[].name": ["Robert Hargreaves", "Anna Moretti"],
+    "beneficiaries[].name": ["Robert Hargreaves", "Jasmine Hargreaves", "Oliver Hargreaves"],
+    "formalValidityFlags[].issue": []
+  }
+}

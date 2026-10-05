@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { can } from './permissions';
 import { DocIdSchema } from './schemas/common';

@@ -17,7 +17,14 @@ import {
   type OutputSchemaName,
   type PromptVariables,
 } from '@materia/clerk';
-import { DomainError, PERMISSIONS, type FlagKey, type Role } from '@materia/domain';
+import {
+  DomainError,
+  PERMISSIONS,
+  type ContextManifest,
+  type ContextTruncation,
+  type FlagKey,
+  type Role,
+} from '@materia/domain';
 
 import type { Log } from '../core/log';
 import {
@@ -27,6 +34,7 @@ import {
   type ClerkModelResult,
   type Clock,
 } from '../ports';
+import type { ClerkContext } from './context/build-context';
 import {
   CLERK_FEATURES,
   DEFAULT_MONTHLY_TOKEN_BUDGET,
@@ -67,6 +75,12 @@ export interface ClerkRunInput<TOutput = unknown> {
   stream?: { threadId: string; messageId: string };
   /** Overrides the prompt's `outputSchema`. */
   output?: z.ZodType<TOutput>;
+  /**
+   * What `buildContext` allowed for this request (AI-03). Its system prompt goes before the
+   * prompt's own, its documents and chunks replace `documents` and `searchResults`, and its
+   * manifest is stored on the message and returned.
+   */
+  context?: ClerkContext;
 }
 
 export type ClerkRunStatus = ClerkMessageStatus;
@@ -82,6 +96,10 @@ export interface ClerkRunResult<TOutput = unknown> {
   promptRef: string;
   fallbackUsed: boolean;
   costMicros: number;
+  /** With a built context (AI-03): its sources, what was dropped to fit, and whether it is privileged. */
+  manifest?: ContextManifest;
+  truncated?: ContextTruncation | null;
+  privileged?: boolean;
 }
 
 export interface GatewayDeps {
@@ -181,8 +199,11 @@ export function createClerkGateway(deps: GatewayDeps) {
       throw new DomainError('CLERK_RATE_LIMITED', 'Too many Clerk requests', { windowMinutes: window.windowMinutes });
 
     // 4. The request: documents and chunks first (the stable, cached prefix), then the question.
-    const documents = input.documents ?? [];
-    const searchResults = input.searchResults ?? [];
+    // A built context (AI-03) puts its matter facts first instead (the cached prefix) and its
+    // notices after the documents and chunks, which are then the volatile part.
+    const context = input.context;
+    const documents = context?.documents ?? input.documents ?? [];
+    const searchResults = context?.searchResults ?? input.searchResults ?? [];
     const content: ClerkContentBlock[] = [
       ...documents.map((doc): ClerkContentBlock => ({
         type: 'document',
@@ -196,9 +217,15 @@ export function createClerkGateway(deps: GatewayDeps) {
         text: chunk.text,
       })),
     ];
-    if (content.length)
+    if (context) {
+      content.unshift(...context.contextBlocks.stable);
+      content.push(...context.contextBlocks.volatile);
+    } else if (content.length)
       content[content.length - 1] = { ...content[content.length - 1], cache: true } as ClerkContentBlock;
     content.push({ type: 'text', text: prompt.user });
+    const contextResult = context
+      ? { manifest: context.manifest, truncated: context.truncated, privileged: context.manifest.privileged }
+      : {};
 
     // 5. The message to stream into, and stop handling.
     const abort = new AbortController();
@@ -208,6 +235,7 @@ export function createClerkGateway(deps: GatewayDeps) {
         uid: ctx.uid,
         promptRef: prompt.ref,
         requestId: ctx.requestId,
+        ...(context ? { manifest: context.manifest } : {}),
       });
       sink.onStop(() => abort.abort());
     }
@@ -218,7 +246,7 @@ export function createClerkGateway(deps: GatewayDeps) {
     };
 
     const base = {
-      system: prompt.system,
+      system: context ? `${context.system}\n\n${prompt.system}` : prompt.system,
       messages: [{ role: 'user' as const, content }],
       maxTokens: prompt.meta.maxTokens,
       effort: prompt.meta.effort,
@@ -275,6 +303,7 @@ export function createClerkGateway(deps: GatewayDeps) {
                 promptRef: prompt.ref,
                 fallbackUsed: modelIndex > 0,
                 costMicros: 0,
+                ...contextResult,
               };
             }
             // Text already reached the user: a retry would repeat it. Keep the partial reply.
@@ -297,6 +326,7 @@ export function createClerkGateway(deps: GatewayDeps) {
                 promptRef: prompt.ref,
                 fallbackUsed: modelIndex > 0,
                 costMicros: 0,
+                ...contextResult,
               };
             }
             // The org's key was rejected (revoked, or out of credit on a disabled account): mark it
@@ -408,6 +438,7 @@ export function createClerkGateway(deps: GatewayDeps) {
       promptRef: prompt.ref,
       fallbackUsed,
       costMicros: cost,
+      ...contextResult,
     };
   }
 

@@ -14,6 +14,8 @@ export const CLERK_FEATURES = {
   willExtraction: { flag: 'clerk.features.willExtraction', timeoutMs: 300_000 },
   drafting: { flag: 'clerk.features.drafting', timeoutMs: 180_000 },
   timeAssist: { flag: 'clerk.features.timeAssist', timeoutMs: 60_000 },
+  /** The citation judge in the eval harness (AI-12): never called by the app. */
+  evalJudge: { flag: null, timeoutMs: 60_000 },
 } as const satisfies Record<string, { flag: FlagKey | null; timeoutMs: number }>;
 
 export type ClerkFeature = keyof typeof CLERK_FEATURES;

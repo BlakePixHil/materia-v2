@@ -1,0 +1,14 @@
+{
+  "id": "we-003",
+  "fixtures": {
+    "wills/okafor.scanned.pdf": "adfb349ad3dee444"
+  },
+  "fields": {
+    "testator.name": "Adaeze Nkem Okafor",
+    "willDate": "2021-08-12",
+    "executors[].name": ["Chinedu Okafor", "Margaret Ellen Tully"],
+    "beneficiaries[].name": ["Chinedu Okafor", "Ifeoma Obi", "Oluchi Okafor", "Emeka Okafor"],
+    "guardians[].name": [],
+    "formalValidityFlags[].issue": []
+  }
+}

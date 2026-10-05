@@ -1,0 +1,27 @@
+{
+  "id": "brief-001",
+  "description": "Overdue deadline and a due-today task",
+  "today": "2026-03-20",
+  "matter": {
+    "user": "Jordan Price",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0007",
+        "upcomingDeadlines": [
+          {
+            "title": "Creditor notice period ends",
+            "due": "2026-03-18",
+            "status": "overdue"
+          }
+        ],
+        "openTasks": [
+          {
+            "title": "Call valuer",
+            "due": "2026-03-20"
+          }
+        ],
+        "newDocuments": []
+      }
+    ]
+  }
+}
