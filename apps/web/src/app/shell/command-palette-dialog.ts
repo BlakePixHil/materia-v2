@@ -18,6 +18,7 @@ import {
 } from '@materia/ui';
 
 import { type Command, CommandRegistry, type CommandResult } from '../core/commands/command-registry';
+import { startTrace } from '../core/observability/perf';
 
 /** Debounce for provider searches. */
 export const PROVIDER_DEBOUNCE_MS = 150;
@@ -87,9 +88,11 @@ export class CommandPaletteDialog {
       }
       const controller = new AbortController();
       const timer = setTimeout(async () => {
+        const done = startTrace('palette_search');
         const results = await this.registry.searchProviders(query, controller.signal);
-        if (!controller.signal.aborted)
-          this.providerResults.set(results.map((r) => ({ group: r.provider.group, results: r.results })));
+        if (controller.signal.aborted) return;
+        this.providerResults.set(results.map((r) => ({ group: r.provider.group, results: r.results })));
+        done();
       }, PROVIDER_DEBOUNCE_MS);
       onCleanup(() => {
         clearTimeout(timer);

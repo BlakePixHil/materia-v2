@@ -225,6 +225,25 @@ describe('ClerkGateway', () => {
     expect(store.hits.get('u-1')).toHaveLength(1);
   });
 
+  it('logs metering, and warns once when the month passes 80% of the budget (FND-21)', async () => {
+    const usage = { inputTokens: 300, outputTokens: 100 };
+    const { gateway, input, store, logs } = setup([
+      { chunks: [HELLO_JSON], usage },
+      { chunks: [HELLO_JSON], usage },
+      { chunks: [HELLO_JSON], usage },
+    ]);
+    store.settings = { monthlyTokenBudget: 1000 };
+    await gateway.run(input());
+    await gateway.run(input());
+    const warnings = () => logs.filter((l) => l.message === 'clerk budget threshold');
+    expect(warnings()).toEqual([
+      expect.objectContaining({ severity: 'warn', entry: expect.objectContaining({ percent: 80, limit: 1000 }) }),
+    ]);
+    await gateway.run(input()).catch(() => undefined);
+    expect(warnings()).toHaveLength(1);
+    expect(logs.find((l) => l.message === 'clerk metered')?.entry).toMatchObject({ tokens: 400 });
+  });
+
   it('retries 529, 5xx and timeouts with jittered backoff, then succeeds', async () => {
     const { gateway, input, slept } = setup([
       { error: new ClerkModelError('overloaded', 'x', 529) },

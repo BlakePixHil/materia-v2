@@ -151,6 +151,24 @@ jobs:
       - name: Deploy functions (codebase core)
         run: pnpm exec firebase deploy --only functions:core --project "$PROJECT" --config firebase.json --non-interactive
 
+      # Hidden sourcemaps (FND-21) are never served: they go to the private sourcemaps bucket for
+      # `materia-scripts decode-stack`, then leave the hosting directory (firebase.json also ignores
+      # *.map). A failed upload only warns; it never blocks a deploy.
+      - name: Upload sourcemaps privately
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          shopt -s nullglob
+          maps=(dist/apps/web/browser/*.map)
+          if [ ${#maps[@]} -eq 0 ]; then
+            echo "::notice::This release has no sourcemaps."
+            exit 0
+          fi
+          if ! gcloud storage cp "${maps[@]}" "gs://$PROJECT-sourcemaps/web/$SHA/" --quiet; then
+            echo "::warning::Sourcemaps not uploaded to gs://$PROJECT-sourcemaps (apply infra/terraform first); stacks for $SHA can't be decoded."
+          fi
+          rm -f "${maps[@]}"
+
       - name: Deploy hosting
         run: pnpm exec firebase deploy --only hosting --project "$PROJECT" --config firebase.json --non-interactive --message "$VERSION ${{ inputs.sha }}"
 

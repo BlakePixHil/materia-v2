@@ -13,6 +13,7 @@ const COMMANDS = {
   'fixture-pdfs': 'Regenerate the fictional fixture PDFs in libs/test-utils (FND-06)',
   'flags-report': 'Check the feature flag registry and report stale flags (FND-23)',
   'platform-admin': 'Grant or revoke the platformAdmin claim (FND-23; humans only)',
+  'decode-stack': 'Deobfuscate a web stack trace with the private sourcemaps (FND-21)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -47,6 +48,7 @@ export async function run(argv: string[]): Promise<number> {
       'fixture-pdfs': () => import('./seed/pdfs.ts'),
       'flags-report': () => import('./flags-report.ts'),
       'platform-admin': () => import('./platform-admin.ts'),
+      'decode-stack': () => import('./decode-stack.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);

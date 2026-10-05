@@ -169,6 +169,8 @@ export async function deliverNotification(task: DeliveryTaskInput, deps: Deliver
   const sent = entries.filter((entry) => entry.status === 'sent').length;
   log.info('notification delivery', {
     ...ids,
+    // The notification_delivery_failures log metric counts status "failed" (FND-21).
+    status: sent ? 'sent' : 'failed',
     devices: devices.size,
     sent,
     pruned: entries.filter((entry) => entry.reason === 'invalid_token').length,

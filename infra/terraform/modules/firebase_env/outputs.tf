@@ -49,3 +49,8 @@ output "buckets" {
     migration = google_storage_bucket.migration.name
   }
 }
+
+output "alert_channels" {
+  description = "Monitoring notification channel ids for alerts (the budget alert emails)."
+  value       = [for c in google_monitoring_notification_channel.budget_email : c.id]
+}
