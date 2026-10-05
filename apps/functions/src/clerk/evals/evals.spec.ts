@@ -118,7 +118,7 @@ describe('the eval executor', () => {
   });
 
   it('passes only the variables a prompt uses', () => {
-    expect(promptPlaceholders('will-extract@0.1.1')).toEqual(['today']);
+    expect(promptPlaceholders('will-extract@0.1.0')).toEqual(['today']);
     expect(Object.keys(caseVariables('chat-answer@0.1.0', restricted)).sort()).toEqual([
       'matterContext',
       'question',

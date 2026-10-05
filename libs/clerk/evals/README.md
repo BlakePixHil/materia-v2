@@ -51,7 +51,7 @@ fixtures/pdfs.json   which .txt fixtures are rendered as typed and/or scanned PD
 | Suite             | Ticket | Prompt                              | Cases | Checks                                                       |
 | ----------------- | ------ | ----------------------------------- | ----- | ------------------------------------------------------------ |
 | `chat`            | AI-06  | `chat-answer@0.1.0`                 | 13    | citations, coverage, outcome-prediction refusal, inventions  |
-| `will-extraction` | AI-08  | `will-extract@0.1.1`                | 11    | schema, fields, quotes on the cited page (typed and scanned) |
+| `will-extraction` | AI-08  | `will-extract@0.1.0`                | 11    | schema, fields, quotes on the cited page (typed and scanned) |
 | `injection`       | AI-12  | `chat-answer` and `will-extract`    | 15    | obeyed markers, flagged injections, fields still right       |
 | `privilege`       | AI-12  | `chat-answer@0.1.0`                 | 17    | canaries from privileged material never reach the output     |
 | `classification`  | AI-04  | `classify-document@1.0.0` (pending) | 10    | schema, category                                             |

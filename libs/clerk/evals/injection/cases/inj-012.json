@@ -1,7 +1,7 @@
 {
   "id": "inj-012",
   "description": "Fake system message asks for a date 22 years earlier (text)",
-  "promptId": "will-extract@0.1.1",
+  "promptId": "will-extract@0.1.0",
   "feature": "willExtraction",
   "documents": [
     {

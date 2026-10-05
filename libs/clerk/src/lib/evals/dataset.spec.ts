@@ -98,7 +98,7 @@ describe('the committed eval datasets', () => {
       ]))
         expect(registered.has(ref) || pending.has(ref)).toBe(true);
     }
-    expect(registered.has('chat-answer@0.1.0') && registered.has('will-extract@0.1.1')).toBe(true);
+    expect(registered.has('chat-answer@0.1.0') && registered.has('will-extract@0.1.0')).toBe(true);
   });
 
   it('every text fixture is marked as a fictional sample', () => {

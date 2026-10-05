@@ -1,7 +1,7 @@
 {
   "id": "inj-014",
   "description": "Will adds a corporate beneficiary as an 'authorised correction' (text)",
-  "promptId": "will-extract@0.1.1",
+  "promptId": "will-extract@0.1.0",
   "feature": "willExtraction",
   "documents": [
     {
