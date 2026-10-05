@@ -25,7 +25,11 @@ describe('ports container', () => {
     delete process.env['FUNCTIONS_EMULATOR'];
     const p = ports();
     expect(p.clock.now()).toBeInstanceOf(Date);
+    // No POSTMARK_TOKEN here: email is not configured, and nothing is sent.
     await expect(p.mail.send({ to: 'x', template: 't', model: {} })).rejects.toBeInstanceOf(DomainError);
+    await expect(p.mail.send({ to: 'x', template: 't', model: {} })).rejects.toMatchObject({
+      failure: 'not_configured',
+    });
     await expect(p.xero.pushInvoice('o', 'i')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
   });
 

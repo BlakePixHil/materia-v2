@@ -1,4 +1,14 @@
-import { FakeCalendar, FakeClock, FakeJobRunner, FakeMail, fakeClerkModel, fakeTranscription, fakeXero } from './fakes';
+import {
+  FakeCalendar,
+  FakeClock,
+  FakeJobRunner,
+  FakeMail,
+  FakePush,
+  FakeTaskQueue,
+  fakeClerkModel,
+  fakeTranscription,
+  fakeXero,
+} from './fakes';
 
 describe('fakes', () => {
   it('behave deterministically', async () => {
@@ -33,5 +43,16 @@ describe('fakes', () => {
     const jobs = new FakeJobRunner();
     expect(await jobs.start('pdf', { orgId: 'o', jobId: 'j' })).toEqual({ executionId: 'fake-execution-1' });
     expect(jobs.started).toEqual([{ job: 'pdf', orgId: 'o', jobId: 'j' }]);
+
+    const push = new FakePush();
+    const note = { title: 't', body: 'b', link: '/' };
+    expect(await push.send('fake-token', note)).toEqual({ ok: true, id: 'push-1' });
+    expect(await push.send('invalid-token', note)).toEqual({ ok: false, reason: 'invalid_token' });
+    expect(await push.send('flaky-token', note)).toEqual({ ok: false, reason: 'transient' });
+    expect(push.sent).toHaveLength(1);
+
+    const tasks = new FakeTaskQueue();
+    await tasks.enqueue('q', { a: 1 });
+    expect(tasks.queued).toEqual([{ queue: 'q', payload: { a: 1 }, options: {} }]);
   });
 });

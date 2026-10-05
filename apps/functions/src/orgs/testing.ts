@@ -158,6 +158,11 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
         return parts.length > 1 ? docRef(parts.slice(0, -1).join('/')) : null;
       },
       doc: (id?: string) => docRef(`${path}/${id ?? `auto-${++autoId}`}`),
+      add: async (data: Data) => {
+        const ref = docRef(`${path}/auto-${++autoId}`);
+        write.create(ref.path, data);
+        return ref;
+      },
       ...query(inCollection),
     };
   }
