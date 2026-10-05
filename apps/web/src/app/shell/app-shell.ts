@@ -339,10 +339,10 @@ export const MOBILE_QUERY = '(max-width: 767px)';
       <mt-menu>
         <a mtMenuItem icon="user" routerLink="/settings/profile">Profile</a>
         <a mtMenuItem icon="settings" routerLink="/settings">Settings</a>
-        <button mtMenuItem icon="eye" (click)="toggleTheme()">{{ themeLabel() }}</button>
-        <button mtMenuItem icon="help" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
+        <button mtMenuItem icon="moon" (click)="toggleTheme()">{{ themeLabel() }}</button>
+        <button mtMenuItem icon="keyboard" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
         <mt-menu-separator />
-        <button mtMenuItem icon="arrow-right" (click)="signOut()">Sign out</button>
+        <button mtMenuItem icon="log-out" (click)="signOut()">Sign out</button>
       </mt-menu>
     </ng-template>
   `,
@@ -633,7 +633,7 @@ export class AppShellComponent {
         id: 'theme.toggle',
         title: 'Toggle theme',
         group: 'General',
-        icon: 'eye',
+        icon: 'moon',
         keywords: ['dark', 'light', 'appearance'],
         run: () => this.toggleTheme(),
       },
@@ -651,7 +651,7 @@ export class AppShellComponent {
         id: 'shortcuts.open',
         title: 'Show keyboard shortcuts',
         group: 'General',
-        icon: 'help',
+        icon: 'keyboard',
         keywords: ['help', 'keys'],
         shortcut: '?',
         run: () => void this.openShortcuts(),
