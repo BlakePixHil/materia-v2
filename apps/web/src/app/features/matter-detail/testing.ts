@@ -5,16 +5,19 @@ import { provideRouter, Router, TitleStrategy } from '@angular/router';
 import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
 import {
+  can,
   clientContactIdsFrom,
   confirmationMatches,
   contactSearchTokens,
   DEFAULT_MATTER_STAGES,
   matterSearchTokens,
+  parseMentions,
   partyDocId,
   unmetStageRequirements,
   type DateOnly,
   type FlagValue,
   type PartyRole,
+  type Role,
 } from '@materia/domain';
 import { MT_KEYBOARD_PLATFORM, MT_TODAY } from '@materia/ui';
 
@@ -347,6 +350,104 @@ export function deadlineServerCallables(): Record<string, FakeCallable> {
   };
 }
 
+/** A stored note as `notes-create` writes it (CORE-13). */
+export function noteDoc(bodyMd: string, data: Seed = {}): Seed {
+  return {
+    bodyMd,
+    mentions: parseMentions(bodyMd),
+    pinned: false,
+    privileged: false,
+    source: 'manual',
+    orgId: ORG,
+    matterId: 'm-whitfield',
+    deletedAt: null,
+    ...meta,
+    ...data,
+  };
+}
+
+/**
+ * The `notes-*` callables (CORE-13) as the server runs them: mentions parsed, a note on a privileged
+ * matter always privileged, members who can't open a privileged note returned as `unreachable`, the
+ * previous text kept as a revision, and `note_conflict` when the note changed since
+ * `expectedUpdatedAt` (unless `overwrite`). Adding a note writes the "Added a note" activity line.
+ */
+export function noteServerCallables(clock: () => Date = () => new Date()): Record<string, FakeCallable> {
+  let nextNote = 1;
+  let nextRevision = 1;
+  const reach = (fs: InMemoryFirestore, uids: string[], privileged: boolean) => {
+    const role = (uid: string) => (fs.get(`orgs/${ORG}/members/${uid}`)?.['role'] ?? 'readonly') as Role;
+    const unreachable = privileged ? uids.filter((uid) => !can(role(uid), 'privileged.view')) : [];
+    return { notified: uids.filter((uid) => uid !== ME && !unreachable.includes(uid)), unreachable };
+  };
+  return {
+    'notes-create': (data, fs) => {
+      const noteId = `n-new-${nextNote++}`;
+      const at = clock();
+      const bodyMd = String(data['bodyMd']);
+      const privileged = !!data['privileged'] || !!fs.get(MATTER)?.['privileged'];
+      const mentions = parseMentions(bodyMd);
+      fs.set(`${MATTER}/notes/${noteId}`, {
+        ...noteDoc(bodyMd, { privileged }),
+        createdAt: at,
+        createdBy: ME,
+        updatedAt: at,
+        updatedBy: ME,
+      });
+      fs.set(`${MATTER}/activity/a-${noteId}`, {
+        kind: 'note.created',
+        summary: 'Added a note',
+        actorUid: ME,
+        at,
+        refs: { noteId },
+      });
+      return { noteId, updatedAt: at.toISOString(), ...reach(fs, mentions.uids, privileged) };
+    },
+    'notes-update': (data, fs) => {
+      const noteId = String(data['noteId']);
+      const path = `${MATTER}/notes/${noteId}`;
+      const note = fs.get(path) as Seed & { updatedAt: Date; bodyMd: string; mentions: { uids: string[] } };
+      if (!data['overwrite'] && note.updatedAt.toISOString() !== data['expectedUpdatedAt']) {
+        throw {
+          code: 'functions/failed-precondition',
+          details: {
+            code: 'FAILED_PRECONDITION',
+            reason: 'note_conflict',
+            updatedAt: note.updatedAt.toISOString(),
+            updatedBy: note['updatedBy'],
+          },
+        };
+      }
+      const at = clock();
+      fs.set(`${path}/revisions/r-${nextRevision++}`, {
+        bodyMd: note.bodyMd,
+        privileged: note['privileged'],
+        editedAt: note['editedAt'] ?? note['createdAt'],
+        editedBy: note['editedBy'] ?? note['createdBy'],
+        ...meta,
+      });
+      const bodyMd = String(data['bodyMd']);
+      const mentions = parseMentions(bodyMd);
+      const privileged =
+        data['privileged'] === undefined
+          ? !!note['privileged']
+          : !!data['privileged'] || !!fs.get(MATTER)?.['privileged'];
+      fs.set(path, {
+        ...note,
+        bodyMd,
+        mentions,
+        privileged,
+        editedAt: at,
+        editedBy: ME,
+        updatedAt: at,
+        updatedBy: ME,
+      });
+      const fresh = mentions.uids.filter((uid) => !note.mentions.uids.includes(uid));
+      return { noteId, updatedAt: at.toISOString(), ...reach(fs, fresh, privileged) };
+    },
+  };
+}
+
 function clientIds(fs: InMemoryFirestore): string[] {
   const rows = ['c-avery', 'c-bram', 'c-margaret']
     .map((id) => fs.get(`${MATTER}/parties/${partyDocId('client', id)}`) as Seed | undefined)
@@ -376,7 +477,12 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
   const firestore = new InMemoryFirestore();
   seed(firestore, options.matter);
   options.configure?.(firestore, port);
-  const callables = { ...serverCallables(), ...deadlineServerCallables(), ...options.callables };
+  const callables = {
+    ...serverCallables(),
+    ...deadlineServerCallables(),
+    ...noteServerCallables(),
+    ...options.callables,
+  };
   port.call = async <T>(name: string, data: unknown): Promise<T> => {
     port.calls.push({ name, data });
     const handler = callables[name];

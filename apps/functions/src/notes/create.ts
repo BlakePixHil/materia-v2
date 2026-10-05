@@ -1,0 +1,98 @@
+import { CreateNoteInput, Note, parseMentions, PERMISSIONS, type SaveNoteResult } from '@materia/domain';
+
+import { assertMayMarkPrivileged, notesPath, noteMentions, notifyMentions, readPeople } from './shared';
+import { audit } from '../audit/audit';
+import { stamp } from '../contacts/shared';
+import { defineCallable, type CallableDefinition } from '../core/callable';
+import { orgClock } from '../core/emulator-clock';
+import { liveMatter, matterPath } from '../matters/shared';
+
+/**
+ * `notes-create` (CORE-13, `note.write`, idempotent). Adds a note to a live matter the caller can
+ * see, in one transaction: the mentions are parsed from the Markdown (member mentions of anyone who
+ * isn't an active member are dropped), the note is written, and each mentioned member (not the
+ * author) gets a `mention` notification. `privileged` needs `privileged.view` (PERMISSION_DENIED,
+ * `details.reason: 'privileged_requires_lawyer'`); a note on a privileged matter is always
+ * privileged, and members who can't open it are returned as `unreachable` instead of notified.
+ * Audited as `note.created` (no note text).
+ */
+export const createDefinition = {
+  name: 'notes-create',
+  input: CreateNoteInput,
+  roles: PERMISSIONS['note.write'],
+  idempotent: true,
+  handler: async (ctx): Promise<SaveNoteResult> => {
+    const { input, orgId, uid, role, db, requestId, log } = ctx;
+    if (input.privileged) assertMayMarkPrivileged(role);
+    const clock = await orgClock(db, orgId, ctx.clock);
+    const now = clock.now();
+    const matterRef = db.doc(matterPath(orgId, input.matterId));
+    const noteRef = db.collection(notesPath(orgId, input.matterId)).doc();
+    const notifyCtx = { db, orgId, clock, log, ports: ctx.ports };
+
+    const outcome = await db.runTransaction(async (tx) => {
+      const matter = liveMatter(await tx.get(matterRef), role, input.matterId);
+      const privileged = input.privileged || matter['privileged'] === true;
+      const people = await readPeople(tx, db, orgId, [uid, ...parseMentions(input.bodyMd).uids]);
+      const mentions = noteMentions(input.bodyMd, people);
+      tx.create(
+        noteRef,
+        Note.schema.parse({
+          bodyMd: input.bodyMd,
+          mentions,
+          pinned: input.pinned,
+          privileged,
+          source: 'manual',
+          deletedAt: null,
+          createdAt: now,
+          createdBy: uid,
+          ...stamp(uid, now, requestId),
+          schemaVersion: Note.version,
+        }),
+      );
+      const sent = await notifyMentions(notifyCtx, {
+        tx,
+        orgId,
+        matterId: input.matterId,
+        noteId: noteRef.id,
+        matter,
+        author: uid,
+        privileged,
+        before: [],
+        after: mentions.uids,
+        people,
+      });
+      return { ...sent, privileged, mentioned: mentions.uids.length };
+    });
+    await outcome.dispatch();
+
+    await audit(
+      { uid, orgId, requestId, db, clock },
+      {
+        action: 'note.created',
+        entity: { path: noteRef.path },
+        summary: `Note ${noteRef.id} added to matter ${input.matterId}`,
+        data: {
+          privileged: outcome.privileged,
+          pinned: input.pinned,
+          mentioned: outcome.mentioned,
+          notified: outcome.notified.length,
+        },
+      },
+    );
+    log.info('note created', {
+      matterId: input.matterId,
+      noteId: noteRef.id,
+      notified: outcome.notified.length,
+      unreachable: outcome.unreachable.length,
+    });
+    return {
+      noteId: noteRef.id,
+      updatedAt: now.toISOString(),
+      notified: outcome.notified,
+      unreachable: outcome.unreachable,
+    };
+  },
+} satisfies CallableDefinition<typeof CreateNoteInput, SaveNoteResult>;
+
+export const create = defineCallable(createDefinition);

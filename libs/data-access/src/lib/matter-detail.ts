@@ -193,16 +193,24 @@ export function matterDeadlinesRepository(matterId: () => string | null): Reposi
 
 const activity = Activity.schema.shape;
 
+/**
+ * A matter activity item (written by server triggers): an actor-less `summary` ("Added a note"),
+ * who did it and when, and `refs` to what it's about (`{ noteId }`, `{ taskId }`; CORE-13).
+ */
 export const MatterActivitySchema = /* @__PURE__ */ z.object({
   kind: activity.kind,
   summary: activity.summary,
   actorUid: activity.actorUid,
   at: activity.at,
+  refs: activity.refs,
 });
 export type MatterActivity = z.infer<typeof MatterActivitySchema>;
 
-/** The latest entries of a matter's activity feed. */
-export const RECENT_ACTIVITY_QUERY: QuerySpec<MatterActivity> = { orderBy: [['at', 'desc']], pageSize: 5 };
+/** The latest entries of a matter's activity feed, for the Overview (CORE-13: three). */
+export const RECENT_ACTIVITY_QUERY: QuerySpec<MatterActivity> = { orderBy: [['at', 'desc']], pageSize: 3 };
+
+/** The Activity tab (CORE-13): the whole feed, newest first, 25 a page ("Load more"). Single-field order. */
+export const MATTER_ACTIVITY_QUERY: QuerySpec<MatterActivity> = { orderBy: [['at', 'desc']], pageSize: 25 };
 
 export function matterActivityRepository(matterId: () => string | null): Repository<MatterActivity> {
   return matterRecords(matterId, 'activity', MatterActivitySchema, Activity.version);
