@@ -120,6 +120,7 @@ export const TODAY_COPY = {
     description: 'Clerk will sum up what needs you today, with the sources it read. It isn’t ready yet.',
   },
   offline: 'You’re offline. This is your day as it was when you were last connected.',
+  loading: 'Loading your day…',
 } as const;
 
 /** The device-time-zone hint under the date. */

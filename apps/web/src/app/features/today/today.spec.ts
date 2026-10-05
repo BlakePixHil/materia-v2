@@ -140,6 +140,8 @@ describe('today', () => {
     expect(page.text(page.body.querySelector('[data-today-date]'))).toBe('Monday 5 October');
     expect(page.body.querySelector('[data-zone-hint]')).toBeNull();
     expect(page.body.querySelector('[data-offline]')).toBeNull();
+    // Every section answered, so they are drawn (together).
+    expect(page.body.querySelector('[data-today-loading]')).toBeNull();
   });
 
   it('shows the cards in the design’s order', async () => {

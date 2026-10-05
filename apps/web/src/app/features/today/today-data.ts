@@ -6,6 +6,7 @@ import {
   inject,
   Injectable,
   InjectionToken,
+  PendingTasks,
   signal,
   untracked,
   type Signal,
@@ -77,6 +78,8 @@ export const DEVICE_TIME_ZONE = new InjectionToken<string | null>('DEVICE_TIME_Z
 const REFRESH_GAP_MS = 10_000;
 /** How often the clock moves on (the greeting, and the day at midnight). */
 const TICK_MS = 60_000;
+/** The longest the sections wait to be drawn together (see `TodayData.settled`). */
+const SETTLE_MS = 2500;
 
 /** Today's numbers: null while unknown (loading, offline or refused). */
 export interface TodayCounts {
@@ -207,6 +210,24 @@ export class TodayData {
   private readonly taskCounts = taskGroupRepository();
   private readonly countState = signal<TodayCounts>(NO_COUNTS);
   readonly counts = this.countState.asReadonly();
+  private readonly countsAnswered = signal(false);
+
+  // ---------- the first paint ----------
+
+  /** Every source has its first answer: the rows, their matters, and (online) the counts. */
+  private readonly answered = computed(() => {
+    if ([this.overdue, this.changes, ...this.oneShot].some((source) => source.status() === 'loading')) return false;
+    const lookup = this.lookup();
+    if (this.matterIds().some((id) => !lookup.has(id))) return false;
+    return this.countsAnswered() || !this.online();
+  });
+  private readonly settledOnce = signal(false);
+  /**
+   * The sections are drawn together once every source has answered (from this device's cache when
+   * it has one), or after `SETTLE_MS` at most, so nothing on the page moves as each answer lands.
+   * Stays true from then on.
+   */
+  readonly settled = this.settledOnce.asReadonly();
 
   // ---------- what the screen shows ----------
 
@@ -348,9 +369,18 @@ export class TodayData {
       });
     });
 
+    // The app isn't stable until the sections are drawn, so whatever waits for it sees them.
+    const firstPaint = inject(PendingTasks).add();
+    effect(() => {
+      if (!this.settledOnce() && this.answered()) this.settledOnce.set(true);
+      if (this.settledOnce()) firstPaint();
+    });
+    destroyRef.onDestroy(firstPaint);
+
     // Back to the tab: move the clock on and read the one-shot sections again.
     const document = inject(DOCUMENT);
     const view = document.defaultView;
+    const settle = view?.setTimeout(() => this.settledOnce.set(true), SETTLE_MS);
     const onFocus = () => {
       if (document.visibilityState !== 'hidden') this.refresh();
     };
@@ -361,6 +391,7 @@ export class TodayData {
       view?.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
       if (tick !== undefined) view?.clearInterval(tick);
+      if (settle !== undefined) view?.clearTimeout(settle);
     });
   }
 
@@ -421,6 +452,7 @@ export class TodayData {
     ]);
     if (this.context.uid() !== uid) return;
     this.countState.set({ openMatters, deadlinesThisWeek, openTasks, orgMatters, activeMembers });
+    this.countsAnswered.set(true);
   }
 
   private deadlineVm(deadline: TodayDeadlineVm['deadline'], key: string, matters: MatterLookup): TodayDeadlineVm {

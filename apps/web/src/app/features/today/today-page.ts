@@ -100,76 +100,81 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     }
     <p class="mt-sr" aria-live="polite">{{ deadlineActions.announcement() }}</p>
 
-    <div class="grid">
-      <div class="col">
-        @if (briefOn()) {
-          <section class="mt-card" data-pad data-section="brief" aria-labelledby="mt-today-brief">
-            <div class="mt-card-h">
-              <h2 class="mt-card-title" id="mt-today-brief">Morning brief</h2>
-            </div>
-            <mt-empty-state icon="sparkle" [title]="copy.brief.title" [description]="copy.brief.description" />
-          </section>
-        }
-        @if (onboarding(); as steps) {
-          <section class="mt-card" data-pad data-section="onboarding" aria-labelledby="mt-today-start">
-            <div class="mt-card-h">
-              <h2 class="mt-card-title" id="mt-today-start">Set up your practice</h2>
-            </div>
-            <p class="caption t-2 intro">A few steps and your day fills in here.</p>
-            <ol class="steps">
-              @for (step of steps; track step.id) {
-                <li [attr.data-step]="step.id" [attr.data-done]="step.done ? '' : null">
-                  <mt-icon [name]="step.done ? 'check-circle' : 'arrow-right'" />
-                  <div class="text">
-                    <span class="label"
-                      >{{ step.label }}
-                      @if (step.done) {
-                        <span class="mt-sr">(done)</span>
-                      }
-                    </span>
-                    <span class="caption t-3">{{ step.description }}</span>
-                  </div>
-                  @if (step.comingSoon) {
-                    <mt-badge>Coming soon</mt-badge>
-                    <button mtButton size="sm" disabled>Connect<span class="mt-sr"> a calendar</span></button>
-                  } @else if (step.next) {
-                    <a mtButton size="sm" [routerLink]="step.next.link">{{ step.next.action }}</a>
-                  }
-                </li>
-              }
-            </ol>
-          </section>
-        }
-        <mt-today-attention />
-        <mt-today-tasks />
-      </div>
-      <div class="col side">
-        <!--
-          The design system's Stat (stat.css), drawn here rather than with MtStat: the first use of a
-          @materia/ui component from a lazy page puts it in the initial bundle.
-        -->
-        <div class="stats" data-section="stats">
-          <div class="mt-card mt-stat" data-stat="open-matters">
-            <div class="k"><mt-icon name="matters" />Open matters</div>
-            <div class="v">{{ count(data.counts().openMatters) }}</div>
-            <div class="f">You’re responsible for</div>
-          </div>
-          <div class="mt-card mt-stat" data-stat="deadlines">
-            <div class="k"><mt-icon name="calendar" />Deadlines this week</div>
-            <div class="v">{{ count(data.counts().deadlinesThisWeek) }}</div>
-            <div class="f">
-              @if (overdueCount()) {
-                <span class="t-danger">{{ overdueCount() }} overdue</span>
-              } @else {
-                Assigned to you
-              }
-            </div>
-          </div>
+    <!-- Drawn once every section has its first answer, so nothing moves as each one lands. -->
+    @if (!data.settled()) {
+      <p class="caption t-3" role="status" data-today-loading>{{ copy.loading }}</p>
+    } @else {
+      <div class="grid">
+        <div class="col">
+          @if (briefOn()) {
+            <section class="mt-card" data-pad data-section="brief" aria-labelledby="mt-today-brief">
+              <div class="mt-card-h">
+                <h2 class="mt-card-title" id="mt-today-brief">Morning brief</h2>
+              </div>
+              <mt-empty-state icon="sparkle" [title]="copy.brief.title" [description]="copy.brief.description" />
+            </section>
+          }
+          @if (onboarding(); as steps) {
+            <section class="mt-card" data-pad data-section="onboarding" aria-labelledby="mt-today-start">
+              <div class="mt-card-h">
+                <h2 class="mt-card-title" id="mt-today-start">Set up your practice</h2>
+              </div>
+              <p class="caption t-2 intro">A few steps and your day fills in here.</p>
+              <ol class="steps">
+                @for (step of steps; track step.id) {
+                  <li [attr.data-step]="step.id" [attr.data-done]="step.done ? '' : null">
+                    <mt-icon [name]="step.done ? 'check-circle' : 'arrow-right'" />
+                    <div class="text">
+                      <span class="label"
+                        >{{ step.label }}
+                        @if (step.done) {
+                          <span class="mt-sr">(done)</span>
+                        }
+                      </span>
+                      <span class="caption t-3">{{ step.description }}</span>
+                    </div>
+                    @if (step.comingSoon) {
+                      <mt-badge>Coming soon</mt-badge>
+                      <button mtButton size="sm" disabled>Connect<span class="mt-sr"> a calendar</span></button>
+                    } @else if (step.next) {
+                      <a mtButton size="sm" [routerLink]="step.next.link">{{ step.next.action }}</a>
+                    }
+                  </li>
+                }
+              </ol>
+            </section>
+          }
+          <mt-today-attention />
+          <mt-today-tasks />
         </div>
-        <mt-today-due />
-        <mt-today-recent />
+        <div class="col side">
+          <!--
+            The design system's Stat (stat.css), drawn here rather than with MtStat: the first use of a
+            @materia/ui component from a lazy page puts it in the initial bundle.
+          -->
+          <div class="stats" data-section="stats">
+            <div class="mt-card mt-stat" data-stat="open-matters">
+              <div class="k"><mt-icon name="matters" />Open matters</div>
+              <div class="v">{{ count(data.counts().openMatters) }}</div>
+              <div class="f">You’re responsible for</div>
+            </div>
+            <div class="mt-card mt-stat" data-stat="deadlines">
+              <div class="k"><mt-icon name="calendar" />Deadlines this week</div>
+              <div class="v">{{ count(data.counts().deadlinesThisWeek) }}</div>
+              <div class="f">
+                @if (overdueCount()) {
+                  <span class="t-danger">{{ overdueCount() }} overdue</span>
+                } @else {
+                  Assigned to you
+                }
+              </div>
+            </div>
+          </div>
+          <mt-today-due />
+          <mt-today-recent />
+        </div>
       </div>
-    </div>
+    }
   `,
   styles: `
     .mt-today {
