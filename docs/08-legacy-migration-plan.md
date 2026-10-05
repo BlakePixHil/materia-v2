@@ -39,7 +39,7 @@ These facts come from a code audit of the legacy repo; ticket MIG-01 confirms th
 | `cards/{cardId}` | `orgs/{O}/matters/{M}` | See the next table |
 | `cards/*/attachments/*` | `matters/{M}/documents/{D}` + an object copy to `orgs/{O}/matters/{M}/documents/{D}/v1` | sha256 is verified after the copy. `source: 'migration'`, `category: 'other'`; Clerk reclassifies after load (MIG-09) |
 | `workflows/*/checklist-templates/*` | `orgs/{O}/templates/*` (`source: 'org'`, tasks only, no deadline rules) | The doc id is authoritative (the legacy `id` field is wrong) |
-| `referrers/*` (where `uids` contains U) | `contacts` with `isReferrer: true` | Phones normalised to E.164. Dedupe against other imported contacts |
+| `referrers/*` (where `uids` contains U) | `contacts` with `isReferrer: true` | A referrer with a `name` is a person (`company` → `referrerMeta.company`); one with only a `company` is an organisation. `industry` (free text) → `referrerMeta.industry` through `referrerIndustryFromText` (unrecognised → `other`, empty → unset). Phones normalised to E.164. Dedupe against other imported contacts (an existing client who is also a referrer keeps one contact, `isReferrer: true`) |
 | other users referenced (workflow members, assignees, comment authors, mention targets) | contacts tagged `legacy-collaborator` | Their profile names are read from legacy `profiles` (read-only). They are not members, and they are not invited automatically |
 | `notifications`, `workflow-invites`, `feedback`, `workflows/*/invites` | not migrated | Counted in the report |
 
@@ -55,7 +55,7 @@ These facts come from a code audit of the legacy repo; ticket MIG-01 confirms th
 | `swimlaneId` | `status` + `stageId` | through the mapping profile. An unknown swimlane id → status `open`, needsReview |
 | `archived: true` | `status: 'archived'` | `closedAt` = `updatedOn` |
 | `labelIds[]` | `labels[]` | resolved through `workflow.labels`. Unknown ids are dropped and reported |
-| `referrerId` (`''` = none) | `referrerContactId` | through the referrer id map. A missing referrer → reported |
+| `referrerId` (`''` = none) | `referrerContactId` | through the referrer id map. A missing referrer → reported. `referralSource` stays unset (legacy has none). The CORE-18 thank-you task is never created for migrated matters (it fires only in `matters-createMatter` and `matters-changeStatus`) |
 | `linkedCardIds[]` | `relatedMatterIds[]` | only if the target was migrated. Otherwise dropped and reported |
 | `checklists[].items[]` | `tasks` (`group` = checklist title) | `name`→`title`, `checked`→`done`, `dueDate` ISO → `DateOnly` (Melbourne), `doneOnDate`→`completedAt`, priority 1→high and 0→none |
 | `checklistItem.calendarSyncByUser` | `tasks.legacyCalendar` (informational) | The report warns that legacy calendar events still exist in the user's calendar, to avoid duplicates after INT-02 |

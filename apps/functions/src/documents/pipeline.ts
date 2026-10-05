@@ -33,6 +33,7 @@ import { versionsOf } from './shared';
 import { isDeleted } from '../contacts/shared';
 import type { Log } from '../core/log';
 import { matterPath } from '../matters/shared';
+import { toDate } from '../notes/shared';
 import { notify } from '../notifications/notify';
 import { ScannerUnavailableError, type Clock, type MalwareScanPort, type Ports } from '../ports';
 
@@ -587,4 +588,41 @@ export async function expirePendingUploads(
     log.info('upload expired', { matterId, uploadId, docId });
   }
   return expired;
+}
+
+/**
+ * A delayed scan whose retry chain went quiet: no rescan has touched it for longer than the
+ * longest backoff, so the next attempt was never queued (Cloud Tasks refused it, or the chain used
+ * up its attempts). The scanner may well be back by now.
+ */
+export const SCAN_STALL_MS = 75 * 60 * 1000;
+
+/**
+ * `documents-sweepPending` (hourly): queues a rescan for each quarantined upload whose delayed scan
+ * has stalled, so an upload is retried at least hourly until it is scanned or expires. Uses the
+ * chain's own task key, so it never doubles a rescan that is still queued.
+ */
+export async function resumeStalledScans(
+  deps: Pick<PipelineDeps, 'db' | 'files' | 'clock' | 'log' | 'scheduleRescan'>,
+  ttlMs: number,
+): Promise<number> {
+  const { db, files, clock, log } = deps;
+  const now = clock.now().getTime();
+  const objects = await files.list('orgs/', 'orgs/*/matters/*/pending/*');
+  let resumed = 0;
+  for (const object of objects) {
+    const match = PENDING_UPLOAD_PATH.exec(object.path);
+    if (!match || !object.timeCreated || object.timeCreated.getTime() <= now - ttlMs) continue;
+    const [, orgId, matterId, uploadId] = match as unknown as [string, string, string, string];
+    const docId = object.metadata['documentId'] ?? uploadId;
+    const doc = (await db.doc(`${matterPath(orgId, matterId)}/documents/${docId}`).get()).data();
+    const upload = uploadOf(doc);
+    if (upload?.uploadId !== uploadId || upload.status !== 'delayed') continue;
+    const touched = toDate(doc?.['updatedAt'])?.getTime() ?? 0;
+    if (touched > now - SCAN_STALL_MS) continue;
+    await deps.scheduleRescan({ path: object.path, generation: object.generation, attempt: upload.attempts ?? 1 }, 0);
+    resumed++;
+    log.info('stalled scan resumed', { matterId, uploadId, docId, attempts: upload.attempts ?? 1 });
+  }
+  return resumed;
 }

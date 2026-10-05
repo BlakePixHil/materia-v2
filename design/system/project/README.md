@@ -24,7 +24,7 @@ Build every screen from these tokens and components. When something is missing, 
 - Money: AUD with no code in the UI: `$4,860`, `$2.84m` in summaries, `$42.9k` in Stat tiles. Tabular figures always.
 - Time: hours to one decimal in 6-minute units: `0.4 h`.
 - Matter refs: `WE-142` in `mono-s`. People’s names in full the first time, initials in avatars.
-- Rules: `Succession Act 2006 (NSW) s 58(2)`, `UCPR r 78.3`. Cite the jurisdiction on first mention.
+- Rules: `Administration and Probate Act 1958 (Vic) s 99`, then `APA 1958 (Vic) s 99A`; `GCP Rules O 26`. Cite the jurisdiction on first mention. Every rule in the mocks is illustrative until a practitioner signs it off.
 
 **Errors and empty states** say what is wrong and how to fix it: “That date doesn’t exist. Check the death certificate.” Never “Invalid input” or “Something went wrong”.
 
@@ -70,6 +70,17 @@ Tight negative tracking on 18px and above; zero tracking below. Never set body t
 
 Components read state from the `data-*` attributes Angular Primitives sets: `data-hover`, `data-press`, `data-focus-visible`, `data-disabled`, `data-checked`, `data-indeterminate`, `data-open`, `data-selected`, `data-active`, `data-highlighted`, `data-invalid`. Hover is `bg-hover`, pressed `bg-pressed`, selected `bg-selected`. Keyboard focus is always `focus-ring`: a solid 2px blue ring with a 2px surface gap, at least 3:1 on every surface. Disabled uses `bg-disabled` and `text-disabled`, with no hover.
 
+### Page states
+
+Every list has the same six states, shown together on the System states screen:
+
+- **Loading:** Skeleton rows in the real layout on first load; refreshes keep the old rows and show the 2px bar.
+- **Empty:** an EmptyState that says what the list is for and offers the one action that fills it. A filtered list that comes back empty offers Clear filters instead.
+- **Error:** what failed, that nothing is lost, Try again, and a short reference for support.
+- **Offline:** a warning Banner; cached rows stay readable with the time they were fetched, and changes queue on the device.
+- **No access:** who can open it and how to ask (Request access). Never a bare 403.
+- **Read-only role:** an info Banner; create, bulk and edit controls are hidden rather than disabled.
+
 ### Motion
 
 120ms for hover and colour changes, 150ms for switches and toggles, 200ms ease-out for popovers and panels. Nothing bounces. Clerk’s working state is three pulsing dots plus a named step. With `prefers-reduced-motion`, animations stop and transitions drop to instant.
@@ -88,6 +99,10 @@ Charts answer one question each and use one hue: `icon-brand` bars and lines on 
 ### Mobile
 
 Phones get the same tokens at the same sizes, with 44px minimum touch targets and 15px body text. Navigation is a five-item TabBar (Today, Matters, Record, Clerk, Inbox). Record is the raised centre action: speak a time entry or file note and Clerk drafts it for you to save. Short tasks open in a BottomSheet, with the primary action full-width at the bottom. Each matter leads with its next statutory step.
+
+### Tablet
+
+From 768 to 1199px the sidebar collapses to a 56px rail of icons with tooltips (the rail button or `[` expands it over the page). Pinned matters and section labels hide in the rail. Clerk opens as a 400px sheet over the right side instead of a column. Right-hand columns narrow to 340px, cards stay two-up down to 900px, and tables keep the matter, its next deadline and owner, moving the rest into the row's menu. Touch targets are at least 36px, and 44px on touch-only screens.
 
 ### Accessibility
 
@@ -109,13 +124,13 @@ Clerk is the assistant’s name. It reads the practice’s matters, documents, e
 
 Contested estates are matters with a court attached: family provision claims, will disputes (capacity, knowledge and approval, undue influence, informal wills) and estate administration disputes. They live under **Disputes** in the sidebar and use the same Matter screen, with litigation tabs: Overview, Orders, Chronology, Evidence, Offers, Costs and Court book.
 
-- **Track.** Disputes use their own stepper: Instructions · Summons filed · Evidence · Mediation · Directions · Hearing · Judgment · Costs. A contested probate can name its own stages (Caveat, Subpoenas, Expert reports).
-- **Header.** Always show the court and proceedings number (`NSWSC 2026/00187412`) and who we act for (“Acting for the plaintiff”).
+- **Track.** Disputes use their own stepper: Instructions · Proceeding filed · Evidence · Mediation · Directions · Hearing · Judgment · Costs. A contested probate can name its own stages (Caveat, Subpoenas, Expert reports).
+- **Header.** Always show the court and proceedings number (`S ECI 2026 04127`, or `CI-26-01842` in the County Court) and who we act for (“Acting for the plaintiff”).
 - **Orders drive the timetable.** Each CourtOrder shows the order’s own words and what it becomes: a deadline, a court event or nothing. Clerk proposes; a person confirms. Orders with a date that depends on another event are flagged until it is known.
 - **Court events** (CourtEvent) carry the list, time, attendance mode and what must be ready. Hearings fill the date block with `bg-brand`.
 - **Chronology** (ChronologyEvent) is built from the file. Every event cites a source with a pinpoint, and key events are marked by a person. Issue tags use letter codes so they still read in print. Clerk flags gaps in the evidence where they matter, for example around the date a will was made.
-- **Evidence** (EvidenceMatrix) maps each issue to the elements that must be proved: Banks v Goodfellow for capacity, the s 60(2) factors for family provision. Strength is the fee earner’s call.
-- **Offers** (OfferCard) record Calderbank offers and offers of compromise (UCPR r 20.26) with their expiry. They are without prejudice and stay out of court books.
+- **Evidence** (EvidenceMatrix) maps each issue to the elements that must be proved: Banks v Goodfellow for capacity, the s 91(4) factors for family provision (Administration and Probate Act 1958 (Vic)). Strength is the fee earner’s call.
+- **Offers** (OfferCard) record Calderbank offers and offers of compromise (Supreme Court (General Civil Procedure) Rules 2015 O 26) with their expiry. They are without prejudice and stay out of court books.
 - **Costs** are tracked against the disclosed estimate, with a prompt to update the disclosure before it is exceeded. ScenarioBars compare what the client nets under each outcome.
 - **Court book** (CourtBookIndex) is an index that renumbers as documents move. Clerk checks for missing exhibits, duplicates and privileged material before anyone generates the PDF. Generating never files or serves anything.
 - **Limitation periods** for possible claims against estates we act for appear under “To watch” on the Disputes hub until they expire.
@@ -140,5 +155,5 @@ The Logos asset group holds the existing marks, unchanged: the pillar mark with 
 - Put the `mt-*` class on the element that carries the Angular Primitives directive, and variants as data attributes: `<button ngpButton class="mt-btn" data-variant="primary">`.
 - Mapping: Button and IconButton → `ngpButton` · TextField → `ngpFormField`, `ngpLabel`, `ngpInput`, `ngpDescription`, `ngpError` · Select → `ngpSelect` · Checkbox → `ngpCheckbox` · Radio → `ngpRadioGroup`, `ngpRadioItem` · Switch → `ngpSwitch`, `ngpSwitchThumb` · Tabs → `ngpTabset`, `ngpTabList`, `ngpTabButton`, `ngpTabPanel` · SegmentedControl → `ngpToggleGroup` · Menu → `ngpMenuTrigger`, `ngpMenu`, `ngpMenuItem` · Tooltip → `ngpTooltipTrigger`, `ngpTooltip` · Dialog → `ngpDialog`, `ngpDialogOverlay`, `ngpDialogTitle` · CommandPalette → `ngpDialog` + `ngpListbox` · Avatar → `ngpAvatar` · Progress → `ngpProgress` · Toast → `ngpToast`.
 - `components/bundle.js` only imitates those directives so previews respond to hover, press and focus. Don’t ship it in the app.
-- The Screens group shows how the parts compose: Today, Matter, Matters (list and board), Deadlines, Time and billing, New matter intake, Command palette, Disputes, Dispute matter, Chronology and evidence, Settlement and costs, Court book, Insights, Contacts, Settings (Clerk and AI), Onboarding and Mobile.
+- The Screens group shows how the parts compose: Today, Matter, Matters (list and board), Deadlines, Time and billing, New matter intake, Command palette, Disputes, Dispute matter, Chronology and evidence, Settlement and costs, Court book, Insights, Contacts, Settings (Clerk and AI, Team and roles, Billing and rates, Practice, Trust account, Integrations, Security, Audit log), Inbox, Unfiled email, Notifications, Clerk, Onboarding, Mobile, Tablet (Today, Matter, Matters list) and System states.
 - Contacts are one record per person across every matter. Always show a person’s role together with its matter ref, because the same person is often an executor, a beneficiary and a client.
