@@ -65,6 +65,13 @@ const SOURCE_OPTIONS: MtOption<ReferralSource | ''>[] = [
       }
     </section>
   `,
+  styles: `
+    :host {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-24);
+    }
+  `,
 })
 export class IntakeClientsStep {
   protected readonly store = inject(IntakeStore);

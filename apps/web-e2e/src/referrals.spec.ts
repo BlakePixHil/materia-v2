@@ -64,7 +64,10 @@ test.describe('referrers', () => {
     await page.goto('/contacts?contact=c-tamsin');
     await expect(detail.getByRole('heading', { level: 1, name: 'Tamsin Larkwood' })).toBeVisible();
     await detail.getByRole('button', { name: 'Edit' }).click();
-    await dialog.getByLabel('Refers clients to the practice').check();
+    // Click, then wait for the state: the checkbox re-renders on the next change detection.
+    const referrer = dialog.getByLabel('Refers clients to the practice');
+    await referrer.click();
+    await expect(referrer).toBeChecked();
     await dialog.getByLabel('Referrer company').fill('Larkwood Fictional Wealth');
     await dialog.getByLabel('Industry').selectOption({ label: 'Financial planner' });
     await dialog.getByRole('button', { name: 'Save changes' }).click();

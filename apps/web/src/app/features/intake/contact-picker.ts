@@ -109,8 +109,16 @@ const RESULTS = 6;
     }
     .result {
       width: 100%;
+      min-width: 0;
+      overflow: hidden;
       justify-content: flex-start;
       gap: var(--space-8);
+    }
+    .result .caption {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .t-danger {
       color: var(--text-danger);
