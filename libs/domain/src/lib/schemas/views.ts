@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
 import { JurisdictionSchema, MatterStatusSchema, MatterTypeSchema } from './enums';

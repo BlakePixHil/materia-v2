@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { CLERK_MODEL } from '@materia/clerk';
 import type { FlagKey } from '@materia/domain';

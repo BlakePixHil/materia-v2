@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DateOnlySchema } from '../values/date-only';
 import { CentsSchema } from '../values/money';

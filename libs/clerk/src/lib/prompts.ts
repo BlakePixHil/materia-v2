@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { PROMPT_SOURCES } from './prompt-sources.generated';
 import { OUTPUT_SCHEMAS } from './schemas';

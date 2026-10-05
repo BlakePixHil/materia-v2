@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 /**
  * Structured-output schemas, by the name a prompt's `outputSchema` uses. The gateway sends the
