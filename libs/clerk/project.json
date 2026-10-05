@@ -13,6 +13,14 @@
       "options": {
         "command": "tsc --noEmit -p libs/clerk/tsconfig.lib.json && tsc --noEmit -p libs/clerk/tsconfig.spec.json"
       }
+    },
+    "eval": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "tsx --tsconfig apps/functions/tsconfig.app.json apps/functions/src/clerk/evals/cli.ts",
+        "forwardAllArgs": true
+      }
     }
   }
 }
