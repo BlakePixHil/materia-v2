@@ -40,6 +40,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   revisions: domain.NoteRevision,
   // A union of kinds (AI-07): every kind shares the suggestion fields.
   suggestions: { schema: { shape: { ...domain.SuggestionMetaShape, ...domain.MetaShape } } },
+  safeCustody: domain.SafeCustody,
   // A union of kinds: every kind shares these fields (FND-20).
   notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
 } as never;
@@ -205,7 +206,7 @@ describe('firestore.indexes.json', () => {
     ]);
   });
 
-  it('audit entries expire through TTL on expireAt, and the audit-query filters are indexed (FND-18)', () => {
+  it('audit entries expire through TTL on expireAt, and the audit-query filters are indexed (FND-18, CORE-21)', () => {
     const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
       (o) => o.collectionGroup === 'audit' && o.ttl,
     );
@@ -219,6 +220,13 @@ describe('firestore.indexes.json', () => {
       'actor.uid:ASCENDING,at:DESCENDING',
       'entity.matterId:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
       'entity.path:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
+      // The audit log page's filters (CORE-21): record kind, action and person.
+      'entity.collection:ASCENDING,at:DESCENDING',
+      'action:ASCENDING,at:DESCENDING',
+      'entity.collection:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
+      'action:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
+      'entity.collection:ASCENDING,action:ASCENDING,at:DESCENDING',
+      'entity.collection:ASCENDING,action:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
     ]);
   });
 

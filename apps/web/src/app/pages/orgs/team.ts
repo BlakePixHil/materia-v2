@@ -1,24 +1,63 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import type { PendingInvite, TeamMember } from '@materia/data-access';
 import { MEMBER_LIST_QUERY, membersRepository } from '@materia/data-access/repository';
-import { ROLES, type Role } from '@materia/domain';
 import {
+  ACTIONS,
+  fyLabel,
+  fyStartYear,
+  PERMISSIONS,
+  ROLES,
+  today,
+  type Action,
+  type MemberSecurity,
+  type Role,
+} from '@materia/domain';
+import {
+  DialogService,
+  formatAud,
+  MT_ORG_TIMEZONE,
   MtAvatar,
   MtButton,
   MtNote,
   MtSelect,
   MtSettingsRow,
   MtSettingsSection,
+  MtTable,
   MtTextField,
   ToastService,
   type MtOption,
+  type MtTableColumn,
 } from '@materia/ui';
 
+import {
+  MemberSettingsDialog,
+  type MemberSettingsDialogData,
+  type MemberSettingsDialogResult,
+} from './member-settings-dialog';
 import { AuthState } from '../../core/auth/auth-state';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService } from '../../core/orgs/org-service';
+import { SettingsApi } from '../../features/settings/settings-api';
+
+/** One row of the role explainer: an action and whether each role may do it. */
+type MatrixRow = { action: Action } & Partial<Record<Role, string>>;
+
+/** "matter.renumber" → "Matter: renumber"; "export.includePrivileged" → "Export: include privileged". */
+function actionLabel(action: Action): string {
+  const [noun = '', verb = ''] = action.split('.');
+  const words = verb.replace(/([A-Z])/g, ' $1').toLowerCase();
+  return `${noun[0]?.toUpperCase() ?? ''}${noun.slice(1)}: ${words}`;
+}
+
+/** "3 Oct" or "today", from an ISO instant. */
+function lastActive(iso: string | null, timeZone: string): string {
+  if (!iso) return 'Never signed in';
+  const date = new Date(iso);
+  const day = (d: Date) => d.toLocaleDateString('en-AU', { timeZone, day: 'numeric', month: 'short', year: 'numeric' });
+  return day(date) === day(new Date()) ? 'Active today' : `Last active ${day(date)}`;
+}
 
 const ROLE_LABELS: Record<Role, string> = {
   owner: 'Owner',
@@ -29,9 +68,11 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 /**
- * The team (`/settings/team`, FND-17): members and pending invites. Owners and admins invite,
- * change roles and remove people; only owners grant the owner role. CORE-21 builds full team
- * settings on this.
+ * Settings → Team and roles (`/settings/team`, FND-17, CORE-21): members and pending invites.
+ * Everyone sees who is in the practice. Owners and admins also see each member's MFA status and last
+ * activity (from Auth, `orgs-memberSecurity`), rate and this year's budget; they invite, change
+ * roles, set rates, budgets and supervisors, and remove people. Only owners grant the owner role.
+ * The role explainer is generated from the permission matrix in `libs/domain`.
  *
  * The members list is the data layer's worked example (FND-19): a live, paged query resource from
  * the members repository, with loading, empty, error and offline states.
@@ -48,11 +89,19 @@ const ROLE_LABELS: Record<Role, string> = {
     MtSelect,
     MtSettingsRow,
     MtSettingsSection,
+    MtTable,
     MtTextField,
   ],
   host: { class: 'mt-col', style: 'gap: 24px; max-width: 760px' },
+  styles: `
+    .matrix summary {
+      cursor: pointer;
+      color: var(--text-brand, inherit);
+      margin-bottom: var(--space-12, 12px);
+    }
+  `,
   template: `
-    <h1 class="title-l" style="margin: 0">Team</h1>
+    <h1 class="title-l" style="margin: 0">Team and roles</h1>
 
     @if (manage()) {
       <mt-settings-section title="Invite someone" description="They’ll get an email with a link that works for 7 days.">
@@ -117,6 +166,16 @@ const ROLE_LABELS: Record<Role, string> = {
         >
           <div class="mt-row" style="gap: 8px; align-items: center">
             <mt-avatar [name]="member.displayName" [colorKey]="member.uid" size="sm" />
+            @if (manage()) {
+              <button
+                mtButton
+                size="sm"
+                (click)="editRates(member)"
+                [attr.aria-label]="'Rate and budget for ' + member.displayName"
+              >
+                Rate and budget
+              </button>
+            }
             @if (canEdit(member)) {
               <mt-select
                 [label]="'Role for ' + member.displayName"
@@ -143,6 +202,23 @@ const ROLE_LABELS: Record<Role, string> = {
       }
     </mt-settings-section>
 
+    <mt-settings-section
+      title="What each role can do"
+      description="Roles decide what people can see and change. Owners can also delete the practice and grant the owner role."
+      [headingLevel]="2"
+    >
+      <details class="matrix">
+        <summary>Show the role permissions</summary>
+        <mt-table
+          label="Role permissions"
+          density="compact"
+          [rows]="matrix"
+          [columns]="matrixColumns"
+          [rowKey]="matrixKey"
+        />
+      </details>
+    </mt-settings-section>
+
     @if (manage() && invites().length) {
       <mt-settings-section title="Pending invites" [headingLevel]="2">
         @for (invite of invites(); track invite.id) {
@@ -161,6 +237,28 @@ export class TeamPage {
   private readonly orgs = inject(OrgService);
   private readonly auth = inject(AuthState);
   private readonly toasts = inject(ToastService);
+  private readonly dialogs = inject(DialogService);
+  private readonly api = inject(SettingsApi);
+  private readonly repo = membersRepository();
+  private readonly timeZone = signal(inject(MT_ORG_TIMEZONE));
+  /** Every practice's financial year starts in July (`org.fy.startMonth`, not editable yet). */
+  private readonly fyStartMonth = signal(7);
+  /** The financial year today is in, as its start year. */
+  private readonly fy = computed(() => fyStartYear(today(this.timeZone()), this.fyStartMonth()));
+  /** MFA and last activity by uid (owners and admins). */
+  protected readonly security = signal<Map<string, MemberSecurity>>(new Map());
+
+  protected readonly matrix: MatrixRow[] = ACTIONS.map((action) => ({
+    action,
+    ...Object.fromEntries(
+      ROLES.map((role) => [role, (PERMISSIONS[action] as readonly Role[]).includes(role) ? 'Yes' : '—']),
+    ),
+  }));
+  protected readonly matrixColumns: MtTableColumn<MatrixRow>[] = [
+    { id: 'action', header: 'Action', value: (row) => actionLabel(row.action) },
+    ...ROLES.map((role) => ({ id: role, header: ROLE_LABELS[role], value: (row: MatrixRow) => row[role] })),
+  ];
+  protected readonly matrixKey = (row: MatrixRow) => row.action;
 
   /** Live members of the active org; the listener stops with the page. */
   protected readonly members = membersRepository().watchQuery(MEMBER_LIST_QUERY);
@@ -205,16 +303,79 @@ export class TeamPage {
 
   constructor() {
     void this.reload();
+    // MFA and last activity come from Auth through a callable, for owners and admins only.
+    effect(() => {
+      const uids = this.team().map((m) => m.uid);
+      if (!this.manage() || !uids.length) return;
+      void this.api
+        .memberSecurity(uids)
+        .then((list) => this.security.set(new Map(list.map((m) => [m.uid, m]))))
+        .catch(() => undefined);
+    });
   }
 
   protected roleLabel(role: Role): string {
     return ROLE_LABELS[role];
   }
 
-  /** Email first, so two people with the same name can be told apart. */
+  /**
+   * Email first, so two people with the same name can be told apart. Owners and admins also see MFA,
+   * last activity, the rate and this year's budget.
+   */
   protected describe(member: TeamMember): string {
     const parts = [member.email, ROLE_LABELS[member.role], member.status === 'suspended' ? 'Suspended' : null];
+    if (this.manage()) {
+      const security = this.security().get(member.uid);
+      if (security)
+        parts.push(security.mfaEnrolled ? 'MFA on' : 'MFA off', lastActive(security.lastActiveAt, this.timeZone()));
+      const doc = this.members.value().find((m) => m.id === member.uid);
+      if (doc?.defaultRateCents) parts.push(`${formatAud(doc.defaultRateCents)}/h`);
+      const budget = doc?.budgets?.[String(this.fy())];
+      if (budget) parts.push(`${fyLabel(this.fy(), this.fyStartMonth())} budget ${formatAud(budget)}`);
+      const supervisor = doc?.supervisorUid && this.team().find((m) => m.uid === doc.supervisorUid);
+      if (supervisor) parts.push(`Supervised by ${supervisor.displayName}`);
+    }
     return parts.filter(Boolean).join(' · ');
+  }
+
+  /** Rate, supervisor and budgets for this and next financial year. */
+  protected async editRates(member: TeamMember): Promise<void> {
+    const doc = this.members.value().find((m) => m.id === member.uid);
+    const fy = this.fy();
+    const handle = this.dialogs.open<MemberSettingsDialogData, MemberSettingsDialogResult>(MemberSettingsDialog, {
+      data: {
+        displayName: member.displayName,
+        defaultRateCents: doc?.defaultRateCents ?? null,
+        supervisorUid: doc?.supervisorUid ?? null,
+        budgets: doc?.budgets ?? {},
+        supervisors: this.team()
+          .filter((m) => m.uid !== member.uid && m.status === 'active')
+          .map((m) => ({ value: m.uid, label: m.displayName })),
+        fyStartYears: [fy, fy + 1],
+        fyStartMonth: this.fyStartMonth(),
+      },
+    });
+    const result = await handle.result;
+    if (!result) return;
+    const rateChanged = result.defaultRateCents !== (doc?.defaultRateCents ?? null);
+    const effectiveFrom = today(this.timeZone());
+    // Each rate change is kept with the day it starts, so entries already recorded keep their rate.
+    const rates = [...(doc?.rates ?? []).filter((r) => r.effectiveFrom !== effectiveFrom)];
+    if (rateChanged) rates.push({ effectiveFrom, rateCents: result.defaultRateCents });
+    void this.run(
+      () =>
+        this.repo.update(
+          member.uid,
+          {
+            defaultRateCents: result.defaultRateCents,
+            budgets: result.budgets,
+            ...(rateChanged ? { rates } : {}),
+            ...(result.supervisorUid ? { supervisorUid: result.supervisorUid } : {}),
+          },
+          { remove: result.supervisorUid ? [] : ['supervisorUid'] },
+        ),
+      `${member.displayName}’s rate and budget saved`,
+    );
   }
 
   protected describeInvite(invite: PendingInvite): string {

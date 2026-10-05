@@ -416,6 +416,44 @@ describe('membership (FND-17)', () => {
   });
 });
 
+describe('org settings (CORE-21)', () => {
+  const ORG_DOC = `orgs/${ORG}`;
+  const MEMBER = `orgs/${ORG}/members/member-target`;
+
+  it('practice details and billing change only through orgs-updateSettings, even for owners', async () => {
+    await seed(specFor('orgs'));
+    const ref = doc(db(env, 'owner'), ORG_DOC);
+    const owner = uidFor('owner');
+    await assertFails(updateDoc(ref, stamped({ name: 'Renamed Fictional Legal' }, owner)));
+    await assertFails(updateDoc(ref, stamped({ timezone: 'Australia/Perth' }, owner)));
+    await assertFails(updateDoc(ref, stamped({ jurisdictions: ['NSW'] }, owner)));
+    await assertFails(updateDoc(ref, stamped({ retentionYears: 1 }, owner)));
+    await assertFails(updateDoc(ref, stamped({ 'billing.gstRegistered': false }, owner)));
+    // Matter numbering (CORE-21a) stays client-direct for owners and admins.
+    await assertSucceeds(
+      updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped({ matterNumberFormat: 'F-{YY}-{seq:3}' }, uidFor('admin'))),
+    );
+    await assertFails(
+      updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped({ matterNumberFormat: 'F-{seq}' }, uidFor('lawyer'))),
+    );
+  });
+
+  it('owners and admins set a member’s rate, budgets and supervisor; others can’t', async () => {
+    await seed(specFor('members'));
+    const patch = {
+      defaultRateCents: 52000,
+      rates: [{ effectiveFrom: '2026-10-05', rateCents: 52000 }],
+      budgets: { '2026': 25000000 },
+      supervisorUid: uidFor('owner'),
+    };
+    await assertSucceeds(updateDoc(doc(db(env, 'admin'), MEMBER), stamped(patch, uidFor('admin'))));
+    await assertFails(updateDoc(doc(db(env, 'lawyer'), MEMBER), stamped(patch, uidFor('lawyer'))));
+    await assertFails(
+      updateDoc(doc(db(env, 'paralegal'), MEMBER), stamped({ defaultRateCents: 1 }, uidFor('paralegal'))),
+    );
+  });
+});
+
 describe('soft delete', () => {
   const softDelete = (uid: string) => ({
     deletedAt: serverTimestamp(),

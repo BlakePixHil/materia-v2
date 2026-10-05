@@ -391,7 +391,13 @@ describe('repo: watch', () => {
 describe('membersRepository', () => {
   it('lists active and suspended members by name, dropping fields the list does not use', () => {
     const fs = new InMemoryFirestore();
-    fs.set('orgs/org-a/members/u2', { displayName: 'Sam Lee', role: 'paralegal', status: 'suspended', rates: [] });
+    fs.set('orgs/org-a/members/u2', {
+      displayName: 'Sam Lee',
+      role: 'paralegal',
+      status: 'suspended',
+      rates: [],
+      admissionNo: 'VIC-0000',
+    });
     fs.set('orgs/org-a/members/u1', {
       displayName: 'Alex Fictional',
       role: 'owner',
@@ -404,8 +410,16 @@ describe('membersRepository', () => {
     const members = TestBed.runInInjectionContext(() => membersRepository().watchQuery(MEMBER_LIST_QUERY));
     TestBed.tick();
     expect(members.value()).toEqual([
-      { id: 'u1', displayName: 'Alex Fictional', role: 'owner', status: 'active', email: 'a@x.test' },
-      { id: 'u2', displayName: 'Sam Lee', role: 'paralegal', status: 'suspended' },
+      {
+        id: 'u1',
+        displayName: 'Alex Fictional',
+        role: 'owner',
+        status: 'active',
+        email: 'a@x.test',
+        rates: [],
+        budgets: {},
+      },
+      { id: 'u2', displayName: 'Sam Lee', role: 'paralegal', status: 'suspended', rates: [], budgets: {} },
     ]);
   });
 });

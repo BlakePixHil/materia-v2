@@ -241,4 +241,40 @@ describe('pdf.render', () => {
     expect((await runJob(dir)).code).toBe(2);
     expect((await readJob(dir)).error).toMatchObject({ code: 'NOT_FOUND' });
   });
+
+  // CORE-17: the safe custody receipt and stocktake print to one page each.
+  it.each([
+    [
+      'safe-custody-receipt',
+      {
+        firmName: 'Harbour & Vine Legal',
+        packetNo: 'SC-000042',
+        testatorName: 'Lan Nguyễn',
+        receivedOn: '14 Feb 2019',
+        items: [{ kind: 'Will', date: '14 Feb 2019', description: 'Last will', current: true }],
+        issuedOn: '5 Oct 2026',
+      },
+    ],
+    [
+      'safe-custody-stocktake',
+      {
+        firmName: 'Harbour & Vine Legal',
+        count: 1,
+        preparedOn: '5 Oct 2026',
+        sites: [
+          {
+            site: 'Geelong',
+            cabinets: [
+              { cabinet: 'Safe A', packets: [{ slot: '2', packetNo: 'SC-000042', testatorName: 'Lan Nguyễn' }] },
+            ],
+          },
+        ],
+      },
+    ],
+  ])('renders %s', async (templateId, data) => {
+    const dir = await jobFolder({ ...renderJob, input: { templateId, data } });
+    const result = await runJob(dir);
+    expect(result.code, result.stdout).toBe(0);
+    expect((await readJob(dir)).output).toMatchObject({ pages: 1 });
+  });
 });
