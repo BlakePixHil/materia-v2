@@ -23,6 +23,7 @@ import {
   type MatterType,
   type PartyRole,
   type Priority,
+  type ReferralSource,
 } from '@materia/domain';
 import { MATTER_TYPE_LABELS, type MtIconName, type MtOption } from '@materia/ui';
 
@@ -103,9 +104,16 @@ export interface IntakeReviewState {
   priority: Priority;
 }
 
+/** How the matter came in (CORE-18): the referrer contact, or a source when no contact sent it. */
+export interface IntakeReferralState {
+  referrerContactId: string | null;
+  source: ReferralSource | null;
+}
+
 export interface IntakeState {
   type: MatterType | null;
   clientContactIds: string[];
+  referral: IntakeReferralState;
   contacts: Record<string, IntakeContact>;
   details: IntakeDetailsState;
   parties: IntakePartyState[];
@@ -124,6 +132,7 @@ export function emptyIntakeState(): IntakeState {
   return {
     type: null,
     clientContactIds: [],
+    referral: { referrerContactId: null, source: null },
     contacts: {},
     details: {
       personContactId: null,
@@ -176,6 +185,7 @@ export function restoreIntakeState(stored: Record<string, unknown>): IntakeState
   return {
     type: pick('type'),
     clientContactIds: pick('clientContactIds'),
+    referral: pick('referral'),
     contacts: pick('contacts'),
     details: pick('details'),
     parties: pick('parties'),
@@ -387,7 +397,17 @@ function stepInput(state: IntakeState, step: IntakeStepId): StepInput {
     case 'type':
       return { value: state.type ? { type: state.type, jurisdiction: 'VIC' } : {}, errors: {} };
     case 'clients':
-      return { value: { clientContactIds: state.clientContactIds }, errors: {} };
+      return {
+        value: {
+          clientContactIds: state.clientContactIds,
+          ...(state.referral.referrerContactId
+            ? { referrerContactId: state.referral.referrerContactId }
+            : state.referral.source
+              ? { referralSource: state.referral.source }
+              : {}),
+        },
+        errors: {},
+      };
     case 'details':
       return detailsInput(state);
     case 'parties':

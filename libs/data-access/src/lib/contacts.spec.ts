@@ -7,6 +7,8 @@ import {
   contactPartiesRepository,
   contactsRepository,
   matterSummariesRepository,
+  referredMattersQuery,
+  referredMattersRepository,
   type ContactListItem,
 } from './contacts';
 import { OrgContext } from './org-context';
@@ -64,6 +66,16 @@ describe('contactMatchesFilters', () => {
     expect(contactMatchesFilters(avery, { tag: 'other' })).toBe(false);
     expect(contactMatchesFilters(person(), { referrersOnly: true })).toBe(false);
     expect(contactMatchesFilters(avery, { query: 'a' })).toBe(true);
+  });
+
+  it('filters referrers by industry (CORE-18)', () => {
+    const planner = person({ isReferrer: true, referrerMeta: { industry: 'financial_planner' } });
+    expect(contactListQuery({ industry: 'financial_planner' }).where).toEqual([['isReferrer', '==', true]]);
+    expect(contactMatchesFilters(planner, { industry: 'financial_planner' })).toBe(true);
+    expect(contactMatchesFilters(planner, { industry: 'accountant' })).toBe(false);
+    expect(
+      contactMatchesFilters(person({ referrerMeta: { industry: 'accountant' } }), { industry: 'accountant' }),
+    ).toBe(false);
   });
 
   it('hides tombstones and soft-deleted contacts', () => {
@@ -205,5 +217,44 @@ describe('matterSummariesRepository', () => {
       type: 'probate',
       status: 'open',
     });
+  });
+});
+
+describe('referredMattersRepository (CORE-18)', () => {
+  const matter = (extra: Record<string, unknown>) => ({
+    number: 'WE-0001',
+    title: 'Will of Fictional Person',
+    type: 'will',
+    status: 'open',
+    privileged: false,
+    referrerContactId: 'c-ref',
+    deletedAt: null,
+    fee: {},
+    ...extra,
+  });
+
+  it('asks for the live matters a contact referred, and only unprivileged ones without privileged.view', () => {
+    expect(referredMattersQuery('c-ref', true).where).toEqual([
+      ['referrerContactId', '==', 'c-ref'],
+      ['deletedAt', '==', null],
+    ]);
+    expect(referredMattersQuery('c-ref', false).where).toEqual([
+      ['referrerContactId', '==', 'c-ref'],
+      ['deletedAt', '==', null],
+      ['privileged', '==', false],
+    ]);
+  });
+
+  it('reads them with their type, status and created date', async () => {
+    setup((f) => {
+      f.set('orgs/org-a/matters/m1', matter({ createdAt: new Date('2026-05-01T00:00:00Z') }));
+      f.set('orgs/org-a/matters/m2', matter({ referrerContactId: 'c-other' }));
+      f.set('orgs/org-a/matters/m3', matter({ deletedAt: new Date() }));
+      f.set('orgs/org-a/matters/m4', matter({ privileged: true }));
+    });
+    const repo = TestBed.runInInjectionContext(() => referredMattersRepository());
+    const rows = await repo.query(referredMattersQuery('c-ref', false));
+    expect(rows.map((row) => row.id)).toEqual(['m1']);
+    expect(rows[0]).toMatchObject({ type: 'will', status: 'open', createdAt: new Date('2026-05-01T00:00:00Z') });
   });
 });

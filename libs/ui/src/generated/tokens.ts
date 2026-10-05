@@ -1117,7 +1117,7 @@ export const MT_TOKENS = {
             "lineHeight": "18px",
             "fontWeight": 400,
             "letterSpacing": "0",
-            "sample": "UCPR r 78.3 · at least 14 days before filing",
+            "sample": "A&P Rules 2014 · at least 14 days before filing",
             "usage": "Secondary lines under a title; dense tables."
           },
           {
@@ -1177,7 +1177,7 @@ export const MT_TOKENS = {
             "lineHeight": "14px",
             "fontWeight": 500,
             "letterSpacing": "0.04em",
-            "sample": "WE-142 · PROBATE · NSW",
+            "sample": "WE-142 · PROBATE · VIC",
             "usage": "Uppercase micro-labels above titles and table headers."
           },
           {

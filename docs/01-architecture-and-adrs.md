@@ -172,6 +172,11 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - At most a matter shows a trust balance snapshot copied from those records (amount, as-at date, source system), labelled "Not the trust ledger", behind `billing.trustDisplay` (BILL-11). A later read-only integration may fill it.
 - "Paid from trust" is a `trust_transfer` payment recorded after the withdrawal (BILL-12); distributions (CORE-16) never move money.
 
+**ADR-036: The will safe custody register is written only through callables** ([ADR-036](adr/036-will-safe-custody-register.md), CORE-17).
+- Packets are read by members and written only by the `safeCustody-*` callables, so the chain of custody can only grow.
+- A release or destruction needs a lawyer or above, a sign-in within 5 minutes and an authority document from a matter. A destruction also needs a second lawyer's confirmation.
+- Probate matters link through the testator's party rows, not a packet field.
+
 ## Cross-cutting conventions
 
 - **IDs:** Firestore auto-ids for documents. Human-friendly numbers are allocated by a transaction on `orgs/{orgId}/counters/{name}`:

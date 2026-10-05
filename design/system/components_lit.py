@@ -9,10 +9,10 @@ comp("CourtEvent", "Litigation", 260, """
 
 A listing in court or before a mediator: date block, what it is, which matter, and where and how to attend (court and list, courtroom or online link, judicial officer).
 
-Hearings fill the date block blue; everything else stays neutral. Each event carries what must be ready beforehand as its right-hand action (“Brief ready”, “Affidavit filed”). Events come from orders and the court’s online registry and sync to Outlook.
+Hearings fill the date block blue; everything else stays neutral. Each event carries what must be ready beforehand as its right-hand action (“Brief ready”, “Affidavit filed”). Events come from orders and RedCrest and sync to Outlook.
 """, '<div class="mt-col" style="width:560px;gap:8px">'
-    + court_event("Fri", "9", "Oct", "Registrar’s directions · Doyle v Brennan", "Probate List · 9:30 am · seek timetable for expert evidence", [("external", "Online · Microsoft Teams"), ("court", "NSWSC 2026/00213958")], "directions", badge("Ready", "success"))
-    + court_event("Tue", "9", "Mar", "Hearing, 3 days · Doyle v Brennan", "Before a judge · 10:00 am · 9–11 Mar 2027", [("court", "Law Courts Building, Sydney"), ("user", "Counsel: J. Mercer SC")], "hearing", badge("Brief 40%", "warning"))
+    + court_event("Fri", "9", "Oct", "Registrar’s directions · Doyle v Brennan", "Trusts, Equity and Probate List · 9:30 am · seek timetable for expert evidence", [("external", "Online · Microsoft Teams"), ("court", "S ECI 2026 04127")], "directions", badge("Ready", "success"))
+    + court_event("Tue", "9", "Mar", "Hearing, 3 days · Doyle v Brennan", "Before a judge · 10:00 am · 9–11 Mar 2027", [("court", "Supreme Court of Victoria, Melbourne"), ("user", "Counsel: J. Mercer SC")], "hearing", badge("Brief 40%", "warning"))
     + "</div>")
 
 comp("CourtOrder", "Litigation", 250, """
@@ -43,7 +43,7 @@ comp("EvidenceMatrix", "Litigation", 300, """
 
 Each issue in dispute broken into the elements that must be proved, the evidence for each, and how strong it currently looks. It is the working list for what to gather next.
 
-Strength is the fee earner’s call (Clerk proposes it with reasons). Gaps are warning and link to the action that would fill them. In a capacity dispute the elements follow Banks v Goodfellow; in family provision they follow the s 60(2) factors.
+Strength is the fee earner’s call (Clerk proposes it with reasons). Gaps are warning and link to the action that would fill them. In a capacity dispute the elements follow Banks v Goodfellow; in family provision they follow the s 91(4) factors.
 """, '<div style="width:640px">' + matrix([("Testamentary capacity (Banks v Goodfellow)", [
     ("Understood the nature of making a will", cite("Ainsworth statement p 3") + " " + cite("Dr Wong report p 2"), "moderate"),
     ("Knew the extent of his property", cite("Westpac authority form"), "strong"),
@@ -52,11 +52,11 @@ Strength is the fee earner’s call (Clerk proposes it with reasons). Gaps are w
 comp("OfferCard", "Litigation", 300, """
 # OfferCard
 
-A settlement offer, made or received: who, when, which kind (Calderbank letter, offer of compromise under UCPR r 20.26), the amount and terms, and its status with its expiry.
+A settlement offer, made or received: who, when, which kind (Calderbank letter, offer of compromise under the GCP Rules O 26), the amount and terms, and its status with its expiry.
 
 Our offers carry a brand wash. An open offer shows its expiry as a DeadlineChip; expired, rejected and accepted offers show a badge. Offers are without prejudice: they never go into a court book.
 """, '<div class="mt-col" style="width:600px;gap:8px">'
-    + offer("Our client", "18 Sep", "Offer of compromise · UCPR r 20.26", "$260,000", "Plus costs as agreed or assessed, payable from the estate. Open for 28 days.", deadline("Open until 16 Oct", "soon"), "ours", btn("View letter", "ghost", "sm"))
+    + offer("Our client", "18 Sep", "Offer of compromise · GCP Rules O 26", "$260,000", "Plus costs as agreed or assessed, payable from the estate. Open for 28 days.", deadline("Open until 16 Oct", "soon"), "ours", btn("View letter", "ghost", "sm"))
     + offer("Ho Legal for the defendant", "18 Aug", "Calderbank offer", "$120,000", "Inclusive of costs. Each party otherwise bears their own costs.", badge("Rejected 1 Sep"), "theirs")
     + "</div>")
 

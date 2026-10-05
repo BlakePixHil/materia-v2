@@ -28,6 +28,7 @@ test.describe('desktop shell', () => {
       'Matters',
       'Deadlines',
       'Contacts',
+      'Safe custody',
       'Time & billing',
       'Insights',
     ]);

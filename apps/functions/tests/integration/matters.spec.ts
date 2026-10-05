@@ -356,3 +356,54 @@ describe('matters-restore', () => {
     expect((await data(`${M}/deleted-old`))['deletedAt']).not.toBeNull();
   });
 });
+
+describe('referrals (CORE-18)', () => {
+  const settings = (thankYouTask: boolean) =>
+    db.doc(`orgs/${ORG}`).update({ settings: { referrals: { thankYouTask } } });
+
+  beforeAll(async () => {
+    await db.doc(`orgs/${ORG}/contacts/c-referrer`).set({
+      ...person('Lena', 'Fictional-Planner'),
+      isReferrer: true,
+      referrerMeta: { company: 'Fictional Wealth Partners', industry: 'financial_planner' },
+    });
+    await settings(true);
+  });
+  afterAll(() => db.doc(`orgs/${ORG}`).update({ settings: {} }));
+
+  it('stores the referrer and gives a referred matter created open one thank-you task', async () => {
+    await signInAs('lawyer');
+    const { matterId, status } = await create('Estate of Fictional Referred', { referrerContactId: 'c-referrer' });
+    expect(status).toBe('open');
+    const task = await data(`${M}/${matterId}/tasks/referrer-thank-you`);
+    expect(task).toMatchObject({
+      title: 'Thank Lena Fictional-Planner for the referral',
+      assigneeUid: 'matters-lawyer',
+      status: 'todo',
+      countedOpen: true,
+    });
+    // tasks-onWrite leaves the count alone: the create counted it with any template tasks.
+    const tasks = await db.collection(`${M}/${matterId}/tasks`).get();
+    const matter = await data(`${M}/${matterId}`);
+    expect(matter).toMatchObject({ referrerContactId: 'c-referrer', openTaskCount: tasks.size });
+  });
+
+  it('adds it when a referred lead opens, and not for a source or with the setting off', async () => {
+    await db.doc(`${M}/ref-lead`).set(rawMatter('lead', { referrerContactId: 'c-referrer', openTaskCount: 0 }));
+    await db.doc(`${M}/src-lead`).set(rawMatter('lead', { referralSource: 'website', openTaskCount: 0 }));
+    await signInAs('lawyer');
+    await changeStatus('ref-lead', 'open');
+    await changeStatus('src-lead', 'open');
+    expect((await data(`${M}/ref-lead/tasks/referrer-thank-you`))['title']).toBe(
+      'Thank Lena Fictional-Planner for the referral',
+    );
+    expect((await data(`${M}/ref-lead`))['openTaskCount']).toBe(1);
+    expect((await db.doc(`${M}/src-lead/tasks/referrer-thank-you`).get()).exists).toBe(false);
+
+    await settings(false);
+    await db.doc(`${M}/off-lead`).set(rawMatter('lead', { referrerContactId: 'c-referrer' }));
+    await changeStatus('off-lead', 'open');
+    expect((await db.doc(`${M}/off-lead/tasks/referrer-thank-you`).get()).exists).toBe(false);
+    await settings(true);
+  });
+});
