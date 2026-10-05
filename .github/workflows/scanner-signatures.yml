@@ -2,11 +2,13 @@
 # freshclam, and redeploys the `clamav` Cloud Run service to dev, so signatures are never more than
 # a day old even when nothing is merged. (freshclam also runs inside the container while it is up.)
 # Prod: add a `production` job here once prod is live (MVP: prod waits for launch).
+# Every dev deploy rebuilds the scanner too, so to save Actions minutes the refresh is skipped when
+# dev was deployed in the last 24 hours. It runs after CI's morning run (about 06:30 Melbourne).
 name: scanner-signatures
 
 on:
   schedule:
-    - cron: '17 19 * * *' # 06:17 in Melbourne (daylight saving)
+    - cron: '17 20 * * *' # 07:17 in Melbourne in daylight saving (06:17 in standard time)
   workflow_dispatch:
 
 concurrency:
@@ -24,6 +26,7 @@ jobs:
     environment: dev
     permissions:
       contents: read
+      actions: read # find the last dev deploy
       id-token: write # GitHub OIDC token for Workload Identity Federation
     env:
       PROJECT: ${{ vars.GCP_PROJECT_DEV }}
@@ -33,9 +36,26 @@ jobs:
         id: check
         env:
           WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # Newest deploy-dev run in the last 24 hours whose deploy job succeeded (manual runs always refresh).
+          since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          recent=""
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            for id in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy-dev.yml --status success --limit 20 \
+              --json databaseId,createdAt --jq ".[] | select(.createdAt >= \"$since\") | .databaseId"); do
+              if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" \
+                --jq '.jobs[] | select(.name | startswith("deploy /")) | .conclusion' | grep -x success >/dev/null; then
+                recent="$id"
+                break
+              fi
+            done
+          fi
           if [ -z "$PROJECT" ] || [ -z "$WIF_PROVIDER" ]; then
             echo "::notice::Skipped: set GCP_PROJECT_DEV and GCP_WIF_PROVIDER_DEV (docs/runbooks/deploy.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$recent" ]; then
+            echo "::notice::Skipped: dev deploy run $recent (last 24 hours) already rebuilt the scanner with fresh signatures."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"

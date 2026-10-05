@@ -13,7 +13,7 @@ Client personal information is often sensitive: health information in capacity d
   - Confidentiality.
   - Costs disclosure (Part 4.3).
   - File retention: the firm's policy, commonly 7 years after closure. Original wills are held indefinitely in safe custody.
-  - Trust money: out of scope for v1.
+  - Trust money: out of scope for v1. Materia never keeps trust records; it may only show a labelled balance snapshot ([ADR-035](adr/035-trust-accounting.md)).
   - **(sign-off)**
 - **Privilege.** Privilege is never waived by the system: no automatic sharing, and privileged flags carry through exports, AI outputs and emails.
 - **Data residency.** Primary data stays in `australia-southeast1`, backups in `australia-southeast2`. AI processing follows ADR-011a. Sub-processors are listed in the privacy policy.
