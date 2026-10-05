@@ -286,7 +286,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     </div>
 
     @if (mobile()) {
-      <div class="mt-app-tabbar"><mt-tab-bar [items]="tabBarItems" /></div>
+      <div class="mt-app-tabbar"><mt-tab-bar [items]="tabBarItems()" /></div>
     }
 
     <ng-template #orgMenu>
@@ -341,7 +341,9 @@ export class AppShellComponent {
   protected readonly orgChoices = this.orgs.orgs;
 
   protected readonly settings = SETTINGS_ITEM;
-  protected readonly tabBarItems = TAB_BAR_ITEMS;
+  protected readonly tabBarItems = computed(() =>
+    TAB_BAR_ITEMS.map((item) => (item.link === '/inbox' ? { ...item, count: this.notifications.count() } : item)),
+  );
   private readonly flags = inject(FeatureFlagService);
   /** Settings → Templates (CORE-07): owners and admins, while matter templates are on. */
   /** Matter numbering settings (CORE-21a): owners and admins. */
