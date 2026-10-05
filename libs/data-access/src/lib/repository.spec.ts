@@ -410,8 +410,16 @@ describe('membersRepository', () => {
     const members = TestBed.runInInjectionContext(() => membersRepository().watchQuery(MEMBER_LIST_QUERY));
     TestBed.tick();
     expect(members.value()).toEqual([
-      { id: 'u1', displayName: 'Alex Fictional', role: 'owner', status: 'active', email: 'a@x.test' },
-      { id: 'u2', displayName: 'Sam Lee', role: 'paralegal', status: 'suspended', rates: [] },
+      {
+        id: 'u1',
+        displayName: 'Alex Fictional',
+        role: 'owner',
+        status: 'active',
+        email: 'a@x.test',
+        rates: [],
+        budgets: {},
+      },
+      { id: 'u2', displayName: 'Sam Lee', role: 'paralegal', status: 'suspended', rates: [], budgets: {} },
     ]);
   });
 });
