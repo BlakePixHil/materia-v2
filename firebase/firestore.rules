@@ -526,6 +526,27 @@ service cloud.firestore {
         allow update: if canEditChecklistTemplates()
           && (clientUpdate(fieldsChecklistTemplate()) && validChecklistTemplate(request.resource.data) || softDelete());
       }
+      // Task group templates (CORE-08f): a group of tasks with their checklists, applied to a
+      // matter's Tasks tab. The rules check the name and list sizes; the tasks' shape is checked by
+      // the schema on read (rules can't walk a list of maps).
+      match /taskGroupTemplates/{templateId} {
+        function validTaskGroupTemplate(data) {
+          return data.name is string && data.name.trim().size() > 0 && data.name.size() <= 120
+            && data.tasks is list && data.tasks.size() >= 1 && data.tasks.size() <= 50;
+        }
+        function canEditTaskGroupTemplates() {
+          return can(orgId, 'task.edit') && isActiveMember(orgId);
+        }
+        allow read: if inOrg(orgId);
+        allow create: if canEditTaskGroupTemplates()
+          && request.resource.data.keys().hasOnly(fieldsTaskGroupTemplate().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+          && request.resource.data.keys().hasAll(['name', 'tasks', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt == request.time
+          && validMeta() && request.resource.data.schemaVersion == 1
+          && validTaskGroupTemplate(request.resource.data);
+        allow update: if canEditTaskGroupTemplates()
+          && (clientUpdate(fieldsTaskGroupTemplate()) && validTaskGroupTemplate(request.resource.data) || softDelete());
+      }
       match /docTemplates/{templateId} {
         allow read: if inOrg(orgId);
         allow update: if editable(orgId, 'org.settings', fieldsDocTemplate());
@@ -694,6 +715,7 @@ service cloud.firestore {
     function fieldsSubpoena() { return ['issuedTo', 'direction', 'issuedOn', 'returnDate', 'status', 'accessOrderMade', 'materialDocumentIds']; }
     function fieldsSuggestion() { return ['status']; }
     function fieldsTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
+    function fieldsTaskGroupTemplate() { return ['name', 'tasks']; }
     function fieldsTimeEntry() { return ['uid', 'date', 'minutes', 'rateCents', 'narrative', 'billable', 'status', 'source', 'taskId']; }
     function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs']; }
     // </generated:rules-sync>

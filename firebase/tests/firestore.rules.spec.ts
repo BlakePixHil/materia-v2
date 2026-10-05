@@ -1771,6 +1771,104 @@ describe('checklist templates (CORE-08d)', () => {
   });
 });
 
+describe('task group templates (CORE-08f)', () => {
+  const PATH = `orgs/${ORG}/taskGroupTemplates`;
+  const TEMPLATE = `${PATH}/group-1`;
+  const TASKS = [
+    { title: 'Locate the original will', checklist: ['Ask the family', 'Search the will bank'], priority: 'high' },
+    { title: 'Write to the bank', checklist: [], dueInDays: 7 },
+  ];
+
+  /** A valid client create, stamped for `uid`. */
+  const newTemplate = (uid: string, extra: Record<string, unknown> = {}) => ({
+    name: 'Checklist A',
+    tasks: TASKS,
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+
+  it.each(EVERYONE)('creating a template as %s follows task.edit', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const create = setDoc(doc(firestore, `${PATH}/new-${who}`), newTemplate(uid));
+    await (allows(who, 'task.edit') ? assertSucceeds(create) : assertFails(create));
+  });
+
+  it('members list the org’s templates; other orgs can’t', async () => {
+    const list = (firestore: Firestore) => getDocs(query(collection(firestore, PATH), orderBy('name'), limit(100)));
+    await assertSucceeds(list(db(env, 'readonly')));
+    await assertSucceeds(list(db(env, 'paralegal')));
+    await assertFails(list(db(env, 'owner', OTHER_ORG)));
+    await assertFails(list(db(env, 'lawyer', ORG, SUSPENDED_UID)));
+  });
+
+  it('a create needs a name, 1 to 50 tasks, the caller’s stamps and no server fields', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const attempt = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${PATH}/${id}`), newTemplate(uid, extra)));
+    await attempt('blank', { name: '   ' });
+    await attempt('long-name', { name: 'n'.repeat(121) });
+    await attempt('name-number', { name: 42 });
+    await attempt('no-tasks', { tasks: [] });
+    await attempt('too-many', { tasks: Array.from({ length: 51 }, (_, i) => ({ title: `Task ${i}`, checklist: [] })) });
+    await attempt('tasks-text', { tasks: 'Write to the bank' });
+    await attempt('extra', { matterId: 'matter-1' });
+    await attempt('deleted', { deletedAt: serverTimestamp(), deletedBy: uid });
+    await attempt('creator', { createdBy: 'someone-else' });
+    await attempt('created-at', { createdAt: Timestamp.fromMillis(0) });
+    await attempt('updater', { updatedBy: 'someone-else' });
+    await attempt('version', { schemaVersion: 2 });
+    const withoutTasks = newTemplate(uid) as Record<string, unknown>;
+    delete withoutTasks['tasks'];
+    await assertFails(setDoc(doc(firestore, `${PATH}/no-tasks-field`), withoutTasks));
+    await assertSucceeds(
+      setDoc(
+        doc(firestore, `${PATH}/largest`),
+        newTemplate(uid, {
+          name: 'n'.repeat(120),
+          tasks: Array.from({ length: 50 }, (_, i) => ({ title: `Task ${i}`, checklist: [] })),
+        }),
+      ),
+    );
+  });
+
+  it('updates the whitelisted fields with valid values only', async () => {
+    await seed(specFor('taskGroupTemplates'));
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), TEMPLATE);
+    await assertSucceeds(
+      updateDoc(ref, stamped({ name: 'Checklist B', tasks: [{ title: 'Pay the fee', checklist: [] }] }, uid)),
+    );
+    await assertFails(updateDoc(ref, stamped({ name: '' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ tasks: [] }, uid)));
+    await assertFails(updateDoc(ref, stamped({ matterId: 'matter-1' }, uid)));
+    await assertFails(
+      updateDoc(doc(db(env, 'readonly'), TEMPLATE), stamped({ name: 'Read-only rename' }, uidFor('readonly'))),
+    );
+  });
+
+  it('soft delete and restore by task.edit roles, never a hard delete', async () => {
+    await seed(specFor('taskGroupTemplates'));
+    const uid = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), TEMPLATE);
+    await assertFails(updateDoc(ref, { ...stamped({}, uid), deletedAt: serverTimestamp(), deletedBy: 'someone-else' }));
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: serverTimestamp(), deletedBy: uid }));
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: null, deletedBy: null }));
+    await assertFails(deleteDoc(ref));
+    await assertFails(
+      updateDoc(doc(db(env, 'owner', OTHER_ORG), TEMPLATE), {
+        ...stamped({}, uidFor('owner', OTHER_ORG)),
+        deletedAt: serverTimestamp(),
+        deletedBy: uidFor('owner', OTHER_ORG),
+      }),
+    );
+  });
+});
+
 // Last in this file, before another suite reloads the rules (which resets the emulator's report).
 describe('rules coverage', () => {
   it('evaluates at least 90% of the rule expressions', async () => {

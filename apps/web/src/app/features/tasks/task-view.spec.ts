@@ -11,6 +11,7 @@ import {
   sectionsByGroup,
   sectionsByStage,
   taskEntry,
+  tasksByGroup,
   uniqueGroups,
   usesBulkCallable,
   type TaskRecord,
@@ -117,6 +118,19 @@ describe('sections', () => {
 
   it('lists group names once each, ignoring case and blanks', () => {
     expect(uniqueGroups(['Letters', ' letters ', null, '', 'Intake', undefined, '  '])).toEqual(['Letters', 'Intake']);
+  });
+
+  it('collects each named group’s tasks, first spelling kept (CORE-08f)', () => {
+    const tasks = [
+      task('a', { group: 'Letters' }),
+      task('b'),
+      task('c', { group: ' Intake ' }),
+      task('d', { group: 'letters' }),
+    ];
+    expect(tasksByGroup(tasks).map((g) => [g.name, g.tasks.map((t) => t.id)])).toEqual([
+      ['Letters', ['a', 'd']],
+      ['Intake', ['c']],
+    ]);
   });
 });
 

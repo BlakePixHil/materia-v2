@@ -560,6 +560,19 @@ export const makeChecklistTemplate = (o: Partial<D.ChecklistTemplate> = {}) =>
     o,
   );
 
+export const makeTaskGroupTemplate = (o: Partial<D.TaskGroupTemplate> = {}) =>
+  build(
+    D.TaskGroupTemplate,
+    {
+      name: 'Checklist A',
+      tasks: [
+        { title: 'Locate the original will', checklist: ['Ask the family', 'Search the will bank'], priority: 'high' },
+        { title: 'Write to the bank', checklist: [], dueInDays: 7 },
+      ],
+    },
+    o,
+  );
+
 export const makeMetrics = (o: Partial<D.Metrics> = {}) =>
   build(D.Metrics, { period: 'month-2026-10', values: { mattersOpened: 3, wipCents: 125000 } }, o);
 
@@ -783,6 +796,7 @@ export const ENTITY_FACTORIES = {
   MatterTemplateVersion: [D.MatterTemplateVersion, makeMatterTemplateVersion],
   DocTemplate: [D.DocTemplate, makeDocTemplate],
   ChecklistTemplate: [D.ChecklistTemplate, makeChecklistTemplate],
+  TaskGroupTemplate: [D.TaskGroupTemplate, makeTaskGroupTemplate],
   Metrics: [D.Metrics, makeMetrics],
   AuditEntry: [D.AuditEntry, makeAuditEntry],
   Notification: [D.Notification, makeNotification],
