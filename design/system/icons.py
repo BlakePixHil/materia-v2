@@ -78,6 +78,14 @@ ICONS.update({
 })
 
 
+# FND-12a: the shell's theme, keyboard shortcuts and sign-out items.
+ICONS.update({
+    "moon": '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    "keyboard": '<path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/>',
+    "log-out": '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+})
+
+
 def icon(name, size=None, cls=""):
     """Inline Lucide icon; colour follows currentColor."""
     sz = f' data-size="{size}"' if size else ""

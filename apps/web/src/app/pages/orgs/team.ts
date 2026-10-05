@@ -10,6 +10,7 @@ import {
   PERMISSIONS,
   ROLES,
   today,
+  withRateChange,
   type Action,
   type MemberSecurity,
   type Role,
@@ -359,9 +360,9 @@ export class TeamPage {
     if (!result) return;
     const rateChanged = result.defaultRateCents !== (doc?.defaultRateCents ?? null);
     const effectiveFrom = today(this.timeZone());
-    // Each rate change is kept with the day it starts, so entries already recorded keep their rate.
-    const rates = [...(doc?.rates ?? []).filter((r) => r.effectiveFrom !== effectiveFrom)];
-    if (rateChanged) rates.push({ effectiveFrom, rateCents: result.defaultRateCents });
+    // Each rate change is kept with the day it starts, so time dated before it keeps the old rate
+    // (BILL-01: the first change also records the rate it replaces).
+    const rates = withRateChange(doc ?? {}, result.defaultRateCents, effectiveFrom);
     void this.run(
       () =>
         this.repo.update(
