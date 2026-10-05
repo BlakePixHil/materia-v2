@@ -1,5 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, ViewEncapsulation } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 
 import { can } from '@materia/data-access';
 import {
@@ -12,20 +13,22 @@ import {
   PENDING_CHANGES_QUERY,
 } from '@materia/data-access/repository';
 import { compareDeadlines, needsReview, STATUTORY_DISABLED_MESSAGE } from '@materia/domain';
-import { formatDateOnly, MtButton, MtEmptyState, MtIconButton, MtNote } from '@materia/ui';
+import { MtButton, MtEmptyState, MtNote, MtSegmentedControl, type MtOption } from '@materia/ui';
 
 import { DeadlineActions } from './deadline-actions';
 import { DeadlineRow, type DeadlineRowAction } from './deadline-row';
 import { deadlineErrorCopy, isClosedDeadline, type ChangeRowVm, type DeadlineRowVm } from './deadline-view';
+import { EventTimeline } from './event-timeline';
+import { rememberEventsView, storedEventsView, type EventsView } from './event-timeline-view';
 import { PendingChanges } from './pending-changes';
 import { statutoryDisabled } from './statutory-flag';
 import { MatterScreen } from '../matter-detail/matter-screen';
-import { eventKindLabel } from '../matter-detail/matter-view';
 
 /**
  * A matter's Deadlines tab (CORE-10): proposed changes to decide, deadlines to review (already past
  * when computed), the open deadlines with their traces (a waiting one says why), the events they're
- * computed from (recorded, edited and deleted here), and the closed ones. Manual deadlines are added
+ * computed from (recorded, edited and deleted here) as a timeline, linked to their deadlines or drawn
+ * to scale (the choice is remembered on this device), and the closed ones. Manual deadlines are added
  * here. Listens to the matter's deadlines, proposals and events only while the tab is shown.
  */
 @Component({
@@ -33,7 +36,17 @@ import { eventKindLabel } from '../matter-detail/matter-view';
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   providers: [DeadlineActions],
-  imports: [DeadlineRow, MtButton, NgTemplateOutlet, MtEmptyState, MtIconButton, MtNote, PendingChanges],
+  imports: [
+    DeadlineRow,
+    EventTimeline,
+    FormsModule,
+    MtButton,
+    NgTemplateOutlet,
+    MtEmptyState,
+    MtNote,
+    MtSegmentedControl,
+    PendingChanges,
+  ],
   host: { class: 'mt-matter-deadlines' },
   template: `
     <div class="head">
@@ -122,40 +135,30 @@ import { eventKindLabel } from '../matter-detail/matter-view';
     }
 
     <section class="block" aria-labelledby="mt-md-events">
-      <h3 class="title-s" id="mt-md-events">Events</h3>
+      <div class="head">
+        <h3 class="title-s" id="mt-md-events">Events</h3>
+        @if (eventRows().length) {
+          <span class="mt-ml">
+            <mt-segmented-control
+              label="Events view"
+              [options]="eventsViewOptions"
+              [ngModel]="eventsView()"
+              (ngModelChange)="setEventsView($event)"
+            />
+          </span>
+        }
+      </div>
       <p class="caption t-2 hint">Deadlines are computed from these dates.</p>
       @if (eventRows().length) {
-        <ol class="rows events">
-          @for (event of eventRows(); track event.id) {
-            <li [attr.data-event]="event.kind">
-              <span class="date caption t-2">{{ date(event.date) }}</span>
-              <span class="mt-grow">
-                {{ eventLabel(event.kind) }}
-                @if (event.label && event.label !== eventLabel(event.kind)) {
-                  <span class="caption t-3">· {{ event.label }}</span>
-                }
-              </span>
-              @if (canEditEvents()) {
-                <button
-                  mtIconButton
-                  icon="compose"
-                  size="sm"
-                  [label]="'Edit ' + eventLabel(event.kind)"
-                  [disabled]="actions.isBusy(event.id)"
-                  (click)="editEvent(event)"
-                ></button>
-                <button
-                  mtIconButton
-                  icon="trash"
-                  size="sm"
-                  [label]="'Delete ' + eventLabel(event.kind)"
-                  [disabled]="actions.isBusy(event.id)"
-                  (click)="deleteEvent(event)"
-                ></button>
-              }
-            </li>
-          }
-        </ol>
+        <mt-event-timeline
+          [events]="eventRows()"
+          [deadlines]="deadlines.value()"
+          [view]="eventsView()"
+          [canEdit]="canEditEvents()"
+          [isBusy]="isBusy"
+          (edit)="editEvent($event)"
+          (remove)="deleteEvent($event)"
+        />
       } @else {
         <p class="caption t-3">No events recorded yet.</p>
       }
@@ -228,17 +231,6 @@ import { eventKindLabel } from '../matter-detail/matter-view';
     .mt-matter-deadlines .rows > li + li {
       border-top: 1px solid var(--border-subtle);
     }
-    .mt-matter-deadlines .events > li {
-      display: flex;
-      align-items: center;
-      gap: var(--space-8);
-      padding: var(--space-8) var(--space-12);
-      font: 400 13px/18px var(--font-sans);
-    }
-    .mt-matter-deadlines .events .date {
-      flex: none;
-      min-width: 7.5em;
-    }
     .mt-matter-deadlines .closed summary {
       cursor: pointer;
       margin-bottom: var(--space-8);
@@ -303,11 +295,18 @@ export class MatterDeadlines {
   protected readonly eventRows = computed(() => this.events.value());
   protected readonly eventBusy = computed(() => this.actions.isBusy(`event:${this.id() ?? ''}`));
 
-  protected readonly isBusy = (key: string) => this.actions.isBusy(key);
-  protected readonly eventLabel = eventKindLabel;
+  protected readonly eventsViewOptions: MtOption<EventsView>[] = [
+    { value: 'linked', label: 'Linked', icon: 'link' },
+    { value: 'scale', label: 'To scale', icon: 'calendar' },
+  ];
+  protected readonly eventsView = signal<EventsView>(storedEventsView());
 
-  protected date(value: string): string {
-    return formatDateOnly(value);
+  protected readonly isBusy = (key: string) => this.actions.isBusy(key);
+
+  protected setEventsView(value: EventsView | null): void {
+    const next = value === 'scale' ? 'scale' : 'linked';
+    this.eventsView.set(next);
+    rememberEventsView(next);
   }
 
   protected assignee(row: DeadlineRowVm): string | undefined {

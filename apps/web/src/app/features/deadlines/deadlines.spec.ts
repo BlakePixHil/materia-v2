@@ -364,6 +364,46 @@ describe('matter deadlines tab', () => {
     expect(page.body.querySelector('[data-event="grant_issued"]')).toBeNull();
   });
 
+  it('shows events on a line with their deadlines, or to scale, and remembers the view', async () => {
+    const page = await openMatter(TAB, {
+      configure: (fs) => {
+        seedDeadlines(fs);
+        fs.set(
+          `${MATTER}/deadlines/rule-org.executor_year`,
+          deadlineDoc('Executor’s year ends', {
+            kind: 'internal',
+            dueDate: '2027-07-22',
+            computed: { ...computed('org.executor_year', '2027-07-22'), anchorEventId: 'ev-death' },
+          }),
+        );
+      },
+      flags: RULES_ON,
+    });
+    const timeline = () => page.body.querySelector('mt-event-timeline') as HTMLElement;
+    // Linked: the event lists the deadline computed from it; today and upcoming deadlines follow.
+    const death = timeline().querySelector('[data-event="date_of_death"]');
+    expect(page.text(death?.querySelector('[data-linked="rule-org.executor_year"]'))).toContain('Executor’s year ends');
+    const rail = [...timeline().querySelectorAll('.rail > li')].map((li) => page.text(li.querySelector('.title')));
+    expect(rail).toEqual([
+      'Date of death',
+      'Today',
+      'Advertise notice of intended application',
+      'Earliest date to file for probate',
+      'Executor’s year ends',
+    ]);
+    expect(page.text(timeline().querySelector('[data-upcoming="rule-org.executor_year"]'))).toContain(
+      'From Date of death',
+    );
+
+    await page.click('To scale');
+    await page.stable(5);
+    expect(timeline().querySelector('.axis[role="img"]')?.getAttribute('aria-label')).toContain('drawn to scale');
+    expect(page.text(timeline().querySelector('.pin'))).toContain('Date of death');
+    expect(page.text(timeline().querySelector('.flat [data-event="date_of_death"]'))).toContain('Date of death');
+    expect(page.buttons('Edit Date of death', timeline())).toHaveLength(1);
+    expect(localStorage.getItem('materia.matter.eventsView')).toBe('scale');
+  });
+
   it('shows paralegals Mark done but not the lawyer’s decisions', async () => {
     const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON, session: PARALEGAL });
     expect(page.buttons('Accept', change(page, 'rule-org.executor_year-v2') ?? page.body)).toHaveLength(0);
