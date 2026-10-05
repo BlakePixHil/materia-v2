@@ -24,6 +24,7 @@ const {
   makeContact,
   makeCounter,
   makeDeadline,
+  makeDocumentHash,
   makeMatter,
   makeMatterDocument,
   makeMatterEvent,
@@ -1071,6 +1072,21 @@ export function buildDataset(options: {
           sizeBytes: info.sizeBytes,
           sha256: info.sha256,
           version: 1,
+          versionSeq: 1,
+          versions: [
+            {
+              version: 1,
+              storagePath,
+              fileName: FIXTURE_FILES[fixture].name,
+              mime: 'application/pdf',
+              sizeBytes: info.sizeBytes,
+              sha256: info.sha256,
+              uploadedAt: now,
+              uploadedBy: PRIYA,
+              pageCount: info.pages,
+            },
+          ],
+          deletedAt: null,
           category: FIXTURE_FILES[fixture].category,
           scan: { status: 'clean' },
           ingest: { status: 'done', pages: info.pages },
@@ -1078,6 +1094,8 @@ export function buildDataset(options: {
           source: 'upload',
         }),
       );
+      // The duplicate check's hash index (CORE-12): uploading the same file again flags it.
+      add(`${base}/documentHashes/${info.sha256}`, makeDocumentHash({ ...meta, documentId: id }));
       files.push({ storagePath, fixture });
     });
   });

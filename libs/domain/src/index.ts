@@ -29,3 +29,4 @@ export * from './lib/system-templates';
 export * from './lib/intake';
 export * from './lib/tasks';
 export * from './lib/deadlines';
+export * from './lib/documents';

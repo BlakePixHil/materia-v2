@@ -307,6 +307,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     change: { narrative: 'Reviewed the inventory of assets' },
   },
   { ...matterRecord('documents', 'MatterDocument', 'document.upload'), seed: { privileged: false } },
+  // Content-hash index for duplicate detection (CORE-12): server-only.
+  {
+    collection: 'documentHashes',
+    docPath: `${MATTER}/documentHashes/${'a'.repeat(64)}`,
+    entity: 'DocumentHash',
+    read: 'none',
+    update: 'none',
+  },
   {
     collection: 'chunks',
     docPath: `${MATTER}/documents/doc-1/chunks/chunk-1`,

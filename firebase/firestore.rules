@@ -343,16 +343,39 @@ service cloud.firestore {
             && (clientUpdate(fieldsTimeEntry()) || softDelete());
         }
 
+        // Matter documents (CORE-12, ADR-028): created, scanned and versioned by documents-onUpload
+        // and the documents-* callables. Clients read the documents of matters they can see
+        // (privileged documents and matters need privileged.view, so never readonly), including
+        // soft-deleted ones (citations still resolve); document.upload roles edit the name,
+        // category, tags, notes and (lawyers and above) the privileged flag; document.delete roles
+        // soft delete and restore. Scan, version, hash and upload fields are server-owned, and the
+        // files themselves are read only through signed URLs (documents-getDownloadUrl).
         match /documents/{documentId} {
-          allow read: if inOrg(orgId) && visible(orgId, resource.data);
-          allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
-            && (can(orgId, 'document.upload') && clientUpdate(fieldsMatterDocument())
+          function documentMatter() {
+            return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
+          }
+          function validDocumentMeta(data) {
+            return data.name is string && data.name.trim().size() > 0 && data.name.size() <= 255
+              && data.category in ['will', 'codicil', 'death_certificate', 'grant', 'affidavit', 'correspondence', 'court_document', 'order', 'financial', 'id', 'other']
+              && data.privileged is bool
+              && data.get('accessRestricted', false) is bool
+              && data.get('tags', []) is list && data.get('tags', []).size() <= 20
+              && (!('notes' in data) || data.notes is string && data.notes.size() <= 5000);
+          }
+          allow read: if inOrg(orgId) && visible(orgId, resource.data) && visible(orgId, documentMatter());
+          allow update: if visible(orgId, resource.data) && visible(orgId, documentMatter()) && privilegedFlagOk(orgId)
+            && (can(orgId, 'document.upload') && clientUpdate(fieldsMatterDocument()) && validDocumentMeta(request.resource.data)
               || can(orgId, 'document.delete') && softDelete());
 
           // Embeddings for retrieval: server only, never read by clients.
           match /chunks/{chunkId} {
             allow read, write: if false;
           }
+        }
+
+        // Content-hash index for duplicate detection (CORE-12): server-only.
+        match /documentHashes/{hash} {
+          allow read, write: if false;
         }
 
         match /notes/{noteId} {
@@ -606,6 +629,7 @@ service cloud.firestore {
     function fieldsDisbursement() { return ['date', 'description', 'amountExGstCents', 'gstTreatment', 'payee', 'receiptDocumentId', 'status']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'status', 'paidOn']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
+    function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }
     function fieldsIntakeDraft() { return ['orgId', 'kind', 'step', 'stateJson', 'expireAt']; }
     function fieldsIntegration() { return []; }
@@ -615,7 +639,7 @@ service cloud.firestore {
     function fieldsJob() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'estate', 'deceased', 'facts', 'privileged']; }
-    function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted']; }
+    function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }
     function fieldsMatterEvent() { return []; }
     function fieldsMatterNumber() { return []; }
     function fieldsMatterTemplate() { return []; }

@@ -250,13 +250,33 @@ export const makeMatterDocument = (o: Partial<D.MatterDocument> = {}) =>
       sizeBytes: 123456,
       sha256: sha,
       version: 1,
+      versionSeq: 1,
+      versions: [
+        {
+          version: 1,
+          storagePath: `orgs/${TEST_ORG_ID}/matters/${TEST_MATTER_ID}/documents/doc-test-1/v1`,
+          fileName: 'Will of Margaret Whitfield (fictional).pdf',
+          mime: 'application/pdf',
+          sizeBytes: 123456,
+          sha256: sha,
+          uploadedAt: FIXED_INSTANT,
+          uploadedBy: TEST_UID,
+          pageCount: 4,
+        },
+      ],
       category: 'will',
       scan: { status: 'clean' },
       ingest: { status: 'done', pages: 4 },
       source: 'upload',
+      pageCount: 4,
+      deletedAt: null,
     },
     o,
   );
+
+/** A content-hash index entry (CORE-12): the hash is the document id. */
+export const makeDocumentHash = (o: Partial<D.DocumentHash> = {}) =>
+  build(D.DocumentHash, { documentId: 'doc-test-1' }, o);
 
 export const makeChunk = (o: Partial<D.Chunk> = {}) =>
   build(
@@ -738,6 +758,7 @@ export const ENTITY_FACTORIES = {
   Deadline: [D.Deadline, makeDeadline],
   DeadlineChange: [D.DeadlineChange, makeDeadlineChange],
   MatterDocument: [D.MatterDocument, makeMatterDocument],
+  DocumentHash: [D.DocumentHash, makeDocumentHash],
   Chunk: [D.Chunk, makeChunk],
   Note: [D.Note, makeNote],
   Activity: [D.Activity, makeActivity],

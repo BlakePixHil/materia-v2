@@ -153,6 +153,22 @@ export async function executeJob(deps: RunnerDeps): Promise<RunOutcome> {
         sizeBytes: output.sizeBytes,
         sha256: output.sha256,
         version: 1,
+        versionSeq: 1,
+        // The history the Documents tab lists and documents-restoreVersion reads (CORE-12).
+        versions: [
+          {
+            version: 1,
+            storagePath: output.storagePath,
+            fileName: /\.pdf$/i.test(request.target.name) ? request.target.name : `${request.target.name}.pdf`,
+            mime: 'application/pdf',
+            sizeBytes: output.sizeBytes,
+            sha256: output.sha256,
+            uploadedAt: now,
+            uploadedBy: job.createdBy,
+            pageCount: output.pages,
+          },
+        ],
+        deletedAt: null,
         category: request.target.category,
         privileged: request.target.privileged,
         // Generated from our own templates or from documents that were already scanned (CORE-12).

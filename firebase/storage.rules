@@ -2,8 +2,8 @@ rules_version = '2';
 
 // Materia Storage rules (FND-14). Default deny. Matter files are uploaded to a pending/ path,
 // malware-scanned server-side (CORE-12) and moved to documents/; reads need an active member, a
-// clean scan and, for privileged documents, privileged.view. The role lists at the bottom are
-// generated from libs/domain (`pnpm materia-scripts rules-sync`).
+// clean scan and, for privileged documents, privileged.view. The role lists and the upload types
+// at the bottom are generated from libs/domain (`pnpm materia-scripts rules-sync`).
 service firebase.storage {
   match /b/{bucket}/o {
 
@@ -25,31 +25,55 @@ service firebase.storage {
       return firestore.get(/databases/(default)/documents/orgs/$(orgId)/matters/$(matterId)/documents/$(documentId)).data;
     }
 
-    // Accepted upload types: PDF, Word, Excel, images, email and plain text.
-    function allowedType() {
-      return request.resource.contentType.matches('application/pdf')
-        || request.resource.contentType.matches('application/msword')
-        || request.resource.contentType.matches('application/vnd[.]openxmlformats-officedocument[.].*')
-        || request.resource.contentType.matches('application/vnd[.]ms-(excel|outlook)')
-        || request.resource.contentType.matches('image/(png|jpeg|gif|webp|heic)')
-        || request.resource.contentType.matches('message/rfc822')
-        || request.resource.contentType.matches('text/plain');
+    // A new version's target (CORE-12): a live, scanned document in this matter that the uploader
+    // may see. firestore.get() of a missing document fails, which denies the upload.
+    function versionTargetOk(orgId, matterId, documentId) {
+      let target = documentMeta(orgId, matterId, documentId);
+      return target.get('deletedAt', null) == null
+        && target.scan.status == 'clean'
+        && (target.privileged == false || can(orgId, 'privileged.view'));
     }
 
-    // Stored versions: read only.
+    // The upload contract (CORE-12, ADR-028; `uploadSettings` in libs/domain): an allow-listed
+    // extension uploaded with exactly its content type, the uploader's own uid, the client's
+    // SHA-256 (documents-onUpload checks it, and the content by its magic bytes), and optionally
+    // the document to add a version to, a category and the privileged flag (lawyers and above).
+    function validUpload(orgId, matterId) {
+      let meta = request.resource.metadata;
+      let parts = meta.fileName.lower().split('[.]');
+      let ext = parts[parts.size() - 1];
+      return meta.keys().hasAll(['uploaderUid', 'fileName', 'sha256'])
+        && meta.keys().hasOnly(['uploaderUid', 'fileName', 'sha256', 'documentId', 'category', 'privileged'])
+        && meta.uploaderUid == request.auth.uid
+        && meta.fileName.size() <= 255 && parts.size() > 1
+        && ext in uploadTypes()
+        && request.resource.contentType == uploadTypes()[ext]
+        && meta.sha256.matches('^[0-9a-f]{64}$')
+        && (!('category' in meta) || meta.category in ['will', 'codicil', 'death_certificate', 'grant', 'affidavit', 'correspondence', 'court_document', 'order', 'financial', 'id', 'other'])
+        && (!('privileged' in meta) || meta.privileged == 'false' || meta.privileged == 'true' && can(orgId, 'privileged.view'))
+        && (!('documentId' in meta) || versionTargetOk(orgId, matterId, meta.documentId));
+    }
+
+    // Stored versions: read only, never written by clients. The app downloads through signed URLs
+    // (documents-getDownloadUrl); these reads are for in-app viewing. Renditions and quarantined
+    // uploads have no read rule at all.
     match /orgs/{orgId}/matters/{matterId}/documents/{documentId}/{version} {
       allow read: if isActiveMember(orgId)
         && documentMeta(orgId, matterId, documentId).scan.status == 'clean'
+        && documentMeta(orgId, matterId, documentId).get('deletedAt', null) == null
         && (documentMeta(orgId, matterId, documentId).privileged == false || can(orgId, 'privileged.view'));
     }
 
-    // Uploads land here until the scan passes, at most 50 MB. Only `create` is allowed, so an
-    // overwrite (an `update` in production) is denied. The Storage emulator treats overwrites as
-    // creates, so the tests cannot show that part.
-    match /orgs/{orgId}/matters/{matterId}/pending/{uploadId}/{fileName} {
+    // Uploads land in quarantine, one object per upload, at most 50 MB, until documents-onUpload
+    // has checked and scanned them (CORE-12). Only `create` is allowed, so an overwrite (an
+    // `update` in production) is denied; the Storage emulator treats overwrites as creates, so the
+    // tests cannot show that part. Clients never read or delete them.
+    match /orgs/{orgId}/matters/{matterId}/pending/{uploadId} {
       allow create: if can(orgId, 'document.upload') && isActiveMember(orgId)
+        && uploadId.matches('^[A-Za-z0-9_-]{8,64}$')
+        && request.resource.size > 0
         && request.resource.size <= 50 * 1024 * 1024
-        && allowedType();
+        && validUpload(orgId, matterId);
     }
 
     // Avatars: the owner writes (images, at most 2 MB); signed-in users read.
@@ -98,6 +122,27 @@ service firebase.storage {
         'export.run': ['owner', 'admin'],
         'export.includePrivileged': ['owner', 'admin']
       }[action];
+    }
+    // Accepted uploads: extension → the content type they must be uploaded with (UPLOAD_TYPES).
+    function uploadTypes() {
+      return {
+        'pdf': 'application/pdf',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'doc': 'application/msword',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'xls': 'application/vnd.ms-excel',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'msg': 'application/vnd.ms-outlook',
+        'eml': 'message/rfc822',
+        'txt': 'text/plain',
+        'csv': 'text/csv',
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'heic': 'image/heic',
+        'webp': 'image/webp',
+        'zip': 'application/zip'
+      };
     }
     // </generated:rules-sync>
 
