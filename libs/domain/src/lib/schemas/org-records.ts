@@ -158,6 +158,34 @@ export const ChecklistTemplate = withMeta(
   { path: `${ORG}/checklistTemplates`, softDelete: true, migratable: false },
 );
 
+/** Limits on task group templates (CORE-08f); the name becomes a task's group (≤ 120). */
+export const TASK_GROUP_TEMPLATE_NAME_MAX = 120;
+export const TASK_GROUP_TEMPLATE_TASKS_MAX = 50;
+export const TASK_GROUP_TEMPLATE_TITLE_MAX = 500;
+
+/** One task of a task group template: a single-line title, its checklist lines and defaults. */
+export const TaskGroupTemplateTaskSchema = z.object({
+  title: NonEmptyString.max(TASK_GROUP_TEMPLATE_TITLE_MAX).regex(/^[^\r\n]*$/, { message: 'One task per line' }),
+  checklist: z.array(ChecklistTemplateItemSchema).max(CHECKLIST_TEMPLATE_ITEMS_MAX).default([]),
+  priority: PrioritySchema.optional(),
+  dueInDays: z.number().int().min(0).max(CHECKLIST_TEMPLATE_DUE_MAX_DAYS).optional(),
+});
+export type TaskGroupTemplateTask = z.infer<typeof TaskGroupTemplateTaskSchema>;
+
+/**
+ * `orgs/{orgId}/taskGroupTemplates/{id}` (CORE-08f): a reusable group of tasks ("Checklist A":
+ * tasks, each with its checklist) applied to a matter's Tasks tab, where the tasks land in a group
+ * named after the template. Every member reads them; task.edit roles create, edit and soft delete
+ * them client-direct (the rules check the name and the list sizes).
+ */
+export const TaskGroupTemplate = withMeta(
+  {
+    name: NonEmptyString.max(TASK_GROUP_TEMPLATE_NAME_MAX),
+    tasks: z.array(TaskGroupTemplateTaskSchema).min(1).max(TASK_GROUP_TEMPLATE_TASKS_MAX),
+  },
+  { path: `${ORG}/taskGroupTemplates`, softDelete: true, migratable: false },
+);
+
 /**
  * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY`, or
  * `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per feature and per user).
@@ -305,6 +333,14 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
     matterId: DocIdSchema,
     checkId: DocIdSchema,
     contactId: DocIdSchema,
+    ...notificationBase,
+  }),
+  // An upload to a matter was infected and deleted (CORE-12): to the uploader and the org's owners
+  // and admins. High priority.
+  z.object({
+    kind: z.literal('document_infected'),
+    matterId: DocIdSchema,
+    documentId: DocIdSchema,
     ...notificationBase,
   }),
   z.object({ kind: z.literal('invite_accepted'), memberUid: DocIdSchema, ...notificationBase }),
@@ -463,6 +499,7 @@ export type MatterTemplate = z.infer<typeof MatterTemplate.schema>;
 export type MatterTemplateVersion = z.infer<typeof MatterTemplateVersion.schema>;
 export type DocTemplate = z.infer<typeof DocTemplate.schema>;
 export type ChecklistTemplate = z.infer<typeof ChecklistTemplate.schema>;
+export type TaskGroupTemplate = z.infer<typeof TaskGroupTemplate.schema>;
 export type Metrics = z.infer<typeof Metrics.schema>;
 export type AuditEntry = z.infer<typeof AuditEntry.schema>;
 export type Integration = z.infer<typeof Integration.schema>;

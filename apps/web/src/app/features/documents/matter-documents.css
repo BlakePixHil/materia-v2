@@ -1,0 +1,110 @@
+:host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+}
+.head,
+.filters,
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+h2 {
+  margin: 0;
+}
+.duplicate .decide {
+  display: inline-flex;
+  gap: var(--space-4);
+  margin-left: var(--space-8);
+}
+.doc-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+.doc-name a,
+.card a {
+  color: var(--text-primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+.doc-name a:hover,
+.card a:hover {
+  text-decoration: underline;
+}
+.doc-name mt-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--icon-default);
+}
+.doc-name .priv {
+  color: var(--icon-brand);
+}
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-12);
+}
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+  padding: var(--space-12);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+.card[data-selected] {
+  border-color: var(--border-focus);
+  background: var(--bg-selected);
+}
+.card input {
+  position: absolute;
+  top: var(--space-8);
+  right: var(--space-8);
+  width: 18px;
+  height: 18px;
+}
+.card .big {
+  width: 28px;
+  height: 28px;
+  color: var(--icon-default);
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.more {
+  align-self: center;
+}
+.drop {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  border: 2px dashed var(--border-focus);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  color: var(--text-brand);
+  pointer-events: none;
+}
+.drop mt-icon {
+  width: 32px;
+  height: 32px;
+}

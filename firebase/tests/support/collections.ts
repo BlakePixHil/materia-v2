@@ -209,6 +209,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'members',
     update: 'task.edit',
   },
+  // Task group templates (CORE-08f): read by members, written client-direct by task.edit roles.
+  {
+    collection: 'taskGroupTemplates',
+    docPath: `orgs/${ORG}/taskGroupTemplates/group-1`,
+    entity: 'TaskGroupTemplate',
+    read: 'members',
+    update: 'task.edit',
+  },
   {
     collection: 'docTemplates',
     docPath: `orgs/${ORG}/docTemplates/doctemplate-1`,
@@ -350,6 +358,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     change: { narrative: 'Reviewed the inventory of assets' },
   },
   { ...matterRecord('documents', 'MatterDocument', 'document.upload'), seed: { privileged: false } },
+  // Content-hash index for duplicate detection (CORE-12): server-only.
+  {
+    collection: 'documentHashes',
+    docPath: `${MATTER}/documentHashes/${'a'.repeat(64)}`,
+    entity: 'DocumentHash',
+    read: 'none',
+    update: 'none',
+  },
   {
     collection: 'chunks',
     docPath: `${MATTER}/documents/doc-1/chunks/chunk-1`,

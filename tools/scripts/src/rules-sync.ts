@@ -3,7 +3,8 @@
  * Keeps the security rules in sync with libs/domain (FND-14): the role lists come from PERMISSIONS
  * and the client-writable field whitelists from each entity's `update` schema keys. They are
  * written between the `<generated:rules-sync>` markers of firebase/firestore.rules (roles and
- * fields) and firebase/storage.rules (roles). `--check` writes nothing and exits 1 on drift (a unit
+ * fields) and firebase/storage.rules (roles, and the upload types from UPLOAD_TYPES, CORE-12). `--check`
+ * writes nothing and exits 1 on drift (a unit
  * test runs it); `--print` prints the generated Firestore block.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -24,6 +25,7 @@ interface EntityLike {
 
 interface DomainLike {
   PERMISSIONS: Record<string, readonly string[]>;
+  UPLOAD_TYPES?: Record<string, { mime: string }>;
   [name: string]: unknown;
 }
 
@@ -47,13 +49,16 @@ export function entityWhitelists(d: DomainLike = domain()): [string, string[]][]
 
 const list = (items: readonly string[]) => `[${items.map((item) => `'${item}'`).join(', ')}]`;
 
-export function renderBlock(d: DomainLike = domain(), { fields = true } = {}): string {
+export function renderBlock(d: DomainLike = domain(), { fields = true, uploads = false } = {}): string {
   const perms = Object.entries(d.PERMISSIONS)
     .map(([action, roles]) => `        '${action}': ${list(roles)}`)
     .join(',\n');
   const whitelists = entityWhitelists(d).map(
     ([name, keys]) => `    function fields${name}() { return ${list(keys)}; }`,
   );
+  const uploadTypes = Object.entries(d.UPLOAD_TYPES ?? {})
+    .map(([ext, type]) => `        '${ext}': '${type.mime}'`)
+    .join(',\n');
   return [
     `    ${START} do not edit: \`pnpm materia-scripts rules-sync\` writes this from libs/domain.`,
     '    // Roles allowed each action (PERMISSIONS).',
@@ -63,6 +68,16 @@ export function renderBlock(d: DomainLike = domain(), { fields = true } = {}): s
     '      }[action];',
     '    }',
     ...(fields ? ["    // Client-writable fields per entity (each entity's update schema keys).", ...whitelists] : []),
+    ...(uploads
+      ? [
+          '    // Accepted uploads: extension → the content type they must be uploaded with (UPLOAD_TYPES).',
+          '    function uploadTypes() {',
+          '      return {',
+          uploadTypes,
+          '      };',
+          '    }',
+        ]
+      : []),
     `    ${END}`,
   ].join('\n');
 }
@@ -88,7 +103,7 @@ export async function main(argv: string[], root = process.cwd()): Promise<void> 
   }
   const targets = [
     { file: RULES_FILE, block: renderBlock() },
-    { file: STORAGE_RULES_FILE, block: renderBlock(domain(), { fields: false }) },
+    { file: STORAGE_RULES_FILE, block: renderBlock(domain(), { fields: false, uploads: true }) },
   ];
   const changed: string[] = [];
   for (const { file, block } of targets) {

@@ -13,19 +13,29 @@ import {
 import {
   applyChecklistTemplate,
   asksToCompleteDeadline,
+  newId,
   openChecklistItems,
   planMove,
+  planTaskGroup,
   TASK_BULK_MAX,
   TASK_CHECKLIST_MAX,
   toggledStatus,
   type BulkTaskChange,
   type ChecklistItem,
+  type TaskGroupTemplateLike,
   type TaskStatus,
 } from '@materia/domain';
 import { DialogService, formatDateOnly, MT_ORG_TIMEZONE, MT_TODAY, ToastService } from '@materia/ui';
 
 import type { ChecklistTemplatesDialogData, ChecklistTemplatesDialogResult } from './checklist-templates-dialog';
 import { TaskDueDialog, type TaskDueDialogData, type TaskDueDialogResult } from './task-due-dialog';
+import type { TaskGroupDialogData, TaskGroupDialogResult } from './task-group-dialog';
+import type {
+  GroupTemplate,
+  TaskGroupSource,
+  TaskGroupTemplatesDialogData,
+  TaskGroupTemplatesDialogResult,
+} from './task-group-templates-dialog';
 import {
   bulkSummary,
   PRIORITY_NAMES,
@@ -164,6 +174,50 @@ export class TaskActions {
     this.say(`${title}.`);
   }
 
+  // ---------- task group templates (CORE-08f) ----------
+
+  /**
+   * "Templates" on a matter's Tasks tab: the task group templates dialog (loaded on demand), with the
+   * matter's groups for "Save a group as a template". Resolves to the template to add, if any.
+   */
+  async openTaskGroupTemplates(groups: readonly TaskGroupSource[]): Promise<GroupTemplate | undefined> {
+    const { TaskGroupTemplatesDialog } = await import('./task-group-templates-dialog');
+    const result = await this.dialogs.open<TaskGroupTemplatesDialogData, TaskGroupTemplatesDialogResult | undefined>(
+      TaskGroupTemplatesDialog,
+      { data: { groups } },
+    ).result;
+    return result?.template;
+  }
+
+  /**
+   * Adds a template's tasks to a matter (`planTaskGroup`): to-do tasks in a group named after the
+   * template, from `firstOrder` on, written without waiting. The toast's Undo deletes them again.
+   */
+  addTaskGroup(matterId: string, template: TaskGroupTemplateLike, firstOrder: number): void {
+    const repo = this.repoFor(matterId);
+    const planned = planTaskGroup(template, { today: this.today(), firstOrder });
+    if (!planned.length) return;
+    const ids = planned.map((task) => {
+      const id = newId();
+      this.write(repo.create({ ...task, status: 'todo' }, { id }), 'A task didn’t save');
+      return id;
+    });
+    const group = planned[0]?.group ?? template.name;
+    const title = `Added ${plural(ids.length, 'task')} to ${group}`;
+    this.toasts.show({
+      title,
+      tone: 'success',
+      action: {
+        label: 'Undo',
+        run: () => {
+          for (const id of ids) this.write(repo.softDelete(id), 'Couldn’t undo that');
+          this.say('Undone.');
+        },
+      },
+    });
+    this.say(`${title}.`);
+  }
+
   /**
    * Moves a task within its section (Alt+Up/Down, drag) to `toIndex` of the section without it:
    * new orders from `planMove`, written in chunks by `writeTaskOrders`.
@@ -295,6 +349,20 @@ export class TaskActions {
     }).result;
     if (!result) return;
     await this.bulk(targets, { op: 'dueDate', dueDate: result.dueDate });
+  }
+
+  /** Asks for a group (new, picked or none), then moves the tasks into it (CORE-08e). */
+  async changeGroup(entries: readonly TaskEntry[], groups: readonly string[]): Promise<void> {
+    const targets = entries.filter((e) => e.editable);
+    if (!targets.length) return;
+    const first = targets[0]?.task.group?.trim() || null;
+    const same = targets.every((e) => (e.task.group?.trim() || null) === first);
+    const { TaskGroupDialog } = await import('./task-group-dialog');
+    const result = await this.dialogs.open<TaskGroupDialogData, TaskGroupDialogResult | undefined>(TaskGroupDialog, {
+      data: { count: targets.length, current: same ? first : null, groups },
+    }).result;
+    if (!result) return;
+    await this.bulk(targets, { op: 'group', group: result.group });
   }
 
   async remove(entries: readonly TaskEntry[]): Promise<boolean> {

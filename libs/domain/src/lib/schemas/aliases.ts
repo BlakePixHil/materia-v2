@@ -20,6 +20,7 @@ import {
   Deadline,
   DeadlineChange,
   MatterDocument,
+  DocumentHash,
   Chunk,
   Note,
   Activity,
@@ -36,6 +37,7 @@ import {
   MatterTemplateVersion,
   DocTemplate,
   ChecklistTemplate,
+  TaskGroupTemplate,
   Metrics,
   AuditEntry,
   Notification,
@@ -99,6 +101,9 @@ export const DeadlineChangeUpdateSchema = DeadlineChange.update;
 export const MatterDocumentSchema = MatterDocument.schema;
 export const MatterDocumentCreateSchema = MatterDocument.create;
 export const MatterDocumentUpdateSchema = MatterDocument.update;
+export const DocumentHashSchema = DocumentHash.schema;
+export const DocumentHashCreateSchema = DocumentHash.create;
+export const DocumentHashUpdateSchema = DocumentHash.update;
 export const ChunkSchema = Chunk.schema;
 export const ChunkCreateSchema = Chunk.create;
 export const ChunkUpdateSchema = Chunk.update;
@@ -177,6 +182,9 @@ export const DocTemplateUpdateSchema = DocTemplate.update;
 export const ChecklistTemplateSchema = ChecklistTemplate.schema;
 export const ChecklistTemplateCreateSchema = ChecklistTemplate.create;
 export const ChecklistTemplateUpdateSchema = ChecklistTemplate.update;
+export const TaskGroupTemplateSchema = TaskGroupTemplate.schema;
+export const TaskGroupTemplateCreateSchema = TaskGroupTemplate.create;
+export const TaskGroupTemplateUpdateSchema = TaskGroupTemplate.update;
 export const MetricsSchema = Metrics.schema;
 export const MetricsCreateSchema = Metrics.create;
 export const MetricsUpdateSchema = Metrics.update;

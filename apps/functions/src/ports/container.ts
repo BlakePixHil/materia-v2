@@ -8,7 +8,10 @@ import { anthropicModel } from '../clerk/providers/anthropic';
 import { adminDb } from '../core/admin';
 import { cloudTasks } from '../core/enqueue';
 import { isEmulator, useFakes } from '../core/env';
+import { CLAMAV_SCAN_URL } from '../core/params';
 import { ANTHROPIC_API_KEY, POSTMARK_TOKEN, secretValue } from '../core/secrets';
+import { clamavScanner } from '../documents/clamav';
+import { emulatorSignedUrls, storageSignedUrls } from '../documents/signed-urls';
 import { cloudRunJobs } from '../jobs/cloud-run';
 import { mailFrom, postmarkMail } from '../mail/postmark';
 import { emulatorPush, fcmPush } from '../notifications/push';
@@ -39,7 +42,10 @@ function realPorts(): Ports {
     embedding: notConfigured('EmbeddingPort'), // AI-03
     calendar: notConfigured('CalendarPort'), // INT-01
     xero: notConfigured('XeroPort'), // BILL-08
-    malwareScan: notConfigured('MalwareScanPort'), // CORE-12
+    // CORE-12: ClamAV over HTTP. Until the scanner service is deployed (CLAMAV_SCAN_URL empty),
+    // every upload stays quarantined as "Scanning delayed": fail closed.
+    malwareScan: clamavScanner({ url: () => CLAMAV_SCAN_URL.value() }),
+    signedUrls: storageSignedUrls(), // CORE-12
     transcription: notConfigured('TranscriptionPort'), // MOB-03
     jobs: cloudRunJobs(), // FND-24
   };
@@ -72,7 +78,14 @@ export function ports(): Ports {
     ? {
         ...fakePorts(),
         clock: systemClock,
-        ...(isEmulator() ? { mail: emulatorOutboxMail(adminDb), push: emulatorPush(adminDb), tasks: cloudTasks } : {}),
+        ...(isEmulator()
+          ? {
+              mail: emulatorOutboxMail(adminDb),
+              push: emulatorPush(adminDb),
+              tasks: cloudTasks,
+              signedUrls: emulatorSignedUrls(),
+            }
+          : {}),
       }
     : realPorts();
   return current;

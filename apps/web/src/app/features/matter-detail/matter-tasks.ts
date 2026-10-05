@@ -25,7 +25,16 @@ import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { TaskActions } from '../tasks/task-actions';
 import { TaskList } from '../tasks/task-list';
 import { loadQuickAddParser, TaskQuickAdd, type QuickAddTask } from '../tasks/task-quick-add';
-import { inOrder, isClosed, orderAfterLast, sectionsByGroup, sectionsByStage, taskEntry } from '../tasks/task-view';
+import {
+  inOrder,
+  isClosed,
+  orderAfterLast,
+  sectionsByGroup,
+  sectionsByStage,
+  taskEntry,
+  tasksByGroup,
+  uniqueGroups,
+} from '../tasks/task-view';
 import { TasksBulkBar } from '../tasks/tasks-bulk-bar';
 
 type GroupBy = 'stage' | 'group';
@@ -42,8 +51,8 @@ function storedGroupBy(): GroupBy {
 /**
  * A matter's Tasks tab (CORE-08): its tasks grouped by stage (template tasks carry their stage's
  * name) or by their own group, in their manual order. `c` opens the quick-add line; tasks are
- * completed, renamed, reordered, ticked and changed in bulk from the list. Listens to the matter's
- * tasks only while this tab is shown.
+ * completed, renamed, reordered, ticked and changed in bulk from the list; "Templates" adds a task
+ * group template's tasks (CORE-08f). Listens to the matter's tasks only while this tab is shown.
  */
 @Component({
   selector: 'mt-matter-tasks',
@@ -73,6 +82,16 @@ function storedGroupBy(): GroupBy {
           (ngModelChange)="setGroupBy($event)"
         />
         @if (canEdit()) {
+          <button
+            mtButton
+            variant="secondary"
+            size="sm"
+            iconStart="list"
+            aria-label="Task group templates"
+            (click)="openTemplates()"
+          >
+            Templates
+          </button>
           <button #addButton mtButton variant="primary" size="sm" iconStart="plus" kbd="c" (click)="openQuickAdd()">
             Add task
           </button>
@@ -94,10 +113,16 @@ function storedGroupBy(): GroupBy {
       }
       @default {
         @if (sections().length) {
+          @if (groupBy() === 'group' && !groupNames().length && canEdit()) {
+            <p class="caption t-3 hint">
+              No groups yet. Open a task’s details to give it a group, or select tasks and choose Group.
+            </p>
+          }
           <mt-task-list
             [sections]="sections()"
             [reorderable]="canEdit()"
             [headingLevel]="3"
+            [groups]="groupSuggestions()"
             [(selection)]="selection"
           />
         } @else {
@@ -123,6 +148,8 @@ function storedGroupBy(): GroupBy {
         (assign)="assign($event)"
         (dueDate)="actions.changeDueDate(selectedEntries())"
         (priority)="setPriority($event)"
+        [groupable]="true"
+        (group)="actions.changeGroup(selectedEntries(), groupSuggestions())"
         (remove)="remove()"
         (clear)="selection.set([])"
       />
@@ -141,6 +168,9 @@ function storedGroupBy(): GroupBy {
       gap: var(--space-8);
     }
     .mt-matter-tasks h2 {
+      margin: 0;
+    }
+    .mt-matter-tasks .hint {
       margin: 0;
     }
     .mt-matter-tasks .tools {
@@ -209,6 +239,12 @@ export class MatterTasks {
       ? sectionsByStage(this.entries(), this.screen.stages())
       : sectionsByGroup(this.entries()),
   );
+  /** The groups on this matter's tasks, in list order (CORE-08e). */
+  protected readonly groupNames = computed(() => uniqueGroups(inOrder(this.tasks.value()).map((task) => task.group)));
+  /** What the Group field and dialog suggest: the groups, then the stages not already among them. */
+  protected readonly groupSuggestions = computed(() =>
+    uniqueGroups([...this.groupNames(), ...this.screen.stages().map((stage) => stage.title)]),
+  );
   protected readonly selectedEntries = computed(() => {
     const keys = new Set(this.selection());
     return this.entries().filter((entry) => keys.has(entry.key));
@@ -268,6 +304,18 @@ export class MatterTasks {
         this.toasts.show({ title: 'The task didn’t save', description: errorCopy(error), tone: 'danger' }),
       );
     this.actions.announcement.set(`Added ${task.title}.`);
+  }
+
+  /**
+   * "Templates" (CORE-08f): picks a task group template (or saves one of this matter's groups as
+   * one), then adds its tasks after the last task.
+   */
+  protected async openTemplates(): Promise<void> {
+    if (!this.canEdit()) return;
+    const template = await this.actions.openTaskGroupTemplates(tasksByGroup(inOrder(this.tasks.value())));
+    const matterId = this.id();
+    if (!template || !matterId) return;
+    this.actions.addTaskGroup(matterId, template, orderAfterLast(this.tasks.value()));
   }
 
   protected setStatus(status: TaskStatus): void {

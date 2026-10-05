@@ -29,6 +29,20 @@ resource "google_storage_bucket" "default" {
     enabled = true
   }
 
+  # The web app reads document bytes (PDF.js, text and email previews) with fetch() from 5-minute
+  # signed URLs (`documents-getDownloadUrl`, CORE-12), which are cross-origin reads of this bucket.
+  # Reads only, from the app's own origins; uploads go through Firebase Storage, which has its own
+  # CORS. Range headers let PDF.js fetch large PDFs a part at a time.
+  cors {
+    origin = concat(
+      ["https://${var.project_id}.web.app", "https://${var.project_id}.firebaseapp.com"],
+      [for domain in var.auth_authorized_domains : "https://${domain}"],
+    )
+    method          = ["GET", "HEAD"]
+    response_header = ["Content-Type", "Content-Length", "Content-Range", "Content-Disposition", "Accept-Ranges", "Range"]
+    max_age_seconds = 3600
+  }
+
   depends_on = [time_sleep.services_ready]
 }
 

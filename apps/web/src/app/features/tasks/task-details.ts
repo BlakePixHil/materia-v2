@@ -19,6 +19,7 @@ import { formatDateOnly, MT_ORG_TIMEZONE, MtButton, MtIconButton } from '@materi
 import { PRIORITY_NAMES, PRIORITY_ORDER, TASK_STATUS_LABELS, TASK_STATUS_ORDER, type TaskEntry } from './task-view';
 
 let nextId = 0;
+let nextListId = 0;
 /** A checklist item id, unique within its task. */
 function itemId(existing: readonly ChecklistItem[]): string {
   const taken = new Set(existing.map((item) => item.id));
@@ -30,7 +31,8 @@ function itemId(existing: readonly ChecklistItem[]): string {
 }
 
 /**
- * A task's details under its row (CORE-08): its status, priority and due date, and its checklist
+ * A task's details under its row (CORE-08): its status, priority, due date and (on a matter's Tasks
+ * tab, CORE-08e) group, and its checklist
  * ticked, added to and removed inline. The add field shows only while adding (CORE-08c): "Add item"
  * opens it, Enter adds and keeps it open for the next one, Escape (or leaving it empty) closes it.
  * "Templates" beside it applies a checklist template (CORE-08d). Read-only for people who can't
@@ -74,6 +76,28 @@ function itemId(existing: readonly ChecklistItem[]): string {
           {{ dueText() || 'Set a date' }}
         </button>
       </span>
+      @if (groups(); as names) {
+        <label class="field caption t-2">
+          Group
+          <input
+            class="group"
+            type="text"
+            maxlength="120"
+            placeholder="No group"
+            [attr.list]="listId"
+            [disabled]="!entry().editable"
+            [value]="entry().task.group ?? ''"
+            (keydown.enter)="$event.preventDefault(); $any($event.target).blur()"
+            (keydown.escape)="resetGroup($event)"
+            (change)="onGroup($event)"
+          />
+          <datalist [id]="listId">
+            @for (name of names; track name) {
+              <option [value]="name"></option>
+            }
+          </datalist>
+        </label>
+      }
     </div>
     @if (items().length) {
       <ul class="items" [attr.aria-label]="'Checklist for ' + entry().task.title">
@@ -169,6 +193,7 @@ function itemId(existing: readonly ChecklistItem[]): string {
       gap: var(--space-8);
     }
     .mt-task-details select,
+    .mt-task-details .group,
     .mt-task-details .add {
       font: 400 13px/18px var(--font-sans);
       color: var(--text-primary);
@@ -190,7 +215,14 @@ function itemId(existing: readonly ChecklistItem[]): string {
       cursor: default;
       background-color: var(--bg-disabled);
     }
+    .mt-task-details .group {
+      width: 180px;
+    }
+    .mt-task-details .group:disabled {
+      background-color: var(--bg-disabled);
+    }
     .mt-task-details select:focus-visible,
+    .mt-task-details .group:focus-visible,
     .mt-task-details .add:focus-visible {
       outline: none;
       border-color: var(--border-focus);
@@ -250,6 +282,13 @@ export class TaskDetails {
   readonly dueDate = output();
   /** "Templates": the page opens the checklist templates dialog (CORE-08d). */
   readonly templates = output();
+  /**
+   * The groups to suggest for the Group field (CORE-08e); `null` hides the field (My tasks, whose
+   * sections are by date).
+   */
+  readonly groups = input<readonly string[] | null>(null);
+  /** The new group, or `null` to take the task out of its group. */
+  readonly group = output<string | null>();
 
   private readonly timeZone = inject(MT_ORG_TIMEZONE);
   private readonly injector = inject(Injector);
@@ -266,6 +305,7 @@ export class TaskDetails {
     const due = this.entry().task.dueDate;
     return due ? formatDateOnly(due, this.timeZone) : '';
   });
+  protected readonly listId = `mt-task-groups-${nextListId++}`;
   protected readonly draft = signal('');
   protected readonly adding = signal(false);
 
@@ -275,6 +315,23 @@ export class TaskDetails {
 
   protected onPriority(event: Event): void {
     this.priority.emit((event.target as HTMLSelectElement).value as Priority);
+  }
+
+  /** Enter or leaving the field: a changed group is saved; a cleared one takes the task out. */
+  protected onGroup(event: Event): void {
+    const field = event.target as HTMLInputElement;
+    const next = field.value.trim();
+    if (next === (this.entry().task.group?.trim() ?? '')) return;
+    this.group.emit(next || null);
+  }
+
+  /** Escape puts the saved group back. */
+  protected resetGroup(event: Event): void {
+    const field = event.target as HTMLInputElement;
+    if (field.value === (this.entry().task.group ?? '')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    field.value = this.entry().task.group ?? '';
   }
 
   protected tick(item: ChecklistItem, done: boolean): void {

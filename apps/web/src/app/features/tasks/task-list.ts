@@ -137,6 +137,8 @@ const FOLLOW_MS = 1500;
                   @if (expanded().has(entry.key)) {
                     <mt-task-details
                       [entry]="entry"
+                      [groups]="groups()"
+                      (group)="actions.bulk([entry], { op: 'group', group: $event })"
                       (checklist)="actions.setChecklist(entry, $event)"
                       (status)="actions.setStatus([entry], $event)"
                       (priority)="actions.bulk([entry], { op: 'priority', priority: $event })"
@@ -183,13 +185,16 @@ const FOLLOW_MS = 1500;
       flex-direction: column;
       min-height: 8px;
     }
-    /* Bulk selection lives in its own slate column, apart from the round done check. */
+    /*
+     * Bulk selection lives in its own slate column, apart from the round done check. A step off the
+     * surface in both themes: --bg-sunken is darker than the surface in dark mode, so it read as a hole.
+     */
     .mt-task-list .rail {
       flex: none;
       display: flex;
       justify-content: center;
       width: 32px;
-      background: var(--bg-sunken);
+      background: var(--bg-hover);
       border-inline-end: 1px solid var(--border-subtle);
     }
     .mt-task-list .rail-head {
@@ -278,6 +283,8 @@ export class TaskList {
   readonly headingLevel = input(3);
   /** Selected task keys (`x`). */
   readonly selection = model<readonly string[]>([]);
+  /** Groups suggested in a task's details (CORE-08e); `null` hides its Group field. */
+  readonly groups = input<readonly string[] | null>(null);
 
   protected readonly actions = inject(TaskActions);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);

@@ -35,6 +35,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   parties: domain.Party,
   conflictChecks: domain.ConflictCheck,
   recent: domain.RecentMatter,
+  documents: domain.MatterDocument,
   // A union of kinds: every kind shares these fields (FND-20).
   notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
 } as never;
@@ -95,6 +96,13 @@ describe('firestore.indexes.json', () => {
     expect(matters.map((index) => key(index.fields)).sort()).toEqual([...expected].sort());
     // Every one starts with the live-matter filter.
     for (const index of matters) expect(index.fields[0]?.fieldPath).toBe('deletedAt');
+  });
+
+  it('a matter’s documents list newest first, and readonly’s non-privileged list is indexed (CORE-12)', () => {
+    const documents = file.indexes
+      .filter((i) => i.collectionGroup === 'documents')
+      .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`);
+    expect(documents).toEqual(['COLLECTION:privileged:ASCENDING,createdAt:DESCENDING']);
   });
 
   it('the chunks vector index is flat, 768 dimensions, with orgId and matterId pre-filters', () => {

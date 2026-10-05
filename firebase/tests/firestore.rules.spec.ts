@@ -1789,6 +1789,130 @@ describe('deadlines (CORE-10)', () => {
   });
 });
 
+describe('documents (CORE-12)', () => {
+  const DOCUMENT = `${MATTER}/documents/doc-1`;
+  const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-doc-privileged`;
+  const reseed = () => seed(specFor('documents'));
+
+  beforeAll(async () => {
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, PRIVILEGED_MATTER), { ...seedData(specFor('matters')), privileged: true });
+      await setDoc(doc(f, `${PRIVILEGED_MATTER}/documents/doc-p`), {
+        ...seedData(specFor('documents')),
+        matterId: 'matter-doc-privileged',
+        privileged: false,
+      });
+      await setDoc(doc(f, `${MATTER}/documents/doc-privileged`), {
+        ...seedData(specFor('documents')),
+        privileged: true,
+      });
+      await setDoc(doc(f, `${MATTER}/documents/doc-removed`), {
+        ...seedData(specFor('documents')),
+        deletedAt: Timestamp.fromMillis(Date.UTC(2026, 9, 2)),
+        deletedBy: uidFor('lawyer'),
+      });
+    });
+  });
+
+  it('privileged documents, and every document of a privileged matter, are hidden from readonly and paralegals', async () => {
+    for (const role of ROLES) {
+      const firestore = db(env, role);
+      const sees = allows(role, 'privileged.view');
+      await (sees ? assertSucceeds : assertFails)(getDoc(doc(firestore, `${MATTER}/documents/doc-privileged`)));
+      await (sees ? assertSucceeds : assertFails)(getDoc(doc(firestore, `${PRIVILEGED_MATTER}/documents/doc-p`)));
+    }
+  });
+
+  it('readonly lists only non-privileged documents, newest first', async () => {
+    const documents = collection(db(env, 'readonly'), `${MATTER}/documents`);
+    await assertSucceeds(getDocs(query(documents, where('privileged', '==', false), orderBy('createdAt', 'desc'))));
+    await assertFails(getDocs(query(documents, orderBy('createdAt', 'desc'))));
+    await assertSucceeds(
+      getDocs(query(collection(db(env, 'lawyer'), `${MATTER}/documents`), orderBy('createdAt', 'desc'))),
+    );
+  });
+
+  it('a soft-deleted document stays readable, so citations resolve', async () => {
+    await assertSucceeds(getDoc(doc(db(env, 'readonly'), `${MATTER}/documents/doc-removed`)));
+  });
+
+  it('clients edit name, category, tags and notes within the limits', async () => {
+    await reseed();
+    const paralegal = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), DOCUMENT);
+    await assertSucceeds(
+      updateDoc(
+        ref,
+        stamped(
+          {
+            name: 'Will (signed, fictional)',
+            category: 'codicil',
+            tags: ['original', 'signed'],
+            notes: 'From the safe',
+          },
+          paralegal,
+        ),
+      ),
+    );
+    await assertFails(updateDoc(ref, stamped({ name: ' ' }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ name: 'x'.repeat(256) }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ category: 'spreadsheet' }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ tags: Array.from({ length: 21 }, (_, i) => `t${i}`) }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ tags: 'not-a-list' }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ notes: 'x'.repeat(5001) }, paralegal)));
+    // readonly edits nothing.
+    await assertFails(updateDoc(doc(db(env, 'readonly'), DOCUMENT), stamped({ name: 'Renamed' }, uidFor('readonly'))));
+  });
+
+  it('only the server writes scan, version, hash, upload and duplicate fields', async () => {
+    await reseed();
+    const lawyer = uidFor('lawyer');
+    const ref = doc(db(env, 'owner'), DOCUMENT);
+    for (const change of [
+      { scan: { status: 'infected' } },
+      { version: 2 },
+      { versions: [] },
+      { versionSeq: 9 },
+      { sha256: 'b'.repeat(64) },
+      { storagePath: `${MATTER}/documents/doc-1/v9` },
+      { sizeBytes: 1 },
+      { mime: 'image/png' },
+      { upload: { uploadId: 'u-1', status: 'scanning' } },
+      { duplicateOf: 'doc-2' },
+      { pageCount: 1 },
+      { encrypted: true },
+      { renditions: { previewPdf: 'x' } },
+      { ingest: { status: 'done' } },
+      { source: 'email' },
+    ]) {
+      await assertFails(updateDoc(ref, stamped(change, uidFor('owner'))));
+    }
+    await assertSucceeds(updateDoc(doc(db(env, 'lawyer'), DOCUMENT), stamped({ name: 'Renamed' }, lawyer)));
+  });
+
+  it('document.delete roles soft delete and restore; a paralegal cannot', async () => {
+    await reseed();
+    const remove = (uid: string) => ({
+      deletedAt: serverTimestamp(),
+      deletedBy: uid,
+      updatedAt: serverTimestamp(),
+      updatedBy: uid,
+    });
+    await assertFails(updateDoc(doc(db(env, 'paralegal'), DOCUMENT), remove(uidFor('paralegal'))));
+    await assertSucceeds(updateDoc(doc(db(env, 'lawyer'), DOCUMENT), remove(uidFor('lawyer'))));
+    await assertSucceeds(
+      updateDoc(doc(db(env, 'lawyer'), DOCUMENT), stamped({ deletedAt: null, deletedBy: null }, uidFor('lawyer'))),
+    );
+    await reseed();
+  });
+
+  it('nobody reads or writes the hash index', async () => {
+    const path = `${MATTER}/documentHashes/${'a'.repeat(64)}`;
+    await assertFails(getDoc(doc(db(env, 'owner'), path)));
+    await assertFails(setDoc(doc(db(env, 'owner'), `${MATTER}/documentHashes/${'c'.repeat(64)}`), { documentId: 'x' }));
+  });
+});
+
 describe('checklist templates (CORE-08d)', () => {
   const PATH = `orgs/${ORG}/checklistTemplates`;
   const TEMPLATE = `${PATH}/checklist-1`;
@@ -1902,6 +2026,104 @@ describe('checklist templates (CORE-08d)', () => {
         deletedBy: uidFor('readonly'),
       }),
     );
+    await assertFails(
+      updateDoc(doc(db(env, 'owner', OTHER_ORG), TEMPLATE), {
+        ...stamped({}, uidFor('owner', OTHER_ORG)),
+        deletedAt: serverTimestamp(),
+        deletedBy: uidFor('owner', OTHER_ORG),
+      }),
+    );
+  });
+});
+
+describe('task group templates (CORE-08f)', () => {
+  const PATH = `orgs/${ORG}/taskGroupTemplates`;
+  const TEMPLATE = `${PATH}/group-1`;
+  const TASKS = [
+    { title: 'Locate the original will', checklist: ['Ask the family', 'Search the will bank'], priority: 'high' },
+    { title: 'Write to the bank', checklist: [], dueInDays: 7 },
+  ];
+
+  /** A valid client create, stamped for `uid`. */
+  const newTemplate = (uid: string, extra: Record<string, unknown> = {}) => ({
+    name: 'Checklist A',
+    tasks: TASKS,
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+
+  it.each(EVERYONE)('creating a template as %s follows task.edit', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const create = setDoc(doc(firestore, `${PATH}/new-${who}`), newTemplate(uid));
+    await (allows(who, 'task.edit') ? assertSucceeds(create) : assertFails(create));
+  });
+
+  it('members list the org’s templates; other orgs can’t', async () => {
+    const list = (firestore: Firestore) => getDocs(query(collection(firestore, PATH), orderBy('name'), limit(100)));
+    await assertSucceeds(list(db(env, 'readonly')));
+    await assertSucceeds(list(db(env, 'paralegal')));
+    await assertFails(list(db(env, 'owner', OTHER_ORG)));
+    await assertFails(list(db(env, 'lawyer', ORG, SUSPENDED_UID)));
+  });
+
+  it('a create needs a name, 1 to 50 tasks, the caller’s stamps and no server fields', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const attempt = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${PATH}/${id}`), newTemplate(uid, extra)));
+    await attempt('blank', { name: '   ' });
+    await attempt('long-name', { name: 'n'.repeat(121) });
+    await attempt('name-number', { name: 42 });
+    await attempt('no-tasks', { tasks: [] });
+    await attempt('too-many', { tasks: Array.from({ length: 51 }, (_, i) => ({ title: `Task ${i}`, checklist: [] })) });
+    await attempt('tasks-text', { tasks: 'Write to the bank' });
+    await attempt('extra', { matterId: 'matter-1' });
+    await attempt('deleted', { deletedAt: serverTimestamp(), deletedBy: uid });
+    await attempt('creator', { createdBy: 'someone-else' });
+    await attempt('created-at', { createdAt: Timestamp.fromMillis(0) });
+    await attempt('updater', { updatedBy: 'someone-else' });
+    await attempt('version', { schemaVersion: 2 });
+    const withoutTasks = newTemplate(uid) as Record<string, unknown>;
+    delete withoutTasks['tasks'];
+    await assertFails(setDoc(doc(firestore, `${PATH}/no-tasks-field`), withoutTasks));
+    await assertSucceeds(
+      setDoc(
+        doc(firestore, `${PATH}/largest`),
+        newTemplate(uid, {
+          name: 'n'.repeat(120),
+          tasks: Array.from({ length: 50 }, (_, i) => ({ title: `Task ${i}`, checklist: [] })),
+        }),
+      ),
+    );
+  });
+
+  it('updates the whitelisted fields with valid values only', async () => {
+    await seed(specFor('taskGroupTemplates'));
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), TEMPLATE);
+    await assertSucceeds(
+      updateDoc(ref, stamped({ name: 'Checklist B', tasks: [{ title: 'Pay the fee', checklist: [] }] }, uid)),
+    );
+    await assertFails(updateDoc(ref, stamped({ name: '' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ tasks: [] }, uid)));
+    await assertFails(updateDoc(ref, stamped({ matterId: 'matter-1' }, uid)));
+    await assertFails(
+      updateDoc(doc(db(env, 'readonly'), TEMPLATE), stamped({ name: 'Read-only rename' }, uidFor('readonly'))),
+    );
+  });
+
+  it('soft delete and restore by task.edit roles, never a hard delete', async () => {
+    await seed(specFor('taskGroupTemplates'));
+    const uid = uidFor('paralegal');
+    const ref = doc(db(env, 'paralegal'), TEMPLATE);
+    await assertFails(updateDoc(ref, { ...stamped({}, uid), deletedAt: serverTimestamp(), deletedBy: 'someone-else' }));
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: serverTimestamp(), deletedBy: uid }));
+    await assertSucceeds(updateDoc(ref, { ...stamped({}, uid), deletedAt: null, deletedBy: null }));
+    await assertFails(deleteDoc(ref));
     await assertFails(
       updateDoc(doc(db(env, 'owner', OTHER_ORG), TEMPLATE), {
         ...stamped({}, uidFor('owner', OTHER_ORG)),

@@ -44,11 +44,12 @@ function planned(
   return { path, title, loadComponent: placeholder, data: { placeholder: { heading: title, ...data } }, ...extra };
 }
 
-/** The matter tabs built so far (CORE-06, CORE-08, CORE-10); the others show a placeholder. */
+/** The matter tabs built so far (CORE-06, CORE-08, CORE-10, CORE-12); the others show a placeholder. */
 const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
   overview: () => import('./features/matter-detail/matter-overview').then((m) => m.MatterOverview),
   tasks: () => import('./features/matter-detail/matter-tasks').then((m) => m.MatterTasks),
   deadlines: () => import('./features/deadlines/matter-deadlines').then((m) => m.MatterDeadlines),
+  documents: () => import('./features/documents/matter-documents').then((m) => m.MatterDocuments),
   parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
 };
 
@@ -92,6 +93,13 @@ const matterRoutes: Route[] = [
         title: 'Conflict check',
         data: { crumb: 'Conflict check' },
         loadComponent: () => import('./features/conflicts/matter-conflicts-page').then((m) => m.MatterConflictsPage),
+      },
+      // A document's preview and details (CORE-12); `?page=N` opens a PDF at a page.
+      {
+        path: 'documents/:docId',
+        title: 'Document',
+        data: { crumb: 'Document' },
+        loadComponent: () => import('./features/documents/document-page').then((m) => m.DocumentPage),
       },
       // Deep links to a tab that doesn't exist land on the overview.
       { path: '**', redirectTo: 'overview' },

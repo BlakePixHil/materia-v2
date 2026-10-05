@@ -46,6 +46,7 @@ export * from './lib/integration-card/integration-card';
 export * from './lib/step-list/step-list';
 export * from './lib/choice-card/choice-card';
 export * from './lib/clerk/markdown';
+export * from './lib/brand/brand-mark';
 export * from './lib/clerk/clerk-mark';
 export * from './lib/clerk/citation';
 export * from './lib/clerk/clerk-message';

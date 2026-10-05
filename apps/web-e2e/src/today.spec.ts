@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-import { addDays, today } from '@materia/domain';
+import { addDays, recentMatterId, today } from '@materia/domain';
 import {
   EMULATOR_PROJECT,
   expectNoA11yViolations,
@@ -123,6 +123,20 @@ const region = (page: Page, name: string) => page.getByRole('region', { name });
 const greeting = (page: Page) =>
   page.getByRole('heading', { level: 1, name: /^Good (morning|afternoon|evening), Jordan$/ });
 
+/** Whether the server has my Recent matters entry for a matter (read with the emulator's admin access). */
+async function storedRecent(
+  request: APIRequestContext,
+  orgId: string,
+  uid: string,
+  matterId: string,
+): Promise<boolean> {
+  const response = await request.get(
+    `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/users/${uid}/recent/${recentMatterId(orgId, matterId)}`,
+    { headers: { Authorization: 'Bearer owner' } },
+  );
+  return response.ok();
+}
+
 async function storedTaskStatus(request: APIRequestContext, orgId: string): Promise<string | undefined> {
   const response = await request.get(
     `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/orgs/${orgId}/matters/m-pell/tasks/t-today`,
@@ -242,7 +256,10 @@ test.describe('today', () => {
     const { orgId, uid } = await signIn(page, request);
     await seedDay(request, orgId, uid);
     await page.goto('/matters/m-pell/overview');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Harold Pell');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Harold Pell', FIRST_LOAD);
+    // Opening a matter records it without waiting; a full page load before the write reaches the
+    // server would drop it, so wait for the server to have it first.
+    await expect.poll(() => storedRecent(request, orgId, uid, 'm-pell'), FIRST_LOAD).toBe(true);
     await page.goto('/today');
     await expect(region(page, 'Recent matters').getByRole('link', { name: /Estate of Harold Pell/ })).toBeVisible(
       FIRST_LOAD,

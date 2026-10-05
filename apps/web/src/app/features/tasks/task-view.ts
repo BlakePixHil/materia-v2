@@ -138,10 +138,24 @@ export interface StageLike {
 
 const fold = (value: string) => value.trim().toLowerCase();
 
+/** Group names without blanks or repeats (ignoring case), first spelling kept, in the given order. */
+export function uniqueGroups(names: readonly (string | null | undefined)[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of names) {
+    const trimmed = name?.trim();
+    if (!trimmed || seen.has(fold(trimmed))) continue;
+    seen.add(fold(trimmed));
+    out.push(trimmed);
+  }
+  return out;
+}
+
 /**
  * Groups a matter's tasks (already in their manual order) by stage: a task whose `group` names a
- * stage (template tasks carry their stage's name) goes under it, in stage order; the rest go under
- * "Other tasks". Empty stages are left out.
+ * stage (template tasks carry their stage's name) goes under it, in stage order. Other named groups
+ * follow as their own sections (CORE-08e), in order of first appearance, and tasks without a group go
+ * under "Other tasks". Empty stages are left out.
  */
 export function sectionsByStage(entries: readonly TaskEntry[], stages: readonly StageLike[]): TaskSectionVm[] {
   const byName = new Map<string, StageLike>();
@@ -152,12 +166,25 @@ export function sectionsByStage(entries: readonly TaskEntry[], stages: readonly 
   const sections = new Map<string, TaskSectionVm>(
     stages.map((stage) => [stage.id, { id: `stage:${stage.id}`, label: stage.title, entries: [], group: stage.title }]),
   );
+  const groups = new Map<string, TaskSectionVm>();
   const other: TaskSectionVm = { id: 'stage:~other', label: 'Other tasks', entries: [], group: null };
   for (const entry of entries) {
-    const stage = entry.task.group ? byName.get(fold(entry.task.group)) : undefined;
-    (stage ? (sections.get(stage.id) as TaskSectionVm) : other).entries.push(entry);
+    const name = entry.task.group?.trim();
+    const stage = name ? byName.get(fold(name)) : undefined;
+    if (stage) {
+      (sections.get(stage.id) as TaskSectionVm).entries.push(entry);
+    } else if (name) {
+      let section = groups.get(fold(name));
+      if (!section) {
+        section = { id: `group:${fold(name)}`, label: name, entries: [], group: name };
+        groups.set(fold(name), section);
+      }
+      section.entries.push(entry);
+    } else {
+      other.entries.push(entry);
+    }
   }
-  return [...sections.values(), other].filter((section) => section.entries.length);
+  return [...sections.values(), ...groups.values(), other].filter((section) => section.entries.length);
 }
 
 /** Groups by the free-text `group`, in order of first appearance; "No group" last. */
@@ -179,6 +206,24 @@ export function sectionsByGroup(entries: readonly TaskEntry[]): TaskSectionVm[] 
     section.entries.push(entry);
   }
   return [...sections.values(), none].filter((section) => section.entries.length);
+}
+
+/** Each named group and its tasks, in the given order, spelled as first seen (CORE-08f). */
+export function tasksByGroup<T extends { group?: string | null | undefined }>(
+  tasks: readonly T[],
+): { name: string; tasks: T[] }[] {
+  const groups = new Map<string, { name: string; tasks: T[] }>();
+  for (const task of tasks) {
+    const name = task.group?.trim();
+    if (!name) continue;
+    let group = groups.get(fold(name));
+    if (!group) {
+      group = { name, tasks: [] };
+      groups.set(fold(name), group);
+    }
+    group.tasks.push(task);
+  }
+  return [...groups.values()];
 }
 
 /** Tasks in their manual order (`byOrder`, ties by id). */
@@ -225,6 +270,13 @@ export function clientWrite(task: TaskRecord, change: BulkTaskChange): ClientWri
       return change.dueDate
         ? { kind: 'update', patch: { dueDate: change.dueDate }, remove: [] }
         : { kind: 'update', patch: {}, remove: ['dueDate'] };
+    case 'group': {
+      const group = change.group?.trim() || null;
+      if ((task.group?.trim() || null) === group) return null;
+      return group
+        ? { kind: 'update', patch: { group }, remove: [] }
+        : { kind: 'update', patch: {}, remove: ['group'] };
+    }
     case 'delete':
       return { kind: 'delete' };
   }
@@ -244,6 +296,10 @@ export function bulkSummary(change: BulkTaskChange, count: number, personName?: 
       return change.assigneeUid ? `${tasks} assigned to ${personName ?? 'them'}` : `${tasks} unassigned`;
     case 'dueDate':
       return change.dueDate ? `Due date changed on ${tasks}` : `Due date cleared on ${tasks}`;
+    case 'group':
+      return change.group?.trim()
+        ? `${tasks} moved to ${change.group.trim()}`
+        : `${tasks} taken out of ${count === 1 ? 'its' : 'their'} group`;
     case 'delete':
       return `${tasks} deleted`;
   }
