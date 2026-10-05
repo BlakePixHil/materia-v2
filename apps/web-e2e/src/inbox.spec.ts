@@ -115,6 +115,9 @@ test.describe('inbox', () => {
     await row(page, 'Read yesterday').click();
     await page.keyboard.press('y');
     await expect(rows(page)).toHaveCount(3);
+    // The row hides at once; "Archived" shows only once the write has gone through, so reloading
+    // before it can bring the row back.
+    await expect(page.locator('.mt-toaster')).toContainText('Archived', LIVE);
     await page.reload();
     await expect(rows(page)).toHaveCount(3, LIVE);
     await expect(row(page, 'Read yesterday')).toHaveCount(0);
