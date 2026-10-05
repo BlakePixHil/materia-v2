@@ -3,7 +3,9 @@ import {
   canTransition,
   ChangeMatterStatusInput,
   CreateMatterInput,
+  DEFAULT_MATTER_TYPE_CODES,
   DEFAULT_MATTER_VIEWS,
+  externalRefUrl,
   formatMatterNumber,
   initialMatterStatus,
   isIndexedMatterQuery,
@@ -14,9 +16,13 @@ import {
   MATTER_TRANSITIONS,
   matterCounterId,
   matterIndexFields,
+  matterNumberFormatProblem,
   matterNumberKey,
+  matterNumberProblem,
   matterNumberYear,
   matterSearchTokens,
+  matterTypeCode,
+  RenumberMatterInput,
   RestoreMatterInput,
   transitionRequirements,
 } from './matters';
@@ -40,6 +46,46 @@ describe('matter numbers', () => {
     expect(isMatterNumberFormat('M-{YYYY}-{seq:4}')).toBe(true);
     expect(isMatterNumberFormat('M-{YYYY}')).toBe(false);
     expect(isMatterNumberFormat('{seq}{x}')).toBe(false);
+  });
+
+  it('fills {TYPE} with the type code (CORE-21a)', () => {
+    expect(formatMatterNumber('{TYPE}{YY}-{seq:3}', 2026, 7, 'PRB')).toBe('PRB26-007');
+    expect(formatMatterNumber('{TYPE}-{seq}', 2026, 7)).toBe('-7');
+    expect(isMatterNumberFormat('{TYPE}/{YYYY}/{seq:4}')).toBe(true);
+    expect(matterTypeCode('probate')).toBe(DEFAULT_MATTER_TYPE_CODES.probate);
+    expect(matterTypeCode('probate', { probate: 'PROB' })).toBe('PROB');
+    expect(matterTypeCode('probate', { probate: 'not valid!' })).toBe('PRB');
+    expect(matterTypeCode('will', { probate: 'PROB' })).toBe('WIL');
+  });
+
+  it('explains what is wrong with a format', () => {
+    expect(matterNumberFormatProblem('{TYPE}-{YYYY}-{seq:4}')).toBeNull();
+    expect(matterNumberFormatProblem('  ')).toMatch(/Enter/);
+    expect(matterNumberFormatProblem('M-{YYYY}')).toMatch(/\{seq\}/);
+    expect(matterNumberFormatProblem('{seq}{CLIENT}')).toMatch(/Use only/);
+    expect(matterNumberFormatProblem('{seq}}')).toMatch(/Use only/);
+    expect(matterNumberFormatProblem(`${'x'.repeat(40)}{seq}`)).toMatch(/longer/);
+  });
+
+  it('checks typed numbers', () => {
+    expect(matterNumberProblem('3E-104233')).toBeNull();
+    expect(matterNumberProblem(' ')).toMatch(/Enter/);
+    expect(matterNumberProblem('x'.repeat(41))).toMatch(/40/);
+    expect(matterNumberProblem('a\nb')).toMatch(/letters/);
+    const requestId = '00000000-0000-4000-8000-000000000000';
+    expect(RenumberMatterInput.parse({ requestId, matterId: 'm1', number: ' A-1 ' }).number).toBe('A-1');
+    expect(RenumberMatterInput.safeParse({ requestId, matterId: 'm1', number: '' }).success).toBe(false);
+  });
+
+  it('links an external reference only through an http(s) template', () => {
+    const template = 'https://3e.example.com/matters/{ref}';
+    expect(externalRefUrl(template, ' 104233/1 ')).toBe('https://3e.example.com/matters/104233%2F1');
+    expect(externalRefUrl(template, '')).toBeNull();
+    expect(externalRefUrl(undefined, '1')).toBeNull();
+    expect(externalRefUrl('https://3e.example.com/matters', '1')).toBeNull();
+    expect(externalRefUrl('javascript:alert({ref})', '1')).toBeNull();
+    expect(externalRefUrl('https://3e.example.com/a b/{ref}', '1')).toBeNull();
+    expect(externalRefUrl('http://intranet/3e?m={ref}', 'A 1')).toBe('http://intranet/3e?m=A%201');
   });
 
   it('rolls the year over at midnight in Melbourne, not UTC', () => {

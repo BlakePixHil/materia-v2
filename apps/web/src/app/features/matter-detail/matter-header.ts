@@ -12,7 +12,13 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { conflictAllowsOpening, type MatterStatus } from '@materia/domain';
+import {
+  conflictAllowsOpening,
+  externalRefUrl,
+  MATTER_NUMBER_MAX_LENGTH,
+  matterNumberProblem,
+  type MatterStatus,
+} from '@materia/domain';
 import {
   DialogService,
   MT_MENU,
@@ -31,7 +37,7 @@ import {
 
 import { MatterScreen } from './matter-screen';
 import { LONG_TITLE, matterErrorCopy, statusChoices, statusLabel, type StatusChoice } from './matter-view';
-import { errorCopy } from '../../core/error-copy';
+import { errorCodeOf, errorCopy } from '../../core/error-copy';
 import { CONFLICT_STATUS_TONES, conflictBadgeText } from '../conflicts/conflict-view';
 import { MatterNameDialog, type MatterNameDialogData } from '../matters/matter-name-dialog';
 import { changeStatusErrorCopy } from '../matters/matters-view';
@@ -67,6 +73,20 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
       <div class="mt-row mt-wrap meta">
         <span class="num">{{ m.number }}</span>
         <mt-matter-tag [type]="m.type" />
+        @if (m.externalRef) {
+          @if (externalUrl(); as url) {
+            <a
+              class="mt-chip ext"
+              [href]="url"
+              target="_blank"
+              rel="noopener noreferrer"
+              [attr.aria-label]="'Open ' + screen.externalSystemName() + ' matter ' + m.externalRef + ' in a new tab'"
+              >{{ screen.externalSystemName() }} {{ m.externalRef }}<mt-icon name="external"
+            /></a>
+          } @else {
+            <span class="mt-chip ext">{{ screen.externalSystemName() }} {{ m.externalRef }}</span>
+          }
+        }
         <mt-badge [tone]="conflictTone()">{{ conflictText() }}</mt-badge>
         @if (m.privileged) {
           <mt-badge tone="warning"><mt-icon name="shield" />Privileged</mt-badge>
@@ -244,6 +264,14 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
         <mt-menu aria-label="Matter actions">
           <button mtMenuItem icon="copy" kbd="y" (click)="copyNumber()">Copy matter number</button>
           <button mtMenuItem icon="external" (click)="openInNewTab()">Open in new tab</button>
+          @if (canRenumber()) {
+            <button mtMenuItem icon="compose" (click)="renumber()">Change matter number…</button>
+          }
+          @if (screen.editable()) {
+            <button mtMenuItem icon="link" (click)="editExternalRef()">
+              {{ m.externalRef ? 'Change' : 'Add' }} {{ screen.externalSystemName() }} matter…
+            </button>
+          }
           @if (upgradeTo(); as version) {
             <button mtMenuItem icon="arrow-up-right" (click)="upgradeTemplate(version)">
               Upgrade matter to v{{ version }}…
@@ -311,6 +339,15 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
       gap: var(--space-6);
       font: 500 12px/16px var(--font-sans);
     }
+    .mt-matter-head .mt-chip.ext {
+      font: 500 12px/16px var(--font-mono);
+      gap: var(--space-4);
+      text-decoration: none;
+      cursor: default;
+    }
+    .mt-matter-head a.mt-chip.ext {
+      cursor: pointer;
+    }
     .mt-matter-head .mt-chip.label {
       cursor: default;
       padding-inline-end: 3px;
@@ -350,6 +387,12 @@ export class MatterHeader {
   });
   /** A newer published version of the matter's template (CORE-07), for those who may edit the matter. */
   protected readonly upgradeTo = computed(() => (this.screen.editable() ? this.screen.upgradeVersion() : null));
+  /** Lawyers and above can change the number (CORE-21a), never on a deleted matter. */
+  protected readonly canRenumber = computed(() => this.screen.canRenumber() && !this.screen.deleted());
+  /** The link to the matter in the firm's other system (3E), when the org has a link template. */
+  protected readonly externalUrl = computed(() =>
+    externalRefUrl(this.screen.org.value()?.externalSystem?.urlTemplate, this.screen.value()?.externalRef),
+  );
   protected readonly canClose = computed(
     () => this.statusEditable() && this.choices().some((choice) => choice.to === 'closed'),
   );
@@ -471,6 +514,65 @@ export class MatterHeader {
         description: changeStatusErrorCopy(error),
         tone: 'danger',
       });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  // ---------- number and external reference (CORE-21a) ----------
+
+  /** Gives the matter a typed number (`matters-renumber`); a number another matter has is refused in the dialog. */
+  protected async renumber(): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter || !this.canRenumber()) return;
+    await this.ask({
+      title: `Change ${matter.number}`,
+      label: 'Matter number',
+      confirm: 'Change number',
+      description: 'Use your own number, or the one the firm uses elsewhere. Numbers are unique in your practice.',
+      initial: matter.number,
+      maxLength: MATTER_NUMBER_MAX_LENGTH,
+      submit: async (number) => {
+        const problem = matterNumberProblem(number);
+        if (problem) return problem;
+        if (number === matter.number) return undefined;
+        try {
+          await this.screen.api.renumber({ matterId: matter.id, number });
+          this.toasts.show({ title: `Renumbered to ${number}`, tone: 'success' });
+          return undefined;
+        } catch (error) {
+          return errorCodeOf(error) === 'ALREADY_EXISTS'
+            ? `Another matter already has ${number}.`
+            : matterErrorCopy(error);
+        }
+      },
+    });
+  }
+
+  /** Sets or clears the matter's reference in the firm's other system (client-direct, `externalRef`). */
+  protected async editExternalRef(): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter || !this.screen.editable()) return;
+    const system = this.screen.externalSystemName();
+    const ref = await this.ask({
+      title: `${system} matter`,
+      label: `${system} matter number`,
+      confirm: 'Save',
+      description: `The matter’s number in ${system}. Leave it empty to remove it.`,
+      initial: matter.externalRef ?? '',
+      maxLength: 60,
+      optional: true,
+    });
+    if (ref === undefined || ref === (matter.externalRef ?? '')) return;
+    if (ref) {
+      await this.save({ externalRef: ref });
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.screen.repo.update(matter.id, {}, { remove: ['externalRef'] });
+    } catch (error) {
+      this.toasts.show({ title: 'That change didn’t save', description: errorCopy(error), tone: 'danger' });
     } finally {
       this.busy.set(false);
     }
