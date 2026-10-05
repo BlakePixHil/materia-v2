@@ -23,7 +23,7 @@
       "maxRegression": 0
     },
     "costUsd": {
-      "maxRegression": 0.5
+      "maxRegression": 1.0
     }
   },
   "fields": {

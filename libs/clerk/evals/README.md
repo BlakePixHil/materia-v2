@@ -86,9 +86,10 @@ case (no gold for it) is left out rather than scored.
 ## The gate
 
 Each suite's `config.json` sets, per metric, a `min` or `max` threshold and a `maxRegression`
-(absolute for scores, a fractional increase for latency and cost). A suite **fails** when a
-threshold or a regression is breached, or when any case errors (a provider 400, invalid
-arguments). A provider outage (overloaded, rate limited, timed out) is retried `attempts` times and
+(absolute for scores, a fractional increase for latency and cost). Cost allows doubling (1.0): a run
+that starts with a cold prompt cache pays cache writes and costs up to 1.7 times a warm one. A suite
+**fails** when a threshold or a regression is breached, or when any case errors (a provider 400,
+invalid arguments). A provider outage (overloaded, rate limited, timed out) is retried `attempts` times and
 then the case is **inconclusive**; a suite with fewer than half its runs scored is inconclusive, not
 failed. Read-only users are refused by the gateway (`clerk.use`); that refusal is scored as an empty
 answer.
