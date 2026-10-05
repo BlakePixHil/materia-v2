@@ -67,6 +67,49 @@ export function notificationKindSpec(kind: NotificationKind): NotificationKindSp
   return NOTIFICATION_KINDS[kind];
 }
 
+/** How long a notification is kept: Firestore TTL deletes it this long after it was sent (CORE-22). */
+export const NOTIFICATION_RETENTION_DAYS = 90;
+
+/** When a notification sent at `sentAt` expires (its `expireAt`). */
+export function notificationExpiry(sentAt: Date): Date {
+  return new Date(sentAt.getTime() + NOTIFICATION_RETENTION_DAYS * 86_400_000);
+}
+
+// ---------- the inbox's filters (CORE-22) ----------
+
+/** The inbox's filter chips, in order; `all` shows everything. */
+export const INBOX_FILTERS = ['all', 'mentions', 'assigned', 'deadlines', 'clerk', 'system'] as const;
+export type InboxFilter = (typeof INBOX_FILTERS)[number];
+
+/** Which chip each kind falls under (every kind under exactly one; `all` holds them all). */
+export const INBOX_FILTER_OF = {
+  mention: 'mentions',
+  assignment: 'assigned',
+  task_assigned: 'assigned',
+  deadline_reminder: 'deadlines',
+  deadline_escalation: 'deadlines',
+  deadline_changed: 'deadlines',
+  deadline_missed: 'deadlines',
+  task_reminder: 'deadlines',
+  suggestion: 'clerk',
+  suggestion_ready: 'clerk',
+  invite: 'system',
+  invite_accepted: 'system',
+  conflict_alert: 'system',
+  document_ready: 'system',
+  document_infected: 'system',
+  integration_error: 'system',
+  export_ready: 'system',
+  safe_custody: 'system',
+  budget_alert: 'system',
+  system: 'system',
+} as const satisfies Record<NotificationKind, Exclude<InboxFilter, 'all'>>;
+
+/** Whether a notification of `kind` shows under `filter`. */
+export function inInboxFilter(kind: NotificationKind, filter: InboxFilter): boolean {
+  return filter === 'all' || INBOX_FILTER_OF[kind] === filter;
+}
+
 /** More than this many notifications for one person within the window are collapsed. */
 export const NOTIFICATION_BURST_LIMIT = 100;
 export const NOTIFICATION_BURST_WINDOW_MS = 60_000;

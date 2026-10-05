@@ -228,17 +228,21 @@ describe('firestore.indexes.json', () => {
     ]);
   });
 
-  it('indexes the unread badge and the burst count, and digest records expire (FND-20)', () => {
+  it('indexes the unread badge, the burst count and the inbox; digests and notifications expire (FND-20, CORE-22)', () => {
     const notifications = file.indexes
       .filter((i) => i.collectionGroup === 'notifications')
       .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(',')}`);
     expect(notifications).toEqual([
       'COLLECTION:recipientUid:ASCENDING,createdAt:ASCENDING',
       'COLLECTION:recipientUid:ASCENDING,channels:CONTAINS,readAt:ASCENDING,summaryId:ASCENDING,createdAt:DESCENDING',
+      // The inbox (CORE-22): everything in-app but burst members, and one burst's members.
+      'COLLECTION:recipientUid:ASCENDING,channels:CONTAINS,summaryId:ASCENDING,createdAt:DESCENDING',
+      'COLLECTION:recipientUid:ASCENDING,summaryId:ASCENDING,createdAt:DESCENDING',
     ]);
-    const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
-      (o) => o.collectionGroup === 'digests' && o.ttl,
-    );
-    expect(ttl?.fieldPath).toBe('expireAt');
+    const overrides = file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[];
+    const ttl = (group: string) => overrides.find((o) => o.collectionGroup === group && o.ttl)?.fieldPath;
+    expect(ttl('digests')).toBe('expireAt');
+    // Notifications are kept 90 days (CORE-22).
+    expect(ttl('notifications')).toBe('expireAt');
   });
 });

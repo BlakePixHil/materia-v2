@@ -1467,9 +1467,62 @@ describe('notifications (FND-20)', () => {
     await assertSucceeds(updateDoc(ref, stamped({ readAt: null }, uid)));
     await assertFails(updateDoc(ref, stamped({ readAt: Timestamp.fromMillis(0) }, uid)));
     await assertFails(updateDoc(ref, stamped({ readAt: 'yesterday' }, uid)));
-    for (const field of ['channels', 'deliveries', 'priority', 'recipientUid', 'body', 'deliverAfter']) {
+    for (const field of ['channels', 'deliveries', 'priority', 'recipientUid', 'body', 'deliverAfter', 'expireAt']) {
       await assertFails(updateDoc(ref, stamped({ readAt: serverTimestamp(), [field]: null }, uid)));
     }
+  });
+
+  it('a recipient archives a notification with the server time, or restores it, whether or not it was read (CORE-22)', async () => {
+    const uid = uidFor('lawyer');
+    const path = `${INBOX}/notification-archive`;
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, path), {
+        ...seedData(specFor('notifications')),
+        recipientUid: uid,
+        // Read a while ago: archiving leaves `readAt` as it is.
+        readAt: Timestamp.fromMillis(Date.now() - 86_400_000),
+      }),
+    );
+    const ref = doc(db(env, 'lawyer'), path);
+    await assertSucceeds(updateDoc(ref, stamped({ hiddenAt: serverTimestamp() }, uid)));
+    await assertSucceeds(updateDoc(ref, stamped({ hiddenAt: null }, uid)));
+    await assertSucceeds(updateDoc(ref, stamped({ hiddenAt: serverTimestamp(), readAt: serverTimestamp() }, uid)));
+    await assertFails(updateDoc(ref, stamped({ hiddenAt: Timestamp.fromMillis(0) }, uid)));
+    await assertFails(updateDoc(ref, stamped({ hiddenAt: serverTimestamp(), readAt: Timestamp.fromMillis(0) }, uid)));
+    // Someone else's stays theirs.
+    await assertFails(
+      updateDoc(doc(db(env, 'owner'), path), stamped({ hiddenAt: serverTimestamp() }, uidFor('owner'))),
+    );
+  });
+
+  it.each(EVERYONE)('lists my inbox and a burst’s members, as %s (CORE-22)', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const inbox = (recipient: string) =>
+      getDocs(
+        query(
+          collection(firestore, INBOX),
+          where('recipientUid', '==', recipient),
+          where('channels', 'array-contains', 'inapp'),
+          where('summaryId', '==', null),
+          orderBy('createdAt', 'desc'),
+          limit(100),
+        ),
+      );
+    const burst = (recipient: string) =>
+      getDocs(
+        query(
+          collection(firestore, INBOX),
+          where('recipientUid', '==', recipient),
+          where('summaryId', '==', 'burst-x'),
+          orderBy('createdAt', 'desc'),
+          limit(100),
+        ),
+      );
+    await (isMember(who) ? assertSucceeds(inbox(uid)) : assertFails(inbox(uid)));
+    await (isMember(who) ? assertSucceeds(burst(uid)) : assertFails(burst(uid)));
+    const other = uid === uidFor('lawyer') ? uidFor('owner') : uidFor('lawyer');
+    await assertFails(inbox(other));
+    await assertFails(burst(other));
   });
 
   it.each(EVERYONE)('lists only my unread in-app notifications, as %s', async (who) => {
