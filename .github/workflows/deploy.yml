@@ -146,6 +146,20 @@ jobs:
             --quiet
           echo "JOBS_IMAGE=$image" >> "$GITHUB_ENV"
 
+      # firebase-functions params (apps/functions/src/core/params.ts) for this environment. With
+      # --non-interactive the CLI ignores a param's default and fails on any param without a value,
+      # so every param is appended to the release's .env here, from the variable <NAME>_<DEV|PROD>.
+      # An unset variable writes an empty value: CLAMAV_SCAN_URL empty keeps uploads quarantined
+      # (ADR-028).
+      - name: Write the functions params for this environment
+        env:
+          CLAMAV_SCAN_URL: ${{ vars[format('CLAMAV_SCAN_URL_{0}', inputs.suffix)] }}
+        run: |
+          printf 'CLAMAV_SCAN_URL=%s\n' "$CLAMAV_SCAN_URL" >> dist/apps/functions/.env
+          if [ -z "$CLAMAV_SCAN_URL" ]; then
+            echo "::warning::CLAMAV_SCAN_URL_${{ inputs.suffix }} is not set: uploads stay \"Scanning delayed\" until the ClamAV service is deployed (ADR-028)."
+          fi
+
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
       - name: Deploy functions (codebase core)
