@@ -155,6 +155,14 @@ const shellRoutes: Route[] = [
         data: { crumb: 'Team' },
         loadComponent: () => import('./pages/orgs/team').then((m) => m.TeamPage),
       },
+      // Matter numbering (CORE-21a): owners and admins (`org.settings`).
+      {
+        path: 'numbering',
+        title: 'Matter numbering',
+        data: { crumb: 'Matter numbering' },
+        canActivate: [roleGuard(['owner', 'admin'])],
+        loadComponent: () => import('./features/numbering/numbering-page').then((m) => m.NumberingPage),
+      },
       // Matter templates (CORE-07): owners and admins (`org.settings`), while `templates.system` is on.
       {
         path: 'templates',

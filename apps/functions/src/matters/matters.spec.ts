@@ -8,6 +8,7 @@ import { MATTER_TRANSITIONS, MatterStatusSchema, type MatterStatus, type Role } 
 import { changeStatusDefinition } from './change-status';
 import { createMatterDefinition, initialParties, MAX_NUMBER_SKIPS } from './create';
 import { denormalise, denormaliseDefinition, isActivity, recordMatterActivity, staleMatterFields } from './denormalise';
+import { renumberDefinition } from './renumber';
 import { restoreDefinition } from './restore';
 import { matterSearch } from './shared';
 import { clearRetentionCache } from '../audit/retention';
@@ -177,6 +178,15 @@ describe('matters-createMatter', () => {
     await w.db.doc(`orgs/${ORG}`).update({ matterNumberFormat: 'm{seq}' });
     // m8 clashes with M8 (numbers are unique regardless of case), so it moves on to m9.
     expect((await w.create()).number).toBe('m9');
+  });
+
+  it('fills {TYPE} from the practice’s type codes (CORE-21a)', async () => {
+    const w = world();
+    await w.db.doc(`orgs/${ORG}`).update({ matterNumberFormat: '{TYPE}{YY}-{seq:3}' });
+    expect((await w.create()).number).toBe('PRB26-001');
+    expect((await w.create(newMatter({ type: 'will', deceased: undefined }))).number).toBe('WIL26-002');
+    await w.db.doc(`orgs/${ORG}`).update({ matterTypeCodes: { probate: 'EST' } });
+    expect((await w.create()).number).toBe('EST26-003');
   });
 
   it(`gives up after ${MAX_NUMBER_SKIPS} taken numbers`, async () => {
@@ -481,6 +491,78 @@ describe('matters-restore', () => {
       );
     expect(((await failureOf(call('lawyer'))) as HttpsError).details).toMatchObject({ code: 'PERMISSION_DENIED' });
     await expect(call('owner')).resolves.toEqual({ matterId: 'm1', restored: true });
+  });
+});
+
+describe('matters-renumber (CORE-21a)', () => {
+  const seeded = () =>
+    world({
+      [`${M}/m1`]: {
+        ...meta,
+        number: 'M-2026-0001',
+        title: 'Estate of Fictional Quill',
+        clientContactIds: ['c-ada'],
+        status: 'open',
+        deletedAt: null,
+      },
+      [`orgs/${ORG}/matterNumbers/M-2026-0001`]: { ...meta, number: 'M-2026-0001', matterId: 'm1', year: 2026 },
+      [`${M}/m2`]: { ...meta, number: 'M-2026-0002', title: 'Other', status: 'open', deletedAt: null },
+      [`orgs/${ORG}/matterNumbers/M-2026-0002`]: { ...meta, number: 'M-2026-0002', matterId: 'm2', year: 2026 },
+      // A migrated matter holds LEG-9 without a reservation.
+      [`${M}/legacy`]: { ...meta, number: 'LEG-9', title: 'Migrated', status: 'open', deletedAt: null },
+    });
+  const renumber = (w: ReturnType<typeof world>, number: string, matterId = 'm1', role: Role = 'lawyer') =>
+    renumberDefinition.handler(w.ctx({ requestId: randomUUID(), matterId, number }, role) as never);
+
+  it('moves the reservation, updates number and search, and audits it', async () => {
+    const w = seeded();
+    await expect(renumber(w, '3E-104233')).resolves.toEqual({ matterId: 'm1', number: '3E-104233', changed: true });
+    expect(w.doc(`${M}/m1`)).toMatchObject({ number: '3E-104233', updatedBy: 'user-lawyer' });
+    expect(w.doc(`${M}/m1`)?.['search']).toEqual(expect.arrayContaining(['3e104233', 'ada', 'quill']));
+    expect(w.doc(`orgs/${ORG}/matterNumbers/3E-104233`)).toMatchObject({ matterId: 'm1', year: 2026 });
+    expect(w.doc(`orgs/${ORG}/matterNumbers/M-2026-0001`)).toBeUndefined();
+    expect(w.audits().find((entry) => entry['action'] === 'matter.renumbered')).toMatchObject({
+      data: { from: 'M-2026-0001', to: '3E-104233' },
+    });
+  });
+
+  it('refuses a number another matter has, in any case, with or without a reservation', async () => {
+    const w = seeded();
+    for (const taken of ['M-2026-0002', 'm-2026-0002', 'LEG-9']) {
+      expect(await failureOf(renumber(w, taken))).toMatchObject({ code: 'ALREADY_EXISTS', details: { number: taken } });
+    }
+    expect(w.doc(`${M}/m1`)).toMatchObject({ number: 'M-2026-0001' });
+    expect(w.doc(`orgs/${ORG}/matterNumbers/M-2026-0001`)).toMatchObject({ matterId: 'm1' });
+  });
+
+  it('keeps the reservation for a case-only change and does nothing for the same number', async () => {
+    const w = seeded();
+    await expect(renumber(w, 'M-2026-0001')).resolves.toMatchObject({ changed: false });
+    await expect(renumber(w, 'm-2026-0001')).resolves.toMatchObject({ changed: true });
+    expect(w.doc(`orgs/${ORG}/matterNumbers/M-2026-0001`)).toMatchObject({ number: 'm-2026-0001', matterId: 'm1' });
+  });
+
+  it('frees the old number for the next new matter', async () => {
+    const w = seeded();
+    await renumber(w, 'X-1');
+    await w.db.doc(`orgs/${ORG}/counters/matter-2026`).set({ ...meta, next: 1 });
+    expect((await w.create()).number).toBe('M-2026-0001');
+  });
+
+  it('refuses a missing or deleted matter, and is for lawyers and above (wrapper)', async () => {
+    const w = seeded();
+    expect(await failureOf(renumber(w, 'X-1', 'nope'))).toMatchObject({ code: 'NOT_FOUND' });
+    const call = (role: Role) =>
+      runCallable(
+        renumberDefinition,
+        {
+          data: { requestId: randomUUID(), matterId: 'm1', number: 'X-2' },
+          auth: { uid: `user-${role}`, token: { orgId: ORG, role } },
+        },
+        w.deps(),
+      );
+    expect(((await failureOf(call('paralegal'))) as HttpsError).details).toMatchObject({ code: 'PERMISSION_DENIED' });
+    await expect(call('admin')).resolves.toMatchObject({ number: 'X-2' });
   });
 });
 

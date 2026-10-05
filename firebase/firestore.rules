@@ -558,6 +558,7 @@ service cloud.firestore {
         'matter.close': ['owner', 'admin', 'lawyer'],
         'matter.status': ['owner', 'admin', 'lawyer'],
         'matter.restore': ['owner', 'admin'],
+        'matter.renumber': ['owner', 'admin', 'lawyer'],
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'contact.delete': ['owner', 'admin', 'lawyer'],
         'contact.merge': ['owner', 'admin'],
@@ -625,7 +626,7 @@ service cloud.firestore {
     function fieldsNote() { return ['bodyMd', 'pinned', 'privileged', 'source']; }
     function fieldsNotification() { return ['readAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['name', 'abn', 'acn', 'practiceType', 'jurisdictions', 'primaryJurisdiction', 'timezone', 'holidayLocality', 'billing', 'matterNumberFormat', 'fy', 'retentionYears', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['name', 'abn', 'acn', 'practiceType', 'jurisdictions', 'primaryJurisdiction', 'timezone', 'holidayLocality', 'billing', 'matterNumberFormat', 'matterTypeCodes', 'externalSystem', 'fy', 'retentionYears', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }

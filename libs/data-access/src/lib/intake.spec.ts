@@ -45,7 +45,7 @@ describe('IntakeDrafts', () => {
     await drafts.save('new', 'fees', { type: 'trust' });
     fs.set('users/u-jordan/drafts/intake-new', {
       ...fs.get('users/u-jordan/drafts/intake-new'),
-      // Later than either save (a fixed date stops being later once the clock passes it).
+      // Later than "old" whatever today is (a fixed date stopped working once it passed).
       updatedAt: new Date(Date.now() + 86_400_000),
     });
     const latest = await drafts.latest();

@@ -13,6 +13,8 @@ export const PERMISSIONS = {
   'matter.close': ['owner', 'admin', 'lawyer'],
   'matter.status': ['owner', 'admin', 'lawyer'],
   'matter.restore': ['owner', 'admin'],
+  /** Change a matter's number (CORE-21a). */
+  'matter.renumber': ['owner', 'admin', 'lawyer'],
   'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
   'contact.delete': ['owner', 'admin', 'lawyer'],
   'contact.merge': ['owner', 'admin'],

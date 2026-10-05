@@ -256,12 +256,14 @@ describe('matterCallables', () => {
     await api.removeParty({ matterId: 'm-1', partyId: 'beneficiary-c-3' });
     await api.changeStatus({ matterId: 'm-1', to: 'closed', reason: 'Estate finalised' });
     await api.upgradeTemplate({ matterId: 'm-1', version: 2 });
+    await api.renumber({ matterId: 'm-1', number: '3E-104233' });
     expect(calls.map((c) => c.name)).toEqual([
       'matters-changeStage',
       'matters-upsertParty',
       'matters-removeParty',
       'matters-changeStatus',
       'matters-upgradeTemplate',
+      'matters-renumber',
     ]);
     expect(calls[0]?.data).toEqual({
       matterId: 'm-1',

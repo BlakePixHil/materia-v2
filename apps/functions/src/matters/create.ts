@@ -20,6 +20,7 @@ import {
   MatterNumber,
   matterNumberKey,
   matterNumberYear,
+  matterTypeCode,
   MatterEvent,
   Party,
   partyDocId,
@@ -33,6 +34,7 @@ import {
   type CreateMatterResult,
   type DateOnly,
   type FieldErrors,
+  type MatterType,
   type PartyRole,
   type Role,
   type Template,
@@ -330,6 +332,12 @@ export const createMatterDefinition = {
         ? org['matterNumberFormat']
         : DEFAULT_MATTER_NUMBER_FORMAT;
     const year = matterNumberYear(now, timeZone);
+    const typeCode = matterTypeCode(
+      matter.type,
+      org['matterTypeCodes'] && typeof org['matterTypeCodes'] === 'object'
+        ? (org['matterTypeCodes'] as Partial<Record<MatterType, string>>)
+        : undefined,
+    );
     const orgToday = today(timeZone, now);
     await checkDateOfDeath(db, orgId, matter, orgToday);
     const events = intakeEvents(matter, input.events);
@@ -426,7 +434,7 @@ export const createMatterDefinition = {
           if (skipped >= MAX_NUMBER_SKIPS) {
             throw new DomainError('CONFLICT', 'No free matter number; check the number format', { year });
           }
-          candidate = formatMatterNumber(format, year, seq);
+          candidate = formatMatterNumber(format, year, seq, typeCode);
           const [reserved, held] = await Promise.all([
             tx.get(db.doc(matterNumberPath(orgId, matterNumberKey(candidate)))),
             tx.get(db.collection(mattersPath(orgId)).where('number', '==', candidate).limit(1)),

@@ -182,6 +182,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
         set: (ref: Ref, data: Data, options?: { merge?: boolean }) =>
           void ops.push(() => write.set(ref.path, data, options)),
         update: (ref: Ref, data: Data) => void ops.push(() => write.update(ref.path, data)),
+        delete: (ref: Ref) => void ops.push(() => void docs.delete(ref.path)),
       };
       const result = await fn(tx);
       for (const op of ops) op();

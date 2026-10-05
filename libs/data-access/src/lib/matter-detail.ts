@@ -19,6 +19,8 @@ import {
   type DeadlineStatus,
   type PartyResult,
   type RemovePartyInput,
+  type RenumberMatterInput,
+  type RenumberMatterResult,
   type TaskStatus,
   type TemplateStageLike,
   type UpgradeMatterTemplateInput,
@@ -311,6 +313,8 @@ export interface MatterCallables {
   removeParty(input: Input<RemovePartyInput>): Promise<PartyResult>;
   /** `matters-upgradeTemplate` (matter.edit, CORE-07): a later version of the matter's template; adds missing tasks only. */
   upgradeTemplate(input: Input<UpgradeMatterTemplateInput>): Promise<UpgradeMatterTemplateResult>;
+  /** `matters-renumber` (matter.renumber, CORE-21a): a typed number, unique per org (`ALREADY_EXISTS` otherwise). */
+  renumber(input: Input<RenumberMatterInput>): Promise<RenumberMatterResult>;
 }
 
 export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCallables {
@@ -324,5 +328,6 @@ export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCal
     upsertParty: call(MATTER_CALLABLES.upsertParty),
     removeParty: call(MATTER_CALLABLES.removeParty),
     upgradeTemplate: call(MATTER_CALLABLES.upgradeTemplate),
+    renumber: call(MATTER_CALLABLES.renumber),
   };
 }

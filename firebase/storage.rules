@@ -72,6 +72,7 @@ service firebase.storage {
         'matter.close': ['owner', 'admin', 'lawyer'],
         'matter.status': ['owner', 'admin', 'lawyer'],
         'matter.restore': ['owner', 'admin'],
+        'matter.renumber': ['owner', 'admin', 'lawyer'],
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'contact.delete': ['owner', 'admin', 'lawyer'],
         'contact.merge': ['owner', 'admin'],

@@ -8,9 +8,10 @@ import {
   matterTemplateLoader,
   matterTemplatesRepository,
   membersRepository,
+  orgSettingsRepository,
   type MatterTemplateOutline,
 } from '@materia/data-access/repository';
-import { isSystemTemplateId, matterStages, type KeyFactId } from '@materia/domain';
+import { DEFAULT_EXTERNAL_SYSTEM_NAME, isSystemTemplateId, matterStages, type KeyFactId } from '@materia/domain';
 
 import { recentUpdateText, type MatterRecord } from './matter-view';
 import { CALLABLES } from '../../core/data/callables';
@@ -62,6 +63,12 @@ export class MatterScreen {
   readonly canDelete = can('matter.delete');
   readonly canPrivileged = can('privileged.view');
   readonly canRunConflicts = can('conflict.run');
+  readonly canRenumber = can('matter.renumber');
+
+  /** The org's numbering settings (CORE-21a): the firm's other system's name and link template. */
+  readonly org = orgSettingsRepository().watch(() => this.context.orgId());
+  /** What the firm's other practice system is called ("3E" unless the org named it). */
+  readonly externalSystemName = computed(() => this.org.value()?.externalSystem?.name || DEFAULT_EXTERNAL_SYSTEM_NAME);
 
   readonly deleted = computed(() => !!this.matter.value()?.deletedAt);
   /** Edits are allowed: the role may edit and the matter isn't deleted. */
