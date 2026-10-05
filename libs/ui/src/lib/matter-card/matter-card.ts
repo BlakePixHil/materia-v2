@@ -22,14 +22,17 @@ export interface MatterCardVm {
   priority?: Priority | undefined;
   nextDeadline?: DeadlineVm | null | undefined;
   people?: readonly MtAvatarPerson[] | undefined;
+  /** Open tasks on the matter (CORE-04 board); hidden when zero or absent. */
+  openTasks?: number | undefined;
   /** A Clerk suggestion shown under the card ("Notice can be published today"). */
   clerkHint?: string | undefined;
 }
 
 /**
  * MatterCard (`mt-matter-card`): a matter on the board. The title is the card's button (it emits
- * `open`); long titles and client names truncate with a tooltip. Drag handles and drop behaviour are
- * added by the board (CORE-04).
+ * `open`); long titles and client names truncate with a tooltip. Content marked
+ * `mtMatterCardAction` (a "Move to…" button on the board) sits at the end of the top row. Drag and
+ * drop behaviour is added by the board (CORE-04).
  */
 @Component({
   selector: 'mt-matter-card',
@@ -37,16 +40,33 @@ export interface MatterCardVm {
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../generated/components/matter.css', '../../generated/components/layout.css'],
   imports: [MtIcon, MtDeadlineChip, MtAvatarGroup, MtMatterTag, MtPriorityIcon, MtStatusIcon, MtTooltip],
+  styles: `
+    .mt-matter-card .actions {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+    .mt-matter-card .tasks {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font: 500 11px/14px var(--font-mono);
+      color: var(--text-secondary);
+    }
+  `,
   host: { class: 'mt-matter-card', '[attr.data-id]': 'matter().id', '(click)': 'onCardClick($event)' },
   template: `
     <div class="top">
       <mt-status-icon [status]="matter().status" [label]="matter().stage ?? matter().status" />
       <span>{{ matter().ref }}</span>
-      @if (matter().priority; as level) {
-        @if (level !== 'none') {
-          <span class="mt-ml"><mt-priority-icon [level]="level" /></span>
+      <span class="mt-ml actions">
+        @if (matter().priority; as level) {
+          @if (level !== 'none') {
+            <mt-priority-icon [level]="level" />
+          }
         }
-      }
+        <ng-content select="[mtMatterCardAction]" />
+      </span>
     </div>
     <div class="titles">
       <button type="button" class="name mt-ell" [mtTooltip]="matter().title" (click)="open.emit()">
@@ -66,6 +86,12 @@ export interface MatterCardVm {
           [trace]="deadline.trace"
         />
       }
+      @if (matter().openTasks; as count) {
+        <span class="tasks" [mtTooltip]="taskLabel(count)"
+          ><mt-icon name="check-circle" [size]="14" /><span class="mt-sr">{{ taskLabel(count) }}</span
+          ><span aria-hidden="true">{{ count }}</span></span
+        >
+      }
       @if (matter().people?.length) {
         <span class="mt-ml"><mt-avatar-group [people]="matter().people ?? []" size="xs" /></span>
       }
@@ -81,6 +107,10 @@ export class MtMatterCard {
   readonly matter = input.required<MatterCardVm>();
   /** The card (or its title) was activated. */
   readonly open = output();
+
+  protected taskLabel(count: number): string {
+    return count === 1 ? '1 open task' : `${count} open tasks`;
+  }
 
   /** A click anywhere on the card opens it, except on its own controls. */
   protected onCardClick(event: MouseEvent): void {
