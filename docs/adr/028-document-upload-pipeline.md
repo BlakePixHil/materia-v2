@@ -48,6 +48,11 @@ The contract (`UPLOAD_TYPES`, `uploadSettings`, `UploadMetadataSchema`) lives in
 
 **Pending cleanup is a sweep, not a lifecycle rule.** GCS lifecycle conditions match prefixes, and `orgs/*/matters/*/pending/` isn't one. `documents-sweepPending` runs hourly, deletes quarantined objects older than 24 hours by generation, and records them as `expired`.
 
+**The web viewer renders PDFs with PDF.js, sandboxed and lazy.** `pdfjs-dist` is pinned to an exact version (5.4.624). The app uses its legacy build: the modern build needs very recent engines (`Map#getOrInsertComputed`, `Promise.try`), which current Safari and older Chromium lack.
+- The library is its own lazy chunk, loaded the first time a PDF opens. The worker, CMaps, standard fonts and wasm decoders are static assets under `assets/pdfjs/`, so none of it is in the initial bundle.
+- PDF.js parses the file in a Web Worker and paints pages to canvas, with no scripting, XFA, links or `eval`. Pages render as they scroll into view.
+- The bytes come from the signed URL by `fetch`, so the files bucket has a CORS rule for the app's origins: GET and HEAD, with the range headers exposed.
+
 ## Consequences
 
 - No client ever holds a reference to unscanned bytes. The web app shows pipeline state from the document (`upload.status`, `scan.status`, `duplicateOf`).

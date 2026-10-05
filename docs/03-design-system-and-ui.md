@@ -201,6 +201,7 @@ Each component's guidelines are on its page in the design system.
 |---|---|
 | Today | CORE-14 |
 | Matter | CORE-06 |
+| Matter documents and document viewer | CORE-12 |
 | Matters list | CORE-03 |
 | Matters board | CORE-04 |
 | Deadlines | CORE-10 |

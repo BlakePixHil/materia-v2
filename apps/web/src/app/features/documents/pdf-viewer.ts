@@ -257,6 +257,8 @@ export class PdfViewer {
         standardFontDataUrl: pdfAsset('standard_fonts/'),
         wasmUrl: pdfAsset('wasm/'),
         enableXfa: false,
+        // Fonts are drawn without compiling code from the file (hardening, CVE-2024-4367).
+        isEvalSupported: false,
       });
       const pdf = await this.task.promise;
       if (id !== this.loadId) return void pdf.loadingTask.destroy();
