@@ -1180,6 +1180,114 @@ export function buildDataset(options: {
     });
   });
 
+  // The will safe custody register (CORE-17): held, out, released, and a deceased testator's will.
+  if (scenario !== 'minimal') {
+    const packets: {
+      testator: string;
+      matterId?: string;
+      items: D.SafeCustodyItem[];
+      slot: string;
+      cabinet?: string;
+      receivedDaysAgo: number;
+      status?: 'out' | 'released';
+      verifiedDaysAgo?: number;
+      authority?: D.MatterDocumentRef;
+    }[] = [
+      {
+        testator: 'c-harriet-okafor',
+        matterId: 'm-okafor-wills',
+        items: [
+          { kind: 'will', date: rel(-30), description: 'Last will' },
+          { kind: 'poa', date: rel(-30), description: 'Enduring power of attorney' },
+        ],
+        slot: '1',
+        receivedDaysAgo: 28,
+      },
+      {
+        testator: 'c-alice-whitfield',
+        matterId: 'm-whitfield-poa',
+        items: [
+          { kind: 'will', date: domain.dateOnly('2012-05-09'), description: '' },
+          { kind: 'codicil', date: domain.dateOnly('2019-08-21'), description: 'Changes the executor' },
+          { kind: 'eg', date: domain.dateOnly('2019-08-21'), description: '' },
+        ],
+        slot: '2',
+        receivedDaysAgo: 4000,
+        verifiedDaysAgo: 300,
+      },
+      {
+        testator: 'c-mei-chen',
+        matterId: 'm-chen-wills',
+        items: [{ kind: 'will', date: rel(-400), description: '' }],
+        slot: '12',
+        receivedDaysAgo: 398,
+        status: 'out',
+      },
+      {
+        testator: 'c-margaret-doyle',
+        items: [{ kind: 'will', date: domain.dateOnly('2016-11-03'), description: 'Last will' }],
+        cabinet: 'Strongroom',
+        slot: 'B4',
+        receivedDaysAgo: 3200,
+      },
+      {
+        testator: 'c-ruth-ellis',
+        items: [{ kind: 'will', date: domain.dateOnly('2011-02-17'), description: '' }],
+        cabinet: 'Strongroom',
+        slot: 'A1',
+        receivedDaysAgo: 4500,
+        status: 'released',
+        authority: { matterId: 'm-ellis-estate', documentId: 'm-ellis-estate-doc-2' },
+      },
+    ];
+    const ago = (days: number) => new Date(now.getTime() - days * 86_400_000);
+    packets.forEach((spec, i) => {
+      const packetNo = domain.formatPacketNo(i + 1);
+      const testatorName = nameOf(spec.testator) ?? '';
+      const location = { site: 'Geelong', cabinet: spec.cabinet ?? 'Safe A', slot: spec.slot };
+      const movements: D.SafeCustodyMovement[] = [
+        { at: ago(spec.receivedDaysAgo), by: DANIEL, kind: 'in', reason: 'Received into safe custody', location },
+      ];
+      if (spec.status === 'out') {
+        movements.push({ at: ago(3), by: JORDAN, kind: 'out', reason: 'Signing a new will', to: 'Jordan Price' });
+      }
+      if (spec.status === 'released') {
+        movements.push({
+          at: ago(500),
+          by: JORDAN,
+          kind: 'released',
+          reason: 'Executor’s request after death',
+          to: 'Oliver Ellis, executor',
+          toContactId: 'c-oliver-ellis',
+          ...(spec.authority ? { authority: spec.authority } : {}),
+        });
+      }
+      add(
+        `orgs/${org}/safeCustody/sc-seed-${i + 1}`,
+        F.makeSafeCustody({
+          ...meta,
+          packetNo,
+          testatorContactId: spec.testator,
+          testatorName,
+          responsibleUid: JORDAN,
+          ...(spec.matterId ? { matterId: spec.matterId } : {}),
+          items: spec.items,
+          location,
+          receivedOn: domain.addDays(anchor, -spec.receivedDaysAgo),
+          status: spec.status ?? 'held',
+          movements,
+          pendingDestruction: null,
+          ...(spec.verifiedDaysAgo
+            ? { lastVerified: { on: domain.addDays(anchor, -spec.verifiedDaysAgo), by: DANIEL } }
+            : {}),
+          search: domain.packetSearchTokens(packetNo, testatorName, location),
+          locationKey: domain.locationKey(location),
+        }),
+      );
+    });
+    add(`orgs/${org}/counters/${domain.SAFE_CUSTODY_COUNTER}`, makeCounter({ ...meta, next: packets.length + 1 }));
+  }
+
   // Conflict-check scenarios (CORE-02): 5 adverse and 5 benign, with their own contacts and matters.
   if (scenario !== 'minimal') {
     const conflicts = buildConflictFixture({
