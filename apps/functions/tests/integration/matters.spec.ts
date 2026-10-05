@@ -96,11 +96,12 @@ async function signInAs(who: Role) {
   await signInWithEmailAndPassword(auth, `matters-${who}@example.test`, PASSWORD);
 }
 
+// 20 parallel creates contend on one counter; on a busy CI runner they outlast the SDK's 70 s
+// default, so allow up to the test's own 120 s.
 function call<T>(name: string, data: Record<string, unknown>) {
-  return httpsCallable<Record<string, unknown>, T>(
-    getFunctions(client, 'australia-southeast1'),
-    name,
-  )(data).then((result) => result.data);
+  return httpsCallable<Record<string, unknown>, T>(getFunctions(client, 'australia-southeast1'), name, {
+    timeout: 110_000,
+  })(data).then((result) => result.data);
 }
 const create = (title: string, extra: Record<string, unknown> = {}, requestId = randomUUID()) =>
   call<CreateMatterResult>('matters-createMatter', { requestId, matter: newMatter(title, extra) });

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DocIdSchema } from './schemas/common';
 import { PrioritySchema, TaskStatusSchema, type Priority, type TaskStatus } from './schemas/enums';

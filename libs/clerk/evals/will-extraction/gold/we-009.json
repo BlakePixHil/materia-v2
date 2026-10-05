@@ -1,0 +1,13 @@
+{
+  "id": "we-009",
+  "fixtures": {
+    "wills/kowalski.scanned.pdf": "ab63bbdf2c80880e"
+  },
+  "fields": {
+    "testator.name": "Teresa Kowalski",
+    "willDate": "2023-01-14",
+    "executors[].name": ["Martin Shaw"],
+    "beneficiaries[].name": ["Martin Shaw"],
+    "formalValidityFlags[].issue": ["not_signed", "fewer_than_two_witnesses"]
+  }
+}

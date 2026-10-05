@@ -101,6 +101,22 @@ export default [
       ],
     },
   },
+  // esbuild can't tree-shake the `z` re-export from `zod`, so `import { z }` ships every zod locale
+  // (about 70 kB gzip in the web app's initial bundle). `import * as z` keeps only what's used.
+  {
+    files: ['**/*.ts', '**/*.mts', '**/*.cts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "ImportDeclaration[source.value='zod'][importKind!='type'] > :matches(ImportSpecifier[imported.name='z'][importKind!='type'], ImportDefaultSpecifier)",
+          message:
+            "Use `import * as z from 'zod'`: the named or default `z` import pulls every zod locale into the bundle.",
+        },
+      ],
+    },
+  },
   {
     files: ['**/*.ts', '**/*.mts', '**/*.js', '**/*.mjs'],
     plugins: { import: importPlugin },

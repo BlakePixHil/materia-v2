@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
+import { isBusinessDay, VIC_CALENDARS } from '@materia/deadlines';
 import { addDays, addMonths, today, type DateOnly } from '@materia/domain';
 import {
   EMULATOR_PROJECT,
@@ -25,6 +26,18 @@ const MATTER_NUMBER = 'M-2026-0451';
 const CALLABLE_TIMEOUT = { timeout: 20_000 };
 
 const TODAY = today('Australia/Melbourne');
+/**
+ * The latest day on or before `from` whose derived dates are all business days in every Victorian
+ * calendar, so the engine's roll to the next business day never moves a date the test expects.
+ */
+function settledDay(from: DateOnly, derived: (day: DateOnly) => DateOnly[]): DateOnly {
+  let day = from;
+  while (!derived(day).every((d) => Object.keys(VIC_CALENDARS).every((id) => isBusinessDay(VIC_CALENDARS, id, d)))) {
+    day = addDays(day, -1);
+  }
+  return day;
+}
+
 /** DD/MM/YYYY, as the date fields take it. */
 const typed = (date: DateOnly) => `${date.slice(8)}/${date.slice(5, 7)}/${date.slice(0, 4)}`;
 
@@ -120,8 +133,10 @@ test.describe('deadlines', () => {
   test('a new date of death proposes changes; accept, reject and a typed confirmation', async ({ page, request }) => {
     test.setTimeout(150_000);
     const { orgId } = await setUp(page, request);
-    const deathDay = addDays(TODAY, -60);
-    const grantDay = addDays(TODAY, -30);
+    // Executor's year is 12 months on (also from the day before); the claim period 6 months on
+    // (also from 7 months before).
+    const deathDay = settledDay(addDays(TODAY, -60), (d) => [addMonths(d, 12), addMonths(addDays(d, -1), 12)]);
+    const grantDay = settledDay(addDays(TODAY, -30), (d) => [addMonths(d, 6), addMonths(addMonths(d, -7), 6)]);
 
     // Recording the date of death and the grant date computes the deadlines (nothing in force yet).
     await page.goto('/matters/m-doyle/overview');

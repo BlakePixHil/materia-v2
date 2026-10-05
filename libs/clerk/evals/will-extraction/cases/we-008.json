@@ -1,0 +1,13 @@
+{
+  "id": "we-008",
+  "description": "Uninitialled alteration",
+  "today": "2026-03-20",
+  "documents": [
+    {
+      "id": "d-will",
+      "fixture": "wills/papadopoulos.txt",
+      "title": "Will"
+    }
+  ],
+  "query": "Extract the will."
+}

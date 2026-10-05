@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 
 import type { Firestore } from 'firebase-admin/firestore';
 import { onRequest } from 'firebase-functions/v2/https';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { notify } from './notify';
 import { REGION } from '../config';

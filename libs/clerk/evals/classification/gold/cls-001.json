@@ -1,0 +1,10 @@
+{
+  "id": "cls-001",
+  "fixtures": {
+    "wills/okafor.txt": "3b7ddcd8617ae8a7"
+  },
+  "fields": {
+    "category": "will",
+    "documentDate": "2021-08-12"
+  }
+}

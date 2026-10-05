@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { CentsSchema, CitationSchema, DateOnlySchema, DocIdSchema, NonEmptyString, withMeta } from './common';
 

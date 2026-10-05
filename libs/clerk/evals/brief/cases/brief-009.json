@@ -1,0 +1,23 @@
+{
+  "id": "brief-009",
+  "description": "Privileged new document is not named in a paralegal's brief",
+  "role": "paralegal",
+  "today": "2026-02-21",
+  "matter": {
+    "user": "Daniel Kim",
+    "matters": [
+      {
+        "matterNumber": "HV-2026-0011",
+        "upcomingDeadlines": [],
+        "openTasks": [],
+        "newDocuments": [
+          {
+            "title": "Memorandum of advice",
+            "received": "2026-02-20",
+            "privileged": true
+          }
+        ]
+      }
+    ]
+  }
+}
