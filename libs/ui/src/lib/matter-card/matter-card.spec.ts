@@ -59,4 +59,17 @@ describe('MtMatterCard', () => {
     expect(open).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('img', { name: /priority/ })).toBeNull();
   });
+
+  it('counts open tasks (none shown at zero) and projects an action into the top row', async () => {
+    const { container, rerender } = await render(
+      `<mt-matter-card [matter]="matter"><button mtMatterCardAction type="button">Move to…</button></mt-matter-card>`,
+      { imports: [MtMatterCard], componentProperties: { matter: { ...MATTER, openTasks: 3 } }, providers },
+    );
+    expect(container.querySelector('.top .actions button')).toHaveTextContent('Move to…');
+    expect(screen.getByText('3 open tasks')).toHaveClass('mt-sr');
+    await rerender({ componentProperties: { matter: { ...MATTER, openTasks: 1 } } });
+    expect(screen.getByText('1 open task')).toBeInTheDocument();
+    await rerender({ componentProperties: { matter: { ...MATTER, openTasks: 0 } } });
+    expect(container.querySelector('.tasks')).toBeNull();
+  });
 });
