@@ -81,7 +81,7 @@ describe('matterDocumentRepository', () => {
     const rows = await docs.query(matterDocumentsQuery({ privilegedVisible: true }));
     expect(rows.map((r) => r.name)).toEqual(['Newer.pdf', 'Older.pdf']);
     // A removed document still resolves by id.
-    expect(await docs.get('d-3')).toMatchObject({ name: 'Gone.pdf' });
+    expect(await docs.get('d-3')).toMatchObject({ name: 'Gone.pdf', deletedAt: new Date('2026-10-02T00:00:00Z') });
   });
 
   it('edits whitelisted metadata and soft deletes', async () => {
