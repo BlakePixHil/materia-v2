@@ -1,5 +1,4 @@
-import MsgReader from '@kenjiuno/msgreader';
-import { simpleParser, type AddressObject } from 'mailparser';
+import type { AddressObject } from 'mailparser';
 
 import {
   DOCUMENT_MAX_BYTES,
@@ -89,6 +88,8 @@ const addresses = (value: AddressObject | AddressObject[] | undefined): MessageA
   );
 
 async function parseEml(data: Buffer): Promise<ParsedMessage> {
+  // Loaded on first use: every function shares this bundle, so top-level parsers slow every cold start.
+  const { simpleParser } = await import('mailparser');
   const mail = await simpleParser(data, { skipImageLinks: true, skipTextToHtml: true, skipTextLinks: true });
   const files = mail.attachments.map((a, index) => ({
     fileName: safeAttachmentName(a.filename, index),
@@ -109,7 +110,18 @@ async function parseEml(data: Buffer): Promise<ParsedMessage> {
   };
 }
 
-function parseMsg(data: Buffer): ParsedMessage {
+/**
+ * The .msg reader, loaded on first use. Node's `import()` of this CommonJS package gives its
+ * `exports` object as `default`, so the class is one level further down there.
+ */
+async function loadMsgReader() {
+  const module = (await import('@kenjiuno/msgreader')).default as unknown as
+    typeof import('@kenjiuno/msgreader').default | { default: typeof import('@kenjiuno/msgreader').default };
+  return 'default' in module ? module.default : module;
+}
+
+async function parseMsg(data: Buffer): Promise<ParsedMessage> {
+  const MsgReader = await loadMsgReader();
   const reader = new MsgReader(new DataView(data.buffer, data.byteOffset, data.byteLength));
   const message = reader.getFileData();
   if (message.error) throw new Error('Unreadable message');

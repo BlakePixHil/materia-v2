@@ -147,6 +147,29 @@ export function repointMatter(matter: Data, from: string, to: string): Data | nu
  * role the kept contact already has on that matter is soft-deleted as well.
  */
 export async function repointPage(ctx: RepointContext, limit: number): Promise<{ repointed: number; more: boolean }> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await repointPageOnce(ctx, limit);
+    } catch (error) {
+      // A matter changed between the read and its guarded write (a trigger such as
+      // matters-denormalise, or a person editing it): read again and re-point what is left.
+      if (!isFailedPrecondition(error) || attempt >= REPOINT_ATTEMPTS) throw error;
+      ctx.log.warn('a matter changed while re-pointing, retrying', {
+        attempt,
+        keepId: ctx.keepId,
+        mergeId: ctx.mergeId,
+      });
+    }
+  }
+}
+
+/** Attempts per page when a matter changes under the re-pointing (see `repointPage`). */
+const REPOINT_ATTEMPTS = 3;
+
+/** gRPC FAILED_PRECONDITION: a write's `lastUpdateTime` precondition no longer held. */
+const isFailedPrecondition = (error: unknown) => (error as { code?: unknown } | null)?.code === 9;
+
+async function repointPageOnce(ctx: RepointContext, limit: number): Promise<{ repointed: number; more: boolean }> {
   const { db, orgId, keepId, mergeId } = ctx;
   const now = ctx.clock.now();
   const meta = stamp(ctx.uid, now, ctx.requestId);
@@ -191,7 +214,7 @@ export async function repointPage(ctx: RepointContext, limit: number): Promise<{
   for (const matter of matters.values()) {
     const patch = repointMatter(matter.data() as Data, mergeId, keepId);
     if (!patch) continue;
-    // Guard against a concurrent edit of the same array: the batch fails and the run is retried.
+    // Guard against a concurrent edit of the same array: the batch fails and the page is retried.
     const precondition = matter.updateTime ? { lastUpdateTime: matter.updateTime } : undefined;
     writes.add((batch) =>
       precondition
