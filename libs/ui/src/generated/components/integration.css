@@ -3,3 +3,7 @@
 .mt-integration .logo { width: 36px; height: 36px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-sunken); color: var(--icon-default); font: 600 13px/1 var(--font-sans); flex: none; }
 .mt-integration-name { font: 500 13px/18px var(--font-sans); color: var(--text-primary); }
 .mt-integration-desc { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
+.mt-integration[data-state="error"] { border-color: var(--border-danger); }
+.mt-integration[data-state="error"] .logo { background: var(--bg-danger-subtle); color: var(--text-danger); }
+.mt-integration-error { display: flex; align-items: flex-start; gap: var(--space-6); margin-top: var(--space-4); font: 400 12px/16px var(--font-sans); color: var(--text-danger); }
+.mt-integration-error .mt-i { width: 13px; height: 13px; margin-top: 2px; }

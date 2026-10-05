@@ -24,7 +24,7 @@ Types used below: `DateOnly` = `YYYY-MM-DD`; `Cents` = integer AUD cents; `Minut
 - Person fields: `givenNames`, `familyName`, `preferredName?`, `dateOfBirth?: DateOnly`, `dateOfDeath?: DateOnly`
 - Organisation fields: `orgName`, `abn?`
 - `emails[]`, `phones[]` (E.164; legacy `04…` becomes `+614…`), `addresses[] {type, line1, line2?, suburb, state, postcode, country:'AU'}`
-- `tags[]`, `isReferrer: bool`, `referrerMeta?: {company, industry}`, `notes?`
+- `tags[]`, `isReferrer: bool`, `referrerMeta?: {company?, industry?: 'accountant'|'financial_planner'|'funeral_director'|'law_firm'|'aged_care'|'bank'|'other'}` (CORE-18; free text stored before the enum reads as `other`, and `referrerIndustryFromText` maps legacy text), `notes?`
 - `search: string[]` (prefix tokens), `dedupeKey` (normalised name plus DOB), `sortName` (lower-cased display name, for `orderBy`): server-owned, kept current by the `contacts-onWrite` trigger
 - `mergedInto?`, used when contacts are merged; it is a tombstone pointer. A tombstone is also soft-deleted and the rules freeze it.
 
@@ -46,7 +46,7 @@ Functions (CORE-01): `contacts-create` (`contact.edit`; creates are callable-onl
 - `deceased?: {contactId, dateOfDeath?: DateOnly, domicile, lastAddress}`. `dateOfDeath` is absent while unknown (CORE-05): no `date_of_death` event, template tasks anchored on it show "due date pending", and intake creates a death certificate task; recording it later (key facts) makes the event known.
 - `testator?: {contactId}`, for will and POA matters (for a POA, the principal).
 - `facts?: {willDate?: DateOnly, courtFileNo?, trustName?}`: key facts not held elsewhere (CORE-06; `trustName` for trust matters, CORE-05).
-- `referrerContactId?`.
+- `referrerContactId?` or, when no contact referred the matter, `referralSource?: 'unknown'|'website'|'existing_client'|'walk_in'` (CORE-18; never both). Set at intake (clients step) and edited on the matter header (client-direct). A referrer's contact page lists the live matters with their `referrerContactId` (equality filters only, no composite index; `privileged == false` without `privileged.view`), with the count, the active count and the last referral date; billed fees join with BILL-07.
 
 **Fees and conflicts**
 - `fee: {arrangement: 'hourly'|'fixed'|'capped'|'conditional'|'pro_bono', amountCents?, capCents?, estimateCents?, rateOverrideCents?, conditional?: {upliftPct (≤ 25), condition}, history[]}`. `FeeInput` (CORE-05) checks the arrangement: fixed needs `amountCents`, capped `capCents` (and an estimate within it), conditional `conditional`, pro bono no amounts.
@@ -399,7 +399,7 @@ Every notification goes through `notify()` (`apps/functions/src/notifications/no
 - **matters:**
   - `legalHold {on, reason, by, at}` (CORE-19);
   - `budget {recordedCents, billedCents, basisCents, pct}` (BILL-05);
-  - `referralSource` (CORE-18);
+  - `referralSource` (CORE-18, see People above);
   - `litigationSummary` (LIT-02);
   - `recomputeVersion` (CORE-10);
   - `emailToken` (INT-05);
@@ -420,6 +420,6 @@ Every notification goes through `notify()` (`apps/functions/src/notifications/no
   - adds `basis` and `dedupeKey`.
 - **notes:** `revisions/{id}` subcollection (CORE-13), and `privileged` per note.
 - **org:**
-  - `settings.clerk` (AI-13), `security` (SEC-04), `flags` (FND-23);
+  - `settings.clerk` (AI-13), `settings.referrals.thankYouTask` (CORE-18: owners and admins switch it on beside the Contacts → Referrers filter; when a matter with a referrer contact opens, at create or `lead → open` in `matters-changeStatus`, it gets one task `referrer-thank-you`, "Thank {referrer} for the referral", for the responsible lawyer, due in 7 days, counted in `openTaskCount` by the writer), `security` (SEC-04), `flags` (FND-23);
   - `legalHold`, `deletionScheduledAt` (SEC-05);
   - `termsAcceptedVersion` (SEC-01).
