@@ -61,10 +61,10 @@ describe('app routes', () => {
     const { router, el, title, crumbs } = await setup('/', testSession(), {}, new InMemoryFirestore());
     expect(router.url).toBe('/today');
     expect(title()).toBe('Today · Materia');
-    expect(el.querySelector('h1')?.textContent).toContain('Today');
-    // My tasks due this week (CORE-08); the rest of Today comes with CORE-14.
-    expect(el.textContent).toContain('Nothing due this week');
-    expect(el.textContent).toContain('More coming in CORE-14');
+    // The Today screen (CORE-14) greets the person by name.
+    expect(el.querySelector('h1')?.textContent?.trim()).toMatch(/^Good (morning|afternoon|evening), Jordan$/);
+    expect(el.textContent).toContain('Needs attention');
+    expect(el.textContent).toContain('Your week is clear');
     expect(crumbs()).toEqual(['Today']);
     const nav = [...el.querySelectorAll('aside nav a')].map((a) => a.textContent?.trim());
     // Disputes is behind the litigation flag (off by default).

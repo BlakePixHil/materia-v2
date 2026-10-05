@@ -65,6 +65,8 @@ export class TaskActions {
   readonly announcement = signal('');
   /** A bulk change is on its way to the server. */
   readonly busy = signal(false);
+  /** Counts the writes made (undo included), for lists that read once and refresh after a change. */
+  readonly writes = signal(0);
 
   /** The repository a task is written through: its matter's, or the person's own. */
   repoFor(matterId: string | null | undefined): Repository<TaskItem> {
@@ -79,6 +81,7 @@ export class TaskActions {
 
   /** Runs a write without waiting for it (it may be queued offline); a failure shows a toast. */
   private write(work: Promise<unknown>, failure: string): void {
+    this.writes.update((n) => n + 1);
     work.catch((error: unknown) => this.toasts.show({ title: failure, description: errorCopy(error), tone: 'danger' }));
   }
 
@@ -340,6 +343,7 @@ export class TaskActions {
           const result = await this.callables.bulkUpdate({ tasks, change });
           skipped += result.skipped.filter((s) => s.reason !== 'unchanged').length;
         }
+        this.writes.update((n) => n + 1);
         if (skipped) {
           this.toasts.show({
             title: `${plural(skipped, 'task')} ${skipped === 1 ? 'wasn’t' : 'weren’t'} changed`,

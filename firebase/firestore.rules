@@ -226,6 +226,35 @@ service cloud.firestore {
           && validDraft(request.resource.data);
         allow update: if isDraftOwner() && clientUpdate(fieldsIntakeDraft()) && validDraft(request.resource.data);
       }
+
+      // Recently opened matters (CORE-14): `{orgId}_{matterId}`, private to their user. Opening a
+      // matter writes the whole entry again (a set: a create the first time, an update after), so
+      // `updatedAt` is when it was last opened. Each names a matter in the caller's current org;
+      // `expireAt` is about 90 days on (a day's slack for the client's clock) and Firestore TTL
+      // deletes the entry then.
+      match /recent/{recentId} {
+        function isRecentOwner() {
+          return isSignedIn() && uid() == userId;
+        }
+        function validRecent(data) {
+          return data.orgId == claimOrg() && inOrg(claimOrg())
+            && data.matterId is string && data.matterId.size() > 0
+            && recentId == data.orgId + '_' + data.matterId
+            && data.expireAt is timestamp
+            && data.expireAt > request.time + duration.value(89, 'd')
+            && data.expireAt <= request.time + duration.value(91, 'd');
+        }
+        function recentKeys() {
+          return fieldsRecentMatter().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']);
+        }
+        allow read, delete: if isRecentOwner();
+        allow create, update: if isRecentOwner()
+          && request.resource.data.keys().hasOnly(recentKeys())
+          && request.resource.data.keys().hasAll(recentKeys())
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt is timestamp
+          && validMeta() && request.resource.data.schemaVersion == 1
+          && validRecent(request.resource.data);
+      }
     }
 
     // ---------- organisations ----------
@@ -658,6 +687,7 @@ service cloud.firestore {
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
+    function fieldsRecentMatter() { return ['orgId', 'matterId', 'expireAt']; }
     function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'flag', 'disclaimer', 'rules']; }
     function fieldsSafeCustody() { return ['testatorContactId', 'documentIds', 'packetNo', 'location', 'receivedOn']; }
     function fieldsSavedView() { return ['orgId', 'list', 'name', 'filters', 'sort', 'groupBy']; }

@@ -1,6 +1,5 @@
 import {
   afterNextRender,
-  booleanAttribute,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -15,7 +14,6 @@ import {
   viewChild,
   ViewEncapsulation,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
 
 import { can, OrgContext } from '@materia/data-access';
 import {
@@ -58,66 +56,60 @@ import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 const PERSONAL = 'personal';
 type TypeFilter = MatterType | typeof PERSONAL;
 
-/** Sections the Today screen shows; the rest are on `/tasks`. */
-const TODAY_SECTIONS = new Set(['overdue', 'today', 'this_week']);
-
 /**
  * My tasks (CORE-08): every open task assigned to me across matters, and my personal tasks, from
  * the `tasks` collection group, in Overdue, Today, This week, Later and No date (today in the org's
- * time zone). Filters by matter type and priority; `c` adds a personal task. `compact` (the Today
- * screen) shows only what's due this week, without filters.
+ * time zone). Filters by matter type and priority; `c` adds a personal task.
  */
 @Component({
   selector: 'mt-my-tasks',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   providers: [TaskActions],
-  imports: [MT_MENU, MtButton, MtEmptyState, MtIcon, MtNote, RouterLink, TaskList, TaskQuickAdd, TasksBulkBar],
+  imports: [MT_MENU, MtButton, MtEmptyState, MtIcon, MtNote, TaskList, TaskQuickAdd, TasksBulkBar],
   host: { class: 'mt-my-tasks' },
   template: `
-    @if (!compact()) {
-      <div class="bar" role="group" aria-label="Filters">
-        <button
-          type="button"
-          class="mt-chip"
-          [attr.data-selected]="types().length ? '' : null"
-          [mtMenuTrigger]="typeMenu"
-        >
-          {{ typeText() }}<mt-icon name="chevron-down" />
-        </button>
-        <button
-          type="button"
-          class="mt-chip"
-          [attr.data-selected]="priorities().length ? '' : null"
-          [mtMenuTrigger]="priorityMenu"
-        >
-          {{ priorityText() }}<mt-icon name="chevron-down" />
-        </button>
-        @if (types().length || priorities().length) {
-          <button mtButton variant="ghost" size="sm" (click)="clearFilters()">Clear filters</button>
-        }
-        <button
-          #addButton
-          class="mt-ml"
-          mtButton
-          variant="primary"
-          size="sm"
-          iconStart="plus"
-          kbd="c"
-          (click)="adding.set(true)"
-        >
-          Add personal task
-        </button>
-      </div>
-      @if (adding()) {
-        <mt-task-quick-add
-          [personal]="true"
-          label="New personal task"
-          placeholder="Task title, !priority, due date"
-          (saved)="create($event)"
-          (closed)="closeQuickAdd()"
-        />
+    <div class="bar" role="group" aria-label="Filters">
+      <button
+        type="button"
+        class="mt-chip"
+        [attr.data-selected]="types().length ? '' : null"
+        [mtMenuTrigger]="typeMenu"
+      >
+        {{ typeText() }}<mt-icon name="chevron-down" />
+      </button>
+      <button
+        type="button"
+        class="mt-chip"
+        [attr.data-selected]="priorities().length ? '' : null"
+        [mtMenuTrigger]="priorityMenu"
+      >
+        {{ priorityText() }}<mt-icon name="chevron-down" />
+      </button>
+      @if (types().length || priorities().length) {
+        <button mtButton variant="ghost" size="sm" (click)="clearFilters()">Clear filters</button>
       }
+      <button
+        #addButton
+        class="mt-ml"
+        mtButton
+        variant="primary"
+        size="sm"
+        iconStart="plus"
+        kbd="c"
+        (click)="adding.set(true)"
+      >
+        Add personal task
+      </button>
+    </div>
+    @if (adding()) {
+      <mt-task-quick-add
+        [personal]="true"
+        label="New personal task"
+        placeholder="Task title, !priority, due date"
+        (saved)="create($event)"
+        (closed)="closeQuickAdd()"
+      />
     }
     @switch (tasks.status()) {
       @case ('loading') {
@@ -144,18 +136,10 @@ const TODAY_SECTIONS = new Set(['overdue', 'today', 'this_week']);
         } @else {
           <mt-empty-state
             icon="check-circle"
-            [title]="compact() ? 'Nothing due this week' : 'Nothing assigned to you'"
-            [description]="
-              compact()
-                ? 'Tasks due later or without a date are in My tasks.'
-                : 'Open tasks assigned to you, and your personal tasks, show here.'
-            "
+            title="Nothing assigned to you"
+            description="Open tasks assigned to you, and your personal tasks, show here."
             [headingLevel]="headingLevel()"
-          >
-            @if (compact()) {
-              <a mtButton size="sm" routerLink="/tasks">Open my tasks</a>
-            }
-          </mt-empty-state>
+          />
         }
       }
     }
@@ -239,8 +223,6 @@ const TODAY_SECTIONS = new Set(['overdue', 'today', 'this_week']);
   `,
 })
 export class MyTasks {
-  /** The Today screen's short version: this week's sections, no filters or quick-add. */
-  readonly compact = input(false, { transform: booleanAttribute });
   readonly headingLevel = input(2);
 
   protected readonly actions = inject(TaskActions);
@@ -278,7 +260,7 @@ export class MyTasks {
   protected readonly priorityNames = PRIORITY_NAMES;
   protected readonly types = signal<readonly TypeFilter[]>([]);
   protected readonly priorities = signal<readonly Priority[]>([]);
-  protected readonly filtered = computed(() => !this.compact() && this.types().length + this.priorities().length > 0);
+  protected readonly filtered = computed(() => this.types().length + this.priorities().length > 0);
   protected readonly adding = signal(false);
   protected readonly selection = signal<readonly string[]>([]);
 
@@ -286,8 +268,8 @@ export class MyTasks {
     const members = this.memberList();
     const matters = this.matters();
     const canEdit = this.canEdit();
-    const types = this.compact() ? [] : this.types();
-    const priorities = this.compact() ? [] : this.priorities();
+    const types = this.types();
+    const priorities = this.priorities();
     return this.tasks
       .value()
       .filter((task) => !priorities.length || priorities.includes(task.priority))
@@ -306,7 +288,7 @@ export class MyTasks {
     const byKey = new Map(this.entries().map((entry) => [entry.key, entry] as const));
     const rows = this.entries().map((entry) => ({ ...entry.task, id: entry.key }));
     return sectionMyTasks(rows, this.today())
-      .filter((section) => section.tasks.length && (!this.compact() || TODAY_SECTIONS.has(section.id)))
+      .filter((section) => section.tasks.length)
       .map((section) => ({
         id: section.id,
         label: section.label,
@@ -332,7 +314,7 @@ export class MyTasks {
   constructor() {
     // Quick-add understands its tokens even if the connection drops before it's first opened.
     afterNextRender(() => {
-      if (!this.compact()) loadQuickAddParser().catch(() => undefined);
+      loadQuickAddParser().catch(() => undefined);
     });
     effect(() => {
       const ids = [
@@ -354,7 +336,6 @@ export class MyTasks {
         description: 'Add a personal task',
         group: 'Tasks',
         scope: 'route',
-        when: () => !this.compact(),
         handler: () => this.adding.set(true),
       }),
       shortcuts.register({

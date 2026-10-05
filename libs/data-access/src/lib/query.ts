@@ -57,6 +57,11 @@ export interface WriteMeta {
 export interface CollectionDriver {
   listen(request: PageRequest, next: (page: RawPage) => void, error: (error: unknown) => void): () => void;
   fetch(request: PageRequest): Promise<RawPage>;
+  /**
+   * The same page from this device's cache only (never the server), for showing cached rows while
+   * a one-shot read waits for the server. Optional: drivers without a cache leave it out.
+   */
+  fetchCached?(request: PageRequest): Promise<RawPage>;
   watchDoc(
     id: string,
     next: (doc: RawDoc | null, fromCache: boolean) => void,

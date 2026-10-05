@@ -102,6 +102,7 @@ export class InMemoryFirestore {
   private readonly listeners = new Set<Listener>();
   private nextId = 1;
   private failure: unknown = null;
+  private readonly denied = new Set<string>();
   /** Served from "cache": listeners report `fromCache` and writes still apply locally. */
   offline = false;
   /** Nothing ever arrives: listeners stay attached without a first snapshot (a loading state). */
@@ -143,6 +144,11 @@ export class InMemoryFirestore {
   /** The next read or listen fails with this error (a Firestore-style `{ code }`). */
   failNext(error: unknown): void {
     this.failure = error;
+  }
+
+  /** Reading this document by its path is refused, as the rules refuse a privileged matter. */
+  denyRead(docPath: string): void {
+    this.denied.add(docPath);
   }
 
   /** Every listener on a collection fails, as Firestore does when the rules start refusing. */
@@ -314,6 +320,7 @@ export class InMemoryFirestore {
       getDoc: async (id) => {
         const failure = this.takeFailure();
         if (failure) throw failure;
+        if (this.denied.has(`${path}/${id}`)) throw { code: 'permission-denied', message: 'Missing permissions' };
         const data = docs().get(id);
         return data ? this.raw(id, data, path) : null;
       },

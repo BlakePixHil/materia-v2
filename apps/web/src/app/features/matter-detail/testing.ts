@@ -1,3 +1,4 @@
+import type { Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, TitleStrategy } from '@angular/router';
 
@@ -355,6 +356,8 @@ export interface OpenOptions {
   callables?: Record<string, FakeCallable>;
   /** Feature flags as Remote Config values (`{ 'templates.system': true }`). */
   flags?: Record<string, FlagValue>;
+  /** Extra providers (a fixed clock, a device time zone). */
+  providers?: Provider[];
 }
 
 /** Matter templates on (CORE-07). */
@@ -384,6 +387,7 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
       { provide: TENANCY_PORT, useValue: new FakeTenancyPort() },
       provideInMemoryFirestore(firestore),
       ...provideTestFlags(options.flags),
+      ...(options.providers ?? []),
     ],
   });
   const fixture = TestBed.createComponent(App);

@@ -219,12 +219,26 @@ Computed deadlines come from the engine (CORE-09, `docs/06-deadline-engine.md`);
 7. `privileged` documents and offers are never readable by `readonly`, and are excluded from exports unless `includePrivileged` is set by owner or admin.
 8. Deleting a matter is a soft delete. Hard deletes happen only through retention jobs after `destroyAfter`.
 
+### Today (CORE-14)
+
+The Today screen (`/today`, apps/web `features/today`) is the signed-in person's day in the active org. Its reads are in `libs/data-access/src/lib/today.ts`, the merging and ordering in `libs/domain/src/lib/today.ts`; ADR-029 records the design.
+
+- **The day.** Today is `dateOnlyAt(now, org.timezone)` (`orgs/{orgId}.timezone`, default `Australia/Melbourne`); the week runs to Sunday (`todayWindow`). When the device's wall clock differs from the org's, the header says so (`timeZoneHint`).
+- **Needs attention** (live listeners): my overdue deadlines (`myOverdueDeadlinesQuery`: `assigneeUid == me`, `upcoming`, `dueDate < today`) and the proposals waiting on me (`myTodayChangesQuery`). `needsAttention` orders them: changes that would move a critical deadline into the past, escalations awaiting acknowledgement (CORE-11; none yet), overdue deadlines (oldest first, critical first on a day), then the other changes.
+- **Due today and this week** (read once): my upcoming deadlines and open tasks due from today to Sunday (`myDeadlinesThisWeekQuery`, `myTasksThisWeekQuery`), merged by `dueThisWeek`: due date, then priority (a critical deadline before everything, any other deadline with high-priority tasks), deadlines before tasks, then time and order. `groupDueItems` heads them Today and Later this week.
+- **My tasks** (read once): my next 8 open tasks with a date (`myNextTasksQuery`), most overdue first, linking to `/tasks`.
+- **Recent matters** (read once): `users/{uid}/recent` for the org, latest first (`recentMattersQuery`).
+- **Numbers** (count aggregation, not while offline): open matters I am responsible for, my deadlines this week, my open tasks; and, for the new-practice checklist (`onboardingSteps`), the org's live matters and active members.
+- **Limits and access.** Each section reads at most `TODAY_SECTION_LIMIT` (50) rows and links to its full list when cut. Every query is mine (`assigneeUid == me`) and scoped to the org (`groupRepo`). Each row's matter is read once (`todayMatterRepository().get`); rows on a matter that is refused, missing or deleted are left out without a word.
+- **Freshness.** The one-shot reads show this device's cache first (`watchQuery(…, {live: false, cacheFirst: true})`, `getDocsFromCache` then the server) and read again when the window regains focus (at most every 10 s, online only) and after a task changes on the page (`TaskActions.writes`).
+
 ## Indexes (initial)
 
 - `matters`: the list queries in *Matters list queries* above, each led by `deletedAt` (and `privileged`).
 - Collection group `tasks`: (assigneeUid, status, dueDate), (orgId, status, dueDate), and for My tasks (CORE-08) (orgId, assigneeUid, status), (orgId, assigneeUid, status, dueDate), (orgId, assigneeUid, dueDate). Collection-group docs carry a denormalised `orgId` and `matterId` (`null` for personal tasks).
 - Collection group `deadlines`: (orgId, status, dueDate), (assigneeUid, status, dueDate), and for the Deadlines screen (CORE-10) (orgId, assigneeUid, status, dueDate), (orgId, status, critical, dueDate), (orgId, status, kind, dueDate), (orgId, status, pastOnCreation, dueDate).
 - Collection group `deadlineChanges`: (orgId, status, createdAt desc), (orgId, assigneeUid, status, createdAt desc).
+- `recent` (CORE-14): (orgId, updatedAt desc), and a TTL on `expireAt`.
 - Collection group `timeEntries`: (orgId, uid, date), (orgId, status, date).
 - Collection group `chunks`: a vector index on `embedding` with `orgId` and `matterId` pre-filters.
 
@@ -236,7 +250,7 @@ Computed deadlines come from the engine (CORE-09, `docs/06-deadline-engine.md`);
 |---|---|
 | `users/{uid}.claimsVersion` | Incremented by `auth-syncClaims`. The client refreshes its token when this changes (FND-17) |
 | `users/{uid}/devices/{deviceId}` | `{token, platform, lastSeenAt}` FCM registry (FND-20, MOB-04) |
-| `users/{uid}/views/{id}`, `users/{uid}/recent`, `users/{uid}/drafts/{id}` | Saved list views (CORE-03: `SavedView`, the user's own, written by the client with `orgId` = their current org), recents (CORE-14/15), intake drafts (CORE-05: `IntakeDraft` at `drafts/intake-{id}`, `{orgId, kind: 'intake', step: IntakeStepId, stateJson, expireAt}` + meta; written by the client directly, read, written and deleted only by their user in their current org; `stateJson` is the partial form state as JSON text of at most 100,000 characters (`encodeIntakeDraftState`/`decodeIntakeDraftState`) so the rules can bound it; `expireAt` = save + 30 days (`intakeDraftExpireAt`; the rules accept 29–31 days from the request time) and the `drafts` collection group has a Firestore TTL on `expireAt` in `firebase/firestore.indexes.json`) |
+| `users/{uid}/views/{id}`, `users/{uid}/recent/{orgId}_{matterId}`, `users/{uid}/drafts/{id}` | Saved list views (CORE-03: `SavedView`, the user's own, written by the client with `orgId` = their current org), recent matters (CORE-14: `RecentMatter`, `{orgId, matterId, expireAt}` + meta, id `recentMatterId(orgId, matterId)`; the matter screen writes the whole entry again each time a matter opens, so `updatedAt` is the latest open; read, written and deleted only by their user, for their current org; `expireAt` = open + 90 days (`recentMatterExpireAt`; the rules accept 89–91 days from the request time) with a Firestore TTL on the `recent` collection group; Today reads the latest 8 for the org), intake drafts (CORE-05: `IntakeDraft` at `drafts/intake-{id}`, `{orgId, kind: 'intake', step: IntakeStepId, stateJson, expireAt}` + meta; written by the client directly, read, written and deleted only by their user in their current org; `stateJson` is the partial form state as JSON text of at most 100,000 characters (`encodeIntakeDraftState`/`decodeIntakeDraftState`) so the rules can bound it; `expireAt` = save + 30 days (`intakeDraftExpireAt`; the rules accept 29–31 days from the request time) and the `drafts` collection group has a Firestore TTL on `expireAt` in `firebase/firestore.indexes.json`) |
 | `users/{uid}/timer/current` | The single running timer (BILL-02) |
 | `users/{uid}/briefs/{date}` | Clerk daily brief (AI-09) |
 | `users/{uid}/private/recovery` | **Server-only.** Hashed MFA recovery codes (FND-16) |
