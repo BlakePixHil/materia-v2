@@ -15,6 +15,7 @@ import {
   addDays,
   DEADLINE_ESCALATION_RECIPIENTS_MAX,
   DEFAULT_TASK_REMINDER_DAYS,
+  OPEN_TASK_STATUSES,
   readNotificationPrefs,
   TASK_REMINDER_DAYS_MAX,
   wallClockAt,
@@ -46,9 +47,6 @@ type Data = Record<string, unknown>;
 
 /** The heartbeat document the "reminders not running" alert and the ops screens read. */
 export const HEARTBEAT_PATH = 'heartbeats/reminders-dispatch';
-
-/** Task statuses that still get a due-date reminder. */
-const OPEN_TASK_STATUSES = ['todo', 'in_progress', 'blocked'];
 
 export interface DispatchOutcome {
   reminders: string[];
@@ -84,8 +82,9 @@ const admins = (members: Map<string, Data>) =>
     .map(([uid]) => uid)
     .sort();
 
-const unique = (uids: readonly unknown[]) =>
-  [...new Set(uids.filter((uid): uid is string => typeof uid === 'string' && uid.length > 0))];
+const unique = (uids: readonly unknown[]) => [
+  ...new Set(uids.filter((uid): uid is string => typeof uid === 'string' && uid.length > 0)),
+];
 
 const matterLabel = (matter: Data | undefined) =>
   typeof matter?.['number'] === 'string' && matter['number'] ? matter['number'] : 'a matter';
@@ -118,7 +117,8 @@ async function sendReminder(run: OrgRun, ref: DocumentReference): Promise<void> 
       tx.update(ref, update);
       return due ? 'skipped' : 'none';
     }
-    const assignee = typeof data['assigneeUid'] === 'string' && run.members.has(data['assigneeUid']) ? data['assigneeUid'] : null;
+    const assignee =
+      typeof data['assigneeUid'] === 'string' && run.members.has(data['assigneeUid']) ? data['assigneeUid'] : null;
     // No assignee (or one who has left): the responsible lawyer and the admins.
     const recipients = unique(
       assignee ? [assignee, matter['responsibleUid']] : [matter['responsibleUid'], ...admins(run.members)],
@@ -177,7 +177,8 @@ async function escalate(run: OrgRun, ref: DocumentReference): Promise<void> {
     if (!remindable(data) || !escalatable(data, run.today)) return 'none';
     if (run.now.getTime() < escalationAt(data.dueDate, run.cal).getTime()) return 'none';
     if (!matter || isDeleted(matter) || CLOSED_STATUSES.has(matter['status'])) return 'skipped';
-    const responsible = typeof matter['responsibleUid'] === 'string' ? run.members.get(matter['responsibleUid']) : undefined;
+    const responsible =
+      typeof matter['responsibleUid'] === 'string' ? run.members.get(matter['responsibleUid']) : undefined;
     const recipients = unique([responsible?.['supervisorUid'], ...admins(run.members)])
       .filter((uid) => run.members.has(uid))
       .sort()
@@ -219,7 +220,8 @@ async function remindTask(run: OrgRun, ref: DocumentReference, reminderDays: Map
     notified = undefined;
     const data = (await tx.get(ref)).data();
     const matter = matterId ? (await tx.get(run.db.doc(matterPath(run.orgId, matterId)))).data() : undefined;
-    if (!data || isDeleted(data) || !OPEN_TASK_STATUSES.includes(String(data['status']))) return 'none';
+    if (!data || isDeleted(data) || !(OPEN_TASK_STATUSES as readonly string[]).includes(String(data['status'])))
+      return 'none';
     const dueDate = data['dueDate'];
     const assignee = data['assigneeUid'];
     if (typeof dueDate !== 'string' || dueDate < run.today || data['reminderSentFor'] === dueDate) return 'none';
@@ -291,7 +293,11 @@ export async function dispatchOrg(
       try {
         await step(ref);
       } catch (error) {
-        log.error(`${what} failed`, { orgId, id: ref.id, errorType: error instanceof Error ? error.name : typeof error });
+        log.error(`${what} failed`, {
+          orgId,
+          id: ref.id,
+          errorType: error instanceof Error ? error.name : typeof error,
+        });
       }
     }
   };
@@ -326,7 +332,7 @@ export async function dispatchOrg(
     const tasks = await db
       .collectionGroup('tasks')
       .where('orgId', '==', orgId)
-      .where('status', 'in', OPEN_TASK_STATUSES)
+      .where('status', 'in', [...OPEN_TASK_STATUSES])
       .where('dueDate', '>=', run.today)
       .where('dueDate', '<=', addDays(run.today, TASK_REMINDER_DAYS_MAX + 7))
       .get();
