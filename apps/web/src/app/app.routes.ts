@@ -1,9 +1,10 @@
 import { inject } from '@angular/core';
-import { Route } from '@angular/router';
+import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 
 import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgScopedGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
+import { readLayout } from './features/matters/matters-layout';
 import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
 import { unsavedChangesGuard } from './features/settings/unsaved-changes';
 import { MATTER_TABS } from './pages/matter-tabs';
@@ -64,6 +65,20 @@ const matterRoutes: Route[] = [
     path: '',
     pathMatch: 'full',
     title: 'Matters',
+    // Opens the board when that's the layout the Matters page was last left on (CORE-04).
+    canActivate: [
+      (route: ActivatedRouteSnapshot) =>
+        readLayout() === 'board'
+          ? inject(Router).createUrlTree(['/matters', 'board'], { queryParams: route.queryParams })
+          : true,
+    ],
+    loadComponent: () => import('./features/matters/matters-page').then((m) => m.MattersPage),
+  },
+  // The Matters board (CORE-04): the same page, filters and views, as a kanban.
+  {
+    path: 'board',
+    title: 'Matters board',
+    data: { layout: 'board' },
     loadComponent: () => import('./features/matters/matters-page').then((m) => m.MattersPage),
   },
   // New matter intake (CORE-05).
@@ -228,6 +243,14 @@ const shellRoutes: Route[] = [
             loadComponent: () => import('./features/templates/template-editor-page').then((m) => m.TemplateEditorPage),
           },
         ],
+      },
+      // Clerk (AI-02a): the firm's own Anthropic key and model; owners and admins (`clerk.configure`).
+      {
+        path: 'clerk',
+        title: 'Clerk',
+        data: { crumb: 'Clerk' },
+        canActivate: [roleGuard(['owner', 'admin'])],
+        loadComponent: () => import('./features/clerk-settings/clerk-settings-page').then((m) => m.ClerkSettingsPage),
       },
       {
         path: 'audit',

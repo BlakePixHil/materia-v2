@@ -165,6 +165,9 @@ describe('AppShellComponent', () => {
   it('opens the palette with mod+k and runs a navigation command', async () => {
     const { router, press, fixture } = await setup();
     await press('k', { ctrlKey: true });
+    // The palette is loaded on the first ⌘K (CORE-15).
+    await vi.waitFor(() => expect(document.querySelector('input[role="combobox"]')).not.toBeNull());
+    await fixture.whenStable();
     const input = document.querySelector<HTMLInputElement>('input[role="combobox"]');
     expect(input).not.toBeNull();
     const labels = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim());

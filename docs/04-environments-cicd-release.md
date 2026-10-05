@@ -21,7 +21,7 @@
 - **Runtime service accounts:** one per function group. The default compute SA is not used.
 - **Secrets:** Secret Manager, accessed with `defineSecret()` in functions. Examples:
   - `POSTMARK_TOKEN` and `POSTMARK_WEBHOOK_SECRET` (FND-20, infra/MANUAL.md);
-  - `ANTHROPIC_API_KEY`, only if the Anthropic API is chosen;
+  - `ANTHROPIC_API_KEY`: unused since AI-02a (each firm brings its own key, KMS-encrypted; ADR-011b), kept as an empty container;
   - `XERO_CLIENT_SECRET`, `MS_CLIENT_SECRET`, `GOOGLE_CLIENT_SECRET`.
 - **Client config** (the Firebase web config) is not secret. It is generated per env into `apps/web/src/environments/` by `tools/scripts/env.ts` from Terraform outputs.
 

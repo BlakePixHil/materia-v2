@@ -34,6 +34,7 @@ jobs:
       e2e: ${{ steps.filter.outputs.e2e }}
       storybook: ${{ steps.filter.outputs.storybook }}
       jobs: ${{ steps.filter.outputs.jobs }}
+      doc-services: ${{ steps.filter.outputs.doc-services }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,6 +49,7 @@ jobs:
           if echo "$affected" | grep -qx 'web-e2e'; then echo "e2e=true" >> "$GITHUB_OUTPUT"; else echo "e2e=false" >> "$GITHUB_OUTPUT"; fi
           if echo "$affected" | grep -qx 'ui'; then echo "storybook=true" >> "$GITHUB_OUTPUT"; else echo "storybook=false" >> "$GITHUB_OUTPUT"; fi
           if echo "$affected" | grep -qx 'jobs'; then echo "jobs=true" >> "$GITHUB_OUTPUT"; else echo "jobs=false" >> "$GITHUB_OUTPUT"; fi
+          if echo "$affected" | grep -qx 'doc-services'; then echo "doc-services=true" >> "$GITHUB_OUTPUT"; else echo "doc-services=false" >> "$GITHUB_OUTPUT"; fi
 
   lint:
     name: lint
@@ -161,6 +163,29 @@ jobs:
         env:
           JOBS_IMAGE: materia-jobs:ci
         run: pnpm exec vitest run -c apps/jobs/vitest.integration.config.mts
+
+  # CORE-12a: builds the ClamAV and preview images exactly as deploy.yml does, then calls them over
+  # HTTP: EICAR is infected and a plain file clean (real clamd, the image's signatures), a .docx
+  # becomes a PDF (LibreOffice) and a HEIC photo a JPEG (heif-convert).
+  doc-services-container:
+    name: doc-services container
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: changes
+    if: needs.changes.outputs.doc-services == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build the bundle and the images
+        run: |
+          pnpm nx build doc-services
+          docker build --pull -f dist/apps/doc-services/docker/scanner.Dockerfile -t materia-clamav:ci dist/apps/doc-services
+          docker build --pull -f dist/apps/doc-services/docker/preview.Dockerfile -t materia-preview:ci dist/apps/doc-services
+      - name: Call the services in their images
+        env:
+          SCANNER_IMAGE: materia-clamav:ci
+          PREVIEW_IMAGE: materia-preview:ci
+        run: pnpm exec vitest run -c apps/doc-services/vitest.integration.config.mts
 
   build:
     name: build
@@ -468,7 +493,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
-      [changes, lint, typecheck, unit, rules, integration, jobs-container, build, e2e, storybook, terraform, security]
+      [
+        changes,
+        lint,
+        typecheck,
+        unit,
+        rules,
+        integration,
+        jobs-container,
+        doc-services-container,
+        build,
+        e2e,
+        storybook,
+        terraform,
+        security,
+      ]
     if: always()
     steps:
       - name: Every job succeeded or was skipped

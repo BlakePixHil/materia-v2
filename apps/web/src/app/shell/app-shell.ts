@@ -16,7 +16,7 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { filter, map } from 'rxjs';
 
 import { DataLifecycle } from '@materia/data-access';
-import { can } from '@materia/domain';
+import { can, type Action } from '@materia/domain';
 import {
   DialogService,
   MtAvatar,
@@ -37,7 +37,6 @@ import {
   ToastService,
 } from '@materia/ui';
 
-import { CommandPaletteDialog } from './command-palette-dialog';
 import { MtLoadingBar } from './loading-bar';
 import { NAV_ITEMS, type NavEntry, SETTINGS_ITEM, TAB_BAR_ITEMS } from './nav';
 import { PageHeader } from './page-header';
@@ -45,6 +44,7 @@ import { ShortcutsDialog } from './shortcuts-dialog';
 import { AuthState } from '../core/auth/auth-state';
 import { ClerkPanel } from '../core/clerk/clerk-panel';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
+import { intentUrl } from '../core/commands/intents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
 import { NotificationsStore } from '../core/notifications/notifications-store';
@@ -466,6 +466,8 @@ export class AppShellComponent {
     if (this.paletteOpen) return;
     this.paletteOpen = true;
     try {
+      // Loaded on the first ⌘K: the palette and its search reads stay out of the initial bundle.
+      const { CommandPaletteDialog } = await import('./command-palette-dialog');
       await this.dialogs.open(CommandPaletteDialog).result;
     } finally {
       this.paletteOpen = false;
@@ -538,10 +540,25 @@ export class AppShellComponent {
       icon: item.icon,
       keywords: [item.label],
       shortcut: `g ${item.key}`,
+      href: item.link,
       ...(item.flag ? { when: () => this.isVisible(item) } : {}),
       run: () => void this.router.navigateByUrl(item.link),
     }));
+    const allowed = (action: Action) => {
+      const role = this.orgs.role();
+      return !!role && can(role, action);
+    };
     const general: Command[] = [
+      // "Go to…" (CORE-15): drills into the destinations.
+      {
+        id: 'go.to',
+        title: 'Go to…',
+        group: 'Navigation',
+        icon: 'arrow-right',
+        keywords: ['navigate', 'open', 'jump'],
+        children: () => navigation.map((command) => ({ ...command, group: 'Go to' })),
+        run: () => undefined,
+      },
       // New matter (CORE-05), from anywhere; `c` opens it on the matter screens.
       {
         id: 'matters.new',
@@ -550,11 +567,30 @@ export class AppShellComponent {
         icon: 'plus',
         keywords: ['intake', 'open', 'estate', 'will', 'probate'],
         shortcut: 'c',
-        when: () => {
-          const role = this.orgs.role();
-          return !!role && can(role, 'matter.create');
-        },
+        href: '/matters/new',
+        when: () => allowed('matter.create'),
         run: () => void this.router.navigateByUrl('/matters/new'),
+      },
+      // New contact and a personal task (CORE-15), from anywhere: the page hosting each runs it.
+      {
+        id: 'contacts.new-anywhere',
+        title: 'New contact',
+        group: 'Contacts',
+        icon: 'user-plus',
+        keywords: ['person', 'organisation', 'client', 'add'],
+        href: intentUrl('/contacts', 'new-contact'),
+        // The Contacts page offers its own (with its shortcut).
+        when: () => allowed('contact.edit') && !this.router.url.startsWith('/contacts'),
+        run: () => void this.router.navigateByUrl(intentUrl('/contacts', 'new-contact')),
+      },
+      {
+        id: 'tasks.new-personal',
+        title: 'New task (personal)',
+        group: 'Tasks',
+        icon: 'plus',
+        keywords: ['todo', 'reminder', 'my tasks', 'add'],
+        href: intentUrl('/tasks', 'add-task'),
+        run: () => void this.router.navigateByUrl(intentUrl('/tasks', 'add-task')),
       },
       {
         id: 'theme.toggle',

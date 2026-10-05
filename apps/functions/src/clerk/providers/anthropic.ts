@@ -11,9 +11,10 @@ import {
 } from '../../ports';
 
 /**
- * The Anthropic API adapter (ADR-011a: first-party API, key in Secret Manager). This folder is the
- * only place a model SDK may be imported (ESLint `no-restricted-imports`). The SDK is loaded on
- * first use so cold starts of other functions don't pay for it.
+ * The Anthropic API adapter (ADR-011a: first-party API; ADR-011b: each org's own key, passed per
+ * request). This folder is the only place a model SDK may be imported (ESLint
+ * `no-restricted-imports`). The SDK is loaded on first use so cold starts of other functions don't
+ * pay for it.
  */
 
 /** The beta that lets the API reroute refusals itself (`fallbacks: "default"`, ADR-011a). */
@@ -61,8 +62,10 @@ async function outputFormat(
 }
 
 /**
- * The request body. Opus 5.5 facts (Clerk doc): adaptive thinking only, depth via
- * `output_config.effort`, never a forced `tool_choice`, structured output via `output_config.format`.
+ * The request body. Opus 5.5 and Sonnet 5.5 facts (Clerk doc, ADR-011b): adaptive thinking only
+ * (`disabled` is a 400), depth via an explicit `output_config.effort` on every prompt (Sonnet 5.5's
+ * default is `high` and its levels differ), never a forced `tool_choice`, structured output via
+ * `output_config.format`.
  * The system prompt carries a cache breakpoint; content blocks marked `cache` add one each.
  */
 export async function buildParams(request: ClerkModelRequest): Promise<MessageStreamParams> {
@@ -161,30 +164,52 @@ export interface StreamingClient {
       ): { on(event: 'text', listener: (delta: string) => void): unknown; finalMessage(): Promise<unknown> };
     };
   };
+  models: {
+    list(params: { limit: number }, options: { timeout: number }): PromiseLike<{ data: { id: string }[] }>;
+  };
 }
+
+/** How long an org's SDK client is reused. A rotated key gets a new client on the next call. */
+export const CLIENT_TTL_MS = 5 * 60_000;
+/** Validating a key is one small request; don't hold the admin's save for long. */
+export const LIST_MODELS_TIMEOUT_MS = 15_000;
 
 export interface AnthropicModelOptions {
-  /** Reads the API key (the `ANTHROPIC_API_KEY` secret); called once, on first use. */
-  apiKey: () => string;
-  /** Tests: a stand-in client. */
-  client?: StreamingClient;
+  /** Tests: builds a stand-in client for a key. */
+  createClient?: (apiKey: string) => Promise<StreamingClient>;
+  now?: () => number;
 }
 
-/** `ClerkModelPort` on the Anthropic API. Retries and model fallbacks are the gateway's job. */
-export function anthropicModel(options: AnthropicModelOptions): ClerkModelPort {
-  let client: StreamingClient | undefined = options.client;
-  async function getClient(): Promise<StreamingClient> {
-    if (client) return client;
-    const key = options.apiKey();
-    if (!key) throw new ClerkModelError('auth', 'ANTHROPIC_API_KEY is not configured');
-    const { default: AnthropicClient } = await import('@anthropic-ai/sdk');
-    // maxRetries 0: the gateway owns retries, backoff and fallbacks, so behaviour is testable.
-    client = new AnthropicClient({ apiKey: key, maxRetries: 0 }) as Anthropic as unknown as StreamingClient;
+async function sdkClient(apiKey: string): Promise<StreamingClient> {
+  const { default: AnthropicClient } = await import('@anthropic-ai/sdk');
+  // maxRetries 0: the gateway owns retries, backoff and fallbacks, so behaviour is testable.
+  return new AnthropicClient({ apiKey, maxRetries: 0 }) as Anthropic as unknown as StreamingClient;
+}
+
+/**
+ * `ClerkModelPort` on the Anthropic API, with each org's own key (AI-02a). SDK clients are cached
+ * per org for `CLIENT_TTL_MS` and only while the key is unchanged; there is no process-wide client.
+ * Retries and model fallbacks are the gateway's job.
+ */
+export function anthropicModel(options: AnthropicModelOptions = {}): ClerkModelPort {
+  const createClient = options.createClient ?? sdkClient;
+  const now = options.now ?? Date.now;
+  const clients = new Map<string, { apiKey: string; client: StreamingClient; expiresAt: number }>();
+
+  async function clientFor(orgId: string, apiKey: string): Promise<StreamingClient> {
+    if (!apiKey) throw new ClerkModelError('auth', 'No API key for this org');
+    const at = now();
+    for (const [key, entry] of clients) if (entry.expiresAt <= at) clients.delete(key);
+    const cached = clients.get(orgId);
+    if (cached && cached.apiKey === apiKey) return cached.client;
+    const client = await createClient(apiKey);
+    clients.set(orgId, { apiKey, client, expiresAt: at + CLIENT_TTL_MS });
     return client;
   }
+
   return {
     async run(request: ClerkModelRequest, onEvent?: (event: ClerkStreamEvent) => void): Promise<ClerkModelResult> {
-      const api = await getClient();
+      const api = await clientFor(request.credentials.orgId, request.credentials.apiKey);
       const params = await buildParams(request);
       try {
         const stream = api.beta.messages.stream(params, {
@@ -196,6 +221,17 @@ export function anthropicModel(options: AnthropicModelOptions): ClerkModelPort {
         return toResult(message, request.model);
       } catch (error) {
         throw mapError(error, request.signal?.aborted ?? false);
+      }
+    },
+
+    async listModels(apiKey: string): Promise<string[]> {
+      // A fresh client: the key isn't saved yet, so it isn't any org's cached key.
+      const api = await createClient(apiKey);
+      try {
+        const page = await api.models.list({ limit: 100 }, { timeout: LIST_MODELS_TIMEOUT_MS });
+        return page.data.map((model) => model.id);
+      } catch (error) {
+        throw mapError(error, false);
       }
     },
   };

@@ -267,19 +267,37 @@ service cloud.firestore {
         allow update: if isDraftOwner() && clientUpdate(fieldsIntakeDraft()) && validDraft(request.resource.data);
       }
 
-      // Recently opened matters (CORE-14): `{orgId}_{matterId}`, private to their user. Opening a
-      // matter writes the whole entry again (a set: a create the first time, an update after), so
-      // `updatedAt` is when it was last opened. Each names a matter in the caller's current org;
+      // Recently opened things (CORE-14 matters; CORE-15 contacts, tasks and documents), private to
+      // their user. Opening one writes the whole entry again (a set: a create the first time, an
+      // update after), so `updatedAt` is when it was last opened. Each names something in the
+      // caller's current org, by id only: a matter as `{orgId}_{matterId}` (no `kind` before
+      // CORE-15), anything else as `{orgId}_{kind}[_{matterId}]_{entityId}` (`recentEntryId`).
       // `expireAt` is about 90 days on (a day's slack for the client's clock) and Firestore TTL
       // deletes the entry then.
       match /recent/{recentId} {
         function isRecentOwner() {
           return isSignedIn() && uid() == userId;
         }
+        function idOk(data) {
+          return data.get('matterId', '') is string && data.get('entityId', '') is string;
+        }
+        function validRef(data) {
+          let kind = data.get('kind', 'matter');
+          let matterId = data.get('matterId', '');
+          let entityId = data.get('entityId', '');
+          return kind in ['matter', 'contact', 'task', 'document']
+            && (kind == 'matter'
+                && matterId.size() > 0 && !('entityId' in data)
+                && recentId == data.orgId + '_' + matterId
+              || kind != 'matter'
+                && entityId.size() > 0
+                && (kind != 'contact' || !('matterId' in data))
+                && (kind != 'document' || matterId.size() > 0)
+                && recentId == data.orgId + '_' + kind + (matterId.size() > 0 ? '_' + matterId : '') + '_' + entityId);
+        }
         function validRecent(data) {
           return data.orgId == claimOrg() && inOrg(claimOrg())
-            && data.matterId is string && data.matterId.size() > 0
-            && recentId == data.orgId + '_' + data.matterId
+            && idOk(data) && validRef(data)
             && data.expireAt is timestamp
             && data.expireAt > request.time + duration.value(89, 'd')
             && data.expireAt <= request.time + duration.value(91, 'd');
@@ -290,7 +308,7 @@ service cloud.firestore {
         allow read, delete: if isRecentOwner();
         allow create, update: if isRecentOwner()
           && request.resource.data.keys().hasOnly(recentKeys())
-          && request.resource.data.keys().hasAll(recentKeys())
+          && request.resource.data.keys().hasAll(['orgId', 'expireAt', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
           && request.resource.data.createdBy == uid() && request.resource.data.createdAt is timestamp
           && validMeta() && request.resource.data.schemaVersion == 1
           && validRecent(request.resource.data);
@@ -699,6 +717,13 @@ service cloud.firestore {
     match /{path=**}/timeEntries/{entryId} {
       allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
     }
+    // ⌘K document search (CORE-15, ADR-033): a group query can't `get()` each document's matter, and
+    // a document on a matter marked privileged later may not be privileged itself, so only roles
+    // that see every matter (privileged.view) read documents through the group. Other roles search
+    // the open matter's documents at its path, where the matter is checked.
+    match /{path=**}/documents/{documentId} {
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && canViewPrivileged(claimOrg());
+    }
     // "The matters this contact is on" (CORE-01): parties across matters, by orgId and contactId.
     match /{path=**}/parties/{partyId} {
       allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
@@ -775,7 +800,7 @@ service cloud.firestore {
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }
-    function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged']; }
+    function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged', 'boardOrder']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }
     function fieldsMatterEvent() { return []; }
     function fieldsMatterNumber() { return []; }
@@ -792,7 +817,7 @@ service cloud.firestore {
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
-    function fieldsRecentMatter() { return ['orgId', 'matterId', 'expireAt']; }
+    function fieldsRecentMatter() { return ['orgId', 'kind', 'matterId', 'entityId', 'expireAt']; }
     function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'flag', 'disclaimer', 'rules']; }
     function fieldsSafeCustody() { return ['testatorContactId', 'documentIds', 'packetNo', 'location', 'receivedOn']; }
     function fieldsSavedView() { return ['orgId', 'list', 'name', 'filters', 'sort', 'groupBy']; }
