@@ -84,7 +84,7 @@ The gateway is responsible for:
 
 ### As built (AI-04): document ingestion
 
-See [ADR-036](adr/036-clerk-document-ingestion.md). Code in `apps/functions/src/documents/ingest/`.
+See [ADR-038](adr/038-clerk-document-ingestion.md). Code in `apps/functions/src/documents/ingest/`.
 
 - **Flow:** `documents-onIngestChange` (trigger) → `documents-ingest` (Cloud Tasks, 50-page checkpoints, continuation tasks for long files) → `documents/{docId}/chunks/{version}-{ordinal}`. `documents-backfillIngest` (`clerk.configure`) re-queues an org's documents that predate ingestion, were migrated or failed.
 - **Extraction:** PDFs page by page (pdfjs-dist); pages under 20 characters are OCR'd (`ocr@1`, Claude vision on a one-page PDF). DOCX (mammoth), emails (headers and body), text and CSV become ~3,000-character pseudo-pages. PNG and JPEG are OCR'd as one page. Spreadsheets, slides, archives, `.doc` and WebP are `skipped` (`unsupported`).
