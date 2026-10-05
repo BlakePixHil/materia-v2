@@ -27,3 +27,8 @@ output "buckets" {
   description = "Bucket names by purpose."
   value       = module.env.buckets
 }
+
+output "doc_services" {
+  description = "Cloud Run document services (CORE-12a): runtime accounts and URLs."
+  value       = module.env.doc_services
+}

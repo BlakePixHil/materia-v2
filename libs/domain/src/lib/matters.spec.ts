@@ -152,6 +152,7 @@ describe('matter inputs and views', () => {
   it('lets clients edit only the whitelisted fields', () => {
     expect(Object.keys(Matter.update.shape).sort()).toEqual(
       [
+        'boardOrder',
         'deceased',
         'estate',
         'externalRef',

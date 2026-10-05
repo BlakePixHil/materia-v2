@@ -18,6 +18,9 @@ export interface QueueDefinition<TSchema extends z.ZodType> {
   rateLimits?: { maxConcurrentDispatches?: number; maxDispatchesPerSecond?: number };
   /** Secrets the handler reads (`core/secrets.ts`). */
   secrets?: SecretParam[];
+  /** For handlers that wait on slow work (default: the platform's 60 seconds and 256 MiB). */
+  timeoutSeconds?: number;
+  memory?: '256MiB' | '512MiB' | '1GiB' | '2GiB';
   handler: (
     input: z.output<TSchema>,
     ctx: { log: Log; db: ReturnType<typeof adminDb>; ports: Ports; attempt: number },
@@ -32,6 +35,8 @@ export function defineQueue<TSchema extends z.ZodType>(def: QueueDefinition<TSch
       retryConfig: { maxAttempts: 3, minBackoffSeconds: 10, maxBackoffSeconds: 300, ...def.retry },
       rateLimits: { maxConcurrentDispatches: 10, ...def.rateLimits },
       ...(def.secrets ? { secrets: def.secrets } : {}),
+      ...(def.timeoutSeconds ? { timeoutSeconds: def.timeoutSeconds } : {}),
+      ...(def.memory ? { memory: def.memory } : {}),
     },
     async (request) => {
       const log = createLog({ fn: def.name, taskId: request.id, attempt: request.retryCount });

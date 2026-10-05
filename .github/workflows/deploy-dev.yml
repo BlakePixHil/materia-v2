@@ -101,6 +101,12 @@ jobs:
           mv dist/apps/jobs dist/release/jobs
           cp apps/jobs/Dockerfile dist/release/jobs/Dockerfile
 
+      # The bundle only; deploy.yml builds the ClamAV and preview images from it (CORE-12a).
+      - name: Build the document services bundle
+        run: |
+          pnpm nx build doc-services --skip-nx-cache
+          mv dist/apps/doc-services dist/release/doc-services
+
       - name: Build functions
         run: |
           pnpm nx build functions --skip-nx-cache

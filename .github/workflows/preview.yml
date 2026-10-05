@@ -3,11 +3,13 @@
 # the URL. Functions are not deployed per PR: previews call the dev project's functions, which
 # come from main, so a PR that changes a callable shows the old behaviour until it merges.
 # Fork PRs get no preview (they have no access to the deploy identity).
+# Hosting caps the number of channels per site, so a closed PR's channel is deleted when it closes,
+# and every preview run first deletes the channels of PRs that are no longer open.
 name: preview
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
@@ -18,7 +20,7 @@ permissions:
 
 jobs:
   preview:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -68,6 +70,12 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
           service_account: ${{ vars.GCP_DEPLOYER_SA_DEV }}
 
+      - name: Delete the channels of closed PRs
+        if: steps.ready.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm exec node .github/scripts/prune-preview-channels.mjs
+
       - name: Deploy the preview channel
         id: deploy
         if: steps.ready.outputs.ready == 'true'
@@ -110,3 +118,29 @@ jobs:
             const existing = comments.find((c) => c.user.type === 'Bot' && c.body.includes(marker));
             if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
             else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+  cleanup:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+      pull-requests: read
+    env:
+      PROJECT: ${{ vars.GCP_PROJECT_DEV }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation, no key)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA_DEV }}
+
+      - name: Delete this PR's channel and any other closed PR's
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm exec node .github/scripts/prune-preview-channels.mjs

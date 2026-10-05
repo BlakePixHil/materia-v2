@@ -197,6 +197,8 @@ export const Matter = withMeta(
       'deceased',
       'facts',
       'privileged',
+      // The Matters board's card order (CORE-04): a reorder is a client write.
+      'boardOrder',
     ],
     serverOwned: [
       'number',

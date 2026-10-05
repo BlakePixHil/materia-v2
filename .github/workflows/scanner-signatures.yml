@@ -1,0 +1,66 @@
+# Daily ClamAV signature refresh (CORE-12a, ADR-028). Rebuilds the scanner image, whose build runs
+# freshclam, and redeploys the `clamav` Cloud Run service to dev, so signatures are never more than
+# a day old even when nothing is merged. (freshclam also runs inside the container while it is up.)
+# Prod: add a `production` job here once prod is live (MVP: prod waits for launch).
+name: scanner-signatures
+
+on:
+  schedule:
+    - cron: '17 19 * * *' # 06:17 in Melbourne (daylight saving)
+  workflow_dispatch:
+
+concurrency:
+  group: scanner-signatures
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: refresh (dev)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: dev
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC token for Workload Identity Federation
+    env:
+      PROJECT: ${{ vars.GCP_PROJECT_DEV }}
+      REGION: australia-southeast1
+    steps:
+      - name: Check the environment's variables
+        id: check
+        env:
+          WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+        run: |
+          if [ -z "$PROJECT" ] || [ -z "$WIF_PROVIDER" ]; then
+            echo "::notice::Skipped: set GCP_PROJECT_DEV and GCP_WIF_PROVIDER_DEV (docs/runbooks/deploy.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ready == 'true'
+
+      - uses: ./.github/actions/setup
+        if: steps.check.outputs.ready == 'true'
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation, no key)
+        if: steps.check.outputs.ready == 'true'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA_DEV }}
+
+      # Only redeploys a scanner that a release already created (the release sets the functions' URL).
+      - name: Rebuild and redeploy the scanner
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          if ! gcloud run services describe clamav --project "$PROJECT" --region "$REGION" --format 'value(status.url)' >/dev/null 2>&1; then
+            echo "::notice::No clamav service in $PROJECT yet; the next dev deploy creates it."
+            exit 0
+          fi
+          pnpm nx build doc-services --skip-nx-cache
+          .github/scripts/deploy-doc-services.sh dist/apps/doc-services "signatures-$(date -u +%Y%m%d)-${GITHUB_SHA:0:7}" clamav

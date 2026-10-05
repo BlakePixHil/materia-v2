@@ -148,6 +148,15 @@ describe('firestore.indexes.json', () => {
     expect(key('revisions')).toEqual(['COLLECTION:privileged:ASCENDING,editedAt:DESCENDING']);
   });
 
+  it('a matter’s notes and a note’s history, filtered to non-privileged for roles without privileged.view (CORE-13)', () => {
+    const key = (group: string) =>
+      file.indexes
+        .filter((i) => i.collectionGroup === group)
+        .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`);
+    expect(key('notes')).toEqual(['COLLECTION:privileged:ASCENDING,createdAt:DESCENDING']);
+    expect(key('revisions')).toEqual(['COLLECTION:privileged:ASCENDING,editedAt:DESCENDING']);
+  });
+
   it('the chunks vector index is flat, 768 dimensions, with orgId and matterId pre-filters', () => {
     const vector = file.indexes.find((i) => i.collectionGroup === 'chunks');
     expect(vector?.fields.map((f) => f.fieldPath)).toEqual(['orgId', 'matterId', 'embedding']);
