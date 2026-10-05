@@ -183,7 +183,7 @@ service cloud.firestore {
         && optionalText(data, 'share', 300) && optionalText(data, 'notes', 2000)
         && data.status in ['planned', 'approved', 'paid', 'cancelled']
         && optionalDate(data, 'paidOn')
-        && (!('needsReview' in data) || data.needsReview is bool);
+        && (!('needsValueReview' in data) || data.needsValueReview is bool);
     }
 
     // ---------- deadlines (CORE-10) ----------
@@ -599,12 +599,12 @@ service cloud.firestore {
           allow read: if inOrg(orgId) && visible(orgId, estateMatter(orgId, matterId));
           allow create: if canEditEstate(orgId, matterId)
             && newEstateRecord(fieldsDistribution(), ['beneficiaryPartyId', 'kind', 'status'])
-            && request.resource.data.get('needsReview', false) == false
+            && request.resource.data.get('needsValueReview', false) == false
             && validDistribution(request.resource.data);
-          // A person clears needsReview; only estate-onWrite sets it.
+          // A person clears needsValueReview; only estate-onWrite sets it.
           allow update: if canEditEstate(orgId, matterId)
             && (clientUpdate(fieldsDistribution()) && validDistribution(request.resource.data)
-                && (unchanged(['needsReview']) || request.resource.data.get('needsReview', false) == false)
+                && (unchanged(['needsValueReview']) || request.resource.data.get('needsValueReview', false) == false)
               || softDelete());
         }
         match /proceedings/{proceedingId} {
@@ -871,7 +871,7 @@ service cloud.firestore {
     function fieldsDeadlineChange() { return []; }
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'amountExGstCents', 'gstTreatment', 'payee', 'receiptDocumentId', 'status']; }
-    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'notes', 'needsReview']; }
+    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'notes', 'needsValueReview']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
     function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }

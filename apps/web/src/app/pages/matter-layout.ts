@@ -192,9 +192,7 @@ export class MatterLayout {
       const tab = this.activeTab()?.split('/')[0];
       const matter = this.screen.value();
       if (!matter || !tab || tab === 'conflicts') return;
-      if (!this.tabs().some((t) => t.path === tab)) {
-        untracked(() => void this.router.navigate(['overview'], { relativeTo: this.route, replaceUrl: true }));
-      }
+      if (!this.tabs().some((t) => t.path === tab)) untracked(() => void this.leaveUnavailableTab(tab));
     });
 
     // Today's Recent matters (CORE-14) and ⌘K's Recent (CORE-15): each matter opened is recorded once.
@@ -367,5 +365,12 @@ export class MatterLayout {
         ),
       ),
     ];
+  }
+
+  /** A tab the matter doesn't have lands on the overview, once the flags (which hide some tabs) are in. */
+  private async leaveUnavailableTab(tab: string): Promise<void> {
+    await this.flags.ready();
+    if (this.activeTab()?.split('/')[0] !== tab || this.tabs().some((t) => t.path === tab)) return;
+    await this.router.navigate(['overview'], { relativeTo: this.route, replaceUrl: true });
   }
 }

@@ -91,14 +91,17 @@ export async function flagDistributions(
 ): Promise<string[]> {
   const snap = await db.collection(`${matterPath(orgId, matterId)}/distributions`).get();
   const flagged = snap.docs.filter((doc) => {
-    const data = doc.data() as DistributionValues & { needsReview?: boolean; createdAt?: Date | { toDate(): Date } };
+    const data = doc.data() as DistributionValues & {
+      needsValueReview?: boolean;
+      createdAt?: Date | { toDate(): Date };
+    };
     const recorded = data.createdAt instanceof Date ? data.createdAt : data.createdAt?.toDate?.();
-    return !data.needsReview && distributionDependsOn(data, assetId) && (!recorded || recorded < at);
+    return !data.needsValueReview && distributionDependsOn(data, assetId) && (!recorded || recorded < at);
   });
   for (let start = 0; start < flagged.length; start += BATCH) {
     const batch = db.batch();
     for (const doc of flagged.slice(start, start + BATCH))
-      batch.update(doc.ref, { needsReview: true, updatedAt: at, updatedBy: 'system' });
+      batch.update(doc.ref, { needsValueReview: true, updatedAt: at, updatedBy: 'system' });
     await batch.commit();
   }
   return flagged.map((doc) => doc.id);

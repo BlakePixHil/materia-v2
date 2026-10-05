@@ -2506,7 +2506,7 @@ describe('estate register (CORE-16)', () => {
     await asset('currency', { originalCurrency: 'usd' });
     await asset('amount', { originalAmount: -1 });
     await asset('docs', { documentIds: Array.from({ length: 21 }, (_, i) => `d-${i}`) });
-    await asset('server-field', { needsReview: true });
+    await asset('server-field', { needsValueReview: true });
     await asset('creator', { createdBy: 'someone-else' });
     await asset('created-at', { createdAt: Timestamp.fromMillis(0) });
     await asset('version', { schemaVersion: 2 });
@@ -2514,7 +2514,18 @@ describe('estate register (CORE-16)', () => {
     await assertSucceeds(
       setDoc(
         doc(firestore, `${MATTER}/assets/minimal`),
-        minimal(newAsset(uid, { originalAmount: 2 }), 'institution', 'valuationSource', 'valuedOn', 'jointHolding', 'shareBps', 'realisedCents', 'originalCurrency', 'originalAmount', 'notes'),
+        minimal(
+          newAsset(uid, { originalAmount: 2 }),
+          'institution',
+          'valuationSource',
+          'valuedOn',
+          'jointHolding',
+          'shareBps',
+          'realisedCents',
+          'originalCurrency',
+          'originalAmount',
+          'notes',
+        ),
       ),
     );
 
@@ -2527,7 +2538,10 @@ describe('estate register (CORE-16)', () => {
     await liability('status', { status: 'forgiven' });
     await liability('reference', { reference: 'x'.repeat(301) });
     await assertSucceeds(
-      setDoc(doc(firestore, `${MATTER}/liabilities/minimal`), minimal(newLiability(uid, { amountCents: 0 }), 'reference', 'notes')),
+      setDoc(
+        doc(firestore, `${MATTER}/liabilities/minimal`),
+        minimal(newLiability(uid, { amountCents: 0 }), 'reference', 'notes'),
+      ),
     );
 
     const distribution = (id: string, extra: Record<string, unknown>) =>
@@ -2539,22 +2553,32 @@ describe('estate register (CORE-16)', () => {
     await distribution('status', { status: 'owed' });
     await distribution('paid-on', { paidOn: 'yesterday' });
     await distribution('share', { share: 7 });
-    await distribution('review', { needsReview: true });
+    await distribution('review', { needsValueReview: true });
     await assertSucceeds(
       setDoc(
         doc(firestore, `${MATTER}/distributions/minimal`),
-        minimal(newDistribution(uid, { kind: 'residuary', status: 'planned', needsReview: false }), 'assetId', 'amountCents', 'share', 'paidOn', 'notes'),
+        minimal(
+          newDistribution(uid, { kind: 'residuary', status: 'planned', needsValueReview: false }),
+          'assetId',
+          'amountCents',
+          'share',
+          'paidOn',
+          'notes',
+        ),
       ),
     );
   });
 
-  it('edits keep the values valid, and only a person clears needsReview', async () => {
+  it('edits keep the values valid, and only a person clears needsValueReview', async () => {
     const uid = uidFor('lawyer');
     const firestore = db(env, 'lawyer');
     await seedAdmin(env, async (f) => {
       await setDoc(doc(f, `${MATTER}/assets/edit-1`), seedData(specFor('assets')));
       await setDoc(doc(f, `${MATTER}/liabilities/edit-1`), seedData(specFor('liabilities')));
-      await setDoc(doc(f, `${MATTER}/distributions/edit-1`), { ...seedData(specFor('distributions')), needsReview: true });
+      await setDoc(doc(f, `${MATTER}/distributions/edit-1`), {
+        ...seedData(specFor('distributions')),
+        needsValueReview: true,
+      });
     });
     const asset = doc(firestore, `${MATTER}/assets/edit-1`);
     await assertSucceeds(updateDoc(asset, stamped({ valueAtDeathCents: 1_000, status: 'valued' }, uid)));
@@ -2565,8 +2589,8 @@ describe('estate register (CORE-16)', () => {
     await assertFails(updateDoc(liability, stamped({ amountCents: 1.25 }, uid)));
     const distribution = doc(firestore, `${MATTER}/distributions/edit-1`);
     await assertSucceeds(updateDoc(distribution, stamped({ status: 'approved' }, uid)));
-    await assertSucceeds(updateDoc(distribution, stamped({ needsReview: false }, uid)));
-    await assertFails(updateDoc(distribution, stamped({ needsReview: true }, uid)));
+    await assertSucceeds(updateDoc(distribution, stamped({ needsValueReview: false }, uid)));
+    await assertFails(updateDoc(distribution, stamped({ needsValueReview: true }, uid)));
     await assertFails(updateDoc(distribution, stamped({ amountCents: -1 }, uid)));
     // Soft delete and restore.
     await assertSucceeds(updateDoc(asset, { deletedAt: serverTimestamp(), deletedBy: uid, ...stamped({}, uid) }));
@@ -2584,7 +2608,10 @@ describe('estate register (CORE-16)', () => {
     await assertSucceeds(getDoc(doc(db(env, 'lawyer'), `${DELETED_MATTER}/assets/a-1`)));
     await assertFails(setDoc(doc(db(env, 'lawyer'), `${DELETED_MATTER}/assets/new`), newAsset(uidFor('lawyer'))));
     await assertFails(
-      updateDoc(doc(db(env, 'lawyer'), `${DELETED_MATTER}/assets/a-1`), stamped({ description: 'Edited' }, uidFor('lawyer'))),
+      updateDoc(
+        doc(db(env, 'lawyer'), `${DELETED_MATTER}/assets/a-1`),
+        stamped({ description: 'Edited' }, uidFor('lawyer')),
+      ),
     );
   });
 

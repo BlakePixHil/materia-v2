@@ -709,7 +709,10 @@ export const Asset = withMeta(
     status: AssetStatusSchema,
     realisedCents: NonNegativeCentsSchema.optional(),
     /** ISO 4217 code of a foreign asset (`USD`); `originalAmount` is in that currency. */
-    originalCurrency: z.string().regex(/^[A-Z]{3}$/, { message: 'Expected a currency code like USD' }).optional(),
+    originalCurrency: z
+      .string()
+      .regex(/^[A-Z]{3}$/, { message: 'Expected a currency code like USD' })
+      .optional(),
     originalAmount: z.number().min(0).optional(),
     /** Valuation documents on the matter (bank letters, valuations). */
     documentIds: z.array(DocIdSchema).max(ASSET_DOCUMENTS_MAX).default([]),
@@ -733,7 +736,7 @@ export const Liability = withMeta(
 /**
  * A planned or paid distribution to a beneficiary party (CORE-16). A specific gift names an asset
  * (`assetId`, valued at the estate's share of it unless `amountCents` says otherwise); a pecuniary
- * gift is an amount; a residuary gift is a share of what's left. `needsReview` is set by
+ * gift is an amount; a residuary gift is a share of what's left. `needsValueReview` is set by
  * `estate-onWrite` when an asset's value changes after the distribution was recorded, and cleared
  * by a person.
  */
@@ -748,7 +751,7 @@ export const Distribution = withMeta(
     status: DistributionStatusSchema,
     paidOn: DateOnlySchema.optional(),
     notes: z.string().max(ESTATE_NOTES_MAX).optional(),
-    needsReview: z.boolean().optional(),
+    needsValueReview: z.boolean().optional(),
   },
   { path: `${MATTER}/distributions`, softDelete: true },
 );

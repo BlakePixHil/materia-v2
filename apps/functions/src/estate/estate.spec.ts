@@ -125,7 +125,10 @@ function world(initial: Record<string, Data> = {}, flags: Data = { 'estate.regis
   const exportInventory = (data: Data = {}, role: Role = 'lawyer') =>
     runCallable(
       exportInventoryDefinition,
-      { data: { requestId: randomUUID(), matterId: 'm1', ...data }, auth: { uid: `user-${role}`, token: { orgId: ORG, role } } },
+      {
+        data: { requestId: randomUUID(), matterId: 'm1', ...data },
+        auth: { uid: `user-${role}`, token: { orgId: ORG, role } },
+      },
       deps(),
     );
   return { ...store, doc, write, exportInventory, ports, log, clock };
@@ -148,8 +151,16 @@ describe('estate-onWrite', () => {
   it('keeps the matter’s totals and gross and net values in step with the register', async () => {
     const w = world();
     await w.write('assets', 'a1', asset({ valueAtDeathCents: 500_000_00 }));
-    await w.write('assets', 'a2', asset({ class: 'superannuation', valueAtDeathCents: 300_000_00, passesOutsideEstate: true }));
-    await w.write('assets', 'a3', asset({ class: 'real_property', valueAtDeathCents: 800_000_00, shareBps: 5000, realisedCents: 410_000_00 }));
+    await w.write(
+      'assets',
+      'a2',
+      asset({ class: 'superannuation', valueAtDeathCents: 300_000_00, passesOutsideEstate: true }),
+    );
+    await w.write(
+      'assets',
+      'a3',
+      asset({ class: 'real_property', valueAtDeathCents: 800_000_00, shareBps: 5000, realisedCents: 410_000_00 }),
+    );
     const outcome = await w.write('liabilities', 'l1', liability({ amountCents: 15_000_00 }));
     expect(outcome).toMatchObject({ synced: true, valueChanged: true, recomputed: false });
     const matter = w.doc(M) as Data;
@@ -192,14 +203,14 @@ describe('estate-onWrite', () => {
     });
     const first = await w.write('assets', 'a1', asset());
     expect(first.flagged.sort()).toEqual(['car', 'residue']);
-    expect(w.doc(`${M}/distributions/residue`)).toMatchObject({ needsReview: true, updatedBy: 'system' });
-    expect(w.doc(`${M}/distributions/cash`)?.['needsReview']).toBeUndefined();
+    expect(w.doc(`${M}/distributions/residue`)).toMatchObject({ needsValueReview: true, updatedBy: 'system' });
+    expect(w.doc(`${M}/distributions/cash`)?.['needsValueReview']).toBeUndefined();
     // A rename changes nothing the distributions depend on; a value change flags only the unflagged.
     expect((await w.write('assets', 'a1', asset({ description: 'Car (fictional)' }))).flagged).toEqual([]);
-    w.docs.set(`${M}/distributions/residue`, { ...w.doc(`${M}/distributions/residue`), needsReview: false });
+    w.docs.set(`${M}/distributions/residue`, { ...w.doc(`${M}/distributions/residue`), needsValueReview: false });
     expect((await w.write('assets', 'a1', asset({ valueAtDeathCents: 1 }))).flagged).toEqual(['residue']);
     // Liabilities don't flag distributions.
-    w.docs.set(`${M}/distributions/residue`, { ...w.doc(`${M}/distributions/residue`), needsReview: false });
+    w.docs.set(`${M}/distributions/residue`, { ...w.doc(`${M}/distributions/residue`), needsValueReview: false });
     expect((await w.write('liabilities', 'l1', liability())).flagged).toEqual([]);
   });
 
@@ -217,7 +228,13 @@ describe('estate-onWrite', () => {
   it('recomputes deadlines only when the matter’s rule set reads the estate values', async () => {
     const w = world();
     const ctx = (params: Data = {}) =>
-      ({ params: { orgId: ORG, matterId: 'm1', ...params }, db: w.db, log: w.log, clock: w.clock, ports: w.ports }) as unknown as TriggerContext;
+      ({
+        params: { orgId: ORG, matterId: 'm1', ...params },
+        db: w.db,
+        log: w.log,
+        clock: w.clock,
+        ports: w.ports,
+      }) as unknown as TriggerContext;
     // vic-v1 has no estate-value conditions.
     expect(await estateValueChanged(w.doc(M) as Data, ctx())).toBe(false);
     expect(await estateValueChanged({ ...(w.doc(M) as Data), status: 'closed' }, ctx())).toBe(false);

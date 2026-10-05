@@ -69,7 +69,7 @@ export const EstateDistributionSchema = /* @__PURE__ */ z.object({
   status: distribution.status,
   paidOn: distribution.paidOn,
   notes: distribution.notes,
-  needsReview: distribution.needsReview,
+  needsValueReview: distribution.needsValueReview,
   createdAt: distribution.createdAt.optional(),
   deletedAt: SoftDeleteShape.deletedAt,
 });
@@ -110,7 +110,10 @@ export function estateDistributionsRepository(matterId: () => string | null): Re
  * the matter's trigger-kept `estateRegister` once a register outgrows a page.
  */
 export const ESTATE_PAGE_SIZE = 200;
-export const ESTATE_ASSETS_QUERY: QuerySpec<EstateAsset> = { orderBy: [['createdAt', 'asc']], pageSize: ESTATE_PAGE_SIZE };
+export const ESTATE_ASSETS_QUERY: QuerySpec<EstateAsset> = {
+  orderBy: [['createdAt', 'asc']],
+  pageSize: ESTATE_PAGE_SIZE,
+};
 export const ESTATE_LIABILITIES_QUERY: QuerySpec<EstateLiability> = {
   orderBy: [['createdAt', 'asc']],
   pageSize: ESTATE_PAGE_SIZE,
