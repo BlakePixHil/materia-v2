@@ -164,6 +164,10 @@ jobs:
             echo "Per-case scores:"
             jq -c '.suites[] | .suite as $s | .cases[] | {suite: $s, case: .caseId, run, status, stopReason, scores: (.scores | del(.latencyMs, .costUsd))} + (if .reason then {reason} else {} end)' dist/evals/latest.json
           fi
+          if [[ " ${args[*]} " == *" --accept-baseline "* ]]; then
+            echo "Accepted baselines (commit as libs/clerk/evals/baselines.json):"
+            cat libs/clerk/evals/baselines.json
+          fi
 
       # Reports hold ids, scores and token counts only (no prompt or output text).
       - name: Upload the reports
