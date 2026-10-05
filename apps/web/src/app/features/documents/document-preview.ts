@@ -34,8 +34,8 @@ type PreviewState =
 
 /**
  * A stored version's preview (CORE-12): PDFs in the sandboxed viewer, images inline, plain text,
- * and emails as their message rendition. Office files and HEIC photos preview through renditions
- * that aren't built yet (ADR-028), so they say "download instead". Every byte comes through
+ * emails as their message rendition, Office files as their PDF rendition and HEIC photos as their
+ * JPEG rendition (CORE-12a, ADR-032); until a rendition exists they say "download instead". Every byte comes through
  * `documents-getDownloadUrl` (a 5-minute signed URL), never a download token.
  */
 @Component({
