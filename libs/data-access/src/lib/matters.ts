@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { z } from 'zod';
 
 import {
+  DestructionRequest,
   isIndexedMatterQuery,
   Matter,
   MATTER_LIST_PAGE_SIZE,
@@ -295,7 +296,31 @@ export const MATTER_CALLABLES = {
   renumber: 'matters-renumber',
   /** `RebalanceBoardInput` → `RebalanceBoardResult` (matter.edit, CORE-04). */
   rebalanceBoard: 'matters-rebalanceBoard',
+  /** CORE-19: the closing checklist, closing, reopening and legal holds (see `MatterCallables`). */
+  closingChecklist: 'matters-closingChecklist',
+  close: 'matters-close',
+  reopen: 'matters-reopen',
+  setLegalHold: 'matters-setLegalHold',
+  /** `ApproveDestructionInput` → `ApproveDestructionResult` (matter.destroy, a recent sign-in). */
+  approveDestruction: 'matters-approveDestruction',
+  /** `DestructionCertificateUrlInput` → `DestructionCertificateUrlResult` (matter.destroy). */
+  destructionCertificateUrl: 'matters-destructionCertificateUrl',
 } as const;
+
+// ---------- destruction queue (CORE-19) ----------
+
+export type DestructionQueueItem = z.infer<typeof DestructionRequest.schema>;
+
+/** The org's destruction queue (`orgs/{orgId}/destructionQueue`, owners and admins): server-written. */
+export function destructionQueueRepository(): Repository<DestructionQueueItem> {
+  return repo((orgId) => `orgs/${orgId}/destructionQueue`, DestructionRequest);
+}
+
+/** Every entry, newest first; the page groups them by status (a single-field order needs no index). */
+export const DESTRUCTION_QUEUE_QUERY: QuerySpec<DestructionQueueItem> = {
+  orderBy: [['queuedAt', 'desc']],
+  pageSize: 200,
+};
 
 // ---------- saved views ----------
 

@@ -16,11 +16,19 @@ import {
   type ChangeMatterStageResult,
   type ChangeMatterStatusInput,
   type ChangeMatterStatusResult,
+  type CloseMatterInput,
+  type CloseMatterResult,
+  type ClosingChecklistInput,
+  type ClosingChecklistResult,
   type DeadlineStatus,
   type PartyResult,
   type RemovePartyInput,
   type RenumberMatterInput,
   type RenumberMatterResult,
+  type ReopenMatterInput,
+  type ReopenMatterResult,
+  type SetLegalHoldInput,
+  type SetLegalHoldResult,
   type TaskStatus,
   type TemplateStageLike,
   type UpgradeMatterTemplateInput,
@@ -68,6 +76,11 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   openTaskCount: matter.openTaskCount,
   closedAt: matter.closedAt,
   closeReason: matter.closeReason,
+  /** Retention (CORE-19): the earliest destruction date, the closing record, archiving and holds. */
+  destroyAfter: matter.destroyAfter,
+  closing: matter.closing,
+  archivedAt: matter.archivedAt,
+  legalHold: matter.legalHold,
   updatedAt: matter.updatedAt.optional(),
   updatedBy: matter.updatedBy.optional(),
   deletedAt: SoftDeleteShape.deletedAt,
@@ -325,6 +338,14 @@ export interface MatterCallables {
   upgradeTemplate(input: Input<UpgradeMatterTemplateInput>): Promise<UpgradeMatterTemplateResult>;
   /** `matters-renumber` (matter.renumber, CORE-21a): a typed number, unique per org (`ALREADY_EXISTS` otherwise). */
   renumber(input: Input<RenumberMatterInput>): Promise<RenumberMatterResult>;
+  /** `matters-closingChecklist` (matter.close, CORE-19): the checklist as it stands, with the retention date closing would set. */
+  closingChecklist(input: ClosingChecklistInput): Promise<ClosingChecklistResult>;
+  /** `matters-close` (matter.close, CORE-19): `closing_checklist` lists what's still to do. */
+  close(input: Input<CloseMatterInput>): Promise<CloseMatterResult>;
+  /** `matters-reopen` (matter.status, CORE-19): a closed or archived matter back to open, with a reason. */
+  reopen(input: Input<ReopenMatterInput>): Promise<ReopenMatterResult>;
+  /** `matters-setLegalHold` (matter.legalHold, CORE-19): a hold keeps the matter from destruction. */
+  setLegalHold(input: Input<SetLegalHoldInput>): Promise<SetLegalHoldResult>;
 }
 
 export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCallables {
@@ -339,5 +360,10 @@ export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCal
     removeParty: call(MATTER_CALLABLES.removeParty),
     upgradeTemplate: call(MATTER_CALLABLES.upgradeTemplate),
     renumber: call(MATTER_CALLABLES.renumber),
+    closingChecklist: (input) =>
+      client.call<ClosingChecklistInput, ClosingChecklistResult>(MATTER_CALLABLES.closingChecklist, input),
+    close: call(MATTER_CALLABLES.close),
+    reopen: call(MATTER_CALLABLES.reopen),
+    setLegalHold: call(MATTER_CALLABLES.setLegalHold),
   };
 }

@@ -115,6 +115,8 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
               This matter was deleted on {{ deletedOn() }}{{ deletedBy() }}. Everything here is read-only; an owner or
               admin can restore it within 30 days.
             </mt-note>
+          } @else if (closedText(); as text) {
+            <mt-note class="closed" icon="archive">{{ text }}</mt-note>
           }
           <mt-matter-header #header />
           @if (m.conflictAlert; as alert) {
@@ -167,6 +169,22 @@ export class MatterLayout {
     return status === 'ready' && !matter.exists() ? 'not-found' : 'loading';
   });
   protected readonly loadError = computed(() => errorCopy(this.screen.matter.error()));
+  /** The closed or archived banner (CORE-19): when, what's still allowed, and how long it's kept. */
+  protected readonly closedText = computed(() => {
+    const matter = this.screen.value();
+    if (!matter || (matter.status !== 'closed' && matter.status !== 'archived')) return null;
+    const closedOn = matter.closedAt ? ` on ${formatDateOnly(matter.closedAt)}` : '';
+    const state =
+      matter.status === 'archived'
+        ? `Archived${matter.archivedAt ? ` on ${formatDateOnly(matter.archivedAt)}` : ''}, after closing${closedOn}. It’s read-only; lawyers can still add notes.`
+        : `Closed${closedOn}. It’s read-only apart from notes, and is archived 90 days after closing.`;
+    const kept = matter.legalHold?.on
+      ? 'A legal hold keeps it from destruction.'
+      : matter.destroyAfter
+        ? `Kept until at least ${formatDateOnly(matter.destroyAfter)}.`
+        : 'It has no destruction date.';
+    return `${state} ${kept}${this.screen.canStatus() ? ' Reopen it from the status menu to make changes.' : ''}`;
+  });
   protected readonly deletedOn = computed(() => formatDateOnly(this.screen.value()?.deletedAt ?? null));
   protected readonly deletedBy = computed(() => {
     const by = this.screen.value()?.deletedBy;
@@ -248,7 +266,7 @@ export class MatterLayout {
     const commands = inject(CommandRegistry);
     const context = inject(OrgContext);
     const group = 'This matter';
-    const ready = () => this.state() === 'ready' && !this.screen.deleted();
+    const ready = () => this.state() === 'ready' && !this.screen.readOnly();
 
     // The tab actions follow the matter (its id and number) and the role.
     const target = computed(
