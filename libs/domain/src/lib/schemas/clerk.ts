@@ -9,7 +9,7 @@ import {
   NonEmptyString,
   withMeta,
 } from './common';
-import { DocumentCategorySchema, SuggestionStatusSchema } from './enums';
+import { DocumentCategorySchema, RoleSchema, SuggestionStatusSchema } from './enums';
 import { ChronologyEntry, CourtOrder, Evidence } from './litigation';
 import { Deadline, MatterEvent, Note, Party, Task, TimeEntry } from './matter-records';
 
@@ -96,6 +96,52 @@ export const ClerkThread = withMeta(
   { path: 'orgs/{orgId}/clerkThreads', softDelete: true, serverOwned: ['lastMessageAt'], migratable: false },
 );
 
+/**
+ * What Clerk was shown for one reply (AI-03, ADR-034): every source `buildContext` included, by id
+ * and version, stored on the assistant message for audit. Ids and counts only, never text.
+ */
+export const ContextManifestSchema = z.object({
+  scope: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('matter'), matterId: DocIdSchema }),
+    z.object({ kind: z.literal('metrics') }),
+  ]),
+  feature: NonEmptyString,
+  /** The role the context was built for (the member's current role, re-read at build time). */
+  role: RoleSchema,
+  /** Privileged material was included: the reply is privileged too (Clerk rule 6). */
+  privileged: z.boolean(),
+  /** Matter records in the facts block; `at` is the record's `updatedAt` (ISO 8601) when known. */
+  records: z.array(
+    z.object({
+      kind: z.enum(['matter', 'party', 'event', 'deadline', 'task', 'note', 'metrics']),
+      id: DocIdSchema,
+      at: z.string().optional(),
+    }),
+  ),
+  /** Whole documents (the person's attachments), at the version sent. */
+  documents: z.array(z.object({ documentId: DocIdSchema, version: z.number().int().min(1) })),
+  /** Retrieved excerpts, one per document page. */
+  chunks: z.array(
+    z.object({ documentId: DocIdSchema, version: z.number().int().min(1), page: z.number().int().min(1) }),
+  ),
+  /** Attachments left out because they are still being scanned or ingested. */
+  processing: z.number().int().min(0),
+  /** What the context told the model about itself ("1 document(s) still processing"). */
+  notices: z.array(z.string()),
+  /** Material dropped to fit the feature's token budget, lowest-ranked first; null when nothing was. */
+  truncated: z
+    .object({
+      droppedDocs: z.number().int().min(0),
+      droppedChunks: z.number().int().min(0),
+      droppedNotes: z.number().int().min(0),
+    })
+    .nullable(),
+  /** Context tokens (exact from the provider, or a character estimate) against the feature's budget. */
+  tokens: z.object({ used: z.number().int().min(0), budget: z.number().int().min(1), exact: z.boolean() }),
+});
+export type ContextManifest = z.infer<typeof ContextManifestSchema>;
+export type ContextTruncation = NonNullable<ContextManifest['truncated']>;
+
 const ContentBlockSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), text: z.string() }),
   z.object({ type: z.literal('suggestion_ref'), suggestionId: DocIdSchema }),
@@ -126,11 +172,25 @@ export const ClerkMessage = withMeta(
     /** The model that produced the reply (a fallback model when `fallbackUsed`). */
     model: z.string().optional(),
     fallbackUsed: z.boolean().optional(),
+    /** The sources Clerk was given for this reply (AI-03), for audit. */
+    manifest: ContextManifestSchema.optional(),
+    /** The reply drew on privileged material (AI-03, Clerk rule 6). */
+    privileged: z.boolean().optional(),
   },
   {
     path: 'orgs/{orgId}/clerkThreads/{threadId}/messages',
     migratable: false,
-    serverOwned: ['status', 'usage', 'toolCalls', 'citations', 'promptId', 'model', 'fallbackUsed'],
+    serverOwned: [
+      'status',
+      'usage',
+      'toolCalls',
+      'citations',
+      'promptId',
+      'model',
+      'fallbackUsed',
+      'manifest',
+      'privileged',
+    ],
     updatable: ['stopRequested'],
   },
 );
