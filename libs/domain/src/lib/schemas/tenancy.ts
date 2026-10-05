@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { ClerkModelChoiceSchema, DEFAULT_CLERK_MODEL } from '../clerk';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';

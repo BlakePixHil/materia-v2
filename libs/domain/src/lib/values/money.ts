@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { GST_RATE } from '../constants';
 import { DomainValueError } from './errors';
