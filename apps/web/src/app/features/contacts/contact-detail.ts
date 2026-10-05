@@ -35,6 +35,7 @@ import {
 
 import { partyRoleLabel } from './contact-form';
 import { errorCopy } from '../../core/error-copy';
+import { ContactPackets } from '../safe-custody/contact-packets';
 
 /** One matter the contact is on, with their role(s) there. */
 export interface ContactMatterVm {
@@ -49,13 +50,14 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
 
 /**
  * The contact detail pane (CORE-01): PersonHeader with roles across matters, the deceased banner,
- * details, the "Matters" list (a collection-group query on `parties`) and activity. Edit, merge and
- * delete are offered by permission; the page opens the dialogs.
+ * details, the "Matters" list (a collection-group query on `parties`), the original wills held in
+ * safe custody (CORE-17) and activity. Edit, merge and delete are offered by permission; the page
+ * opens the dialogs.
  */
 @Component({
   selector: 'mt-contact-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, MtBadge, MtButton, MtEmptyState, MtKeyFacts, MtNote, MtPersonHeader],
+  imports: [RouterLink, ContactPackets, MtBadge, MtButton, MtEmptyState, MtKeyFacts, MtNote, MtPersonHeader],
   host: { class: 'mt-col mt-contact-detail' },
   template: `
     @switch (state()) {
@@ -151,6 +153,12 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
                 }
               }
             </section>
+
+            @if (c.kind === 'person' && !c.mergedInto) {
+              <section class="mt-contact-card" aria-labelledby="contact-packets-h">
+                <mt-contact-packets [contactId]="c.id" [name]="name()" />
+              </section>
+            }
 
             @if (c.isReferrer || referred().length) {
               <section class="mt-contact-card" aria-labelledby="contact-referrals-h" data-testid="contact-referrals">
