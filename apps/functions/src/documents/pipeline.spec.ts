@@ -286,11 +286,19 @@ describe('processUpload', () => {
     expect(await processUpload(event, w.deps())).toMatchObject({ outcome: 'rejected', reason: 'too_large' });
   });
 
+  it('ignores metadata outside the contract (Firebase Storage adds a download token)', async () => {
+    const w = world();
+    const event = w.upload(fakePdf('token'));
+    const withToken = { ...event, metadata: { ...event.metadata, firebaseStorageDownloadTokens: 'fictional-token' } };
+    expect(await processUpload(withToken, w.deps())).toMatchObject({ outcome: 'stored' });
+  });
+
   it.each([
     ['missing metadata', { metadata: {} }],
+    ['a bad hash', { metadata: { uploaderUid: 'user-lawyer', fileName: 'a.pdf', sha256: 'not-a-hash' } }],
     [
-      'unknown metadata keys',
-      { metadata: { uploaderUid: 'user-lawyer', fileName: 'a.pdf', sha256: 'a'.repeat(64), x: '1' } },
+      'a bad category',
+      { metadata: { uploaderUid: 'user-lawyer', fileName: 'a.pdf', sha256: 'a'.repeat(64), category: 'x' } },
     ],
   ])('drops uploads with %s', async (_label, patch) => {
     const w = world();

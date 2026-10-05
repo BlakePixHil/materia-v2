@@ -1638,7 +1638,7 @@ describe('documents (CORE-12)', () => {
     const lawyer = uidFor('lawyer');
     const ref = doc(db(env, 'owner'), DOCUMENT);
     for (const change of [
-      { scan: { status: 'clean' } },
+      { scan: { status: 'infected' } },
       { version: 2 },
       { versions: [] },
       { versionSeq: 9 },

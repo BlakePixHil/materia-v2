@@ -18,6 +18,7 @@ import {
   ROLES,
   SCAN_MAX_ATTEMPTS,
   scanRetryDelaySeconds,
+  UPLOAD_METADATA_KEYS,
   UPLOAD_TYPES,
   uploadExtension,
   UploadMetadataSchema,
@@ -196,7 +197,11 @@ export async function processUpload(event: UploadEvent, deps: PipelineDeps): Pro
   const match = PENDING_UPLOAD_PATH.exec(event.path);
   if (!match) return { outcome: 'ignored' };
   const [, orgId, matterId, uploadId] = match as unknown as [string, string, string, string];
-  const parsed = UploadMetadataSchema.safeParse(event.metadata ?? {});
+  // Only the contract's keys: Firebase Storage adds its own (a download token) after the rules ran.
+  const metadata = event.metadata ?? {};
+  const parsed = UploadMetadataSchema.safeParse(
+    Object.fromEntries(UPLOAD_METADATA_KEYS.filter((key) => key in metadata).map((key) => [key, metadata[key]])),
+  );
   if (!parsed.success) {
     // The rules require this metadata; without it nobody can be told, so the file just goes.
     await files.remove(event.path, event.generation);
