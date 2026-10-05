@@ -26,3 +26,27 @@ export type OrgNumbering = z.infer<typeof OrgNumberingSchema>;
 export function orgSettingsRepository(): Repository<OrgNumbering> {
   return repo(() => 'orgs', { schema: OrgNumberingSchema, version: Org.version, update: Org.update });
 }
+
+/**
+ * What Settings → Practice and Billing & rates read from `orgs/{orgId}` (CORE-21). Every field but
+ * the name is optional, so an org made before a field existed still loads; the pages fill defaults.
+ * These fields change only through `orgs-updateSettings`.
+ */
+export const OrgSettingsSchema = /* @__PURE__ */ z.object({
+  name: org.name,
+  abn: org.abn,
+  jurisdictions: org.jurisdictions.optional(),
+  primaryJurisdiction: org.primaryJurisdiction.optional(),
+  timezone: z.string().optional(),
+  holidayLocality: z.string().optional(),
+  retentionYears: z.number().int().optional(),
+  billing: org.billing.partial().optional(),
+  feeDefaults: org.feeDefaults,
+  fy: org.fy.optional(),
+});
+export type OrgSettings = z.infer<typeof OrgSettingsSchema>;
+
+/** The active org's settings, read-only here: saves go through `orgs-updateSettings`. */
+export function orgSettingsReadRepository(): Repository<OrgSettings> {
+  return repo(() => 'orgs', { schema: OrgSettingsSchema, version: Org.version });
+}

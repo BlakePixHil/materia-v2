@@ -3,17 +3,33 @@ import { z } from 'zod';
 
 import { can, DocIdSchema, DomainError, PERMISSIONS } from '@materia/domain';
 
+import { audit } from './audit';
 import { defineCallable, type CallableDefinition } from '../core/callable';
+import { requireRecentLogin } from '../core/user-callable';
+
+const AuditFilters = {
+  /** Entries for one document (`orgs/{orgId}/matters/{id}/tasks/{taskId}`). */
+  entityPath: z.string().min(1).max(1500).optional(),
+  /** Entries for a matter and everything under it. Required for members without `audit.view`. */
+  matterId: DocIdSchema.optional(),
+  actorUid: DocIdSchema.optional(),
+  /** One kind of entity, by its collection (`matters`, `members`, …; CORE-21). */
+  collection: z
+    .string()
+    .regex(/^[A-Za-z]{1,40}$/)
+    .optional(),
+  /** One action (`update`, `member.role_changed`, …; CORE-21). */
+  action: z
+    .string()
+    .regex(/^[a-z][a-z_.]{0,79}$/)
+    .optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+};
 
 export const AuditQueryInput = z
   .object({
-    /** Entries for one document (`orgs/{orgId}/matters/{id}/tasks/{taskId}`). */
-    entityPath: z.string().min(1).max(1500).optional(),
-    /** Entries for a matter and everything under it. Required for members without `audit.view`. */
-    matterId: DocIdSchema.optional(),
-    actorUid: DocIdSchema.optional(),
-    from: z.iso.datetime().optional(),
-    to: z.iso.datetime().optional(),
+    ...AuditFilters,
     cursor: z.string().max(2000).optional(),
     limit: z.number().int().min(1).max(100).default(50),
   })
@@ -89,13 +105,7 @@ export const auditQueryDefinition = {
       }
     }
 
-    let query: Query = db.collection(`orgs/${orgId}/audit`);
-    if (input.entityPath) query = query.where('entity.path', '==', input.entityPath);
-    if (input.matterId) query = query.where('entity.matterId', '==', input.matterId);
-    if (input.actorUid) query = query.where('actor.uid', '==', input.actorUid);
-    if (input.from) query = query.where('at', '>=', Timestamp.fromDate(new Date(input.from)));
-    if (input.to) query = query.where('at', '<=', Timestamp.fromDate(new Date(input.to)));
-    query = query.orderBy('at', 'desc').orderBy(FieldPath.documentId(), 'desc');
+    let query = filtered(db.collection(`orgs/${orgId}/audit`), input);
     if (input.cursor) {
       const cursor = decodeCursor(input.cursor);
       query = query.startAfter(Timestamp.fromMillis(cursor.at), cursor.id);
@@ -131,6 +141,81 @@ export const auditQueryDefinition = {
   },
 } satisfies CallableDefinition<typeof AuditQueryInput, AuditQueryResult>;
 
+/** The audit collection with the filters applied, newest first. */
+function filtered(base: Query, input: z.infer<z.ZodObject<typeof AuditFilters>>): Query {
+  let query = base;
+  if (input.entityPath) query = query.where('entity.path', '==', input.entityPath);
+  if (input.matterId) query = query.where('entity.matterId', '==', input.matterId);
+  if (input.collection) query = query.where('entity.collection', '==', input.collection);
+  if (input.action) query = query.where('action', '==', input.action);
+  if (input.actorUid) query = query.where('actor.uid', '==', input.actorUid);
+  if (input.from) query = query.where('at', '>=', Timestamp.fromDate(new Date(input.from)));
+  if (input.to) query = query.where('at', '<=', Timestamp.fromDate(new Date(input.to)));
+  return query.orderBy('at', 'desc').orderBy(FieldPath.documentId(), 'desc');
+}
+
+/** Rows an export holds at most; narrow the filters for more. */
+export const AUDIT_EXPORT_MAX_ROWS = 5000;
+export const AuditExportInput = z.object(AuditFilters);
+
+const CSV_COLUMNS = ['at', 'actor', 'action', 'collection', 'entity', 'changedFields', 'summary', 'source'] as const;
+
+/** One CSV cell: quoted when needed, and never starting a formula (`=`, `+`, `-`, `@`). */
+export function csvCell(value: unknown): string {
+  let text = value === undefined || value === null ? '' : String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * `audit-exportCsv` (CORE-21): the filtered audit log as CSV, newest first, up to
+ * AUDIT_EXPORT_MAX_ROWS rows, for owners who signed in within the last five minutes. The export
+ * lists what changed and who changed it, without field values. Audited itself.
+ */
+export const auditExportDefinition = {
+  name: 'audit-exportCsv',
+  input: AuditExportInput,
+  roles: ['owner'],
+  handler: async (ctx): Promise<{ csv: string; rows: number; truncated: boolean }> => {
+    const { input, orgId, db, token, clock } = ctx;
+    requireRecentLogin(token, clock.now().getTime(), 5);
+    if (input.entityPath && !input.entityPath.startsWith(`orgs/${orgId}/`)) {
+      throw new DomainError('INVALID_ARGUMENT', 'entityPath is not in your organisation');
+    }
+    const snap = await filtered(db.collection(`orgs/${orgId}/audit`), input)
+      .limit(AUDIT_EXPORT_MAX_ROWS + 1)
+      .get();
+    const docs = snap.docs.slice(0, AUDIT_EXPORT_MAX_ROWS);
+    const lines = docs.map((doc) => {
+      const data = doc.data();
+      const actor = data['actor'] as AuditQueryEntry['actor'];
+      const entity = (data['entity'] ?? {}) as AuditQueryEntry['entity'];
+      const row = {
+        at: toIso(data['at']),
+        actor: typeof actor === 'string' ? actor : actor?.uid,
+        action: data['action'],
+        collection: entity.collection,
+        entity: entity.path,
+        changedFields: ((data['changedFields'] as string[] | undefined) ?? []).join(' '),
+        summary: data['summary'],
+        source: data['source'],
+      };
+      return CSV_COLUMNS.map((column) => csvCell(row[column])).join(',');
+    });
+    await audit(ctx, {
+      action: 'audit.exported',
+      entity: { path: `orgs/${orgId}/members/${ctx.uid}` },
+      summary: `Audit log exported (${docs.length} rows)`,
+      data: { rows: docs.length },
+    });
+    return {
+      csv: [CSV_COLUMNS.join(','), ...lines].join('\r\n'),
+      rows: docs.length,
+      truncated: snap.docs.length > AUDIT_EXPORT_MAX_ROWS,
+    };
+  },
+} satisfies CallableDefinition<typeof AuditExportInput, { csv: string; rows: number; truncated: boolean }>;
+
 /** Timestamps become ISO strings so the callable's JSON response stays readable. */
 function jsonSafe(value: unknown, depth = 0): unknown {
   if (value instanceof Timestamp) return value.toDate().toISOString();
@@ -140,3 +225,4 @@ function jsonSafe(value: unknown, depth = 0): unknown {
 }
 
 export const query = defineCallable(auditQueryDefinition);
+export const exportCsv = defineCallable(auditExportDefinition);

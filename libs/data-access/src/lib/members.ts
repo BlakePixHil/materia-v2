@@ -9,7 +9,8 @@ const shape = Member.schema.shape;
 
 /**
  * What the team list reads from `orgs/{orgId}/members/{uid}`: the fields it shows, validated by the
- * `libs/domain` Member schema. Other fields (rates, budgets) are dropped, not rejected.
+ * `libs/domain` Member schema, plus the rate, budgets and supervisor that owners and admins edit
+ * there (CORE-21). Other fields are dropped, not rejected.
  */
 export const MemberListItemSchema = /* @__PURE__ */ z.object({
   displayName: shape.displayName,
@@ -18,6 +19,11 @@ export const MemberListItemSchema = /* @__PURE__ */ z.object({
   status: shape.status,
   initials: shape.initials.optional(),
   colour: shape.colour.optional(),
+  title: shape.title.optional(),
+  defaultRateCents: shape.defaultRateCents.optional(),
+  rates: shape.rates.optional(),
+  budgets: shape.budgets.optional(),
+  supervisorUid: shape.supervisorUid,
 });
 export type MemberListItem = z.infer<typeof MemberListItemSchema>;
 
@@ -30,8 +36,13 @@ export const MEMBER_LIST_QUERY: QuerySpec<MemberListItem> = {
 
 /**
  * The members repository: the worked example of the data layer (FND-19), used by the team page.
- * Call it in an injection context.
+ * Owners and admins update a member's rate, budgets and supervisor client-direct (`Member.update`,
+ * `members.manage` in the rules; CORE-21). Call it in an injection context.
  */
 export function membersRepository(): Repository<MemberListItem> {
-  return repo((orgId) => `orgs/${orgId}/members`, { schema: MemberListItemSchema, version: Member.version });
+  return repo((orgId) => `orgs/${orgId}/members`, {
+    schema: MemberListItemSchema,
+    version: Member.version,
+    update: Member.update,
+  });
 }
