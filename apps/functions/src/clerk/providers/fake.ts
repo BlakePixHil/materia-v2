@@ -32,6 +32,19 @@ function defaultStep(request: ClerkModelRequest): FakeStep {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Every model the fake "account" can see. */
+export const FAKE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-opus-5', 'claude-sonnet-5'] as const;
+
+/**
+ * Key validation in the emulator and tests (AI-02a), by markers in the key: `invalid` is rejected
+ * (401), `unreachable` can't reach the API, `noopus` can't see Opus 5.5. Any other key is valid.
+ */
+export function fakeListModels(apiKey: string): string[] {
+  if (apiKey.includes('invalid')) throw new ClerkModelError('auth', 'Provider rejected the credentials (401)', 401);
+  if (apiKey.includes('unreachable')) throw new ClerkModelError('disconnected', 'Connection to the provider failed');
+  return apiKey.includes('noopus') ? FAKE_MODELS.filter((model) => !model.startsWith('claude-opus')) : [...FAKE_MODELS];
+}
+
 /**
  * The fake Claude model (AI-02): scripted streams, refusals, truncation, invalid output and
  * provider errors, for unit and integration tests and the emulator. It honours the abort signal
@@ -51,6 +64,10 @@ export class FakeClerkModel implements ClerkModelPort {
   /** Queue more replies. */
   push(...steps: FakeStep[]): void {
     this.script.push(...steps);
+  }
+
+  async listModels(apiKey: string): Promise<string[]> {
+    return fakeListModels(apiKey);
   }
 
   async run(request: ClerkModelRequest, onEvent?: (event: ClerkStreamEvent) => void): Promise<ClerkModelResult> {

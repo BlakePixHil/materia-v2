@@ -1,3 +1,4 @@
+import type { ClerkKeyring, OrgKey } from './keyring';
 import type { ClerkStore, FinalMessage, MessageSink, MeterEntry, OrgClerkSettings } from './store';
 
 /** An in-memory ClerkStore for unit tests (the Firestore one is covered by integration tests). */
@@ -55,5 +56,20 @@ export class MemoryClerkStore implements ClerkStore {
         record.closed = true;
       },
     };
+  }
+}
+
+/** An in-memory keyring for unit tests: one org key, or none. */
+export class MemoryKeyring implements ClerkKeyring {
+  key: OrgKey = { state: 'ok', apiKey: 'sk-ant-fictional-unit-test-key-0000', version: 'v1' };
+  readonly invalidated: string[] = [];
+
+  async resolve(): Promise<OrgKey> {
+    return this.key;
+  }
+
+  async markInvalid(_orgId: string, version: string): Promise<void> {
+    this.invalidated.push(version);
+    if (this.key.state === 'ok' && this.key.version === version) this.key = { state: 'invalid' };
   }
 }

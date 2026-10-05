@@ -657,7 +657,7 @@ export function buildDataset(options: {
       holidayLocality: 'VIC_GREATER_GEELONG',
       matterNumberFormat: SEED_MATTER_NUMBER_FORMAT,
       security: { mfaRequired: false, sessionIdleMinutes: 60 },
-      settings: { clerk: { enabled: true } },
+      settings: { clerk: { enabled: true, model: 'claude-sonnet-5-5' } },
       // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02), and
       // matters follow their templates' stages and tasks (CORE-07), and the illustrative Victorian
       // statutory deadline rules apply (CORE-10).

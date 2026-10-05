@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { ClerkModelChoiceSchema, DEFAULT_CLERK_MODEL } from '../clerk';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
 import { NotificationPrefsSchema } from '../notifications';
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
@@ -57,7 +58,9 @@ export const Org = withMeta(
         clerk: z
           .object({
             /** The org's own Clerk switch (AI-13 builds the toggle); `false` turns Clerk off for the org. */
-            enabled: z.boolean(),
+            enabled: z.boolean().optional(),
+            /** The model Clerk runs on (AI-02a): Sonnet 5.5 unless an admin opts into Opus 5.5 (`clerk-setModel`). */
+            model: ClerkModelChoiceSchema.default(DEFAULT_CLERK_MODEL),
             /** Monthly token budget (all token kinds); the gateway default applies when unset. */
             monthlyTokenBudget: z.number().int().positive().optional(),
             /** Per-user request window; the gateway default (30 per 10 minutes) applies when unset. */
