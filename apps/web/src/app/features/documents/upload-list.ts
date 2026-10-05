@@ -21,7 +21,7 @@ interface Row {
   selector: 'mt-upload-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, MtBadge, MtButton, MtIcon, MtIconButton],
-  host: { class: 'mt-upload-list', role: 'region', 'aria-label': 'Uploads' },
+  host: { class: 'mt-upload-list', role: 'region', 'aria-label': 'Uploads', '[hidden]': '!rows().length' },
   template: `
     <div class="head">
       <h3 class="label">Uploads</h3>
@@ -96,6 +96,9 @@ interface Row {
     </ul>
   `,
   styles: `
+    :host([hidden]) {
+      display: none;
+    }
     :host {
       display: flex;
       flex-direction: column;

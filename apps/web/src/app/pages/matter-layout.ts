@@ -160,9 +160,10 @@ export class MatterLayout {
       untracked(() => this.screen.id.set(id || null));
     });
 
-    // Litigation is for disputes only: elsewhere its URL lands on the overview.
+    // Litigation is for disputes only: elsewhere its URL lands on the overview. A tab's own pages
+    // (a document, `documents/:docId`) belong to their tab.
     effect(() => {
-      const tab = this.activeTab();
+      const tab = this.activeTab()?.split('/')[0];
       const matter = this.screen.value();
       if (!matter || !tab || tab === 'conflicts') return;
       if (!this.tabs().some((t) => t.path === tab)) {

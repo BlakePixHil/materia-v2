@@ -14,7 +14,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
+import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import { MtButton, MtNote } from '@materia/ui';
 
@@ -26,15 +26,17 @@ function pdfAsset(path: string): string {
   return new URL(`assets/pdfjs/${path}`, document.baseURI).href;
 }
 
-type PdfJs = typeof import('pdfjs-dist');
+type PdfJs = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
 let pdfjs: Promise<PdfJs> | undefined;
 
 /**
  * PDF.js, loaded the first time a PDF is opened: the library is its own lazy chunk and the worker a
- * static asset (`assets/pdfjs/pdf.worker.min.mjs`), so neither is in any other bundle.
+ * static asset (`assets/pdfjs/pdf.worker.min.mjs`), so neither is in any other bundle. The legacy
+ * build, which carries its own polyfills: the modern one needs very recent engines (`Promise.try`,
+ * `Map#getOrInsertComputed`), which Safari and older Chromium lack.
  */
 export function loadPdfJs(): Promise<PdfJs> {
-  return (pdfjs ??= import('pdfjs-dist').then((lib) => {
+  return (pdfjs ??= import('pdfjs-dist/legacy/build/pdf.mjs').then((lib) => {
     lib.GlobalWorkerOptions.workerSrc = pdfAsset('pdf.worker.min.mjs');
     return lib;
   }));
