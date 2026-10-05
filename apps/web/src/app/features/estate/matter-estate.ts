@@ -184,6 +184,7 @@ const MAX_EXPORT_PAGES = 50;
             [rowKey]="rowKey"
             [rowLabel]="assetLabel"
             [groupBy]="assetGroup"
+            [virtualThreshold]="noVirtual"
             (open)="editAsset($event)"
           />
         } @else if (assets.status() === 'loading') {
@@ -257,6 +258,7 @@ const MAX_EXPORT_PAGES = 50;
             [rowKey]="rowKey"
             [rowLabel]="liabilityLabel"
             [groupBy]="liabilityGroup"
+            [virtualThreshold]="noVirtual"
             (open)="editLiability($event)"
           />
         } @else if (liabilities.status() === 'loading') {
@@ -477,8 +479,18 @@ const MAX_EXPORT_PAGES = 50;
     }
     .mt-matter-estate .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: var(--space-12);
+    }
+    /* Cents-exact figures are long ($1,116,250.00): five fit across a 13-inch screen at this size. */
+    .mt-matter-estate .stats .mt-stat .v {
+      font-size: 20px;
+      line-height: 28px;
+    }
+    /* Long descriptions and notes wrap rather than push the table wider than the card. */
+    .mt-matter-estate .mt-table td.wrap {
+      white-space: normal;
+      padding-block: var(--space-6);
     }
     .mt-matter-estate .note {
       margin: 0;
@@ -653,6 +665,8 @@ export class MatterEstate {
 
   private dialogOpen = false;
 
+  /** Rows wrap, so their heights vary: render every loaded row (a page is 200) rather than a virtual window. */
+  protected readonly noVirtual = Number.MAX_SAFE_INTEGER;
   protected readonly rowKey = (row: { id: string }) => row.id;
   protected readonly assetLabel = (row: AssetRow) => row.description;
   protected readonly liabilityLabel = (row: LiabilityRow) => row.creditor;
@@ -666,8 +680,14 @@ export class MatterEstate {
   });
 
   protected readonly assetColumns: MtTableColumn<AssetRow>[] = [
-    { id: 'description', header: 'Description', cellClass: 'title' },
-    { id: 'institution', header: 'Institution or reference', value: (row) => row.institution },
+    { id: 'description', header: 'Description', width: '24%', cellClass: 'wrap' },
+    {
+      id: 'institution',
+      header: 'Institution or reference',
+      width: '16%',
+      cellClass: 'wrap',
+      value: (row) => row.institution,
+    },
     {
       id: 'value',
       header: 'Value at death',
@@ -684,11 +704,11 @@ export class MatterEstate {
     },
     { id: 'status', header: 'Status', value: (row) => ASSET_STATUS_LABELS[row.status] },
     { id: 'realised', header: 'Realised', numeric: true, value: (row) => money(row.realisedCents) },
-    { id: 'flags', header: 'Notes', value: (row) => assetFlags(row) },
+    { id: 'flags', header: 'Notes', width: '16%', cellClass: 'wrap caption', value: (row) => assetFlags(row) },
   ];
 
   protected readonly liabilityColumns: MtTableColumn<LiabilityRow>[] = [
-    { id: 'creditor', header: 'Creditor', cellClass: 'title' },
+    { id: 'creditor', header: 'Creditor', width: '40%', cellClass: 'wrap' },
     { id: 'reference', header: 'Reference', value: (row) => row.reference },
     { id: 'status', header: 'Status', value: (row) => LIABILITY_STATUS_LABELS[row.status] },
     {

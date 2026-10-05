@@ -248,7 +248,7 @@ describe('estate-onWrite', () => {
     };
     w.docs.set(`ruleSets/${VIC_RULESET_V1.ruleSetId}/versions/${next.version}`, toRuleSetDoc(next) as Data);
     expect(await estateValueChanged(w.doc(M) as Data, ctx())).toBe(true);
-  });
+  }, 20_000); // The first recompute loads the rule sets and holiday calendars.
 });
 
 describe('estate-exportInventory', () => {

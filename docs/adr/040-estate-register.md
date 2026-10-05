@@ -1,4 +1,4 @@
-# ADR-034: The estate register is client-written, with trigger-kept totals
+# ADR-040: The estate register is client-written, with trigger-kept totals
 
 - **Status:** Accepted
 - **Date:** 2026-10-05
