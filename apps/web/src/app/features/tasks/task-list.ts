@@ -185,13 +185,16 @@ const FOLLOW_MS = 1500;
       flex-direction: column;
       min-height: 8px;
     }
-    /* Bulk selection lives in its own slate column, apart from the round done check. */
+    /*
+     * Bulk selection lives in its own slate column, apart from the round done check. A step off the
+     * surface in both themes: --bg-sunken is darker than the surface in dark mode, so it read as a hole.
+     */
     .mt-task-list .rail {
       flex: none;
       display: flex;
       justify-content: center;
       width: 32px;
-      background: var(--bg-sunken);
+      background: var(--bg-hover);
       border-inline-end: 1px solid var(--border-subtle);
     }
     .mt-task-list .rail-head {
