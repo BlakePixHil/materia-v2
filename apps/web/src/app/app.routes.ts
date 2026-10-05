@@ -141,11 +141,12 @@ const shellRoutes: Route[] = [
     data: { crumb: 'My tasks' },
     loadComponent: () => import('./features/tasks/tasks-page').then((m) => m.TasksPage),
   },
-  planned('inbox', 'Inbox', {
-    ticket: 'CORE-22',
-    icon: 'inbox',
-    description: 'Mentions, assignments and replies that need you.',
-  }),
+  // Every notification I get, with filters, keyboard triage and inline actions (CORE-22).
+  {
+    path: 'inbox',
+    title: 'Inbox',
+    loadComponent: () => import('./features/inbox/inbox-page').then((m) => m.InboxPage),
+  },
   { path: 'matters', data: { crumb: 'Matters' }, children: matterRoutes },
   // Every upcoming deadline across the firm's matters, as a list or a month calendar (CORE-10).
   {

@@ -281,6 +281,10 @@ const notificationBase = {
   summaryId: DocIdSchema.nullable().optional(),
   /** On a burst summary: how many notifications it stands for. */
   collapsedCount: z.number().int().min(1).optional(),
+  /** Archived from the inbox by its recipient (CORE-22): hidden from the list, kept until `expireAt`. */
+  hiddenAt: InstantSchema.nullable().optional(),
+  /** Firestore TTL deletes it then: `NOTIFICATION_RETENTION_DAYS` after it was sent (CORE-22). */
+  expireAt: InstantSchema.optional(),
 };
 
 /**
@@ -385,7 +389,7 @@ export type NotificationKind = z.infer<typeof NotificationPayloadSchema>['kind']
 export const Notification = {
   schema: NotificationPayloadSchema.and(z.object(MetaShape)),
   create: NotificationPayloadSchema,
-  update: z.object({ readAt: InstantSchema.nullable() }).partial().strict(),
+  update: z.object({ readAt: InstantSchema.nullable(), hiddenAt: InstantSchema.nullable() }).partial().strict(),
   // v2 (FND-20): `channels` replaces `channel`; adds `critical`, `readAt: null`, deliveries and
   // bursts. v1 documents (in-app only) are not read by anything.
   version: 2,

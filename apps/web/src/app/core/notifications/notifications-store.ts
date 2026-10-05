@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 
 import { Connectivity, OrgContext } from '@materia/data-access';
 import {
+  markNotificationsRead,
   myUnreadNotificationsQuery,
   notificationsRepo,
   UNREAD_BADGE_LIMIT,
@@ -26,8 +27,8 @@ const isUrgent = (item: NotificationItem) => item.priority === 'high' || item.pr
 
 /**
  * The signed-in person's unread in-app notifications (FND-20), for the shell: the count on the
- * Inbox nav item, and a toast when a high-priority or critical one arrives while online. The
- * inbox itself is CORE-22. Provided by the app shell, so the listener lives as long as it does
+ * Inbox nav item and the bell, and a toast when a high-priority or critical one arrives while
+ * online. The inbox itself is CORE-22. Provided by the app shell, so the listener lives as long as it does
  * and follows the active org and account.
  */
 @Injectable()
@@ -39,7 +40,8 @@ export class NotificationsStore {
   /** Set once the page has had its own first reads (`NOTIFICATIONS_START_DELAY_MS`). */
   private readonly started = signal(false);
 
-  private readonly unread = notificationsRepo().watchQuery(() => {
+  private readonly repo = notificationsRepo();
+  private readonly unread = this.repo.watchQuery(() => {
     const uid = this.context.uid();
     return this.started() && uid && this.context.orgId() ? myUnreadNotificationsQuery(uid) : null;
   });
@@ -53,6 +55,23 @@ export class NotificationsStore {
     const shown = this.unread.value().length;
     return this.unread.hasMore() ? Math.max(shown, UNREAD_BADGE_LIMIT) + 1 : shown;
   });
+
+  /** The newest unread ones, for the bell's popover (CORE-22). */
+  readonly latest = computed(() => (this.unread.status() === 'error' ? [] : this.unread.value()));
+
+  /** Marks the unread ones the badge counts read (the bell's Mark all read). */
+  markAllRead(): Promise<void> {
+    return markNotificationsRead(
+      this.repo,
+      this.latest().map((item) => item.id),
+      true,
+    );
+  }
+
+  /** Marks one read (opened from the bell). */
+  markRead(item: NotificationItem): Promise<void> {
+    return markNotificationsRead(this.repo, [item.id], true);
+  }
 
   /** Ids already seen for the current account and org; `null` until the first answer. */
   private seen: Set<string> | null = null;
