@@ -68,6 +68,9 @@ export const HASHED_FIELDS = new Set([
 /** Secrets: dropped from the audit entirely. */
 export const DROPPED_FIELDS = new Set([
   'encryptedRefreshToken',
+  // Clerk BYOK (AI-02a).
+  'encryptedApiKey',
+  'apiKey',
   'tokenHash',
   'refreshToken',
   'accessToken',

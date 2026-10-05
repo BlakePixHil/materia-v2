@@ -26,6 +26,7 @@
       "@materia/clerk/evals": ["./libs/clerk/src/evals.ts"],
       "@materia/test-utils": ["./libs/test-utils/src/index.ts"],
       "@materia/ui": ["./libs/ui/src/index.ts"],
+      "@materia/ui/command-palette": ["./libs/ui/src/command-palette.ts"],
       "@materia/ui/markdown": ["./libs/ui/src/markdown.ts"],
       "@materia/ui/timeline": ["./libs/ui/src/timeline.ts"],
       "@materia/data-access": ["./libs/data-access/src/index.ts"],

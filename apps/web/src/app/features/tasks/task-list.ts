@@ -15,7 +15,7 @@ import {
   untracked,
   ViewEncapsulation,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { MtIcon, MtIconButton, MtTaskRow } from '@materia/ui';
 
@@ -293,6 +293,8 @@ export class TaskList {
   protected readonly selected = computed(() => new Set(this.selection()));
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
   private readonly flat = computed(() => this.sections().flatMap((section) => section.entries));
+  /** The task named by `?task=`, if any. */
+  private readonly linked = signal<string | null>(null);
   /** A moved task keeps focus while the list re-renders around it. */
   private follow: { key: string; until: number } | null = null;
 
@@ -312,6 +314,30 @@ export class TaskList {
       const kept = current.filter((key) => keys.has(key));
       if (kept.length !== current.length) untracked(() => this.selection.set(kept));
     });
+    // A task's link (`?task=<id>`, from ⌘K; CORE-15) opens its details and focuses it once it's listed.
+    const route = inject(ActivatedRoute, { optional: true });
+    if (route) {
+      let opened: string | null = null;
+      const sub = route.queryParamMap.subscribe((params) => this.linked.set(params.get('task')));
+      inject(DestroyRef).onDestroy(() => sub.unsubscribe());
+      effect(() => {
+        const id = this.linked();
+        const entry = id && id !== opened ? this.flat().find((e) => e.task.id === id) : undefined;
+        if (!entry) return;
+        opened = id;
+        untracked(() => {
+          this.expanded.update((set) => new Set([...set, entry.key]));
+          afterNextRender(
+            () => {
+              const title = this.titleOf(entry.key);
+              title?.scrollIntoView?.({ block: 'center' });
+              title?.focus();
+            },
+            { injector: this.injector },
+          );
+        });
+      });
+    }
     // j/k from outside the list jump into it.
     const shortcuts = inject(ShortcutService);
     const has = () => this.flat().length > 0;

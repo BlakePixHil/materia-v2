@@ -9,6 +9,7 @@ import {
   FakeSignedUrls,
   FakeTaskQueue,
   fakeClerkModel,
+  FakeKms,
   fakeMalwareScan,
   fakeTranscription,
   fakeXero,
@@ -34,6 +35,7 @@ describe('fakes', () => {
 
     const request = {
       model: 'm',
+      credentials: { orgId: 'o', apiKey: 'sk-ant-fictional' },
       system: '',
       messages: [],
       maxTokens: 10,
@@ -88,5 +90,21 @@ describe('fakes', () => {
     });
     expect(url).toContain(`expires=${expiresAt.getTime() / 1000}`);
     expect(signer.signed).toHaveLength(1);
+  });
+
+  it('fake KMS round-trips without exposing the plaintext, bound to its aad', async () => {
+    const kms = new FakeKms();
+    const sealed = await kms.encrypt('sk-ant-fictional-plaintext', 'orgs/o/integrations/anthropic');
+    expect(sealed.ciphertext).not.toContain('sk-ant');
+    expect(await kms.decrypt(sealed.ciphertext, 'orgs/o/integrations/anthropic')).toBe('sk-ant-fictional-plaintext');
+    await expect(kms.decrypt(sealed.ciphertext, 'orgs/other/integrations/anthropic')).rejects.toThrow();
+    await expect(kms.decrypt('not-fake', 'a')).rejects.toThrow();
+  });
+
+  it('fake model validates keys by marker', async () => {
+    await expect(fakeClerkModel.listModels('sk-ant-fake-invalid-key')).rejects.toMatchObject({ kind: 'auth' });
+    await expect(fakeClerkModel.listModels('sk-ant-fake-unreachable')).rejects.toMatchObject({ kind: 'disconnected' });
+    expect(await fakeClerkModel.listModels('sk-ant-fake-noopus')).not.toContain('claude-opus-5-5');
+    expect(await fakeClerkModel.listModels('sk-ant-fake-good')).toContain('claude-opus-5-5');
   });
 });

@@ -14,6 +14,8 @@ const COMMANDS = {
   'make-fixtures': 'Render the Clerk eval fixture PDFs, typed and scanned (AI-12; --check)',
   'flags-report': 'Check the feature flag registry and report stale flags (FND-23)',
   'platform-admin': 'Grant or revoke the platformAdmin claim (FND-23; humans only)',
+  'backfill-search-tokens': 'Rewrite search tokens and stamp recent entries (CORE-15; idempotent)',
+  'search-load': 'Time the ⌘K search against the emulator with 5,000 matters (CORE-15)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -49,6 +51,8 @@ export async function run(argv: string[]): Promise<number> {
       'make-fixtures': () => import('./make-fixtures.ts'),
       'flags-report': () => import('./flags-report.ts'),
       'platform-admin': () => import('./platform-admin.ts'),
+      'backfill-search-tokens': () => import('./backfills/search-tokens.ts'),
+      'search-load': () => import('./search-load.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);
