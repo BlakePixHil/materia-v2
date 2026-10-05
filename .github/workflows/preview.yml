@@ -5,11 +5,26 @@
 # Fork PRs get no preview (they have no access to the deploy identity).
 # Hosting caps the number of channels per site, so a closed PR's channel is deleted when it closes,
 # and every preview run first deletes the channels of PRs that are no longer open.
+# To save Actions minutes, only PRs that can change the web app get a preview, and none are built
+# in quiet hours (22:00-07:30 Melbourne): the next push after 07:30 builds it.
 name: preview
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
+    paths:
+      - 'apps/web/**'
+      - 'libs/**'
+      - 'design/**'
+      - 'tools/scripts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'firebase.json'
+      - 'nx.json'
+      - 'tsconfig.base.json'
+      - '.github/actions/setup/**'
+      - '.github/workflows/preview.yml'
+      - '.github/scripts/prune-preview-channels.mjs'
 
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
@@ -32,15 +47,19 @@ jobs:
       CHANNEL: pr-${{ github.event.pull_request.number }}
       SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - name: Check the dev variables
+      - name: Check the dev variables and the time
         id: ready
         env:
           WEB_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG_DEV }}
           WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER_DEV }}
           DEPLOYER_SA: ${{ vars.GCP_DEPLOYER_SA_DEV }}
         run: |
+          now=$((10#$(TZ=Australia/Melbourne date +%H%M)))
           if [ -z "$WEB_CONFIG" ] || [ -z "$PROJECT" ] || [ -z "$WIF_PROVIDER" ] || [ -z "$DEPLOYER_SA" ]; then
             echo "::notice::Preview skipped: set FIREBASE_WEB_CONFIG_DEV, GCP_PROJECT_DEV, GCP_WIF_PROVIDER_DEV and GCP_DEPLOYER_SA_DEV (docs/runbooks/deploy.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ "$now" -ge 2200 ] || [ "$now" -lt 730 ]; then
+            echo "::notice::Preview skipped in quiet hours (22:00-07:30 Melbourne); the next push after 07:30 builds it."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"

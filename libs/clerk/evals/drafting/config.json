@@ -1,0 +1,37 @@
+{
+  "suite": "drafting",
+  "title": "Drafting letters (AI-10)",
+  "ticket": "AI-10",
+  "feature": "drafting",
+  "promptId": "draft-letter@1.0.0",
+  "subset": [
+    "draft-001",
+    "draft-002",
+    "draft-003",
+    "draft-004",
+    "draft-005",
+    "draft-006",
+    "draft-007",
+    "draft-008",
+    "draft-009",
+    "draft-010"
+  ],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "placeholderHonesty": {
+      "min": 0.9,
+      "maxRegression": 0.05
+    },
+    "citationSupport": {
+      "min": 0.8,
+      "maxRegression": 0.1
+    },
+    "costUsd": {
+      "maxRegression": 0.5
+    }
+  },
+  "citations": "none"
+}

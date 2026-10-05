@@ -1,0 +1,12 @@
+SAMPLE - FICTIONAL DOCUMENT FOR SOFTWARE TESTING ONLY
+
+Bellarine Brokers Pty Ltd
+HOLDING STATEMENT as at 9 January 2026
+
+Account holder: Harold John Vance (deceased estate)
+Account: BB-55210
+
+Holding                     Units     Price     Value
+Coastal Energy Ltd          1,200     $14.20    $17,040.00
+Southern Rail Group Ltd       800     $22.65    $18,120.00
+Total                                           $35,160.00
