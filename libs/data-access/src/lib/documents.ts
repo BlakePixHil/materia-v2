@@ -6,6 +6,7 @@ import {
   DomainError,
   MatterDocument,
   pendingUploadPath,
+  SoftDeleteShape,
   uploadSettings,
   type BulkUpdateDocumentsInput,
   type BulkUpdateDocumentsResult,
@@ -27,9 +28,14 @@ import { repo, type Repository } from './repository';
 
 /**
  * A matter document as the Documents tab reads it (CORE-12): the `MatterDocument` fields, with
- * anything else the server keeps (`_requestId`) dropped rather than rejected.
+ * anything else the server keeps (`_requestId`) dropped rather than rejected, and the soft-delete
+ * fields typed (a removed document still resolves, as "Removed document").
  */
-export const DocumentItemSchema = /* @__PURE__ */ z.object(MatterDocument.schema.shape);
+export const DocumentItemSchema = /* @__PURE__ */ z.object({
+  ...MatterDocument.schema.shape,
+  deletedAt: SoftDeleteShape.deletedAt,
+  deletedBy: SoftDeleteShape.deletedBy,
+});
 export type DocumentItem = z.infer<typeof DocumentItemSchema>;
 
 /**
