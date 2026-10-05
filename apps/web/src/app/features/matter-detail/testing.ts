@@ -5,6 +5,7 @@ import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
 import {
   clientContactIdsFrom,
+  confirmationMatches,
   contactSearchTokens,
   DEFAULT_MATTER_STAGES,
   matterSearchTokens,
@@ -308,7 +309,11 @@ export function deadlineServerCallables(): Record<string, FakeCallable> {
       const path = `${MATTER}/deadlineChanges/${String(data['changeId'])}`;
       const change = fs.get(path) as Seed;
       const matter = fs.get(MATTER) as Seed;
-      if (data['accept'] && change['critical'] && data['confirmation'] !== matter['number']) {
+      if (
+        data['accept'] &&
+        change['critical'] &&
+        !confirmationMatches(data['confirmation'] as string | undefined, String(matter['number']))
+      ) {
         throw {
           code: 'functions/invalid-argument',
           details: {

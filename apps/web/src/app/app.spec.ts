@@ -91,7 +91,6 @@ describe('app routes', () => {
 
   it.each([
     ['/inbox', 'Inbox', 'CORE-22'],
-    ['/deadlines', 'Deadlines', 'CORE-10'],
     ['/billing', 'Time & billing', 'BILL-03'],
     ['/insights', 'Insights', 'INS-02'],
     ['/settings/firm/people', 'Settings', 'CORE-21'],
@@ -100,6 +99,14 @@ describe('app routes', () => {
     expect(el.querySelector('h1')?.textContent).toContain(heading);
     expect(el.textContent).toContain(`Coming in ${ticket}`);
     expect(title()).toBe(`${heading} · Materia`);
+  });
+
+  it('/deadlines is the Deadlines screen (CORE-10)', async () => {
+    const { el, title } = await setup('/deadlines');
+    expect(el.querySelector('h1')?.textContent).toContain('Deadlines');
+    expect(el.querySelector('mt-deadlines-page')).not.toBeNull();
+    expect(el.textContent).not.toContain('Coming in CORE-10');
+    expect(title()).toBe('Deadlines · Materia');
   });
 
   it('/matters/new is the new matter intake (CORE-05)', async () => {
@@ -129,10 +136,10 @@ describe('app routes', () => {
   });
 
   it('adds the tab to the title on other matter tabs', async () => {
-    const { title, crumbs, el } = await setup('/matters/M-2026-0142/deadlines', testSession(), {}, withMatter());
-    expect(title()).toBe('Matter · M-2026-0142 · Deadlines · Materia');
-    expect(crumbs()).toEqual(['Matters', 'M-2026-0142', 'Deadlines']);
-    expect(el.textContent).toContain('Coming in CORE-10');
+    const { title, crumbs, el } = await setup('/matters/M-2026-0142/documents', testSession(), {}, withMatter());
+    expect(title()).toBe('Matter · M-2026-0142 · Documents · Materia');
+    expect(crumbs()).toEqual(['Matters', 'M-2026-0142', 'Documents']);
+    expect(el.textContent).toContain('Coming in CORE-12');
   });
 
   it('redirects an unknown matter tab to the overview', async () => {
