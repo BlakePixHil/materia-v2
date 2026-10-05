@@ -9,13 +9,16 @@ import {
   inject,
   signal,
   untracked,
+  viewChild,
   ViewEncapsulation,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { NgpPopover, NgpPopoverTrigger } from 'ng-primitives/popover';
 import { filter, map } from 'rxjs';
 
 import { DataLifecycle } from '@materia/data-access';
+import { UNREAD_BADGE_LIMIT } from '@materia/data-access/repository';
 import { can, type Action } from '@materia/domain';
 import {
   DialogService,
@@ -47,8 +50,10 @@ import { CommandRegistry, type Command } from '../core/commands/command-registry
 import { intentUrl } from '../core/commands/intents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
 import { OfflineError, OrgService } from '../core/orgs/org-service';
+import { UserPrefsService } from '../core/profile/user-prefs';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterRefs, routeCrumbs } from '../core/title-strategy';
 
@@ -99,7 +104,10 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtMenuSeparator,
     MtMenuTrigger,
     MtNavItem,
+    MtNotificationsPopover,
     MtTabBar,
+    NgpPopover,
+    NgpPopoverTrigger,
   ],
   // The unread count on Inbox and urgent toasts (FND-20) follow the shell's lifetime.
   providers: [NotificationsStore],
@@ -224,7 +232,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
               [mtMenuTrigger]="userMenu"
               mtMenuPlacement="top-start"
             >
-              <mt-avatar [name]="userName()" [colorKey]="userId()" size="sm" />
+              <mt-avatar [name]="userName()" [colorKey]="userId()" [src]="avatarUrl()" size="sm" />
               @if (!collapsed()) {
                 <span class="mt-ell mt-grow" style="text-align: left">{{ userName() }}</span>
                 <mt-icon name="updown" />
@@ -244,6 +252,17 @@ export const MOBILE_QUERY = '(max-width: 767px)';
             }
             @if (mobile()) {
               <button mtIconButton icon="search" size="sm" label="Search" (click)="openPalette()"></button>
+            } @else {
+              <!-- The bell (CORE-22): the newest unread notifications, and the way into the Inbox. -->
+              <button
+                mtIconButton
+                icon="bell"
+                size="sm"
+                data-bell
+                [label]="bellLabel()"
+                [ngpPopoverTrigger]="bellPopover"
+                ngpPopoverTriggerPlacement="bottom-end"
+              ></button>
             }
           </div>
         </div>
@@ -289,6 +308,10 @@ export const MOBILE_QUERY = '(max-width: 767px)';
       <div class="mt-app-tabbar"><mt-tab-bar [items]="tabBarItems()" /></div>
     }
 
+    <ng-template #bellPopover>
+      <mt-notifications-popover ngpPopover (closed)="bell()?.hide()" />
+    </ng-template>
+
     <ng-template #orgMenu>
       <mt-menu>
         @for (org of orgChoices(); track org.orgId) {
@@ -314,11 +337,12 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     </ng-template>
     <ng-template #userMenu>
       <mt-menu>
+        <a mtMenuItem icon="user" routerLink="/settings/profile">Profile</a>
         <a mtMenuItem icon="settings" routerLink="/settings">Settings</a>
-        <button mtMenuItem icon="eye" (click)="toggleTheme()">{{ themeLabel() }}</button>
-        <button mtMenuItem icon="help" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
+        <button mtMenuItem icon="moon" (click)="toggleTheme()">{{ themeLabel() }}</button>
+        <button mtMenuItem icon="keyboard" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
         <mt-menu-separator />
-        <button mtMenuItem icon="arrow-right" (click)="signOut()">Sign out</button>
+        <button mtMenuItem icon="log-out" (click)="signOut()">Sign out</button>
       </mt-menu>
     </ng-template>
   `,
@@ -330,6 +354,8 @@ export class AppShellComponent {
   private readonly commands = inject(CommandRegistry);
   private readonly dialogs = inject(DialogService);
   private readonly theme = inject(ThemeService);
+  /** The person's profile and preferences (CORE-20): applies their theme and density as they load. */
+  private readonly userPrefs = inject(UserPrefsService);
   private readonly document = inject(DOCUMENT);
   private readonly orgs = inject(OrgService);
   private readonly toasts = inject(ToastService);
@@ -337,6 +363,13 @@ export class AppShellComponent {
   protected readonly header = inject(PageHeader);
   /** Unread in-app notifications (FND-20). */
   protected readonly notifications = inject(NotificationsStore);
+  protected readonly bell = viewChild(NgpPopoverTrigger);
+  /** The bell's name says how many are unread (CORE-22). */
+  protected readonly bellLabel = computed(() => {
+    const n = this.notifications.count();
+    if (!n) return 'Notifications';
+    return `Notifications, ${n > UNREAD_BADGE_LIMIT ? `${UNREAD_BADGE_LIMIT}+` : n} unread`;
+  });
   /** The org switcher (FND-17). */
   protected readonly orgChoices = this.orgs.orgs;
 
@@ -361,7 +394,10 @@ export class AppShellComponent {
   protected readonly workspaceNav = computed(() => this.visibleNav().filter((i) => i.section === 'workspace'));
 
   protected readonly userId = computed(() => this.auth.user()?.uid ?? 'anonymous');
-  protected readonly userName = computed(() => this.auth.user()?.displayName ?? 'Account');
+  protected readonly userName = computed(
+    () => this.userPrefs.profile.value()?.displayName || this.auth.user()?.displayName || 'Account',
+  );
+  protected readonly avatarUrl = computed(() => this.userPrefs.profile.value()?.avatarUrl ?? null);
   protected readonly orgName = computed(() => this.auth.user()?.orgName ?? 'Materia');
   protected readonly themeLabel = computed(() =>
     this.theme.resolved() === 'dark' ? 'Use light theme' : 'Use dark theme',
@@ -389,6 +425,7 @@ export class AppShellComponent {
 
   private paletteOpen = false;
   private shortcutsOpen = false;
+  private quickTimeOpen = false;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -458,7 +495,8 @@ export class AppShellComponent {
   }
 
   toggleTheme(): void {
-    this.theme.setTheme(this.theme.resolved() === 'dark' ? 'light' : 'dark');
+    // Saved to the profile too, so it follows the person to other tabs and devices (CORE-20).
+    void this.userPrefs.save({ theme: this.theme.resolved() === 'dark' ? 'light' : 'dark' }).catch(() => undefined);
   }
 
   /** Opens the ⌘K palette on top of whatever is open; focus returns to the opener on close. */
@@ -471,6 +509,23 @@ export class AppShellComponent {
       await this.dialogs.open(CommandPaletteDialog).result;
     } finally {
       this.paletteOpen = false;
+    }
+  }
+
+  /**
+   * Quick time entry (BILL-01): `t` or ⌘K "Log time", on the open matter when there is one. The
+   * matter's Time tab takes `t` itself (its add row).
+   */
+  async openQuickTime(): Promise<void> {
+    if (this.quickTimeOpen) return;
+    this.quickTimeOpen = true;
+    try {
+      const { TimeQuickEntry } = await import('../features/time/time-quick-entry');
+      const id = /^\/matters\/([^/?#]+)\/[^/?#]+/.exec(this.router.url)?.[1];
+      const matterId = id && id !== 'new' && id !== 'board' ? id : null;
+      await this.dialogs.open(TimeQuickEntry, { data: { matterId } }).result;
+    } finally {
+      this.quickTimeOpen = false;
     }
   }
 
@@ -487,6 +542,11 @@ export class AppShellComponent {
   protected skipToMain(event: Event): void {
     event.preventDefault();
     this.document.getElementById('main')?.focus();
+  }
+
+  private canRecordTime(): boolean {
+    const role = this.orgs.role();
+    return !!role && can(role, 'time.record');
   }
 
   private isVisible(item: NavEntry): boolean {
@@ -521,6 +581,13 @@ export class AppShellComponent {
         group: 'General',
         when: () => !this.mobile(),
         handler: () => this.toggleSidebar(),
+      }),
+      this.shortcuts.register({
+        combo: 't',
+        description: 'Log time',
+        group: 'Time',
+        when: () => this.canRecordTime(),
+        handler: () => void this.openQuickTime(),
       }),
       this.shortcuts.register({
         combo: 'mod+j',
@@ -592,11 +659,22 @@ export class AppShellComponent {
         href: intentUrl('/tasks', 'add-task'),
         run: () => void this.router.navigateByUrl(intentUrl('/tasks', 'add-task')),
       },
+      // Quick time entry (BILL-01), from anywhere.
+      {
+        id: 'time.log',
+        title: 'Log time',
+        group: 'Time',
+        icon: 'timer',
+        keywords: ['time entry', 'record', 'units', 'hours', 'billing'],
+        shortcut: 't',
+        when: () => allowed('time.record'),
+        run: () => void this.openQuickTime(),
+      },
       {
         id: 'theme.toggle',
         title: 'Toggle theme',
         group: 'General',
-        icon: 'eye',
+        icon: 'moon',
         keywords: ['dark', 'light', 'appearance'],
         run: () => this.toggleTheme(),
       },
@@ -614,7 +692,7 @@ export class AppShellComponent {
         id: 'shortcuts.open',
         title: 'Show keyboard shortcuts',
         group: 'General',
-        icon: 'help',
+        icon: 'keyboard',
         keywords: ['help', 'keys'],
         shortcut: '?',
         run: () => void this.openShortcuts(),

@@ -467,7 +467,10 @@ describe('conflicts-onPartyAdded', () => {
       channels: ['inapp'],
       readAt: null,
     });
-    expect(Notification.create.safeParse(notification?.data).success).toBe(true);
+    // `expireAt` (CORE-22) is stored as a Timestamp: check the rest against the schema.
+    const { expireAt, ...payload } = notification?.data ?? {};
+    expect(expireAt).toBeDefined();
+    expect(Notification.create.safeParse(payload).success).toBe(true);
   });
 
   it('marks the alert not adverse while the flag is off', async () => {

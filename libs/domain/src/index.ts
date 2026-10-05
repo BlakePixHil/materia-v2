@@ -42,3 +42,5 @@ export * from './lib/suggestions';
 export * from './lib/client-errors';
 export * from './lib/safe-custody';
 export * from './lib/referrals';
+export * from './lib/profile';
+export * from './lib/time-entries';

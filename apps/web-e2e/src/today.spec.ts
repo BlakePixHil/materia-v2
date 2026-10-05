@@ -5,6 +5,7 @@ import {
   EMULATOR_PROJECT,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
+  FIRST_LOAD,
   setEmulatorDocuments,
   signInAsTestUser,
 } from '@materia/test-utils/e2e';
@@ -23,8 +24,6 @@ test.use({ timezoneId: ZONE });
 
 const TODAY = today(ZONE);
 const MATTER_NUMBER = 'M-2026-0614';
-/** The first answer from the emulators after a page load, which can be slow while other specs run. */
-const FIRST_LOAD = { timeout: 20_000 };
 
 function meta(uid: string) {
   return { createdAt: new Date(), createdBy: uid, updatedAt: new Date(), updatedBy: uid, schemaVersion: 1 };

@@ -86,7 +86,7 @@ The gateway is responsible for:
 
 See [ADR-038](adr/038-clerk-document-ingestion.md). Code in `apps/functions/src/documents/ingest/`.
 
-- **Flow:** `documents-onIngestChange` (trigger) → `documents-ingest` (Cloud Tasks, 50-page checkpoints, continuation tasks for long files) → `documents/{docId}/chunks/{version}-{ordinal}`. `documents-backfillIngest` (`clerk.configure`) re-queues an org's documents that predate ingestion, were migrated or failed.
+- **Flow:** `documents-onIngestChange` (trigger) → `documents-ingest` (Cloud Tasks, 50-page checkpoints, continuation tasks for long files) → `documents/{docId}/chunks/{version}-{ordinal}`. `documents-backfillIngest` (`clerk.configure`) re-queues an org's documents that predate ingestion, were migrated or failed. Across a whole project, `materia-scripts backfill-ingest --project <id> [--dry-run]` (the `dev-script` workflow on dev) does the same through the trigger and reports each document's ingest state, chunks and whether they carry embeddings; idempotent.
 - **Extraction:** PDFs page by page (pdfjs-dist); pages under 20 characters are OCR'd (`ocr@1`, Claude vision on a one-page PDF). DOCX (mammoth), emails (headers and body), text and CSV become ~3,000-character pseudo-pages. PNG and JPEG are OCR'd as one page. Spreadsheets, slides, archives, `.doc` and WebP are `skipped` (`unsupported`).
 - **Chunks:** ~800 tokens, 100 overlap, never crossing a page (`chunkPages` in libs/clerk). Each holds `{text, page, docVersion, ordinal, orgId, matterId, privileged, ocr?, embedding}`.
 - **Search:** `chunkSearch(...).searchChunks({orgId, matterId, query, k ≤ 50, allowPrivileged})` → `{documentId, version, page, ordinal, text, privileged, distance}` sorted by cosine distance.

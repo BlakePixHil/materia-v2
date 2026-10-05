@@ -59,7 +59,7 @@ The `lint` CI job runs `sync-design --check`.
 
 - `ThemeService` (`@materia/ui`) holds `theme` (`'system' | 'light' | 'dark'`) and `resolved`, and sets `data-theme` on `<html>` to the resolved value. An explicit choice wins over `prefers-color-scheme`; on `system` it follows OS changes live.
 - The preference is stored in localStorage (`mt-theme`, try/catch). When a user is signed in, data-access mirrors it to `users/{uid}.prefs.theme` and calls `applyProfilePreference()` (or provides its own `THEME_PREFERENCE_STORE`).
-- An inline script in `apps/web/src/index.html` sets `data-theme` before the app loads, so there is no flash of the wrong theme. Its CSP hash is in `apps/web/csp-hashes.json` (a test keeps it current); FND-22 adds it to the policy.
+- An inline script in `apps/web/src/index.html` sets `data-theme` before the app loads, so there is no flash of the wrong theme. Its CSP hash is in `apps/web/csp-hashes.json` (a test keeps it current) and in the Hosting CSP in `firebase.json` (FND-22). Changing the script means updating both.
 
 ### Icons
 

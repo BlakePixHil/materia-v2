@@ -91,7 +91,6 @@ describe('app routes', () => {
   });
 
   it.each([
-    ['/inbox', 'Inbox', 'CORE-22'],
     ['/billing', 'Time & billing', 'BILL-03'],
     ['/insights', 'Insights', 'INS-02'],
   ])('%s is a placeholder for its ticket', async (url, heading, ticket) => {
@@ -99,6 +98,14 @@ describe('app routes', () => {
     expect(el.querySelector('h1')?.textContent).toContain(heading);
     expect(el.textContent).toContain(`Coming in ${ticket}`);
     expect(title()).toBe(`${heading} · Materia`);
+  });
+
+  it('/inbox is the Inbox (CORE-22)', async () => {
+    const { el, title } = await setup('/inbox');
+    expect(el.querySelector('h1')?.textContent).toContain('Inbox');
+    expect(el.querySelector('mt-inbox-page')).not.toBeNull();
+    expect(el.textContent).not.toContain('Coming in CORE-22');
+    expect(title()).toBe('Inbox · Materia');
   });
 
   it('/settings opens Practice for owners and the team for everyone else (CORE-21)', async () => {
@@ -112,6 +119,8 @@ describe('app routes', () => {
       a.textContent?.trim(),
     );
     expect(nav).toEqual([
+      'Profile',
+      'Preferences',
       'Practice',
       'Team and roles',
       'Billing and rates',
@@ -126,7 +135,7 @@ describe('app routes', () => {
     const lawyerNav = [...asLawyer.el.querySelectorAll('nav[aria-label="Settings pages"] a')].map((a) =>
       a.textContent?.trim(),
     );
-    expect(lawyerNav).toEqual(['Team and roles']);
+    expect(lawyerNav).toEqual(['Profile', 'Preferences', 'Team and roles']);
   });
 
   it.each(['/settings/practice', '/settings/billing', '/settings/audit', '/settings/numbering'])(

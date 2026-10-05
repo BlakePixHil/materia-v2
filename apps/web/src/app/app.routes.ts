@@ -4,6 +4,7 @@ import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgScopedGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
+import { startPagePath } from './core/profile/start-page';
 import { readLayout } from './features/matters/matters-layout';
 import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
 import { unsavedChangesGuard } from './features/settings/unsaved-changes';
@@ -57,6 +58,7 @@ const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
   documents: () => import('./features/documents/matter-documents').then((m) => m.MatterDocuments),
   parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
   notes: () => import('./features/notes/matter-notes').then((m) => m.MatterNotes),
+  time: () => import('./features/time/matter-time').then((m) => m.MatterTime),
   activity: () => import('./features/matter-detail/matter-activity').then((m) => m.MatterActivityTab),
 };
 
@@ -130,7 +132,8 @@ const matterRoutes: Route[] = [
 
 /** The shell's pages (FND-12). Every feature is lazily loaded (ADR-002). */
 const shellRoutes: Route[] = [
-  { path: '', pathMatch: 'full', redirectTo: 'today' },
+  // The person's start page (CORE-20): Today unless they chose Matters.
+  { path: '', pathMatch: 'full', redirectTo: () => startPagePath() },
   // Today: what needs me, what's due this week, my tasks and recent matters (CORE-14).
   {
     path: 'today',
@@ -144,11 +147,12 @@ const shellRoutes: Route[] = [
     data: { crumb: 'My tasks' },
     loadComponent: () => import('./features/tasks/tasks-page').then((m) => m.TasksPage),
   },
-  planned('inbox', 'Inbox', {
-    ticket: 'CORE-22',
-    icon: 'inbox',
-    description: 'Mentions, assignments and replies that need you.',
-  }),
+  // Every notification I get, with filters, keyboard triage and inline actions (CORE-22).
+  {
+    path: 'inbox',
+    title: 'Inbox',
+    loadComponent: () => import('./features/inbox/inbox-page').then((m) => m.InboxPage),
+  },
   { path: 'matters', data: { crumb: 'Matters' }, children: matterRoutes },
   // Every upcoming deadline across the firm's matters, as a list or a month calendar (CORE-10).
   {
@@ -217,6 +221,20 @@ const shellRoutes: Route[] = [
           const role = inject(AuthState).claims().role;
           return role === 'owner' || role === 'admin' ? 'practice' : 'team';
         },
+      },
+      // The person's own profile and preferences (CORE-20): everyone.
+      {
+        path: 'profile',
+        title: 'Profile',
+        data: { crumb: 'Profile' },
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/profile/profile-page').then((m) => m.ProfilePage),
+      },
+      {
+        path: 'preferences',
+        title: 'Preferences',
+        data: { crumb: 'Preferences' },
+        loadComponent: () => import('./features/profile/preferences-page').then((m) => m.PreferencesPage),
       },
       {
         path: 'practice',

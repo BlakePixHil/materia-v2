@@ -142,6 +142,8 @@ export interface OpenOptions {
   callables?: Record<string, FakeCallable>;
   hits?: ConflictHit[];
   flags?: Record<string, FlagValue>;
+  /** The autosave debounce (5 ms unless a test needs to see the wait). */
+  autosaveMs?: number;
 }
 
 /** Opens `/matters/new` (or `url`) in the app with the fictional practice. */
@@ -175,7 +177,7 @@ export async function openIntake(options: OpenOptions = {}) {
       { provide: MT_TODAY, useValue: () => TODAY },
       { provide: AUTH_PORT, useValue: port },
       { provide: TENANCY_PORT, useValue: new FakeTenancyPort() },
-      { provide: INTAKE_AUTOSAVE_MS, useValue: 5 },
+      { provide: INTAKE_AUTOSAVE_MS, useValue: options.autosaveMs ?? 5 },
       { provide: CONTACT_SEARCH_DEBOUNCE_MS, useValue: 0 },
       provideInMemoryFirestore(firestore),
       ...provideTestFlags(options.flags),

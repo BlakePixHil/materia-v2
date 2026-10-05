@@ -28,6 +28,21 @@ describe('intake drafts', () => {
     expect(savedDrafts(page).at(-1)).toMatchObject({ op: 'update', path: created?.path, data: { step: 'clients' } });
   });
 
+  it('says "Saving draft…" while an edit waits on the debounce, not the last save', async () => {
+    const page = await openIntake({ autosaveMs: 200 });
+    await page.choose('Will');
+    expect(savedDrafts(page)).toHaveLength(0);
+    expect(page.text()).toContain('Saving draft…');
+    await page.stable(250);
+    expect(page.text()).toContain('Draft saved');
+    await page.click('Next');
+    expect(page.text()).toContain('Saving draft…');
+    expect(page.text()).not.toContain('Draft saved');
+    await page.stable(250);
+    expect(savedDrafts(page).at(-1)).toMatchObject({ op: 'update', data: { step: 'clients' } });
+    expect(page.text()).toContain('Draft saved');
+  });
+
   it('offers the most recent draft and resumes it where it was', async () => {
     const page = await openIntake({
       configure: (fs) => {
