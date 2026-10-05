@@ -44,7 +44,11 @@ export const updateDefinition = {
         patch['location'] = input.location;
         Object.assign(
           patch,
-          derivedFields(String(packet['packetNo']), String(packet['testatorName'] ?? ''), input.location as SafeCustodyLocation),
+          derivedFields(
+            String(packet['packetNo']),
+            String(packet['testatorName'] ?? ''),
+            input.location as SafeCustodyLocation,
+          ),
         );
       }
       tx.update(ref, patch);

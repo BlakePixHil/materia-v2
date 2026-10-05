@@ -8,7 +8,14 @@ import {
   type ReceivePacketResult,
 } from '@materia/domain';
 
-import { assertActiveMember, assertDocument, assertMatter, derivedFields, packetsPath, resolveTestator } from './shared';
+import {
+  assertActiveMember,
+  assertDocument,
+  assertMatter,
+  derivedFields,
+  packetsPath,
+  resolveTestator,
+} from './shared';
 import { compact } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { counterPath } from '../matters/shared';
@@ -44,7 +51,9 @@ export const receiveDefinition = {
       const meta = { updatedAt: now, updatedBy: uid };
       tx.set(
         counterRef,
-        counter.exists ? { next: seq + 1, ...meta } : { next: seq + 1, createdAt: now, createdBy: uid, ...meta, schemaVersion: 1 },
+        counter.exists
+          ? { next: seq + 1, ...meta }
+          : { next: seq + 1, createdAt: now, createdBy: uid, ...meta, schemaVersion: 1 },
         { merge: true },
       );
       const packet = SafeCustody.schema.parse(

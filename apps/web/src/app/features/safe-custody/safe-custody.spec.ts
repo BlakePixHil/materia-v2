@@ -316,7 +316,6 @@ describe('a packet', () => {
     expect(pending).toContain('You asked to destroy this original on 4 Oct 2026');
     expect(page.buttons('Confirm destruction')).toHaveLength(0);
     expect(page.buttons('Take out')[0]?.hasAttribute('disabled')).toBe(true);
-
   });
 
   it('records the destruction once a second lawyer confirms it', async () => {

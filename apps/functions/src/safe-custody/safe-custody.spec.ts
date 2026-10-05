@@ -63,7 +63,16 @@ function world(initial: Record<string, Data> = {}) {
     [`orgs/${ORG}/members/user-readonly`]: member('readonly'),
     [`orgs/${ORG}/members/user-gone`]: member('lawyer', 'removed'),
     [`${C}/c-wren`]: person('Ada', 'Wren', {
-      addresses: [{ type: 'residential', line1: '1 Fictional St', suburb: 'Geelong', state: 'VIC', postcode: '3220', country: 'AU' }],
+      addresses: [
+        {
+          type: 'residential',
+          line1: '1 Fictional St',
+          suburb: 'Geelong',
+          state: 'VIC',
+          postcode: '3220',
+          country: 'AU',
+        },
+      ],
     }),
     [`${C}/c-old`]: person('Ada', 'Wren', { mergedInto: 'c-wren' }),
     [`${C}/c-firm`]: { ...meta, kind: 'organisation', orgName: 'Fictional Lakes Lawyers' },
@@ -86,7 +95,12 @@ function world(initial: Record<string, Data> = {}) {
     },
     sink: () => undefined,
   });
-  const call = <T>(def: unknown, data: Data, role: Role = 'lawyer', options: { uid?: string; authTime?: number } = {}) =>
+  const call = <T>(
+    def: unknown,
+    data: Data,
+    role: Role = 'lawyer',
+    options: { uid?: string; authTime?: number } = {},
+  ) =>
     runCallable(
       def as CallableDefinition<never, T>,
       {
@@ -255,9 +269,9 @@ describe('destruction (two lawyers)', () => {
   it('asks, tells the other lawyers, and destroys only once a second lawyer confirms', async () => {
     const w = world();
     const { id } = await w.receive();
-    expect(await w.move(id, { kind: 'destroyed', reason: 'Testator’s written instruction', authority: AUTHORITY })).toEqual(
-      { status: 'held', pendingConfirmation: true },
-    );
+    expect(
+      await w.move(id, { kind: 'destroyed', reason: 'Testator’s written instruction', authority: AUTHORITY }),
+    ).toEqual({ status: 'held', pendingConfirmation: true });
     expect(w.doc(`${SC}/${id}`)).toMatchObject({
       status: 'held',
       pendingDestruction: { requestedBy: 'user-lawyer', authority: AUTHORITY },
@@ -346,7 +360,10 @@ describe('PDFs', () => {
           testatorAddress: '1 Fictional St, Geelong VIC 3220',
           site: 'Geelong',
           issuedOn: '5 Oct 2026',
-          items: [expect.objectContaining({ current: false }), expect.objectContaining({ kind: 'Will', current: true })],
+          items: [
+            expect.objectContaining({ current: false }),
+            expect.objectContaining({ kind: 'Will', current: true }),
+          ],
         },
       },
     });
@@ -377,7 +394,10 @@ describe('PDFs', () => {
       {
         site: 'No site',
         cabinets: [
-          { cabinet: 'No cabinet', packets: [{ packetNo: 'SC-1', testatorName: '', slot: '', items: '', lastVerified: '' }] },
+          {
+            cabinet: 'No cabinet',
+            packets: [{ packetNo: 'SC-1', testatorName: '', slot: '', items: '', lastVerified: '' }],
+          },
         ],
       },
     ]);
@@ -478,9 +498,10 @@ describe('safeCustody-onContactWrite', () => {
     expect(await trigger(w, 'c-firm', undefined)).toEqual({ notified: [], renamed: [] });
     const path = `${C}/c-gone`;
     const change = { before: { data: () => ({}) }, after: undefined } as unknown as TriggerChange;
-    expect(
-      await onTestatorWrite(change, { params: { orgId: ORG, contactId: 'c-gone' }, db: w.db } as never),
-    ).toEqual({ notified: [], renamed: [] });
+    expect(await onTestatorWrite(change, { params: { orgId: ORG, contactId: 'c-gone' }, db: w.db } as never)).toEqual({
+      notified: [],
+      renamed: [],
+    });
     expect(w.doc(path)).toBeUndefined();
   });
 });

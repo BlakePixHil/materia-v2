@@ -1,9 +1,4 @@
-import {
-  PERMISSIONS,
-  SAFE_CUSTODY_CALLABLES,
-  VerifyPacketsInput,
-  type VerifyPacketsResult,
-} from '@materia/domain';
+import { PERMISSIONS, SAFE_CUSTODY_CALLABLES, VerifyPacketsInput, type VerifyPacketsResult } from '@materia/domain';
 
 import { packetPath } from './shared';
 import { isDeleted, stamp } from '../contacts/shared';
