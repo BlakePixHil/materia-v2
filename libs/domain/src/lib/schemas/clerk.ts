@@ -113,6 +113,10 @@ export const DocumentMetaProposalSchema = z
     documentId: DocIdSchema,
     category: DocumentCategorySchema.optional(),
     title: NonEmptyString.max(DOCUMENT_NAME_MAX).optional(),
+    /** The date the document bears (AI-04 classification); shown for review, not applied. */
+    date: DateOnlySchema.optional(),
+    /** People and organisations the document names (AI-04 classification); shown, not applied. */
+    parties: z.array(z.string().max(200)).max(20).optional(),
   })
   .refine((meta) => meta.category !== undefined || meta.title !== undefined, {
     message: 'Propose a category or a title',

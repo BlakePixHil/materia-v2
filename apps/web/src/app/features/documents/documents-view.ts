@@ -120,7 +120,7 @@ export const REJECTED_REASON_COPY: Readonly<Record<DocumentUploadReason, string>
 };
 
 export type DocumentStatusKind =
-  'ready' | 'scanning' | 'delayed' | 'infected' | 'rejected' | 'expired' | 'duplicate' | 'removed';
+  'ready' | 'scanning' | 'delayed' | 'infected' | 'rejected' | 'expired' | 'duplicate' | 'removed' | 'queued';
 
 export interface DocumentStatus {
   kind: DocumentStatusKind;
@@ -134,10 +134,12 @@ export interface DocumentStatus {
 /**
  * Where a document is in the upload pipeline (ADR-028), from the server's fields: a removed
  * document, an upload being scanned (a new version keeps the current one readable meanwhile),
- * refused or quarantined, a possible duplicate, or ready.
+ * refused or quarantined, a possible duplicate, queued for Clerk (over the org's daily OCR
+ * budget, AI-04; the file itself is ready), or ready.
  */
 export function documentStatus(
-  doc: Pick<DocumentRow, 'deletedAt' | 'upload' | 'scan' | 'version' | 'duplicateOf'>,
+  doc: Pick<DocumentRow, 'deletedAt' | 'upload' | 'scan' | 'version' | 'duplicateOf'> &
+    Partial<Pick<DocumentRow, 'ingest'>>,
 ): DocumentStatus {
   if (doc.deletedAt) return { kind: 'removed', label: 'Removed', tone: 'neutral' };
   const upload = doc.upload;
@@ -183,6 +185,15 @@ export function documentStatus(
   }
   if (doc.version === 0) return { kind: 'scanning', label: 'Scanning…', tone: 'info' };
   if (doc.duplicateOf) return { kind: 'duplicate', label: 'Duplicate', tone: 'warning' };
+  if (doc.ingest?.status === 'queued') {
+    return {
+      kind: 'queued',
+      label: 'Queued',
+      tone: 'neutral',
+      detail:
+        'Clerk has read today’s quota of scanned pages and reads the rest of this one tomorrow. The file is ready to open.',
+    };
+  }
   return { kind: 'ready', label: 'Ready', tone: 'success' };
 }
 

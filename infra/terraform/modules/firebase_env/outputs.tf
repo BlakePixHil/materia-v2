@@ -50,6 +50,11 @@ output "buckets" {
   }
 }
 
+output "alert_channels" {
+  description = "Monitoring notification channel ids for alerts (the budget alert emails)."
+  value       = [for c in google_monitoring_notification_channel.budget_email : c.id]
+}
+
 output "doc_services" {
   description = "Cloud Run document services (CORE-12a): runtime accounts and the URLs the functions call (CLAMAV_SCAN_URL, PREVIEW_SERVICE_URL)."
   value = {

@@ -1346,6 +1346,31 @@
       ]
     },
     {
+      "collectionGroup": "chunks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "matterId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "privileged",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "embedding",
+          "vectorConfig": {
+            "dimension": 768,
+            "flat": {}
+          }
+        }
+      ]
+    },
+    {
       "collectionGroup": "audit",
       "queryScope": "COLLECTION",
       "fields": [
@@ -1854,6 +1879,11 @@
     {
       "collectionGroup": "chunks",
       "fieldPath": "embedding",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chunks",
+      "fieldPath": "text",
       "indexes": []
     },
     {
