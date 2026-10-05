@@ -222,7 +222,9 @@ test.describe('deadlines', () => {
     await expectNoA11yViolations(page);
     await eventDialog.getByRole('button', { name: 'Record event' }).click();
     await expect(eventDialog).toBeHidden(CALLABLE_TIMEOUT);
-    await expect(page.locator('[data-event="date_of_death"]')).toContainText('Date of death');
+    // The dialog closes before deadlines-upsertEvent runs, so the event shows only once the callable
+    // and its recompute are done.
+    await expect(page.locator('[data-event="date_of_death"]')).toContainText('Date of death', CALLABLE_TIMEOUT);
     const executor = deadlineRow(page, 'Executor');
     await expect(executor).toBeVisible(CALLABLE_TIMEOUT);
     // A deadline waiting on the grant says why.
