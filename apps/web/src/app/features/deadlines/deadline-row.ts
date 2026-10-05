@@ -15,7 +15,8 @@ import {
 } from './deadline-view';
 
 /** What a row asks its list to do. */
-export type DeadlineRowAction = 'done' | 'waived' | 'missed' | 'override' | 'clear_override' | 'edit' | 'delete';
+export type DeadlineRowAction =
+  'done' | 'acknowledge' | 'waived' | 'missed' | 'override' | 'clear_override' | 'edit' | 'delete';
 
 /**
  * One deadline in a list (CORE-10): its title, kind and flags; the DeadlineChip with the trace in
@@ -238,6 +239,10 @@ export class DeadlineRow {
     const items: { action: DeadlineRowAction; label: string; danger?: boolean }[] = [];
     const open = deadline.status === 'upcoming';
     const manual = isManual(deadline);
+    // CORE-11: acknowledging a critical deadline stops it escalating.
+    if (open && deadline.critical && !deadline.ackAt && this.canComplete()) {
+      items.push({ action: 'acknowledge', label: 'Acknowledge' });
+    }
     if (open && manual && this.canEdit()) items.push({ action: 'edit', label: 'Edit…' });
     if (this.canDecide() && !manual && (open || deadline.status === 'blocked')) {
       items.push({ action: 'override', label: 'Override date…' });
