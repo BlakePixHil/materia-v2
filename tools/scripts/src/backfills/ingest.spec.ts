@@ -83,9 +83,18 @@ describe('backfill-ingest', () => {
       inProgress: 2,
       due: 3,
       ocrPages: 1,
+      reasons: {
+        'due: failed (Timeout)': 1,
+        'due: never ingested': 1,
+        'due: older version': 1,
+        'in progress: queued': 1,
+        'in progress: running': 1,
+        'skipped: encrypted': 1,
+      },
     });
     expect(store.writes).toEqual([]);
     expect(lines.join('\n')).toContain('3 to queue');
+    expect(lines).toContain('  due: failed (Timeout): 1');
     expect(lines.join('\n')).not.toContain('d-legacy');
   });
 
