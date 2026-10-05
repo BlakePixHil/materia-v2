@@ -152,3 +152,17 @@ export const Job = withMeta(
   },
 );
 export type Job = z.infer<typeof Job.schema>;
+
+/**
+ * `jobs-getExportUrl` (FND-24, CORE-17): a 5-minute signed URL for an export job's PDF, for the
+ * member who started it, once it has succeeded.
+ */
+export const GetExportUrlInput = z.object({ jobId: DocIdSchema });
+export type GetExportUrlInput = z.input<typeof GetExportUrlInput>;
+
+export interface GetExportUrlResult {
+  url: string;
+  /** ISO 8601. */
+  expiresAt: string;
+  fileName: string;
+}

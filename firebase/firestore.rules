@@ -644,9 +644,10 @@ service cloud.firestore {
         allow update: if editable(orgId, 'org.settings', fieldsDocTemplate());
       }
 
+      // Original will packets (CORE-17): every member reads the register; every write goes
+      // through the safeCustody-* callables, so each movement carries its authority.
       match /safeCustody/{packetId} {
         allow read: if inOrg(orgId);
-        allow update: if editable(orgId, 'matter.edit', fieldsSafeCustody());
       }
 
       // Each member reads and marks read (or unread) only their own notifications (FND-20): `readAt`
@@ -765,7 +766,9 @@ service cloud.firestore {
         'org.delete': ['owner'],
         'audit.view': ['owner', 'admin'],
         'export.run': ['owner', 'admin'],
-        'export.includePrivileged': ['owner', 'admin']
+        'export.includePrivileged': ['owner', 'admin'],
+        'safeCustody.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
+        'safeCustody.release': ['owner', 'admin', 'lawyer']
       }[action];
     }
     // Client-writable fields per entity (each entity's update schema keys).
@@ -819,7 +822,7 @@ service cloud.firestore {
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
     function fieldsRecentMatter() { return ['orgId', 'kind', 'matterId', 'entityId', 'expireAt']; }
     function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'flag', 'disclaimer', 'rules']; }
-    function fieldsSafeCustody() { return ['testatorContactId', 'documentIds', 'packetNo', 'location', 'receivedOn']; }
+    function fieldsSafeCustody() { return []; }
     function fieldsSavedView() { return ['orgId', 'list', 'name', 'filters', 'sort', 'groupBy']; }
     function fieldsSubpoena() { return ['issuedTo', 'direction', 'issuedOn', 'returnDate', 'status', 'accessOrderMade', 'materialDocumentIds']; }
     function fieldsSuggestion() { return ['status']; }

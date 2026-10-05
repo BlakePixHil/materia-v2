@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
-import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, MetaShape, NonEmptyString, withMeta } from './common';
+import {
+  CentsSchema,
+  DateOnlySchema,
+  DocIdSchema,
+  InstantSchema,
+  MetaShape,
+  NonEmptyString,
+  SearchTokensSchema,
+  withMeta,
+} from './common';
 import { InvoiceStatusSchema, JurisdictionSchema, MatterTypeSchema, PrioritySchema } from './enums';
 import { TemplateBasedOnSchema, templateContentShape } from '../templates';
 
@@ -378,6 +387,8 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
     ...notificationBase,
   }),
   z.object({ kind: z.literal('export_ready'), exportId: DocIdSchema, ...notificationBase }),
+  // A testator whose original is held in safe custody has died (CORE-17): to the packet's lawyer.
+  z.object({ kind: z.literal('safe_custody'), packetId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('budget_alert'), matterId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('system'), ...notificationBase }),
 ]);
@@ -421,28 +432,100 @@ export const Integration = withMeta(
   { path: `${ORG}/integrations`, migratable: false, updatable: [] },
 );
 
-/** `safeCustody/{id}`: will packets and their movements (CORE-17). */
+/** A stored matter document: originals' scans and release authorities (CORE-17). */
+export const MatterDocumentRefSchema = z.object({ matterId: DocIdSchema, documentId: DocIdSchema }).strict();
+export type MatterDocumentRef = z.infer<typeof MatterDocumentRefSchema>;
+
+/** What a safe custody packet holds: a will, codicil, power of attorney, enduring guardianship or other original. */
+export const SafeCustodyItemKindSchema = z.enum(['will', 'codicil', 'poa', 'eg', 'other']);
+export type SafeCustodyItemKind = z.infer<typeof SafeCustodyItemKindSchema>;
+
+/** One original in a packet. `date` is the document's own date; `document` a scan of its first page. */
+export const SafeCustodyItemSchema = z
+  .object({
+    kind: SafeCustodyItemKindSchema,
+    date: DateOnlySchema.optional(),
+    description: z.string().trim().max(500).default(''),
+    document: MatterDocumentRefSchema.optional(),
+  })
+  .strict();
+export type SafeCustodyItem = z.infer<typeof SafeCustodyItemSchema>;
+
+/** Where a packet sits: the site (office), the cabinet or safe, and the slot in it. */
+export const SafeCustodyLocationSchema = z
+  .object({
+    site: NonEmptyString.max(80),
+    cabinet: z.string().trim().max(80).default(''),
+    slot: z.string().trim().max(80).default(''),
+  })
+  .strict();
+export type SafeCustodyLocation = z.infer<typeof SafeCustodyLocationSchema>;
+
+export const SafeCustodyStatusSchema = z.enum(['held', 'out', 'released', 'destroyed']);
+export type SafeCustodyStatus = z.infer<typeof SafeCustodyStatusSchema>;
+
+export const SafeCustodyMovementKindSchema = z.enum(['in', 'out', 'returned', 'released', 'destroyed']);
+export type SafeCustodyMovementKind = z.infer<typeof SafeCustodyMovementKindSchema>;
+
+/**
+ * One step in a packet's chain of custody, appended by the `safeCustody-*` callables only. `to` is
+ * who or where it went (free text), `toContactId` the executor or receiving firm as a contact;
+ * `authority` the document that authorised a release or destruction; `approvedBy` the second
+ * lawyer who confirmed a destruction.
+ */
+export const SafeCustodyMovementSchema = z
+  .object({
+    at: InstantSchema,
+    by: DocIdSchema,
+    kind: SafeCustodyMovementKindSchema,
+    reason: z.string().trim().max(1000).default(''),
+    to: z.string().trim().max(200).optional(),
+    toContactId: DocIdSchema.optional(),
+    authority: MatterDocumentRefSchema.optional(),
+    location: SafeCustodyLocationSchema.optional(),
+    approvedBy: DocIdSchema.optional(),
+  })
+  .strict();
+export type SafeCustodyMovement = z.infer<typeof SafeCustodyMovementSchema>;
+
+/**
+ * `safeCustody/{id}`: an original will packet (CORE-17, ADR-034). Written only by the
+ * `safeCustody-*` callables, so every movement carries its authority. `testatorName`, `search` and
+ * `locationKey` are denormalised for the register's search and the stocktake's order.
+ */
 export const SafeCustody = withMeta(
   {
-    testatorContactId: DocIdSchema,
-    documentIds: z.array(DocIdSchema).default([]),
+    /** `SC-000123`, from the `safe-custody` counter. */
     packetNo: NonEmptyString,
-    location: z.string(),
+    testatorContactId: DocIdSchema,
+    testatorName: z.string(),
+    /** The lawyer told when the testator dies. */
+    responsibleUid: DocIdSchema,
+    /** The will matter the original came from, when there is one. */
+    matterId: DocIdSchema.optional(),
+    items: z.array(SafeCustodyItemSchema).min(1).max(50),
+    location: SafeCustodyLocationSchema,
     receivedOn: DateOnlySchema,
-    movements: z
-      .array(
-        z.object({
-          at: InstantSchema,
-          by: DocIdSchema,
-          kind: z.enum(['in', 'out', 'returned', 'released']),
-          to: z.string().optional(),
-          authorityDocId: DocIdSchema.optional(),
-        }),
-      )
-      .default([]),
-    status: z.enum(['held', 'out', 'released']),
+    status: SafeCustodyStatusSchema,
+    movements: z.array(SafeCustodyMovementSchema).default([]),
+    notes: z.string().trim().max(2000).optional(),
+    /** A destruction waiting for a second lawyer's confirmation. */
+    pendingDestruction: z
+      .object({
+        requestedBy: DocIdSchema,
+        requestedAt: InstantSchema,
+        authority: MatterDocumentRefSchema,
+        reason: z.string().trim().max(1000),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    /** The last physical stocktake that found it. */
+    lastVerified: z.object({ on: DateOnlySchema, by: DocIdSchema }).strict().optional(),
+    search: SearchTokensSchema,
+    locationKey: z.string(),
   },
-  { path: `${ORG}/safeCustody`, softDelete: true, serverOwned: ['movements', 'status'] },
+  { path: `${ORG}/safeCustody`, softDelete: true, updatable: [] },
 );
 
 /** `migrations/{runId}`: migration run reports (Legacy migration plan). */

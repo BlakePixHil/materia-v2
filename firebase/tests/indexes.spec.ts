@@ -38,6 +38,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   documents: domain.MatterDocument,
   notes: domain.Note,
   revisions: domain.NoteRevision,
+  safeCustody: domain.SafeCustody,
   // A union of kinds: every kind shares these fields (FND-20).
   notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
 } as never;
