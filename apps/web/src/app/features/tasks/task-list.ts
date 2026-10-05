@@ -84,6 +84,7 @@ const FOLLOW_MS = 1500;
               <li
                 class="row"
                 cdkDrag
+                cdkDragPreviewContainer="parent"
                 [cdkDragData]="entry"
                 [cdkDragDisabled]="!reorderable() || !entry.editable"
                 [attr.data-key]="entry.key"
@@ -244,10 +245,15 @@ const FOLLOW_MS = 1500;
       white-space: nowrap;
       color: var(--text-link, var(--text-brand));
     }
+    /* The preview stays inside the list (cdkDragPreviewContainer="parent") so it keeps the row's styles. */
     .mt-task-list .cdk-drag-preview {
+      box-sizing: border-box;
       box-shadow: var(--shadow-dialog);
       background: var(--bg-surface);
-      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: grabbing;
     }
     .mt-task-list .cdk-drag-placeholder {
       opacity: 0.4;
