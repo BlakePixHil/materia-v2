@@ -43,7 +43,7 @@ html, body { background: var(--bg-surface); }
 .mt-kbd + .mt-kbd { margin-left: 2px; }
 
 /* ---------- Button ---------- */
-.mt-btn { --h: var(--control-md); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-6); height: var(--h); padding: 0 var(--space-12); border-radius: var(--radius-sm); border: 1px solid transparent; font: 500 13px/18px var(--font-sans); white-space: nowrap; cursor: pointer; background: none; color: var(--text-primary); user-select: none; outline: none; transition: background-color .12s, border-color .12s, color .12s, box-shadow .12s; }
+.mt-btn { --h: var(--control-md); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-6); height: var(--h); padding: 0 var(--space-12); border-radius: var(--radius-sm); border: 1px solid transparent; font: 500 13px/18px var(--font-sans); white-space: nowrap; cursor: pointer; text-decoration: none; background: none; color: var(--text-primary); user-select: none; outline: none; transition: background-color .12s, border-color .12s, color .12s, box-shadow .12s; }
 .mt-btn[data-size="sm"] { --h: var(--control-sm); padding: 0 var(--space-8); gap: var(--space-4); font-size: 12px; }
 .mt-btn[data-size="lg"] { --h: var(--control-lg); padding: 0 var(--space-16); }
 .mt-btn .mt-kbd { margin-left: var(--space-2); }

@@ -135,6 +135,7 @@
       "executor": "@angular/build:unit-test",
       "options": {
         "watch": false,
+        "setupFiles": ["apps/web/src/test-setup.ts"],
         "coverageReporters": ["text-summary", "json-summary"],
         "coverageThresholds": {
           "statements": 70,
@@ -143,7 +144,7 @@
           "lines": 70
         },
         "coverageInclude": ["apps/web/src/**/*.ts"],
-        "coverageExclude": ["apps/web/src/**/*.spec.ts", "apps/web/src/environments/**"]
+        "coverageExclude": ["apps/web/src/**/*.spec.ts", "apps/web/src/test-setup.ts", "apps/web/src/environments/**"]
       }
     },
     "serve-static": {

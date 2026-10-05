@@ -28,6 +28,36 @@ export interface MatterViewState {
 export const DEFAULT_VIEW_ID = 'my-open';
 export const DEFAULT_SORT: MatterViewSort = { field: 'lastActivity', dir: 'desc' };
 
+/** Where the list remembers the view it was left on (cleared at sign-out). */
+export const LAST_VIEW_KEY = 'materia.matters.view';
+
+/** The view the list was left on, and any unsaved changes to it. */
+export interface LastMatterView {
+  viewId: string;
+  draft: MatterViewState | null;
+}
+
+export function readLastView(): LastMatterView | null {
+  try {
+    const raw = localStorage.getItem(LAST_VIEW_KEY);
+    const value = raw ? (JSON.parse(raw) as Partial<LastMatterView>) : null;
+    if (!value || typeof value.viewId !== 'string') return null;
+    const draft = value.draft;
+    const valid = !!draft && typeof draft === 'object' && !!draft.filters && !!draft.sort && !!draft.groupBy;
+    return { viewId: value.viewId, draft: valid ? { ...draft, filters: cleanFilters(draft.filters) } : null };
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastView(value: LastMatterView): void {
+  try {
+    localStorage.setItem(LAST_VIEW_KEY, JSON.stringify(value));
+  } catch {
+    // Not remembered (private window); the default view stands next time.
+  }
+}
+
 /** A saved view as the picker lists it, marked as the person's own. */
 export interface MatterViewOption extends MatterViewDefinition {
   saved: boolean;

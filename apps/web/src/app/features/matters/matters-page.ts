@@ -75,11 +75,13 @@ import {
   JURISDICTIONS,
   matterGroup,
   orderForGroups,
+  readLastView,
   sameView,
   savedViewOption,
   stageLabel,
   STATUS_ORDER,
   toTableSort,
+  writeLastView,
   type MatterRow,
   type MatterViewOption,
   type MatterViewState,
@@ -767,13 +769,34 @@ export class MattersPage {
     ];
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
 
+    // Coming back without a view in the URL reopens the view the list was left on, edits and all.
+    let restore = readLastView();
+    if (restore && this.route.snapshot.queryParamMap.has('view')) restore = null;
+    else if (restore && restore.viewId !== DEFAULT_VIEW_ID) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { view: restore.viewId },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
+
     // A different view starts clean: no edits carried over, nothing selected.
     effect(() => {
-      this.viewId();
+      const id = this.viewId();
       untracked(() => {
-        this.draft.set(null);
+        const draft = restore?.viewId === id ? restore.draft : null;
+        if (restore?.viewId === id) restore = null;
+        this.draft.set(draft);
         this.selection.set([]);
       });
+    });
+
+    // Remember the view and its edits for next time (not while the remembered one is reopening).
+    effect(() => {
+      const viewId = this.viewId();
+      const draft = this.draft();
+      if (!restore) writeLastView({ viewId, draft });
     });
 
     // Client names for the rows on screen, read once per contact.

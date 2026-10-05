@@ -256,6 +256,8 @@ async function open(url: string, session: AuthSession = LAWYER, options: Options
   };
 }
 
+beforeEach(() => localStorage.clear());
+
 afterEach(() => {
   document.querySelectorAll('.mt-overlay, .mt-toast-region, [data-overlay]').forEach((node) => node.remove());
 });
@@ -374,6 +376,7 @@ describe('matters list', () => {
     expect(page.titles()).toHaveLength(5);
     expect(page.text()).not.toContain('No matters match');
     TestBed.resetTestingModule();
+    localStorage.clear();
 
     // "My open matters" filters, so an empty practice still offers to clear them first.
     const none = await open('/matters');
@@ -541,6 +544,48 @@ describe('saved views', () => {
     expect(page.text()).toContain('Held');
     await page.click('Held', page.body);
     expect(page.text()).not.toContain('Elsewhere');
+  });
+});
+
+describe('remembering the view', () => {
+  it('reopens the view the list was left on, edits and cleared filters included', async () => {
+    const page = await open('/matters', LAWYER, { configure: (_p, fs) => seed(fs) });
+    await page.pick('My open matters', 'All open');
+    await page.pick('Type', 'Will');
+    expect(page.titles()).toEqual(['Harriet and Paul Okafor']);
+
+    await page.router.navigateByUrl('/contacts');
+    await page.stable();
+    await page.router.navigateByUrl('/matters');
+    await page.stable();
+    expect(page.view()).toBe('all-open');
+    expect(page.titles()).toEqual(['Harriet and Paul Okafor']);
+    expect(page.text()).toContain('All open (edited)');
+
+    // Cleared filters on the default view stay cleared.
+    await page.pick('All open', 'My open matters');
+    await page.click('Clear filters', page.body.querySelector('[aria-label="View and filters"]') ?? page.body);
+    expect(page.titles()).toHaveLength(5);
+    await page.router.navigateByUrl('/contacts');
+    await page.stable();
+    await page.router.navigateByUrl('/matters');
+    await page.stable();
+    expect(page.view()).toBeNull();
+    expect(page.titles()).toHaveLength(5);
+
+    // A link naming a view wins over the remembered one.
+    await page.router.navigateByUrl('/contacts');
+    await page.stable();
+    await page.router.navigateByUrl('/matters?view=leads');
+    await page.stable();
+    expect(page.titles()).toEqual(['Estate of George Lambert']);
+  });
+
+  it('forgets unreadable remembered views', async () => {
+    localStorage.setItem('materia.matters.view', '{not json');
+    const page = await open('/matters', LAWYER, { configure: (_p, fs) => seed(fs) });
+    expect(page.view()).toBeNull();
+    expect(page.titles()).toEqual(['Estate of Margaret Whitfield', 'Harriet and Paul Okafor']);
   });
 });
 
