@@ -290,12 +290,42 @@ describe('seed dataset', () => {
       'templates.system': true,
       'deadlines.ruleset.vic.v1': true,
       'matters.destruction': true,
+      'clerk.features.suggestions': true,
     });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
       expect(docsUnder('contacts').some((d) => d.path.endsWith(`/${id}`))).toBe(true);
     }
     const minimal = buildDataset({ anchor, fixtures, scenario: 'minimal' });
     expect(minimal.docs.some((d) => d.path.includes('/m-cf-'))).toBe(false);
+  });
+
+  it('seeds Clerk suggestions whose basis matches the matter and documents (AI-07)', () => {
+    const suggestions = dataset.docs.filter((d) => /\/matters\/m-doyle-estate\/suggestions\/[^/]+$/.test(d.path));
+    expect(suggestions.map((d) => (d.data as D.Suggestion).kind)).toEqual([
+      'task',
+      'key_fact',
+      'note',
+      'note',
+      'document_meta',
+    ]);
+    const matter = dataset.docs.find((d) => d.path.endsWith('/matters/m-doyle-estate'))?.data as Record<
+      string,
+      unknown
+    >;
+    const documents = Object.fromEntries(
+      dataset.docs
+        .filter((d) => /\/matters\/m-doyle-estate\/documents\/[^/]+$/.test(d.path))
+        .map((d) => [d.path.split('/').at(-1) as string, d.data as Record<string, unknown>]),
+    );
+    for (const doc of suggestions) {
+      const suggestion = doc.data as D.Suggestion;
+      expect(D.Suggestion.schema.safeParse(suggestion).success).toBe(true);
+      const { basis } = D.suggestionBasis(D.suggestionBasisParts(suggestion, { matter, documents }));
+      expect(suggestion.basis).toBe(basis);
+    }
+    const statuses = suggestions.map((d) => (d.data as D.Suggestion).status);
+    expect(statuses.filter((status) => status === 'expired')).toHaveLength(1);
+    expect(suggestions.some((d) => (d.data as D.Suggestion).privileged)).toBe(true);
   });
 
   it('is deterministic for the same anchor', () => {

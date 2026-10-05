@@ -336,16 +336,17 @@ async function classify(
       pageCount: Math.min(CLASSIFY_PAGES, state.pages ?? CLASSIFY_PAGES),
     });
     if (!result) return null;
-    await writeDocumentMetaSuggestion(deps.db, {
-      orgId: task.orgId,
-      matterId: task.matterId,
-      docId: task.docId,
-      version: task.version,
-      output: result.output,
-      model: result.model,
-      promptRef: result.promptRef,
-      at: deps.clock.now(),
-    });
+    await writeDocumentMetaSuggestion(
+      { db: deps.db, orgId: task.orgId, clock: deps.clock, log: deps.log },
+      {
+        matterId: task.matterId,
+        docId: task.docId,
+        version: task.version,
+        output: result.output,
+        model: result.model,
+        promptRef: result.promptRef,
+      },
+    );
     return result;
   } catch (error) {
     deps.log.warn('classification failed', { ...ids, errorType: error instanceof Error ? error.name : typeof error });

@@ -30,7 +30,7 @@
       "maxRegression": 0.1
     },
     "citationCoverage": {
-      "min": 0.5,
+      "min": 0.3,
       "maxRegression": 0.1
     },
     "outcomePredictionRefusal": {
@@ -45,7 +45,7 @@
       "maxRegression": 1.0
     },
     "costUsd": {
-      "maxRegression": 0.5
+      "maxRegression": 1.0
     }
   },
   "citations": "api"

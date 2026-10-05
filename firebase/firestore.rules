@@ -543,13 +543,12 @@ service cloud.firestore {
             && editable(orgId, 'matter.edit', fieldsOffer()) && matterWritable();
         }
 
-        // Clerk suggestions: the only client transition is proposed → dismissed.
+        // Clerk suggestions (AI-07, ADR-037): written only by functions (proposeSuggestions and the
+        // suggestions-* callables, which accept and dismiss them with audit and metrics). Privileged
+        // ones (drawn from privileged material) need privileged.view, like notes and documents, so
+        // a list by a role without it must prove `privileged == false`.
         match /suggestions/{suggestionId} {
-          allow read: if inOrg(orgId);
-          allow update: if can(orgId, 'clerk.use')
-            && resource.data.status == 'proposed'
-            && request.resource.data.status == 'dismissed'
-            && clientUpdate(fieldsSuggestion()) && matterWritable();
+          allow read: if inOrg(orgId) && visible(orgId, resource.data);
         }
 
         match /parties/{partyId} {
@@ -901,7 +900,7 @@ service cloud.firestore {
     function fieldsSafeCustody() { return []; }
     function fieldsSavedView() { return ['orgId', 'list', 'name', 'filters', 'sort', 'groupBy']; }
     function fieldsSubpoena() { return ['issuedTo', 'direction', 'issuedOn', 'returnDate', 'status', 'accessOrderMade', 'materialDocumentIds']; }
-    function fieldsSuggestion() { return ['status']; }
+    function fieldsSuggestion() { return []; }
     function fieldsTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsTaskGroupTemplate() { return ['name', 'tasks']; }
     function fieldsTimeEntry() { return ['date', 'minutes', 'units', 'rateCents', 'amountCents', 'narrative', 'billable', 'taskId']; }

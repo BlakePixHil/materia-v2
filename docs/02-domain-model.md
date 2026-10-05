@@ -133,7 +133,7 @@ The list queries `orgs/{orgId}/matters` with `deletedAt == null`, plus `privileg
 | `assets/{id}` | Estate register. `class: 'real_property'\|'bank'\|'shares'\|'superannuation'\|'insurance'\|'vehicle'\|'personal'\|'business'\|'debt_owed_to_estate'\|'other'`, `description`, `valueAtDeathCents`, `valuationSource`, `jointlyHeld`, `passesOutsideEstate: bool` (super, joint tenancy, nominated policies), `status: 'identified'\|'valued'\|'realised'\|'transferred'`, `realisedCents?` |
 | `liabilities/{id}` | `class`, `creditor`, `amountCents`, `status: 'notified'\|'paid'\|'disputed'` |
 | `distributions/{id}` | `beneficiaryPartyId`, `kind: 'specific'\|'pecuniary'\|'residuary'`, `amountCents?`, `assetId?`, `status`, `paidOn?` |
-| `suggestions/{id}` | Clerk proposals. `kind: 'task'\|'deadline'\|'event'\|'party'\|'time_entry'\|'note'\|'key_fact'\|'chronology'\|'order'`, `payload` (zod-validated per kind), `citations[] {documentId, version?, page, quote}`, `status: 'proposed'\|'accepted'\|'edited'\|'dismissed'\|'expired'`, `promptId`, `promptVersion` (semver, so `promptId@promptVersion` names the template), `model`, `confidence?`, `resolvedBy?`, `resolvedAt?`, `resultRef?` |
+| `suggestions/{id}` | Clerk proposals (AI-07, [ADR-037](adr/037-clerk-suggestions-engine.md)). `kind: 'task'\|'deadline'\|'event'\|'party'\|'time_entry'\|'note'\|'key_fact'\|'document_meta'\|'chronology'\|'order'\|'evidence'`, `payload` (one proposal schema per kind, `SUGGESTION_PAYLOADS`), `citations[] {documentId, version?, page?, quote}`, `rationale?`, `confidence?`, `status: 'proposed'\|'accepted'\|'edited'\|'dismissed'\|'expired'\|'stale'`, `promptId`, `promptVersion` (semver, so `promptId@promptVersion` names the template), `model`, `privileged`, `basis`, `basisParts`, `dedupeKey`, `expiresAt`, `resolvedBy?`, `resolvedAt?`, `resultRef?`, `appliedPayload?`, `dismissReason?`, `staleReview? {basis, changed[], at}`. All server-owned: clients only read (privileged ones need `privileged.view`) |
 | `clerkThreads/{threadId}` and `/messages/{msgId}` | `role`, `content` (blocks), `citations[]`, `status: 'streaming'\|'done'\|'error'\|'stopped'\|'refused'\|'truncated'\|'invalid_output'`, `usage: {inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens}`, `promptId` (`id@version`), `model`, `fallbackUsed`, `stopRequested` (the only client-writable field), `toolCalls[]`, `manifest?` (AI-03: the sources `buildContext` included, by id and version, plus `processing`, `notices`, `truncated: {droppedDocs, droppedChunks, droppedNotes}\|null` and `tokens`; ids and counts only) and `privileged?` (the reply drew on privileged material). The verbatim assistant turn is in the server-only `messages/{msgId}/private/raw` (AI-02) |
 
 ### Litigation subcollections (on `contest`/`fp` matters)
@@ -290,6 +290,47 @@ Matter notes are Markdown file notes with mentions; the matter's activity feed i
   - notes: `note.created`, `note.edited`, `notes.soft_delete`, `notes.restore`, and `notes.update` when only `pinned` changed (`note.pinned`/`note.unpinned`).
   Each line has `kind` (the action, or `document.added`, `deadline.created`, `note.deleted`… for writes), an actor-less `summary` ("Changed the status from Open to On hold", "Added document “Will.pdf”"; the UI puts the member's name first), `actorUid`, `at` (the entry's time) and `refs` (`auditId`, plus `noteId`, `documentId`, `deadlineId`, `partyId` or `eventId`, and a party's `contactId`). Summaries never contain note text; on a privileged matter or for a privileged record they name nothing ("Added a document"). A change recorded both as a callable's write and its semantic event appears once. Entries without a matter, about tasks (`tasks-onWrite` writes those), from the migration, or not in the table are skipped. `activity` is excluded from the audit log and `lastActivityAt` is a noise field, so the trigger can't loop.
 
+### Clerk suggestions (AI-07)
+
+See [ADR-037](adr/037-clerk-suggestions-engine.md). Domain: `libs/domain/src/lib/suggestions.ts`; functions: `apps/functions/src/suggestions/`.
+
+- **Proposing** (server only): `proposeSuggestions({db, orgId, clock, log}, matterId, proposals[], {privileged, promptId, promptVersion, model, ttlDays?})` validates each proposal (`SuggestionProposalSchema`) and skips the ones with these reasons:
+  - `invalid`;
+  - `duplicate`: the same `dedupeKey` (default `defaultDedupeKey`) as a proposed, stale or dismissed suggestion, or as an earlier proposal in the call;
+  - `exists`: the handler finds the record;
+  - `matter_unavailable`: a closed or deleted matter;
+  - `disabled`: the `clerk.features.suggestions` flag is off.
+
+  Proposed suggestions are written in one transaction with the basis, `privileged` and `expiresAt` (14 days by default). `privileged` is set by the option, a privileged matter, or a privileged cited or targeted document.
+- **Kinds with a handler:** task, deadline, event, key_fact, note, party and document_meta. Each applies through the domain logic of its own callable:
+  - tasks use `Task`;
+  - deadlines use `ManualDeadlineCreateInput`;
+  - events use `recordEvent` and so recompute;
+  - key facts on events go through `recordEvent`, and the others go through `Matter.update`;
+  - notes use `createNote`;
+  - parties use `upsertPartyChange`;
+  - document details use `MatterDocument.update`.
+
+  time_entry, chronology, order and evidence are refused with `SUGGESTION_UNSUPPORTED`.
+- **`suggestions-accept`** `{requestId, matterId, suggestionId, editedPayload?, expectedBasis?}` (`clerk.use` plus the kind's action from `SUGGESTION_KIND_ACTION`, idempotent, flag-gated) applies the suggestion in the domain write's transaction (`TxJoin`) and returns `{suggestionId, status: 'accepted'|'edited', resultRef}`. It refuses with:
+  - `NOT_FOUND` when the suggestion is missing, or privileged and the caller lacks `privileged.view`;
+  - `ALREADY_RESOLVED` when it is no longer open or is past `expiresAt`;
+  - `MATTER_CLOSED`;
+  - `PERMISSION_DENIED` (`details.action`);
+  - `INVALID_ARGUMENT` (`details.reason: 'edited_payload'`, `details.fields`) for an invalid edit;
+  - `SUGGESTION_STALE` (`details.basis`, `details.changed[] {key, label}`) when the basis changed. The suggestion is then marked `stale` with `staleReview`, and accepting again with `expectedBasis` applies it.
+
+  It is audited as `suggestion.accepted` with the human as actor and `data.via: 'clerk'`.
+- **`suggestions-acceptMany`** `{requestId, matterId, suggestionIds (1–25)}` accepts each in order. It returns `{results: ({ok: true, suggestionId, status, resultRef} | {ok: false, suggestionId, code, details?})[], accepted, failed}`.
+- **`suggestions-dismiss`** `{requestId, matterId, suggestionId, reason?}` (`clerk.use`) sets `dismissed`, `dismissReason`, `resolvedBy` and `resolvedAt`. It is audited as `suggestion.dismissed` (`via: 'clerk'`).
+- **`suggestions-expire`** (hourly) marks open suggestions past `expiresAt` as `expired` (`resolvedBy: 'system'`). It uses a collection-group index on `status` and `expiresAt`.
+- **Metrics:** outcomes increment `orgs/{orgId}/metrics/clerk-{YYYY-MM}` `values`:
+  - `suggestions.{outcome}`;
+  - `suggestions.kind.{kind}.{outcome}`;
+  - `suggestions.prompt.{promptId}@{promptVersion}.{outcome}`.
+
+  The outcomes are proposed, accepted, edited, dismissed, expired and stale. `suggestionAcceptanceRates(values)` gives the rate (accepted plus edited, over resolved) overall, per kind and per prompt version.
+
 ## Org-level collections
 
 | Path | Key fields |
@@ -392,6 +433,7 @@ Every notification goes through `notify()` (`apps/functions/src/notifications/no
 - Collection group `chunks`: flat 768-d vector indexes on `embedding` with `orgId` and `matterId` pre-filters, and with `orgId`, `matterId` and `privileged` (searches for roles without `privileged.view`). `text` is exempt from indexing.
 - `documents` (CORE-12): (privileged, createdAt desc), for the lists of roles without privileged.view.
 - `notes` (CORE-13): (privileged, createdAt desc); `revisions`: (privileged, editedAt desc). Both for roles without privileged.view.
+- Collection group `suggestions` (AI-07): (status, expiresAt) for the expiry sweep. The Overview's list uses equality filters only (`status in`, `privileged ==`).
 - `safeCustody` (CORE-17): (search contains, packetNo desc) and (status, packetNo desc) for the register; (status, locationKey) for the stocktake.
 
 **Rule:** every collection-group-queried document stores `orgId` and `matterId`, and the rules check `resource.data.orgId == claimOrg()`.
@@ -451,7 +493,7 @@ Every notification goes through `notify()` (`apps/functions/src/notifications/no
 - **suggestions:**
   - kinds add `document_meta` (AI-04) and `evidence` (LIT-07);
   - status adds `stale` (AI-07);
-  - adds `basis` and `dedupeKey`.
+  - adds `privileged`, `basis`, `basisParts`, `dedupeKey`, `expiresAt`, `appliedPayload`, `dismissReason` and `staleReview` (AI-07; see "Clerk suggestions (AI-07)").
 - **notes:** `revisions/{id}` subcollection (CORE-13), and `privileged` per note.
 - **org:**
   - `settings.clerk` (AI-13), `settings.referrals.thankYouTask` (CORE-18: owners and admins switch it on beside the Contacts → Referrers filter; when a matter with a referrer contact opens, at create or `lead → open` in `matters-changeStatus`, it gets one task `referrer-thank-you`, "Thank {referrer} for the referral", for the responsible lawyer, due in 7 days, counted in `openTaskCount` by the writer), `security` (SEC-04), `flags` (FND-23);

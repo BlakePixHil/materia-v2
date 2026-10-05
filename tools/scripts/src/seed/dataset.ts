@@ -567,6 +567,58 @@ const MATTER_DETAILS: Readonly<Record<string, MatterDetailSpec>> = {
   },
 };
 
+/** A seeded Clerk suggestion (AI-07): what a Clerk feature proposed, with its sources. */
+interface SuggestionSpec {
+  kind: D.SuggestionKind;
+  payload: Record<string, unknown>;
+  citations: { documentId: string; page?: number; quote: string }[];
+  rationale: string;
+  privileged?: boolean;
+  /** Proposed over two weeks ago and swept: shown under "Show expired". */
+  expired?: boolean;
+}
+
+/** Clerk suggestions on the Overview of the Doyle estate (fictional). */
+const SUGGESTIONS: Readonly<Record<string, readonly SuggestionSpec[]>> = {
+  'm-doyle-estate': [
+    {
+      kind: 'task',
+      payload: { title: 'Ask the bank for the date-of-death balance of the estate account', priority: 'medium' },
+      citations: [{ documentId: 'm-doyle-estate-doc-1', page: 1, quote: 'my accounts with any bank' }],
+      rationale: 'The will deals with bank accounts and the asset schedule has no balance yet.',
+    },
+    {
+      kind: 'key_fact',
+      payload: { field: 'grossValue', value: 1_291_300_00 },
+      citations: [{ documentId: 'm-doyle-estate-doc-1', page: 2, quote: 'the residue of my estate' }],
+      rationale: 'The updated valuation of the residence adds $6,800.00 to the estate.',
+    },
+    {
+      kind: 'note',
+      payload: {
+        bodyMd: 'Thomas Doyle is a beneficiary under the will, so he is entitled to a copy of it.',
+        pinned: false,
+      },
+      citations: [{ documentId: 'm-doyle-estate-doc-1', page: 2, quote: 'to my son Thomas' }],
+      rationale: 'Answers the open question in the file notes.',
+    },
+    {
+      kind: 'note',
+      payload: { bodyMd: 'Counsel’s view: the risk of a caveat from Peter Hale is low.', pinned: false },
+      citations: [],
+      rationale: 'From the privileged advice on file.',
+      privileged: true,
+    },
+    {
+      kind: 'document_meta',
+      payload: { documentId: 'm-doyle-estate-doc-2', title: 'Death certificate of Margaret Doyle' },
+      citations: [],
+      rationale: 'A clearer title for the certificate.',
+      expired: true,
+    },
+  ],
+};
+
 /**
  * The party rows a seeded matter gets: one client row per client (CORE-06: `clientContactIds`
  * follows the client rows), then its other parties, one row per role and contact.
@@ -696,12 +748,14 @@ export function buildDataset(options: {
       settings: { clerk: { enabled: true, model: 'claude-sonnet-5-5' } },
       // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02), and
       // matters follow their templates' stages and tasks (CORE-07), and the illustrative Victorian
-      // statutory deadline rules apply (CORE-10), and the retention destruction queue runs (CORE-19).
+      // statutory deadline rules apply (CORE-10), Clerk's suggestions show on the Overview (AI-07),
+      // and the retention destruction queue runs (CORE-19).
       flags: {
         'conflicts.enforced': true,
         'templates.system': true,
         'deadlines.ruleset.vic.v1': true,
         'matters.destruction': true,
+        'clerk.features.suggestions': true,
       },
     }),
   );
@@ -957,7 +1011,7 @@ export function buildDataset(options: {
     add(`orgs/${org}/matterNumbers/${domain.matterNumberKey(number)}`, {
       ...makeMatterNumber({ ...meta, number, matterId: spec.id, year }),
     });
-    add(base, {
+    const matterData = {
       ...makeMatter({
         ...meta,
         number,
@@ -1015,7 +1069,8 @@ export function buildDataset(options: {
       }),
       // Live matters carry deletedAt: null (the Matters list filters on it).
       deletedAt: null,
-    });
+    };
+    add(base, matterData);
 
     for (const [contactId, role] of seedParties(spec)) {
       add(
@@ -1149,49 +1204,81 @@ export function buildDataset(options: {
         }),
       );
     });
+    const documents: Record<string, Record<string, unknown>> = {};
     spec.documents.forEach((fixture, i) => {
       const id = `${spec.id}-doc-${i + 1}`;
       const storagePath = `${base}/documents/${id}/v1`;
       const info = options.fixtures[fixture];
-      add(
-        `${base}/documents/${id}`,
-        makeMatterDocument({
-          ...meta,
-          orgId: org,
-          matterId: spec.id,
-          name: FIXTURE_FILES[fixture].name,
-          storagePath,
-          mime: 'application/pdf',
-          sizeBytes: info.sizeBytes,
-          sha256: info.sha256,
-          version: 1,
-          versionSeq: 1,
-          versions: [
-            {
-              version: 1,
-              storagePath,
-              fileName: FIXTURE_FILES[fixture].name,
-              mime: 'application/pdf',
-              sizeBytes: info.sizeBytes,
-              sha256: info.sha256,
-              uploadedAt: now,
-              uploadedBy: PRIYA,
-              pageCount: info.pages,
-            },
-          ],
-          category: FIXTURE_FILES[fixture].category,
-          scan: { status: 'clean' },
-          // Clerk ingestion (AI-04) picks these up when the functions emulator runs: the
-          // documents-onIngestChange trigger queues them as the seed writes them.
-          ingest: { status: 'pending' },
-          pageCount: info.pages,
-          source: 'upload',
-        }),
-      );
+      documents[id] = makeMatterDocument({
+        ...meta,
+        orgId: org,
+        matterId: spec.id,
+        name: FIXTURE_FILES[fixture].name,
+        storagePath,
+        mime: 'application/pdf',
+        sizeBytes: info.sizeBytes,
+        sha256: info.sha256,
+        version: 1,
+        versionSeq: 1,
+        versions: [
+          {
+            version: 1,
+            storagePath,
+            fileName: FIXTURE_FILES[fixture].name,
+            mime: 'application/pdf',
+            sizeBytes: info.sizeBytes,
+            sha256: info.sha256,
+            uploadedAt: now,
+            uploadedBy: PRIYA,
+            pageCount: info.pages,
+          },
+        ],
+        category: FIXTURE_FILES[fixture].category,
+        scan: { status: 'clean' },
+        // Clerk ingestion (AI-04) picks these up when the functions emulator runs: the
+        // documents-onIngestChange trigger queues them as the seed writes them.
+        ingest: { status: 'pending' },
+        pageCount: info.pages,
+        source: 'upload',
+      });
+      add(`${base}/documents/${id}`, documents[id]);
       // The duplicate check's hash index (CORE-12): uploading the same file again flags it.
       add(`${base}/documentHashes/${info.sha256}`, makeDocumentHash({ ...meta, documentId: id }));
       files.push({ storagePath, fixture });
     });
+
+    // Clerk suggestions (AI-07), stored as proposeSuggestions writes them: the basis is the one the
+    // server computes from this matter and its documents, so accepting one applies it.
+    for (const [i, proposal] of (SUGGESTIONS[spec.id] ?? []).entries()) {
+      const { basis, parts } = domain.suggestionBasis(
+        domain.suggestionBasisParts(proposal, { matter: matterData, documents }),
+      );
+      const expired = proposal.expired === true;
+      add(
+        `${base}/suggestions/${spec.id}-sg-${i + 1}`,
+        F.makeSuggestion({
+          ...meta,
+          createdBy: 'clerk',
+          updatedBy: 'clerk',
+          orgId: org,
+          matterId: spec.id,
+          kind: proposal.kind,
+          payload: proposal.payload,
+          citations: proposal.citations,
+          rationale: proposal.rationale,
+          status: expired ? 'expired' : 'proposed',
+          promptId: 'suggest-matter',
+          promptVersion: '1.0.0',
+          model: 'claude-sonnet-5-5',
+          privileged: proposal.privileged ?? false,
+          basis,
+          basisParts: parts,
+          dedupeKey: domain.defaultDedupeKey({ kind: proposal.kind, payload: proposal.payload } as D.SuggestionPayload),
+          expiresAt: new Date(now.getTime() + (expired ? -2 : domain.SUGGESTION_TTL_DAYS) * 86_400_000),
+          ...(expired ? { resolvedBy: 'system', resolvedAt: now } : {}),
+        } as Partial<D.Suggestion>),
+      );
+    }
   });
 
   // The will safe custody register (CORE-17): held, out, released, and a deceased testator's will.

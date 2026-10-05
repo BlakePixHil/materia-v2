@@ -20,6 +20,7 @@ export * as notifications from './notifications/index';
 export * as notes from './notes/index';
 export * as activity from './activity/index';
 export * as reminders from './reminders/index';
+export * as suggestions from './suggestions/index';
 export * as safeCustody from './safe-custody/index';
 export * as time from './time/index';
 export * as backups from './backups/index';
