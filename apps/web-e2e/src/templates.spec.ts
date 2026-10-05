@@ -90,7 +90,7 @@ test.describe('matter templates', () => {
     await expect(page.getByText('Published v2', { exact: true }).first()).toBeVisible({ timeout: 20_000 });
 
     // The list shows the org template at v2.
-    await page.getByRole('link', { name: 'Matter templates' }).click();
+    await page.locator('mt-template-editor-page').getByRole('link', { name: 'Matter templates' }).click();
     await expect(page.locator(`[data-template="${templateId}"]`)).toContainText('Published v2');
 
     // A matter on v1 of that template offers the upgrade to v2, which adds the missing tasks.

@@ -20,6 +20,27 @@ export const MatterTypeCodeSchema = z
   .trim()
   .regex(/^[A-Za-z0-9]{1,6}$/, { message: 'Use 1 to 6 letters or digits' });
 
+/** A matter type's default fee arrangement and estimate (CORE-21), prefilled at intake (CORE-05). */
+// A conditional arrangement needs the matter's own condition, so it can't be a default.
+export const FeeDefaultSchema = z
+  .object({
+    arrangement: z.enum(['hourly', 'fixed', 'capped', 'pro_bono']),
+    amountCents: CentsSchema.optional(),
+    capCents: CentsSchema.optional(),
+    estimateCents: CentsSchema.optional(),
+  })
+  .refine((fee) => fee.arrangement !== 'fixed' || fee.amountCents !== undefined, {
+    message: 'Enter the fixed fee',
+    path: ['amountCents'],
+  })
+  .refine((fee) => fee.arrangement !== 'capped' || fee.capCents !== undefined, {
+    message: 'Enter the cap',
+    path: ['capCents'],
+  });
+export type FeeDefault = z.infer<typeof FeeDefaultSchema>;
+export const FeeDefaultsSchema = z.partialRecord(MatterTypeSchema, FeeDefaultSchema);
+export type FeeDefaults = z.infer<typeof FeeDefaultsSchema>;
+
 /** `orgs/{orgId}`: the firm. */
 export const Org = withMeta(
   {
@@ -49,6 +70,8 @@ export const Org = withMeta(
     matterNumberFormat: z.string().min(1).default('M-{YYYY}-{seq:4}'),
     /** `{TYPE}` codes that replace DEFAULT_MATTER_TYPE_CODES in matter numbers (CORE-21a). */
     matterTypeCodes: z.partialRecord(MatterTypeSchema, MatterTypeCodeSchema).optional(),
+    /** Each matter type's default fee arrangement and estimate (CORE-21), prefilled at intake. */
+    feeDefaults: FeeDefaultsSchema.optional(),
     fy: z.object({ startMonth: z.number().int().min(1).max(12) }),
     retentionYears: z.number().int().min(1).default(7),
     plan: z.enum(['trial', 'standard', 'enterprise']),
@@ -85,7 +108,21 @@ export const Org = withMeta(
   },
   {
     path: 'orgs',
-    serverOwned: ['legalHold', 'deletionScheduledAt', 'flags'],
+    // The practice details and billing settings change only through `orgs-updateSettings` (CORE-21),
+    // which refuses removing a jurisdiction open matters use and keeps the claims' org name current.
+    serverOwned: [
+      'legalHold',
+      'deletionScheduledAt',
+      'flags',
+      'name',
+      'abn',
+      'jurisdictions',
+      'primaryJurisdiction',
+      'timezone',
+      'holidayLocality',
+      'retentionYears',
+      'billing',
+    ],
   },
 );
 
