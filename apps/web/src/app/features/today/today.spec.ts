@@ -127,6 +127,10 @@ const items = (page: Page, section: string) =>
   [...(card(page, section)?.querySelectorAll<HTMLElement>('[data-today-item]') ?? [])].map((item) =>
     page.text(item.querySelector('[data-today-focus], .mt-task-title')),
   );
+const stats = (page: Page) =>
+  [...(card(page, 'stats')?.querySelectorAll('.mt-stat') ?? [])].map((stat) =>
+    ['.k', '.v', '.f'].map((part) => page.text(stat.querySelector(part))),
+  );
 const focused = (page: Page) => page.text(document.activeElement);
 
 describe('today', () => {
@@ -221,10 +225,10 @@ describe('today', () => {
 
   it('counts my open matters and this week’s deadlines', async () => {
     const page = await openToday({ configure: busyDay });
-    const stats = [...(card(page, 'stats')?.querySelectorAll('.mt-stat') ?? [])].map((stat) => page.text(stat));
-    expect(stats[0]).toContain('Open matters 2');
-    expect(stats[1]).toContain('Deadlines this week 1');
-    expect(stats[1]).toContain('1 overdue');
+    expect(stats(page)).toEqual([
+      ['Open matters', '2', 'You’re responsible for'],
+      ['Deadlines this week', '1', '1 overdue'],
+    ]);
   });
 
   it('celebrates a clear day in plain words', async () => {
@@ -312,7 +316,10 @@ describe('today', () => {
     expect(page.text(page.body.querySelector('[data-offline]'))).toContain('You’re offline');
     expect(items(page, 'attention')).toContain('Overdue: File the inventory of assets');
     // Counts need the server.
-    expect(page.text(card(page, 'stats'))).toContain('Open matters —');
+    expect(stats(page).map(([label, value]) => [label, value])).toEqual([
+      ['Open matters', '—'],
+      ['Deadlines this week', '—'],
+    ]);
   });
 
   it('moves through every row with j and k', async () => {
