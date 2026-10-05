@@ -4,9 +4,9 @@ from litigation import *
 from markup import *
 from screens import frame, section_h
 
-NGUYEN = dict(ref="WE-097", type="fp", stage=2, title="Nguyen v Nguyen", sub="Family provision claim in the estate of Thi Nguyen", court="NSWSC 2026/00187412", acting="Acting for the plaintiff", stagename="Evidence")
-BRENNAN = dict(ref="WE-171", type="contest", stage=2, title="Doyle v Brennan", sub="Contested will of Harold James Brennan · Probate List", court="NSWSC 2026/00213958", acting="Acting for the defendant (caveator)", stagename="Evidence")
-BRENNAN_STAGES = ["Caveat", "Summons filed", "Evidence", "Subpoenas", "Expert reports", "Directions", "Hearing", "Judgment"]
+NGUYEN = dict(ref="WE-097", type="fp", stage=2, title="Nguyen v Nguyen", sub="Family provision claim in the estate of Thi Nguyen", court="CI-26-01842 · County Court", acting="Acting for the plaintiff", stagename="Evidence")
+BRENNAN = dict(ref="WE-171", type="contest", stage=2, title="Doyle v Brennan", sub="Contested will of Harold James Brennan · TEP List", court="S ECI 2026 04127", acting="Acting for the defendant (caveator)", stagename="Evidence")
+BRENNAN_STAGES = ["Caveat", "Proceeding filed", "Evidence", "Subpoenas", "Expert reports", "Directions", "Hearing", "Judgment"]
 
 
 def lit_header(m, active, counts=None, stages=None):
@@ -30,8 +30,8 @@ def card(title, body, right="", style=""):
 # ------------------------------------------------------------------ Disputes hub
 def disputes():
     rows = [
-        ("WE-097", "Nguyen v Nguyen", "For the plaintiff · Ho Legal acts for the executor", tag("fp"), ("active", .3), "Evidence", "NSWSC 2026/00187412", deadline("Affidavit 2d late", "overdue"), 86, "danger"),
-        ("WE-171", "Doyle v Brennan", "For the defendant (caveator) · Carlisle &amp; Webb for the plaintiff", tag("contest"), ("active", .3), "Evidence", "NSWSC 2026/00213958", deadline("Directions Fri 9 Oct", "soon"), 48, None),
+        ("WE-097", "Nguyen v Nguyen", "For the plaintiff · Ho Legal acts for the executor", tag("fp"), ("active", .3), "Evidence", "CI-26-01842", deadline("Affidavit 2d late", "overdue"), 86, "danger"),
+        ("WE-171", "Doyle v Brennan", "For the defendant (caveator) · Carlisle &amp; Webb for the plaintiff", tag("contest"), ("active", .3), "Evidence", "S ECI 2026 04127", deadline("Directions Fri 9 Oct", "soon"), 48, None),
         ("WE-188", "Estate of Rosa Marchetti", "For a beneficiary · executor not administering", tag("contest", "Estate dispute"), ("draft", 0), "Pre-action", "Not yet filed", deadline("Reply due 12 Oct", "upcoming"), 22, None),
     ]
     body = "".join(f'<tr><td class="ref">{r}</td><td><div class="title">{n}</div><div class="caption t-3">{w}</div></td><td>{t}</td><td><span class="mt-row" style="gap:6px">{status(*st)}<span class="t-2">{sn}</span></span></td><td class="mono-s t-3">{ct}</td><td>{dl}</td>'
@@ -41,13 +41,13 @@ def disputes():
     watch = ('<div class="mt-card" data-pad>' + section_h('To watch <span class="mt-count">1</span>', '<span class="caption t-3">Claims that could still be made against estates we act for</span>')
              + '<div class="mt-col" style="gap:16px"><div class="mt-col" style="gap:6px"><div class="mt-row" style="gap:8px">' + tag("probate") + '<span class="label">Estate of Margaret Whitfield</span><span class="mono-s t-3">WE-142</span></div>'
              + '<div class="body-s t-2">Thomas Whitfield (son) is an eligible person who is left nothing by clause 6. He has asked for a copy of the will. A family provision claim can be filed until <b class="t-1">22 Jul 2027</b>.</div>'
-             + '<div class="mt-cites">' + cite("Will · cl. 6") + cite("File note 14 Aug") + cite("Succession Act s 58(2)") + "</div></div>"
+             + '<div class="mt-cites">' + cite("Will · cl. 6") + cite("File note 14 Aug") + cite("APA 1958 (Vic) s 99") + "</div></div>"
              + '<div class="mt-col" style="gap:6px"><div class="mt-row caption t-3"><span>Limitation period</span><span class="mt-ml mono">293 days left</span></div>' + progress(20) + '<span class="caption t-3">Advise the executors not to distribute before the period ends (s 93 notice).</span>'
              + '<div class="mt-row" style="gap:6px">' + btn("Draft advice to executors", "ai", "sm", "sparkle") + "</div></div></div></div>")
     cal = "".join([
         court_event("Fri", "9", "Oct", "Registrar’s directions", "Doyle v Brennan · 9:30 am · timetable for expert evidence", [("external", "Online · Teams")], "directions", badge("Ready", "success")),
         court_event("Fri", "23", "Oct", "Subpoena return", "Doyle v Brennan · Dr Patel’s records, Sep 2023–Mar 2024", [("court", "Registry · access order")], "directions"),
-        court_event("Thu", "26", "Nov", "Mediation", "Nguyen v Nguyen · 10:00 am · A. Ruiz, mediator", [("contacts", "Sydney CBD · client attends")], "mediation", badge("Position paper", "ai", "sparkle")),
+        court_event("Thu", "26", "Nov", "Mediation", "Nguyen v Nguyen · 10:00 am · A. Ruiz, mediator", [("contacts", "Melbourne CBD · client attends")], "mediation", badge("Position paper", "ai", "sparkle")),
         court_event("Fri", "4", "Dec", "Further directions", "Nguyen v Nguyen · 9:30 am · Family Provision List", [("external", "Online · Teams")], "directions"),
         court_event("Tue", "9", "Mar", "Hearing, 3 days", "Doyle v Brennan · 9–11 Mar 2027", [("user", "Counsel: J. Mercer SC")], "hearing", badge("Brief 40%", "warning"))])
     right = ('<div class="mt-col" style="gap:12px"><div class="mt-card-h"><h3>Court calendar</h3><span class="mt-ml">' + btn("Sync to Outlook", "ghost", "sm", "external") + "</span></div>" + cal + "</div>")
@@ -75,18 +75,18 @@ def dispute_matter():
                    ("BN", "2", "Bao Nguyen", "Eligible person notified · not a party", "")]) + "</div>")
     glance = ('<div class="mt-card" data-pad>' + section_h("Claim at a glance") + '<dl class="mt-facts"><dt>Deceased</dt><dd>Thi Nguyen · died 14 Nov 2025</dd><dt>Estate</dt><dd>$1.92m · house at Cabramatta $1.45m</dd><dt>Under the will</dt><dd>Lan 20% ($384k) · Minh 80%</dd><dt>Claim filed</dt><dd>10 Jul 2026, within 12 months ' + icon("check", "sm", "t-success") + "</dd><dt>Our costs</dt><dd>$18,920 of the $22,000 estimate</dd></dl>"
               + progress(86, "danger") + '<div class="mt-note" data-tone="warning">' + icon("alert") + '<span>Costs to mediation are projected at $24,500. Update the costs disclosure before the estimate is exceeded.</span></div></div>')
-    nxt = ('<div class="mt-col" style="gap:8px">' + court_event("Thu", "26", "Nov", "Mediation", "10:00 am · Angela Ruiz, mediator · client to attend", [("contacts", "Sydney CBD"), ("document", "Position paper due 19 Nov")], "mediation")
+    nxt = ('<div class="mt-col" style="gap:8px">' + court_event("Thu", "26", "Nov", "Mediation", "10:00 am · Angela Ruiz, mediator · client to attend", [("contacts", "Melbourne CBD"), ("document", "Position paper due 19 Nov")], "mediation")
            + court_event("Fri", "4", "Dec", "Further directions", "9:30 am · Family Provision List", [("external", "Online · Teams")], "directions") + "</div>")
     left = ('<div class="mt-page" style="padding-right:28px;min-width:0">' + lit_header(NGUYEN, "Overview", {"Orders": 6, "Offers": 2})
             + f'<div style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start"><div class="mt-col" style="gap:16px">{orders}{parties}</div><div class="mt-col" style="gap:16px">{glance}<div class="mt-card" data-pad>{section_h("Next in court")}{nxt}</div></div></div></div>')
     panel = ('<aside style="width:400px;flex:none;border-left:1px solid var(--border-default);display:flex;flex-direction:column;background:linear-gradient(180deg,var(--bg-ai-subtle),var(--bg-surface) 160px)">'
              + '<div class="mt-row" style="height:48px;padding:0 8px 0 16px;border-bottom:1px solid var(--border-default)">' + clerk_av() + '<span class="label">Clerk</span><span class="caption t-3">Reading WE-097 · 64 documents</span><span class="mt-ml">' + ibtn("x", "Close Clerk", size="sm") + "</span></div>"
              + '<div class="mt-col" style="gap:18px;padding:20px 16px;flex:1">'
-             + '<div class="mt-msg" data-role="clerk">' + clerk_av() + '<div class="body"><p><b>The sealed orders arrived from the Online Registry.</b> I’ve proposed 5 deadlines and 2 court events from them. Order 5 depends on the mediation date, so I’ve held it until the mediation happens.</p>'
+             + '<div class="mt-msg" data-role="clerk">' + clerk_av() + '<div class="body"><p><b>The sealed orders arrived through RedCrest.</b> I’ve proposed 5 deadlines and 2 court events from them. Order 5 depends on the mediation date, so I’ve held it until the mediation happens.</p>'
              + '<div class="mt-row">' + btn("Review 7 items", "secondary", "sm") + btn("Add all", "ai", "sm", "check") + "</div></div></div>"
              + '<div class="mt-msg" data-role="clerk">' + clerk_av() + '<div class="body"><p><b>Lan’s affidavit is 2 days late</b> under order 1. Ho Legal agreed to a 7-day extension by email yesterday, so this can go by consent.<sup>1</sup></p><div class="mt-cites">' + cite("Email · K. Ho 1 Oct", 1) + '</div><div class="mt-row">' + btn("Draft consent orders", "ai", "sm", "sparkle") + btn("Draft cover letter", "ghost", "sm") + "</div></div></div>"
              + '<div class="mt-msg" data-role="user">What does Lan’s affidavit still need?</div>'
-             + '<div class="mt-msg" data-role="clerk">' + clerk_av() + '<div class="body"><p>The draft covers her relationship with her mother and her health. Against the s 60(2) factors, it’s thin on <b>her financial position</b>:<sup>2</sup></p><ul><li>No superannuation statement or 2025 tax return in the file.</li><li>Paragraph 18 mentions a mortgage but no loan statement is exhibited.<sup>3</sup></li><li>Her son’s school fees are claimed without receipts.</li></ul><div class="mt-cites">' + cite("Succession Act s 60(2)", 2) + cite("Draft affidavit [18]", 3) + '</div><div class="mt-row">' + btn("Request documents from Lan", "ai", "sm", "mail") + "</div></div></div>"
+             + '<div class="mt-msg" data-role="clerk">' + clerk_av() + '<div class="body"><p>The draft covers her relationship with her mother and her health. Against the s 91(4) factors, it’s thin on <b>her financial position</b>:<sup>2</sup></p><ul><li>No superannuation statement or 2025 tax return in the file.</li><li>Paragraph 18 mentions a mortgage but no loan statement is exhibited.<sup>3</sup></li><li>Her son’s school fees are claimed without receipts.</li></ul><div class="mt-cites">' + cite("APA 1958 (Vic) s 91(4)", 2) + cite("Draft affidavit [18]", 3) + '</div><div class="mt-row">' + btn("Request documents from Lan", "ai", "sm", "mail") + "</div></div></div>"
              + "</div>"
              + '<div style="padding:0 12px 12px"><div class="mt-composer"><span class="ctx">' + icon("court") + "WE-097 · Nguyen v Nguyen" + icon("x") + '</span><div class="field">Ask about this dispute…</div><div class="bar">' + ibtn("attach", "Attach", size="sm") + '<span class="mt-grow"></span><button class="mt-send" aria-label="Send">' + icon("send") + "</button></div></div></div></aside>")
     page = f'<div style="display:flex;flex:1;min-height:0">{left}{panel}</div>'
@@ -110,7 +110,7 @@ def chronology():
              + '<div class="mt-chrono-year">2026</div>'
              + chrono("11 Jan", "Harold dies, aged 88.", ["Death certificate"])
              + chrono("2 Mar", "Ruth lodges a caveat against a grant of probate of the 2024 will.", ["Caveat"])
-             + chrono("14 Jul", "Doyle commences proceedings for probate of the 2024 will in solemn form.", ["Summons"], [], True)
+             + chrono("14 Jul", "Doyle commences proceedings for probate of the 2024 will in solemn form.", ["Originating motion"], [], True)
              + "</div>")
     filters = ('<div class="mt-row mt-wrap" style="gap:6px">' + "".join(f'<button class="mt-chip"{" data-selected" if i == 0 else ""}>{t}</button>' for i, t in enumerate(["All issues", "C · Capacity", "K · Knowledge and approval", "U · Undue influence"]))
                + '<span class="mt-ml mt-row" style="gap:6px"><span class="caption t-3">Built from 112 documents · 3 need review</span>' + switch(False, "Key events only") + "</span></div>")
@@ -126,7 +126,7 @@ def chronology():
     right = ('<aside style="width:460px;flex:none;border-left:1px solid var(--border-default);padding:20px 16px;display:flex;flex-direction:column;gap:16px">'
              + '<div class="mt-card-h"><h3>Evidence by issue</h3><span class="mt-ml">' + btn("Export", "ghost", "sm", "upload") + "</span></div>" + mx
              + '<div class="mt-col" style="gap:8px"><span class="heading">Next to gather</span>'
-             + suggestion("Subpoena Dr Patel: records Sep 2023 to Mar 2024", "Fills the medical gap around the will (UCPR Pt 33)", "Draft subpoena")
+             + suggestion("Subpoena Dr Patel: records Sep 2023 to Mar 2024", "Fills the medical gap around the will (GCP Rules O 42A)", "Draft subpoena")
              + suggestion("Ask Ainsworth &amp; Co for the will file and notes", "Larke v Nugus request: who gave instructions, and how the will was explained", "Draft request")
              + suggestion("Brief a retrospective capacity expert", "Old-age psychiatrist to report on Harold’s capacity at 4 Mar 2024", "Draft brief")
              + '</div><div class="caption t-3">Strength is the fee earner’s judgement. Clerk proposes it with reasons; you set it.</div></aside>')
@@ -138,7 +138,7 @@ def chronology():
 # ------------------------------------------------------------------ Settlement & costs (Nguyen)
 def settlement():
     offers = ('<div class="mt-col" style="gap:8px">'
-              + offer("Our client", "18 Sep", "Offer of compromise · UCPR r 20.26", "$260,000", "Plus costs as agreed or assessed, from the estate. Open for 28 days.", deadline("Open until Fri 16 Oct", "soon"), "ours", btn("View letter", "ghost", "sm"))
+              + offer("Our client", "18 Sep", "Offer of compromise · GCP Rules O 26", "$260,000", "Plus costs as agreed or assessed, from the estate. Open for 28 days.", deadline("Open until Fri 16 Oct", "soon"), "ours", btn("View letter", "ghost", "sm"))
               + offer("Ho Legal for the defendant", "18 Aug", "Calderbank offer", "$120,000", "Inclusive of costs. Each party otherwise bears their own.", badge("Rejected 1 Sep"), "theirs")
               + '<div class="mt-suggestion">' + clerk_av() + '<div class="mt-grow"><div class="tt">Mediation position paper drafted</div><div class="ts">From Lan’s affidavit, the estate figures and both offers · due 19 Nov</div></div>' + btn("Open draft", "ai", "sm") + "</div></div>")
     sc = scenarios([("Accept their $120,000", "Inclusive of costs; ours to mediation about $24.5k", 95.5), ("Settle at mediation", "About $210k plus costs from the estate", 210),
@@ -151,7 +151,7 @@ def settlement():
             + '<div class="mt-col" style="gap:16px">' + card("Offers", offers, btn("Record offer", "ghost", "sm", "plus")) + card("Costs", costs) + "</div>"
             + '<div class="mt-col" style="gap:16px">' + card("What Lan nets under each outcome", '<div class="caption t-3" style="margin-top:-6px">After her own costs. Estimates from this matter’s costs and the estate figures, not a prediction.</div>' + sc
                                                           + '<details class="mt-tableview"><summary>View as table</summary><table class="mt-table"><thead><tr><th>Scenario</th><th class="num">Net to client</th></tr></thead><tbody><tr><td>Accept $120,000</td><td class="num">$95,500</td></tr><tr><td>Settle at mediation</td><td class="num">$210,000</td></tr><tr><td>Our offer accepted</td><td class="num">$260,000</td></tr><tr><td>Hearing, provision ordered</td><td class="num">$252,000</td></tr><tr><td>Hearing, claim dismissed</td><td class="num">−$58,000</td></tr></tbody></table></details>')
-            + '<div class="mt-clerk-card"><div class="in"><div class="mt-clerk-head">' + clerk_av() + 'Before the mediation</div><div class="body-s t-2">Our offer of compromise expires on <b class="t-1">16 Oct</b>. If it lapses and the result at hearing is no less favourable, the costs consequences under UCPR r 42.15 may apply. Diarise a review on 13 Oct.</div><div class="mt-cites">' + cite("UCPR r 20.26") + cite("UCPR r 42.15") + '</div><div class="mt-row">' + btn("Add review task", "ai", "sm", "plus") + "</div></div></div>"
+            + '<div class="mt-clerk-card"><div class="in"><div class="mt-clerk-head">' + clerk_av() + 'Before the mediation</div><div class="body-s t-2">Our offer of compromise expires on <b class="t-1">16 Oct</b>. If it lapses and the result at hearing is no less favourable, the costs consequences under O 26 may apply. Diarise a review on 13 Oct.</div><div class="mt-cites">' + cite("GCP Rules O 26") + '</div><div class="mt-row">' + btn("Add review task", "ai", "sm", "plus") + "</div></div></div>"
             + "</div></div></div>")
     actions = btn("Record time", "secondary", "sm", "timer", ["T"]) + btn("Prepare for mediation", "primary", "sm", "contacts")
     return frame("disputes", ["Disputes", "WE-097", "Offers"], actions, left)
@@ -160,7 +160,7 @@ def settlement():
 # ------------------------------------------------------------------ Court book (Brennan)
 def court_book():
     tbl = bundle_table([
-        ("1", "Originating process", [("1.1", "Summons for probate in solemn form", "14 Jul 2026", "Plaintiff", "1–6", "", False)]),
+        ("1", "Originating process", [("1.1", "Originating motion for probate in solemn form", "14 Jul 2026", "Plaintiff", "1–6", "", False)]),
         ("2", "Orders", [("2.1", "Orders of the Registrar", "11 Aug 2026", "Court", "7–8", "", False)]),
         ("3", "Affidavits", [("3.1", "Affidavit of Gary Doyle", "21 Jul 2026", "Plaintiff", "9–41", "", False),
                              ("3.2", "Affidavit of Susan Ainsworth (drafting solicitor)", "21 Jul 2026", "Plaintiff", "42–77", "", False),
