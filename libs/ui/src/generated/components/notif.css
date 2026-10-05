@@ -1,0 +1,20 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-notif). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-notif { display: grid; grid-template-columns: 8px 28px minmax(0, 1fr) auto; align-items: start; column-gap: var(--space-12); padding: 10px var(--space-16) 10px var(--space-12); border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); }
+.mt-notif[data-hover], .mt-notif:hover { background: var(--bg-hover); }
+.mt-notif[data-selectable] { grid-template-columns: 16px 8px 28px minmax(0, 1fr) auto; }
+.mt-notif[data-selectable] > .mt-check { margin-top: 6px; }
+.mt-notif[data-selected] { background: var(--bg-selected); }
+.mt-notif .dot { width: 8px; height: 8px; margin-top: 10px; border-radius: var(--radius-full); }
+.mt-notif[data-unread] .dot { background: var(--icon-brand); }
+.mt-notif .ic { width: 28px; height: 28px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-sunken); color: var(--icon-default); }
+.mt-notif .ic[data-kind="mention"] { background: var(--bg-brand-subtle); color: var(--icon-brand); }
+.mt-notif .ic[data-kind="deadline"] { background: var(--bg-warning-subtle); color: var(--text-warning); }
+.mt-notif .ic[data-kind="overdue"] { background: var(--bg-danger-subtle); color: var(--text-danger); }
+.mt-notif .ic[data-kind="clerk"] { background: var(--bg-ai-subtle); color: var(--icon-ai); }
+.mt-notif .tt { font: 400 13px/18px var(--font-sans); color: var(--text-secondary); }
+.mt-notif .tt b { font-weight: 600; color: var(--text-primary); }
+.mt-notif[data-unread] .tt { color: var(--text-primary); }
+.mt-notif .ts { margin-top: 2px; font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
+.mt-notif .side { display: flex; align-items: center; gap: var(--space-8); min-height: 28px; }
+.mt-notif .when { font: 500 11px/14px var(--font-mono); color: var(--text-tertiary); white-space: nowrap; }
+.mt-notif-day { display: flex; align-items: center; gap: var(--space-8); height: 32px; padding: 0 var(--space-16) 0 var(--space-12); background: var(--bg-canvas); border-bottom: 1px solid var(--border-default); font: 500 12px/16px var(--font-sans); color: var(--text-secondary); }

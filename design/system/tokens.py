@@ -62,7 +62,7 @@ TYPE = [
         ("heading", "14px", "20px", 600, "-0.005em", None, "Statutory deadlines", "Card and section headings."),
         ("body-l", "15px", "24px", 400, "0", None, "The binding nomination lapsed in March 2024, so the trustee may pay it to the estate.", "Long-form reading: Clerk answers, file notes, advice drafts."),
         ("body", "14px", "20px", 400, "0", None, "Send estate asset questionnaire to executors", "Default text: task titles, table values, form values."),
-        ("body-s", "13px", "18px", 400, "0", None, "UCPR r 78.3 · at least 14 days before filing", "Secondary lines under a title; dense tables."),
+        ("body-s", "13px", "18px", 400, "0", None, "A&P Rules 2014 · at least 14 days before filing", "Secondary lines under a title; dense tables."),
         ("label", "13px", "18px", 500, "0", None, "Record time", "Buttons, nav items, field labels, tabs."),
         ("label-s", "12px", "16px", 500, "0", None, "In 5 days", "Badges, tags, deadline chips, small buttons."),
         ("caption", "12px", "16px", 400, "0", None, "Read across 14 matters, 37 emails and your calendar", "Timestamps, helper text, footnotes."),
@@ -70,7 +70,7 @@ TYPE = [
         ("numeric-m", "16px", "20px", 600, "-0.01em", None, "18.4 h", "Inline totals and small stats. Tabular figures."),
     ]),
     ("Data", "mono", [
-        ("eyebrow", "11px", "14px", 500, "0.04em", None, "WE-142 · PROBATE · NSW", "Uppercase micro-labels above titles and table headers."),
+        ("eyebrow", "11px", "14px", 500, "0.04em", None, "WE-142 · PROBATE · VIC", "Uppercase micro-labels above titles and table headers."),
         ("mono", "13px", "18px", 400, "0", None, "0.4 h  $176.00", "Amounts, hours and refs in tables. Tabular by default."),
         ("mono-s", "11px", "14px", 500, "0", None, "WE-142", "Matter refs, counts, kbd hints, citations."),
     ]),

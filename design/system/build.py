@@ -15,9 +15,12 @@ from pathlib import Path
 import components
 import components_next  # noqa: F401  (registers second-pass components)
 import components_lit  # noqa: F401  (registers litigation components)
+import components_pass4  # noqa: F401  (registers fourth-pass components, DES-01)
 import screens
 import screens_next
 import screens_lit
+import screens_settings
+import screens_pass4
 import tokens
 from icons import ICONS, icon_file
 
@@ -35,8 +38,14 @@ SCREEN_DIRS = {"Today": "TodayScreen", "Matter": "MatterScreen", "Matters list":
                "Insights": "InsightsScreen", "Contacts": "ContactsScreen", "Settings": "SettingsScreen",
                "Onboarding": "OnboardingScreen", "Mobile": "MobileScreen",
                "Disputes": "DisputesScreen", "Dispute matter": "DisputeMatterScreen", "Chronology and evidence": "ChronologyScreen",
-               "Settlement and costs": "SettlementScreen", "Court book": "CourtBookScreen"}
-screens.SCREENS += screens_lit.SCREENS + screens_next.SCREENS
+               "Settlement and costs": "SettlementScreen", "Court book": "CourtBookScreen",
+               "Settings: Team and roles": "SettingsTeamScreen", "Settings: Billing and rates": "SettingsBillingScreen", "Settings: Practice": "SettingsPracticeScreen",
+               "Settings: Trust account": "SettingsTrustScreen", "Settings: Integrations": "SettingsIntegrationsScreen", "Settings: Security": "SettingsSecurityScreen",
+               "Settings: Audit log": "SettingsAuditScreen",
+               "Inbox": "InboxScreen", "Inbox: unfiled email": "UnfiledEmailScreen", "Notifications": "NotificationsScreen",
+               "Clerk": "ClerkScreen", "Tablet: Today": "TabletTodayScreen", "Tablet: Matter": "TabletMatterScreen",
+               "Tablet: Matters list": "TabletMattersListScreen", "System states": "SystemStatesScreen"}
+screens.SCREENS += screens_lit.SCREENS + screens_next.SCREENS + screens_settings.SCREENS + screens_pass4.SCREENS
 
 
 def write(rel, text):
@@ -132,7 +141,7 @@ if(window.ResizeObserver)new ResizeObserver(size).observe(document.body);else ad
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <script>document.body && document.body.classList.add('gallery');</script>
 <header class="g-head mt"><div class="lead"><div class="eyebrow t-3">materia · Wills &amp; Estates · design v2</div>
-<h1>Eighteen screens for the AI-native practice</h1>
+<h1>{len(screens.SCREENS)} screens for the AI-native practice</h1>
 <p>Built from the <a href="https://claude.ai/artifact/QQ8WDbjwa4QTjSRkL6TfRm" target="_blank" rel="noopener">materia design system</a>: Geist, a cool slate canvas, #346CFC as the one action colour, and violet reserved for Clerk. Follows your light or dark setting. People, matters and figures are fictional; deadline rules are illustrative and need practitioner review.</p></div>
 <div class="zoom" role="group" aria-label="Zoom"><button type="button" data-fit="1" aria-pressed="true">Fit</button><button type="button" data-fit="0" aria-pressed="false">Actual size</button></div></header>
 <nav class="toc">{toc}</nav>

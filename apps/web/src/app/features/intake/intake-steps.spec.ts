@@ -1,4 +1,9 @@
-import { cleanUpOverlays, openIntake, probateState, resumeAt, stateWith, warmUp } from './testing';
+import { TestBed } from '@angular/core/testing';
+
+import type { InMemoryFirestore } from '@materia/data-access/repository';
+import { contactSearchTokens } from '@materia/domain';
+
+import { cleanUpOverlays, openIntake, ORG, probateState, resumeAt, stateWith, warmUp } from './testing';
 
 /** New matter intake (CORE-05): the type, clients and details steps. Fictional data only. */
 
@@ -37,6 +42,55 @@ describe('clients step', () => {
     await page.click('Remove Celia Ostler');
     await page.click('Next');
     expect(page.step()).toContain('Details');
+  });
+});
+
+describe('clients step: referral (CORE-18)', () => {
+  const referrer = (name: string, industry: string) => ({
+    kind: 'organisation',
+    orgName: name,
+    emails: [],
+    phones: [],
+    addresses: [],
+    tags: [],
+    isReferrer: true,
+    referrerMeta: { industry },
+    search: contactSearchTokens({ orgName: name }),
+    sortName: name.toLowerCase(),
+    schemaVersion: 1,
+  });
+  const configure = (fs: InMemoryFirestore) => {
+    fs.set(`orgs/${ORG}/contacts/c-lighthouse`, referrer('Lighthouse Fictional Advisers', 'financial_planner'));
+    fs.set(`orgs/${ORG}/contacts/c-ostler-co`, referrer('Ostler Fictional Accounting', 'accountant'));
+  };
+
+  it('lists referrers before typing and first among matches, and records one or a source', async () => {
+    const page = await resumeAt(stateWith({ type: 'will', clientContactIds: ['c-avery'], reached: 1 }), 'clients', {
+      configure,
+    });
+    const referrers = page.page()?.querySelector('[aria-label="Referrers"]')?.textContent?.replace(/\s+/g, ' ');
+    expect(referrers).toContain('Lighthouse Fictional Advisers Referrer · Financial planner');
+    // Typed: the referrer comes before the people with the same name.
+    await page.search('Referred by', 'ostler');
+    const results = [...(page.page()?.querySelectorAll('[aria-label="Contacts matching ostler"] button') ?? [])].map(
+      (b) => b.textContent?.replace(/\s+/g, ' ').trim(),
+    );
+    expect(results[0]).toBe('Ostler Fictional Accounting Referrer · Accountant');
+    await page.click('Ostler Fictional Accounting');
+    expect(page.page()?.querySelector('[aria-label="Referred by"]')?.textContent).toContain(
+      'Ostler Fictional Accounting',
+    );
+    await page.click('Next');
+    expect(page.step()).toContain('Details');
+    TestBed.resetTestingModule();
+
+    const walkIn = await resumeAt(stateWith({ type: 'will', clientContactIds: ['c-avery'], reached: 1 }), 'clients');
+    // Native select options are indexed: 0 "Not recorded", 1 Unknown, … 4 Walk-in.
+    await walkIn.fill('Or the source', '4');
+    const source = walkIn.page()?.querySelector<HTMLSelectElement>('[aria-labelledby="intake-referral-h"] select');
+    expect(source?.selectedOptions[0]?.textContent?.trim()).toBe('Walk-in');
+    await walkIn.click('Next');
+    expect(walkIn.step()).toContain('Details');
   });
 });
 

@@ -2,7 +2,7 @@
 from icons import icon
 from markup import badge, btn, cite, deadline, tag
 
-LIT_STAGES = ["Instructions", "Summons filed", "Evidence", "Mediation", "Directions", "Hearing", "Judgment", "Costs"]
+LIT_STAGES = ["Instructions", "Proceeding filed", "Evidence", "Mediation", "Directions", "Hearing", "Judgment", "Costs"]
 ISSUES = {"cap": ("C", "Capacity"), "ka": ("K", "Knowledge and approval"), "ui": ("U", "Undue influence"), "need": ("N", "Financial need"), "rel": ("R", "Relationship")}
 
 
