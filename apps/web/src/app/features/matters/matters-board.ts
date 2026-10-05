@@ -174,7 +174,7 @@ const SETTLE_MS = 15_000;
                       </ng-template>
                     </div>
                   } @empty {
-                    <p class="empty">No matters</p>
+                    <p class="empty" role="listitem">No matters</p>
                   }
                 </div>
                 @if (cell.cards.length > shown(lane, cell)) {
@@ -230,9 +230,10 @@ const SETTLE_MS = 15_000;
       min-height: 0;
       flex: 1;
     }
+    /* Four status columns fit a 13-inch laptop; longer stage boards scroll sideways. */
     .column {
-      flex: none;
-      width: 252px;
+      flex: 1 0 224px;
+      max-width: 320px;
       display: flex;
       flex-direction: column;
       gap: var(--space-8);
@@ -336,7 +337,7 @@ const SETTLE_MS = 15_000;
         padding: var(--space-12);
       }
       .column {
-        width: 236px;
+        flex-basis: 236px;
       }
     }
   `,
