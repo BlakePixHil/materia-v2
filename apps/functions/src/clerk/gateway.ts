@@ -7,6 +7,7 @@ import {
   mapCitations,
   OUTPUT_SCHEMAS,
   renderPrompt,
+  totalTokens,
   ZERO_USAGE,
   type CitedChunk,
   type CitedDocument,
@@ -185,7 +186,8 @@ export function createClerkGateway(deps: GatewayDeps) {
     const at = ctx.clock.now();
     const period = meteringPeriod(at);
     const budget = settings.monthlyTokenBudget ?? DEFAULT_MONTHLY_TOKEN_BUDGET;
-    if ((await deps.store.periodTokens(ctx.orgId, period)) >= budget) {
+    const usedTokens = await deps.store.periodTokens(ctx.orgId, period);
+    if (usedTokens >= budget) {
       throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk budget used', { period });
     }
     const window = settings.userRateLimit ?? DEFAULT_USER_RATE_LIMIT;
@@ -391,7 +393,10 @@ export function createClerkGateway(deps: GatewayDeps) {
 
     // 8. Citations, cost, metering.
     const mapped = mapCitations(result.citations as ModelCitation[], { documents, searchResults });
-    const cost = await meter(input, ctx, period, result.model, primary, result.usage);
+    const cost = await meter(input, ctx, period, result.model, primary, result.usage, {
+      used: usedTokens,
+      limit: budget,
+    });
     const fallbackUsed = modelIndex > 0 || result.serverFallback;
 
     // 9. The message, verbatim turn included.
@@ -437,6 +442,9 @@ export function createClerkGateway(deps: GatewayDeps) {
     };
   }
 
+  /** Share of the monthly token budget that raises the ops alert, once per period. */
+  const BUDGET_ALERT_SHARE = 0.8;
+
   async function meter(
     input: ClerkRunInput<unknown>,
     ctx: GatewayContext,
@@ -444,6 +452,7 @@ export function createClerkGateway(deps: GatewayDeps) {
     model: string,
     primary: string,
     usage: ClerkUsage,
+    budget?: { used: number; limit: number },
   ): Promise<number> {
     const cost = costMicros(model, usage, primary);
     try {
@@ -453,6 +462,13 @@ export function createClerkGateway(deps: GatewayDeps) {
         { feature: input.feature, uid: ctx.uid, usage, costMicros: cost.micros, costEstimated: cost.estimated },
         ctx.clock.now(),
       );
+      // The ops dashboard's Clerk tokens and spend, and the "Clerk budget at 80%" alert (FND-21).
+      const tokens = totalTokens(usage);
+      ctx.log.info('clerk metered', { feature: input.feature, model, tokens, costMicros: cost.micros });
+      const threshold = budget ? budget.limit * BUDGET_ALERT_SHARE : Infinity;
+      if (budget && budget.used < threshold && budget.used + tokens >= threshold) {
+        ctx.log.warn('clerk budget threshold', { period, percent: BUDGET_ALERT_SHARE * 100, limit: budget.limit });
+      }
     } catch {
       // Metering must not lose the user's answer; the gap shows in the error log.
       ctx.log.error('clerk metering failed', { feature: input.feature, period });

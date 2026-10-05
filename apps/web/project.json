@@ -92,6 +92,7 @@
           ]
         },
         "dev": {
+          "sourceMap": { "scripts": true, "styles": false, "hidden": true, "vendor": false },
           "budgets": [
             {
               "type": "initial",
@@ -113,6 +114,7 @@
           ]
         },
         "prod": {
+          "sourceMap": { "scripts": true, "styles": false, "hidden": true, "vendor": false },
           "budgets": [
             {
               "type": "initial",

@@ -29,6 +29,7 @@ import {
   type CommandProvider,
   type CommandResult,
 } from '../core/commands/command-registry';
+import { startTrace } from '../core/observability/perf';
 import { SearchResults } from '../core/search/search-providers';
 
 /** Debounce for provider searches (CORE-15). */
@@ -193,7 +194,11 @@ export class CommandPaletteDialog {
       untracked(() => this.providerGroups.update((groups) => providers.map((p) => searching(p, groups))));
       const controller = new AbortController();
       const timer = setTimeout(() => {
-        for (const provider of providers) void this.ask(provider, query, controller.signal);
+        // The palette_search trace (FND-21): from the search starting to every provider answering.
+        const done = startTrace('palette_search');
+        void Promise.all(providers.map((provider) => this.ask(provider, query, controller.signal))).then(() => {
+          if (!controller.signal.aborted) done();
+        });
       }, PROVIDER_DEBOUNCE_MS);
       onCleanup(() => {
         clearTimeout(timer);

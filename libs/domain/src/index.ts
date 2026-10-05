@@ -38,5 +38,6 @@ export * from './lib/notifications';
 export * from './lib/documents';
 export * from './lib/org-settings';
 export * from './lib/notes';
+export * from './lib/client-errors';
 export * from './lib/safe-custody';
 export * from './lib/referrals';
