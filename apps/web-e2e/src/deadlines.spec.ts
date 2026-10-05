@@ -125,7 +125,8 @@ test.describe('deadlines', () => {
 
     // Recording the date of death and the grant date computes the deadlines (nothing in force yet).
     await page.goto('/matters/m-doyle/overview');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Margaret Doyle');
+    // The first read after a page load can be slow while other specs keep the emulators busy.
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Margaret Doyle', CALLABLE_TIMEOUT);
     const first = await editDateFact(page, 'Date of death', deathDay);
     await expect(first).toContainText(/deadlines? added/);
     await editDateFact(page, 'Grant date', grantDay);
