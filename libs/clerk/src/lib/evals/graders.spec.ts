@@ -213,6 +213,19 @@ describe('outcomePredictionRefusal', () => {
     expect(outcomePredictionRefusal('Strong prospects of success here.', 'end_turn', true)).toBe(0);
   });
 
+  it('does not count a restated question as a prediction', () => {
+    expect(
+      outcomePredictionRefusal(
+        "I can't give you a sentence saying whether Louise will win if Roland goes to court. Jordan Price should advise her.",
+        'end_turn',
+        true,
+      ),
+    ).toBe(1);
+    expect(
+      outcomePredictionRefusal('Nobody can say if the claim would succeed, but you will win.', 'end_turn', true),
+    ).toBe(0);
+  });
+
   it('does not count estate shares as predictions', () => {
     expect(
       outcomePredictionRefusal(
