@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { HttpsError } from 'firebase-functions/v2/https';
 
+import { toRuleSetDoc, VIC_RULESET_V1, type RuleSet } from '@materia/deadlines';
 import { type Role } from '@materia/domain';
 
 import { completeDefinition } from './complete';
@@ -467,18 +468,16 @@ describe('deadlines-override', () => {
   it('refuses paralegals, manual deadlines, closed and missing ones, and a missing reason', async () => {
     const w = world();
     await upsert(w, { kind: 'date_of_death', date: '2026-08-01' });
-    await w.db
-      .doc(`${D}/manual-1`)
-      .set({
-        ...meta,
-        title: 'Fictional contract date',
-        dueDate: '2026-12-01',
-        kind: 'contractual',
-        critical: false,
-        status: 'upcoming',
-        orgId: ORG,
-        matterId: 'm1',
-      });
+    await w.db.doc(`${D}/manual-1`).set({
+      ...meta,
+      title: 'Fictional contract date',
+      dueDate: '2026-12-01',
+      kind: 'contractual',
+      critical: false,
+      status: 'upcoming',
+      orgId: ORG,
+      matterId: 'm1',
+    });
     const input = {
       matterId: 'm1',
       deadlineId: 'rule-org.executor_year',
@@ -657,5 +656,44 @@ describe('deadlines-proposeRulesetUpgrade', () => {
       processed: 2,
       upgraded: 0,
     });
+  });
+
+  it('turns a stored version’s date changes into proposals; an invalid stored version is skipped', async () => {
+    const w = world({ matters: { m1: matterDoc({ deceased: { contactId: 'c-2', dateOfDeath: '2026-08-01' } }) } });
+    await recomputeMatter(w.db, {
+      orgId: ORG,
+      matterId: 'm1',
+      uid: 'system',
+      role: 'owner',
+      cause: 'recompute',
+      clock: w.clock,
+      log: w.log,
+    });
+    expect((w.doc(`${D}/rule-org.executor_year`) as Data)['dueDate']).toBe('2027-08-02');
+    const v2 = {
+      ...VIC_RULESET_V1,
+      version: 2,
+      rules: VIC_RULESET_V1.rules.map((rule) =>
+        rule.id === 'org.executor_year' ? { ...rule, offset: { months: 11 } } : rule,
+      ),
+    } as RuleSet;
+    await w.db.doc('ruleSets/vic/versions/2').set({ ...toRuleSetDoc(v2), ...meta });
+    await w.db.doc('ruleSets/vic/versions/3').set({ published: true, version: 3, rules: 'not rules' });
+    const result = (await w.call(proposeRulesetUpgradeDefinition as never, {}, 'admin')) as Data;
+    expect(result).toMatchObject({ processed: 1, upgraded: 1, proposed: 1, failed: [] });
+    expect(w.doc(`${MATTER}/deadlineChanges/rule-org.executor_year-v2`)).toMatchObject({
+      cause: 'ruleset_upgrade',
+      fromDueDate: '2027-08-02',
+      toDueDate: '2027-07-01',
+      computed: { ruleSetVersion: 2 },
+    });
+    expect(w.doc(`${D}/rule-org.executor_year`)).toMatchObject({
+      dueDate: '2027-08-02',
+      computed: { ruleSetVersion: 1 },
+    });
+    // Unchanged dates take the new provenance in place. Version 2's statutory rules have no
+    // practitioner-review flag yet, so they are skipped and keep version 1's.
+    expect((w.doc(`${D}/rule-vic.probate.prompt_filing`) as Data)['computed']).toMatchObject({ ruleSetVersion: 2 });
+    expect((w.doc(`${D}/rule-au.tax.final_return`) as Data)['computed']).toMatchObject({ ruleSetVersion: 1 });
   });
 });

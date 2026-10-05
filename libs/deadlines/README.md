@@ -30,6 +30,18 @@ Each `ComputedDeadline` has:
 
 A year without calendar data throws `DeadlineEngineError` (`CALENDAR_MISSING`); the engine never treats holidays as business days.
 
+## Persisting deadlines (CORE-10)
+
+The functions persist the engine's output with two more pure modules (ADR-027):
+
+- `rulesets.ts`:
+  - `latestRuleSet` picks the latest published version, bundled or stored (`fromRuleSetDoc`);
+  - `selectRules` skips statutory rules while the version's flag is off, and keeps only a template's rules;
+  - `computeSafely` runs the engine, blocking only the rules whose calendar year is missing (`calendar_missing`) instead of failing the matter.
+- `persist.ts`:
+  - `planRecompute` turns results plus the stored deadlines and pending proposals into a plan (creates, in-place updates, proposals, superseded proposals, override conflicts and rule tasks);
+  - running the plan again on its own result plans nothing.
+
 ## Rules
 
 Rules are data (`RuleSetSchema`, validated when loaded):

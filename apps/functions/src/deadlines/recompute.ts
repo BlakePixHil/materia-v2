@@ -480,7 +480,8 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
       summary.proposed.push(changeId);
       if (!notify) continue;
       const urgent = proposal.critical && proposal.intoPast;
-      tx.create(
+      // set, not create: the id repeats if a matter id is ever reused (one proposal, one notification).
+      tx.set(
         db.doc(`orgs/${orgId}/notifications/dlchange-${matterId}-${changeId}`),
         Notification.schema.parse({
           kind: 'deadline_changed',
