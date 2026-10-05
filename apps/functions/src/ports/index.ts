@@ -88,6 +88,11 @@ export type ClerkEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface ClerkModelRequest {
   model: string;
+  /**
+   * The org's own Anthropic API key (BYOK, AI-02a), decrypted for this call only. Never logged,
+   * stored or returned. `orgId` keys the adapter's short-lived client cache.
+   */
+  credentials: { orgId: string; apiKey: string };
   /** The stable system prompt, always cached. */
   system: string;
   messages: ClerkTurn[];
@@ -135,6 +140,21 @@ export class ClerkModelError extends Error {
 /** The only way Functions reach a Claude model (ADR-011a). Adapters live in `clerk/providers/`. */
 export interface ClerkModelPort {
   run(request: ClerkModelRequest, onEvent?: (event: ClerkStreamEvent) => void): Promise<ClerkModelResult>;
+  /**
+   * The model ids a key can use: one cheap authenticated call, made before a key is saved (AI-02a).
+   * Throws a `ClerkModelError` (`auth` for a rejected key).
+   */
+  listModels(apiKey: string): Promise<string[]>;
+}
+
+/**
+ * Cloud KMS for secrets stored in Firestore (ADR-019, AI-02a): one crypto key per use. `aad`
+ * (additional authenticated data, such as the document path) binds a ciphertext to where it is
+ * stored, so it can't be copied to another org. Ciphertexts are base64.
+ */
+export interface KmsPort {
+  encrypt(plaintext: string, aad: string): Promise<{ ciphertext: string; keyVersion: string }>;
+  decrypt(ciphertext: string, aad: string): Promise<string>;
 }
 
 export interface EmbeddingPort {
@@ -225,6 +245,8 @@ export interface Ports {
   push: PushPort;
   tasks: TaskQueuePort;
   clerkModel: ClerkModelPort;
+  /** The `clerk-api-keys` crypto key (AI-02a). */
+  clerkKms: KmsPort;
   embedding: EmbeddingPort;
   calendar: CalendarPort;
   xero: XeroPort;

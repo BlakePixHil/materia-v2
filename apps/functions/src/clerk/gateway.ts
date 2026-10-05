@@ -1,8 +1,8 @@
 import type { z } from 'zod';
 
 import {
-  CLERK_FALLBACK_MODELS,
-  CLERK_MODEL,
+  CLERK_FALLBACKS,
+  clerkModelFor,
   costMicros,
   mapCitations,
   OUTPUT_SCHEMAS,
@@ -34,6 +34,7 @@ import {
   meteringPeriod,
   type ClerkFeature,
 } from './features';
+import type { ClerkKeyring } from './keyring';
 import type { ClerkMessageStatus, ClerkStore, MessageSink } from './store';
 
 export interface GatewayContext {
@@ -85,9 +86,11 @@ export interface ClerkRunResult<TOutput = unknown> {
 export interface GatewayDeps {
   model: ClerkModelPort;
   store: ClerkStore;
+  /** Each org's own Anthropic key (BYOK, AI-02a). */
+  keyring: ClerkKeyring;
   /** Whether a flag is on for the org (org override > Remote Config > default). */
   flag: (orgId: string, key: FlagKey) => Promise<boolean>;
-  /** Availability fallbacks after the primary's retries (default: ADR-011a's chain; [] for none). */
+  /** Availability fallbacks after the primary's retries (default: the org model's chain, ADR-011b; [] for none). */
   fallbackModels?: readonly string[];
   /** Let the API reroute refusals itself (first-party API, ADR-011a). */
   serverFallbacks?: boolean;
@@ -100,6 +103,13 @@ const RETRYABLE = new Set(['rate_limited', 'overloaded', 'server', 'timeout', 'd
 
 function disabled(flag: string): DomainError {
   return new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: flag });
+}
+
+/** The switch named when the org has no Anthropic key: Clerk is off until an admin adds one (AI-02a). */
+export const BYOK_MISSING_SWITCH = 'org.byok.missing';
+
+function keyInvalid(): DomainError {
+  return new DomainError('CLERK_KEY_INVALID', 'Anthropic rejected the org’s API key; an admin must replace it');
 }
 
 /** Jittered exponential backoff: 0.5 s, 1 s, … times 0.5–1.5, or the provider's retry-after. */
@@ -115,15 +125,15 @@ function statusFor(stopReason: string): ClerkRunStatus {
 }
 
 /**
- * ClerkGateway (AI-02): the only path from a Clerk feature to Claude. In order: kill switches →
- * prompt → budget → rate limit → the call (retries, then fallback models) → status from the stop
- * reason → structured-output validation → citations → metering → message → metadata-only log.
+ * ClerkGateway (AI-02, AI-02a): the only path from a Clerk feature to Claude. In order: kill
+ * switches → the org's key and model → prompt → budget → rate limit → the call (retries, then
+ * fallback models) → status from the stop reason → structured-output validation → citations →
+ * metering → message → metadata-only log.
  */
 export function createClerkGateway(deps: GatewayDeps) {
   const sleep = deps.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const random = deps.random ?? Math.random;
   const now = deps.now ?? Date.now;
-  const fallbackModels = deps.fallbackModels ?? CLERK_FALLBACK_MODELS;
 
   async function run<TOutput = unknown>(input: ClerkRunInput<TOutput>): Promise<ClerkRunResult<TOutput>> {
     const { ctx } = input;
@@ -137,6 +147,16 @@ export function createClerkGateway(deps: GatewayDeps) {
     if (feature.flag && !(await deps.flag(ctx.orgId, feature.flag))) throw disabled(feature.flag);
     const settings = await deps.store.orgSettings(ctx.orgId);
     if (settings.enabled === false) throw disabled('org.settings.clerk.enabled');
+
+    // 1b. The org's own key and model (BYOK). No key: Clerk is off for the org. A key Anthropic
+    // rejected stays unusable until an admin replaces it. Resolved per call, so a rotated key
+    // applies to the next call while a running one finishes on the old key.
+    const key = await deps.keyring.resolve(ctx.orgId);
+    if (key.state === 'missing') throw disabled(BYOK_MISSING_SWITCH);
+    if (key.state === 'invalid') throw keyInvalid();
+    const primary = clerkModelFor(settings.model);
+    const fallbackModels = deps.fallbackModels ?? CLERK_FALLBACKS[primary];
+    const credentials = { orgId: ctx.orgId, apiKey: key.apiKey };
 
     // 2. The prompt (strict variables) and its output schema.
     const prompt = renderPrompt(input.promptId, input.vars);
@@ -205,7 +225,7 @@ export function createClerkGateway(deps: GatewayDeps) {
       ...(schema ? { output: { name: schemaName ?? 'custom', schema } } : {}),
     };
 
-    const logBase = { feature: input.feature, promptRef: prompt.ref };
+    const logBase = { feature: input.feature, promptRef: prompt.ref, primary };
     const finishFailed = async (status: ClerkRunStatus, model: string) => {
       await sink?.finish({
         status,
@@ -213,14 +233,14 @@ export function createClerkGateway(deps: GatewayDeps) {
         citations: [],
         usage: ZERO_USAGE,
         model,
-        fallbackUsed: model !== CLERK_MODEL,
+        fallbackUsed: model !== primary,
         raw: [],
       });
     };
 
     // 6. The call: the primary with retries, then each fallback model once (a fresh branch: the
     // request carries no earlier assistant turns, so no thinking blocks cross models).
-    const models = [CLERK_MODEL, ...fallbackModels];
+    const models = [primary, ...fallbackModels];
     let result: ClerkModelResult | undefined;
     let modelIndex = 0;
     let attempts = 0;
@@ -232,7 +252,7 @@ export function createClerkGateway(deps: GatewayDeps) {
           attempts++;
           try {
             result = await deps.model.run(
-              { ...base, model, serverFallbacks: (deps.serverFallbacks ?? true) && modelIndex === 0 },
+              { ...base, model, credentials, serverFallbacks: (deps.serverFallbacks ?? true) && modelIndex === 0 },
               onEvent,
             );
             break outer;
@@ -242,7 +262,7 @@ export function createClerkGateway(deps: GatewayDeps) {
             if (error.kind === 'aborted' || abort.signal.aborted) {
               ctx.log.info('clerk call stopped', { ...logBase, model, attempts, latencyMs: now() - started });
               await finishFailed('stopped', model);
-              await meter(input, ctx, period, model, ZERO_USAGE);
+              await meter(input, ctx, period, model, primary, ZERO_USAGE);
               return {
                 status: 'stopped',
                 text: streamed,
@@ -276,6 +296,14 @@ export function createClerkGateway(deps: GatewayDeps) {
                 fallbackUsed: modelIndex > 0,
                 costMicros: 0,
               };
+            }
+            // The org's key was rejected (revoked, or out of credit on a disabled account): mark it
+            // invalid, so no further call is made with it, and tell the user an admin must act.
+            if (error.kind === 'auth') {
+              ctx.log.error('clerk key rejected', { ...logBase, model, status: error.status });
+              await deps.keyring.markInvalid(ctx.orgId, key.version, ctx.clock.now());
+              await finishFailed('error', model);
+              throw keyInvalid();
             }
             if (!RETRYABLE.has(error.kind)) {
               ctx.log.error('clerk provider rejected the call', {
@@ -333,7 +361,7 @@ export function createClerkGateway(deps: GatewayDeps) {
 
     // 8. Citations, cost, metering.
     const mapped = mapCitations(result.citations as ModelCitation[], { documents, searchResults });
-    const cost = await meter(input, ctx, period, result.model, result.usage);
+    const cost = await meter(input, ctx, period, result.model, primary, result.usage);
     const fallbackUsed = modelIndex > 0 || result.serverFallback;
 
     // 9. The message, verbatim turn included.
@@ -383,9 +411,10 @@ export function createClerkGateway(deps: GatewayDeps) {
     ctx: GatewayContext,
     period: string,
     model: string,
+    primary: string,
     usage: ClerkUsage,
   ): Promise<number> {
-    const cost = costMicros(model, usage);
+    const cost = costMicros(model, usage, primary);
     try {
       await deps.store.meter(
         ctx.orgId,

@@ -83,18 +83,15 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
     update(path: string, data: Data) {
       if (!docs.has(path)) throw Object.assign(new Error(`No document to update: ${path}`), { code: 5 });
       const previous = docs.get(path) as Data;
-      // `update` reads a dotted key as a field path into a map (`deceased.dateOfDeath`).
-      const nested: Data = {};
-      for (const [key, value] of Object.entries(data)) {
-        const [head, ...rest] = key.split('.') as [string, ...string[]];
-        if (!rest.length) {
-          nested[key] = value;
-          continue;
-        }
-        const inner = (nested[head] ?? previous[head] ?? {}) as Data;
-        nested[head] = apply(inner, { [rest.join('.')]: value });
-      }
-      docs.set(path, apply(previous, nested));
+      // `update` reads a dotted key as a field path into maps (`deceased.dateOfDeath`, `settings.clerk.model`).
+      const setPath = (target: Data, keys: string[], value: unknown): Data => {
+        const [head, ...rest] = keys as [string, ...string[]];
+        if (!rest.length) return apply(target, { [head]: value });
+        return { ...target, [head]: setPath((target[head] ?? {}) as Data, rest, value) };
+      };
+      let next: Data = previous;
+      for (const [key, value] of Object.entries(data)) next = setPath(next, key.split('.'), value);
+      docs.set(path, next);
     },
     create(path: string, data: Data) {
       if (docs.has(path)) throw Object.assign(new Error(`Already exists: ${path}`), { code: 6 });

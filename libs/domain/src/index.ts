@@ -18,6 +18,7 @@ export * from './lib/schemas/aliases';
 export * from './lib/permissions';
 export * from './lib/errors';
 export * from './lib/flags';
+export * from './lib/clerk';
 export * from './lib/orgs';
 export * from './lib/search';
 export * from './lib/contacts';

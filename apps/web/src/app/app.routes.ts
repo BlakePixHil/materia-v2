@@ -198,6 +198,14 @@ const shellRoutes: Route[] = [
           },
         ],
       },
+      // Clerk (AI-02a): the firm's own Anthropic key and model; owners and admins (`clerk.configure`).
+      {
+        path: 'clerk',
+        title: 'Clerk',
+        data: { crumb: 'Clerk' },
+        canActivate: [roleGuard(['owner', 'admin'])],
+        loadComponent: () => import('./features/clerk-settings/clerk-settings-page').then((m) => m.ClerkSettingsPage),
+      },
       planned('**', 'Settings', {
         ticket: 'CORE-21',
         icon: 'settings',
