@@ -55,6 +55,7 @@ const RESULTS = 6;
       </div>
     } @else {
       <div class="mt-col" style="gap: var(--space-8)">
+        <span class="label" aria-hidden="true">{{ label() }}</span>
         <mt-search-field
           [label]="label()"
           placeholder="Name, email or phone"

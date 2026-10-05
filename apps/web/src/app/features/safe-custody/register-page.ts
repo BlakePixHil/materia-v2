@@ -11,7 +11,6 @@ import {
   type WithId,
 } from '@materia/data-access/repository';
 import {
-  currentItemIndex,
   locationLabel,
   SAFE_CUSTODY_ITEM_LABELS,
   SAFE_CUSTODY_STATUS_LABELS,
@@ -32,7 +31,7 @@ import {
 } from '@materia/ui';
 
 import { PacketDialog, type PacketDialogData, type PacketDialogResult } from './packet-dialog';
-import { STATUS_TONES } from './safe-custody-view';
+import { currentFlag, STATUS_TONES } from './safe-custody-view';
 import { CommandRegistry } from '../../core/commands/command-registry';
 import { errorCopy } from '../../core/error-copy';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
@@ -301,9 +300,9 @@ export class SafeCustodyRegisterPage {
   }
 }
 
-/** "Will (current), Codicil": the originals, the current will marked. */
+/** "Will, Codicil (current)": the originals, the current will marked when there's more than one. */
 function contents(row: PacketItem): string {
-  const current = currentItemIndex(row.items);
+  const current = currentFlag(row.items);
   return row.items
     .map((item, index) => `${SAFE_CUSTODY_ITEM_LABELS[item.kind]}${index === current ? ' (current)' : ''}`)
     .join(', ');

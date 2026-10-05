@@ -1,8 +1,10 @@
 import { InjectionToken } from '@angular/core';
 
 import {
+  currentItemIndex,
   DomainError,
   SAFE_CUSTODY_ITEM_LABELS,
+  type SafeCustodyItem,
   type SafeCustodyItemKind,
   type SafeCustodyStatus,
 } from '@materia/domain';
@@ -21,6 +23,15 @@ export const STATUS_TONES: Record<SafeCustodyStatus, MtBadgeTone> = {
 export const ITEM_KIND_OPTIONS: MtOption<SafeCustodyItemKind>[] = Object.entries(SAFE_CUSTODY_ITEM_LABELS).map(
   ([value, label]) => ({ value: value as SafeCustodyItemKind, label }),
 );
+
+/**
+ * The item to flag "current", or -1. Only worth saying when the packet holds more than one will or
+ * codicil: a lone will is simply the will.
+ */
+export function currentFlag(items: readonly Pick<SafeCustodyItem, 'kind' | 'date'>[]): number {
+  const testamentary = items.filter((item) => item.kind === 'will' || item.kind === 'codicil').length;
+  return testamentary > 1 ? currentItemIndex(items) : -1;
+}
 
 /** What a refused `safeCustody-*` call means for the person, in their words. */
 export function safeCustodyErrorCopy(error: unknown): string {

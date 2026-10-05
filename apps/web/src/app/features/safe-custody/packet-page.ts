@@ -14,7 +14,6 @@ import {
 } from '@materia/data-access/repository';
 import {
   allowedMovements,
-  currentItemIndex,
   locationLabel,
   SAFE_CUSTODY_ITEM_LABELS,
   SAFE_CUSTODY_MOVEMENT_LABELS,
@@ -40,7 +39,7 @@ import {
 import { MovementDialog, type MovementDialogData } from './movement-dialog';
 import { PacketDialog, type PacketDialogData, type PacketDialogResult } from './packet-dialog';
 import { contactMatterOptions } from './pickers';
-import { EXPORT_NAVIGATOR, safeCustodyErrorCopy, STATUS_TONES } from './safe-custody-view';
+import { currentFlag, EXPORT_NAVIGATOR, safeCustodyErrorCopy, STATUS_TONES } from './safe-custody-view';
 import { AuthState } from '../../core/auth/auth-state';
 import { injectRecentLogin } from '../../core/auth/reauth-dialog';
 import { CALLABLES } from '../../core/data/callables';
@@ -377,7 +376,7 @@ export class SafeCustodyPacketPage {
     return this.packet() ? 'ready' : 'loading';
   });
   protected readonly errorText = computed(() => errorCopy(this.doc.error()));
-  protected readonly current = computed(() => currentItemIndex(this.packet()?.items ?? []));
+  protected readonly current = computed(() => currentFlag(this.packet()?.items ?? []));
   protected readonly movements = computed(() => {
     const packet = this.packet();
     return packet ? allowedMovements(packet.status) : [];
