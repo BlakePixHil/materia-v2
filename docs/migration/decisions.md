@@ -1,4 +1,4 @@
-# Migration decision log (MIG-01)
+# Migration decision log (MIG-01, MIG-04)
 
 The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `fen5jJdhNHTkGBpgAdsLSKQRvXx2`) into Materia v2. The transform (MIG-03) reads them from the mapping profile [`tools/migration/profiles/tristan-burke.json`](../../tools/migration/profiles/tristan-burke.json). Each decision below names its profile field. The [Legacy migration plan](../08-legacy-migration-plan.md) has the full field map; this log records only the choices someone had to make.
 
@@ -188,7 +188,25 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 - **Status:** Decided by Blake on 2026-10-05 (prod after launch). The rehearsal rule is a default.
 - **Decision:** the migration loads into **prod after prod launches**. There is no staging, so rehearsals run on dev. Each rehearsal is rolled back afterwards, so real client data doesn't stay on dev.
 
+### D-16 Auth import (new)
+
+- **Status:** Default, from MIG-04 on 2026-10-06. It follows from D-01 and D-15 and changes nothing they decided, so the sign-off above stands.
+- **Decision:**
+  - Tristan's account moves with the same uid and his Google identity, keeping Google's id for him, so his first Google sign-in in prod lands on the imported account. The [runbook](../runbooks/migration-auth-import.md) has the steps.
+  - He has no password, so the ticket's human steps are descoped for him: no hash parameters in Secret Manager and no `auth:export`. The tool still supports both for a user with a password.
+  - **Microsoft:** deferred (FND-16, MVP mode). Tristan doesn't use it, so there is no tenant to verify. The import stops on any provider the target project hasn't turned on.
+  - **Not imported:**
+    - legacy custom claims, since v2 sets its own at the load (MIG-06);
+    - the legacy last sign-in time, so v2's starts empty;
+    - second factors. The import stops on these instead, and Tristan has none.
+  - **Rehearsal:**
+    - On dev, with made-up accounts (D-15): a Google one, and a password one with a made-up scrypt key whose real password sign-in on dev returned the same uid.
+    - His real account was only dry-run against dev, which read it and planned a clean import.
+    - The ticket's "signs in on staging, then prod" check becomes his first Google sign-in in prod at cutover (MIG-07). The emulator test proves that a Google credential for the imported identity signs in to the same uid.
+  - **When:** at cutover, before the load, which keys everything on the uid.
+
 ## Descoped
 
 - **No staging rehearsals.** The plan's staging rehearsals move to dev (D-15).
 - **Shared boards.** Only Test Workflow is shared, and it is excluded (D-02).
+- **Password hash import for Tristan.** He has no password, so no hash parameters or export are needed (D-16).

@@ -208,7 +208,7 @@ export const makePersonalTask = (o: Partial<D.PersonalTask> = {}) =>
   );
 
 export const makeMatterEvent = (o: Partial<D.MatterEvent> = {}) =>
-  build(D.MatterEvent, { kind: 'date_of_death', date: d('2026-07-14') }, o);
+  build(D.MatterEvent, { kind: 'date_of_death', date: d('2026-07-14'), privileged: false }, o);
 
 export const makeDeadline = (o: Partial<D.Deadline> = {}) =>
   build(
@@ -230,6 +230,7 @@ export const makeDeadline = (o: Partial<D.Deadline> = {}) =>
         inputs: { months: 6 },
         trace: ['anchor 2026-07-14', '+6 months'],
       },
+      privileged: false,
     },
     o,
   );
@@ -254,6 +255,7 @@ export const makeDeadlineChange = (o: Partial<D.DeadlineChange> = {}) =>
       intoPast: false,
       assigneeUid: TEST_UID,
       recomputeVersion: 2,
+      privileged: false,
     },
     o,
   );

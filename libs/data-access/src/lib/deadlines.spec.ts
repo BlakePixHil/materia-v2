@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
-import { DEADLINE_CALLABLES, groupDeadlines } from '@materia/domain';
+import { DEADLINE_CALLABLES, groupDeadlines, type Role } from '@materia/domain';
 
 import { CallableClient } from './callable-client';
 import {
@@ -49,10 +49,10 @@ function deadline(title: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-function setup() {
+function setup(role: Role = 'lawyer') {
   const fs = new InMemoryFirestore();
   TestBed.configureTestingModule({ providers: [provideInMemoryFirestore(fs)] });
-  TestBed.inject(OrgContext).setSession({ uid: 'u-jordan', orgId: 'org-a', role: 'lawyer' });
+  TestBed.inject(OrgContext).setSession({ uid: 'u-jordan', orgId: 'org-a', role });
   const run = <T>(fn: () => T) => TestBed.runInInjectionContext(fn);
   return { fs, run };
 }
@@ -89,6 +89,7 @@ describe('matterDeadlineRepository', () => {
       dueDate: '2026-11-20' as never,
       kind: 'contractual',
       assigneeUid: 'u-jordan',
+      privileged: false,
     });
     expect(fs.get(`${M}/deadlines/${id}`)).toMatchObject({
       orgId: 'org-a',
@@ -96,8 +97,13 @@ describe('matterDeadlineRepository', () => {
       status: 'upcoming',
       critical: false,
       reminders: [],
+      privileged: false,
       createdBy: 'u-jordan',
     });
+    // The matter's flag is required (CORE-10b).
+    await expect(
+      deadlines.create({ title: 'x', dueDate: '2026-11-20', kind: 'internal', assigneeUid: 'u-jordan' }),
+    ).rejects.toBeTruthy();
     await expect(
       deadlines.create({ title: 'x', dueDate: '2026-11-20', kind: 'statutory', assigneeUid: 'u-jordan' }),
     ).rejects.toBeTruthy();
@@ -162,6 +168,52 @@ describe('across matters', () => {
     expect(pending.map((r) => r.id)).toEqual(['rule-x-v2']);
     const mine = await run(() => deadlineChangeGroupRepository()).query(myPendingChangesQuery('u-jordan'));
     expect(mine.map((r) => [r.id, r.toDueDate])).toEqual([['rule-x-v2', '2026-10-26']]);
+  });
+
+  // CORE-10b: without privileged.view, only deadlines and proposals on matters that aren't privileged.
+  it.each([
+    ['readonly', ['Open matter'], ['c-1']],
+    ['paralegal', ['Open matter'], ['c-1']],
+    // Every one, including one written before the copy (until the backfill gives it one).
+    ['lawyer', ['Before the copy', 'Open matter', 'Privileged matter'], ['c-1', 'c-2']],
+  ] as const)('across matters as %s, reads %j and proposals %j', async (role, titles, changeIds) => {
+    const { fs, run } = setup(role);
+    fs.set(`${M}/deadlines/d-1`, deadline('Open matter', { privileged: false }));
+    fs.set(`${M}/deadlines/d-2`, deadline('Privileged matter', { privileged: true }));
+    fs.set(`${M}/deadlines/d-3`, deadline('Before the copy'));
+    const change = {
+      orgId: 'org-a',
+      matterId: 'm-1',
+      deadlineId: 'd-1',
+      ruleId: 'x',
+      title: 'Fictional deadline',
+      critical: false,
+      kind: 'moved',
+      cause: 'event',
+      status: 'pending',
+      fromDueDate: '2026-11-02',
+      toDueDate: '2026-10-26',
+      earlier: true,
+      intoPast: false,
+      assigneeUid: 'u-jordan',
+      recomputeVersion: 2,
+      ...meta,
+    };
+    fs.set(`${M}/deadlineChanges/c-1`, { ...change, privileged: false });
+    fs.set(`${M}/deadlineChanges/c-2`, { ...change, privileged: true });
+    const group = run(() => deadlineGroupRepository());
+    const watched = run(() => group.watchQuery(UPCOMING_DEADLINES_QUERY));
+    TestBed.tick();
+    expect((await group.query(UPCOMING_DEADLINES_QUERY)).map((r) => r.title).sort()).toEqual(titles);
+    expect(
+      watched
+        .value()
+        .map((r) => r.title)
+        .sort(),
+    ).toEqual(titles);
+    expect(await group.count(UPCOMING_DEADLINES_QUERY)).toBe(titles.length);
+    const changes = run(() => deadlineChangeGroupRepository());
+    expect((await changes.query(myPendingChangesQuery('u-jordan'))).map((r) => r.id).sort()).toEqual(changeIds);
   });
 
   it('reads a matter’s events by date', async () => {
