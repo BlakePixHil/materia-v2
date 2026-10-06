@@ -68,7 +68,14 @@ export const recordPaymentDefinition = {
           creditedCents: Number(invoice['creditedCents'] ?? 0),
           payments,
         },
-        { kind: input.kind, date: input.date as DateOnly, amountCents: input.amountCents, credit: input.credit },
+        {
+          kind: input.kind,
+          date: input.date as DateOnly,
+          amountCents: input.amountCents,
+          credit: input.credit,
+          method: input.method,
+          reference: input.reference,
+        },
         todayDate,
       );
       if (check.problem) throw new DomainError('FAILED_PRECONDITION', check.problem);

@@ -81,6 +81,13 @@ source: 'manual' | <vendor>, recordedBy, recordedAt}`, with integer cents ≥ 0 
     Blocked by BILL-07, BILL-08 and BILL-11.
   - **[BILL-10a](https://linear.app/materia-web/issue/MAT-142)** Practitioner review of this ADR's citations and the r 42 notice wording. Blocks nothing; BILL-12's notice stays off until
     it's done.
+- BILL-12 as built: `invoices/{id}.paidFromTrust` (set on the pre-bill or later through `billing-setPaidFromTrust`) and, while
+  `billing.trustNotice` is on (default off until BILL-10a), `trustNotice: {version, text}` frozen on the invoice from the versioned
+  `TRUST_NOTICE_TEMPLATE` (libs/domain `trust.ts`) at issue, or when an issued invoice is marked, which renders the PDF again. A
+  `trust_transfer` payment needs the trust records reference. After one, a matter with a snapshot prompts "Update the trust balance?"
+  (owner, admin, lawyer); nothing updates it. Reversing a trust payment, or voiding an invoice that had one, warns that the trust records
+  need their own correction. Distributions gain an optional `paymentReference`. Per-org notice wording is deferred until BILL-10a approves
+  a wording: the template is versioned in code for now.
 - No integration ticket is written: the firm's system is unknown and assumed in-house. One is written only if it turns out to have a
   usable API and the owner wants it.
 

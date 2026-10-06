@@ -7,12 +7,14 @@ import {
   debtorsReport,
   debtorsValues,
   hasLivePayments,
+  hasTrustPayments,
   owingCents,
   paidCents,
   paymentStatus,
   reminderMessage,
   reminderThreshold,
   RecordPaymentInput,
+  TRUST_REFERENCE_PROBLEM,
   type DebtorInvoiceLike,
   type PaymentLike,
 } from './payments';
@@ -292,5 +294,42 @@ describe('RecordPaymentInput', () => {
     expect(RecordPaymentInput.safeParse({ ...base, amountCents: 10.5 }).success).toBe(false);
     expect(RecordPaymentInput.parse({ ...base, amountCents: 100 })).toMatchObject({ kind: 'payment', credit: false });
     expect(RecordPaymentInput.safeParse({ ...base, amountCents: 100, method: 'bitcoin' }).success).toBe(false);
+  });
+
+  it('needs the trust system’s reference for a payment from trust (BILL-12)', () => {
+    const base = { requestId: crypto.randomUUID(), invoiceId: 'i1', date: '2026-10-01', amountCents: 100 };
+    const missing = RecordPaymentInput.safeParse({ ...base, method: 'trust_transfer', reference: '  ' });
+    expect(missing.success).toBe(false);
+    expect(missing.error?.issues[0]).toMatchObject({ message: TRUST_REFERENCE_PROBLEM, path: ['reference'] });
+    expect(RecordPaymentInput.parse({ ...base, method: 'trust_transfer', reference: 'TR-0042' })).toMatchObject({
+      method: 'trust_transfer',
+      reference: 'TR-0042',
+    });
+  });
+});
+
+describe('payments from trust (BILL-12)', () => {
+  it('are refused without a reference, and part-paid from trust and part by EFT is two payments', () => {
+    const fromTrust = {
+      kind: 'payment' as const,
+      date: d('2026-10-01'),
+      amountCents: 60_000,
+      method: 'trust_transfer' as const,
+    };
+    expect(checkPayment(invoice(), fromTrust, TODAY).problem).toBe(TRUST_REFERENCE_PROBLEM);
+    expect(checkPayment(invoice(), { ...fromTrust, reference: 'TR-0042' }, TODAY)).toMatchObject({
+      problem: null,
+      statusAfter: 'part_paid',
+      owingAfterCents: 50_000,
+    });
+    const rest = { kind: 'payment' as const, date: d('2026-10-02'), amountCents: 50_000, method: 'eft' as const };
+    const afterTrust = invoice([pay('p1', 60_000, { method: 'trust_transfer' } as Partial<PaymentLike>)]);
+    expect(checkPayment(afterTrust, rest, TODAY)).toMatchObject({ problem: null, statusAfter: 'paid' });
+  });
+
+  it('marks an invoice whose trust records may need correcting, even once reversed', () => {
+    expect(hasTrustPayments([{ method: 'eft' }])).toBe(false);
+    expect(hasTrustPayments([{ method: 'trust_transfer' }])).toBe(true);
+    expect(hasTrustPayments(undefined)).toBe(false);
   });
 });

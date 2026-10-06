@@ -71,6 +71,10 @@ export function paymentStatus(invoice: InvoiceMoneyLike): PaidStatus {
 /** Statuses that take payments, credit notes and reminders: issued and not void. */
 export const PAYABLE_STATUSES: ReadonlySet<string> = new Set(['issued', 'part_paid', 'paid']);
 
+/** Whether a payment from trust was ever recorded on an invoice (reversed or not): the trust records may need correcting. */
+export const hasTrustPayments = (payments: readonly { method?: string }[] | undefined): boolean =>
+  (payments ?? []).some((payment) => payment.method === 'trust_transfer');
+
 /** Whether an invoice has a payment that still counts (voiding is then refused). */
 export const hasLivePayments = (payments: readonly PaymentLike[] | undefined): boolean =>
   (payments ?? []).some((payment) => isLivePayment(payment) && payment.kind !== 'refund');
@@ -105,7 +109,12 @@ export interface NewPayment {
   amountCents: number;
   /** Lets a payment exceed what's owing; the extra is held as credit. */
   credit?: boolean | undefined;
+  method?: PaymentMethod | undefined;
+  reference?: string | undefined;
 }
+
+/** A payment from trust (BILL-12) is recorded after the withdrawal, with the trust system's reference. */
+export const TRUST_REFERENCE_PROBLEM = 'Enter the trust system’s reference for the withdrawal';
 
 export interface PaymentCheck {
   /** Why it can't be recorded, in words for the person; null when it can. */
@@ -134,6 +143,7 @@ export function checkPayment(invoice: PayableInvoiceLike, payment: NewPayment, t
   if (!PAYABLE_STATUSES.has(invoice.status)) return result('Only an issued invoice takes payments');
   if (!Number.isInteger(payment.amountCents) || payment.amountCents <= 0) return result('Enter an amount');
   if (payment.date > todayDate) return result('A payment can’t be dated in the future');
+  if (payment.method === 'trust_transfer' && !payment.reference?.trim()) return result(TRUST_REFERENCE_PROBLEM);
   if (payment.kind === 'refund') {
     const held = -owing;
     if (held <= 0) return result('There’s no credit on this invoice to refund');
@@ -412,21 +422,26 @@ export const PAYMENT_CALLABLES = {
  * `billing-recordPayment` (`billing.issue`; refunds `billing.void`; flag `billing.invoicing`;
  * idempotent): records a payment received, or a refund of credit held, against an issued invoice.
  */
-export const RecordPaymentInput = /* @__PURE__ */ z.object({
-  requestId: z.uuid(),
-  invoiceId: DocIdSchema,
-  kind: z.enum(['payment', 'refund']).default('payment'),
-  date: DateOnlySchema,
-  amountCents: z
-    .number()
-    .int({ message: 'Enter the amount in dollars and cents' })
-    .min(1, { message: 'Enter an amount' })
-    .max(PAYMENT_MAX_CENTS, { message: 'Up to $10,000,000 at a time' }),
-  method: PaymentMethodSchema,
-  reference: z.string().trim().max(100).optional(),
-  payer: z.string().trim().max(200).optional(),
-  credit: z.boolean().default(false),
-});
+export const RecordPaymentInput = /* @__PURE__ */ z
+  .object({
+    requestId: z.uuid(),
+    invoiceId: DocIdSchema,
+    kind: z.enum(['payment', 'refund']).default('payment'),
+    date: DateOnlySchema,
+    amountCents: z
+      .number()
+      .int({ message: 'Enter the amount in dollars and cents' })
+      .min(1, { message: 'Enter an amount' })
+      .max(PAYMENT_MAX_CENTS, { message: 'Up to $10,000,000 at a time' }),
+    method: PaymentMethodSchema,
+    reference: z.string().trim().max(100).optional(),
+    payer: z.string().trim().max(200).optional(),
+    credit: z.boolean().default(false),
+  })
+  .refine((input) => input.method !== 'trust_transfer' || !!input.reference, {
+    message: TRUST_REFERENCE_PROBLEM,
+    path: ['reference'],
+  });
 export type RecordPaymentInput = z.input<typeof RecordPaymentInput>;
 
 export interface RecordPaymentResult {

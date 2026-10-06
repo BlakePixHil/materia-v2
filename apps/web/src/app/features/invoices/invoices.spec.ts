@@ -230,6 +230,11 @@ function billingCallables(): Record<string, (data: Seed, fs: Page['firestore']) 
       return { updated, skipped: [], conflicts: [] };
     },
     'billing-dismissReminder': () => ({ dismissed: true }),
+    'billing-setPaidFromTrust': (data, fs) => {
+      const path = `${INVOICES}/${String(data['invoiceId'])}`;
+      fs.set(path, { ...fs.get(path), paidFromTrust: data['paidFromTrust'] });
+      return { paidFromTrust: data['paidFromTrust'], pdfRendering: false };
+    },
     'documents-getDownloadUrl': (data) => ({
       url: `https://files.example.test/${String(data['docId'])}.pdf`,
       expiresAt: '2026-10-04T00:05:00Z',
@@ -700,6 +705,130 @@ describe('payments on an invoice (BILL-08)', () => {
     expect(callsOf(page, 'billing-recordPayment')).toEqual([
       expect.objectContaining({ kind: 'refund', amountCents: 10_000, credit: false }),
     ]);
+  });
+});
+
+describe('to be paid from trust (BILL-12)', () => {
+  const TRUST_ON = { ...ON, 'billing.trustDisplay': true };
+  const SNAPSHOT = {
+    matterId: 'm-whitfield',
+    amountCents: 8_421_000,
+    asAt: '2026-10-02',
+    source: 'manual',
+    sourceSystemName: 'Smokeball',
+    recordedBy: 'user-priya',
+    recordedAt: new Date('2026-10-02T03:00:00Z'),
+    ...meta,
+  };
+  const openIssued = (data: Seed = {}, options: Parameters<typeof open>[1] & { snapshot?: boolean } = {}) => {
+    const { snapshot = true, ...rest } = options;
+    return open('/billing/invoices/inv-1', {
+      flags: TRUST_ON,
+      ...rest,
+      configure: (fs) => {
+        fs.set(`${INVOICES}/inv-1`, issued(data));
+        if (snapshot) fs.set(`orgs/${ORG}/trustSnapshots/m-whitfield`, SNAPSHOT);
+      },
+    });
+  };
+  const fromTrust = async (page: Page, reference?: string) => {
+    await page.click('Record payment');
+    const dialog = page.dialog() as HTMLElement;
+    await page.fill('Amount (AUD)', '200', dialog);
+    // Native selects take the option's index: From trust is the fourth.
+    await page.fill('Method', '3', dialog);
+    if (reference) await page.fill('Trust records reference', reference, dialog);
+    return dialog;
+  };
+
+  it('is chosen on the pre-bill and saved with it, with no notice until the wording is approved', async () => {
+    const page = await open('/billing/invoices/inv-draft', {
+      configure: (fs) =>
+        billingCallables()['billing-saveDraft']?.({ invoiceId: 'inv-draft', matterId: 'm-whitfield', fields: {} }, fs),
+    });
+    expect(byTestId('pre-bill-trust')).toBeNull();
+    const option = [...document.body.querySelectorAll('mt-checkbox')].find((box) =>
+      box.textContent?.includes('To be paid from trust'),
+    );
+    option?.querySelector<HTMLElement>('input, button, [role="checkbox"]')?.click();
+    await page.stable();
+    expect(page.text(byTestId('pre-bill-trust'))).toBe(
+      'To be paid from trust. No withdrawal notice prints until the wording is approved.',
+    );
+    await page.click('Save');
+    for (let i = 0; i < 4; i++) await page.stable(5);
+    expect(callsOf(page, 'billing-saveDraft').at(-1)?.['fields']).toMatchObject({ paidFromTrust: true });
+  });
+
+  it('is marked on an issued invoice; the notice shows when the invoice carries one', async () => {
+    const page = await openIssued();
+    expect(byTestId('invoice-trust-notice')).toBeNull();
+    byTestId('invoice-trust-option')?.querySelector<HTMLElement>('input, button, [role="checkbox"]')?.click();
+    for (let i = 0; i < 4; i++) await page.stable(5);
+    expect(callsOf(page, 'billing-setPaidFromTrust')).toEqual([{ invoiceId: 'inv-1', paidFromTrust: true }]);
+  });
+
+  it('says when the PDF carries the notice', async () => {
+    await openIssued({ paidFromTrust: true, trustNotice: { version: 1, text: 'Notice of intended withdrawal…' } });
+    expect(byTestId('invoice-trust-notice')).not.toBeNull();
+  });
+
+  it('records a payment from trust only with its reference, then prompts to update the trust balance', async () => {
+    const page = await openIssued({ paidFromTrust: true });
+    const dialog = await fromTrust(page);
+    expect(page.text(byTestId('payment-trust'))).toBe(
+      'Record this after the withdrawal is made in your trust records.',
+    );
+    expect(page.text(dialog)).toContain('Date withdrawn');
+    await page.submit(dialog);
+    expect(page.text(byTestId('payment-problem'))).toBe('Enter the trust system’s reference for the withdrawal');
+    expect(callsOf(page, 'billing-recordPayment')).toEqual([]);
+    await page.fill('Trust records reference', 'TR-0042', dialog);
+    await page.submit(dialog);
+    for (let i = 0; i < 4; i++) await page.stable(5);
+    expect(callsOf(page, 'billing-recordPayment')).toEqual([
+      expect.objectContaining({ method: 'trust_transfer', reference: 'TR-0042', amountCents: 20_000 }),
+    ]);
+    // The prompt; nothing changes the snapshot by itself.
+    expect(page.text(page.dialog())).toContain('Update the trust balance?');
+    expect(page.text(page.dialog())).toContain('$84,210.00, as at 2 Oct 2026 · from Smokeball');
+    expect(page.calls('trust-recordSnapshot')).toEqual([]);
+    await page.click('Update trust balance', page.dialog() as HTMLElement);
+    for (let i = 0; i < 4; i++) await page.stable(5);
+    expect(page.text(page.dialog())).toContain('Smokeball');
+    expect(page.calls('trust-recordSnapshot')).toEqual([]);
+  });
+
+  it('doesn’t prompt when the matter has no trust balance', async () => {
+    const page = await openIssued({}, { snapshot: false });
+    const dialog = await fromTrust(page, 'TR-0042');
+    await page.submit(dialog);
+    for (let i = 0; i < 4; i++) await page.stable(5);
+    expect(callsOf(page, 'billing-recordPayment')).toHaveLength(1);
+    expect(page.dialog()).toBeNull();
+  });
+
+  it('warns that the trust records need their own correction when a trust payment is reversed', async () => {
+    const payments = [
+      {
+        id: 'p1',
+        kind: 'payment',
+        date: '2026-10-03',
+        amountCents: 20_000,
+        method: 'trust_transfer',
+        reference: 'TR-1',
+      },
+    ];
+    const page = await openIssued({ status: 'part_paid', payments }, { session: ADMIN });
+    await page.click('Reverse');
+    expect(page.text(byTestId('reverse-trust-warning'))).toContain('Correct the withdrawal in your trust records too');
+  });
+
+  it('never offers a withdrawal or an amount available in trust', async () => {
+    await openIssued({ paidFromTrust: true });
+    const text = document.body.textContent ?? '';
+    expect(text).not.toMatch(/available in trust|withdraw now|schedule withdrawal/i);
+    expect([...document.body.querySelectorAll('button')].map((b) => b.textContent?.trim())).not.toContain('Withdraw');
   });
 });
 
