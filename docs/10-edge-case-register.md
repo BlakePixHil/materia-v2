@@ -74,7 +74,9 @@ This register lists cross-cutting edge cases. When a ticket touches one of these
 
 ## Integrations
 
-- An OAuth token is revoked by the user outside Materia: mark the integration disconnected and notify, without crashing the sync loop.
+- An OAuth token is revoked by the user outside Materia: mark the integration disconnected and notify, without crashing the sync loop. (INT-01: `reconnect_required`, one `integration_error` notification, no retries until reconnected.)
+- An OAuth consent link is opened by someone other than the person who started it: refused, and the attempt is left for its owner (INT-01, ADR-051).
+- A provider rotates refresh tokens (Xero) while a person reconnects: the refresh only stores its new token if the connection is still the same one (`connectionId`).
 - A calendar event is deleted in Outlook: don't recreate it endlessly. Respect the deletion and flag it.
 - Duplicate calendar events from legacy and v2 after migration.
 - Microsoft Graph throttling (429 with `Retry-After`).

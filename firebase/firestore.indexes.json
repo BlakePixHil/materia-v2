@@ -2309,6 +2309,12 @@
       "indexes": []
     },
     {
+      "collectionGroup": "integrationStates",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "invites",
       "fieldPath": "tokenHash",
       "indexes": [

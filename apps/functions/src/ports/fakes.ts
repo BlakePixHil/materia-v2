@@ -1,4 +1,6 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+
+import type { OAuthProvider } from '@materia/domain';
 
 import type {
   CalendarEvent,
@@ -12,6 +14,10 @@ import type {
   PreviewPort,
   JobRunnerPort,
   KmsPort,
+  OAuthAuthorizationRequest,
+  OAuthCodeExchange,
+  OAuthPort,
+  OAuthTokenSet,
   Ports,
   PushMessage,
   PushPort,
@@ -22,7 +28,7 @@ import type {
   TranscriptionPort,
   XeroPort,
 } from './index';
-import { PreviewUnavailableError, ScannerUnavailableError } from './index';
+import { OAuthError, PreviewUnavailableError, ScannerUnavailableError } from './index';
 import { FakeClerkModel } from '../clerk/providers/fake';
 
 /**
@@ -97,6 +103,115 @@ export class FakeKms implements KmsPort {
     const plain = FakeKms.mask(Buffer.from(ciphertext.slice('fakekms.'.length), 'base64'), aad).toString();
     if (!plain.startsWith('ok:')) throw new Error('Decryption failed (wrong additional authenticated data)');
     return plain.slice(3);
+  }
+}
+
+/** What a fake authorisation code carries, so exchanging it needs no shared memory (emulator workers). */
+interface FakeCodeClaims {
+  provider: OAuthProvider;
+  challenge: string;
+  redirectUri: string;
+}
+
+/**
+ * OAuth for the emulator and tests (INT-01): consent is instant. The authorisation URL is the
+ * app's own callback with a code, so the browser comes straight back; the code carries the PKCE
+ * challenge and redirect URI, and the exchange checks both like a real provider. Tokens are
+ * recognisable fakes (`fake-refresh.`, `fake-access.`) and every refresh rotates the refresh token
+ * (Xero does). Test hooks: codes made by `deniedCode()` are refused, and refresh tokens passed to
+ * `expire()` or revoked get `invalid_grant`; `failNext()` makes the next call fail.
+ */
+export class FakeOAuth implements OAuthPort {
+  readonly calls: { op: 'authorize' | 'exchange' | 'refresh' | 'revoke'; provider: OAuthProvider }[] = [];
+  /** Refresh tokens that were revoked or expired (in this process). */
+  readonly dead = new Set<string>();
+  readonly revoked: string[] = [];
+  private pending: OAuthError | undefined;
+
+  static account = { email: 'connected@example.test', name: 'Fictional Account' };
+
+  /** The next call throws this. */
+  failNext(error: OAuthError): void {
+    this.pending = error;
+  }
+
+  /** The refresh token stops working, as if revoked at the provider. */
+  expire(refreshToken: string): void {
+    this.dead.add(refreshToken);
+  }
+
+  /** A code the fake refuses with `invalid_grant` (a wrong or already used code). */
+  static deniedCode(): string {
+    return 'fake-code.denied';
+  }
+
+  private take(op: FakeOAuth['calls'][number]['op'], provider: OAuthProvider): void {
+    this.calls.push({ op, provider });
+    const error = this.pending;
+    this.pending = undefined;
+    if (error) throw error;
+  }
+
+  private tokens(provider: OAuthProvider): OAuthTokenSet {
+    const id = randomBytes(12).toString('base64url');
+    return {
+      accessToken: `fake-access.${provider}.${id}`,
+      refreshToken: `fake-refresh.${provider}.${id}`,
+      expiresIn: 1800,
+      scopes: ['fake.scope', 'offline_access'],
+      account: { ...FakeOAuth.account },
+    };
+  }
+
+  async authorizationUrl(provider: OAuthProvider, request: OAuthAuthorizationRequest): Promise<string> {
+    this.take('authorize', provider);
+    const claims: FakeCodeClaims = { provider, challenge: request.codeChallenge, redirectUri: request.redirectUri };
+    const code = `fake-code.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`;
+    const url = new URL(request.redirectUri);
+    url.searchParams.set('code', code);
+    url.searchParams.set('state', request.state);
+    return url.toString();
+  }
+
+  async exchangeCode(provider: OAuthProvider, request: OAuthCodeExchange): Promise<OAuthTokenSet> {
+    this.take('exchange', provider);
+    let claims: FakeCodeClaims | undefined;
+    try {
+      claims = JSON.parse(
+        Buffer.from(request.code.replace(/^fake-code\./, ''), 'base64url').toString(),
+      ) as FakeCodeClaims;
+    } catch {
+      claims = undefined;
+    }
+    const challenge = createHash('sha256').update(request.codeVerifier).digest('base64url');
+    if (
+      !claims ||
+      claims.provider !== provider ||
+      claims.challenge !== challenge ||
+      claims.redirectUri !== request.redirectUri
+    ) {
+      throw new OAuthError('invalid_grant', 'fake: code, verifier or redirect URI mismatch', 400);
+    }
+    return this.tokens(provider);
+  }
+
+  async refresh(provider: OAuthProvider, refreshToken: string): Promise<OAuthTokenSet> {
+    this.take('refresh', provider);
+    if (!refreshToken.startsWith(`fake-refresh.${provider}.`) || this.dead.has(refreshToken)) {
+      throw new OAuthError('invalid_grant', 'fake: refresh token revoked or expired', 400);
+    }
+    // Rotation: the old refresh token stops working once a new one is issued.
+    this.dead.add(refreshToken);
+    const tokens = this.tokens(provider);
+    delete tokens.account;
+    return tokens;
+  }
+
+  async revoke(provider: OAuthProvider, refreshToken: string): Promise<boolean> {
+    this.take('revoke', provider);
+    this.dead.add(refreshToken);
+    this.revoked.push(refreshToken);
+    return true;
   }
 }
 
@@ -251,6 +366,8 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     tasks: new FakeTaskQueue(),
     clerkModel: fakeClerkModel,
     clerkKms: new FakeKms(),
+    oauth: new FakeOAuth(),
+    oauthKms: new FakeKms('fake-kms/oauth-tokens/cryptoKeyVersions/1'),
     embedding: fakeEmbedding,
     calendar: new FakeCalendar(),
     xero: fakeXero,
