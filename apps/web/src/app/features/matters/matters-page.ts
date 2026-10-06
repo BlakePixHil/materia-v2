@@ -154,6 +154,9 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
         [ngModel]="layout"
         (ngModelChange)="setLayout($event)"
       />
+      @if (destructionOn()) {
+        <a mtButton variant="ghost" size="sm" iconStart="trash" routerLink="/matters/destruction">Destruction queue</a>
+      }
       @if (canCreate()) {
         <a mtButton variant="primary" size="sm" iconStart="plus" kbd="c" routerLink="/matters/new">New matter</a>
       }
@@ -659,6 +662,9 @@ export class MattersPage {
   protected readonly templatesOn = computed(() => this.flags.isOn('templates.system'));
 
   protected readonly canCreate = can('matter.create');
+  private readonly canDestroy = can('matter.destroy');
+  /** Owners and admins review closed matters due for destruction (CORE-19). */
+  protected readonly destructionOn = computed(() => this.canDestroy() && this.flags.isOn('matters.destruction'));
   protected readonly canEdit = can('matter.edit');
   protected readonly canStatus = can('matter.status');
   private readonly canRunConflicts = can('conflict.run');

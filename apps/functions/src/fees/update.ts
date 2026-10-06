@@ -12,7 +12,7 @@ import { audit } from '../audit/audit';
 import { stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { requireFlag } from '../core/flags';
-import { liveMatter, matterPath } from '../matters/shared';
+import { matterPath, writableMatter } from '../matters/shared';
 
 /** Terms in a stable form, to tell whether a revision changes anything. */
 function canonical(terms: FeeTerms): string {
@@ -46,7 +46,7 @@ export const updateDefinition = {
     const now = clock.now();
 
     const result = await db.runTransaction(async (tx) => {
-      const matter = liveMatter(await tx.get(ref), role, input.matterId);
+      const matter = writableMatter(await tx.get(ref), role, input.matterId);
       const fee = (matter['fee'] ?? {}) as Partial<FeeTerms> & { revision?: number; history?: FeeRevision[] };
       const current = fee.arrangement ? feeTerms(fee as FeeTerms) : undefined;
       const revision = typeof fee.revision === 'number' ? fee.revision : 0;

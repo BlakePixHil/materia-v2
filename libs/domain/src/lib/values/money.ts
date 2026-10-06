@@ -11,6 +11,13 @@ export const CentsSchema = z
   .int({ message: 'Expected integer cents' })
   .transform((value) => value as Cents);
 
+/** Integer cents that can't be negative: amounts, values and payments as entered (CORE-16). */
+export const NonNegativeCentsSchema = z
+  .number()
+  .int({ message: 'Expected integer cents' })
+  .min(0, { message: 'Expected an amount of 0 or more' })
+  .transform((value) => value as Cents);
+
 export function cents(value: number): Cents {
   if (!Number.isSafeInteger(value)) throw new DomainValueError('Cents', value, `Invalid cents: ${value}`);
   return value as Cents;

@@ -1,5 +1,3 @@
-import type { Role } from '@materia/domain';
-
 import type { ChunkHit, DocumentPage } from './ports';
 import { hit, type MemoryMatter, type MemoryOrg } from './testing';
 
@@ -200,8 +198,8 @@ export function fixtureMatter(): MemoryMatter {
 }
 
 export function fixtureOrgs(): Record<string, MemoryOrg> {
-  const members: Record<string, { status: string; role: Role }> = {
-    [USERS.lawyer]: { status: 'active', role: 'lawyer' },
+  const members: MemoryOrg['members'] = {
+    [USERS.lawyer]: { status: 'active', role: 'lawyer', displayName: 'Jordan Price', title: 'Senior Associate' },
     [USERS.paralegal]: { status: 'active', role: 'paralegal' },
     [USERS.readonly]: { status: 'active', role: 'readonly' },
     [USERS.suspended]: { status: 'suspended', role: 'lawyer' },

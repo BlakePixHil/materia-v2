@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { CLERK_MODELS, getPrompt, MAX_QUOTE_LENGTH, type ClerkCitation, type PromptVariables } from '@materia/clerk';
+import {
+  CLERK_MODELS,
+  citedQuote,
+  getPrompt,
+  type ClerkCitation,
+  type ModelCitation,
+  type PromptVariables,
+} from '@materia/clerk';
 import {
   EVALS_DIR,
   EvalOutageError,
@@ -19,10 +26,30 @@ import { DomainError, can } from '@materia/domain';
 
 import { createLog } from '../../core/log';
 import { ClerkModelError, type ClerkModelPort, type ClerkModelResult } from '../../ports';
+import { CHAT_PROMPT, CHAT_TASKS } from '../chat/run';
+import { createChatToolbox } from '../chat/tools';
+import { createContextBuilder } from '../context/build-context';
+import { charEstimateCounter, type DocumentTextPort } from '../context/ports';
+import { MemoryContextSource } from '../context/testing';
 import type { ClerkFeature } from '../features';
-import { createClerkGateway, type ClerkRunResult, type GatewayDocument } from '../gateway';
+import {
+  createClerkGateway,
+  type ClerkGateway,
+  type ClerkRunResult,
+  type GatewayContext,
+  type GatewayDocument,
+} from '../gateway';
 import type { ClerkKeyring } from '../keyring';
-import { MemoryClerkStore } from '../testing';
+import { ACKNOWLEDGED_CLERK_SETTINGS, MemoryClerkStore } from '../testing';
+import {
+  caseNow,
+  EVAL_MATTER,
+  evalAttachments,
+  evalChunkSearch,
+  evalDocumentText,
+  evalOrg,
+  evalToolRecords,
+} from './matter';
 
 /** The eval org: fictional, and never a real tenant (evals run outside Firestore). */
 const EVAL_ORG = 'org-clerk-evals';
@@ -81,9 +108,9 @@ export function promptPlaceholders(ref: string): string[] {
 }
 
 /**
- * What the request may see. Roles without `privileged.view` get no privileged document or note,
- * the same filter the matter context applies in production (AI-03 replaces this with its own
- * context builder; the privilege suite then tests that one).
+ * What a non-chat request may see. Roles without `privileged.view` get no privileged document or
+ * note, the same filter the matter context applies in production. Chat cases use production's
+ * `buildContext` instead (`runChat`).
  */
 export function visibleContext(evalCase: EvalCase) {
   const privileged = can(evalCase.role, 'privileged.view');
@@ -173,11 +200,11 @@ export function judgeItems(
 ): string[] {
   const items: string[] = [];
   for (const raw of content) {
-    const block = raw as { type?: string; text?: string; citations?: { cited_text?: string }[] | null };
+    const block = raw as { type?: string; text?: string; citations?: ModelCitation[] | null };
     if (block.type !== 'text' || !block.text || !block.citations?.length) continue;
     for (const cited of block.citations) {
-      // The gateway stores the API's quote trimmed and capped (mapCitation), so compare the same way.
-      const citedText = (cited.cited_text ?? '').trim().slice(0, MAX_QUOTE_LENGTH);
+      // The gateway stores the API's quote as `citedQuote` makes it (mapCitation), so compare the same way.
+      const citedText = citedQuote(cited);
       const match = citations.find((c) => c.quote === citedText);
       if (!match) continue;
       const docPages = pages.get(match.documentId);
@@ -197,6 +224,53 @@ export function judgeItems(
   return items;
 }
 
+/** The chat panel's prompt (AI-06), any version: its cases run the way the panel does. */
+export function isChatPrompt(promptRef: string): boolean {
+  return promptRef.split('@')[0] === CHAT_PROMPT.split('@')[0];
+}
+
+/**
+ * One chat case the way the panel answers a question (AI-06 `runChatMessage`, without Firestore or
+ * streaming): production's `buildContext` (AI-03) decides what the role may see from the case as an
+ * in-memory matter, and the model may call the panel's read-only tools over the same matter. So the
+ * privilege and injection suites test production's filtering, not a copy of it.
+ */
+async function runChat(
+  gateway: ClerkGateway,
+  ctx: GatewayContext,
+  evalCase: EvalCase,
+  promptRef: string,
+  root: string,
+): Promise<ClerkRunResult> {
+  const source = new MemoryContextSource(evalOrg(evalCase, ctx.orgId, ctx.uid));
+  const chunks = evalChunkSearch(evalCase, root);
+  const documentText = evalDocumentText(evalCase, root);
+  const context = await createContextBuilder({
+    source,
+    chunks,
+    documentText,
+    tokens: charEstimateCounter,
+  }).buildContext({
+    ctx,
+    scope: { matterId: EVAL_MATTER },
+    feature: 'chat',
+    attachments: evalAttachments(evalCase),
+    query: evalCase.query,
+  });
+  const tools = createChatToolbox(
+    { context: source, records: evalToolRecords(source, ctx.orgId), chunks, documentText },
+    { orgId: ctx.orgId, matterId: EVAL_MATTER, role: context.manifest.role },
+  );
+  return gateway.run({
+    ctx,
+    feature: 'chat',
+    promptId: promptRef,
+    vars: { task: CHAT_TASKS.question, question: evalCase.query },
+    context,
+    tools,
+  });
+}
+
 /**
  * The case executor on the real ClerkGateway (AI-12): the same prompt rendering, structured-output
  * validation, citation mapping and metering as production, with an in-memory store (no limits),
@@ -209,7 +283,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
   const keyring = evalKeyring(options.apiKey);
   const log = createLog({ fn: 'clerk-evals', requestId: 'eval', orgId: EVAL_ORG, uid: 'eval' }, () => undefined);
 
-  function gatewayFor() {
+  function gatewayFor(citationText?: DocumentTextPort) {
     const results: ClerkModelResult[] = [];
     let lastError: ClerkModelError | undefined;
     const model: ClerkModelPort = {
@@ -227,6 +301,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
     };
     const store = new MemoryClerkStore();
     store.settings = {
+      ...ACKNOWLEDGED_CLERK_SETTINGS,
       ...((CLERK_MODELS.choices as readonly string[]).includes(options.modelId)
         ? { model: options.modelId as (typeof CLERK_MODELS.choices)[number] }
         : {}),
@@ -240,6 +315,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
       flag: async () => true,
       fallbackModels: [],
       ...(options.sleep ? { sleep: options.sleep } : {}),
+      ...(citationText ? { citationText } : {}),
     });
     return { gateway, results, lastError: () => lastError };
   }
@@ -254,17 +330,20 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
       log,
       clock: { now: () => new Date(now()) },
     };
-    const { gateway, results, lastError } = gatewayFor();
+    const chat = isChatPrompt(promptRef);
+    const { gateway, results, lastError } = gatewayFor(chat ? evalDocumentText(evalCase, root) : undefined);
     const started = now();
     let result: ClerkRunResult;
     try {
-      result = await gateway.run({
-        ctx,
-        feature: FEATURES[request.feature],
-        promptId: promptRef,
-        vars: caseVariables(promptRef, evalCase, root),
-        documents: caseDocuments(evalCase, root, request.feature),
-      });
+      result = chat
+        ? await runChat(gateway, { ...ctx, clock: { now: () => caseNow(evalCase) } }, evalCase, promptRef, root)
+        : await gateway.run({
+            ctx,
+            feature: FEATURES[request.feature],
+            promptId: promptRef,
+            vars: caseVariables(promptRef, evalCase, root),
+            documents: caseDocuments(evalCase, root, request.feature),
+          });
     } catch (error) {
       if (error instanceof DomainError && error.code === 'PERMISSION_DENIED')
         return {

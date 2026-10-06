@@ -22,4 +22,13 @@ describe('SettingsSection and SettingsRow', () => {
     expect(screen.getByRole('img', { name: 'Locked' })).toBeInTheDocument();
     expect(screen.getByText('Send email').closest('mt-settings-row')).toHaveAttribute('data-locked');
   });
+
+  it('keeps the title off the host, so the browser shows no tooltip over the section', async () => {
+    const { container } = await render(
+      `<mt-settings-section title="Anthropic API key"><mt-settings-row title="Email" /></mt-settings-section>`,
+      { imports: [MtSettingsSection, MtSettingsRow] },
+    );
+    expect(container.querySelector('mt-settings-section')).not.toHaveAttribute('title');
+    expect(container.querySelector('mt-settings-row')).not.toHaveAttribute('title');
+  });
 });

@@ -233,6 +233,7 @@ describe('buildContext: content', () => {
       clients: ['Morgan Ashdown'],
       deceased: { name: 'Rowan Ashdown', dateOfDeath: '2026-05-02' },
     });
+    expect(json.matter.responsibleLawyer).toEqual({ name: 'Jordan Price', title: 'Senior Associate' });
     expect(json.fee).toEqual({ arrangement: 'fixed', amount: '$4,500.00', workInProgress: '$1,234.50' });
     expect(json.parties).toContainEqual({
       id: 'p-beneficiary',
@@ -251,6 +252,47 @@ describe('buildContext: content', () => {
     expect(json.openTasks.map((task: { title: string }) => task.title)).not.toContain('Finished task');
     expect(text).not.toContain('secret-search-token');
     expect(text).not.toContain('email-token-never-shown');
+  });
+
+  it('leaves out a responsible lawyer who is no longer an active member', async () => {
+    const env = setup();
+    orgOf(env.source).members[USERS.lawyer] = { status: 'suspended', role: 'lawyer', displayName: 'Jordan Price' };
+    const result = await env.build('paralegal');
+    const facts = result.contextBlocks.stable[0];
+    expect(facts?.type === 'text' ? facts.text : '').not.toContain('responsibleLawyer');
+  });
+
+  it('gives billing roles the trust balance with its as-at date, source and label, and no one else (BILL-11)', async () => {
+    const { source, build } = setup();
+    orgOf(source).trust = { staleAfterDays: 30 };
+    orgOf(source).trustSnapshots = {
+      [MATTER]: { matterId: MATTER, amountCents: 8_421_000, asAt: '2026-08-28', sourceSystemName: 'Smokeball' },
+    };
+    const factsOf = (result: Awaited<ReturnType<typeof build>>) => {
+      const block = result.contextBlocks.stable[0];
+      const text = block?.type === 'text' ? block.text : '';
+      return JSON.parse(text.slice(text.indexOf('\n') + 1, text.indexOf('\n</matter_facts>')));
+    };
+    const lawyer = await build('lawyer');
+    expect(factsOf(lawyer).trustBalance).toEqual({
+      held: '$84,210.00',
+      asAt: '2026-08-28',
+      from: 'Smokeball',
+      // More than 30 days before today (5 Oct in Melbourne).
+      outOfDate: true,
+      note: expect.stringContaining('Not the trust ledger'),
+    });
+    expect(lawyer.manifest.records).toContainEqual({ kind: 'trust', id: MATTER });
+
+    source.reads.length = 0;
+    const paralegal = await build('paralegal');
+    expect(factsOf(paralegal).trustBalance).toBeUndefined();
+    expect(textOf(paralegal)).not.toContain('84,210');
+    expect(source.reads).not.toContain(`trust:${MATTER}`);
+
+    // The display off (flag or org switch): nothing, even for a lawyer.
+    delete orgOf(source).trust;
+    expect(factsOf(await build('lawyer')).trustBalance).toBeUndefined();
   });
 
   it('renders the base system prompt with today in the org time zone', async () => {

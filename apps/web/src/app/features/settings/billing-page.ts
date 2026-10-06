@@ -168,171 +168,174 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
       }
     }
 
-    <form class="mt-col" style="gap: 24px" (submit)="$event.preventDefault(); save()">
-      <mt-settings-section title="Time" [headingLevel]="2">
-        <mt-text-field
-          name="defaultRate"
-          label="Default hourly rate"
-          description="Excluding GST. Used when a member has no rate of their own."
-          inputmode="decimal"
-          suffix="AUD / h"
-          [error]="rateProblem() ?? undefined"
-          [ngModel]="form().defaultRate"
-          (ngModelChange)="set({ defaultRate: $event ?? '' })"
-        />
-        <div class="pair">
-          <mt-select
-            name="unitMinutes"
-            label="Billing unit"
-            [native]="true"
-            [options]="units"
-            [ngModel]="form().unitMinutes"
-            (ngModelChange)="set({ unitMinutes: $event ?? 6 })"
+    <!-- Shown once the org has loaded, so nothing typed is overwritten when the settings arrive. -->
+    @if (org.value()) {
+      <form class="mt-col" style="gap: 24px" (submit)="$event.preventDefault(); save()">
+        <mt-settings-section title="Time" [headingLevel]="2">
+          <mt-text-field
+            name="defaultRate"
+            label="Default hourly rate"
+            description="Excluding GST. Used when a member has no rate of their own."
+            inputmode="decimal"
+            suffix="AUD / h"
+            [error]="rateProblem() ?? undefined"
+            [ngModel]="form().defaultRate"
+            (ngModelChange)="set({ defaultRate: $event ?? '' })"
           />
-          <mt-select
-            name="rounding"
-            label="Rounding"
-            [native]="true"
-            [options]="roundings"
-            [ngModel]="form().rounding"
-            (ngModelChange)="set({ rounding: $event ?? 'up' })"
-          />
-        </div>
-      </mt-settings-section>
+          <div class="pair">
+            <mt-select
+              name="unitMinutes"
+              label="Billing unit"
+              [native]="true"
+              [options]="units"
+              [ngModel]="form().unitMinutes"
+              (ngModelChange)="set({ unitMinutes: $event ?? 6 })"
+            />
+            <mt-select
+              name="rounding"
+              label="Rounding"
+              [native]="true"
+              [options]="roundings"
+              [ngModel]="form().rounding"
+              (ngModelChange)="set({ rounding: $event ?? 'up' })"
+            />
+          </div>
+        </mt-settings-section>
 
-      <mt-settings-section title="Invoices" [headingLevel]="2">
-        <mt-settings-row
-          title="Registered for GST"
-          description="Invoices show GST and are titled “Tax invoice” when on."
-        >
-          <mt-switch
-            name="gst"
-            label="Registered for GST"
-            labelHidden
-            [ngModel]="form().gstRegistered"
-            (ngModelChange)="set({ gstRegistered: !!$event })"
-          />
-        </mt-settings-row>
-        @if (gstChanged()) {
-          <mt-note tone="warning" data-gst-warning>
-            This applies to new invoices only. Invoices already issued keep their GST treatment.
-          </mt-note>
-        }
-        <div class="pair">
+        <mt-settings-section title="Invoices" [headingLevel]="2">
+          <mt-settings-row
+            title="Registered for GST"
+            description="Invoices show GST and are titled “Tax invoice” when on."
+          >
+            <mt-switch
+              name="gst"
+              label="Registered for GST"
+              labelHidden
+              [ngModel]="form().gstRegistered"
+              (ngModelChange)="set({ gstRegistered: !!$event })"
+            />
+          </mt-settings-row>
+          @if (gstChanged()) {
+            <mt-note tone="warning" data-gst-warning>
+              This applies to new invoices only. Invoices already issued keep their GST treatment.
+            </mt-note>
+          }
+          <div class="pair">
+            <mt-text-field
+              name="invoicePrefix"
+              label="Invoice number prefix"
+              autocomplete="off"
+              [error]="prefixProblem() ?? undefined"
+              [ngModel]="form().invoicePrefix"
+              (ngModelChange)="set({ invoicePrefix: $event ?? '' })"
+            />
+            <mt-text-field
+              name="paymentTermsDays"
+              label="Payment terms"
+              suffix="days"
+              inputmode="numeric"
+              [error]="termsProblem() ?? undefined"
+              [ngModel]="form().paymentTermsDays"
+              (ngModelChange)="set({ paymentTermsDays: $event ?? '' })"
+            />
+          </div>
           <mt-text-field
-            name="invoicePrefix"
-            label="Invoice number prefix"
-            autocomplete="off"
-            [error]="prefixProblem() ?? undefined"
-            [ngModel]="form().invoicePrefix"
-            (ngModelChange)="set({ invoicePrefix: $event ?? '' })"
+            name="dailyTargetHours"
+            label="Daily time target"
+            description="Each person’s weekday target on Time and billing."
+            suffix="hours"
+            inputmode="decimal"
+            [error]="targetProblem() ?? undefined"
+            [ngModel]="form().dailyTargetHours"
+            (ngModelChange)="set({ dailyTargetHours: $event ?? '' })"
           />
           <mt-text-field
-            name="paymentTermsDays"
-            label="Payment terms"
-            suffix="days"
+            name="nextInvoiceNumber"
+            label="Start invoice numbers at"
+            description="Only before the first invoice: invoice numbers are gapless and can’t change after that."
             inputmode="numeric"
-            [error]="termsProblem() ?? undefined"
-            [ngModel]="form().paymentTermsDays"
-            (ngModelChange)="set({ paymentTermsDays: $event ?? '' })"
-          />
-        </div>
-        <mt-text-field
-          name="dailyTargetHours"
-          label="Daily time target"
-          description="Each person’s weekday target on Time and billing."
-          suffix="hours"
-          inputmode="decimal"
-          [error]="targetProblem() ?? undefined"
-          [ngModel]="form().dailyTargetHours"
-          (ngModelChange)="set({ dailyTargetHours: $event ?? '' })"
-        />
-        <mt-text-field
-          name="nextInvoiceNumber"
-          label="Start invoice numbers at"
-          description="Only before the first invoice: invoice numbers are gapless and can’t change after that."
-          inputmode="numeric"
-          optional
-          [error]="nextNumberProblem() ?? undefined"
-          [ngModel]="form().nextInvoiceNumber"
-          (ngModelChange)="set({ nextInvoiceNumber: $event ?? '' })"
-        />
-      </mt-settings-section>
-
-      @if (feeBudgetsOn()) {
-        <mt-settings-section
-          title="Matter budgets"
-          description="The responsible lawyer and their supervisor are alerted when a matter’s recorded time and disbursements reach these shares of its fixed fee, cap or estimate."
-          [headingLevel]="2"
-        >
-          <mt-text-field
-            name="alertPcts"
-            label="Alert at"
-            description="Percentages, separated by commas. Each fires once per fee revision."
-            suffix="%"
-            inputmode="numeric"
-            autocomplete="off"
-            [error]="alertProblem() ?? undefined"
-            [ngModel]="form().alertPcts"
-            (ngModelChange)="set({ alertPcts: $event ?? '' })"
+            optional
+            [error]="nextNumberProblem() ?? undefined"
+            [ngModel]="form().nextInvoiceNumber"
+            (ngModelChange)="set({ nextInvoiceNumber: $event ?? '' })"
           />
         </mt-settings-section>
-      }
 
-      <mt-settings-section
-        title="Fee defaults by matter type"
-        description="Filled in when a new matter of the type is opened. People can change them on the matter."
-        [headingLevel]="2"
-      >
-        <div class="fees" role="group" aria-label="Fee defaults">
-          @for (type of types; track type) {
-            @let row = form().fees[type];
-            <div class="fee-row" [attr.data-fee]="type">
-              <span class="label type">{{ typeLabel(type) }}</span>
-              <mt-select
-                size="sm"
-                [name]="'arr-' + type"
-                [label]="typeLabel(type) + ' fee arrangement'"
-                [native]="true"
-                [options]="arrangements"
-                [ngModel]="row.arrangement"
-                (ngModelChange)="setFee(type, { arrangement: $event ?? '' })"
-              />
-              @if (row.arrangement === 'fixed' || row.arrangement === 'capped') {
-                <mt-text-field
+        @if (feeBudgetsOn()) {
+          <mt-settings-section
+            title="Matter budgets"
+            description="The responsible lawyer and their supervisor are alerted when a matter’s recorded time and disbursements reach these shares of its fixed fee, cap or estimate."
+            [headingLevel]="2"
+          >
+            <mt-text-field
+              name="alertPcts"
+              label="Alert at"
+              description="Percentages, separated by commas. Each fires once per fee revision."
+              suffix="%"
+              inputmode="numeric"
+              autocomplete="off"
+              [error]="alertProblem() ?? undefined"
+              [ngModel]="form().alertPcts"
+              (ngModelChange)="set({ alertPcts: $event ?? '' })"
+            />
+          </mt-settings-section>
+        }
+
+        <mt-settings-section
+          title="Fee defaults by matter type"
+          description="Filled in when a new matter of the type is opened. People can change them on the matter."
+          [headingLevel]="2"
+        >
+          <div class="fees" role="group" aria-label="Fee defaults">
+            @for (type of types; track type) {
+              @let row = form().fees[type];
+              <div class="fee-row" [attr.data-fee]="type">
+                <span class="label type">{{ typeLabel(type) }}</span>
+                <mt-select
                   size="sm"
-                  [name]="'amt-' + type"
-                  [label]="typeLabel(type) + (row.arrangement === 'fixed' ? ' fixed fee' : ' cap')"
-                  inputmode="decimal"
-                  [ngModel]="row.amount"
-                  (ngModelChange)="setFee(type, { amount: $event ?? '' })"
+                  [name]="'arr-' + type"
+                  [label]="typeLabel(type) + ' fee arrangement'"
+                  [native]="true"
+                  [options]="arrangements"
+                  [ngModel]="row.arrangement"
+                  (ngModelChange)="setFee(type, { arrangement: $event ?? '' })"
                 />
-              }
-              @if (row.arrangement && row.arrangement !== 'pro_bono') {
-                <mt-text-field
-                  size="sm"
-                  [name]="'est-' + type"
-                  [label]="typeLabel(type) + ' estimate'"
-                  inputmode="decimal"
-                  [ngModel]="row.estimate"
-                  (ngModelChange)="setFee(type, { estimate: $event ?? '' })"
-                />
-              }
-              @if (feeProblems()[type]; as problem) {
-                <span class="caption problem" role="alert">{{ problem }}</span>
-              }
-            </div>
-          }
+                @if (row.arrangement === 'fixed' || row.arrangement === 'capped') {
+                  <mt-text-field
+                    size="sm"
+                    [name]="'amt-' + type"
+                    [label]="typeLabel(type) + (row.arrangement === 'fixed' ? ' fixed fee' : ' cap')"
+                    inputmode="decimal"
+                    [ngModel]="row.amount"
+                    (ngModelChange)="setFee(type, { amount: $event ?? '' })"
+                  />
+                }
+                @if (row.arrangement && row.arrangement !== 'pro_bono') {
+                  <mt-text-field
+                    size="sm"
+                    [name]="'est-' + type"
+                    [label]="typeLabel(type) + ' estimate'"
+                    inputmode="decimal"
+                    [ngModel]="row.estimate"
+                    (ngModelChange)="setFee(type, { estimate: $event ?? '' })"
+                  />
+                }
+                @if (feeProblems()[type]; as problem) {
+                  <span class="caption problem" role="alert">{{ problem }}</span>
+                }
+              </div>
+            }
+          </div>
+        </mt-settings-section>
+
+        <div class="mt-row" style="gap: 8px">
+          <button mtButton variant="primary" type="submit" [loading]="saving()" [disabled]="!ready()">Save</button>
+          <button mtButton variant="ghost" type="button" [disabled]="!unsaved()" (click)="reset()">
+            Discard changes
+          </button>
         </div>
-      </mt-settings-section>
-
-      <div class="mt-row" style="gap: 8px">
-        <button mtButton variant="primary" type="submit" [loading]="saving()" [disabled]="!ready()">Save</button>
-        <button mtButton variant="ghost" type="button" [disabled]="!unsaved()" (click)="reset()">
-          Discard changes
-        </button>
-      </div>
-    </form>
+      </form>
+    }
 
     <!-- Its own save: the presets live in their own document (BILL-04). -->
     @if (disbursementsOn()) {

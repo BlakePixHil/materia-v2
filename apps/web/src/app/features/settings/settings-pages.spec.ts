@@ -148,6 +148,12 @@ afterEach(() => {
 });
 
 describe('Settings → Practice', () => {
+  it('keeps the form hidden until the practice has loaded, so nothing typed is overwritten', async () => {
+    const page = await open('/settings/practice', OWNER, (firestore) => (firestore.stalled = true));
+    expect(page.text()).toContain('Loading settings…');
+    expect(page.el.querySelector('mt-practice-settings-page form')).toBeNull();
+  });
+
   it('loads the practice, checks the ABN, and confirms the reminders a time zone change moves', async () => {
     const page = await open('/settings/practice', OWNER);
     expect(page.text()).toContain('Practice');
@@ -203,6 +209,12 @@ describe('Settings → Practice', () => {
 });
 
 describe('Settings → Billing and rates', () => {
+  it('keeps the form hidden until the settings have loaded, so nothing typed is overwritten', async () => {
+    const page = await open('/settings/billing', OWNER, (firestore) => (firestore.stalled = true));
+    expect(page.text()).toContain('Loading settings…');
+    expect(page.el.querySelector('mt-billing-settings-page form')).toBeNull();
+  });
+
   it('warns about a mid-year GST change and saves billing with fee defaults', async () => {
     const page = await open('/settings/billing', OWNER);
     expect((page.el.querySelector('input[name="defaultRate"], mt-text-field input') as HTMLInputElement).value).toBe(

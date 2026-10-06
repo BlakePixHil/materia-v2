@@ -318,6 +318,7 @@ export class InMemoryFirestore {
         const listener: Listener = {
           watches: (changed) => changed === path,
           run: () => {
+            if (this.stalled) return;
             const data = docs().get(id);
             next(data ? this.raw(id, data, path) : null, this.offline);
           },

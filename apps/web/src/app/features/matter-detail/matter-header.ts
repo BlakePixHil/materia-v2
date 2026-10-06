@@ -42,6 +42,7 @@ import {
   ToastService,
 } from '@materia/ui';
 
+import { CloseMatterDialog, type CloseMatterDialogData } from './close-matter-dialog';
 import { MatterScreen } from './matter-screen';
 import { LONG_TITLE, matterErrorCopy, statusChoices, statusLabel, type StatusChoice } from './matter-view';
 import type { ReferralChoice, ReferralDialogData } from './referral-dialog';
@@ -307,6 +308,11 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
           @if (canClose()) {
             <button mtMenuItem icon="archive" (click)="closeMatter()">Close matter…</button>
           }
+          @if (canHold()) {
+            <button mtMenuItem icon="flag" (click)="setLegalHold(!m.legalHold?.on)">
+              {{ m.legalHold?.on ? 'Release legal hold…' : 'Place legal hold…' }}
+            </button>
+          }
           @if (screen.canDelete() && !screen.deleted()) {
             <mt-menu-separator />
             <button mtMenuItem icon="trash" tone="danger" (click)="deleteMatter()">Delete matter…</button>
@@ -424,13 +430,17 @@ export class MatterHeader {
   /** A newer published version of the matter's template (CORE-07), for those who may edit the matter. */
   protected readonly upgradeTo = computed(() => (this.screen.editable() ? this.screen.upgradeVersion() : null));
   /** Lawyers and above can change the number (CORE-21a), never on a deleted matter. */
-  protected readonly canRenumber = computed(() => this.screen.canRenumber() && !this.screen.deleted());
+  protected readonly canRenumber = computed(() => this.screen.canRenumber() && !this.screen.readOnly());
+  /** Owners and admins place or release a legal hold (CORE-19), which keeps a matter from destruction. */
+  protected readonly canHold = computed(() => this.screen.canLegalHold() && !this.screen.deleted());
   /** The matter's link (CORE-21a: the same matter in 3E, say), when it is a safe http(s) URL. */
   protected readonly link = computed(() => {
     const url = this.screen.value()?.externalUrl;
     return isMatterLink(url) ? url : null;
   });
-  readonly canClose = computed(() => this.statusEditable() && this.choices().some((choice) => choice.to === 'closed'));
+  readonly canClose = computed(
+    () => this.statusEditable() && this.screen.canClose() && this.choices().some((choice) => choice.to === 'closed'),
+  );
   /** The referrer contact (CORE-18), read for its name. */
   private readonly referrer = contactsRepository().watch(() => this.screen.value()?.referrerContactId ?? null);
   /** "Lighthouse Financial Advisers", "Walk-in", or null when nothing is recorded. */
@@ -550,28 +560,90 @@ export class MatterHeader {
   protected async changeStatus(choice: StatusChoice): Promise<void> {
     const matter = this.screen.value();
     if (!matter || choice.blocked || !this.statusEditable()) return;
+    if (choice.to === 'closed') return this.openClosing();
+    if (matter.status === 'closed' || matter.status === 'archived') {
+      if (choice.to === 'open') return this.reopen();
+    }
     let reason: string | undefined;
     if (choice.needsReason) {
-      reason = await this.ask(
-        choice.to === 'closed'
-          ? {
-              title: `Close ${matter.number}`,
-              label: 'Reason',
-              confirm: 'Close matter',
-              description: 'Say why the matter is closing. It stays readable, and a lawyer can reopen it.',
-              maxLength: 500,
-            }
-          : { title: `Reopen ${matter.number}`, label: 'Reason', confirm: 'Reopen matter', maxLength: 500 },
-      );
+      reason = await this.ask({
+        title: `Reopen ${matter.number}`,
+        label: 'Reason',
+        confirm: 'Reopen matter',
+        maxLength: 500,
+      });
       if (!reason) return;
     }
     await this.moveTo(choice.to, reason);
   }
 
-  /** Closes the matter, asking for what closing needs (the header's menu, or ⌘K, CORE-15). */
+  /** Closes the matter through its closing checklist (the header's menu, or ⌘K, CORE-15). */
   closeMatter(): void {
-    const close = this.choices().find((choice) => choice.to === 'closed');
-    if (close) void this.changeStatus(close);
+    if (this.canClose()) void this.openClosing();
+  }
+
+  private async openClosing(): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter) return;
+    const result = await this.dialogs.open<CloseMatterDialogData, Awaited<ReturnType<typeof this.screen.api.close>>>(
+      CloseMatterDialog,
+      { data: { matter: { id: matter.id, number: matter.number, type: matter.type }, api: this.screen.api } },
+    ).result;
+    if (!result) return;
+    const cancelled = result.tasksCancelled;
+    this.toasts.show({
+      title: `${matter.number} is closed`,
+      ...(cancelled
+        ? { description: cancelled === 1 ? '1 open task cancelled.' : `${cancelled} open tasks cancelled.` }
+        : {}),
+      tone: 'success',
+    });
+  }
+
+  /** Reopens a closed or archived matter with a reason (`matters-reopen`, CORE-19). */
+  private async reopen(): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter) return;
+    await this.ask({
+      title: `Reopen ${matter.number}`,
+      label: 'Reason',
+      confirm: 'Reopen matter',
+      description: 'The matter becomes editable again and leaves the retention schedule until it closes again.',
+      maxLength: 500,
+      submit: async (reason) => {
+        try {
+          await this.screen.api.reopen({ matterId: matter.id, reason });
+          this.toasts.show({ title: `${matter.number} is open`, tone: 'success' });
+          return undefined;
+        } catch (error) {
+          return changeStatusErrorCopy(error);
+        }
+      },
+    });
+  }
+
+  /** Places or releases a legal hold (`matters-setLegalHold`, CORE-19), with a reason. */
+  protected async setLegalHold(on: boolean): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter || !this.canHold()) return;
+    await this.ask({
+      title: on ? `Place a legal hold on ${matter.number}` : `Release the legal hold on ${matter.number}`,
+      label: 'Reason',
+      confirm: on ? 'Place hold' : 'Release hold',
+      description: on
+        ? 'While the hold is on, the matter is never offered for destruction.'
+        : 'A closed matter gets its destruction date back from its closing day.',
+      maxLength: 500,
+      submit: async (reason) => {
+        try {
+          await this.screen.api.setLegalHold({ matterId: matter.id, on, reason });
+          this.toasts.show({ title: on ? 'Legal hold placed' : 'Legal hold released', tone: 'success' });
+          return undefined;
+        } catch (error) {
+          return changeStatusErrorCopy(error);
+        }
+      },
+    });
   }
 
   private async moveTo(to: MatterStatus, reason?: string): Promise<void> {

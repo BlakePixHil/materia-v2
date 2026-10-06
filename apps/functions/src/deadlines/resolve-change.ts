@@ -14,7 +14,7 @@ import { audit } from '../audit/audit';
 import { isDeleted, stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
-import { liveMatter, matterPath } from '../matters/shared';
+import { writableMatter, matterPath } from '../matters/shared';
 
 type Data = Record<string, unknown>;
 
@@ -46,7 +46,7 @@ export const resolveChangeDefinition = {
     const changeRef = db.doc(`${changesPath(orgId, input.matterId)}/${input.changeId}`);
 
     const result = await db.runTransaction(async (tx) => {
-      const matter = liveMatter(await tx.get(matterRef), role, input.matterId);
+      const matter = writableMatter(await tx.get(matterRef), role, input.matterId);
       const changeSnap = await tx.get(changeRef);
       const change = changeSnap.data();
       if (!changeSnap.exists || !change) {

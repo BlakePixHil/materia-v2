@@ -96,8 +96,14 @@ export interface Row {
  * retrieval hits), so a matter with thousands of documents costs no more than one with three.
  */
 export interface ContextSource {
-  /** `orgs/{orgId}/members/{uid}`, uncached: a suspension or role change takes effect at once. */
-  member(orgId: string, uid: string): Promise<{ status: string; role: Role } | null>;
+  /**
+   * `orgs/{orgId}/members/{uid}`, uncached: a suspension or role change takes effect at once. Also
+   * read for the matter's responsible lawyer, whose name and title go in the matter facts.
+   */
+  member(
+    orgId: string,
+    uid: string,
+  ): Promise<{ status: string; role: Role; displayName?: string; title?: string } | null>;
   /** The org's time zone (`orgs/{orgId}.timezone`). */
   orgTimeZone(orgId: string): Promise<string | undefined>;
   matter(orgId: string, matterId: string): Promise<Row | null>;
@@ -118,4 +124,10 @@ export interface ContextSource {
   documents(orgId: string, matterId: string, ids: readonly string[]): Promise<Row[]>;
   /** Practice rollups (`metrics/{period}`), newest first. */
   metrics(orgId: string, limit: number): Promise<Row[]>;
+  /**
+   * The matter's trust balance snapshot (BILL-11, ADR-035) and the org's out-of-date threshold, or
+   * null while `billing.trustDisplay` or the org's "Show trust balances on matters" is off. Callers
+   * check `billing.view` first.
+   */
+  trustSnapshot(orgId: string, matterId: string): Promise<{ snapshot: Row; staleAfterDays: number } | null>;
 }

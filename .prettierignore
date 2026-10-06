@@ -17,3 +17,5 @@ pnpm-lock.yaml
 /.release-please-manifest.json
 # Generated from libs/clerk/prompts by `materia-scripts clerk-prompts` (AI-02)
 /libs/clerk/src/lib/prompt-sources.generated.ts
+# Generated from libs/clerk/disclosure by `materia-scripts clerk-prompts` (AI-13)
+/libs/domain/src/lib/clerk-disclosure.generated.ts

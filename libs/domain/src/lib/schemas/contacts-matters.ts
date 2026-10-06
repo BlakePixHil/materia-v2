@@ -16,9 +16,11 @@ import {
   JurisdictionSchema,
   MatterStatusSchema,
   MatterTypeSchema,
+  OriginalsOutcomeSchema,
   PrioritySchema,
   ReferralSourceSchema,
   ReferrerIndustrySchema,
+  RetentionHoldSchema,
 } from './enums';
 
 /**
@@ -79,6 +81,21 @@ export const Contact = withMeta(
     serverOwned: ['search', 'dedupeKey', 'sortName', 'mergedInto'],
   },
 );
+
+/**
+ * `matter.closing` (CORE-19): what the closing checklist recorded when `matters-close` closed the
+ * matter, and why it has no destruction date (`holds`) when it has none.
+ */
+export const ClosingRecordSchema = z.object({
+  originals: OriginalsOutcomeSchema.optional(),
+  closingLetterSent: z.boolean(),
+  finalDistributionRecorded: z.boolean(),
+  /** Items closed without being done, each with the lawyer's reason. */
+  overrides: z.record(z.string(), z.string()).optional(),
+  tasksCancelled: z.number().int().min(0).default(0),
+  holds: z.array(RetentionHoldSchema).default([]),
+});
+export type ClosingRecord = z.infer<typeof ClosingRecordSchema>;
 
 /**
  * A fee arrangement's terms (BILL-05): what a revision changes, and the `from` and `to` of each
@@ -190,8 +207,12 @@ export const Matter = withMeta(
     conflictAlert: ConflictAlertSchema.optional(),
     estate: z
       .object({
+        /** Kept by `estate-onWrite` from the estate register once it has records (CORE-16). */
         grossValueCents: CentsSchema.optional(),
+        /** Gross less liabilities; negative for an insolvent estate. */
         netValueCents: CentsSchema.optional(),
+        /** Held back from distribution (tax, costs, contingencies): the residue is shown after it (CORE-16). */
+        reservedCents: z.number().int().min(0).optional(),
         grantType: z.enum(['probate', 'loa', 'loa_with_will', 'reseal']).optional(),
         grantDate: DateOnlySchema.optional(),
         grantNo: z.string().optional(),
@@ -228,8 +249,17 @@ export const Matter = withMeta(
     relatedMatterIds: z.array(DocIdSchema).default([]),
     closedAt: InstantSchema.optional(),
     closeReason: z.string().optional(),
+    /** CORE-19: the day after which the matter may be destroyed; absent while open or held. */
     destroyAfter: DateOnlySchema.optional(),
+    closing: ClosingRecordSchema.optional(),
+    /** Set by the nightly `matters-archiveClosed` (or a manual archive): the matter is read-only. */
+    archivedAt: InstantSchema.optional(),
+    /** Placed and released by owners and admins (`matters-setLegalHold`); `on` blocks destruction. */
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: DocIdSchema, at: InstantSchema }).optional(),
+    /** On the tombstone a destroyed matter leaves (CORE-19); the certificate records what went. */
+    destroyedAt: InstantSchema.optional(),
+    destroyedBy: DocIdSchema.optional(),
+    certificateId: DocIdSchema.optional(),
     budget: MatterBudgetSchema.optional(),
     // Denormalised and server-maintained
     search: SearchTokensSchema,
@@ -244,6 +274,19 @@ export const Matter = withMeta(
     disbursementWipCents: CentsSchema.optional(),
     lastActivityAt: InstantSchema.optional(),
     litigationSummary: z.record(z.string(), z.unknown()).optional(),
+    /** The estate register's totals (CORE-16), kept by `estate-onWrite` so they never need every row. */
+    estateRegister: z
+      .object({
+        grossCents: CentsSchema,
+        liabilitiesCents: CentsSchema,
+        netCents: CentsSchema,
+        outsideCents: CentsSchema,
+        realisedCents: CentsSchema,
+        assetCount: z.number().int().min(0),
+        liabilityCount: z.number().int().min(0),
+        updatedAt: InstantSchema,
+      })
+      .optional(),
     recomputeVersion: z.number().int().min(0).default(0),
     emailToken: z.string().optional(),
     legacyBilling: z.record(z.string(), z.unknown()).optional(),
@@ -281,12 +324,20 @@ export const Matter = withMeta(
       'disbursementWipCents',
       'lastActivityAt',
       'litigationSummary',
+      'estateRegister',
       'recomputeVersion',
       'emailToken',
       'legacyBilling',
       'budget',
       'closedAt',
+      'closeReason',
+      'destroyAfter',
+      'closing',
+      'archivedAt',
       'legalHold',
+      'destroyedAt',
+      'destroyedBy',
+      'certificateId',
       'conflictAlert',
       'stageEnteredOn',
     ],

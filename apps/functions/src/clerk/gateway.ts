@@ -20,7 +20,9 @@ import {
   type PromptVariables,
 } from '@materia/clerk';
 import {
+  clerkAcknowledged,
   DomainError,
+  orgClerkFeatureOn,
   PERMISSIONS,
   type ContextManifest,
   type ContextTruncation,
@@ -48,6 +50,7 @@ import {
   DEFAULT_USER_RATE_LIMIT,
   MAX_RETRIES,
   MAX_TOOL_ROUNDS,
+  meteringDay,
   meteringPeriod,
   type ClerkFeature,
 } from './features';
@@ -234,10 +237,11 @@ function statusFor(stopReason: string): ClerkRunStatus {
 }
 
 /**
- * ClerkGateway (AI-02, AI-02a): the only path from a Clerk feature to Claude. In order: kill
- * switches → the org's key and model → prompt → budget → rate limit → the call (retries, then
- * fallback models; with tools, a loop of tool rounds, AI-06) → status from the stop reason →
- * structured-output validation → citations → metering → message → metadata-only log.
+ * ClerkGateway (AI-02, AI-02a, AI-13): the only path from a Clerk feature to Claude. In order: kill
+ * switches and the org's toggles and disclosure acknowledgement → the org's key and model → prompt
+ * → budget → rate limit → the call (retries, then fallback models; with tools, a loop of tool
+ * rounds, AI-06) → status from the stop reason → structured-output validation → citations →
+ * metering → message → metadata-only log.
  */
 export function createClerkGateway(deps: GatewayDeps) {
   const sleep = deps.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -256,6 +260,13 @@ export function createClerkGateway(deps: GatewayDeps) {
     if (feature.flag && !(await deps.flag(ctx.orgId, feature.flag))) throw disabled(feature.flag);
     const settings = await deps.store.orgSettings(ctx.orgId);
     if (settings.enabled === false) throw disabled('org.settings.clerk.enabled');
+    // The org's own toggles (AI-13): a feature turned off, and the data-use disclosure, which an
+    // owner or admin acknowledges before Clerk first sends the firm's data (again for a new version).
+    const orgFeature = 'orgFeature' in feature ? feature.orgFeature : undefined;
+    if (orgFeature && !orgClerkFeatureOn(settings, orgFeature))
+      throw disabled(`org.settings.clerk.features.${orgFeature}`);
+    if (!('noClientData' in feature && feature.noClientData) && !clerkAcknowledged(settings))
+      throw disabled('org.settings.clerk.acknowledgement');
 
     // 1b. The org's own key and model (BYOK). No key: Clerk is off for the org. A key Anthropic
     // rejected stays unusable until an admin replaces it. Resolved per call, so a rotated key
@@ -275,20 +286,32 @@ export function createClerkGateway(deps: GatewayDeps) {
     // 3. Limits, checked before the call. Budget first, so a blocked call takes no rate slot.
     const at = ctx.clock.now();
     const period = meteringPeriod(at);
+    // The token budget, and the spend limit an admin sets in US cents (AI-13). A limit lowered
+    // below this month's spend blocks Clerk for the rest of the month.
     const budget = settings.monthlyTokenBudget ?? DEFAULT_MONTHLY_TOKEN_BUDGET;
-    const usedTokens = await deps.store.periodTokens(ctx.orgId, period);
-    if (usedTokens >= budget) {
+    const used = await deps.store.periodUsage(ctx.orgId, period);
+    if (used.tokens >= budget) {
       throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk budget used', { period });
+    }
+    if (settings.monthlyBudgetCents !== undefined && used.costMicros >= settings.monthlyBudgetCents * 10_000) {
+      throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk spend limit reached', { period, spend: true });
     }
     const window = settings.userRateLimit ?? DEFAULT_USER_RATE_LIMIT;
     const background = 'background' in feature && feature.background;
-    const allowed =
-      background ||
-      (await deps.store.takeRateSlot(ctx.orgId, ctx.uid, at.getTime(), {
-        requests: window.requests,
-        windowMs: window.windowMinutes * 60_000,
-      }));
-    if (!allowed)
+    const slot = background
+      ? 'ok'
+      : await deps.store.takeRateSlot(ctx.orgId, ctx.uid, at.getTime(), {
+          requests: window.requests,
+          windowMs: window.windowMinutes * 60_000,
+          ...(settings.perUserDailyRequests
+            ? { daily: { limit: settings.perUserDailyRequests, day: meteringDay(at) } }
+            : {}),
+        });
+    if (slot === 'daily')
+      throw new DomainError('CLERK_RATE_LIMITED', 'Daily Clerk request limit reached', {
+        daily: settings.perUserDailyRequests,
+      });
+    if (slot !== 'ok')
       throw new DomainError('CLERK_RATE_LIMITED', 'Too many Clerk requests', { windowMinutes: window.windowMinutes });
 
     // 4. The request: documents and chunks first (the stable, cached prefix), then the question.
@@ -590,7 +613,7 @@ export function createClerkGateway(deps: GatewayDeps) {
       result.model,
       primary,
       usage,
-      { used: usedTokens, limit: budget },
+      { used: used.tokens, limit: budget },
       checked,
     );
     const fallbackUsed = modelIndex > 0 || result.serverFallback;

@@ -52,6 +52,18 @@ export function matchCommands(value: string, commands: readonly ComposerCommand[
   styleUrls: ['../../generated/components/composer.css', '../../generated/components/send.css'],
   imports: [MtIcon, MtIconButton, MtKbd],
   styles: `
+    .mt-composer .mt-composer-hint {
+      flex-wrap: wrap;
+      row-gap: 2px;
+      column-gap: var(--space-6);
+      text-align: right;
+    }
+    .mt-composer .mt-composer-hint .send-keys {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-4);
+      white-space: nowrap;
+    }
     .mt-composer-commands li[data-disabled] {
       cursor: default;
       color: var(--text-tertiary);
@@ -115,7 +127,8 @@ export function matchCommands(value: string, commands: readonly ComposerCommand[
         (click)="attach.emit()"
       ></button>
       <span class="mt-grow mt-composer-hint" [id]="id + '-hint'">
-        Clerk can be wrong. Check the citations. <mt-kbd keys="mod+enter" /> to send
+        <span>Clerk can be wrong. Check the citations.</span>
+        <span class="send-keys"><mt-kbd keys="mod+enter" /> to send</span>
       </span>
       @if (streaming()) {
         <button type="button" class="mt-send" data-stop aria-label="Stop" (click)="stop.emit()">

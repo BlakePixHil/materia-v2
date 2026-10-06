@@ -64,9 +64,18 @@ export class MatterScreen {
   readonly canRunConflicts = can('conflict.run');
   readonly canRenumber = can('matter.renumber');
 
+  readonly canClose = can('matter.close');
+  readonly canLegalHold = can('matter.legalHold');
+
   readonly deleted = computed(() => !!this.matter.value()?.deletedAt);
-  /** Edits are allowed: the role may edit and the matter isn't deleted. */
-  readonly editable = computed(() => this.canEdit() && !this.deleted());
+  /** Closed or archived (CORE-19): read-only here, except notes; reopening brings it back. */
+  readonly closed = computed(() => ['closed', 'archived'].includes(this.matter.value()?.status ?? ''));
+  /** Archived (CORE-19): the rules refuse edits; only lawyers and above add notes. */
+  readonly archived = computed(() => this.matter.value()?.status === 'archived');
+  /** Nothing on the matter is edited here: it's deleted, closed or archived. */
+  readonly readOnly = computed(() => this.deleted() || this.closed());
+  /** Edits are allowed: the role may edit and the matter is live and open. */
+  readonly editable = computed(() => this.canEdit() && !this.readOnly());
 
   /** The key fact being edited inline (Overview), set by its Edit button or a stage requirement. */
   readonly editingFact = signal<KeyFactId | null>(null);

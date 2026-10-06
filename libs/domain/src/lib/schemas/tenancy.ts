@@ -1,6 +1,6 @@
 import * as z from 'zod';
 
-import { ClerkModelChoiceSchema, DEFAULT_CLERK_MODEL } from '../clerk';
+import { OrgClerkSettingsSchema } from '../clerk-settings';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
 import { NotificationPrefsSchema } from '../notifications';
 import { OrgSecuritySchema } from '../security';
@@ -13,6 +13,7 @@ import {
   RoleSchema,
   RoundingSchema,
   ThemeSchema,
+  TrustRecordsSystemSchema,
 } from './enums';
 
 /** A matter number `{TYPE}` code (CORE-21a): 1 to 6 letters or digits. */
@@ -84,33 +85,35 @@ export const Org = withMeta(
     feeDefaults: FeeDefaultsSchema.optional(),
     fy: z.object({ startMonth: z.number().int().min(1).max(12) }),
     retentionYears: z.number().int().min(1).default(7),
+    /** A destroyed matter's tombstone keeps its title (CORE-19); off by default, so only the number stays. */
+    destructionKeepsTitle: z.boolean().optional(),
     plan: z.enum(['trial', 'standard', 'enterprise']),
     /** Security policies (SEC-04), written only by `security-updatePolicy`. */
     security: OrgSecuritySchema,
     settings: z
       .object({
-        clerk: z
-          .object({
-            /** The org's own Clerk switch (AI-13 builds the toggle); `false` turns Clerk off for the org. */
-            enabled: z.boolean().optional(),
-            /** The model Clerk runs on (AI-02a): Sonnet 5.5 unless an admin opts into Opus 5.5 (`clerk-setModel`). */
-            model: ClerkModelChoiceSchema.default(DEFAULT_CLERK_MODEL),
-            /** Monthly token budget (all token kinds); the gateway default applies when unset. */
-            monthlyTokenBudget: z.number().int().positive().optional(),
-            /** Per-user request window; the gateway default (30 per 10 minutes) applies when unset. */
-            userRateLimit: z
-              .object({ requests: z.number().int().positive(), windowMinutes: z.number().int().positive() })
-              .optional(),
-            /** Pages per day Clerk may OCR for the org (AI-04); the ingestion default applies when unset. */
-            ocrDailyPages: z.number().int().min(0).optional(),
-          })
-          .optional(),
+        /** Clerk's switches, limits and disclosure acknowledgement (AI-02a, AI-13); see clerk-settings.ts. */
+        clerk: OrgClerkSettingsSchema.optional(),
         referrals: z
           .object({
             /** A "Thank referrer" task when a referred matter opens (CORE-18). Off unless set. */
             thankYouTask: z.boolean().optional(),
           })
           .optional(),
+      })
+      .optional(),
+    /**
+     * Settings → Trust account (BILL-11, ADR-035): whether matters show the trust balance copied from
+     * the firm's own trust records, which records those are, and when a balance is out of date.
+     * Written only by `trust-updateSettings`, behind `billing.trustDisplay`.
+     */
+    trust: z
+      .object({
+        showOnMatters: z.boolean(),
+        system: TrustRecordsSystemSchema,
+        /** The records' name when `system` is `other` ("In-house trust records"). */
+        otherName: z.string().trim().max(60).optional(),
+        staleAfterDays: z.number().int().min(1).max(365),
       })
       .optional(),
     /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */
@@ -136,6 +139,7 @@ export const Org = withMeta(
       'holidayLocality',
       'retentionYears',
       'billing',
+      'trust',
     ],
   },
 );

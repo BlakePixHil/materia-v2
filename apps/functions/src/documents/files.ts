@@ -49,6 +49,11 @@ export interface FileStore {
   remove(path: string, generation?: string): Promise<void>;
   /** Objects under `prefix` whose names match `glob` (Cloud Storage `matchGlob`). */
   list(prefix: string, glob: string): Promise<StoredObject[]>;
+  /**
+   * Deletes every object under `prefix`, every generation of each (the bucket keeps noncurrent
+   * versions), for retention destruction (CORE-19). Returns how many objects (by name) went.
+   */
+  purge(prefix: string): Promise<number>;
 }
 
 const asObject = (path: string, meta: Record<string, unknown>): StoredObject => ({
@@ -114,6 +119,16 @@ export function storageFiles(bucketName: string = filesBucket()): FileStore {
     async list(prefix, glob) {
       const [files] = await bucket().getFiles({ prefix, matchGlob: glob, autoPaginate: true });
       return files.map((file) => asObject(file.name, file.metadata as Record<string, unknown>));
+    },
+    async purge(prefix) {
+      const [files] = await bucket().getFiles({ prefix, versions: true, autoPaginate: true });
+      const names = new Set<string>();
+      for (const file of files) {
+        names.add(file.name);
+        const generation = file.metadata.generation;
+        await (generation ? bucket().file(file.name, { generation }) : file).delete({ ignoreNotFound: true });
+      }
+      return names.size;
     },
   };
 }

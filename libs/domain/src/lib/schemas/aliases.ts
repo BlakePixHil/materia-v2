@@ -46,6 +46,7 @@ import {
   Notification,
   Integration,
   SafeCustody,
+  TrustSnapshot,
   MigrationRun,
   RuleSetVersion,
   Calendar,
@@ -55,6 +56,7 @@ import { Org, Member, Invite, User, Device } from './tenancy';
 import { RecentMatter, SavedView } from './views';
 import { ConflictCheck } from '../conflicts';
 import { IntakeDraft } from '../intake';
+import { DestructionCertificate, DestructionRequest } from '../retention';
 
 /**
  * Named exports in the `XSchema` / `XCreateSchema` / `XUpdateSchema` form (FND-13). Each is the
@@ -209,6 +211,9 @@ export const IntegrationUpdateSchema = Integration.update;
 export const SafeCustodySchema = SafeCustody.schema;
 export const SafeCustodyCreateSchema = SafeCustody.create;
 export const SafeCustodyUpdateSchema = SafeCustody.update;
+export const TrustSnapshotSchema = TrustSnapshot.schema;
+export const TrustSnapshotCreateSchema = TrustSnapshot.create;
+export const TrustSnapshotUpdateSchema = TrustSnapshot.update;
 export const MigrationRunSchema = MigrationRun.schema;
 export const MigrationRunCreateSchema = MigrationRun.create;
 export const MigrationRunUpdateSchema = MigrationRun.update;
@@ -236,6 +241,12 @@ export const ConflictCheckUpdateSchema = ConflictCheck.update;
 export const IntakeDraftSchema = IntakeDraft.schema;
 export const IntakeDraftCreateSchema = IntakeDraft.create;
 export const IntakeDraftUpdateSchema = IntakeDraft.update;
+export const DestructionRequestSchema = DestructionRequest.schema;
+export const DestructionRequestCreateSchema = DestructionRequest.create;
+export const DestructionRequestUpdateSchema = DestructionRequest.update;
+export const DestructionCertificateSchema = DestructionCertificate.schema;
+export const DestructionCertificateCreateSchema = DestructionCertificate.create;
+export const DestructionCertificateUpdateSchema = DestructionCertificate.update;
 export const RecentMatterSchema = RecentMatter.schema;
 export const RecentMatterCreateSchema = RecentMatter.create;
 export const RecentMatterUpdateSchema = RecentMatter.update;

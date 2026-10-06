@@ -2,7 +2,7 @@ import { PERMISSIONS, RejectTimeEntriesInput, type SetTimeEntryStatusResult } fr
 
 import { auditReview, reviewEntries } from './review';
 import { defineCallable, type CallableDefinition } from '../core/callable';
-import { liveMatter, matterPath } from '../matters/shared';
+import { matterPath, writableMatter } from '../matters/shared';
 
 /**
  * `time-reject` (BILL-03; `time.approve`, idempotent): sends a matter's drafts back to their
@@ -18,7 +18,7 @@ export const rejectDefinition = {
   idempotent: true,
   handler: async (ctx): Promise<SetTimeEntryStatusResult> => {
     const { input, orgId, uid, role, db, clock, log } = ctx;
-    liveMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
+    writableMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
     const at = clock.now();
     const result = await reviewEntries(ctx, input, (data) =>
       data['status'] === 'draft' ? { rejection: { note: input.note, by: uid, at } } : null,

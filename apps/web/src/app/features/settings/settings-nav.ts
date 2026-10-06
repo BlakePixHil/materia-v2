@@ -18,7 +18,7 @@ export const SETTINGS_ADMIN_ROLES: readonly Role[] = ['owner', 'admin'];
 
 /**
  * The Settings pages, in sidebar order. A new settings page adds its route under `settings` in
- * app.routes.ts and an entry here (Clerk settings, AI-13; integrations, INT-03).
+ * app.routes.ts and an entry here (Clerk settings, AI-13; integrations, INT-03; security, SEC-04; trust account, BILL-11).
  */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   // The person's own (CORE-20).
@@ -29,6 +29,15 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { path: 'billing', label: 'Billing and rates', icon: 'billing', group: 'Firm', roles: SETTINGS_ADMIN_ROLES },
   // Everyone: their own sessions; the policy itself is owners' and admins' (SEC-04).
   { path: 'security', label: 'Security', icon: 'lock', group: 'Firm' },
+  // Trust balances copied from the firm's trust records (BILL-11, ADR-035): display only.
+  {
+    path: 'trust',
+    label: 'Trust account',
+    icon: 'scale',
+    group: 'Firm',
+    roles: SETTINGS_ADMIN_ROLES,
+    flag: 'billing.trustDisplay',
+  },
   { path: 'numbering', label: 'Matter numbering', icon: 'list', group: 'Practice', roles: SETTINGS_ADMIN_ROLES },
   {
     path: 'templates',
@@ -38,8 +47,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     roles: SETTINGS_ADMIN_ROLES,
     flag: 'templates.system',
   },
-  // Clerk settings (AI-02a, then AI-13): the route is the Clerk thread's own.
-  { path: 'clerk', label: 'Clerk and AI', icon: 'sparkle', group: 'Clerk', roles: SETTINGS_ADMIN_ROLES },
+  // Clerk and AI (AI-02a, AI-13): everyone; read-only below owners and admins.
+  { path: 'clerk', label: 'Clerk and AI', icon: 'sparkle', group: 'Clerk' },
   { path: 'audit', label: 'Audit log', icon: 'shield', group: 'Records', roles: SETTINGS_ADMIN_ROLES },
 ];
 

@@ -262,7 +262,7 @@ export const ContextManifestSchema = z.object({
   /** Matter records in the facts block; `at` is the record's `updatedAt` (ISO 8601) when known. */
   records: z.array(
     z.object({
-      kind: z.enum(['matter', 'party', 'event', 'deadline', 'task', 'note', 'metrics']),
+      kind: z.enum(['matter', 'party', 'event', 'deadline', 'task', 'note', 'metrics', 'trust']),
       id: DocIdSchema,
       at: z.string().optional(),
     }),

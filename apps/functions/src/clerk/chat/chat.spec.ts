@@ -4,6 +4,7 @@ import type { HttpsError } from 'firebase-functions/v2/https';
 
 import {
   CLERK_CHAT_TOOLS,
+  CLERK_DISCLOSURE_VERSION,
   type RetryClerkMessageResult,
   type Role,
   type SendClerkMessageResult,
@@ -68,7 +69,7 @@ async function world(
       name: 'Fictional Ashdown Legal',
       timezone: 'Australia/Melbourne',
       flags: options.flags ?? FLAGS,
-      settings: { clerk: { ...options.settings } },
+      settings: { clerk: { ackVersion: CLERK_DISCLOSURE_VERSION, ...options.settings } },
     },
     [anthropicKeyPath(ORG)]: {
       provider: 'anthropic',
@@ -434,6 +435,16 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
     expect((await failure(orgOff.send({ text: 'Hello?' }))).details).toMatchObject({
       code: 'CLERK_DISABLED',
       switch: 'org.settings.clerk.enabled',
+    });
+    const chatOff = await world({ settings: { features: { chat: false } } });
+    expect((await failure(chatOff.send({ text: 'Hello?' }))).details).toMatchObject({
+      code: 'CLERK_DISABLED',
+      switch: 'org.settings.clerk.features.chat',
+    });
+    const unacknowledged = await world({ settings: { ackVersion: undefined } });
+    expect((await failure(unacknowledged.send({ text: 'Hello?' }))).details).toMatchObject({
+      code: 'CLERK_DISABLED',
+      switch: 'org.settings.clerk.acknowledgement',
     });
     const noKey = await world();
     noKey.store.docs.delete(anthropicKeyPath(ORG));
