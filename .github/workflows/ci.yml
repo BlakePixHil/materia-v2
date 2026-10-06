@@ -4,8 +4,8 @@
 # Actions minutes are billed, so the `gate` job picks how much of CI a run needs (mode):
 #   full  PRs, the morning run and manual dispatches: every job. PRs skip CodeQL and run e2e in
 #         Chromium only; the morning run adds both (WebKit = iPhone Safari).
-#   main  pushes to main: the fast checks only. e2e, Storybook, the container tests, Terraform
-#         and security already ran on the PR; the morning run repeats them once a day.
+#   main  pushes to main and catch-up runs: the fast checks only. e2e, Storybook, the container
+#         tests, Terraform and security already ran on the PR; the morning run repeats them daily.
 #   docs  docs-only changes: lint (Prettier) only.
 #   skip  pushes to main in quiet hours (22:00-07:30 Melbourne, nobody is testing), and morning
 #         runs with nothing new to deploy. deploy-dev only deploys runs whose `build` job ran,
@@ -17,6 +17,12 @@
 # so a Claude routine ("Morning dev deploy") dispatches this workflow with `morning: true` at 06:31
 # and 07:31 Melbourne (the second catches merges made after the first). The crons stay as a late
 # safety net. A morning run, dispatched or cron, deploys only when dev isn't on main yet.
+#
+# Two-hour batching: every dev deploy rebuilds every function (most of the Google Cloud bill), so
+# deploy-dev skips a daytime push when dev deployed less than two hours ago
+# (.github/scripts/last-dev-deploy.sh). The routine "Dev deploy catch-up" dispatches this workflow
+# with `catchup: true` hourly from 08:00 to 21:00 Melbourne; once the two hours are up, that run
+# (fast checks only) deploys whatever is still waiting.
 # Reproduce any job locally with the commands in AGENTS.md → "CI jobs locally".
 #
 # Third-party code: only GitHub-owned actions are used (actions/*, github/codeql-action). CLI tools
@@ -39,6 +45,10 @@ on:
     inputs:
       morning:
         description: Morning run (skip if dev already runs main)
+        type: boolean
+        default: false
+      catchup:
+        description: Catch-up run (deploy what the two-hour dev deploy limit held back; fast checks only)
         type: boolean
         default: false
 
@@ -82,6 +92,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           BEFORE: ${{ github.event.before }}
           MORNING: ${{ inputs.morning }}
+          CATCHUP: ${{ inputs.catchup }}
         run: .github/scripts/ci-gate.sh
 
   changes:
