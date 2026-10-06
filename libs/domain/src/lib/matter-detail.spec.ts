@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ChangeMatterStageInput,
+  changedKeyFacts,
   clientContactIdsFrom,
   DEFAULT_MATTER_STAGES,
+  keyFactCitations,
   keyFactEditable,
   keyFactPatch,
   keyFactsFor,
@@ -15,6 +17,7 @@ import {
   unmetStageRequirements,
   UpsertPartyInput,
 } from './matter-detail';
+import { FactCitation } from './schemas/clerk';
 import { Matter } from './schemas/contacts-matters';
 import { MatterTypeSchema } from './schemas/enums';
 
@@ -75,6 +78,55 @@ describe('key facts', () => {
       privileged: true,
     });
     expect(update).toMatchObject({ facts: { courtFileNo: 'S ECI 2026 01234' }, privileged: true });
+  });
+});
+
+describe('key fact citations (CORE-06a)', () => {
+  const cite = {
+    kind: 'document' as const,
+    documentId: 'd-will',
+    docVersion: 1,
+    page: 2,
+    quote: 'Signed on 3 May 2019.',
+  };
+
+  it('lists the facts a write changed', () => {
+    const before = { deceased, estate: { grantNo: 'S PRB 1', grossValueCents: 10 }, facts: { willDate: '2019-05-03' } };
+    expect(changedKeyFacts(before, before)).toEqual([]);
+    expect(
+      changedKeyFacts(before, {
+        deceased: { ...deceased, dateOfDeath: '2026-03-03' },
+        estate: { grantNo: 'S PRB 1', grossValueCents: 11 },
+        facts: {},
+      }),
+    ).toEqual(['dateOfDeath', 'willDate', 'grossValue']);
+    // Fields that aren't key facts don't count.
+    expect(changedKeyFacts(before, { ...before, estate: { ...before.estate, grantType: 'probate' } })).toEqual([]);
+  });
+
+  it('shows the citations only while the fact has the value they were kept with', () => {
+    const record = { value: '2019-05-03', citations: [cite] };
+    expect(keyFactCitations({ facts: { willDate: '2019-05-03' } }, 'willDate', record)).toEqual([cite]);
+    expect(keyFactCitations({ facts: { willDate: '2019-05-04' } }, 'willDate', record)).toEqual([]);
+    expect(keyFactCitations({}, 'willDate', record)).toEqual([]);
+    expect(keyFactCitations({ facts: { willDate: '2019-05-03' } }, 'willDate', undefined)).toEqual([]);
+    // Cents compare as numbers.
+    const money = { value: 125_000_00, citations: [cite] };
+    expect(keyFactCitations({ estate: { grossValueCents: 125_000_00 } }, 'grossValue', money)).toEqual([cite]);
+    expect(keyFactCitations({ estate: { grossValueCents: 125_000_01 } }, 'grossValue', money)).toEqual([]);
+  });
+
+  it('stores at least one citation, for a known fact, and is written by functions only', () => {
+    const base = { factId: 'willDate', value: '2019-05-03', citations: [cite], suggestionId: 's-1' };
+    expect(FactCitation.create.parse(base)).toMatchObject({ privileged: false, citations: [cite] });
+    expect(FactCitation.create.safeParse({ ...base, citations: [] }).success).toBe(false);
+    expect(FactCitation.create.safeParse({ ...base, factId: 'trustName' }).success).toBe(false);
+    expect(FactCitation.create.safeParse({ ...base, value: 12.5 }).success).toBe(false);
+    // A stored citation's old field names still read (`version` as `docVersion`).
+    const legacy = { kind: 'document', documentId: 'd-will', version: 2, page: 1, quote: 'x' };
+    expect(FactCitation.create.parse({ ...base, citations: [legacy] }).citations[0]).toMatchObject({ docVersion: 2 });
+    expect(Object.keys(FactCitation.update.shape)).toEqual([]);
+    expect(FactCitation.path).toBe('orgs/{orgId}/matters/{matterId}/factCitations');
   });
 });
 

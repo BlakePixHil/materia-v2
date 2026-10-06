@@ -115,6 +115,26 @@ export function keyFactPatch(
   }
 }
 
+/** The key facts whose values differ between two versions of a matter. */
+export function changedKeyFacts(before: FactMatter, after: FactMatter): KeyFactId[] {
+  return KeyFactIdSchema.options.filter((id) => keyFactValue(before, id) !== keyFactValue(after, id));
+}
+
+/** What a key fact's citations are stored with (`FactCitation`): the value they support. */
+export interface FactCitationLike<C> {
+  value: string | number;
+  citations: readonly C[];
+}
+
+/**
+ * Where a key fact's value came from (CORE-06a, ADR-049): the citations kept when a person accepted
+ * Clerk's suggestion for it, while the fact still has the value they were kept with. None once the
+ * fact changed (a person edited it): `matters-denormalise` then deletes the stale record.
+ */
+export function keyFactCitations<C>(matter: FactMatter, id: KeyFactId, record: FactCitationLike<C> | undefined): C[] {
+  return record && keyFactValue(matter, id) === record.value ? [...record.citations] : [];
+}
+
 // ---------- stages ----------
 
 export interface MatterStage {

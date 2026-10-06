@@ -10,11 +10,11 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
 /**
  * Citations (AI-05) against the emulators: a Clerk suggestion on the matter Overview cites the
- * fictional will fixture. Opening a chip opens the citation viewer at the cited page with the
- * quote highlighted from PDF.js's text layer (the bytes come from `documents-getDownloadUrl`, the
- * PDF from the Storage emulator); `]` and `[` step through the sources, Esc closes. A deleted
- * source reads "Removed document" with its quote; a privileged one reads "Restricted source" to a
- * paralegal. Fictional data only.
+ * fictional will fixture, and so does a key fact accepted from Clerk (CORE-06a). Opening a chip
+ * opens the citation viewer at the cited page with the quote highlighted from PDF.js's text layer
+ * (the bytes come from `documents-getDownloadUrl`, the PDF from the Storage emulator); `]` and `[`
+ * step through the sources, Esc closes. A deleted source reads "Removed document" with its quote;
+ * a privileged one reads "Restricted source" to a paralegal. Fictional data only.
  */
 
 const MATTER = 'm-ledger';
@@ -115,6 +115,25 @@ async function setUp(page: Page, request: APIRequestContext, role: 'lawyer' | 'p
   const { basis, parts } = suggestionBasis(
     suggestionBasisParts({ kind: 'task', payload, citations }, { matter, documents }),
   );
+  // A key fact Clerk read from the will's attestation clause (CORE-06a).
+  const fact = { field: 'willDate', value: '2019-05-03' };
+  const factCitations = [cite('d-will', 2, 'Signed by the will-maker in our presence on 3 May 2019 (fictional).')];
+  const factBasis = suggestionBasis(
+    suggestionBasisParts({ kind: 'key_fact', payload: fact, citations: factCitations }, { matter, documents }),
+  );
+  const proposed = {
+    status: 'proposed',
+    promptId: 'suggest-matter',
+    promptVersion: '1.0.0',
+    model: 'claude-sonnet-5-5',
+    privileged: false,
+    expiresAt: new Date(Date.now() + 14 * DAY),
+    orgId,
+    matterId: MATTER,
+    ...meta,
+    createdBy: 'clerk',
+    updatedBy: 'clerk',
+  };
   await setEmulatorDocuments(request, [
     { path: base, data: matter },
     ...Object.entries(documents).map(([id, data]) => ({ path: `${base}/documents/${id}`, data })),
@@ -125,20 +144,23 @@ async function setUp(page: Page, request: APIRequestContext, role: 'lawyer' | 'p
         payload,
         citations,
         rationale: 'The will leaves the residue to one daughter.',
-        status: 'proposed',
-        promptId: 'suggest-matter',
-        promptVersion: '1.0.0',
-        model: 'claude-sonnet-5-5',
-        privileged: false,
         basis,
         basisParts: parts,
         dedupeKey: `task:${JSON.stringify(payload)}`,
-        expiresAt: new Date(Date.now() + 14 * DAY),
-        orgId,
-        matterId: MATTER,
-        ...meta,
-        createdBy: 'clerk',
-        updatedBy: 'clerk',
+        ...proposed,
+      },
+    },
+    {
+      path: `${base}/suggestions/s-will-date`,
+      data: {
+        kind: 'key_fact',
+        payload: fact,
+        citations: factCitations,
+        rationale: 'The attestation clause dates the will.',
+        basis: factBasis.basis,
+        basisParts: factBasis.parts,
+        dedupeKey: `key_fact:${fact.field}|${fact.value}`,
+        ...proposed,
       },
     },
   ]);
@@ -192,6 +214,41 @@ test.describe('Citations', () => {
     await page.keyboard.press('Escape');
     await expect(viewer(page)).toHaveCount(0);
     await expect(chip(page, 1)).toBeFocused();
+  });
+
+  test('a key fact accepted from Clerk keeps its source, until a person edits it (CORE-06a)', async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    await setUp(page, request, 'lawyer');
+    await page.goto(OVERVIEW);
+
+    const facts = page.getByRole('region', { name: 'Key facts' });
+    const suggestion = page
+      .getByRole('region', { name: 'Clerk suggests…' })
+      .getByRole('group', { name: 'Clerk suggestion: Will date: 2019-05-03' });
+    await suggestion.getByRole('button', { name: 'Save fact' }).click(SERVER);
+    const source = facts.getByRole('button', { name: 'Source: Will of Margaret Ledger (fictional).pdf p 2' });
+    await expect(source).toBeVisible(SERVER);
+
+    await source.click();
+    const dialog = page.getByRole('dialog', { name: 'Will of Margaret Ledger (fictional).pdf, p 2' });
+    await expect(dialog).toBeVisible(SERVER);
+    await expect(dialog.getByLabel('Quoted passage')).toHaveText(
+      'Signed by the will-maker in our presence on 3 May 2019 (fictional).',
+    );
+    await expect(viewer(page).locator('[data-page="2"] mark[data-highlight]').first()).toBeVisible(SERVER);
+    await expectNoA11yViolations(page);
+    await page.keyboard.press('Escape');
+    await expect(viewer(page)).toHaveCount(0);
+    await expect(source).toBeFocused();
+
+    // A person's edit drops the source.
+    await facts.getByRole('button', { name: 'Edit Will date' }).click();
+    await facts.getByRole('textbox', { name: 'Will date' }).fill('04/05/2019');
+    await facts.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(facts.getByRole('button', { name: /^Source:/ })).toHaveCount(0, SERVER);
   });
 
   test('a privileged source is restricted for a paralegal and never opens', async ({ page, request }) => {
