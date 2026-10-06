@@ -123,6 +123,8 @@ export function firestoreTimerPort(source: FirestoreSource): TimerPort {
     const handle = await source.get();
     return { handle, ref: handle.sdk.doc(handle.db, `users/${uid}/timer/${TIMER_DOC_ID}`) };
   };
+  // Counted for sign-out's "You have unsynced changes" until the server has them.
+  const tracked = <T>(write: Promise<T>) => source.track?.(write) ?? write;
   const read = (snap: DocumentSnapshot<DocumentData>) =>
     snap.exists() ? readTimer(snap.data({ serverTimestamps: 'estimate' })) : null;
   return {
@@ -174,7 +176,7 @@ export function firestoreTimerPort(source: FirestoreSource): TimerPort {
       try {
         if (options.offline) {
           // The caller checks the timer it has (from the listener's cache) first. Not awaited: offline it resolves only once the server has it.
-          void sdk.setDoc(docRef, data(options.now, true)).catch(() => undefined);
+          void tracked(sdk.setDoc(docRef, data(options.now, true))).catch(() => undefined);
           return { started: true };
         }
         return await sdk.runTransaction(handle.db, async (tx) => {
@@ -194,14 +196,16 @@ export function firestoreTimerPort(source: FirestoreSource): TimerPort {
       const now = sdk.serverTimestamp();
       const { startedAt, forgottenSeenAt, ...rest } = patch;
       try {
-        await sdk.updateDoc(docRef, {
-          ...rest,
-          ...(startedAt ? { startedAt: startedAt === 'server' ? now : startedAt } : {}),
-          ...(forgottenSeenAt ? { forgottenSeenAt: now } : {}),
-          lastHeartbeatAt: now,
-          updatedAt: now,
-          updatedBy: uid,
-        });
+        await tracked(
+          sdk.updateDoc(docRef, {
+            ...rest,
+            ...(startedAt ? { startedAt: startedAt === 'server' ? now : startedAt } : {}),
+            ...(forgottenSeenAt ? { forgottenSeenAt: now } : {}),
+            lastHeartbeatAt: now,
+            updatedAt: now,
+            updatedBy: uid,
+          }),
+        );
       } catch (error) {
         throw toDomainError(error, 'write');
       }
@@ -210,7 +214,7 @@ export function firestoreTimerPort(source: FirestoreSource): TimerPort {
     async discard(uid) {
       const { handle, ref: docRef } = await ref(uid);
       try {
-        await handle.sdk.deleteDoc(docRef);
+        await tracked(handle.sdk.deleteDoc(docRef));
       } catch (error) {
         throw toDomainError(error, 'write');
       }
