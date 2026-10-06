@@ -206,7 +206,7 @@ describe('matters-createMatter intake (CORE-05)', () => {
       facts: { willDate: '2018-11-20' },
       estate: { grantType: 'probate' },
       fee: { arrangement: 'fixed', amountCents: 385000, history: [] },
-      costsDisclosure: { status: 'required', estimateCents: 385000 },
+      costsDisclosure: { status: 'required', basisEstimateCents: 385000 },
       conflictCheck: { status: 'clear', resultId: check.checkId, checkedBy: uidOf('lawyer') },
       clientContactIds: [newClient],
     });
@@ -332,7 +332,7 @@ describe('matters-createMatter intake (CORE-05)', () => {
     expect(await data(`${M}/${matterId}`)).toMatchObject({
       status: 'lead',
       testator: { contactId: 'c-rhea' },
-      costsDisclosure: { status: 'not_required', estimateCents: 55000 },
+      costsDisclosure: { status: 'not_required', basisEstimateCents: 55000 },
       conflictCheck: {
         status: 'conflict',
         resultId: check.checkId,

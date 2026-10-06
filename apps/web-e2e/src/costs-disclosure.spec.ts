@@ -88,7 +88,7 @@ test.describe('Costs disclosure', () => {
     );
     await panel.getByRole('button', { name: 'Generate disclosure' }).click();
     expect((await generated).ok()).toBe(true);
-    await expect(page.getByText(/Costs disclosure .* added to Documents/)).toBeVisible(FIRST_CALL);
+    await expect(page.getByText(/Costs disclosure .* added to Documents/).first()).toBeVisible(FIRST_CALL);
     await expect(panel.getByRole('link', { name: 'Open the latest generated disclosure' })).toBeVisible(FIRST_LOAD);
 
     // Record it as sent today, by email.
