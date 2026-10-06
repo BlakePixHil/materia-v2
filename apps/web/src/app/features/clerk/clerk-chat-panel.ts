@@ -67,6 +67,7 @@ import { ClerkPanel } from '../../core/clerk/clerk-panel';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { startTrace } from '../../core/observability/perf';
 import { CitationScope, CitationSources } from '../citations/citation-sources';
 import { CitationViewer } from '../citations/citation-viewer';
 
@@ -453,6 +454,8 @@ export class ClerkChatPanel {
   protected readonly sending = signal(false);
   protected readonly notice = signal<string | null>(null);
   protected readonly reasonsFor = signal<string | null>(null);
+  /** The clerk_first_token trace (FND-21): from Send or Retry to the answer's first words. */
+  private readonly firstToken = signal<{ done: () => void; messageId: string | null } | null>(null);
   private readonly log = viewChild<ElementRef<HTMLElement>>('log');
 
   private readonly threadRepo = clerkThreadRepository();
@@ -503,6 +506,15 @@ export class ClerkChatPanel {
     effect(() => {
       const cited = this.messages().flatMap((message) => message.citations as CitationInput[]);
       untracked(() => this.sources.want(cited));
+    });
+    // The first words of the answer being timed end its trace. An answer that ends without any
+    // (an error, a refusal, stopped early) isn't timed.
+    effect(() => {
+      const timing = this.firstToken();
+      const answer = timing?.messageId ? this.messages().find((message) => message.id === timing.messageId) : null;
+      if (!timing || !answer) return;
+      if (messageText(answer)) timing.done();
+      if (messageText(answer) || answer.status !== 'streaming') untracked(() => this.firstToken.set(null));
     });
     // Keep the newest message in view as it streams.
     effect(() => {
@@ -592,6 +604,7 @@ export class ClerkChatPanel {
     this.sending.set(true);
     this.sendError.set(null);
     this.notice.set(null);
+    const done = startTrace('clerk_first_token');
     try {
       const threadId = this.threadId();
       const result = await this.api.send({
@@ -601,6 +614,7 @@ export class ClerkChatPanel {
         ...(threadId ? { threadId } : {}),
       });
       this.threadId.set(result.threadId);
+      this.firstToken.set({ done, messageId: result.messageId });
       this.attachments.set([]);
       this.attachOpen.set(false);
       if (result.continuedFrom)
@@ -628,8 +642,10 @@ export class ClerkChatPanel {
     const threadId = this.threadId();
     if (!threadId) return;
     this.sendError.set(null);
+    const done = startTrace('clerk_first_token');
     try {
-      await this.api.retry({ threadId, messageId: message.id });
+      const { messageId } = await this.api.retry({ threadId, messageId: message.id });
+      this.firstToken.set({ done, messageId });
     } catch (error) {
       this.sendError.set(error);
     }

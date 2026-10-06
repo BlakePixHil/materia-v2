@@ -3,9 +3,9 @@ import path from 'node:path';
 
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 
-import type { FlagKey } from '@materia/domain';
+import { DEFAULT_OCR_DAILY_PAGES, type FlagKey } from '@materia/domain';
 
-import { DEFAULT_OCR_DAILY_PAGES, nextBudgetDay, reserveOcrPages } from './budget';
+import { nextBudgetDay, reserveOcrPages } from './budget';
 import { chunkId } from './chunks';
 import { gatewayIngestClerk, OcrUnavailableError, type IngestClerk } from './clerk';
 import { backfillIngest, needsIngest, onIngestChangeHandler } from './index';

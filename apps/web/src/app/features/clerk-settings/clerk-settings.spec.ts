@@ -51,7 +51,7 @@ class ClerkPort extends FakeAuthPort {
     const clerk = { ...(settings.clerk ?? {}) };
     if (input['enabled'] !== undefined) clerk['enabled'] = input['enabled'];
     if (input['features']) clerk['features'] = { ...(clerk['features'] as object), ...(input['features'] as object) };
-    for (const field of ['monthlyBudgetCents', 'perUserDailyRequests']) {
+    for (const field of ['monthlyBudgetCents', 'perUserDailyRequests', 'ocrDailyPages']) {
       if (input[field] !== undefined) clerk[field] = input[field];
     }
     const kept = Object.fromEntries(Object.entries(clerk).filter(([, value]) => value !== null));
@@ -228,14 +228,33 @@ describe('Settings → Clerk and AI', () => {
     const dialog = document.body.querySelector<HTMLElement>('.mt-dialog');
     expect(dialog?.textContent).toContain('Stop Clerk for the rest of the month?');
     await page.click('Set the limit', dialog ?? undefined);
-    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({ monthlyBudgetCents: 250, perUserDailyRequests: 200 });
+    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({
+      monthlyBudgetCents: 250,
+      perUserDailyRequests: 200,
+      ocrDailyPages: null,
+    });
     expect(page.clerk()).toMatchObject({ monthlyBudgetCents: 250, perUserDailyRequests: 200 });
     expect(page.el.querySelector('[data-budget-reached]')).not.toBeNull();
 
     // Clearing a limit sends null.
     await page.type('Monthly spend limit', '');
     await page.click('Save limits');
-    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({ monthlyBudgetCents: null, perUserDailyRequests: 200 });
+    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({
+      monthlyBudgetCents: null,
+      perUserDailyRequests: 200,
+      ocrDailyPages: null,
+    });
+
+    // The daily scanned-page limit: 0 stops reading scans; empty goes back to the default.
+    await page.type('Scanned pages read per day', '-1');
+    expect(page.text()).toContain('Enter a whole number from 0');
+    await page.type('Scanned pages read per day', '0');
+    await page.click('Save limits');
+    expect(page.calls('clerk-updateSettings').at(-1)).toMatchObject({ ocrDailyPages: 0 });
+    expect(page.clerk()).toMatchObject({ ocrDailyPages: 0 });
+    await page.type('Scanned pages read per day', '');
+    await page.click('Save limits');
+    expect(page.calls('clerk-updateSettings').at(-1)).toMatchObject({ ocrDailyPages: null });
   });
 
   it('shows a lawyer what is on and the disclosure, read-only, with no key, limits or usage', async () => {
