@@ -119,6 +119,7 @@ service firebase.storage {
         'billing.view': ['owner', 'admin', 'lawyer'],
         'billing.issue': ['owner', 'admin'],
         'billing.void': ['owner', 'admin'],
+        'trust.record': ['owner', 'admin', 'lawyer'],
         'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
         'clerk.configure': ['owner', 'admin'],
         'members.manage': ['owner', 'admin'],

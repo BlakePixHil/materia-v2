@@ -13,6 +13,7 @@ import {
   RoleSchema,
   RoundingSchema,
   ThemeSchema,
+  TrustRecordsSystemSchema,
 } from './enums';
 
 /** A matter number `{TYPE}` code (CORE-21a): 1 to 6 letters or digits. */
@@ -113,6 +114,20 @@ export const Org = withMeta(
           .optional(),
       })
       .optional(),
+    /**
+     * Settings → Trust account (BILL-11, ADR-035): whether matters show the trust balance copied from
+     * the firm's own trust records, which records those are, and when a balance is out of date.
+     * Written only by `trust-updateSettings`, behind `billing.trustDisplay`.
+     */
+    trust: z
+      .object({
+        showOnMatters: z.boolean(),
+        system: TrustRecordsSystemSchema,
+        /** The records' name when `system` is `other` ("In-house trust records"). */
+        otherName: z.string().trim().max(60).optional(),
+        staleAfterDays: z.number().int().min(1).max(365),
+      })
+      .optional(),
     /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */
     flags: z.record(z.string(), z.union([z.boolean(), z.string(), z.number()])).optional(),
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: z.string(), at: InstantSchema }).optional(),
@@ -136,6 +151,7 @@ export const Org = withMeta(
       'holidayLocality',
       'retentionYears',
       'billing',
+      'trust',
     ],
   },
 );

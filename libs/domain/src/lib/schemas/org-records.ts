@@ -570,6 +570,28 @@ export const RuleSetVersion = withMeta(
 );
 
 /**
+ * `trustSnapshots/{matterId}` (BILL-11, ADR-035): the trust balance held for a matter, as copied by
+ * hand from the firm's own trust records on `asAt`. Never a ledger: no transactions and no running
+ * balance, only the latest copy. Its own collection (not a matter field) so only `billing.view`
+ * roles can read it. Written only by `trust-recordSnapshot`; each change is audited, which is the
+ * history. Never put on invoices, client exports or emails.
+ */
+export const TrustSnapshot = withMeta(
+  {
+    matterId: DocIdSchema,
+    amountCents: CentsSchema.refine((value) => value >= 0, { message: 'A trust balance can’t be negative' }),
+    asAt: DateOnlySchema,
+    source: z.literal('manual'),
+    /** The records it was copied from, as named in Settings → Trust account when it was recorded. */
+    sourceSystemName: NonEmptyString.max(60),
+    note: z.string().trim().max(200).optional(),
+    recordedBy: DocIdSchema,
+    recordedAt: InstantSchema,
+  },
+  { path: `${ORG}/trustSnapshots`, migratable: false, updatable: [] },
+);
+
+/**
  * `calendars/{calendarId}-{year}` (global): public holidays and court/registry closures for one
  * calendar (CORE-09): court calendars (VIC_SUPREME_COURT) and firm locality calendars
  * (VIC_GREATER_GEELONG). `verified` is set once a person has checked it against official sources.
@@ -611,6 +633,7 @@ export type Metrics = z.infer<typeof Metrics.schema>;
 export type AuditEntry = z.infer<typeof AuditEntry.schema>;
 export type Integration = z.infer<typeof Integration.schema>;
 export type SafeCustody = z.infer<typeof SafeCustody.schema>;
+export type TrustSnapshot = z.infer<typeof TrustSnapshot.schema>;
 export type MigrationRun = z.infer<typeof MigrationRun.schema>;
 export type RuleSetVersion = z.infer<typeof RuleSetVersion.schema>;
 export type Calendar = z.infer<typeof Calendar.schema>;

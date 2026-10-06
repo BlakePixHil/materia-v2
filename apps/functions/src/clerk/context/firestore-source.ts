@@ -1,8 +1,9 @@
 import { FieldPath, type Firestore, type QuerySnapshot } from 'firebase-admin/firestore';
 
-import { contactDisplayName, RoleSchema, type Contact } from '@materia/domain';
+import { contactDisplayName, RoleSchema, trustSettingsOf, type Contact } from '@materia/domain';
 
 import type { ContextSource, Row } from './ports';
+import { isEnabled } from '../../core/flags';
 
 const rows = (snap: QuerySnapshot): Row[] => snap.docs.map((doc) => ({ id: doc.id, data: doc.data() }));
 
@@ -90,6 +91,16 @@ export function firestoreContextSource(db: Firestore): ContextSource {
       return rows(
         await db.collection(`orgs/${orgId}/metrics`).orderBy(FieldPath.documentId(), 'desc').limit(limit).get(),
       );
+    },
+
+    async trustSnapshot(orgId, matterId) {
+      if (!(await isEnabled({ orgId, db, clock: { now: () => new Date() } }, 'billing.trustDisplay'))) return null;
+      const settings = trustSettingsOf((await db.doc(`orgs/${orgId}`).get()).data());
+      if (!settings.showOnMatters) return null;
+      const snap = await db.doc(`orgs/${orgId}/trustSnapshots/${matterId}`).get();
+      return snap.exists
+        ? { snapshot: { id: snap.id, data: snap.data() ?? {} }, staleAfterDays: settings.staleAfterDays }
+        : null;
     },
   };
 }
