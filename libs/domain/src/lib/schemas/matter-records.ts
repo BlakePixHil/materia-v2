@@ -534,6 +534,11 @@ export const MatterDocument = withMeta(
     renditions: DocumentRenditionsSchema.optional(),
     /** Name tokens for ⌘K (CORE-15), kept by `documents-onWrite`; empty until then. */
     search: SearchTokensSchema.default([]),
+    /** The docx template and version it was generated from (`docs-generate`, INT-06). */
+    generatedFrom: z
+      .object({ templateId: DocIdSchema, version: z.number().int().min(1) })
+      .strict()
+      .optional(),
   },
   {
     path: `${MATTER}/documents`,
@@ -557,6 +562,7 @@ export const MatterDocument = withMeta(
       'pageCount',
       'encrypted',
       'search',
+      'generatedFrom',
     ],
     updatable: ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes'],
   },

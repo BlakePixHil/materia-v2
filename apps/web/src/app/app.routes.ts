@@ -344,6 +344,16 @@ const shellRoutes: Route[] = [
           },
         ],
       },
+      // Document templates and the letterhead (INT-06): owners and admins (`org.settings`).
+      {
+        path: 'document-templates',
+        title: 'Document templates',
+        data: { crumb: 'Document templates' },
+        canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () =>
+          import('./features/document-templates/document-templates-page').then((m) => m.DocumentTemplatesPage),
+      },
       // Clerk and AI (AI-02a, AI-13): owners and admins change it (`clerk.configure`); everyone
       // else sees which features are on and the data-use disclosure.
       {

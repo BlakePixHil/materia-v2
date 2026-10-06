@@ -605,7 +605,26 @@ export const makeMatterTemplateVersion = (o: Partial<D.MatterTemplateVersion> = 
 export const makeDocTemplate = (o: Partial<D.DocTemplate> = {}) =>
   build(
     D.DocTemplate,
-    { name: 'Engagement letter', storagePath: `orgs/${TEST_ORG_ID}/docTemplates/engagement.docx` },
+    {
+      name: 'Engagement letter',
+      kind: 'letter',
+      storagePath: `orgs/${TEST_ORG_ID}/docTemplates/doctemplate-1/v1.docx`,
+      fields: ['client.fullName', 'matter.number'],
+      version: 1,
+      versions: [
+        {
+          version: 1,
+          storagePath: `orgs/${TEST_ORG_ID}/docTemplates/doctemplate-1/v1.docx`,
+          fileName: 'engagement.docx',
+          sizeBytes: 1024,
+          sha256: sha,
+          fields: ['client.fullName', 'matter.number'],
+          warnings: [],
+          uploadedAt: FIXED_INSTANT,
+          uploadedBy: TEST_UID,
+        },
+      ],
+    },
     o,
   );
 
