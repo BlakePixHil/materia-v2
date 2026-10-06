@@ -10,7 +10,7 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 
 import {
   suggestionCallables,
@@ -234,7 +234,6 @@ export class SuggestionCard {
   private readonly defaultApi = suggestionCallables(inject(CALLABLES));
   private readonly toasts = inject(ToastService);
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
 
   protected readonly vm = computed(() => suggestionVm(this.item()));
   protected readonly kindLabel = computed(() => SUGGESTION_KIND_LABELS[this.item().kind].toLowerCase());
@@ -383,8 +382,8 @@ export class SuggestionCard {
   }
 
   protected openCitation(event: CitationOpenEvent): void {
-    void this.router.navigate(['..', 'documents', event.documentId], {
-      relativeTo: this.route,
+    // Absolute, so the card works off the matter too (the Inbox, CORE-22a).
+    void this.router.navigate(['/matters', this.matterId(), 'documents', event.documentId], {
       ...(event.page ? { queryParams: { page: event.page } } : {}),
     });
   }

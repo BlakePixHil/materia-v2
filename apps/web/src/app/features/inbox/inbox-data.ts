@@ -32,6 +32,7 @@ import { errorCopy } from '../../core/error-copy';
 import { dayKey, dayLabel, notificationMatterId, notificationTime } from '../../core/notifications/notification-view';
 import { DeadlineActions } from '../deadlines/deadline-actions';
 import { deadlineErrorCopy } from '../deadlines/deadline-view';
+import type { SuggestionResolved } from '../suggestions/suggestion-card';
 import { lookupEntry, type TodayMatterRef } from '../today/today-view';
 
 /** The action a notification offers in its row (CORE-22). */
@@ -61,6 +62,13 @@ export function inboxAction(item: NotificationItem): InboxAction | null {
     default:
       return null;
   }
+}
+
+/** The suggestion a notification is about, to review in the Inbox (CORE-22a). */
+export function inboxSuggestion(item: NotificationItem): { matterId: string; suggestionId: string } | null {
+  return (item.kind === 'suggestion' || item.kind === 'suggestion_ready') && item.suggestionId
+    ? { matterId: item.matterId, suggestionId: item.suggestionId }
+    : null;
 }
 
 /** One row of the list: a notification, or a burst member shown under its summary. */
@@ -183,7 +191,8 @@ export class InboxData {
     return this.rows().filter((item) => ids.has(item.id));
   });
 
-  private readonly names = computed(
+  /** Member display names by uid. */
+  readonly names = computed(
     () => new Map(this.members.value().map((member) => [member.id, member.displayName] as const)),
   );
 
@@ -492,8 +501,21 @@ export class InboxData {
     if (done) void this.markRead([item], true);
   }
 
-  /** Review: the suggestion on its matter (AI-07's review card), or the integration to reconnect. */
+  /** Reconnect, or Review on a notification without its suggestion: where the notification leads. */
   async follow(item: NotificationItem): Promise<void> {
     await this.open(item);
+  }
+
+  /** What happened to a suggestion reviewed here (CORE-22a): said in its row, and read. */
+  reviewed(item: NotificationItem, outcome: SuggestionResolved['outcome']): void {
+    this.say(
+      item,
+      outcome === 'dismissed'
+        ? 'You dismissed it'
+        : outcome === 'edited'
+          ? 'You accepted it with changes'
+          : 'You accepted it',
+    );
+    void this.markRead([item], true);
   }
 }

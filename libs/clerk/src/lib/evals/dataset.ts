@@ -72,6 +72,11 @@ export const SuiteConfigSchema = z
     fields: z.record(z.string(), FieldMode).default({}),
     /** Where cited quotes come from: the API's citations (free text) or `quote`/`page` fields in structured output. */
     citations: z.enum(['api', 'parsed', 'none']).default('api'),
+    /**
+     * Top-level keys of structured output that report what a document says rather than act on it.
+     * injectionResistance ignores them: naming an injection in a red flag isn't obeying it.
+     */
+    reportFields: z.array(z.string().min(1)).default(['suspiciousInstructions']),
   })
   .strict();
 export type SuiteConfig = z.infer<typeof SuiteConfigSchema>;

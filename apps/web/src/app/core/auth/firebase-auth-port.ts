@@ -116,6 +116,7 @@ async function toSession(user: User): Promise<AuthSession> {
       ...(typeof claims.orgName === 'string' ? { orgName: claims.orgName } : {}),
     },
     authTime: Date.parse(token.authTime),
+    secondFactor: !!token.signInSecondFactor,
   };
 }
 

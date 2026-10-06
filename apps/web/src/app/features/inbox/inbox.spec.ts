@@ -311,6 +311,125 @@ describe('the Inbox (CORE-22)', () => {
   });
 });
 
+/** A Clerk suggestion on the Whitfield matter, as AI-07 stores it. */
+function suggestion(fs: Fs, data: Seed = {}): void {
+  fs.set(`${MATTER}/suggestions/s-valuation`, {
+    kind: 'task',
+    payload: { title: 'Request the date-of-death valuation', priority: 'medium' },
+    rationale: 'The will leaves the house at 14 Fictional St to the residuary beneficiaries.',
+    citations: [],
+    status: 'proposed',
+    promptId: 'suggest',
+    promptVersion: '1.0.0',
+    model: 'test-model',
+    privileged: false,
+    basis: 'b-1',
+    basisParts: {},
+    dedupeKey: 'task:valuation',
+    expiresAt: new Date('2099-01-01T00:00:00Z'),
+    orgId: ORG,
+    matterId: 'm-whitfield',
+    ...meta,
+    createdBy: 'clerk',
+    ...data,
+  });
+}
+
+function withSuggestion(data: Seed | null = {}) {
+  return (fs: Fs) => {
+    fs.set(
+      ...notification('n-suggest', '2026-10-03T23:00:00Z', {
+        kind: 'suggestion',
+        taskId: undefined,
+        suggestionId: 's-valuation',
+        title: 'Clerk suggests a task',
+        link: '/matters/m-whitfield/overview',
+      }),
+    );
+    if (data) suggestion(fs, data);
+  };
+}
+
+/** The `suggestions-*` callables, marking the suggestion as the server would. */
+const SUGGESTION_CALLABLES = {
+  'suggestions-accept': (data: Seed, fs: Fs) => {
+    const path = `${MATTER}/suggestions/${String(data['suggestionId'])}`;
+    fs.set(path, { ...fs.get(path), status: 'accepted', resolvedBy: ME, resolvedAt: new Date() });
+    return { suggestionId: data['suggestionId'], status: 'accepted', resultRef: `${MATTER}/tasks/t-new` };
+  },
+  'suggestions-dismiss': (data: Seed, fs: Fs) => {
+    const path = `${MATTER}/suggestions/${String(data['suggestionId'])}`;
+    fs.set(path, { ...fs.get(path), status: 'dismissed', resolvedBy: ME, resolvedAt: new Date() });
+    return { suggestionId: data['suggestionId'], status: 'dismissed' };
+  },
+};
+
+async function openWithSuggestion(data: Seed | null = {}, options: { wide?: boolean } = {}): Promise<Page> {
+  screen(options.wide ?? false);
+  return openMatter('/inbox', {
+    configure: withSuggestion(data),
+    callables: SUGGESTION_CALLABLES,
+    providers: [{ provide: NOTIFICATIONS_START_DELAY_MS, useValue: 0 }],
+  });
+}
+
+describe('reviewing Clerk suggestions in the Inbox (CORE-22a)', () => {
+  it('shows the suggestion beside the list on a wide screen, and accepts it there', async () => {
+    const page = await openWithSuggestion({}, { wide: true });
+    row(page, 'n-suggest').click();
+    await page.stable(10);
+    const detail = page.body.querySelector('.mt-inbox .detail') as HTMLElement;
+    expect(page.text(detail.querySelector('mt-suggestion-card'))).toContain('Request the date-of-death valuation');
+    await page.click('Add task', detail.querySelector<HTMLElement>('mt-suggestion-card') ?? undefined);
+    await page.stable(10);
+    expect(page.calls('suggestions-accept')).toEqual([
+      expect.objectContaining({ matterId: 'm-whitfield', suggestionId: 's-valuation' }),
+    ]);
+    expect(page.text(row(page, 'n-suggest'))).toContain('You accepted it');
+    expect(page.text(detail)).toContain('You accepted it');
+    expect(page.router.url).toBe('/inbox');
+    expect(page.firestore.get(`${N}/n-suggest`)?.['readAt']).toBeInstanceOf(Date);
+  });
+
+  it('reviews in a dialog on a narrow screen, and dismisses with a reason', async () => {
+    const page = await openWithSuggestion();
+    await page.click('Review', row(page, 'n-suggest'));
+    await page.stable(10);
+    const dialog = () => page.body.querySelector<HTMLElement>('mt-inbox-suggestion-dialog') ?? undefined;
+    expect(page.text(dialog())).toContain('Review suggestion');
+    expect(page.text(dialog())).toContain('Request the date-of-death valuation');
+    await page.click('Dismiss', dialog());
+    await page.submit(dialog() ?? null);
+    await page.stable(10);
+    expect(page.calls('suggestions-dismiss')).toEqual([expect.objectContaining({ suggestionId: 's-valuation' })]);
+    expect(dialog()).toBeUndefined();
+    expect(page.text(row(page, 'n-suggest'))).toContain('You dismissed it');
+    expect(row(page, 'n-suggest').querySelector('button')).toBeNull();
+    expect(page.router.url).toBe('/inbox');
+    expect(page.firestore.get(`${N}/n-suggest`)?.['readAt']).toBeInstanceOf(Date);
+  });
+
+  it('says who already decided a suggestion, without its actions', async () => {
+    const page = await openWithSuggestion(
+      { status: 'accepted', resolvedBy: PRIYA, resolvedAt: new Date('2026-10-03T23:30:00Z') },
+      { wide: true },
+    );
+    row(page, 'n-suggest').click();
+    await page.stable(10);
+    const detail = page.body.querySelector('.mt-inbox .detail') as HTMLElement;
+    expect(page.text(detail)).toContain('Already accepted by Priya Shah');
+    const buttons = [...detail.querySelectorAll('mt-suggestion-card button')].map((b) => b.textContent?.trim());
+    expect(buttons).not.toContain('Add task');
+  });
+
+  it('says a removed suggestion is no longer available', async () => {
+    const page = await openWithSuggestion(null, { wide: true });
+    row(page, 'n-suggest').click();
+    await page.stable(10);
+    expect(page.text(page.body.querySelector('.mt-inbox .detail'))).toContain('No longer available');
+  });
+});
+
 describe('the bell (CORE-22)', () => {
   it('shows my newest unread notifications, opens one and leads to the Inbox', async () => {
     const page = await openMatter('/today', {

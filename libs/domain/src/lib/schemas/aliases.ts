@@ -1,6 +1,7 @@
 import { Suggestion, ClerkThread, ClerkMessage } from './clerk';
 import { Contact, Matter, MatterNumber } from './contacts-matters';
 import { Job } from './jobs';
+import { SignIn } from '../security';
 import {
   Proceeding,
   CourtEvent,
@@ -76,6 +77,9 @@ export const UserUpdateSchema = User.update;
 export const DeviceSchema = Device.schema;
 export const DeviceCreateSchema = Device.create;
 export const DeviceUpdateSchema = Device.update;
+export const SignInSchema = SignIn.schema;
+export const SignInCreateSchema = SignIn.create;
+export const SignInUpdateSchema = SignIn.update;
 export const ContactSchema = Contact.schema;
 export const ContactCreateSchema = Contact.create;
 export const ContactUpdateSchema = Contact.update;

@@ -27,11 +27,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { path: 'practice', label: 'Practice', icon: 'matters', group: 'Firm', roles: SETTINGS_ADMIN_ROLES },
   { path: 'team', label: 'Team and roles', icon: 'contacts', group: 'Firm' },
   { path: 'billing', label: 'Billing and rates', icon: 'billing', group: 'Firm', roles: SETTINGS_ADMIN_ROLES },
+  // Everyone: their own sessions; the policy itself is owners' and admins' (SEC-04).
+  { path: 'security', label: 'Security', icon: 'lock', group: 'Firm' },
   // Trust balances copied from the firm's trust records (BILL-11, ADR-035): display only.
   {
     path: 'trust',
     label: 'Trust account',
-    icon: 'lock',
+    icon: 'scale',
     group: 'Firm',
     roles: SETTINGS_ADMIN_ROLES,
     flag: 'billing.trustDisplay',

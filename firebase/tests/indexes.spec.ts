@@ -194,6 +194,13 @@ describe('firestore.indexes.json', () => {
     expect(ttl?.fieldPath).toBe('expireAt');
   });
 
+  it('the sign-in log expires through TTL on expireAt (SEC-04)', () => {
+    const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
+      (o) => o.collectionGroup === 'signIns' && o.ttl,
+    );
+    expect(ttl?.fieldPath).toBe('expireAt');
+  });
+
   it('recent entries are listed newest first per org (and per kind for Today) and expire through TTL on expireAt (CORE-14, CORE-15)', () => {
     const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
       (o) => o.collectionGroup === 'recent' && o.ttl,

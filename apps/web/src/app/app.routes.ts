@@ -311,7 +311,14 @@ const shellRoutes: Route[] = [
         canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
         loadComponent: () => import('./features/settings/audit-log-page').then((m) => m.AuditLogPage),
       },
-      // Settings pages still to come (integrations INT-03, security SEC-04) land on the team page.
+      // Security (SEC-04): everyone sees their own sessions; owners and admins edit the policy.
+      {
+        path: 'security',
+        title: 'Security',
+        data: { crumb: 'Security' },
+        loadComponent: () => import('./features/security/security-page').then((m) => m.SecurityPage),
+      },
+      // Settings pages still to come (integrations INT-03) land on the team page.
       { path: '**', redirectTo: 'team' },
     ],
   },
@@ -376,6 +383,12 @@ export const appRoutes: Route[] = [
         title: 'Set up two-step sign-in',
         canActivate: [authGuard],
         loadComponent: () => import('./pages/auth/mfa-enrol').then((m) => m.MfaEnrolPage),
+      },
+      // Why the app signed someone out (SEC-04): inactivity, an expired or revoked sign-in, MFA.
+      {
+        path: 'signed-out',
+        title: 'Signed out',
+        loadComponent: () => import('./pages/auth/signed-out').then((m) => m.SignedOutPage),
       },
       {
         path: 'recover',
