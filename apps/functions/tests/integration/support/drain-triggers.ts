@@ -38,7 +38,7 @@ beforeAll(async () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
     const waited = Date.now() - started;
-    if (waited > 2_000) console.info(`Waited ${(waited / 1000).toFixed(1)} s for earlier files' triggers`);
+    if (waited > 2_000) process.stdout.write(`Waited ${(waited / 1000).toFixed(1)} s for earlier files' triggers\n`);
   } finally {
     await deleteApp(app);
   }
