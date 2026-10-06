@@ -396,16 +396,20 @@ export const PeopleAndSettings: Story = {
           </mt-settings-row>
         </mt-settings-section>
       </div>
-      <div class="mt-col" style="gap: 8px; max-width: 520px; margin-top: 32px">
-        <mt-integration-card name="Outlook and Microsoft 365" description="Email filing, calendar sync, time capture" status="connected">
+      <div class="mt-col" style="gap: 8px; max-width: 560px; margin-top: 32px">
+        <mt-integration-card name="Microsoft 365" description="Email filing, calendar sync and time capture" status="connected" meta="jordan.price@harbourvine.example · since 4 Aug">
           <button mtButton variant="ghost" size="sm">Manage</button>
         </mt-integration-card>
-        <mt-integration-card name="NSW Online Registry" description="Probate notices and caveat searches">
+        <mt-integration-card name="Google Workspace" description="Gmail filing and Google Calendar" status="reconnect" meta="Signed out on 3 Oct when the password changed. Filing is paused; nothing is lost.">
+          <button mtButton variant="secondary" size="sm">Reconnect</button>
+        </mt-integration-card>
+        <mt-integration-card name="Xero" description="Invoices and payments" status="error" error="Xero refused the connection: the organisation’s subscription has lapsed, or an adviser removed Materia’s access. Reconnect with a Xero user who has the Standard role or above.">
+          <button mtButton variant="secondary" size="sm">Reconnect</button>
+        </mt-integration-card>
+        <mt-integration-card name="Inbound email" description="Forward or BCC mail to a matter’s address and it’s filed there">
           <button mtButton size="sm">Connect</button>
         </mt-integration-card>
-        <mt-integration-card name="Xero" description="Invoices and trust receipts" status="error">
-          <button mtButton size="sm">Reconnect</button>
-        </mt-integration-card>
+        <mt-integration-card name="RedCrest" description="Probate applications and caveat searches with the Supreme Court of Victoria" status="unavailable" />
       </div>
     `,
   }),

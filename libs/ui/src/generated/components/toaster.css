@@ -2,5 +2,5 @@
 .mt-toaster { position: fixed; right: var(--space-16); bottom: var(--space-16); z-index: var(--layer-toast); display: flex; flex-direction: column; align-items: flex-end; gap: 10px; outline: none; }
 .mt-toaster:empty { display: none; }
 .mt-toaster .mt-toast { animation: mt-toast-in .18s ease-out; }
-@media (max-width: 767px) { .mt-toaster { left: var(--space-16); bottom: calc(var(--space-16) + env(safe-area-inset-bottom, 0px)); align-items: stretch; } }
+@media (max-width: 767px) { .mt-toaster { left: var(--space-16); top: calc(var(--space-16) + env(safe-area-inset-top, 0px)); bottom: auto; flex-direction: column-reverse; align-items: stretch; } .mt-toaster .mt-toast { animation-name: mt-toast-in-top; } }
 @media (prefers-reduced-motion: reduce) { .mt-toaster .mt-toast { animation: none; } }

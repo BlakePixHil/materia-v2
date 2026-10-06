@@ -54,6 +54,8 @@ describe('drill', () => {
       },
       { name: 'ops/restore', done: false },
       op('ops/restore'),
+      { status: 400, error: { message: 'Cannot serve because the database is in the middle of restore.' } },
+      { collectionIds: [] },
       { name: 'ops/delete', done: true },
     ]);
     const readTimes: (string | undefined)[] = [];
@@ -71,7 +73,7 @@ describe('drill', () => {
       from: 'projects/p/locations/l/backups/b1',
       snapshotTime: '2026-10-05T14:00:00Z',
       rpoMinutes: 600,
-      restoreSeconds: 10,
+      restoreSeconds: 25,
       documents: 13,
       mismatches: [],
       exact: true,
@@ -95,6 +97,7 @@ describe('drill', () => {
         ],
       },
       op('ops/restore'),
+      { collectionIds: [] },
       { name: 'ops/delete', done: true },
     ]);
     const db = 'drill-20261006-0000-backup';
@@ -134,6 +137,7 @@ describe('drill', () => {
       { items: [] },
       op('ops/create'),
       op('ops/import'),
+      { collectionIds: [] },
       op('ops/delete'),
     ]);
     const db = 'drill-20261006-0000-export';
@@ -146,12 +150,12 @@ describe('drill', () => {
     );
     expect(result.mismatches).toEqual(['matters: restored 2, live 3']);
     expect(lines).toContain('  MISMATCH matters: restored 2, live 3');
-    expect(calls.map((c) => c.method)).toEqual(['GET', 'GET', 'POST', 'POST', 'DELETE']);
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'GET', 'POST', 'POST', 'POST', 'DELETE']);
     expect(calls[3]?.body).toEqual({ inputUriPrefix: 'gs://materia-v2-dev-backups/daily/2026-10-05T14-59-00Z' });
   });
 
   it('clones a PITR snapshot and keeps the scratch database with --keep', async () => {
-    const { deps, calls, clock } = scripted([op('ops/clone')]);
+    const { deps, calls, clock } = scripted([op('ops/clone'), { collectionIds: [] }]);
     const lines: string[] = [];
     const result = await drill(new AdminApi(deps, 'p'), databases({}), 'pitr', {
       ...options(clock, lines),
@@ -159,7 +163,8 @@ describe('drill', () => {
     });
     expect(result.snapshotTime).toBe('2026-10-05T23:58:00.000Z');
     expect(result.deleted).toBe(false);
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.url).toContain(':listCollectionIds');
   });
 
   it('fails when there is nothing to restore, and still tries to clean up', async () => {
@@ -177,6 +182,7 @@ describe('drill', () => {
       { items: [{ name: 'monthly/2026-09-01T14-59-00Z/2026-09-01T14-59-00Z.overall_export_metadata' }] },
       op('c'),
       op('i'),
+      { collectionIds: [] },
       op('d'),
     ]);
     const readTimes: (string | undefined)[] = [];

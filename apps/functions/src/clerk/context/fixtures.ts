@@ -223,10 +223,23 @@ export function fixtureOrgs(): Record<string, MemoryOrg> {
           data: matterData({ number: 'M-2026-0044', title: 'Privileged matter', privileged: true }),
         },
       },
+      // Month rollups (INS-01): org totals, a referrer's figures (keyed by its contact id) and, for
+      // September, a counter shard; Clerk's metering (`clerk-`) is never read by the metrics scope.
       metrics: {
-        'month-2026-09': { period: 'month-2026-09', values: { mattersOpened: 4, wipCents: 1_000_000 } },
+        'month-2026-09': {
+          period: 'month-2026-09',
+          values: {
+            'matters.opened': 4,
+            'matters.opened.type.probate': 3,
+            'billing.invoicedCents': 1_000_000,
+            'matters.opened.referrer.c-executor': 1,
+            'referrals.referrer.c-executor.billedCents': 250_000,
+          },
+        },
+        'month-2026-08': { period: 'month-2026-08', values: { 'matters.opened': 2, 'billing.invoicedCents': 600_000 } },
         'clerk-2026-09': { period: 'clerk-2026-09', values: { [`user.${USERS.lawyer}.calls`]: 3 } },
       },
+      metricShards: { 'month-2026-09': [{ 'billing.invoicedCents': 200_000 }] },
     },
     [OTHER_ORG]: {
       members: { [USERS.lawyer]: { status: 'active', role: 'lawyer' } },

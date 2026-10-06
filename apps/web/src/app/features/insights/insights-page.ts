@@ -2,6 +2,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
+  ElementRef,
   inject,
   resource,
   signal,
@@ -31,6 +33,7 @@ import {
   type InsightsPeriod,
   type InsightsRange,
   type Role,
+  type ShownCitation,
 } from '@materia/domain';
 import {
   DialogService,
@@ -50,6 +53,7 @@ import { type ChartDatum, MtBarChart, MtLineChart } from '@materia/ui/charts';
 import { InsightsCard } from './insights-card';
 import { InsightsData } from './insights-data';
 import { InsightsDrill, type InsightsDrillData } from './insights-drill';
+import { InsightsNarrative, narrativeTarget, type NarrativeSection, type NarrativeTarget } from './insights-narrative';
 import {
   buildInsights,
   chartCsv,
@@ -83,7 +87,8 @@ const isComparison = (value: string | null): value is InsightsComparison =>
  * grant, matters opened by type, utilisation by fee earner, deadline performance, referrers by fees
  * and FY budget by fee earner. Every chart has its table view and a CSV; matters by type and
  * deadline performance drill into the records, referrers into the contact. The period is in the URL
- * (`?period=this_fy&compare=previous`, `?period=custom&from=2026-03&to=2026-06`).
+ * (`?period=this_fy&compare=previous`, `?period=custom&from=2026-03&to=2026-06`). Below the Stats,
+ * Clerk can explain what changed (INS-04); its chips pick out the figure they cite.
  */
 @Component({
   selector: 'mt-insights-page',
@@ -92,6 +97,7 @@ const isComparison = (value: string | null): value is InsightsComparison =>
   imports: [
     FormsModule,
     InsightsCard,
+    InsightsNarrative,
     InsightsVisibility,
     MtBarChart,
     MtButton,
@@ -176,7 +182,13 @@ const isComparison = (value: string | null): value is InsightsComparison =>
         />
       } @else {
         <div class="grid" [attr.aria-busy]="figures.isLoading()">
-          <section class="mt-card hero-card" aria-labelledby="insights-hero" data-testid="insights-hero">
+          <section
+            class="mt-card hero-card"
+            aria-labelledby="insights-hero"
+            data-testid="insights-hero"
+            data-cite="hero"
+            [attr.data-cited]="citedOn('hero')"
+          >
             <div class="mt-card-h">
               <h2 class="mt-card-title" id="insights-hero">Billed in {{ period().label }}</h2>
               <span class="mt-ml caption t-3">Excluding GST</span>
@@ -204,7 +216,13 @@ const isComparison = (value: string | null): value is InsightsComparison =>
           </section>
 
           <div class="stats">
-            <mt-stat label="Collected" [value]="money(v.summary.collectedCents)" data-testid="stat-collected">
+            <mt-stat
+              label="Collected"
+              [value]="money(v.summary.collectedCents)"
+              data-testid="stat-collected"
+              data-cite="collected"
+              [attr.data-cited]="citedOn('collected')"
+            >
               @if (v.deltas.collected; as d) {
                 <span class="caption t-3"
                   ><mt-delta [value]="d.text" [direction]="d.direction" [good]="d.good" /> {{ versus() }}</span
@@ -217,6 +235,8 @@ const isComparison = (value: string | null): value is InsightsComparison =>
               label="Work in progress"
               [value]="v.summary.wipCents === null ? '—' : money(v.summary.wipCents)"
               data-testid="stat-wip"
+              data-cite="wip"
+              [attr.data-cited]="citedOn('wip')"
             >
               @if (v.deltas.wip; as d) {
                 <span class="caption t-3"
@@ -226,7 +246,13 @@ const isComparison = (value: string | null): value is InsightsComparison =>
                 <span class="caption t-3">Unbilled time and disbursements</span>
               }
             </mt-stat>
-            <mt-stat label="Utilisation" [value]="pct(v.summary.utilisationPct)" data-testid="stat-utilisation">
+            <mt-stat
+              label="Utilisation"
+              [value]="pct(v.summary.utilisationPct)"
+              data-testid="stat-utilisation"
+              data-cite="utilisation"
+              [attr.data-cited]="citedOn('utilisation')"
+            >
               @if (v.deltas.utilisation; as d) {
                 <span class="caption t-3"
                   ><mt-delta [value]="d.text" [direction]="d.direction" [good]="d.good" /> {{ versus() }}</span
@@ -235,7 +261,13 @@ const isComparison = (value: string | null): value is InsightsComparison =>
                 <span class="caption t-3">Billable hours against the daily target</span>
               }
             </mt-stat>
-            <mt-stat label="Matters opened" [value]="v.summary.mattersOpened" data-testid="stat-opened">
+            <mt-stat
+              label="Matters opened"
+              [value]="v.summary.mattersOpened"
+              data-testid="stat-opened"
+              data-cite="opened"
+              [attr.data-cited]="citedOn('opened')"
+            >
               @if (v.deltas.opened; as d) {
                 <span class="caption t-3"
                   ><mt-delta [value]="d.text" [direction]="d.direction" [good]="d.good" /> {{ versus() }}</span
@@ -248,6 +280,8 @@ const isComparison = (value: string | null): value is InsightsComparison =>
               label="Deadlines met on time"
               [value]="pct(v.summary.deadlinesMetPct)"
               data-testid="stat-deadlines"
+              data-cite="deadlines"
+              [attr.data-cited]="citedOn('deadlines')"
             >
               @if (v.deltas.deadlines; as d) {
                 <span class="caption t-3"
@@ -258,6 +292,13 @@ const isComparison = (value: string | null): value is InsightsComparison =>
               }
             </mt-stat>
           </div>
+
+          <mt-insights-narrative
+            [selection]="selection()"
+            [periodText]="narrativePeriodText()"
+            [targetOf]="targetOf"
+            (cite)="showCited($event)"
+          />
 
           <mt-insights-card class="span-8" title="Billed by month" [caption]="v.trendLabel" (download)="csv('billed')">
             <mt-bar-chart
@@ -292,6 +333,8 @@ const isComparison = (value: string | null): value is InsightsComparison =>
             class="span-6"
             title="Matters opened by type"
             [caption]="period().label"
+            data-cite="types"
+            [attr.data-cited]="citedOn('types')"
             (download)="csv('types')"
           >
             <mt-bar-chart
@@ -301,6 +344,7 @@ const isComparison = (value: string | null): value is InsightsComparison =>
               orientation="horizontal"
               drill
               [chartHeight]="rowsHeight(v.mattersByType.length)"
+              [highlight]="barCited('types', v.matterTypes)"
               [data]="v.mattersByType"
               (pointSelect)="drillType($event)"
               emptyText="No matters opened in this period"
@@ -313,6 +357,8 @@ const isComparison = (value: string | null): value is InsightsComparison =>
             class="span-6"
             title="Median days to grant"
             caption="Probate, by month of grant"
+            data-cite="grant"
+            [attr.data-cited]="citedOn('grant')"
             (download)="csv('grant')"
           >
             <mt-line-chart
@@ -355,6 +401,8 @@ const isComparison = (value: string | null): value is InsightsComparison =>
             class="span-6"
             title="Deadline performance"
             [caption]="'Due ' + period().label"
+            data-cite="deadline-results"
+            [attr.data-cited]="citedOn('deadline-results')"
             (download)="csv('deadlines')"
           >
             <mt-bar-chart
@@ -362,6 +410,7 @@ const isComparison = (value: string | null): value is InsightsComparison =>
               categoryLabel="Result"
               valueLabel="Deadlines"
               drill
+              [highlight]="barCited('deadline-results', v.deadlineKeys)"
               [data]="v.deadlines"
               (pointSelect)="drillDeadlines($event)"
               emptyText="No deadlines due in this period"
@@ -372,6 +421,8 @@ const isComparison = (value: string | null): value is InsightsComparison =>
             class="span-6"
             title="Referrers by fees"
             [caption]="period().label"
+            data-cite="referrers"
+            [attr.data-cited]="citedOn('referrers')"
             (download)="csv('referrers')"
           >
             <mt-bar-chart
@@ -533,6 +584,18 @@ const isComparison = (value: string | null): value is InsightsComparison =>
     .mt-insights .span-8 {
       grid-column: span 8;
     }
+    .mt-insights mt-insights-narrative {
+      display: contents;
+    }
+    .mt-insights mt-insights-narrative > .mt-card {
+      grid-column: span 12;
+    }
+    /* A figure Clerk's explanation cites, picked out from its chip (INS-04). */
+    .mt-insights [data-cited] {
+      outline: 2px solid var(--border-ai);
+      outline-offset: 4px;
+      border-radius: var(--radius-md);
+    }
     .mt-insights .skeleton {
       display: flex;
       flex-direction: column;
@@ -610,6 +673,7 @@ export class InsightsPage {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly today = inject(MT_TODAY);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly rangeOptions: MtOption<InsightsRange>[] = INSIGHTS_RANGES.map((range) => ({
     value: range,
@@ -677,6 +741,16 @@ export class InsightsPage {
   protected readonly dailyTargetHours = computed(() =>
     (this.dailyTarget() / 60).toLocaleString('en-AU', { maximumFractionDigits: 1 }),
   );
+  /** "September 2026 compared with August 2026", for Clerk's explanation. */
+  protected readonly narrativePeriodText = computed(() => {
+    const cmp = this.comparison();
+    return cmp ? `${this.period().label} compared with ${cmp.label}` : this.period().label;
+  });
+  /** The figure a chip of Clerk's explanation picked out, for a few seconds. */
+  protected readonly cited = signal<NarrativeTarget | null>(null);
+  private citedTimer: ReturnType<typeof setTimeout> | undefined;
+  protected readonly targetOf = (citation: ShownCitation) => narrativeTarget(citation, this.view());
+
   protected readonly visibilityText = computed(() => {
     const visibility = this.orgSettings()?.settings?.insights?.memberVisibility ?? 'lawyers';
     return visibility === 'admins' ? 'owners and admins' : 'owners, admins and lawyers';
@@ -701,6 +775,32 @@ export class InsightsPage {
   protected readonly percent = (value: number) => `${value}%`;
   protected readonly days = (value: number) => `${value} days`;
   protected readonly pct = pctText;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.citedTimer));
+  }
+
+  /** Picks out a cited figure: scrolls it into view and outlines it (and its bar) for 4 seconds. */
+  protected showCited(target: NarrativeTarget): void {
+    clearTimeout(this.citedTimer);
+    this.cited.set(target);
+    this.citedTimer = setTimeout(() => this.cited.set(null), 4000);
+    const element = this.host.nativeElement.querySelector<HTMLElement>(`[data-cite="${target.section}"]`);
+    const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    element?.scrollIntoView?.({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  }
+
+  protected citedOn(section: NarrativeSection): '' | null {
+    return this.cited()?.section === section ? '' : null;
+  }
+
+  /** The bar a chip picked out on a chart, by its key (a matter type, a deadline result). */
+  protected barCited(section: NarrativeSection, keys: readonly string[]): number | null {
+    const target = this.cited();
+    if (target?.section !== section || !target.key) return null;
+    const index = keys.indexOf(target.key);
+    return index < 0 ? null : index;
+  }
 
   protected rowsHeight(rows: number): number {
     return Math.max(120, rows * 36 + 40);

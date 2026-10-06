@@ -28,7 +28,7 @@ The insights pages (INS-02) and Clerk's metrics scope need a practice's figures 
 
 - Each record write costs a trigger, a transaction (two reads) and up to six document increments per day it touches. The figures are eventually consistent: a page can lag a write by a second or two, and a missed trigger by a night.
 - A back-dated record changes past periods immediately, through the same increments.
-- Clerk's metrics scope reads the period documents, not their shards, so a sharded org's Clerk answers can be up to a day behind the latest figures.
+- Clerk's metrics scope adds the shards to the month documents, as the Insights screen does ([ADR-054](054-insights-narratives.md)), so its figures match the screen's.
 - A list query can't prove a document id's prefix, so members who lack `billing.view` read the rollups by id (INS-02 knows the ids of the periods it shows). Listing a period's member figures needs to see everyone's.
 - The backfill overwrites documents whole, so a sync that lands mid-backfill can be lost until the next nightly recompute corrects it.
 - The insights pages (INS-02) and the settings switch for `memberVisibility` come later.

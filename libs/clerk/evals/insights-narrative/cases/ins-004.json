@@ -1,0 +1,64 @@
+{
+  "id": "ins-004",
+  "description": "A chosen quarter against the one before: billable hours down, non-billable hours and write-offs up",
+  "role": "lawyer",
+  "today": "2026-04-20",
+  "insights": {
+    "range": "custom",
+    "from": "2026-01",
+    "to": "2026-03",
+    "compare": "previous"
+  },
+  "metrics": {
+    "2026-01": {
+      "time.billable.minutes": 15000,
+      "time.nonBillable.minutes": 6000,
+      "time.recordedCents": 7500000,
+      "billing.invoicedCents": 6000000,
+      "billing.collectedCents": 5500000,
+      "billing.writtenOff.timeCents": 200000
+    },
+    "2026-02": {
+      "time.billable.minutes": 14400,
+      "time.nonBillable.minutes": 6600,
+      "time.recordedCents": 7200000,
+      "billing.invoicedCents": 5800000,
+      "billing.collectedCents": 5900000,
+      "billing.writtenOff.timeCents": 450000,
+      "billing.writtenDown.timeCents": 120000
+    },
+    "2026-03": {
+      "time.billable.minutes": 13800,
+      "time.nonBillable.minutes": 7200,
+      "time.recordedCents": 6900000,
+      "billing.invoicedCents": 5400000,
+      "billing.collectedCents": 5600000,
+      "billing.writtenOff.timeCents": 600000,
+      "billing.writtenDown.timeCents": 180000
+    },
+    "2025-10": {
+      "time.billable.minutes": 17400,
+      "time.nonBillable.minutes": 4800,
+      "time.recordedCents": 8700000,
+      "billing.invoicedCents": 6800000,
+      "billing.collectedCents": 6200000,
+      "billing.writtenOff.timeCents": 100000
+    },
+    "2025-11": {
+      "time.billable.minutes": 17100,
+      "time.nonBillable.minutes": 5100,
+      "time.recordedCents": 8550000,
+      "billing.invoicedCents": 6900000,
+      "billing.collectedCents": 6600000,
+      "billing.writtenOff.timeCents": 150000
+    },
+    "2025-12": {
+      "time.billable.minutes": 12000,
+      "time.nonBillable.minutes": 3600,
+      "time.recordedCents": 6000000,
+      "billing.invoicedCents": 5100000,
+      "billing.collectedCents": 6300000,
+      "billing.writtenOff.timeCents": 50000
+    }
+  }
+}

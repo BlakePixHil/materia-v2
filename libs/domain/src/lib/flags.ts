@@ -90,6 +90,14 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'clerk.features.insightsNarrative': defineFlag({
+    key: 'clerk.features.insightsNarrative',
+    description: 'Explain on Insights: Clerk describes what changed between two periods, from the metrics only.',
+    owner: 'INS-04',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'clerk.features.intakePrefill': defineFlag({
     key: 'clerk.features.intakePrefill',
     description: 'The "Prefill from email or notes" button on the New matter form (shown disabled while off).',

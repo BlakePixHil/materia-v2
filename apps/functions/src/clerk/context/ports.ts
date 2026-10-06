@@ -122,8 +122,11 @@ export interface ContextSource {
   recentNotes(orgId: string, matterId: string, options: { allowPrivileged: boolean; limit: number }): Promise<Row[]>;
   /** Documents of this matter by id; ids that don't exist under the matter are left out. */
   documents(orgId: string, matterId: string, ids: readonly string[]): Promise<Row[]>;
-  /** Practice rollups (`metrics/{period}`), newest first. */
-  metrics(orgId: string, limit: number): Promise<Row[]>;
+  /**
+   * The month rollups (`metrics/month-YYYY-MM`) for these months (`2026-05`), each with its counter
+   * shards added into `values` (ADR-048). Months with neither a document nor shards are left out.
+   */
+  metricMonths(orgId: string, months: readonly string[]): Promise<Row[]>;
   /**
    * The matter's trust balance snapshot (BILL-11, ADR-035) and the org's out-of-date threshold, or
    * null while `billing.trustDisplay` or the org's "Show trust balances on matters" is off. Callers

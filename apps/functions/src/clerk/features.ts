@@ -31,6 +31,12 @@ export const CLERK_FEATURES = {
   willExtraction: { flag: 'clerk.features.willExtraction', timeoutMs: 300_000, orgFeature: 'willExtract' },
   drafting: { flag: 'clerk.features.drafting', timeoutMs: 180_000, orgFeature: 'drafting' },
   timeAssist: { flag: 'clerk.features.timeAssist', timeoutMs: 60_000, orgFeature: 'timeAssist' },
+  /** Explain on Insights (INS-04): the practice's figures only, never a matter. */
+  insightsNarrative: {
+    flag: 'clerk.features.insightsNarrative',
+    timeoutMs: 90_000,
+    orgFeature: 'insightsNarrative',
+  },
   /** The citation judge in the eval harness (AI-12): never called by the app. */
   evalJudge: { flag: null, timeoutMs: 60_000, noClientData: true },
 } as const satisfies Record<
