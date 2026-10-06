@@ -45,6 +45,8 @@
           "libs/ui/src/generated/components/base.css",
           "libs/ui/src/generated/components/layout.css",
           "libs/ui/src/generated/components/error.css",
+          "libs/ui/src/generated/components/card.css",
+          "libs/ui/src/generated/components/count.css",
           "libs/ui/src/styles/base.css",
           "apps/web/src/styles.css"
         ]

@@ -313,7 +313,7 @@ export class DeadlineActions {
   /** Records an event, or edits one, and says what the recompute changed. */
   async recordEvent(matterId: string, event?: WithId<MatterEventItem>): Promise<RecomputeSummary | undefined> {
     const answer = await this.dialogs.open<EventDialogData, EventDialogResult | undefined>(EventDialog, {
-      data: { event, today: this.today() },
+      data: { event, today: this.today(), matterId },
     }).result;
     if (!answer) return undefined;
     return this.saveEvent(matterId, answer, event?.id);

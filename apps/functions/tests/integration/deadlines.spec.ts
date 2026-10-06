@@ -17,13 +17,17 @@ import { FieldValue, getFirestore as getAdminFirestore, Timestamp, type Firestor
 import { toRuleSetDoc, VIC_RULESET_V1, type RuleSet } from '@materia/deadlines';
 import { DEADLINE_CALLABLES, type Role } from '@materia/domain';
 
+import { createLog } from '../../src/core/log';
+import { currentRuleSets, ruleSetUpgradePath, upgradeOrgRuleSets } from '../../src/deadlines/upgrade';
+import { FakeClock, FakeTaskQueue } from '../../src/ports/fakes';
+
 /**
  * CORE-10 through the emulators: events recorded through deadlines-upsertEvent recompute the
  * matter's deadlines (new, changed and removed), proposals and their decisions (a critical one
  * needs the matter number typed), overrides and the conflict flag, completion and its audit,
  * concurrent recomputes, matter.nextDeadline from the deadlines-onWrite trigger, a blocked deadline
- * when calendar data is missing, the rule-set upgrade backfill, and the matter's privileged flag
- * copied to its records (CORE-10b). Everything is fictional.
+ * when calendar data is missing, the rule-set upgrade backfill, by hand and by the hourly job, and
+ * the matter's privileged flag copied to its records (CORE-10b). Everything is fictional.
  */
 const PROJECT_ID = 'demo-materia';
 const ORG = 'org-deadlines';
@@ -406,5 +410,20 @@ describe('deadlines-proposeRulesetUpgrade', () => {
     expect(
       await call<Data>(DEADLINE_CALLABLES.proposeRulesetUpgrade, { requestId: crypto.randomUUID() }),
     ).toMatchObject({ processed: 1, proposed: 0 });
+  });
+
+  it('the hourly job finds deadlines on version 1, upgrades the org to version 2 once, and records it', async () => {
+    const log = createLog({ fn: 'deadlines-integration' }, () => undefined);
+    const ruleSets = (await currentRuleSets(db, log)).filter((set) => set.ruleSetId === 'vic');
+    expect(ruleSets.map((set) => set.version)).toEqual([2]);
+    const deps = { clock: new FakeClock(NOW), log, ports: { tasks: new FakeTaskQueue() }, timeLeft: () => true };
+    // The proposal from the run by hand is still pending, so nothing new is proposed.
+    expect(await upgradeOrgRuleSets(db, ORG, ruleSets, deps)).toEqual([
+      { ruleSetId: 'vic', version: 2, status: 'done', processed: 1, proposed: 0 },
+    ]);
+    expect(await data(ruleSetUpgradePath(ORG, 'vic', 2))).toMatchObject({ status: 'done', processed: 1, failed: [] });
+    expect(await upgradeOrgRuleSets(db, ORG, ruleSets, deps)).toEqual([
+      { ruleSetId: 'vic', version: 2, status: 'skipped', processed: 0, proposed: 0 },
+    ]);
   });
 });

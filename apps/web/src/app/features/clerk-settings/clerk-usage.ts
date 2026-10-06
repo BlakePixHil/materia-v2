@@ -11,7 +11,7 @@ import {
   suggestionAcceptance,
   type ClerkUsageRow,
 } from '@materia/domain';
-import { MtMeter, MtSelect, MtStat, type MtOption } from '@materia/ui';
+import { MtIcon, MtMeter, MtSelect, MtStat, type MtOption } from '@materia/ui';
 import { type ChartDatum, MtBarChart } from '@materia/ui/charts';
 
 /** Gateway feature names as people know them; others (the connectivity check, OCR) as they are. */
@@ -54,11 +54,11 @@ const compact = (value: number) =>
 @Component({
   selector: 'mt-clerk-usage',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtBarChart, MtMeter, MtSelect, MtStat],
+  imports: [FormsModule, MtBarChart, MtIcon, MtMeter, MtSelect, MtStat],
   host: { class: 'mt-col', style: 'gap: 16px' },
   template: `
     <div class="mt-row" style="gap: 12px; align-items: end; flex-wrap: wrap">
-      <h2 class="title-s mt-grow" style="margin: 0">Usage</h2>
+      <h2 class="heading mt-grow">Usage</h2>
       <mt-select
         name="clerk-usage-month"
         label="Month"
@@ -98,34 +98,87 @@ const compact = (value: number) =>
           estimated.
         </p>
       }
-      <mt-bar-chart
-        label="Cost by feature"
-        categoryLabel="Feature"
-        valueLabel="Cost"
-        orientation="horizontal"
-        [chartHeight]="chartHeight(byFeature().length)"
-        [data]="byFeature()"
-        [format]="usd"
-        [loading]="metrics.status() === 'loading'"
-        emptyText="No Clerk use this month"
-      />
-      <mt-bar-chart
-        label="Cost by person"
-        categoryLabel="Person"
-        valueLabel="Cost"
-        orientation="horizontal"
-        [chartHeight]="chartHeight(byUser().length)"
-        [data]="byUser()"
-        [format]="usd"
-        [loading]="metrics.status() === 'loading'"
-        emptyText="No Clerk use this month"
-      />
+      <details class="breakdown" data-breakdown>
+        <summary>
+          <span class="mt-grow">Cost by feature and by person</span>
+          <span class="chev"><mt-icon name="chevron-down" /></span>
+        </summary>
+        <div class="charts">
+          <mt-bar-chart
+            label="Cost by feature"
+            categoryLabel="Feature"
+            valueLabel="Cost"
+            orientation="horizontal"
+            [chartHeight]="chartHeight(byFeature().length)"
+            [data]="byFeature()"
+            [format]="usd"
+            [loading]="metrics.status() === 'loading'"
+            emptyText="No Clerk use this month"
+          />
+          <mt-bar-chart
+            label="Cost by person"
+            categoryLabel="Person"
+            valueLabel="Cost"
+            orientation="horizontal"
+            [chartHeight]="chartHeight(byUser().length)"
+            [data]="byUser()"
+            [format]="usd"
+            [loading]="metrics.status() === 'loading'"
+            emptyText="No Clerk use this month"
+          />
+        </div>
+      </details>
       <p class="caption t-3" style="margin: 0">
         Estimated from Anthropic’s published prices. Your firm’s Anthropic invoice is the final amount.
       </p>
     }
   `,
   styles: `
+    .heading {
+      margin: 0;
+      font: 600 14px/20px var(--font-sans);
+    }
+    .breakdown > summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      list-style: none;
+      cursor: pointer;
+      font: 500 13px/18px var(--font-sans);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+    }
+    .breakdown > summary::-webkit-details-marker {
+      display: none;
+    }
+    .breakdown > summary:hover {
+      background: var(--bg-hover);
+    }
+    .breakdown > summary:focus-visible {
+      box-shadow: var(--focus-ring);
+      outline: none;
+    }
+    .breakdown .chev {
+      display: inline-flex;
+      flex: none;
+      color: var(--icon-muted);
+      transition: transform 0.15s ease-out;
+    }
+    .breakdown[open] .chev {
+      transform: rotate(180deg);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .breakdown .chev {
+        transition: none;
+      }
+    }
+    .breakdown .charts {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding-top: 12px;
+    }
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

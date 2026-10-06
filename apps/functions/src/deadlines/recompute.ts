@@ -560,7 +560,8 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
 
   const { summary, calendarMissing: missing } = outcome;
   if (missing.length) {
-    // Ops alert (FND-21 will route it): a needed calendar year isn't loaded, so deadlines are blocked.
+    // Ops alert (the deadline_calendar_missing alert policy): a needed calendar year isn't loaded,
+    // so deadlines are blocked.
     const years = [...new Set(missing.map((m) => `${m.calendarId}-${m.year}`))];
     log.error('ops alert: deadline calendar data missing', {
       alert: 'deadline_calendar_missing',

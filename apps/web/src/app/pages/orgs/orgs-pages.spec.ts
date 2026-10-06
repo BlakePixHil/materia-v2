@@ -399,6 +399,134 @@ describe('team page', () => {
     expect(page.text()).not.toContain('Invite someone');
     expect(page.el.querySelector('mt-select')).toBeNull();
     expect(page.text()).toContain('Owner');
+    expect(page.text()).not.toContain('Suspend…');
+    expect(page.text()).not.toContain('Reinstate');
+    expect(page.text()).not.toContain('Transfer ownership');
+  });
+
+  describe('suspending, reinstating and transferring ownership (FND-17)', () => {
+    const ADMIN = testSession({
+      uid: 'u-admin',
+      claims: { orgId: 'org-harbour-vine', role: 'admin', orgName: 'Harbour & Vine Legal' },
+    });
+    const row = (page: { el: HTMLElement }, email: string) =>
+      page.el.querySelector<HTMLElement>(`[data-member="${email}"]`) ?? undefined;
+    const buttonIn = (root: ParentNode | undefined | null, text: string) => {
+      const found = [...(root ?? document.body).querySelectorAll<HTMLElement>('button')].find((b) =>
+        b.textContent?.trim().startsWith(text),
+      );
+      if (!found) throw new Error(`No button "${text}"`);
+      return found;
+    };
+    const dialog = () => document.body.querySelector<HTMLElement>('.mt-dialog');
+    const bodyText = () => document.body.textContent?.replace(/\s+/g, ' ') ?? '';
+    const clickIn = async (
+      page: { stable: () => Promise<void> },
+      root: ParentNode | undefined | null,
+      text: string,
+    ) => {
+      buttonIn(root, text).click();
+      await page.stable();
+    };
+
+    afterEach(() => {
+      for (const node of document.body.querySelectorAll('.mt-modal-root')) node.remove();
+    });
+
+    it('suspends a member only after the confirmation, which explains what happens', async () => {
+      const page = await open('/settings/team', OWNER, { configure: (_p, _t, firestore) => seedMembers(firestore) });
+      const sam = row(page, 'sam.one@example.test');
+      expect(buttonIn(sam, 'Suspend…').getAttribute('aria-label')).toBe('Suspend Sam Lee');
+
+      await clickIn(page, sam, 'Suspend…');
+      expect(dialog()?.textContent).toContain('Suspend Sam Lee?');
+      expect(dialog()?.textContent).toContain('loses access to the practice straight away');
+      await clickIn(page, dialog(), 'Cancel');
+      expect(page.port.calls.some((c) => c.name === 'orgs-suspendMember')).toBe(false);
+
+      await clickIn(page, sam, 'Suspend…');
+      await clickIn(page, dialog(), 'Suspend member');
+      expect(page.port.calls.at(-1)).toMatchObject({
+        name: 'orgs-suspendMember',
+        data: { uid: 'u-sam-1', suspended: true, requestId: expect.any(String) },
+      });
+      expect(bodyText()).toContain('Sam Lee suspended');
+    });
+
+    it('reinstates a suspended member, who has no suspend or transfer actions', async () => {
+      const page = await open('/settings/team', OWNER, { configure: (_p, _t, firestore) => seedMembers(firestore) });
+      const suspended = row(page, 'sam.two@example.test');
+      expect(suspended?.textContent).not.toContain('Suspend…');
+      expect(suspended?.textContent).not.toContain('Transfer ownership');
+
+      await clickIn(page, suspended, 'Reinstate');
+      expect(page.port.calls.at(-1)).toMatchObject({
+        name: 'orgs-suspendMember',
+        data: { uid: 'u-sam-2', suspended: false },
+      });
+      expect(bodyText()).toContain('Sam Lee reinstated');
+    });
+
+    it('transfers ownership to an active member after the confirmation, and refreshes the claims', async () => {
+      const page = await open('/settings/team', OWNER, { configure: (_p, _t, firestore) => seedMembers(firestore) });
+      // Not to themselves, to someone suspended, or to someone who is an owner already.
+      expect(row(page, 'jordan@example.test')?.textContent).not.toContain('Transfer ownership');
+      const sam = row(page, 'sam.one@example.test');
+      expect(buttonIn(sam, 'Transfer ownership…').getAttribute('aria-label')).toBe('Transfer ownership to Sam Lee');
+      const refresh = vi.spyOn(page.port, 'refreshClaims');
+
+      await clickIn(page, sam, 'Transfer ownership…');
+      expect(dialog()?.textContent).toContain('Make Sam Lee the owner?');
+      expect(dialog()?.textContent).toContain('You become an admin');
+      await clickIn(page, dialog(), 'Transfer ownership');
+      expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-transferOwnership', data: { toUid: 'u-sam-1' } });
+      expect(refresh).toHaveBeenCalled();
+      expect(bodyText()).toContain('Sam Lee is now the owner');
+    });
+
+    it('asks the person to confirm it’s them first when their sign-in is old', async () => {
+      const stale = testSession({ ...OWNER, authTime: Date.now() - 10 * 60_000 });
+      const page = await open('/settings/team', stale, { configure: (_p, _t, firestore) => seedMembers(firestore) });
+      await clickIn(page, row(page, 'sam.one@example.test'), 'Suspend…');
+      await clickIn(page, dialog(), 'Suspend member');
+      await vi.waitFor(() => expect(dialog()?.textContent).toContain('Confirm it’s you'));
+      expect(dialog()?.textContent).toContain('Suspending someone needs a fresh sign-in.');
+      expect(page.port.calls.some((c) => c.name === 'orgs-suspendMember')).toBe(false);
+
+      const password = dialog()?.querySelector<HTMLInputElement>('input[type="password"]');
+      if (!password) throw new Error('No password field');
+      password.value = 'password';
+      password.dispatchEvent(new Event('input'));
+      await page.stable();
+      await clickIn(page, dialog(), 'Confirm');
+      await vi.waitFor(() =>
+        expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-suspendMember', data: { uid: 'u-sam-1' } }),
+      );
+      expect(bodyText()).toContain('Sam Lee suspended');
+    });
+
+    it('shows the error copy and no toast when the change fails', async () => {
+      const page = await open('/settings/team', OWNER, {
+        configure: (port, _tenancy, firestore) => {
+          seedMembers(firestore);
+          port.call = async () => {
+            throw { details: { code: 'LAST_OWNER' } };
+          };
+        },
+      });
+      await clickIn(page, row(page, 'sam.one@example.test'), 'Suspend…');
+      await clickIn(page, dialog(), 'Suspend member');
+      expect(page.text()).toContain('A practice needs at least one owner');
+      expect(bodyText()).not.toContain('Sam Lee suspended');
+    });
+
+    it('lets admins suspend people below owner, but not owners, and never transfer ownership', async () => {
+      const page = await open('/settings/team', ADMIN, { configure: (_p, _t, firestore) => seedMembers(firestore) });
+      expect(row(page, 'jordan@example.test')?.textContent).not.toContain('Suspend…');
+      expect(row(page, 'sam.one@example.test')?.textContent).toContain('Suspend…');
+      expect(row(page, 'sam.two@example.test')?.textContent).toContain('Reinstate');
+      expect(page.text()).not.toContain('Transfer ownership');
+    });
   });
 });
 

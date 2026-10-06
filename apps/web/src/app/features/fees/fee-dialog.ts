@@ -124,7 +124,7 @@ const MONEY_LABELS = {
     </mt-dialog>
   `,
   styles: `
-    mt-fee-dialog .grid {
+    .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: var(--space-12);

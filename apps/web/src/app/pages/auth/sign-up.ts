@@ -27,6 +27,7 @@ export function passwordStrength(password: string): { level: 0 | 1 | 2 | 3 | 4; 
 @Component({
   selector: 'mt-sign-up-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styleUrls: ['../../../../../../libs/ui/src/generated/components/strength.css'],
   imports: [ReactiveFormsModule, RouterLink, MtButton, MtNote, MtTextField],
   template: `
     <header class="mt-auth-head">

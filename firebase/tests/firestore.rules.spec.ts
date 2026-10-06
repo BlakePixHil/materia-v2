@@ -523,6 +523,11 @@ describe('org settings (CORE-21)', () => {
     const ref = doc(db(env, 'owner'), ORG_DOC);
     const owner = uidFor('owner');
     await assertSucceeds(updateDoc(ref, stamped({ settings: { referrals: { thankYouTask: true } } }, owner)));
+    // The Matters board's WIP limits (CORE-04a): owners and admins, not lawyers.
+    const limits = { settings: { referrals: { thankYouTask: true }, board: { wipLimits: { 'status:open': 5 } } } };
+    await assertSucceeds(updateDoc(ref, stamped(limits, owner)));
+    await assertSucceeds(updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped(limits, uidFor('admin'))));
+    await assertFails(updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped(limits, uidFor('lawyer'))));
     await assertFails(updateDoc(ref, stamped({ 'settings.clerk.ackVersion': 1 }, owner)));
     await assertFails(updateDoc(ref, stamped({ 'settings.clerk.features.chat': false }, owner)));
     await assertFails(

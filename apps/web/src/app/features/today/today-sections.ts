@@ -78,6 +78,10 @@ abstract class TodayCard {
   selector: 'mt-today-attention',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
+  styleUrls: [
+    '../../../../../../libs/ui/src/generated/components/timeline.css',
+    '../../../../../../libs/ui/src/generated/components/tl.css',
+  ],
   imports: [MtBadge, MtButton, MtDeadlineChip, MtEmptyState, MtIcon, MtNote, RouterLink],
   host: {
     class: 'mt-card mt-today-card',
@@ -270,6 +274,10 @@ export class TodayAttention extends TodayCard {
   selector: 'mt-today-due',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
+  styleUrls: [
+    '../../../../../../libs/ui/src/generated/components/timeline.css',
+    '../../../../../../libs/ui/src/generated/components/tl.css',
+  ],
   imports: [MtDeadlineChip, MtEmptyState, MtIcon, MtIconButton, MtNote, RouterLink],
   host: {
     class: 'mt-card mt-today-card',

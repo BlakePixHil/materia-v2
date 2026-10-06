@@ -3,6 +3,7 @@ import {
   can,
   isUnbilledWip,
   PERMISSIONS,
+  SENSITIVE_REAUTH_MINUTES,
   TIME_EXPORT_MAX_ROWS,
   timeEntriesCsv,
   TimeExportInput,
@@ -28,11 +29,13 @@ export interface TimeExportResult {
  * of one responsible lawyer or type. Entries on privileged matters are left out for roles without
  * privileged.view (every approver has it today), and on deleted matters always. Up to
  * TIME_EXPORT_MAX_ROWS rows. Audited as `time.exported` (counts and filters, never narratives).
+ * An export, so it needs a recent sign-in (SEC-04, REAUTH_REQUIRED).
  */
 export const exportCsvDefinition = {
   name: 'time-exportCsv',
   input: TimeExportInput,
   roles: PERMISSIONS['time.approve'],
+  recentLoginMinutes: SENSITIVE_REAUTH_MINUTES,
   handler: async (ctx): Promise<TimeExportResult> => {
     const { input, orgId, role, db, log } = ctx;
     let query = db.collectionGroup('timeEntries').where('orgId', '==', orgId);

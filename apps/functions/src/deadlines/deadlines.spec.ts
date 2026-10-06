@@ -14,7 +14,7 @@ import { privilegeChanged, syncMatterPrivilege } from './privilege';
 import { recomputeMatter } from './recompute';
 import { resolveChangeDefinition } from './resolve-change';
 import { engineEvents, matterFacts, templateRuleIds } from './shared';
-import { proposeRulesetUpgradeDefinition } from './upgrade';
+import { proposeRulesetUpgradeDefinition, ruleSetUpgradePath, upgradeAllOrgs, type UpgradeDeps } from './upgrade';
 import { runCallable, type CallableDefinition, type CallableDeps } from '../core/callable';
 import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
@@ -771,5 +771,114 @@ describe('deadlines-proposeRulesetUpgrade', () => {
     // practitioner-review flag yet, so they are skipped and keep version 1's.
     expect((w.doc(`${D}/rule-vic.probate.prompt_filing`) as Data)['computed']).toMatchObject({ ruleSetVersion: 2 });
     expect((w.doc(`${D}/rule-au.tax.final_return`) as Data)['computed']).toMatchObject({ ruleSetVersion: 1 });
+  });
+});
+
+describe('deadlines-upgradeRuleSets', () => {
+  const v2 = {
+    ...VIC_RULESET_V1,
+    version: 2,
+    rules: VIC_RULESET_V1.rules.map((rule) =>
+      rule.id === 'org.executor_year' ? { ...rule, offset: { months: 11 } } : rule,
+    ),
+  } as RuleSet;
+  const publish = (w: World) => w.db.doc('ruleSets/vic/versions/2').set({ ...toRuleSetDoc(v2), ...meta });
+  const run = (w: World, options: Partial<UpgradeDeps> = {}) =>
+    upgradeAllOrgs(w.db, { clock: w.clock, log: w.log, ports: w.ports, timeLeft: () => true, ...options });
+  const computeAll = async (w: World, ids: string[]) => {
+    for (const matterId of ids)
+      await recomputeMatter(w.db, {
+        orgId: ORG,
+        matterId,
+        uid: 'system',
+        role: 'owner',
+        cause: 'recompute',
+        clock: w.clock,
+        log: w.log,
+        ports: w.ports,
+      });
+  };
+  const upgradeAudits = (w: World) =>
+    w.under(`orgs/${ORG}/audit`).filter((entry) => entry['action'] === 'deadline.ruleset_upgrade_proposed');
+
+  it('turns a newly published version into proposals once per org, by itself', async () => {
+    const w = world({ matters: { m1: matterDoc({ deceased: { contactId: 'c-2', dateOfDeath: '2026-08-01' } }) } });
+    await computeAll(w, ['m1']);
+
+    // Everything is on the current version: recorded as current, nothing recomputed.
+    expect(await run(w)).toEqual({ orgs: 1, upgraded: 0, pending: 0, failed: 0 });
+    expect(w.doc(ruleSetUpgradePath(ORG, 'vic', 1))).toMatchObject({ status: 'done', current: true, processed: 0 });
+    expect(upgradeAudits(w)).toEqual([]);
+
+    await publish(w);
+    expect(await run(w)).toEqual({ orgs: 1, upgraded: 1, pending: 0, failed: 0 });
+    expect(w.doc(ruleSetUpgradePath(ORG, 'vic', 2))).toMatchObject({
+      ruleSetId: 'vic',
+      version: 2,
+      status: 'done',
+      processed: 1,
+      proposed: 1,
+      failed: [],
+      createdBy: 'system',
+    });
+    expect(w.doc(`${MATTER}/deadlineChanges/rule-org.executor_year-v2`)).toMatchObject({
+      cause: 'ruleset_upgrade',
+      status: 'pending',
+      fromDueDate: '2027-08-02',
+      toDueDate: '2027-07-01',
+      createdBy: 'system',
+    });
+    // The responsible lawyer is asked to decide; the date itself hasn't moved.
+    expect(w.under(`orgs/${ORG}/notifications`)).toEqual([
+      expect.objectContaining({ kind: 'deadline_changed', recipientUid: 'user-lawyer', matterId: 'm1' }),
+    ]);
+    expect((w.doc(`${D}/rule-org.executor_year`) as Data)['dueDate']).toBe('2027-08-02');
+    expect(upgradeAudits(w)).toEqual([
+      expect.objectContaining({
+        actor: { uid: 'system' },
+        entity: expect.objectContaining({ path: ruleSetUpgradePath(ORG, 'vic', 2) }),
+        requestId: 'ruleset-upgrade-vic-v2',
+      }),
+    ]);
+
+    // Idempotent: the next runs find the version done and do nothing.
+    const changes = w.under(`${MATTER}/deadlineChanges`).length;
+    expect(await run(w)).toEqual({ orgs: 1, upgraded: 0, pending: 0, failed: 0 });
+    expect(w.under(`${MATTER}/deadlineChanges`)).toHaveLength(changes);
+    expect(upgradeAudits(w)).toHaveLength(1);
+  });
+
+  it('carries on from its cursor when a run is out of time, and skips closed, deleted and other orgs’ matters', async () => {
+    const w = world({
+      matters: {
+        m1: matterDoc({ deceased: { contactId: 'c-2', dateOfDeath: '2026-08-01' } }),
+        m2: matterDoc({ deceased: { contactId: 'c-2', dateOfDeath: '2026-07-01' } }),
+        m3: matterDoc({ status: 'closed', deceased: { dateOfDeath: '2026-07-01' } }),
+      },
+    });
+    await computeAll(w, ['m1', 'm2']);
+    await w.db.doc('orgs/org-gone').set({ name: 'Fictional Closed Practice', deletedAt: new Date() });
+    await publish(w);
+
+    // No time at all: nothing done, the record waits with no cursor.
+    expect(await run(w, { timeLeft: () => false })).toMatchObject({ orgs: 1, pending: 1 });
+    expect(w.doc(ruleSetUpgradePath(ORG, 'vic', 2))).toMatchObject({ status: 'running', processed: 0 });
+
+    // One page of one matter per run.
+    const onePage = () => {
+      let pages = 0;
+      return () => pages++ < 1;
+    };
+    expect(await run(w, { timeLeft: onePage(), pageSize: 1 })).toMatchObject({ pending: 1 });
+    expect(w.doc(ruleSetUpgradePath(ORG, 'vic', 2))).toMatchObject({ status: 'running', cursor: 'm1', processed: 1 });
+    expect(await run(w, { timeLeft: onePage(), pageSize: 1 })).toMatchObject({ pending: 1 });
+    expect(w.doc(ruleSetUpgradePath(ORG, 'vic', 2))).toMatchObject({ cursor: 'm2', processed: 2, proposed: 2 });
+    // m3 is closed: its page recomputes nothing, then the last (empty) page ends the upgrade.
+    await run(w, { timeLeft: onePage(), pageSize: 1 });
+    expect(await run(w, { timeLeft: onePage(), pageSize: 1 })).toMatchObject({ upgraded: 1, pending: 0 });
+    const record = w.doc(ruleSetUpgradePath(ORG, 'vic', 2)) as Data;
+    expect(record).toMatchObject({ status: 'done', processed: 2, proposed: 2 });
+    expect(record).not.toHaveProperty('cursor');
+    expect(w.doc(ruleSetUpgradePath('org-gone', 'vic', 2))).toBeUndefined();
   });
 });

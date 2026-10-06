@@ -38,6 +38,26 @@ const ME = 'user-jordan';
 const PRIYA = 'user-priya';
 const LAWYER = testSession();
 const PARALEGAL = testSession({ claims: { orgId: ORG, role: 'paralegal', orgName: 'Harbour & Vine Legal' } });
+const OWNER = testSession({ claims: { orgId: ORG, role: 'owner', orgName: 'Harbour & Vine Legal' } });
+
+/** The org document, with Clerk's settings (which a WIP limit change must keep) and any WIP limits. */
+function seedOrg(fs: InMemoryFirestore, wipLimits?: Record<string, number>): void {
+  fs.set(`orgs/${ORG}`, {
+    name: 'Harbour & Vine Legal',
+    settings: {
+      clerk: { model: 'claude-sonnet-5-5', enabled: true },
+      ...(wipLimits ? { board: { wipLimits } } : {}),
+    },
+  });
+}
+
+/** A transport where every move and rebalance succeeds. */
+function accepting(port: FakeAuthPort): void {
+  port.call = async <T>(name: string, data: unknown): Promise<T> => {
+    port.calls.push({ name, data });
+    return { matterId: (data as { matterId?: string }).matterId } as T;
+  };
+}
 
 type Seed = Record<string, unknown>;
 
@@ -200,12 +220,47 @@ async function open(url: string, session: AuthSession = LAWYER, options: Options
     item.click();
     await stable(10);
   };
+  const head = (title: string) => column(title)?.querySelector<HTMLElement>('.col-head') ?? null;
+  /** A column's "7 / 5" count against its WIP limit (CORE-04a), if it has one. */
+  const wip = (title: string) => head(title)?.querySelector<HTMLElement>('.mt-count.wip') ?? null;
+  /** The accessible name of a column's list of cards. */
+  const listName = (title: string) => column(title)?.querySelector('.cards')?.getAttribute('aria-label') ?? '';
+  const dialog = () => body.querySelector<HTMLElement>('.mt-dialog');
+  /** Opens a column's menu and picks an item. */
+  const columnMenu = async (title: string, item: string) => {
+    const trigger = head(title)?.querySelector<HTMLElement>('.col-menu');
+    if (!trigger) throw new Error(`No menu on ${title}`);
+    trigger.click();
+    await stable();
+    const found = menuItem(item);
+    if (!found) throw new Error(`No "${item}" in the ${title} menu`);
+    found.click();
+    await stable(10);
+  };
+  const submitDialog = async (value: string) => {
+    const input = dialog()?.querySelector<HTMLInputElement>('input');
+    if (!input) throw new Error('No dialog input');
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    await stable();
+    dialog()?.querySelector('form')?.dispatchEvent(new Event('submit'));
+    await stable(10);
+  };
+  const toasts = (title: string) =>
+    [...body.querySelectorAll<HTMLElement>('.mt-toast')].filter((t) => t.textContent?.includes(title)).length;
   return {
     port,
     firestore,
     router,
     body,
     stable,
+    head,
+    wip,
+    listName,
+    dialog,
+    columnMenu,
+    submitDialog,
+    toasts,
     columns,
     column,
     cards,
@@ -426,6 +481,112 @@ describe('matters board', () => {
     expect(
       page.menuItem('On hold')?.getAttribute('aria-disabled') ?? page.menuItem('On hold')?.hasAttribute('disabled'),
     ).toBeTruthy();
+  });
+
+  describe('WIP limits (CORE-04a)', () => {
+    it('an owner sets a column’s limit from its menu, kept on the org beside its other settings', async () => {
+      const page = await open('/matters/board?view=all-open', OWNER, { configure: (_p, fs) => seedOrg(fs) });
+      expect(page.wip('Open')).toBeNull();
+      expect(page.listName('Open')).toBe('Open: 3 matters');
+
+      await page.columnMenu('Open', 'Set WIP limit…');
+      expect(page.dialog()?.textContent).toContain('WIP limit for Open');
+      // Not a whole number from 1: the dialog says so and stays open.
+      await page.submitDialog('0');
+      expect(page.dialog()?.textContent).toContain('Use 1 or more.');
+      await page.submitDialog('2');
+      expect(page.dialog()).toBeNull();
+      expect(page.firestore.get(`orgs/${ORG}`)?.['settings']).toEqual({
+        clerk: { model: 'claude-sonnet-5-5', enabled: true },
+        board: { wipLimits: { 'status:open': 2 } },
+      });
+      // Three matters against a limit of two: counted against it, in the warning tone, and named so.
+      expect(page.wip('Open')?.textContent?.trim()).toBe('3 / 2');
+      expect(page.wip('Open')?.getAttribute('data-wip')).toBe('over');
+      expect(page.listName('Open')).toBe('Open: 3 matters, WIP limit 2, over the limit');
+
+      await page.columnMenu('Open', 'Change WIP limit…');
+      await page.submitDialog('3');
+      expect(page.wip('Open')?.getAttribute('data-wip')).toBe('full');
+      expect(page.listName('Open')).toBe('Open: 3 matters, WIP limit 3, at the limit');
+
+      await page.columnMenu('Open', 'Remove WIP limit');
+      expect(page.firestore.get(`orgs/${ORG}`)?.['settings']).toEqual({
+        clerk: { model: 'claude-sonnet-5-5', enabled: true },
+        board: { wipLimits: {} },
+      });
+      expect(page.wip('Open')).toBeNull();
+      expect(page.head('Open')?.querySelector('.mt-count')?.textContent?.trim()).toBe('3');
+    });
+
+    it('lawyers see the limits but can’t change them', async () => {
+      const page = await open('/matters/board?view=all-open', LAWYER, {
+        configure: (_p, fs) => seedOrg(fs, { 'status:open': 5 }),
+      });
+      expect(page.wip('Open')?.textContent?.trim()).toBe('3 / 5');
+      expect(page.wip('Open')?.getAttribute('data-wip')).toBe('under');
+      expect(page.listName('Open')).toBe('Open: 3 matters, WIP limit 5');
+      expect(page.body.querySelector('mt-matters-board .col-menu')).toBeNull();
+    });
+
+    it('a move into a full column still goes ahead, and warns once (announced)', async () => {
+      const page = await open('/matters/board?view=all-open', LAWYER, {
+        configure: (port, fs) => {
+          seedOrg(fs, { 'status:on_hold': 1 });
+          accepting(port);
+        },
+      });
+      expect(page.wip('On hold')?.getAttribute('data-wip')).toBe('full');
+      await page.moveWithMenu('Estate of Margaret Whitfield', 'On hold');
+      expect(page.port.calls[0]).toMatchObject({ name: 'matters-changeStatus', data: { to: 'on_hold' } });
+      expect(page.cards('On hold')).toContain('Estate of Margaret Whitfield');
+      expect(page.wip('On hold')?.textContent?.trim()).toBe('2 / 1');
+      expect(page.wip('On hold')?.getAttribute('data-wip')).toBe('over');
+      expect(page.toasts('On hold is over its WIP limit')).toBe(1);
+      expect(page.text()).toContain('2 matters against a limit of 1.');
+      const announced = [...page.body.querySelectorAll('[aria-live="polite"]')].map((r) => r.textContent ?? '');
+      expect(announced.some((text) => text.includes('On hold is over its WIP limit'))).toBe(true);
+
+      // The next move into it doesn't warn again.
+      await page.moveWithMenu('Estate of Robert Chen', 'On hold');
+      expect(page.cards('On hold')).toContain('Estate of Robert Chen');
+      expect(page.wip('On hold')?.textContent?.trim()).toBe('3 / 1');
+      expect(page.toasts('On hold is over its WIP limit')).toBe(1);
+    });
+
+    it('limits a stage column for its matter type, and counts the whole column in swimlanes', async () => {
+      const page = await open('/matters/board?view=all-open', LAWYER, {
+        configure: (_port, fs) => {
+          seedOrg(fs, { 'stage:probate:intake': 2, 'stage:will:intake': 9 });
+          fs.set(`users/${ME}/views/v-probate`, {
+            orgId: ORG,
+            list: 'matters',
+            name: 'Probate',
+            filters: { type: ['probate'] },
+            sort: { field: 'lastActivity', dir: 'desc' },
+            groupBy: 'none',
+            ...meta,
+          });
+        },
+      });
+      await page.router.navigateByUrl('/matters/board?view=v-probate');
+      await page.stable(20);
+      expect(page.wip('Intake')?.textContent?.trim()).toBe('3 / 2');
+      expect(page.wip('Other stages')).toBeNull();
+
+      [...page.body.querySelectorAll<HTMLElement>('button')]
+        .find((b) => b.textContent?.includes('Swimlanes by responsible'))
+        ?.click();
+      await page.stable();
+      const intake = page.columns().filter((c) => c.querySelector('.col-title')?.textContent?.trim() === 'Intake');
+      // Jordan's lane: two of the column's three.
+      expect([...(intake[0]?.querySelectorAll('.col-head .mt-count') ?? [])].map((c) => c.textContent?.trim())).toEqual(
+        ['2', '3 / 2'],
+      );
+      expect(intake[0]?.querySelector('.cards')?.getAttribute('aria-label')).toBe(
+        'Intake, Jordan Price: 2 matters; 3 in the column, WIP limit 2, over the limit',
+      );
+    });
   });
 });
 

@@ -183,6 +183,19 @@ describe('Settings → Practice', () => {
     expect(page.text(document.body)).toContain('Practice settings saved');
   });
 
+  it('saves a practice created with the old jurisdiction locality (VIC), moving it to Melbourne', async () => {
+    const page = await open('/settings/practice', OWNER, (firestore) =>
+      firestore.set(`orgs/${ORG}`, { ...orgDoc, holidayLocality: 'VIC' }),
+    );
+    await page.choose('Time zone', 'Australia/Perth');
+    const impact = { remindersRescheduled: 0, jurisdictionInUse: [], gstChanged: false, changed: ['timezone'] };
+    page.port.script['orgs-updateSettings'] = [{ saved: true, impact }];
+    await page.click('Save');
+    expect(page.callsTo('orgs-updateSettings')[0]).toMatchObject({
+      practice: { timezone: 'Australia/Perth', holidayLocality: 'VIC_MELBOURNE' },
+    });
+  });
+
   it('refuses removing a jurisdiction open matters use, listing them', async () => {
     const page = await open('/settings/practice', ADMIN);
     const nsw = [...page.el.querySelectorAll('mt-checkbox')].find((c) => c.textContent?.includes('NSW'));
