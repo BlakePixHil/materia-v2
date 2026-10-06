@@ -8,6 +8,9 @@ restrict_deploys_to_releases = false
 enable_migration_runner      = false
 deletion_protection          = false
 
+# Dev deploys push ~150 function images per merge; scanning each one costs more than it tells us.
+container_scanning = false
+
 # Created in the Firebase console (Blaze) before Terraform; adopted by imports.tf.
 adopt_existing_project = true
 adopt_enabled_services = [
