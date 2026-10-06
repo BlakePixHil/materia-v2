@@ -18,7 +18,7 @@ The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `f
 
 | Role | Name | Date | Note |
 | --- | --- | --- | --- |
-| User | Tristan Burke | | Also records his consent to migrate (MIG-01 human step) |
+| User | Tristan Burke | | Also confirms his consent to migrate, which Blake recorded on 2026-10-04 |
 | Product owner | Blake Linnell | | |
 
 Signing records the same names and dates in the profile's `signOff`. Changing any decision after sign-off needs both signatures again.
@@ -31,7 +31,7 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 - **Decision:** only Tristan Burke's data migrates.
   - Nothing that belongs to other legacy users is read beyond the profile names of the people his cards mention.
   - He signs in with Google only, so his account moves with the same uid and no password hashes (MIG-04).
-  - His consent is recorded by his sign-off above.
+  - Blake confirmed Tristan's consent to migrate on 2026-10-04. Tristan's sign-off above records it in his own name.
 - **Profile:** `subject`.
 
 ### D-02 Which boards migrate
