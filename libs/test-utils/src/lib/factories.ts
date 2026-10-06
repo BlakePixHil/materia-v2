@@ -564,6 +564,23 @@ export const makeCreditNote = (o: Partial<D.CreditNote> = {}) =>
     o,
   );
 
+export const makeInvoiceReminder = (o: Partial<D.InvoiceReminder> = {}) =>
+  build(
+    D.InvoiceReminder,
+    {
+      invoiceId: 'invoice-test-1',
+      invoiceNumber: 'INV-000001',
+      matterId: TEST_MATTER_ID,
+      threshold: 7,
+      dueDate: d('2026-10-15'),
+      balanceCents: 14850,
+      lawyerUid: TEST_UID,
+      to: ['client@example.com'],
+      status: 'pending',
+    },
+    o,
+  );
+
 const templateContent = {
   name: 'Probate (fictional)',
   matterType: 'probate' as const,
@@ -914,6 +931,7 @@ export const ENTITY_FACTORIES = {
   CourtBook: [D.CourtBook, makeCourtBook],
   Invoice: [D.Invoice, makeInvoice],
   CreditNote: [D.CreditNote, makeCreditNote],
+  InvoiceReminder: [D.InvoiceReminder, makeInvoiceReminder],
   MatterTemplate: [D.MatterTemplate, makeMatterTemplate],
   MatterTemplateVersion: [D.MatterTemplateVersion, makeMatterTemplateVersion],
   DocTemplate: [D.DocTemplate, makeDocTemplate],

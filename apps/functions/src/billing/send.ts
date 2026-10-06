@@ -1,3 +1,5 @@
+import type { Firestore } from 'firebase-admin/firestore';
+
 import {
   cents,
   DomainError,
@@ -29,7 +31,36 @@ export function setInvoiceFiles(next?: () => FileStore): void {
   files = next ?? (() => storageFiles());
 }
 
-const MAIL_FAILURE_COPY: Record<string, string> = {
+/** The bytes of an invoice's rendered PDF, or null when it isn't ready or is missing. */
+export async function invoicePdfBytes(db: Firestore, orgId: string, invoice: Data): Promise<Uint8Array | null> {
+  const documentId = invoice['pdfDocumentId'];
+  if (invoice['pdfStatus'] !== 'ready' || typeof documentId !== 'string') return null;
+  const matterId = String(invoice['matterId']);
+  const document = (await db.doc(`${matterPath(orgId, matterId)}/documents/${documentId}`).get()).data() as
+    Data | undefined;
+  const storagePath = typeof document?.['storagePath'] === 'string' ? document['storagePath'] : null;
+  return storagePath ? files().read(storagePath) : null;
+}
+
+/** What an invoice email shows (the title, number, firm, total and due date) and its PDF attachment. */
+export function invoiceMail(invoice: Data, bytes: Uint8Array | null) {
+  const number = String(invoice['number']);
+  const registered = invoice['gstRegistered'] !== false;
+  const supplier = (invoice['supplier'] ?? {}) as { name?: string; abn?: string };
+  const title = invoicePdfName('invoice', number, registered).replace(` ${number}`, '');
+  const model = {
+    documentTitle: title,
+    number,
+    firmName: supplier.name ?? '',
+    firmAbn: supplier.abn ? formatAbn(supplier.abn) : '',
+    total: formatCents(cents(Number(invoice['totalCents']))),
+    dueLabel: typeof invoice['dueDate'] === 'string' ? toDisplay(invoice['dueDate'] as DateOnly) : '',
+  };
+  const attachment = bytes ? { name: `${title} ${number}.pdf`, contentType: 'application/pdf', content: bytes } : null;
+  return { model, attachment };
+}
+
+export const MAIL_FAILURE_COPY: Record<string, string> = {
   not_configured: 'Email isn’t set up yet, so nothing was sent. Download the PDF and send it yourself.',
   inactive_recipient: 'That address has bounced before, so nothing was sent to it.',
   rejected: 'The email service refused the message, so nothing was sent.',
@@ -58,30 +89,15 @@ export const sendDefinition = {
     }
     const matterId = String(invoice['matterId']);
     liveMatter(await db.doc(matterPath(orgId, matterId)).get(), role, matterId);
-    const documentId = invoice['pdfDocumentId'];
-    if (invoice['pdfStatus'] !== 'ready' || typeof documentId !== 'string') {
+    if (invoice['pdfStatus'] !== 'ready' || typeof invoice['pdfDocumentId'] !== 'string') {
       throw new DomainError('FAILED_PRECONDITION', 'The PDF isn’t ready yet');
     }
-    const document = (await db.doc(`${matterPath(orgId, matterId)}/documents/${documentId}`).get()).data() as
-      Data | undefined;
-    const storagePath = typeof document?.['storagePath'] === 'string' ? document['storagePath'] : null;
-    const bytes = storagePath ? await files().read(storagePath) : null;
+    const bytes = await invoicePdfBytes(db, orgId, invoice);
     if (!bytes) throw new DomainError('FAILED_PRECONDITION', 'The PDF is missing; render it again');
 
     const number = String(invoice['number']);
-    const registered = invoice['gstRegistered'] !== false;
-    const supplier = (invoice['supplier'] ?? {}) as { name?: string; abn?: string };
-    const title = invoicePdfName('invoice', number, registered).replace(` ${number}`, '');
-    const model = {
-      documentTitle: title,
-      number,
-      firmName: supplier.name ?? '',
-      firmAbn: supplier.abn ? formatAbn(supplier.abn) : '',
-      total: formatCents(cents(Number(invoice['totalCents']))),
-      dueLabel: typeof invoice['dueDate'] === 'string' ? toDisplay(invoice['dueDate'] as DateOnly) : '',
-      message: input.message.trim(),
-    };
-    const attachment = { name: `${title} ${number}.pdf`, contentType: 'application/pdf', content: bytes };
+    const { model: base, attachment } = invoiceMail(invoice, bytes);
+    const model = { ...base, message: input.message.trim() };
     const to = [...new Set(input.to)];
     let sent = 0;
     for (const [index, address] of to.entries()) {
@@ -91,7 +107,7 @@ export const sendDefinition = {
           template: 'invoice',
           model,
           idempotencyKey: `${requestId}-${index}`,
-          attachments: [attachment],
+          attachments: attachment ? [attachment] : [],
         });
         sent++;
       } catch (error) {

@@ -206,6 +206,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'billing.view',
     update: 'none',
   },
+  // Payment reminders (BILL-08): billing roles read; queued by the nightly job, sent or dismissed by callables.
+  {
+    collection: 'invoiceReminders',
+    docPath: `orgs/${ORG}/invoiceReminders/invoice-1-7`,
+    entity: 'InvoiceReminder',
+    read: 'billing.view',
+    update: 'none',
+  },
   // Trust balance snapshots (BILL-11): billing roles read; written by trust-recordSnapshot only.
   {
     collection: 'trustSnapshots',

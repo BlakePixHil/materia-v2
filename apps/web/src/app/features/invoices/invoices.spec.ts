@@ -4,9 +4,9 @@ import { extraLinesFrom, invoiceSourcesFrom } from './invoices-view';
 import { DOWNLOAD_NAVIGATOR } from '../documents/document-actions';
 import { PDFJS_LOADER } from '../documents/pdf-viewer';
 import { fakePdfJs } from '../documents/testing';
-import { ADMIN, cleanUpOverlays, MATTER, ME, meta, openMatter, PARALEGAL } from '../matter-detail/testing';
+import { ADMIN, cleanUpOverlays, MATTER, ME, meta, openMatter, PARALEGAL, PRIYA } from '../matter-detail/testing';
 
-/** BILL-07: pre-bills, invoices, credit notes and a matter's bills. Fictional data only. */
+/** BILL-07 and BILL-08: pre-bills, invoices, credit notes, a matter's bills, payments and aged debtors. Fictional data only. */
 
 afterEach(cleanUpOverlays);
 
@@ -74,6 +74,42 @@ function issued(data: Seed = {}): Seed {
     payments: [],
     ...meta,
     ...data,
+  };
+}
+
+/** An aged-debtors report (BILL-08): two matters for one client and one for another. */
+function debtorsDoc(asOf: string): Seed {
+  const row = (
+    matterId: string,
+    matterNumber: string,
+    clientName: string,
+    buckets: Seed,
+    totalCents: number,
+    lawyerUid = ME,
+  ) => ({
+    matterId,
+    matterNumber,
+    matterTitle: `Estate of ${matterNumber}`,
+    clientName,
+    lawyerUid,
+    invoices: 1,
+    buckets: { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90_plus: 0, ...buckets },
+    totalCents,
+    oldestDueDate: '2026-08-01',
+  });
+  return {
+    period: `debtors-${asOf}`,
+    values: { total: 78_400 },
+    debtors: {
+      asOf,
+      truncated: false,
+      rows: [
+        row('m-whitfield', 'M-2026-0142', 'Avery Quill', { d31_60: 28_400 }, 28_400),
+        row('m-other', 'M-2026-0150', 'Avery Quill', { current: 20_000 }, 20_000, PRIYA),
+        row('m-third', 'M-2026-0151', 'Bram Ostler', { d90_plus: 30_000 }, 30_000, PRIYA),
+      ],
+    },
+    ...meta,
   };
 }
 
@@ -166,6 +202,19 @@ function billingCallables(): Record<string, (data: Seed, fs: Page['firestore']) 
     'billing-createCreditNote': () => ({ creditNoteId: 'cn-1', number: 'CN-000001', totalCents: 48_400 }),
     'billing-retryPdf': () => ({ jobId: 'job-2' }),
     'billing-deleteDraft': () => ({ deleted: true }),
+    'billing-recordPayment': (data) => ({
+      paymentId: 'p-new',
+      status: 'part_paid',
+      owingCents: 48_400 - Number(data['amountCents']),
+      warnings: [],
+    }),
+    'billing-reversePayment': () => ({ reversed: true, status: 'issued', owingCents: 48_400 }),
+    'billing-refreshDebtors': (_data, fs) => {
+      fs.set(`orgs/${ORG}/metrics/debtors-2026-10-04`, debtorsDoc('2026-10-04'));
+      return { asOf: '2026-10-04', invoices: 2, totalCents: 78_400 };
+    },
+    'billing-sendReminder': (data) => ({ sent: (data['to'] as string[]).length }),
+    'billing-dismissReminder': () => ({ dismissed: true }),
     'documents-getDownloadUrl': (data) => ({
       url: `https://files.example.test/${String(data['docId'])}.pdf`,
       expiresAt: '2026-10-04T00:05:00Z',
@@ -484,5 +533,220 @@ describe('the invoices list', () => {
   it('opens from Time and billing', async () => {
     const page = await open('/billing');
     expect(page.buttons('Invoices')).not.toHaveLength(0);
+  });
+});
+
+describe('payments on an invoice (BILL-08)', () => {
+  const openIssued = (data: Seed = {}, options: Parameters<typeof open>[1] = {}) =>
+    open('/billing/invoices/inv-1', { ...options, configure: (fs) => fs.set(`${INVOICES}/inv-1`, issued(data)) });
+
+  it('records a part payment, defaulting to today and what’s owing', async () => {
+    const page = await openIssued();
+    await page.click('Record payment');
+    const amount = [...(page.dialog()?.querySelectorAll<HTMLInputElement>('mt-text-field input') ?? [])][1];
+    expect(amount?.value).toBe('484.00');
+    await page.fill('Amount (AUD)', '200', page.dialog() as HTMLElement);
+    // Native selects take the option's index.
+    await page.fill('Method', '2', page.dialog() as HTMLElement);
+    await page.fill('Reference', '000123', page.dialog() as HTMLElement);
+    await page.fill('Paid by', 'Sam Quill (executor)', page.dialog() as HTMLElement);
+    expect(page.text(page.dialog())).toContain('Afterwards: $284.00 owing.');
+    await page.submit(page.dialog());
+    expect(callsOf(page, 'billing-recordPayment')).toEqual([
+      {
+        invoiceId: 'inv-1',
+        kind: 'payment',
+        date: '2026-10-04',
+        amountCents: 20_000,
+        method: 'cheque',
+        reference: '000123',
+        payer: 'Sam Quill (executor)',
+        credit: false,
+      },
+    ]);
+  });
+
+  it('refuses an overpayment until the extra is kept as credit, and warns about an early date', async () => {
+    const page = await openIssued();
+    await page.click('Record payment');
+    const dialog = page.dialog() as HTMLElement;
+    await page.fill('Amount (AUD)', '500', dialog);
+    await page.fill('Date received', '1/10/2026', dialog);
+    expect(byTestId('payment-warning')?.textContent).toContain('dated before the invoice was issued');
+    await page.submit(dialog);
+    expect(page.text(byTestId('payment-problem'))).toContain('That’s more than the $484.00 owing.');
+    expect(callsOf(page, 'billing-recordPayment')).toEqual([]);
+    (dialog.querySelector('mt-checkbox button, mt-checkbox input') as HTMLElement).click();
+    await page.stable();
+    await page.submit(dialog);
+    expect(callsOf(page, 'billing-recordPayment')).toEqual([
+      expect.objectContaining({ amountCents: 50_000, date: '2026-10-01', credit: true }),
+    ]);
+  });
+
+  const PAYMENTS = [
+    { id: 'p1', kind: 'payment', date: '2026-10-03', amountCents: 20_000, method: 'cheque', reference: '000123' },
+    {
+      id: 'p0',
+      kind: 'payment',
+      date: '2026-10-02',
+      amountCents: 5_000,
+      method: 'eft',
+      reversedAt: new Date('2026-10-03T00:00:00Z'),
+      reversalReason: 'Recorded twice',
+    },
+  ];
+
+  it('lists payments, reversed ones marked, without reversal for lawyers', async () => {
+    const lawyer = await openIssued({ status: 'part_paid', payments: PAYMENTS });
+    expect(lawyer.text(byTestId('invoice-paid'))).toBe('$200.00');
+    expect(lawyer.text(byTestId('invoice-owing'))).toBe('$284.00');
+    expect(lawyer.text(byTestId('payments'))).toContain('Ref 000123');
+    expect(lawyer.text(byTestId('payment-reversed'))).toBe('Reversed: Recorded twice');
+    expect(lawyer.buttons('Reverse')).toHaveLength(0);
+    expect(lawyer.buttons('Void')).toHaveLength(0);
+  });
+
+  it('lets owners and admins reverse a payment with a reason', async () => {
+    const admin = await openIssued({ status: 'part_paid', payments: PAYMENTS }, { session: ADMIN });
+    expect(admin.buttons('Void')).toHaveLength(0);
+    await admin.click('Reverse');
+    await admin.fill('Reason', 'Cheque dishonoured', admin.dialog() as HTMLElement);
+    await admin.submit(admin.dialog());
+    expect(callsOf(admin, 'billing-reversePayment')).toEqual([
+      { invoiceId: 'inv-1', paymentId: 'p1', reason: 'Cheque dishonoured' },
+    ]);
+  });
+
+  it('offers owners and admins a refund of credit held', async () => {
+    const payments = [{ id: 'p1', kind: 'payment', date: '2026-10-03', amountCents: 48_400, method: 'eft' }];
+    const page = await openIssued({ status: 'paid', payments, creditedCents: 10_000 }, { session: ADMIN });
+    expect(page.text(byTestId('invoice-owing'))).toBe('$100.00');
+    expect(page.text(document.body)).toContain('Credit held');
+    expect(page.buttons('Record payment')).toHaveLength(0);
+    await page.click('Record refund');
+    await page.submit(page.dialog());
+    expect(callsOf(page, 'billing-recordPayment')).toEqual([
+      expect.objectContaining({ kind: 'refund', amountCents: 10_000, credit: false }),
+    ]);
+  });
+});
+
+describe('the matter’s outstanding amount (BILL-08)', () => {
+  const withOutstanding = (fs: Page['firestore']) =>
+    fs.set(MATTER, { ...(fs.get(MATTER) as Seed), outstandingCents: 28_400 });
+
+  it('shows in the header for billing roles while invoicing is on', async () => {
+    const page = await open('/matters/m-whitfield', { configure: withOutstanding });
+    expect(page.text(byTestId('matter-outstanding'))).toBe('Outstanding $284.00');
+  });
+
+  it('stays hidden from paralegals', async () => {
+    await open('/matters/m-whitfield', { configure: withOutstanding, session: PARALEGAL });
+    expect(byTestId('matter-outstanding')).toBeNull();
+  });
+
+  it('stays hidden while invoicing is off', async () => {
+    await open('/matters/m-whitfield', { configure: withOutstanding, flags: {} });
+    expect(byTestId('matter-outstanding')).toBeNull();
+  });
+
+  it('stays hidden when nothing is owed', async () => {
+    await open('/matters/m-whitfield');
+    expect(byTestId('matter-outstanding')).toBeNull();
+  });
+});
+
+describe('aged debtors (BILL-08)', () => {
+  const reminder = (data: Seed = {}): Seed => ({
+    invoiceId: 'inv-1',
+    invoiceNumber: 'INV-000007',
+    matterId: 'm-whitfield',
+    matterNumber: 'M-2026-0142',
+    matterTitle: 'Estate of Margaret Whitfield',
+    clientName: 'Avery Quill',
+    threshold: 30,
+    dueDate: '2026-09-01',
+    balanceCents: 28_400,
+    lawyerUid: ME,
+    to: ['avery@example.test'],
+    status: 'pending',
+    ...meta,
+    ...data,
+  });
+  const openDebtors = (options: Parameters<typeof open>[1] = {}, configure?: (fs: Page['firestore']) => void) =>
+    open('/billing/debtors', {
+      ...options,
+      configure: (fs) => {
+        fs.set(`orgs/${ORG}/metrics/debtors-2026-10-04`, debtorsDoc('2026-10-04'));
+        fs.set(`orgs/${ORG}/invoiceReminders/inv-1-30`, reminder());
+        fs.set(`orgs/${ORG}/invoiceReminders/inv-9-7`, reminder({ invoiceNumber: 'INV-000009', lawyerUid: PRIYA }));
+        configure?.(fs);
+      },
+    });
+
+  it('groups what’s owed by client and matter, bucketed by age', async () => {
+    const page = await openDebtors();
+    expect(page.text(byTestId('debtors-as-of'))).toBe('As of 4 Oct 2026');
+    const clients = [...document.body.querySelectorAll('[data-testid="debtor-client"]')].map((row) =>
+      [...row.children].map((cell) => page.text(cell)),
+    );
+    expect(clients).toEqual([
+      ['Avery Quill', '', '$200.00', '—', '$284.00', '—', '—', '$484.00'],
+      ['Bram Ostler', '', '—', '—', '—', '—', '$300.00', '$300.00'],
+    ]);
+    expect(document.body.querySelectorAll('[data-testid="debtor-matter"]')).toHaveLength(3);
+    expect(page.text(byTestId('debtors-total'))).toBe('$784.00');
+    expect(callsOf(page, 'billing-refreshDebtors')).toEqual([]);
+    const mine = [...document.body.querySelectorAll<HTMLElement>('[role="radio"], button')].find(
+      (b) => b.textContent?.trim() === 'My matters',
+    );
+    mine?.click();
+    await page.stable();
+    expect(page.text(byTestId('debtors-total'))).toBe('$284.00');
+  });
+
+  it('works out today’s report when the latest is older', async () => {
+    const page = await openDebtors({}, (fs) => {
+      fs.delete(`orgs/${ORG}/metrics/debtors-2026-10-04`);
+      fs.set(`orgs/${ORG}/metrics/debtors-2026-10-03`, debtorsDoc('2026-10-03'));
+    });
+    expect(callsOf(page, 'billing-refreshDebtors')).toEqual([{}]);
+    expect(page.text(byTestId('debtors-as-of'))).toBe('As of 4 Oct 2026');
+  });
+
+  it('shows a lawyer their own reminders, drafted to review before sending', async () => {
+    const page = await openDebtors();
+    expect(page.text(byTestId('reminders'))).toContain('INV-000007');
+    expect(page.text(byTestId('reminders'))).not.toContain('INV-000009');
+    await page.click('Review and send');
+    const message = page.dialog()?.querySelector<HTMLTextAreaElement>('textarea');
+    expect(message?.value).toContain('Dear Avery Quill,');
+    expect(message?.value).toContain('is now more than 30 days overdue');
+    expect(message?.value.endsWith('Kind regards,\nJordan Price')).toBe(true);
+    expect(callsOf(page, 'billing-sendReminder')).toEqual([]);
+    await page.submit(page.dialog());
+    expect(callsOf(page, 'billing-sendReminder')).toEqual([
+      { reminderId: 'inv-1-30', to: ['avery@example.test'], message: expect.stringContaining('Dear Avery Quill,') },
+    ]);
+  });
+
+  it('lets owners and admins see and dismiss every reminder', async () => {
+    const page = await openDebtors({ session: ADMIN });
+    expect(page.text(byTestId('reminders'))).toContain('INV-000009');
+    const rows = [...(byTestId('reminders')?.querySelectorAll('li') ?? [])];
+    await page.click(
+      'Dismiss',
+      rows.find((row) => row.textContent?.includes('INV-000009')),
+    );
+    expect(callsOf(page, 'billing-dismissReminder')).toEqual([{ reminderId: 'inv-9-7' }]);
+  });
+
+  it('is off while billing.invoicing is off', async () => {
+    expect((await open('/billing/debtors', { flags: {} })).router.url).toBe('/today');
+  });
+
+  it('is off for paralegals', async () => {
+    expect((await open('/billing/debtors', { session: PARALEGAL })).router.url).not.toBe('/billing/debtors');
   });
 });
