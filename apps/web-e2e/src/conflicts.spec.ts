@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { contactSearchTokens } from '@materia/domain';
-import { expectNoA11yViolations, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, table, uniqueOrg } from './support/matters';
 
@@ -95,7 +95,8 @@ test.describe('conflict check', () => {
 
     // From the Matters list: one lead selected → Run conflict check.
     await page.goto('/matters?view=leads');
-    await expect(table(page)).toContainText('Will for Margot Ellis');
+    // The table renders once the list's first query answers, after the app boots on this load.
+    await expect(table(page)).toContainText('Will for Margot Ellis', FIRST_LOAD);
     const checkbox = table(page).getByRole('checkbox', { name: 'Select M-2026-0400 Will for Margot Ellis' });
     await checkbox.click();
     await expect(checkbox).toBeChecked();
@@ -138,6 +139,6 @@ test.describe('conflict check', () => {
     await page.getByRole('menu', { name: 'Change status to' }).getByRole('menuitem', { name: 'Open' }).click();
     await expect(page.getByRole('region', { name: /Notifications/ }).getByText('Moved 1 matter to Open')).toBeVisible();
     await page.goto('/matters?view=all-open');
-    await expect(table(page)).toContainText('Will for Margot Ellis');
+    await expect(table(page)).toContainText('Will for Margot Ellis', FIRST_LOAD);
   });
 });

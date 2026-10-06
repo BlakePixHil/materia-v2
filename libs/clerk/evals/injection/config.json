@@ -38,5 +38,6 @@
       "maxRegression": 1.0
     }
   },
-  "citations": "none"
+  "citations": "none",
+  "reportFields": ["suspiciousInstructions", "formalValidityFlags", "notFound"]
 }

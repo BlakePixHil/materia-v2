@@ -28,28 +28,21 @@ export interface RulesCoverage {
   missed: { line: number; text: string }[];
 }
 
-interface CoverageReport {
-  rules: { files: { content: string }[] };
-  report: CoverageNode[];
-}
-
-/** The emulator's report; a 500 here is usually the emulator out of heap (ci.yml sets -Xmx). */
-async function fetchCoverage(url: string): Promise<CoverageReport> {
-  const response = await fetch(url);
-  const text = await response.text();
-  try {
-    const body = JSON.parse(text) as Partial<CoverageReport>;
-    if (body.rules?.files && Array.isArray(body.report)) return body as CoverageReport;
-  } catch {
-    // Not JSON: reported below.
-  }
-  throw new Error(`The emulator returned no rules coverage report: ${response.status} ${text.slice(0, 300)}`);
-}
-
 export async function writeRulesCoverage(): Promise<RulesCoverage> {
   const host = process.env['FIRESTORE_EMULATOR_HOST'] ?? '127.0.0.1:8080';
   const base = `http://${host}/emulator/v1/projects/${PROJECT_ID}:ruleCoverage`;
-  const report = await fetchCoverage(base);
+  const response = await fetch(base);
+  const report = (await response.json()) as {
+    rules?: { files: { content: string }[] };
+    report?: CoverageNode[];
+    error?: unknown;
+  };
+  // The emulator builds the whole report in memory and answers 500 when its heap is too small.
+  if (!response.ok || !report.rules || !report.report)
+    throw new Error(
+      `No rules coverage report (HTTP ${response.status}: ${JSON.stringify(report.error ?? null)}). ` +
+        'Give the emulator more heap, e.g. JAVA_TOOL_OPTIONS=-Xmx4g.',
+    );
   const source = report.rules.files[0]?.content ?? '';
 
   // A child can start at its parent's offset, so branch values come from the top-level nodes only.
