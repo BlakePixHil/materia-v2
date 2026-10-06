@@ -10,6 +10,12 @@ import { getStorage } from 'firebase-admin/storage';
 
 import { invoiceTotals, type InvoiceLine, type Role } from '@materia/domain';
 
+import { issueDefinition } from '../../src/billing/issue';
+import { runCallable, type CallableDeps } from '../../src/core/callable';
+import { firestoreIdempotency } from '../../src/core/idempotency';
+import { cachedMemberLookup } from '../../src/core/members';
+import { fakePorts } from '../../src/ports/fakes';
+
 /**
  * BILL-07 through the emulators: pre-bills, gapless numbering under 20 concurrent issues, issuing
  * (time and disbursements billed, WIP and the budget follow through their triggers), the PDF job's
@@ -51,12 +57,11 @@ async function signInAs(role: Role) {
   await signInWithEmailAndPassword(auth, `${uidOf(role)}@example.test`, PASSWORD);
 }
 
-function callable<T>(name: string, timeout?: number) {
+function callable<T>(name: string) {
   return (input: Record<string, unknown>) =>
     httpsCallable<Record<string, unknown>, T>(
       getFunctions(client, 'australia-southeast1'),
       name,
-      timeout ? { timeout } : {},
     )({
       requestId: randomUUID(),
       ...input,
@@ -64,12 +69,32 @@ function callable<T>(name: string, timeout?: number) {
 }
 const saveDraft = callable<{ invoiceId: string; totalCents: number }>('billing-saveDraft');
 const issue = callable<{ invoiceId: string; number: string; totalCents: number }>('billing-issueInvoice');
-// The emulator settles 20 transactions contending for the counter with a lock wait of about 40 s
-// (production Firestore lets the oldest win at once), so the parallel issues outlast the 70 s default.
-const issueContended = callable<{ invoiceId: string; number: string; totalCents: number }>(
-  'billing-issueInvoice',
-  150_000,
-);
+
+/**
+ * `billing-issueInvoice`'s own pipeline (claims, role, membership, idempotency, handler) run in this
+ * process against the emulator's Firestore. The concurrent issues contend for the counter exactly
+ * as deployed ones do, without the Functions emulator starting a worker process for each request
+ * (20 at once starved the CI runner for the rest of the shard).
+ */
+function issueInProcess(invoiceId: string) {
+  const clock = { now: () => new Date() };
+  const deps: CallableDeps = {
+    db: () => db,
+    clock,
+    ports: () => fakePorts(),
+    memberLookup: cachedMemberLookup(() => db, clock),
+    idempotency: firestoreIdempotency(() => db, clock),
+    sink: () => undefined,
+  };
+  return runCallable(
+    issueDefinition,
+    {
+      data: { requestId: randomUUID(), invoiceId },
+      auth: { uid: uidOf('lawyer'), token: { orgId: ORG, role: 'lawyer' } },
+    },
+    deps,
+  );
+}
 const voidInvoice = callable<{ released: number }>('billing-voidInvoice');
 const creditNote = callable<{ creditNoteId: string; number: string; totalCents: number }>('billing-createCreditNote');
 const send = callable<{ sent: number }>('billing-sendInvoice');
@@ -176,7 +201,8 @@ describe('billing-issueInvoice numbering', () => {
         }),
       );
     }
-    const issued = await Promise.all(drafts.map((draft) => issueContended({ invoiceId: draft.invoiceId })));
+    // The emulator settles the contention for the counter far more slowly than Firestore does.
+    const issued = await Promise.all(drafts.map((draft) => issueInProcess(draft.invoiceId)));
     const numbers = issued.map((result) => result.number).sort();
     expect(numbers).toEqual(Array.from({ length: PARALLEL }, (_, i) => `INV-${String(i + 1).padStart(6, '0')}`));
     expect(await data(`orgs/${ORG}/counters/invoice`)).toMatchObject({ next: PARALLEL + 1 });
