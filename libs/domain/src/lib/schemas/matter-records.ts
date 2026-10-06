@@ -687,13 +687,15 @@ export const TimeEntry = withMeta(
         reason: z.string(),
       })
       .optional(),
+    /** Why an approver sent this draft back (BILL-03, `time-reject`); cleared when it's approved. */
+    rejection: z.object({ note: z.string().max(500), by: DocIdSchema, at: InstantSchema }).optional(),
     /** What this entry adds to the matter's `wipCents` right now; kept by `time-onWrite`. */
     wipCountedCents: CentsSchema.default(0 as never),
   },
   {
     path: `${MATTER}/timeEntries`,
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'invoiceId', 'writeDown', 'wipCountedCents'],
+    serverOwned: ['orgId', 'matterId', 'invoiceId', 'writeDown', 'rejection', 'wipCountedCents'],
     // `units`, `rateCents` and `amountCents` are the client's preview, recomputed by the trigger.
     // The author (`uid`) is fixed, and the status moves only through `time-setStatus` (and invoicing).
     updatable: ['date', 'minutes', 'units', 'rateCents', 'amountCents', 'narrative', 'billable', 'taskId'],

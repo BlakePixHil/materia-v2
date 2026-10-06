@@ -45,3 +45,4 @@ export * from './lib/referrals';
 export * from './lib/profile';
 export * from './lib/security';
 export * from './lib/time-entries';
+export * from './lib/billing';
