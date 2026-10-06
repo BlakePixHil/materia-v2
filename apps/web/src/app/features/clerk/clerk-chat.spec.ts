@@ -4,6 +4,7 @@ import { DomainError } from '@materia/domain';
 import {
   answerError,
   CHAT_COMMANDS,
+  MANUAL_PATH,
   messageNote,
   messageState,
   retryable,
@@ -11,6 +12,7 @@ import {
   workingLabel,
   type ChatMessage,
 } from './clerk-chat-view';
+import { CLERK_DISABLED_COPY } from '../../core/error-copy';
 import { resetPerformanceMonitoring, startPerformanceMonitoring } from '../../core/observability/perf';
 import { storedDocument } from '../documents/testing';
 import {
@@ -191,6 +193,16 @@ describe('Clerk chat panel', () => {
     expect(page.text(page.panel()?.querySelector('mt-clerk-message'))).toContain('Avery Quill is the executor.');
     expect(page.buttons('Copy', page.panel() ?? undefined)).toHaveLength(1);
     expect(page.buttons('Retry', page.panel() ?? undefined)).toHaveLength(1);
+  });
+
+  it.each([
+    ['clerk.features.chat', CLERK_DISABLED_COPY.featureKillSwitch],
+    ['clerk.enabled', CLERK_DISABLED_COPY.killSwitch],
+  ])('says when %s is off on Materia’s side, so nobody hunts through Settings for it', async (flag, copy) => {
+    const page = await open({ flags: { ...FLAGS, [flag]: false } });
+    const note = page.text(page.panel()?.querySelector('[data-clerk-off]'));
+    expect(note).toContain(copy);
+    expect(note).toContain(MANUAL_PATH);
   });
 
   it('times Clerk’s first words from Send and from Retry, and not an answer that ends without any', async () => {

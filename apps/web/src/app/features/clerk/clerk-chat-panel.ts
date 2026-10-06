@@ -371,7 +371,7 @@ import { CitationViewer } from '../citations/citation-viewer';
 
       <div class="foot">
         @if (!enabled()) {
-          <mt-note tone="warning">Clerk isn’t turned on for your practice. {{ manualPath }}</mt-note>
+          <mt-note tone="warning" data-clerk-off>{{ offCopy() }} {{ manualPath }}</mt-note>
         } @else if (sendError(); as error) {
           <mt-note tone="danger">{{ errorText(error) }} {{ unavailableError(error) ? manualPath : '' }}</mt-note>
         }
@@ -442,6 +442,15 @@ export class ClerkChatPanel {
   private readonly canPrivileged = can('privileged.view');
   protected readonly enabled = computed(
     () => this.flags.isOn('clerk.enabled') && this.flags.isOn('clerk.features.chat'),
+  );
+  /** Why chat is off here: one of Materia's switches, which nothing in Settings changes. */
+  protected readonly offCopy = computed(() =>
+    errorCopy({
+      details: {
+        code: 'CLERK_DISABLED',
+        switch: this.flags.isOn('clerk.enabled') ? 'clerk.features.chat' : 'clerk.enabled',
+      },
+    }),
   );
   private readonly active = computed(() => !!this.matterId() && !!this.uid() && this.canUse());
 
