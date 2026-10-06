@@ -1,10 +1,12 @@
+import { createHash } from 'node:crypto';
+
 import type { RestDeps } from '../legacy/rest.ts';
 
 /**
  * The few Cloud Storage JSON API calls the attachment copy (MIG-05) makes: object metadata, a
  * server-side `rewrite` (bucket to bucket, across projects, so the bytes never pass through the
- * machine running the tool), a media read of a copy for its sha256 and scan, a metadata patch and
- * a delete. 429s, 5xx and dropped connections are retried with backoff.
+ * machine running the tool), an upload of bytes the transform extracted, a media read of a copy
+ * for its sha256 and scan, a metadata patch and a delete. 429s, 5xx and dropped connections are retried with backoff.
  */
 
 export interface StoredObject {
@@ -43,6 +45,8 @@ export interface ObjectStore {
   rewrite(from: ObjectRef, to: Omit<ObjectRef, 'generation'>, resource: ObjectResource): Promise<StoredObject | null>;
   /** The object's bytes; throws if it holds more than `maxBytes`. */
   read(bucket: string, name: string, maxBytes: number): Promise<Buffer>;
+  /** Stores `bytes` as a new object (bytes the transform extracted, MIG-03). */
+  upload(bucket: string, name: string, bytes: Buffer, resource: ObjectResource): Promise<StoredObject>;
   /** Merges `metadata` into the object's custom metadata. */
   patchMetadata(bucket: string, name: string, metadata: Record<string, string>): Promise<StoredObject>;
   /** Deletes the object (only that generation, when given). Gone already is fine. */
@@ -95,6 +99,8 @@ export interface GcsStoreOptions {
 export function gcsStore(deps: RestDeps, options: GcsStoreOptions): ObjectStore {
   const { storage } = options;
   const sleep = options.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  // Uploads have their own root (`/upload/storage/v1`), on the emulator too.
+  const upload = `${storage.replace(/\/storage\/v1$/, '')}/upload/storage/v1`;
   const objectUrl = (bucket: string, name: string) =>
     `${storage}/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(name)}`;
 
@@ -189,6 +195,28 @@ export function gcsStore(deps: RestDeps, options: GcsStoreOptions): ObjectStore 
         const bytes = Buffer.from(await res.arrayBuffer());
         if (bytes.length > maxBytes) throw new StorageError(`gs://${bucket}/${name} is over ${maxBytes} bytes.`, false);
         return bytes;
+      });
+    },
+
+    async upload(bucket, name, bytes, resource) {
+      // A multipart upload: the object's resource, then its bytes, in one request.
+      const boundary = `materia-${createHash('sha256').update(bytes).digest('hex').slice(0, 16)}`;
+      const body = Buffer.concat([
+        Buffer.from(
+          `--${boundary}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, ...resource })}\r\n` +
+            `--${boundary}\r\ncontent-type: ${resource.contentType}\r\n\r\n`,
+        ),
+        bytes,
+        Buffer.from(`\r\n--${boundary}--`),
+      ]);
+      return retrying(async () => {
+        const res = await send(`${upload}/b/${encodeURIComponent(bucket)}/o?uploadType=multipart`, {
+          method: 'POST',
+          headers: { 'content-type': `multipart/related; boundary=${boundary}` },
+          body,
+        });
+        if (!res.ok) throw await failed(`Uploading gs://${bucket}/${name}`, res);
+        return toStored((await res.json()) as GcsObjectJson, { bucket, name });
       });
     },
 

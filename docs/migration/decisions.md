@@ -1,4 +1,4 @@
-# Migration decision log (MIG-01, MIG-02, MIG-04, MIG-05)
+# Migration decision log (MIG-01 to MIG-05)
 
 The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `fen5jJdhNHTkGBpgAdsLSKQRvXx2`) into Materia v2. The transform (MIG-03) reads them from the mapping profile [`tools/migration/profiles/tristan-burke.json`](../../tools/migration/profiles/tristan-burke.json). Each decision below names its profile field. The [Legacy migration plan](../08-legacy-migration-plan.md) has the full field map; this log records only the choices someone had to make.
 
@@ -243,6 +243,28 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
   - **Re-runs:** a file already at its document path with the same legacy content, scanned clean, is skipped, so a re-run finishes an interrupted one. The tool deletes nothing outside its quarantine.
   - **Evidence:** the emulator test copies, verifies, scans and reports made-up files, keeps an EICAR file in quarantine and copies nothing on a re-run. The ticket's staging rehearsal becomes the dev rehearsal in MIG-07 (D-15), which needs the transform (MIG-03) first.
 
+### D-19 Transform (new)
+
+- **Status:** Default, from MIG-03 on 2026-10-06. It carries out D-02 to D-14 and decides only what v2 needs that legacy doesn't have, so the sign-off above stands. The label colours (D-05) are the one thing it can't carry, since v2 labels have none.
+- **Decision:**
+  - **How:** `materia-migrate transform` reads the export's `raw/*.jsonl`, checked against the manifest's sha256s, and maps them with pure functions, one module per entity (`tools/migration/src/transform/`). Every record is validated against its `libs/domain` schema. It writes `transformed/{entity}.jsonl`, `idmap.jsonl` and `report.json` to the same run. It reads and writes only the run: the load is MIG-06. The [runbook](../runbooks/migration-transform.md) has the steps.
+  - **Same output every time:** ids are `deterministicId('mig', legacyPath)`, and a record derived from another adds a `#part` to its path (`…/cards/C#client`). The reference time is the export's `readTime`, not the clock: it stands in for missing dates and is each record's `migration.loadedAt`, which the load restamps. Keys and lines are sorted, so the same run and profile give byte-identical files.
+  - **Rich text:** an allow-list, not a library. jsdom parses the HTML the way a browser does, with no scripts and no loads; only the elements v2's Markdown renders turn into Markdown, and scripts, styles and frames are dropped with their content. A mention of the user becomes `@[uid]`, anyone else `@Name (imported)`. Quill's `ql-*` classes go, and an empty paragraph makes no note.
+  - **Embedded images:** each base64 image in a description becomes a document on its matter, with the bytes and their sha256 in the copy plan. `copy-files` uploads them through the same quarantine, checks and scan as attachments (D-18). Images loaded from the web are dropped (tracking pixels).
+  - **Dates:** instants become Timestamps. Due dates become the Melbourne day. A date that can't be read is reported (`MIG_W_DATE_INVALID`): an instant then takes the reference time, and a due date stays unset.
+  - **Fees (D-06):** v2 needs a fee arrangement on every matter, so the "unset" fee of an empty billing type is hourly with no rate or estimate, flagged `fee_type_missing`. Disbursements recorded on a legacy fee stay in the matter's `legacy.fee`, flagged `fee_disbursements`. They never become disbursement records, which would enter WIP and could be billed twice.
+  - **Labels (D-05):** each label keeps its name, and every matter also gets `board:{board name}`. v2 labels have no colour, so the colours don't migrate.
+  - **Matter numbers (D-08):** under `allocate`, every matter gets `M-{YYYY}-{seq}` by the year it opened, in the order the cards were created. `adopt_reference_when_unique` (which the profile doesn't use) would adopt a unique, valid reference. The transform also writes what `createMatter` keeps beside a number: a reservation per number and each year's counter, so matters created in v2 continue the sequence. A delta (`--base-run`) keeps the numbers its base run gave.
+  - **Checklist templates:** they go to the org's checklist templates (`orgs/{O}/checklistTemplates`, CORE-08d), not the matter templates the plan's field map named. A legacy template was a named list applied to a card, which is what a checklist template is; a matter template has stages and deadline rules. v2 holds up to 30 items: longer ones are cut and empty ones skipped, both reported.
+  - **Personal-task boards:** cards become personal tasks grouped by column, as Blake decided on 2026-10-04. The description and comments become the task's description, and the checklists its checklist. A personal task has no matter, so a card's attachments can't migrate and are reported (`MIG_W_ATTACHMENT_NOT_MIGRATED`). The prod audit found none on those boards.
+  - **Contacts:** each matter gets its own client from its title (D-10), never merged, so Tristan merges duplicates in review. The client also gets the matter's client party row, as a matter created in v2 does. Referrers and other legacy users are one contact each. A legacy user who is also a referrer keeps the referrer contact, tagged `legacy-collaborator`.
+  - **Org and member:** a new org's id comes from the user's uid, so a re-run targets the same org. Its name is the profile's `org.name`, or the legacy company name flagged `org_name_unconfirmed` (D-09). Budgets come from the legacy profile, flagged `budgets_imported`. The legacy `budgetFinancialYear` is read as the year the financial year starts (2025 means 2025–26), which the review confirms. Budgets keep their own years. When the latest is before the current year, it is reported (`MIG_W_BUDGET_ROLLED_OVER`): this year has no budget, as when legacy rolled over.
+  - **Records that weren't migratable:** activity entries and checklist templates gain the `migration` fields, so a rollback finds them. Matter-number reservations and counters can't carry them, so the rollback deletes those by path (MIG-06).
+  - **Rejects:** a record that fails its schema is rejected with everything under it, and with its matter's number reservation. The run then writes only `report.json`, listing the rejects with an empty `files` list, and exits 5, unless `--allow-rejects`.
+  - **Report:** counts in and out, every warning code with its count and legacy paths, review totals by code, rejects, and the files to copy with the orphans (D-13). It never holds a name, title or value, so the summary it logs is safe. A real run's report stays in the migration bucket and project files, never the repo.
+  - **Costs disclosure reminders:** open matters import with disclosure `required` (D-11). Once `billing.costsDisclosure` is on, the nightly job reminds the lawyer of every one that has been required for 7 days, which on the first night is every open matter. Tristan settles them in review (MIG-08) before that flag goes on in prod.
+  - **Evidence:** the fixture run is committed as a golden snapshot (`tools/migration/fixtures/golden/`), validates with no rejects and is byte-identical on a re-run, whatever order the records arrive in. Every mapper and hazard has a unit test.
+
 ### D-20 Load, verify, rollback and delta (new)
 
 - **Status:** Default, from MIG-06 on 2026-10-06. It follows from D-08, D-13 to D-18 and MIG-03's output (D-19), and changes nothing they decided, so the sign-off above stands.
@@ -266,6 +288,7 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 - **Password hash import for Tristan.** He has no password, so no hash parameters or export are needed (D-16).
 - **A staging export.** `--env` takes dev or prod (D-17).
 - **A Cloud Run job for attachment hashes.** The copy reads each file back itself (D-18).
+- **Label colours.** v2 labels are names only (D-19).
 - **A staging rehearsal of the load.** It moves to the MIG-07 dev rehearsal (D-20).
 - **Reading every record through the rules on dev and prod.** The emulator test does it; real environments check claims and membership (D-20).
 - **`delta` running the export and transform itself.** It applies a delta run made by those steps (D-20).

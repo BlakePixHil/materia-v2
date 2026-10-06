@@ -4,7 +4,7 @@
 
 - **Legacy:** repo `BlakePixHil/materia-web-app`. Firebase prod project `matt-r-1fe15`; dev project `materia-dev-26bf0`. Domains `app.materia.au` and `app.mattr.com.au`.
 - **Target:** the Materia v2 prod org created for the user, after prod launches. There is no staging, so rehearsals run on dev and are rolled back afterwards ([decision log](migration/decisions.md) D-15).
-- **Tooling:** `tools/migration`, a Node CLI. Commands: `audit` and `check-profile` (MIG-01), `export` (MIG-02), `auth-import` (MIG-04), `copy-files` (MIG-05), and `load`, `verify`, `delta` and `rollback` (MIG-06) are built; `transform` and `report` follow.
+- **Tooling:** `tools/migration`, a Node CLI. Commands: `audit` and `check-profile` (MIG-01), `export` (MIG-02), `transform` (MIG-03), `auth-import` (MIG-04), `copy-files` (MIG-05), and `load`, `verify`, `delta` and `rollback` (MIG-06) are built; `report` follows.
 - **Decisions:** the user's mapping choices are in [`docs/migration/decisions.md`](migration/decisions.md) and the mapping profile `tools/migration/profiles/<user>.json`.
 
 ## Legacy model (source facts)
@@ -39,10 +39,10 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
 | `profiles/{U}/dashboard-checklist-items/*` | `orgs/{O}/members/{U}/tasks/*` (personal tasks) | Priority map: 0→none, 1→high, 2→medium, 3→low. `dueDate` ISO → `DateOnly` in Australia/Melbourne. `checked` → status `done`, with `completedAt` from `doneOnDate` |
 | `workspaces/{id}` (prime) | merged into the org | Non-prime workspaces: list them in the report (none expected) |
 | `workflows/{id}` (where `uids` contains U, or legacy `owner == U`) | Matter label `board:{name}`, plus a per-workflow **mapping profile** | The mapping profile sets each workflow's mode (`matters`, `personal_tasks` or `exclude`), its default `matterType`, and each swimlane → `{status, stageId?, matterType?}`. A swimlane can override the type when the columns are kinds of matter. `isDoneSwimlane` → `closed`. The user signs the mapping off in MIG-01 |
-| `workflow.labels[]` | matter `labels[]` (by name) | Colours are CSS vars (`var(--mr-label-N-rgb)`) → nearest v2 tag tone. Cosmetic |
+| `workflow.labels[]` | matter `labels[]` (by name) | Colours are CSS vars (`var(--mr-label-N-rgb)`). v2 labels have no colour, so they don't migrate (D-19). Cosmetic |
 | `cards/{cardId}` | `orgs/{O}/matters/{M}` | See the next table |
 | `cards/*/attachments/*` | `matters/{M}/documents/{D}` + an object copy to `orgs/{O}/matters/{M}/documents/{D}/v1` | sha256 is verified after the copy. `source: 'migration'`, `category: 'other'`; Clerk reclassifies after load (MIG-09) |
-| `workflows/*/checklist-templates/*` | `orgs/{O}/templates/*` (`source: 'org'`, tasks only, no deadline rules) | The doc id is authoritative (the legacy `id` field is wrong) |
+| `workflows/*/checklist-templates/*` | `orgs/{O}/checklistTemplates/*` (CORE-08d: a named list of items applied to a task, as legacy applied it to a card; D-19) | The doc id is authoritative (the legacy `id` field is wrong) |
 | `referrers/*` (where `uids` contains U) | `contacts` with `isReferrer: true` | A referrer with a `name` is a person (`company` → `referrerMeta.company`); one with only a `company` is an organisation. `industry` (free text) → `referrerMeta.industry` through `referrerIndustryFromText` (unrecognised → `other`, empty → unset). Phones normalised to E.164. Dedupe against other imported contacts (an existing client who is also a referrer keeps one contact, `isReferrer: true`) |
 | other users referenced (workflow members, assignees, comment authors, mention targets) | contacts tagged `legacy-collaborator` | Their profile names are read from legacy `profiles` (read-only). They are not members, and they are not invited automatically |
 | `notifications`, `workflow-invites`, `feedback`, `workflows/*/invites` | not migrated | Counted in the report |
@@ -125,6 +125,7 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
    - Pure functions (`tools/migration/src/transform/*`) produce v2 entities validated by the `libs/domain` zod schemas.
    - Deterministic v2 ids: `base62(sha256(namespace + legacyPath))[0..20]`.
    - Outputs: `transformed/*.jsonl` and `report.json` (warnings per item, with stable codes such as `MIG_W_ASSIGNEE_FOREIGN`).
+   - **Built in MIG-03:** `materia-migrate transform` writes `transformed/{entity}.jsonl`, `idmap.jsonl` (`{legacyPath, v2Path}`) and `report.json` to the run. The same run and profile always give the same bytes. A record that fails its schema stops the run (exit 5) unless `--allow-rejects` ([runbook](runbooks/migration-transform.md), D-19).
    - **Attachments (built in MIG-05):** `materia-migrate copy-files` then copies every planned attachment and the profile photo into the v2 files bucket, server to server, through a quarantine: verified against the export's checksums, hashed (sha256) and scanned before it reaches its document path. It writes `files/documents.jsonl` with version 1 filled in, which the load reads ([runbook](runbooks/migration-copy-files.md), D-18).
 4. **Load:**
    - BulkWriter with upserts by deterministic id.

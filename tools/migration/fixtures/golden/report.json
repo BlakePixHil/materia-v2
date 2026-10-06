@@ -1,0 +1,440 @@
+{
+  "asOf": "2026-10-06T21:00:00.123Z",
+  "counts": {
+    "in": {
+      "attachments": 7,
+      "auth": 1,
+      "cards": 10,
+      "checklist-templates": 2,
+      "dashboard-checklist-items": 2,
+      "integrations": 2,
+      "people": 2,
+      "profiles": 1,
+      "referrers": 3,
+      "storage-objects": 9,
+      "workflows": 3,
+      "workspaces": 2
+    },
+    "out": {
+      "activity": 2,
+      "avatars": 1,
+      "checklist-templates": 2,
+      "contacts": 12,
+      "counters": 1,
+      "documents": 8,
+      "matter-numbers": 8,
+      "matters": 8,
+      "members": 1,
+      "notes": 7,
+      "orgs": 1,
+      "parties": 8,
+      "personal-tasks": 4,
+      "tasks": 4,
+      "users": 1
+    }
+  },
+  "files": {
+    "idmap.jsonl": {
+      "count": 68,
+      "sha256": "4e15023157ec43c866c38b3dc48313f50e2abed6341e4060e0866e176bc84265"
+    },
+    "transformed/activity.jsonl": {
+      "count": 2,
+      "sha256": "2532daceef8a7a4d8e1d4397a936de7f71429b6cd80f22f0063af0ba2d0d30a5"
+    },
+    "transformed/avatars.jsonl": {
+      "count": 1,
+      "sha256": "f47fe5948b48d823c63c132fd1dcaf83db00ef746e9d34174ce6549ca92f0b6f"
+    },
+    "transformed/checklist-templates.jsonl": {
+      "count": 2,
+      "sha256": "84b3346efa0a4cd26252e0479c9d8567880ec09480cf91cce5a91a5845918b51"
+    },
+    "transformed/contacts.jsonl": {
+      "count": 12,
+      "sha256": "df0c71ac565948b656f08d27f4806cb27889ef79e5a8660503932a558b2d0687"
+    },
+    "transformed/counters.jsonl": {
+      "count": 1,
+      "sha256": "11538b93b743e10de67d87cdcaf8e1917c2f7e7d098d3c5d08c10a4455f81ebd"
+    },
+    "transformed/documents.jsonl": {
+      "count": 8,
+      "sha256": "7f52af2c2500ab1b8f8a20e4755dfcc7d3546a42d881230e34e165428ef2c543"
+    },
+    "transformed/matter-numbers.jsonl": {
+      "count": 8,
+      "sha256": "8d5ab1dccdc7185f8cd2bb711bb45492572a16f75020e3860e7b1ea69a3a033e"
+    },
+    "transformed/matters.jsonl": {
+      "count": 8,
+      "sha256": "94a76ba6ee9136e7fcdf68019f10210df61b902645663779e367b156d117fdb8"
+    },
+    "transformed/members.jsonl": {
+      "count": 1,
+      "sha256": "6fe8f8655f36cb5e0dab156664bac35dd53c71a4abc4ac9465c74a2d37a89946"
+    },
+    "transformed/notes.jsonl": {
+      "count": 7,
+      "sha256": "d5a5b1bbafddd4591f7f19310f29c0b2cbb9279d9a09fc8eb111ce15d93056e0"
+    },
+    "transformed/orgs.jsonl": {
+      "count": 1,
+      "sha256": "8ab1a6e435625145167c18ccb40e9abf101f157ee18001a63435cbc1fb481678"
+    },
+    "transformed/parties.jsonl": {
+      "count": 8,
+      "sha256": "dbfddabb647e6938f143831f136d8a88cbd6f51ecb167caac1d6c666294b75b8"
+    },
+    "transformed/personal-tasks.jsonl": {
+      "count": 4,
+      "sha256": "6b2e31051a8cdbd8b91cf023f1ac1809e9d9aeeda6fac0c89817c4681cc3cf63"
+    },
+    "transformed/tasks.jsonl": {
+      "count": 4,
+      "sha256": "611cdda0497a22abfd8b45046b2f005d93c90570eaa94533066abb8f3a78e054"
+    },
+    "transformed/users.jsonl": {
+      "count": 1,
+      "sha256": "63a6221a2286d9d7ea4ce14c85e885d135bc6362f85fce0e2582cd7242b784e3"
+    }
+  },
+  "integrations": [
+    {
+      "connected": true,
+      "provider": "google",
+      "type": "calendar"
+    },
+    {
+      "connected": false,
+      "provider": "microsoft",
+      "type": "calendar"
+    }
+  ],
+  "kind": "full",
+  "needsReview": {
+    "byCode": {
+      "budgets_imported": 1,
+      "client_from_title": 7,
+      "client_placeholder": 1,
+      "closed_without_closing_record": 2,
+      "fee_amount_missing": 0,
+      "fee_conditional_terms": 1,
+      "fee_disbursements": 1,
+      "fee_type_missing": 3,
+      "org_name_unconfirmed": 0,
+      "referrer_unnamed": 1,
+      "swimlane_unknown": 1,
+      "title_missing": 1
+    },
+    "records": 10
+  },
+  "notifications": 2,
+  "orgId": "nV2gQ3j4JvboeXNIX68x",
+  "profileChanged": false,
+  "profileHash": "fixture-profile",
+  "rejects": [],
+  "runId": "fixture-run",
+  "storage": {
+    "copies": 8,
+    "copyBytes": 27561046,
+    "missingObjects": 1,
+    "objects": 9,
+    "orphans": [
+      {
+        "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/attachments/a77a0000-0000-4000-8000-000000000098.pdf",
+        "size": 7000
+      },
+      {
+        "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000002/attachments/a77a0000-0000-4000-8000-000000000099.pdf",
+        "size": 9000
+      }
+    ]
+  },
+  "targetOrg": "new",
+  "toolVersion": "0.0.0+test",
+  "uid": "AlexRiversLegacyUid000000001",
+  "version": 1,
+  "warnings": {
+    "MIG_W_ADDRESS_UNPARSED": {
+      "count": 0,
+      "meaning": "An address couldn't be split into its parts; it is kept in the contact's notes",
+      "paths": []
+    },
+    "MIG_W_ASSIGNEE_FOREIGN": {
+      "count": 1,
+      "meaning": "The card was assigned to someone else; the user is responsible now",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002"
+      ]
+    },
+    "MIG_W_ATTACHMENT_DOWNLOAD_ONLY": {
+      "count": 1,
+      "meaning": "A type v2 uploads refuse (svg, gif, bmp): it migrates as a download-only file (D-13)",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000003"
+      ]
+    },
+    "MIG_W_ATTACHMENT_NOT_MIGRATED": {
+      "count": 0,
+      "meaning": "A file or embedded image on a card that becomes a personal task has no matter to go on, so it is not migrated",
+      "paths": []
+    },
+    "MIG_W_ATTACHMENT_OBJECT_MISSING": {
+      "count": 1,
+      "meaning": "The attachment's file is not in legacy Storage; the document is kept, with nothing to copy",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000005"
+      ]
+    },
+    "MIG_W_ATTACHMENT_OVERSIZE": {
+      "count": 1,
+      "meaning": "The file is over the 25 MB legacy limit; it still migrates",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000006"
+      ]
+    },
+    "MIG_W_ATTACHMENT_SIZE_MISMATCH": {
+      "count": 1,
+      "meaning": "The attachment's recorded size differs from its file's; the file's size is used",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000004"
+      ]
+    },
+    "MIG_W_ATTACHMENT_TYPE_FROM_EXTENSION": {
+      "count": 1,
+      "meaning": "The attachment had no content type, so it comes from the file extension",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000004"
+      ]
+    },
+    "MIG_W_BUDGET_MISSING": {
+      "count": 0,
+      "meaning": "The profile has no financial year budgets (older profiles)",
+      "paths": []
+    },
+    "MIG_W_BUDGET_ROLLED_OVER": {
+      "count": 1,
+      "meaning": "The profile's budget year is before the current one, so this year has no budget (legacy rollover)",
+      "paths": [
+        "profiles/AlexRiversLegacyUid000000001"
+      ]
+    },
+    "MIG_W_BUDGET_YEAR_MISSING": {
+      "count": 0,
+      "meaning": "A budget has no financial year, so it is read as the current one (the year before, for the previous budget)",
+      "paths": []
+    },
+    "MIG_W_CALENDAR_EVENTS_EXIST": {
+      "count": 1,
+      "meaning": "A checklist item had a calendar event, which is still in the user's calendar",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001#checklist/c1000000-0000-4000-8000-000000000001/item/c7ec0000-0000-4000-8000-000000000001"
+      ]
+    },
+    "MIG_W_CHECKLIST_TRUNCATED": {
+      "count": 0,
+      "meaning": "A card's checklist had more items than a personal task holds; the rest were dropped",
+      "paths": []
+    },
+    "MIG_W_DATE_INVALID": {
+      "count": 1,
+      "meaning": "A date could not be read. Instants use the export time instead; due and billing dates are left unset",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000003"
+      ]
+    },
+    "MIG_W_EMAIL_INVALID": {
+      "count": 1,
+      "meaning": "An email address isn't valid; it is kept in the contact's notes",
+      "paths": [
+        "referrers/7e7e0000-0000-4000-8000-000000000002"
+      ]
+    },
+    "MIG_W_FEE_DISBURSEMENTS": {
+      "count": 1,
+      "meaning": "The legacy fee recorded disbursements; they are kept on the matter for review, not as records",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000004"
+      ]
+    },
+    "MIG_W_FEE_FOLIO": {
+      "count": 1,
+      "meaning": "Billed by folio in legacy: hourly in v2, with a note (D-06)",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000001"
+      ]
+    },
+    "MIG_W_FEE_TYPE_MISSING": {
+      "count": 3,
+      "meaning": "The card has no billing type: hourly with no estimate, for review",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000005",
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000002",
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000003"
+      ]
+    },
+    "MIG_W_FEE_TYPE_UNKNOWN": {
+      "count": 0,
+      "meaning": "The billing type is not one the legacy app had: hourly with no estimate, for review",
+      "paths": []
+    },
+    "MIG_W_HTML_UNSAFE_REMOVED": {
+      "count": 1,
+      "meaning": "Rich text held scripts, styles, frames or similar, which were removed",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000003"
+      ]
+    },
+    "MIG_W_INLINE_IMAGE_EXTRACTED": {
+      "count": 1,
+      "meaning": "An image embedded in a description became a document on the matter",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001"
+      ]
+    },
+    "MIG_W_INTEGRATION_NOT_MIGRATED": {
+      "count": 2,
+      "meaning": "A legacy integration is not migrated; the user reconnects it",
+      "paths": [
+        "profiles/AlexRiversLegacyUid000000001/integrations/i0000000-0000-4000-8000-000000000001",
+        "profiles/AlexRiversLegacyUid000000001/integrations/i0000000-0000-4000-8000-000000000002"
+      ]
+    },
+    "MIG_W_LABEL_UNKNOWN": {
+      "count": 1,
+      "meaning": "A label id the board no longer defines was dropped",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001"
+      ]
+    },
+    "MIG_W_LINK_DROPPED": {
+      "count": 2,
+      "meaning": "A linked card isn't migrated as a matter (another board, or deleted), so the link is dropped",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001",
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002"
+      ]
+    },
+    "MIG_W_MATTER_REFERENCE_DUPLICATE": {
+      "count": 2,
+      "meaning": "A matter reference repeats, so a new number is allocated (it stays the external reference)",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001",
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002"
+      ]
+    },
+    "MIG_W_NON_PRIME_WORKSPACE": {
+      "count": 1,
+      "meaning": "A non-prime workspace is listed in the report, not migrated",
+      "paths": [
+        "workspaces/f0000000-0000-4000-8000-000000000002"
+      ]
+    },
+    "MIG_W_NOTE_TRUNCATED": {
+      "count": 0,
+      "meaning": "Text longer than a note's limit was cut",
+      "paths": []
+    },
+    "MIG_W_ORG_NAME_UNCONFIRMED": {
+      "count": 0,
+      "meaning": "The org name comes from the legacy company name; the user confirms it at cutover (D-09)",
+      "paths": []
+    },
+    "MIG_W_PERSON_MISSING": {
+      "count": 1,
+      "meaning": "A referenced user has no legacy profile, so their name is unknown",
+      "paths": [
+        "profiles/DepartedUserLegacyUid0000003"
+      ]
+    },
+    "MIG_W_PHONE_INVALID": {
+      "count": 0,
+      "meaning": "A phone number isn't a valid number; it is kept in the contact's notes",
+      "paths": []
+    },
+    "MIG_W_PRIORITY_UNKNOWN": {
+      "count": 0,
+      "meaning": "A priority outside 0 to 3 was read as none",
+      "paths": []
+    },
+    "MIG_W_REFERRER_MISSING": {
+      "count": 1,
+      "meaning": "The card names a referrer that is not exported",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000003"
+      ]
+    },
+    "MIG_W_REFERRER_NO_TIMESTAMPS": {
+      "count": 2,
+      "meaning": "The referrer has no dates, so the export time is used",
+      "paths": [
+        "referrers/7e7e0000-0000-4000-8000-000000000001",
+        "referrers/7e7e0000-0000-4000-8000-000000000003"
+      ]
+    },
+    "MIG_W_REFERRER_UNNAMED": {
+      "count": 1,
+      "meaning": "The referrer has neither a name nor a company",
+      "paths": [
+        "referrers/7e7e0000-0000-4000-8000-000000000003"
+      ]
+    },
+    "MIG_W_REMOTE_IMAGE_DROPPED": {
+      "count": 1,
+      "meaning": "Rich text loaded an image from the web (a tracking pixel, say), which was dropped",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000003"
+      ]
+    },
+    "MIG_W_SWIMLANE_UNKNOWN": {
+      "count": 1,
+      "meaning": "The card's column isn't on the board any more, or the profile doesn't map it",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000005"
+      ]
+    },
+    "MIG_W_TEMPLATE_EMPTY": {
+      "count": 0,
+      "meaning": "A checklist template had no items, so it is not migrated",
+      "paths": []
+    },
+    "MIG_W_TEMPLATE_ID_MISMATCH": {
+      "count": 1,
+      "meaning": "The checklist template's id field differs from its document id; the document id is used",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/checklist-templates/7e3a0000-0000-4000-8000-000000000001"
+      ]
+    },
+    "MIG_W_TEMPLATE_TRUNCATED": {
+      "count": 0,
+      "meaning": "A checklist template had more items than v2 allows; the rest were dropped",
+      "paths": []
+    },
+    "MIG_W_TEXT_TRUNCATED": {
+      "count": 0,
+      "meaning": "A title, name or group longer than v2 allows was cut",
+      "paths": []
+    },
+    "MIG_W_UNTITLED": {
+      "count": 1,
+      "meaning": "A record had no title, so a placeholder title is used",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000005"
+      ]
+    },
+    "MIG_W_UPDATED_BEFORE_CREATED": {
+      "count": 1,
+      "meaning": "The record says it was updated before it was created; updatedAt is set to createdAt",
+      "paths": [
+        "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000004"
+      ]
+    }
+  },
+  "workspaces": {
+    "nonPrime": [
+      "workspaces/f0000000-0000-4000-8000-000000000002"
+    ],
+    "prime": 1
+  }
+}
