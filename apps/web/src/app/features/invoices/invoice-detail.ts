@@ -9,6 +9,7 @@ import {
   untracked,
   ViewEncapsulation,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 import { can } from '@materia/data-access';
@@ -20,6 +21,7 @@ import {
   invoiceCreditNotesQuery,
   matterDetailRepository,
   paymentCallables,
+  trustSnapshotRepository,
   type CreditNoteItem,
   type InvoiceItem,
   type WithId,
@@ -27,15 +29,19 @@ import {
 import {
   creditableLines,
   hasLivePayments,
+  hasTrustPayments,
   invoiceBalanceCents,
   invoiceClientEmails,
   paidCents,
   PAYMENT_METHOD_LABELS,
   PAYMENT_WARNING_COPY,
+  PAID_FROM_TRUST_COPY,
+  TRUST_CORRECTION_COPY,
+  trustSnapshotLine,
   type InvoiceClientLike,
   type InvoicePayment,
 } from '@materia/domain';
-import { DialogService, formatAud, MtBadge, MtButton, MtNote, ToastService } from '@materia/ui';
+import { DialogService, formatAud, MtBadge, MtButton, MtCheckbox, MtNote, ToastService } from '@materia/ui';
 
 import {
   CreditNoteDialog,
@@ -57,8 +63,10 @@ import {
 } from './payment-dialogs';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { DOWNLOAD_NAVIGATOR } from '../documents/document-actions';
 import { PdfViewer } from '../documents/pdf-viewer';
+import type { TrustSnapshotDialogData } from '../trust/trust-snapshot-dialog';
 
 type CreditNote = WithId<CreditNoteItem>;
 
@@ -74,7 +82,7 @@ type CreditNote = WithId<CreditNoteItem>;
   selector: 'mt-invoice-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [RouterLink, MtBadge, MtButton, MtNote, PdfViewer],
+  imports: [FormsModule, RouterLink, MtBadge, MtButton, MtCheckbox, MtNote, PdfViewer],
   host: { class: 'mt-col mt-invoice-detail' },
   template: `
     @let inv = invoice();
@@ -211,6 +219,25 @@ type CreditNote = WithId<CreditNoteItem>;
             <dd data-testid="invoice-sent">{{ sentText() }}</dd>
           </div>
         </dl>
+
+        @if (canIssue() && live()) {
+          <mt-checkbox
+            name="paidFromTrust"
+            label="To be paid from trust"
+            data-testid="invoice-trust-option"
+            [description]="trustCopy"
+            [disabled]="markingTrust()"
+            [ngModel]="!!inv.paidFromTrust"
+            (ngModelChange)="setFromTrust(!!$event)"
+          />
+        } @else if (inv.paidFromTrust) {
+          <p class="caption t-2" data-testid="invoice-trust">{{ trustCopy }}</p>
+        }
+        @if (inv.trustNotice) {
+          <p class="caption t-3" data-testid="invoice-trust-notice">
+            The PDF includes the notice of intended withdrawal from trust.
+          </p>
+        }
 
         @if (inv.payments.length) {
           <section class="mt-col" aria-labelledby="payments-title">
@@ -381,6 +408,12 @@ export class InvoiceDetail {
   private readonly contacts = contactsRepository();
   protected readonly canIssue = can('billing.issue');
   protected readonly canVoid = can('billing.void');
+  private readonly flags = inject(FeatureFlagService);
+  private readonly trustSnapshots = trustSnapshotRepository();
+  private readonly canViewTrust = can('billing.view');
+  private readonly canRecordTrust = can('trust.record');
+  protected readonly trustCopy = PAID_FROM_TRUST_COPY;
+  protected readonly markingTrust = signal(false);
 
   private readonly matter = matterDetailRepository().watch(() => this.invoice().matterId);
   protected readonly creditNotes = creditNoteRepository().watchQuery(() => invoiceCreditNotesQuery(this.invoice().id));
@@ -496,7 +529,11 @@ export class InvoiceDetail {
   protected async voidIt(): Promise<void> {
     const invoice = this.invoice();
     const reason = await this.dialogs.open<VoidInvoiceDialogData, string | undefined>(VoidInvoiceDialog, {
-      data: { number: invoice.number, total: formatAud(invoice.totalCents) },
+      data: {
+        number: invoice.number,
+        total: formatAud(invoice.totalCents),
+        trustWarning: hasTrustPayments(invoice.payments) ? TRUST_CORRECTION_COPY : undefined,
+      },
     }).result;
     if (!reason) return;
     try {
@@ -555,6 +592,7 @@ export class InvoiceDetail {
             : 'Nothing left owing.';
       this.toasts.show({ title: kind === 'refund' ? 'Refund recorded' : 'Payment recorded', description: left });
       this.announcement.set(kind === 'refund' ? 'Refund recorded.' : 'Payment recorded.');
+      if (request.method === 'trust_transfer') void this.promptTrustSnapshot(invoice.matterId);
     } catch (error) {
       this.toasts.show({
         title: kind === 'refund' ? 'The refund wasn’t recorded' : 'The payment wasn’t recorded',
@@ -568,7 +606,11 @@ export class InvoiceDetail {
     const invoice = this.invoice();
     const what = `${payment.kind === 'refund' ? 'the refund' : 'the payment'} of ${formatAud(payment.amountCents)}`;
     const reason = await this.dialogs.open<ReversePaymentDialogData, string | undefined>(ReversePaymentDialog, {
-      data: { number: invoice.number, what },
+      data: {
+        number: invoice.number,
+        what,
+        trustWarning: payment.method === 'trust_transfer' ? TRUST_CORRECTION_COPY : undefined,
+      },
     }).result;
     if (!reason) return;
     try {
@@ -577,6 +619,62 @@ export class InvoiceDetail {
     } catch (error) {
       this.toasts.show({ title: 'It wasn’t reversed', description: errorCopy(error), tone: 'danger' });
     }
+  }
+
+  /** BILL-12: marks the invoice "To be paid from trust", or clears it. Only the intention is recorded. */
+  protected async setFromTrust(paidFromTrust: boolean): Promise<void> {
+    const invoice = this.invoice();
+    if (this.markingTrust() || !!invoice.paidFromTrust === paidFromTrust) return;
+    this.markingTrust.set(true);
+    try {
+      const result = await this.api.setPaidFromTrust({ invoiceId: invoice.id, paidFromTrust });
+      const done = paidFromTrust ? 'Marked to be paid from trust.' : 'No longer marked to be paid from trust.';
+      this.toasts.show({
+        title: paidFromTrust ? 'Marked to be paid from trust' : 'No longer to be paid from trust',
+        ...(result.pdfRendering ? { description: 'The PDF is being made again.' } : {}),
+      });
+      this.announcement.set(done);
+    } catch (error) {
+      this.toasts.show({ title: 'The invoice wasn’t changed', description: errorCopy(error), tone: 'danger' });
+    } finally {
+      this.markingTrust.set(false);
+    }
+  }
+
+  /**
+   * BILL-12: after a payment from trust, when the matter shows a trust balance copied from the
+   * firm's records (BILL-11), asks the person to copy the new balance. Materia never changes it.
+   */
+  private async promptTrustSnapshot(matterId: string): Promise<void> {
+    if (!this.flags.isOn('billing.trustDisplay') || !this.canViewTrust()) return;
+    const snapshot = await this.trustSnapshots.get(matterId).catch(() => null);
+    if (!snapshot) return;
+    const shown = `The trust balance shown on ${this.matterLabel()} is ${formatAud(snapshot.amountCents)}, ${trustSnapshotLine(snapshot)}, and Materia doesn’t change it.`;
+    if (!this.canRecordTrust()) {
+      this.toasts.show({
+        title: 'The trust balance may be out of date',
+        description: `${shown} Ask someone who records trust balances to update it.`,
+        tone: 'neutral',
+      });
+      return;
+    }
+    const update = await this.dialogs.confirm({
+      title: 'Update the trust balance?',
+      body: `You recorded a payment from trust. ${shown} Copy the new balance from your trust records.`,
+      confirmLabel: 'Update trust balance',
+      cancelLabel: 'Not now',
+    });
+    if (!update) return;
+    const { TrustSnapshotDialog } = await import('../trust/trust-snapshot-dialog');
+    const saved = await this.dialogs.open<TrustSnapshotDialogData, boolean>(TrustSnapshotDialog, {
+      data: {
+        matterId,
+        matterLabel: this.matterLabel(),
+        recordsName: snapshot.sourceSystemName,
+        amountCents: snapshot.amountCents,
+      },
+    }).result;
+    if (saved) this.toasts.show({ title: 'Trust balance saved', tone: 'success' });
   }
 
   protected async retry(target: { invoiceId: string } | { creditNoteId: string }): Promise<void> {

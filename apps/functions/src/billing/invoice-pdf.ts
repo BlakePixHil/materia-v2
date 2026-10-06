@@ -47,6 +47,7 @@ interface StoredDocument extends Data {
   matterTitle?: string;
   invoiceNumber?: string;
   reason?: string;
+  trustNotice?: { version: number; text: string };
 }
 
 /**

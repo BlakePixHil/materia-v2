@@ -15,6 +15,8 @@ import {
   type SaveInvoiceDraftResult,
   type SendInvoiceInput,
   type SendInvoiceResult,
+  type SetPaidFromTrustInput,
+  type SetPaidFromTrustResult,
   type VoidInvoiceInput,
   type VoidInvoiceResult,
 } from '@materia/domain';
@@ -64,6 +66,8 @@ export const InvoiceItemSchema = /* @__PURE__ */ z.object({
   creditNoteIds: invoice.creditNoteIds,
   creditedCents: invoice.creditedCents,
   payments: invoice.payments,
+  paidFromTrust: invoice.paidFromTrust,
+  trustNotice: invoice.trustNotice,
   createdAt: invoice.createdAt.optional(),
   createdBy: invoice.createdBy.optional(),
   updatedAt: invoice.updatedAt.optional(),
@@ -139,6 +143,8 @@ export interface InvoiceCallables {
   createCreditNote(input: Input<CreateCreditNoteInput>, options?: Options): Promise<CreateCreditNoteResult>;
   /** `billing-retryPdf`: renders a failed PDF again. */
   retryPdf(input: Input<RetryInvoicePdfInput>, options?: Options): Promise<RetryInvoicePdfResult>;
+  /** `billing-setPaidFromTrust` (BILL-12): marks a pre-bill or invoice "To be paid from trust", or clears it. */
+  setPaidFromTrust(input: Input<SetPaidFromTrustInput>, options?: Options): Promise<SetPaidFromTrustResult>;
 }
 
 export function invoiceCallables(client: Pick<CallableClient, 'call'>): InvoiceCallables {
@@ -154,5 +160,6 @@ export function invoiceCallables(client: Pick<CallableClient, 'call'>): InvoiceC
     void: call(INVOICE_CALLABLES.void),
     createCreditNote: call(INVOICE_CALLABLES.createCreditNote),
     retryPdf: call(INVOICE_CALLABLES.retryPdf),
+    setPaidFromTrust: call(INVOICE_CALLABLES.setPaidFromTrust),
   };
 }

@@ -317,6 +317,39 @@ describe('field-level rules', () => {
     await assertSucceeds(list('lawyer', where('status', 'in', ['proposed', 'stale'])));
   });
 
+  it('key fact citations: no client writes; privileged ones, or a privileged matter’s, need privileged.view (CORE-06a)', async () => {
+    const FACT = `${MATTER}/factCitations/willDate`;
+    const PRIV_FACT = `${MATTER}/factCitations/grantNo`;
+    const PRIV_MATTER = `orgs/${ORG}/matters/matter-fact-priv`;
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, FACT), seedData(specFor('factCitations')));
+      await setDoc(doc(f, PRIV_FACT), { ...seedData(specFor('factCitations')), factId: 'grantNo', privileged: true });
+      await setDoc(doc(f, PRIV_MATTER), { ...seedData(specFor('matters')), privileged: true });
+      await setDoc(doc(f, `${PRIV_MATTER}/factCitations/willDate`), seedData(specFor('factCitations')));
+    });
+    // Accepting a suggestion writes them and a changed fact deletes them; never a person directly.
+    await assertFails(updateDoc(doc(db(env, 'owner'), FACT), stamped({ value: '2020-01-01' }, uidFor('owner'))));
+    await assertFails(deleteDoc(doc(db(env, 'lawyer'), FACT)));
+    await assertFails(
+      setDoc(doc(db(env, 'lawyer'), `${MATTER}/factCitations/grantDate`), seedData(specFor('factCitations'))),
+    );
+    for (const role of ROLES) {
+      const as = (path: string) => getDoc(doc(db(env, role), path));
+      await assertSucceeds(as(FACT));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(as(PRIV_FACT));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(
+        as(`${PRIV_MATTER}/factCitations/willDate`),
+      );
+    }
+    // A list without privileged.view must prove `privileged == false`.
+    const list = (role: Role, ...filters: ReturnType<typeof where>[]) =>
+      getDocs(query(collection(db(env, role), `${MATTER}/factCitations`), ...filters));
+    await assertFails(list('readonly'));
+    await assertSucceeds(list('readonly', where('privileged', '==', false)));
+    await assertSucceeds(list('paralegal', where('privileged', '==', false)));
+    await assertSucceeds(list('lawyer'));
+  });
+
   it('invoices, pre-bills and credit notes change only through the billing callables (BILL-07)', async () => {
     const INVOICE = `orgs/${ORG}/invoices/invoice-1`;
     const CREDIT = `orgs/${ORG}/creditNotes/credit-1`;
@@ -3547,6 +3580,7 @@ describe('estate register (CORE-16)', () => {
     await distribution('paid-on', { paidOn: 'yesterday' });
     await distribution('share', { share: 7 });
     await distribution('review', { needsValueReview: true });
+    await distribution('payment-reference', { paymentReference: 'x'.repeat(301) });
     await assertSucceeds(
       setDoc(
         doc(firestore, `${MATTER}/distributions/minimal`),
@@ -3582,6 +3616,11 @@ describe('estate register (CORE-16)', () => {
     await assertFails(updateDoc(liability, stamped({ amountCents: 1.25 }, uid)));
     const distribution = doc(firestore, `${MATTER}/distributions/edit-1`);
     await assertSucceeds(updateDoc(distribution, stamped({ status: 'approved' }, uid)));
+    // BILL-12: a distribution paid from trust keeps the trust system's reference; nothing else follows.
+    await assertSucceeds(
+      updateDoc(distribution, stamped({ status: 'paid', paidOn: '2026-10-06', paymentReference: 'TR-0042' }, uid)),
+    );
+    await assertFails(updateDoc(distribution, stamped({ paymentReference: 42 }, uid)));
     await assertSucceeds(updateDoc(distribution, stamped({ needsValueReview: false }, uid)));
     await assertFails(updateDoc(distribution, stamped({ needsValueReview: true }, uid)));
     await assertFails(updateDoc(distribution, stamped({ amountCents: -1 }, uid)));

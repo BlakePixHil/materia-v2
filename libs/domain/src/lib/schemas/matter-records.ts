@@ -894,6 +894,11 @@ export const Distribution = withMeta(
     share: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
     status: DistributionStatusSchema,
     paidOn: DateOnlySchema.optional(),
+    /**
+     * BILL-12 (ADR-035): the trust system's reference for a distribution paid from trust. A record
+     * only: no money moves and no balance is derived from it.
+     */
+    paymentReference: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
     notes: z.string().max(ESTATE_NOTES_MAX).optional(),
     needsValueReview: z.boolean().optional(),
   },

@@ -124,3 +124,44 @@ export function trustSnapshotOutOfDate(asAt: DateOnly, today: DateOnly, staleAft
 export function trustSnapshotLine(snapshot: { asAt: DateOnly; sourceSystemName: string }): string {
   return `as at ${toDisplay(snapshot.asAt)} · from ${snapshot.sourceSystemName}`;
 }
+
+// ---------- paid from trust (BILL-12) ----------
+
+/**
+ * The r 42(3) notice of intended withdrawal (Uniform General Rules), printed on an invoice marked
+ * "To be paid from trust" while `billing.trustNotice` is on. The wording is versioned: an invoice
+ * keeps the version and text it was given, so a later wording never changes a bill already given.
+ * Version 1 is a draft for the practitioner review in BILL-10a; the flag stays off until then.
+ */
+export const TRUST_NOTICE_TEMPLATE = {
+  version: 1,
+  body:
+    'Notice of intended withdrawal from trust. {firm} intends to withdraw {amount} from money held in trust ' +
+    'for you on {matter} to pay this invoice ({number}). If you object to the withdrawal, please tell us within ' +
+    '7 business days of receiving this invoice.',
+} as const;
+
+export interface TrustNotice {
+  version: number;
+  text: string;
+}
+
+/** The notice for one invoice: the template with `{firm}`, `{amount}`, `{matter}` and `{number}` filled in. */
+export function trustNoticeFor(
+  values: { firm: string; amount: string; matter: string; number: string },
+  template: { version: number; body: string } = TRUST_NOTICE_TEMPLATE,
+): TrustNotice {
+  const text = template.body.replace(/\{(firm|amount|matter|number)\}/g, (_, key: keyof typeof values) => values[key]);
+  return { version: template.version, text };
+}
+
+/** Beside a payment from trust: Materia records the withdrawal; the trust system makes it. */
+export const TRUST_PAYMENT_COPY = 'Record this after the withdrawal is made in your trust records.';
+
+/** Where a payment from trust is reversed or its invoice voided: the trust records need their own correction. */
+export const TRUST_CORRECTION_COPY =
+  'A payment from trust was recorded on this invoice. Correct the withdrawal in your trust records too: Materia doesn’t change them.';
+
+/** On an invoice marked to be paid from trust: the intention only. */
+export const PAID_FROM_TRUST_COPY =
+  'The firm intends to pay this invoice from money held in trust. The withdrawal is made in your trust records, not in Materia.';

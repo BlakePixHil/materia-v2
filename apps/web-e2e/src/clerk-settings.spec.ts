@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { expectNoA11yViolations, signInAsTestUser } from '@materia/test-utils/e2e';
+import { expectNoA11yViolations, FIRST_CALL, FIRST_LOAD, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { uniqueOrg } from './support/matters';
 
@@ -70,13 +70,24 @@ test.describe('Settings → Clerk and AI', () => {
 
     // Sonnet 5.5 is the default; switch to Opus 5.5 and it sticks after a reload.
     await expect(page.getByRole('radio', { name: 'Claude Sonnet 5.5 (default)' })).toBeChecked();
+    const switched = page.waitForResponse(
+      (res) => res.url().endsWith('/clerk-setModel') && res.request().method() === 'POST',
+      FIRST_CALL,
+    );
     await page.getByRole('radio', { name: 'Claude Opus 5.5' }).click();
+    await switched;
     await expect(page.getByText('Clerk now uses Opus 5.5').first()).toBeVisible();
     await page.reload();
     await expect(page.getByRole('radio', { name: 'Claude Opus 5.5' })).toBeChecked({ timeout: 20_000 });
 
-    // Remove the key: Clerk is off again.
+    // Remove the key: Clerk is off again. The first removal starts its function in the emulator, so
+    // wait for the server's answer, then the status.
+    const removed = page.waitForResponse(
+      (res) => res.url().endsWith('/clerk-removeApiKey') && res.request().method() === 'POST',
+      FIRST_CALL,
+    );
     await page.getByRole('button', { name: 'Remove key' }).click();
+    await removed;
     await expect(page.locator('[data-key-status]')).toContainText('No key saved');
   });
 
@@ -88,7 +99,7 @@ test.describe('Settings → Clerk and AI', () => {
     });
     await page.goto('/settings/clerk');
     await expect(page.getByRole('heading', { level: 1, name: 'Clerk and AI' })).toBeVisible();
-    await expect(page.locator('[data-ack-needed]')).toContainText('until an owner or admin');
+    await expect(page.locator('[data-ack-needed]')).toContainText('until an owner or admin', FIRST_LOAD);
     await expect(page.getByRole('switch')).toHaveCount(0);
     await expect(page.getByText('Anthropic API key')).toHaveCount(0);
     await expectNoA11yViolations(page);

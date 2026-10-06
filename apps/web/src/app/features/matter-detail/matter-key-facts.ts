@@ -13,24 +13,43 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
-import { deadlineCallables, matterEventRepository } from '@materia/data-access/repository';
+import {
+  deadlineCallables,
+  factCitationsQuery,
+  matterEventRepository,
+  matterFactCitationsRepository,
+} from '@materia/data-access/repository';
 import {
   EVENT_KEY_FACTS,
+  keyFactCitations,
   keyFactEditable,
   keyFactPatch,
   keyFactsFor,
   keyFactValue,
+  type CitationInput,
   type DateOnly,
   type EventKind,
   type KeyFactDefinition,
   type KeyFactId,
 } from '@materia/domain';
-import { MtButton, MtFactEditor, MtKeyFacts, MtTextField, ToastService, type KeyFactVm } from '@materia/ui';
+import {
+  MtButton,
+  MtCitation,
+  MtFactCitation,
+  MtFactEditor,
+  MtKeyFacts,
+  MtTextField,
+  shownCitations,
+  ToastService,
+  type CitationVm,
+  type KeyFactVm,
+} from '@materia/ui';
 
 import { MatterScreen } from './matter-screen';
 import { KEY_FACT_PLACEHOLDERS, keyFactInput, keyFactText, parseKeyFactInput, type MatterRecord } from './matter-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { CitationSources } from '../citations/citation-sources';
 import { deadlineErrorCopy, recomputeSummaryText } from '../deadlines/deadline-view';
 
 /** Why the date of death can't be recorded yet. */
@@ -41,12 +60,11 @@ const FACT_EVENTS = new Map(
   Object.entries(EVENT_KEY_FACTS).map(([kind, fact]) => [fact as KeyFactId, kind as EventKind] as const),
 );
 
-/**
- * Where Clerk found a key fact's value, for the Citation marker. A hook for now: Clerk-sourced
- * values (AI tickets) fill it from the accepted suggestion's citation.
- */
-export type KeyFactCitationSource = (matter: MatterRecord, id: KeyFactId) => KeyFactVm['citation'];
-export const keyFactCitation: KeyFactCitationSource = () => undefined;
+/** A key fact's source chip, and its citation's number in the fact's list (for the viewer). */
+interface FactChip {
+  vm: CitationVm;
+  n: number;
+}
 
 /**
  * The matter's key facts (CORE-06): the facts its type shows (`keyFactsFor`), each edited inline.
@@ -55,13 +73,23 @@ export const keyFactCitation: KeyFactCitationSource = () => undefined;
  * death and the grant date are matter events (CORE-10): they're recorded through
  * `deadlines-upsertEvent`, which recomputes the deadlines and proposes any date in force that
  * would move; a toast says so and links to the Deadlines tab.
+ *
+ * A value accepted from a Clerk suggestion shows where Clerk found it (CORE-06a, ADR-049): a chip
+ * per cited source ("Will … p 2", or "Restricted source" for a reader who can't see it) that opens
+ * the Overview's citation viewer at the page with the quote highlighted. The chips stay while the
+ * fact keeps that value; an edit drops them at once (the server then deletes the record).
  */
 @Component({
   selector: 'mt-matter-key-facts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtFactEditor, MtKeyFacts, MtTextField],
+  imports: [FormsModule, MtButton, MtCitation, MtFactCitation, MtFactEditor, MtKeyFacts, MtTextField],
   template: `
     <mt-key-facts [facts]="facts()" [editing]="screen.editingFact()" (edit)="edit($event.id)">
+      <ng-template mtFactCitation let-fact>
+        @for (chip of chips().get(fact.id) ?? []; track chip.n) {
+          <mt-citation [citation]="chip.vm" (open)="openCitation(fact.id, chip.n)" />
+        }
+      </ng-template>
       <ng-template mtFactEditor let-fact>
         <form
           class="mt-row editor"
@@ -100,6 +128,10 @@ export class MatterKeyFacts {
   private readonly router = inject(Router);
   private readonly deadlines = deadlineCallables(inject(CALLABLES));
   private readonly events = matterEventRepository(this.screen.id);
+  private readonly sources = inject(CitationSources);
+  private readonly citationRecords = matterFactCitationsRepository(this.screen.id).watchQuery(() =>
+    this.screen.id() ? factCitationsQuery({ privilegedVisible: this.screen.canPrivileged() }) : null,
+  );
 
   protected readonly draft = signal('');
   protected readonly error = signal<string | null>(null);
@@ -109,19 +141,44 @@ export class MatterKeyFacts {
     const type = this.screen.value()?.type;
     return type ? keyFactsFor(type) : [];
   });
+  /** Each fact's citations, while the fact still has the value they were kept with. */
+  private readonly cited = computed(() => {
+    const matter = this.screen.value();
+    const byFact = new Map<KeyFactId, CitationInput[]>();
+    if (!matter) return byFact;
+    for (const record of this.citationRecords.value()) {
+      const citations = keyFactCitations(matter, record.factId, record);
+      if (citations.length) byFact.set(record.factId, citations);
+    }
+    return byFact;
+  });
+  /** The chips each fact shows: its citations that passed verification (AI-05), unnumbered. */
+  protected readonly chips = computed(() => {
+    const chips = new Map<string, FactChip[]>();
+    for (const [id, citations] of this.cited()) {
+      const shown = shownCitations(this.sources.vms(citations)).map((vm) => ({
+        vm: { ...vm, n: undefined },
+        n: vm.n ?? 0,
+      }));
+      if (shown.length) chips.set(id, shown);
+    }
+    return chips;
+  });
   protected readonly facts = computed<KeyFactVm[]>(() => {
     const matter = this.screen.value();
     if (!matter) return [];
     const editable = this.screen.editable();
+    const chips = this.chips();
     return this.definitions().map((fact) => {
       const allowed = keyFactEditable(matter, fact.id);
+      const first = chips.get(fact.id)?.[0];
       return {
         id: fact.id,
         label: fact.label,
         value: keyFactText(fact.kind, keyFactValue(matter, fact.id)),
         editable: editable && allowed,
         editBlockedReason: editable && !allowed ? NO_DECEASED_HINT : undefined,
-        citation: keyFactCitation(matter, fact.id),
+        citation: first ? { label: first.vm.label } : undefined,
       };
     });
   });
@@ -129,6 +186,11 @@ export class MatterKeyFacts {
   protected readonly placeholder = computed(() => KEY_FACT_PLACEHOLDERS[this.editing()?.kind ?? 'text']);
 
   constructor() {
+    // The cited documents are read once each, for their names and whether the reader may open them.
+    effect(() => {
+      const cited = [...this.cited().values()].flat();
+      untracked(() => this.sources.want(cited));
+    });
     // Opening an editor (its Edit button, or a stage requirement's quick action) starts from the
     // stored value and focuses the field.
     effect(() => {
@@ -141,6 +203,11 @@ export class MatterKeyFacts {
 
   protected edit(id: string): void {
     this.screen.editingFact.set(id as KeyFactId);
+  }
+
+  /** Opens the citation viewer at a fact's source, stepping through the fact's others. */
+  protected openCitation(id: string, n: number): void {
+    this.sources.open(this.cited().get(id as KeyFactId) ?? [], n);
   }
 
   private open(fact: KeyFactDefinition, matter: MatterRecord): void {

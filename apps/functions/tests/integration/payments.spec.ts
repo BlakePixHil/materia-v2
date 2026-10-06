@@ -12,7 +12,9 @@ import { addDays, today, type Role } from '@materia/domain';
 /**
  * BILL-08 through the emulators: payments (part paid, then paid), a reversal (back to issued), the
  * matter's outstanding amount following through `billing-outstandingOnInvoice`, and the aged-debtors
- * rollup with its reminder queue (`billing-refreshDebtors`), dismissed by hand. Everything is fictional.
+ * rollup with its reminder queue (`billing-refreshDebtors`), dismissed by hand. BILL-12: an invoice
+ * marked to be paid from trust gets the r 42(3) notice on a fresh PDF, and its payment from trust
+ * needs the trust records reference. Everything is fictional.
  */
 const PROJECT_ID = 'demo-materia';
 const ORG = 'org-payments';
@@ -65,6 +67,7 @@ const recordPayment = callable<{ paymentId: string; status: string; owingCents: 
 const reversePayment = callable<{ reversed: boolean; status: string; owingCents: number }>('billing-reversePayment');
 const refreshDebtors = callable<{ asOf: string; invoices: number; totalCents: number }>('billing-refreshDebtors');
 const dismissReminder = callable<{ dismissed: boolean }>('billing-dismissReminder');
+const setPaidFromTrust = callable<{ paidFromTrust: boolean; pdfRendering: boolean }>('billing-setPaidFromTrust');
 
 async function poll<T>(read: () => Promise<T>, done: (value: T) => boolean, timeoutMs = 45_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
@@ -98,7 +101,7 @@ beforeAll(async () => {
     name: 'Harbour & Vine Legal (fictional)',
     timezone: 'Australia/Melbourne',
     billing: { gstRegistered: true, invoicePrefix: 'INV-', paymentTermsDays: 14 },
-    flags: { 'billing.invoicing': true },
+    flags: { 'billing.invoicing': true, 'billing.trustNotice': true },
   });
   await createMember('lawyer', 'Pat Lawyer');
   await createMember('owner', 'Olive Owner');
@@ -233,5 +236,59 @@ describe('aged debtors and reminders', () => {
       status: 'dismissed',
       closedBy: uidOf('lawyer'),
     });
+  }, 60_000);
+});
+
+describe('to be paid from trust (BILL-12)', () => {
+  const TRUST_ID = 'inv-pay-trust';
+  const TRUST_INVOICE = `orgs/${ORG}/invoices/${TRUST_ID}`;
+
+  it('prints the notice on a fresh PDF once marked, and takes the payment from trust with its reference', async () => {
+    await db.doc(TRUST_INVOICE).set({
+      ...(await data(INVOICE)),
+      number: 'INV-000802',
+      issueDate: todayDate,
+      dueDate: addDays(todayDate, 14),
+      supplier: { name: 'Harbour & Vine Legal (fictional)' },
+      status: 'issued',
+      payments: [],
+      pdfStatus: 'ready',
+      ...meta,
+    });
+    await signInAs('lawyer');
+    expect(await setPaidFromTrust({ invoiceId: TRUST_ID, paidFromTrust: true })).toEqual({
+      paidFromTrust: true,
+      pdfRendering: true,
+    });
+    const marked = await data(TRUST_INVOICE);
+    expect(marked).toMatchObject({ paidFromTrust: true, pdfStatus: 'pending', trustNotice: { version: 1 } });
+    const job = await data(`orgs/${ORG}/jobs/${String(marked['pdfJobId'])}`);
+    expect(String((job['input'] as { data: Record<string, unknown> }).data['trustNotice'])).toContain(
+      'Harbour & Vine Legal (fictional) intends to withdraw $1,100.00 from money held in trust for you on M-2026-0800',
+    );
+
+    const missing = (await recordPayment({
+      invoiceId: TRUST_ID,
+      date: todayDate,
+      amountCents: 60_000,
+      method: 'trust_transfer',
+    }).catch((error: unknown) => error)) as FunctionsError;
+    expect(missing.code).toBe('functions/invalid-argument');
+    const fromTrust = await recordPayment({
+      invoiceId: TRUST_ID,
+      date: todayDate,
+      amountCents: 60_000,
+      method: 'trust_transfer',
+      reference: 'TR-0042',
+    });
+    expect(fromTrust).toMatchObject({ status: 'part_paid', owingCents: 50_000 });
+    const rest = await recordPayment({ invoiceId: TRUST_ID, date: todayDate, amountCents: 50_000, method: 'eft' });
+    expect(rest).toMatchObject({ status: 'paid', owingCents: 0 });
+    expect((await data(TRUST_INVOICE))['payments']).toEqual([
+      expect.objectContaining({ method: 'trust_transfer', reference: 'TR-0042' }),
+      expect.objectContaining({ method: 'eft' }),
+    ]);
+    // Materia only records it: no trust snapshot is written.
+    expect((await db.collection(`orgs/${ORG}/trustSnapshots`).get()).size).toBe(0);
   }, 60_000);
 });

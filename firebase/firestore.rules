@@ -210,7 +210,7 @@ service cloud.firestore {
         && (!('assetId' in data) || data.assetId is string && data.assetId.size() > 0)
         && optionalText(data, 'share', 300) && optionalText(data, 'notes', 2000)
         && data.status in ['planned', 'approved', 'paid', 'cancelled']
-        && optionalDate(data, 'paidOn')
+        && optionalDate(data, 'paidOn') && optionalText(data, 'paymentReference', 300)
         && (!('needsValueReview' in data) || data.needsValueReview is bool);
     }
 
@@ -750,6 +750,15 @@ service cloud.firestore {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
         }
 
+        // Where Clerk found a key fact's value (CORE-06a, ADR-049): written by suggestions-accept
+        // and deleted by matters-denormalise once the fact changes; server-only writes. Readable by
+        // whoever can read the matter, and a privileged one (from a privileged suggestion or cited
+        // document) needs privileged.view, so a list by a role without it proves `privileged == false`.
+        match /factCitations/{factId} {
+          allow read: if inOrg(orgId) && visible(orgId, resource.data)
+            && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data);
+        }
+
         match /parties/{partyId} {
           allow read: if inOrg(orgId);
           // Share and notes only: adding, re-roling and removing parties go through the
@@ -1152,10 +1161,11 @@ service cloud.firestore {
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
-    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'notes', 'needsValueReview']; }
+    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'paymentReference', 'notes', 'needsValueReview']; }
     function fieldsDocTemplate() { return []; }
     function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }
+    function fieldsFactCitation() { return []; }
     function fieldsIntakeDraft() { return ['orgId', 'kind', 'step', 'stateJson', 'expireAt']; }
     function fieldsIntegration() { return []; }
     function fieldsInvite() { return ['role']; }

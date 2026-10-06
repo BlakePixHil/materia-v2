@@ -29,6 +29,7 @@ import {
   reader,
   supplierOf,
 } from './invoice-shared';
+import { trustNoticeOf, trustNoticeOn } from './paid-from-trust';
 import { audit } from '../audit/audit';
 import { stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
@@ -50,7 +51,8 @@ const MAX_ATTEMPTS = 25;
  *    the counter is read last and written with everything else, so a transaction that fails
  *    never uses a number up, and concurrent issues queue on it: no gaps, no repeats;
  * 3. freezes the invoice: number, issue and due dates (payment terms), the supplier and buyer,
- *    `status: issued`;
+ *    `status: issued`, and (BILL-12, `billing.trustNotice` on) the r 42(3) notice on an invoice
+ *    to be paid from trust;
  * 4. marks each time entry and disbursement on it `billed` with the `invoiceId` (their triggers
  *    take them out of WIP, and BILL-05's budget counts them billed), and sets the matter's
  *    `lastInvoicedOn`.
@@ -66,6 +68,7 @@ export const issueDefinition = {
   handler: async (ctx): Promise<IssueInvoiceResult> => {
     const { input, orgId, uid, role, db, requestId, log } = ctx;
     await requireFlag({ orgId, db, clock: ctx.clock }, 'billing.invoicing');
+    const noticeOn = await trustNoticeOn({ orgId, db, clock: ctx.clock });
     const clock = await orgClock(db, orgId, ctx.clock);
     const ref = db.doc(invoicePath(orgId, input.invoiceId));
     const counterRef = db.doc(counterPath(orgId, INVOICE_COUNTER));
@@ -132,6 +135,18 @@ export const issueDefinition = {
           gstRegistered: org.gstRegistered,
           supplier: supplierOf(org),
           buyer: buyerOf(clients),
+          // BILL-12: the r 42(3) notice, frozen as given, on an invoice to be paid from trust.
+          ...(invoice['paidFromTrust'] === true && noticeOn
+            ? {
+                trustNotice: trustNoticeOf({
+                  number,
+                  totalCents: build.totalCents,
+                  supplierName: supplierOf(org).name,
+                  matterNumber: matter['number'] as string | undefined,
+                  matterTitle: matter['title'] as string | undefined,
+                }),
+              }
+            : {}),
           issuedAt: now,
           issuedBy: uid,
           pdfStatus: 'pending',

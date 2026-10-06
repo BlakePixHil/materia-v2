@@ -648,6 +648,14 @@ export interface DistributionDialogData {
             [ngModel]="paidOn()"
             (ngModelChange)="paidOn.set($event ?? '')"
           />
+          <mt-text-field
+            name="paymentReference"
+            label="Payment reference"
+            description="If it was paid from trust, the reference in your trust records. Materia records it; no money moves here."
+            [optional]="true"
+            [ngModel]="paymentReference()"
+            (ngModelChange)="paymentReference.set($event ?? '')"
+          />
         }
         <mt-textarea
           name="notes"
@@ -689,6 +697,7 @@ export class DistributionDialog {
   protected readonly amount = signal(moneyInput(this.distribution?.amountCents));
   protected readonly share = signal(this.distribution?.share ?? '');
   protected readonly paidOn = signal(formatDateInput(this.distribution?.paidOn));
+  protected readonly paymentReference = signal(this.distribution?.paymentReference ?? '');
   protected readonly notes = signal(this.distribution?.notes ?? '');
   protected readonly errors = signal<Record<string, string | undefined>>({});
   protected readonly error = signal<string | null>(null);
@@ -718,6 +727,7 @@ export class DistributionDialog {
         assetId: kind === 'specific' ? (this.assetId() ?? undefined) : undefined,
         share: kind === 'residuary' ? this.share().trim() : undefined,
         paidOn: paidOn ?? undefined,
+        paymentReference: this.status() === 'paid' ? this.paymentReference().trim() || undefined : undefined,
         notes: this.notes().trim(),
         // Saving an edit is the review.
         ...(this.distribution?.needsValueReview ? { needsValueReview: false } : {}),

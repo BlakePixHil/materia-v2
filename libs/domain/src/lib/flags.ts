@@ -194,6 +194,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'billing.trustNotice': defineFlag({
+    key: 'billing.trustNotice',
+    description:
+      'The r 42(3) notice of intended withdrawal from trust on invoices marked "To be paid from trust" (off until a practitioner approves the wording, BILL-10a).',
+    owner: 'BILL-12',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'integrations.microsoft': defineFlag({
     key: 'integrations.microsoft',
     description: 'Microsoft 365 connection and calendar push.',

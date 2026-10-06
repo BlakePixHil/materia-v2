@@ -1,4 +1,5 @@
 import type { InMemoryFirestore } from '@materia/data-access/repository';
+import { formatDateOnly } from '@materia/ui';
 
 import {
   citationText,
@@ -195,6 +196,8 @@ const letter = (extra: Seed = {}): Seed =>
 
 interface ViewOptions extends OpenOptions {
   citations?: Seed[];
+  /** Key fact citation records by fact id (CORE-06a). */
+  facts?: Record<string, Seed>;
   docs?: Record<string, Seed>;
   pdf?: ReturnType<typeof fakePdfJs>;
   deny?: string[];
@@ -224,6 +227,7 @@ async function open(options: ViewOptions = {}) {
         fs.set(`${DOCS}/${id}`, doc);
       for (const id of options.deny ?? []) fs.denyRead(`${DOCS}/${id}`);
       fs.set(`${MATTER}/suggestions/s-cited`, suggestion(options.citations ?? CITED));
+      for (const [id, record] of Object.entries(options.facts ?? {})) fs.set(`${MATTER}/factCitations/${id}`, record);
     },
     callables: {
       'documents-getDownloadUrl': (data) => ({
@@ -372,6 +376,140 @@ describe('citation viewer', () => {
     });
     expect(chips(page)[1]).toBe('Source 2: Removed document: “the estate account holds $12,000”');
     await openChip(page, 2);
+    expect(viewer(page)).toBeNull();
+  });
+});
+
+// Key facts accepted from Clerk keep their sources (CORE-06a, ADR-049).
+
+const WILL_DATE = '2019-09-30';
+const WILL_CITED = [
+  {
+    kind: 'document',
+    documentId: 'doc-will',
+    docVersion: 2,
+    page: 2,
+    quote: 'my house at 14 Fictional St to my daughter',
+  },
+];
+const LETTER_CITED = [
+  { kind: 'document', documentId: 'doc-letter', docVersion: 1, page: 1, quote: 'the estate account holds $12,000' },
+];
+
+/** A key fact citation record, as accepting a key-fact suggestion stores it. */
+const factCitation = (factId: string, value: string | number, citations: Seed[], extra: Seed = {}): Seed => ({
+  factId,
+  value,
+  citations,
+  suggestionId: 's-accepted',
+  privileged: false,
+  ...meta,
+  ...extra,
+});
+
+const factChips = (page: Page) =>
+  [...page.body.querySelectorAll<HTMLElement>('mt-key-facts mt-citation')].map((chip) =>
+    chip.getAttribute('aria-label'),
+  );
+const factChip = (page: Page) => page.body.querySelector<HTMLElement>('mt-key-facts mt-citation');
+/** The key fact row (`dd`) a chip is on, by its term. */
+const factRow = (page: Page, term: string) =>
+  [...page.body.querySelectorAll('mt-key-facts dt')].find((dt) => dt.textContent?.trim() === term)
+    ?.nextElementSibling as HTMLElement | null | undefined;
+
+describe('key fact citations', () => {
+  it('shows where Clerk found a key fact, and opens it at the page with the quote highlighted', async () => {
+    const page = await open({
+      matter: { facts: { willDate: WILL_DATE } },
+      facts: { willDate: factCitation('willDate', WILL_DATE, WILL_CITED) },
+    });
+    // One chip, unnumbered, on the Will date's row after its value.
+    expect(factChips(page)).toEqual(['Source: Will of Fictional Whitfield.pdf p 2']);
+    const row = factRow(page, 'Will date');
+    expect(row?.querySelector('mt-citation')).toBe(factChip(page));
+    expect(page.text(row?.querySelector('.mt-facts-value'))).toBe(formatDateOnly(WILL_DATE));
+
+    factChip(page)?.click();
+    await settle(page);
+    const panel = viewer(page) as HTMLElement;
+    expect(page.text(panel.querySelector('h2'))).toBe('Will of Fictional Whitfield.pdf, p 2');
+    expect(page.text(panel.querySelector('blockquote'))).toBe('my house at 14 Fictional St to my daughter');
+    expect(page.pdf.opened).toEqual(['https://files.example.test/doc-will/v2']);
+    expect(panel.querySelectorAll('[data-page="2"] mark.mt-pdf-hl[data-highlight]').length).toBe(2);
+    expect(panel.hasAttribute('data-highlighted')).toBe(true);
+    // Only this fact's sources: nothing to step through.
+    expect(page.text(panel)).not.toContain('Source 1 of');
+
+    // The Overview has one viewer: a suggestion's source replaces the fact's.
+    await openChip(page, 2);
+    expect(page.body.querySelectorAll('mt-citation-viewer')).toHaveLength(1);
+    expect(page.text(viewer(page)?.querySelector('h2'))).toBe('Letter to the executor.docx, p 1');
+    await page.press('Escape');
+    await settle(page);
+    expect(viewer(page)).toBeNull();
+  });
+
+  it('steps through a fact’s sources, and drops the ones verification failed', async () => {
+    const page = await open({
+      matter: { facts: { willDate: WILL_DATE } },
+      facts: {
+        willDate: factCitation('willDate', WILL_DATE, [
+          { ...WILL_CITED[0], quote: 'A fabricated line.', verified: false },
+          ...WILL_CITED,
+          ...LETTER_CITED,
+        ]),
+      },
+    });
+    expect(factChips(page)).toEqual([
+      'Source: Will of Fictional Whitfield.pdf p 2',
+      'Source: Letter to the executor.docx p 1',
+    ]);
+    page.body.querySelectorAll<HTMLElement>('mt-key-facts mt-citation')[1]?.click();
+    await settle(page);
+    expect(page.text(viewer(page)?.querySelector('h2'))).toBe('Letter to the executor.docx, p 1');
+    expect(page.text(viewer(page))).toContain('Source 2 of 2');
+    await page.press('[');
+    await settle(page);
+    expect(page.text(viewer(page)?.querySelector('h2'))).toBe('Will of Fictional Whitfield.pdf, p 2');
+  });
+
+  it('shows no source for another value, and drops it as soon as a person edits the fact', async () => {
+    const page = await open({
+      matter: { facts: { willDate: WILL_DATE }, estate: { grantType: 'probate', grantNo: 'S PRB 2026 0412' } },
+      facts: {
+        willDate: factCitation('willDate', WILL_DATE, WILL_CITED),
+        // Kept for a grant number the matter no longer has (the server deletes it after the edit).
+        grantNo: factCitation('grantNo', 'S PRB 2026 0001', LETTER_CITED),
+      },
+    });
+    expect(factChips(page)).toEqual(['Source: Will of Fictional Whitfield.pdf p 2']);
+    expect(factRow(page, 'Grant number')?.querySelector('mt-citation')).toBeNull();
+
+    await page.click('Edit Will date');
+    await page.fill('Will date', '01/10/2019');
+    await page.submit(page.body.querySelector('mt-key-facts'));
+    await settle(page);
+    expect(page.text(factRow(page, 'Will date')?.querySelector('.mt-facts-value'))).toBe(formatDateOnly('2019-10-01'));
+    expect(factChips(page)).toEqual([]);
+  });
+
+  it('never lists a privileged source’s record for a paralegal; a source they can’t open is restricted', async () => {
+    const page = await open({
+      session: PARALEGAL,
+      matter: { facts: { willDate: WILL_DATE }, estate: { grantType: 'probate', grantNo: 'S PRB 2026 0412' } },
+      docs: { 'doc-will': will(), 'doc-letter': letter({ privileged: true }) },
+      deny: ['doc-letter'],
+      facts: {
+        // Kept before the letter was marked privileged.
+        willDate: factCitation('willDate', WILL_DATE, LETTER_CITED),
+        grantNo: factCitation('grantNo', 'S PRB 2026 0412', WILL_CITED, { privileged: true }),
+      },
+    });
+    expect(factChips(page)).toEqual(['Source: Restricted source']);
+    expect(page.text(page.body.querySelector('mt-key-facts'))).not.toContain('estate account holds');
+    expect(factChip(page)?.getAttribute('aria-disabled')).toBe('true');
+    factChip(page)?.click();
+    await settle(page);
     expect(viewer(page)).toBeNull();
   });
 });
