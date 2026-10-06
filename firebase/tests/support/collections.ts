@@ -284,6 +284,21 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'owner',
     update: 'none',
   },
+  // Matter destruction (CORE-19): server-written, read by owners and admins.
+  {
+    collection: 'destructionQueue',
+    docPath: `orgs/${ORG}/destructionQueue/matter-gone`,
+    entity: 'DestructionRequest',
+    read: 'matter.destroy',
+    update: 'none',
+  },
+  {
+    collection: 'destructionCertificates',
+    docPath: `orgs/${ORG}/destructionCertificates/dc-matter-gone`,
+    entity: 'DestructionCertificate',
+    read: 'matter.destroy',
+    update: 'none',
+  },
   {
     collection: 'audit',
     docPath: `orgs/${ORG}/audit/entry-1`,
@@ -441,9 +456,10 @@ export const COLLECTIONS: CollectionSpec[] = [
     seed: { orgId: ORG, matterId: 'matter-1' },
     change: { description: 'Title search (corrected)' },
   },
-  matterRecord('assets', 'Asset'),
-  matterRecord('liabilities', 'Liability'),
-  matterRecord('distributions', 'Distribution'),
+  // The estate register (CORE-16): client-created too, field by field in the rules suite.
+  { ...matterRecord('assets', 'Asset'), change: { description: 'Changed by the rules test' } },
+  { ...matterRecord('liabilities', 'Liability'), change: { creditor: 'Changed by the rules test' } },
+  { ...matterRecord('distributions', 'Distribution'), change: { notes: 'Changed by the rules test' } },
   matterRecord('proceedings', 'Proceeding'),
   matterRecord('courtEvents', 'CourtEvent'),
   matterRecord('orders', 'CourtOrder'),

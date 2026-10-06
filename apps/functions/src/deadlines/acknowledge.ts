@@ -5,7 +5,7 @@ import { audit } from '../audit/audit';
 import { isDeleted, stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
-import { liveMatter, matterPath } from '../matters/shared';
+import { writableMatter, matterPath } from '../matters/shared';
 import { toDate } from '../reminders/schedule';
 
 /**
@@ -25,7 +25,7 @@ export const acknowledgeDefinition = {
     const now = clock.now();
     const ref = db.doc(`${deadlinesPath(orgId, input.matterId)}/${input.deadlineId}`);
     const result = await db.runTransaction(async (tx) => {
-      liveMatter(await tx.get(db.doc(matterPath(orgId, input.matterId))), role, input.matterId);
+      writableMatter(await tx.get(db.doc(matterPath(orgId, input.matterId))), role, input.matterId);
       const deadline = (await tx.get(ref)).data();
       if (!deadline || isDeleted(deadline)) {
         throw new DomainError('NOT_FOUND', 'Deadline not found', { deadlineId: input.deadlineId });

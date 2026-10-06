@@ -13,6 +13,10 @@ export const PERMISSIONS = {
   'matter.close': ['owner', 'admin', 'lawyer'],
   'matter.status': ['owner', 'admin', 'lawyer'],
   'matter.restore': ['owner', 'admin'],
+  /** Place or release a legal hold, which blocks destruction (CORE-19). */
+  'matter.legalHold': ['owner', 'admin'],
+  /** Review the destruction queue and approve destroying a matter (CORE-19). */
+  'matter.destroy': ['owner', 'admin'],
   /** Change a matter's number (CORE-21a). */
   'matter.renumber': ['owner', 'admin', 'lawyer'],
   /** Revise a matter's fee arrangement and estimate (BILL-05). */

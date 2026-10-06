@@ -711,7 +711,15 @@ export class MattersBoard {
       return;
     }
     const why = column.kind === 'status' ? changeStatusErrorCopy(error) : matterErrorCopy(error);
-    this.fail(row.number, column.title, why);
+    // Closing goes through the matter's closing checklist (CORE-19).
+    const closing =
+      (error as { details?: { reason?: unknown } } | null)?.details?.reason === 'closing_checklist_required';
+    this.fail(
+      row.number,
+      column.title,
+      why,
+      closing ? { label: 'Open matter', run: () => this.openMatter()(row) } : undefined,
+    );
   }
 
   private fail(number: string, column: string, description: string, action?: { label: string; run: () => void }): void {

@@ -25,7 +25,7 @@ export interface MemoryMatter {
 
 export interface MemoryOrg {
   timezone?: string;
-  members: Record<string, { status: string; role: Role }>;
+  members: Record<string, { status: string; role: Role; displayName?: string; title?: string }>;
   contacts?: Record<string, string>;
   matters: Record<string, MemoryMatter>;
   metrics?: Record<string, Data>;

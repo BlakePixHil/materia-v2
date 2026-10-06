@@ -28,7 +28,14 @@ export function firestoreContextSource(db: Firestore): ContextSource {
       const role = RoleSchema.safeParse(snap.get('role'));
       const status = snap.get('status');
       if (!role.success || typeof status !== 'string') return null;
-      return { status, role: role.data };
+      const displayName = snap.get('displayName');
+      const title = snap.get('title');
+      return {
+        status,
+        role: role.data,
+        ...(typeof displayName === 'string' && displayName ? { displayName } : {}),
+        ...(typeof title === 'string' && title ? { title } : {}),
+      };
     },
 
     async orgTimeZone(orgId) {

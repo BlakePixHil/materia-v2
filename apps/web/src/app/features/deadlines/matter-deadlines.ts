@@ -183,7 +183,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
         [row]="row"
         [assignee]="assignee(row)"
         [canComplete]="canAdd()"
-        [canDecide]="canDecide() && !screen.deleted()"
+        [canDecide]="canDecide() && !screen.readOnly()"
         [canEdit]="canAdd()"
         [busy]="actions.isBusy(row.key)"
         (action)="act(row, $event)"
@@ -251,8 +251,8 @@ export class MatterDeadlines {
 
   private readonly canTask = can('task.edit');
   private readonly canOverride = can('deadline.override');
-  protected readonly canAdd = computed(() => this.canTask() && !this.screen.deleted());
-  protected readonly canDecide = computed(() => this.canOverride() && !this.screen.deleted());
+  protected readonly canAdd = computed(() => this.canTask() && !this.screen.readOnly());
+  protected readonly canDecide = computed(() => this.canOverride() && !this.screen.readOnly());
   protected readonly canEditEvents = this.screen.editable;
   protected readonly statutoryMessage = STATUTORY_DISABLED_MESSAGE;
   protected readonly statutoryOff = statutoryDisabled(() => [this.screen.value()?.jurisdiction]);

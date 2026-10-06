@@ -177,6 +177,10 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - A release or destruction needs a lawyer or above, a sign-in within 5 minutes and an authority document from a matter. A destruction also needs a second lawyer's confirmation.
 - Probate matters link through the testator's party rows, not a packet field.
 
+**ADR-039: Matter closing, retention and destruction** ([ADR-039](adr/039-matter-closing-retention-and-destruction.md), CORE-19).
+- Matters close only through `matters-close` and its checklist; `destroyAfter` is stored and only ever moves later; matters archive (read-only) 90 days after closing.
+- Destruction is queued monthly, approved per matter by an admin (typed number, fresh sign-in), and run as a resumable Cloud Tasks job that leaves a tombstone, the audit trail and a certificate. Gated by `matters.destruction` until CORE-19a's practitioner sign-off.
+
 ## Cross-cutting conventions
 
 - **IDs:** Firestore auto-ids for documents. Human-friendly numbers are allocated by a transaction on `orgs/{orgId}/counters/{name}`:

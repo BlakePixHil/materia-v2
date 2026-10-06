@@ -302,6 +302,8 @@ describe('seed dataset', () => {
       'conflicts.enforced': true,
       'templates.system': true,
       'deadlines.ruleset.vic.v1': true,
+      'estate.register': true,
+      'matters.destruction': true,
       'clerk.features.suggestions': true,
       'billing.feeBudgets': true,
       'billing.disbursements': true,
@@ -312,6 +314,23 @@ describe('seed dataset', () => {
     }
     const minimal = buildDataset({ anchor, fixtures, scenario: 'minimal' });
     expect(minimal.docs.some((d) => d.path.includes('/m-cf-'))).toBe(false);
+  });
+
+  it('gives the Doyle probate an estate register whose totals match its estate values (CORE-16)', () => {
+    const base = `orgs/${SEED_ORG_ID}/matters/m-doyle-estate`;
+    const rows = (collection: string) =>
+      dataset.docs.filter((d) => d.path.startsWith(`${base}/${collection}/`)).map((d) => d.data);
+    const assets = rows('assets') as unknown as D.AssetValues[];
+    const liabilities = rows('liabilities') as unknown as D.LiabilityValues[];
+    const totals = D.estateTotals(assets, liabilities);
+    const matter = dataset.docs.find((d) => d.path === base)?.data as Record<string, unknown>;
+    expect(totals).toMatchObject({ grossCents: 1_284_500_00, netCents: 1_264_029_65, outsideCents: 520_000_00 });
+    expect(matter['estate']).toMatchObject({ grossValueCents: totals.grossCents, netValueCents: totals.netCents });
+    expect(matter['estateRegister']).toMatchObject(totals);
+    const parties = dataset.docs
+      .filter((d) => d.path.startsWith(`${base}/parties/`))
+      .map((d) => d.path.split('/').pop());
+    for (const distribution of rows('distributions')) expect(parties).toContain(distribution['beneficiaryPartyId']);
   });
 
   it('seeds Clerk suggestions whose basis matches the matter and documents (AI-07)', () => {

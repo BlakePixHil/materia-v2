@@ -4,3 +4,4 @@ export * from './lib/model';
 export * from './lib/prices';
 export * from './lib/prompts';
 export * from './lib/schemas';
+export * from './lib/disclosure';

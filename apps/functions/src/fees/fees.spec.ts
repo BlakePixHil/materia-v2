@@ -180,6 +180,10 @@ describe('recomputeBudget', () => {
     expect(await w.recompute()).toMatchObject({ fired: [50] });
     w.docs.set(M, { ...w.doc(M), deletedAt: NOW });
     expect(await w.recompute()).toBeNull();
+    // Nor does a destroyed matter's tombstone (CORE-19) get a budget.
+    w.docs.set(M, { number: 'M-2026-0001', destroyedAt: NOW });
+    expect(await w.recompute()).toBeNull();
+    expect(w.doc(M)?.['budget']).toBeUndefined();
   });
 });
 
@@ -267,6 +271,15 @@ describe('fees-update', () => {
     const off = world({}, false);
     await expect(call(off, { fee: { arrangement: 'hourly' } })).rejects.toMatchObject({
       details: { code: 'FEATURE_DISABLED' },
+    });
+  });
+
+  it('refuses an archived matter (CORE-19)', async () => {
+    const w = world();
+    w.docs.set(M, { ...w.doc(M), status: 'archived' });
+    await expect(call(w, { fee: { arrangement: 'hourly' } })).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'matter_archived' },
     });
   });
 });

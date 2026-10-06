@@ -164,6 +164,14 @@ describe('trust-recordSnapshot', () => {
       details: expect.objectContaining({ code: 'NOT_FOUND' }),
     });
   });
+
+  it('refuses an archived matter (CORE-19)', async () => {
+    const w = world();
+    w.docs.set(`orgs/${ORG}/matters/m1`, { ...w.docs.get(`orgs/${ORG}/matters/m1`), status: 'archived' });
+    await expect(record(w, {})).rejects.toMatchObject({
+      details: expect.objectContaining({ code: 'FAILED_PRECONDITION', reason: 'matter_archived' }),
+    });
+  });
 });
 
 describe('trust-updateSettings', () => {

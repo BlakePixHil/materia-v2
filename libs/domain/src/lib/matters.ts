@@ -158,21 +158,27 @@ export function normaliseMatterLink(input: string): string | null {
 export const MATTER_TRANSITIONS: Readonly<Record<MatterStatus, readonly MatterStatus[]>> = {
   lead: ['open'],
   open: ['on_hold', 'closed'],
-  on_hold: ['open'],
+  on_hold: ['open', 'closed'],
   closed: ['open', 'archived'],
-  archived: [],
+  // Archived (CORE-19) is closed and read-only; reopening brings it back.
+  archived: ['open'],
 };
 
 export function canTransition(from: MatterStatus, to: MatterStatus): boolean {
   return MATTER_TRANSITIONS[from].includes(to);
 }
 
-export type TransitionRequirement = 'conflict_openable' | 'reason';
+/**
+ * `closing_checklist`: closing goes through `matters-close` and its checklist (CORE-19), never a
+ * plain status change.
+ */
+export type TransitionRequirement = 'conflict_openable' | 'reason' | 'closing_checklist';
 
 /** What a valid transition still needs. */
 export function transitionRequirements(from: MatterStatus, to: MatterStatus): TransitionRequirement[] {
   if (from === 'lead' && to === 'open') return ['conflict_openable'];
-  if (from === 'closed' && to === 'open') return ['reason'];
+  if ((from === 'closed' || from === 'archived') && to === 'open') return ['reason'];
+  if (to === 'closed') return ['closing_checklist'];
   return [];
 }
 

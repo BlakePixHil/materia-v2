@@ -13,7 +13,7 @@ import { audit } from '../audit/audit';
 import { isDeleted, stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
-import { liveMatter, matterPath } from '../matters/shared';
+import { writableMatter, matterPath } from '../matters/shared';
 
 /**
  * `deadlines-override` (CORE-10; deadline.override, idempotent): sets an upcoming (or blocked)
@@ -36,7 +36,7 @@ export const overrideDefinition = {
     const ref = db.doc(`${deadlinesPath(orgId, input.matterId)}/${input.deadlineId}`);
 
     const result = await db.runTransaction(async (tx) => {
-      liveMatter(await tx.get(db.doc(matterPath(orgId, input.matterId))), role, input.matterId);
+      writableMatter(await tx.get(db.doc(matterPath(orgId, input.matterId))), role, input.matterId);
       const snap = await tx.get(ref);
       const deadline = snap.data();
       if (!snap.exists || !deadline || isDeleted(deadline)) {

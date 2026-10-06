@@ -8,7 +8,7 @@ import {
   type UpgradeMatterTemplateResult,
 } from '@materia/domain';
 
-import { liveMatter, matterPath } from './shared';
+import { matterPath, writableMatter } from './shared';
 import { audit } from '../audit/audit';
 import { stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
@@ -51,7 +51,7 @@ export const upgradeTemplateDefinition = {
     const [timeZone, paralegalUid] = await Promise.all([orgTimeZone(db, orgId), firstActiveParalegal(db, orgId)]);
 
     const result = await db.runTransaction(async (tx) => {
-      const data = liveMatter(await tx.get(ref), role, input.matterId);
+      const data = writableMatter(await tx.get(ref), role, input.matterId);
       assertOpen(data, input.matterId);
       const templateId = data['templateId'];
       if (typeof templateId !== 'string' || !templateId) {

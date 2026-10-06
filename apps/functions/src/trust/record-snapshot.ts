@@ -14,7 +14,7 @@ import {
 import { trustOrg, trustSnapshotPath } from './shared';
 import { audit } from '../audit/audit';
 import { defineCallable, type CallableDefinition } from '../core/callable';
-import { liveMatter, matterPath } from '../matters/shared';
+import { matterPath, writableMatter } from '../matters/shared';
 
 /**
  * `trust-recordSnapshot` (BILL-11, ADR-035; `trust.record` and `billing.view`, idempotent): records
@@ -38,7 +38,7 @@ export const recordSnapshotDefinition = {
       });
     const problem = asAtProblem(input.asAt, today(org.timeZone, clock.now()));
     if (problem) throw new DomainError('INVALID_ARGUMENT', problem, { fields: { asAt: [problem] } });
-    liveMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
+    writableMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
 
     const ref = db.doc(trustSnapshotPath(orgId, input.matterId));
     const now = clock.now();

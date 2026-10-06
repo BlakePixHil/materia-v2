@@ -109,7 +109,8 @@ export async function recomputeBudget(deps: BudgetDeps, matterId: string): Promi
     dispatch = [];
     const snap = await tx.get(ref);
     const matter = snap.data();
-    if (!snap.exists || !matter || isDeleted(matter)) return null;
+    // A destroyed matter's tombstone (CORE-19) keeps no budget.
+    if (!snap.exists || !matter || isDeleted(matter) || matter['destroyedAt']) return null;
     const sums = await budgetSums(tx, db, ref.path);
     const fee = (matter['fee'] ?? null) as Parameters<typeof planBudget>[0]['fee'];
     const previous = MatterBudgetSchema.safeParse(matter['budget']);

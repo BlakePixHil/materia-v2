@@ -214,8 +214,8 @@ export class DocumentPage {
   private readonly uploadAllowed = can('document.upload');
   private readonly deleteAllowed = can('document.delete');
   protected readonly canPrivileged = can('privileged.view');
-  protected readonly canEdit = computed(() => this.uploadAllowed() && !this.screen.deleted());
-  protected readonly canDelete = computed(() => this.deleteAllowed() && !this.screen.deleted());
+  protected readonly canEdit = computed(() => this.uploadAllowed() && !this.screen.readOnly());
+  protected readonly canDelete = computed(() => this.deleteAllowed() && !this.screen.readOnly());
 
   protected readonly categoryLabels = DOCUMENT_CATEGORY_LABELS;
   protected readonly unavailable = computed(() => {

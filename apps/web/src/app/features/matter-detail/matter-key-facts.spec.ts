@@ -184,9 +184,10 @@ describe('matter view helpers', () => {
   it('offers the allowed status moves, asking for reasons and holding a lead until the check allows it', () => {
     expect(statusChoices('open', true).map((c) => [c.to, c.label, c.needsReason])).toEqual([
       ['on_hold', 'Put on hold', false],
-      ['closed', 'Close matter…', true],
+      ['closed', 'Close matter…', false],
     ]);
     expect(statusChoices('closed', true)[0]).toMatchObject({ to: 'open', label: 'Reopen…', needsReason: true });
+    expect(statusChoices('archived', true)).toEqual([{ to: 'open', label: 'Reopen…', needsReason: true }]);
     expect(statusChoices('lead', false)[0]?.blocked).toBeTruthy();
     expect(statusChoices('lead', true)[0]?.blocked).toBeUndefined();
   });

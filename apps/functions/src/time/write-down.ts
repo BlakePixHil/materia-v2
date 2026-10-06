@@ -10,7 +10,7 @@ import {
 
 import { auditReview, REMOVE, reviewEntries } from './review';
 import { defineCallable, type CallableDefinition } from '../core/callable';
-import { liveMatter, matterPath } from '../matters/shared';
+import { matterPath, writableMatter } from '../matters/shared';
 
 /**
  * `time-writeDown` (BILL-03; `time.approve`, idempotent): writes down a matter's draft or final
@@ -28,7 +28,7 @@ export const writeDownDefinition = {
   idempotent: true,
   handler: async (ctx): Promise<SetTimeEntryStatusResult> => {
     const { input, orgId, uid, role, db, log } = ctx;
-    liveMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
+    writableMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
     const billing = (await db.doc(`orgs/${orgId}`).get()).get('billing') as { unitMinutes?: unknown } | undefined;
     const unitMinutes = typeof billing?.unitMinutes === 'number' ? billing.unitMinutes : BILLING_UNIT_MINUTES;
     const change: WriteDownChange =

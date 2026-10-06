@@ -11,7 +11,7 @@ import { disbursementPath } from './shared';
 import { isDeleted } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { requireFlag } from '../core/flags';
-import { liveMatter, matterPath } from '../matters/shared';
+import { matterPath, writableMatter } from '../matters/shared';
 
 type Data = Record<string, unknown>;
 
@@ -31,7 +31,7 @@ export function disbursementStatusPatch(data: Data | undefined, status: 'unbille
  * writes off a matter's unbilled disbursements or restores written-off ones. `disbursements-onWrite`
  * then takes them out of (or puts them back into) the matter's `disbursementWipCents`. Billed ones
  * never change here (invariant 5); missing, deleted and already-set ones are skipped and listed.
- * The matter must be live and visible to the caller. Audited by the audit trigger.
+ * The matter must be live, not archived (CORE-19), and visible to the caller. Audited by the audit trigger.
  */
 export const setStatusDefinition = {
   name: 'disbursements-setStatus',
@@ -40,7 +40,7 @@ export const setStatusDefinition = {
   idempotent: true,
   handler: async ({ input, orgId, uid, role, db, requestId, clock, log }): Promise<SetDisbursementStatusResult> => {
     await requireFlag({ orgId, db, clock }, 'billing.disbursements');
-    liveMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
+    writableMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
     const ids = [...new Set(input.disbursementIds)];
     const snaps = await db.getAll(...ids.map((id) => db.doc(disbursementPath(orgId, input.matterId, id))));
 

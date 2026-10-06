@@ -78,13 +78,14 @@ async function seed(spec: CollectionSpec) {
 const writerFor = (spec: CollectionSpec): Role =>
   spec.update === 'owner' ? 'lawyer' : (rolesFor(spec.update)[0] ?? 'owner');
 
+// Seeding a document per collection one by one passes the 10 s hook default on a cold emulator.
 beforeAll(async () => {
   env = await createRulesEnv();
   await env.clearFirestore();
   await seedMembers(env);
   // Seed every document first: some rules read a parent (Clerk messages read their thread).
   for (const spec of COLLECTIONS) await seed(spec);
-});
+}, 60_000);
 
 afterAll(async () => {
   await env.cleanup();
@@ -513,6 +514,21 @@ describe('org settings (CORE-21)', () => {
     );
     await assertFails(
       updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped({ matterNumberFormat: 'F-{seq}' }, uidFor('lawyer'))),
+    );
+  });
+
+  it('Clerk settings change only through the clerk-* callables; the rest of settings stays client-direct', async () => {
+    await seed(specFor('orgs'));
+    const ref = doc(db(env, 'owner'), ORG_DOC);
+    const owner = uidFor('owner');
+    await assertSucceeds(updateDoc(ref, stamped({ settings: { referrals: { thankYouTask: true } } }, owner)));
+    await assertFails(updateDoc(ref, stamped({ 'settings.clerk.ackVersion': 1 }, owner)));
+    await assertFails(updateDoc(ref, stamped({ 'settings.clerk.features.chat': false }, owner)));
+    await assertFails(
+      updateDoc(
+        ref,
+        stamped({ settings: { referrals: { thankYouTask: false }, clerk: { monthlyBudgetCents: 1 } } }, owner),
+      ),
     );
   });
 
@@ -2750,6 +2766,74 @@ describe('notes (CORE-13)', () => {
   });
 });
 
+describe('closed and archived matters (CORE-19)', () => {
+  const CLOSED = `orgs/${ORG}/matters/matter-closed`;
+  const ARCHIVED = `orgs/${ORG}/matters/matter-archived`;
+  // Every matter subcollection a client may update, moved under the two matters.
+  const records = COLLECTIONS.filter(
+    (spec) => spec.update !== 'none' && new RegExp(`^${MATTER}/[A-Za-z]+/[^/]+$`).test(spec.docPath),
+  );
+  const under = (matter: string, spec: CollectionSpec) => spec.docPath.replace(MATTER, matter);
+
+  beforeAll(() =>
+    seedAdmin(env, async (f) => {
+      const matter = { ...seedData(specFor('matters')), deletedAt: null, closedAt: Timestamp.now() };
+      await setDoc(doc(f, CLOSED), { ...matter, status: 'closed' });
+      await setDoc(doc(f, ARCHIVED), { ...matter, status: 'archived', archivedAt: Timestamp.now() });
+      for (const spec of records) {
+        await setDoc(doc(f, under(CLOSED, spec)), seedData(spec));
+        await setDoc(doc(f, under(ARCHIVED, spec)), seedData(spec));
+      }
+    }),
+  );
+
+  it('has matter records to check', () => {
+    expect(records.map((spec) => spec.collection)).toEqual(
+      expect.arrayContaining(['tasks', 'deadlines', 'documents', 'notes', 'parties', 'assets']),
+    );
+  });
+
+  it.each(records.map((spec) => [spec.collection, spec] as const))(
+    '%s: editable on a closed matter, read-only once archived',
+    async (_name, spec) => {
+      const role = writerFor(spec);
+      const firestore = db(env, role);
+      const change = stamped(changeFor(spec), uidFor(role));
+      await assertSucceeds(updateDoc(doc(firestore, under(CLOSED, spec)), change));
+      await assertSucceeds(getDoc(doc(firestore, under(ARCHIVED, spec))));
+      await assertFails(updateDoc(doc(firestore, under(ARCHIVED, spec)), change));
+    },
+  );
+
+  it('the archived matter itself is read-only, and takes no new tasks', async () => {
+    const firestore = db(env, 'owner');
+    const uid = uidFor('owner');
+    await assertSucceeds(updateDoc(doc(firestore, CLOSED), stamped({ title: 'Renamed while closed' }, uid)));
+    await assertSucceeds(getDoc(doc(firestore, ARCHIVED)));
+    await assertFails(updateDoc(doc(firestore, ARCHIVED), stamped({ title: 'Renamed while archived' }, uid)));
+    const newTask = (matterId: string) => ({
+      title: 'Fictional follow-up',
+      status: 'todo',
+      priority: 'high',
+      dueDate: '2026-10-20',
+      assigneeUid: uid,
+      checklist: [],
+      order: 1024,
+      source: 'manual',
+      countedOpen: false,
+      orgId: ORG,
+      matterId,
+      createdAt: serverTimestamp(),
+      createdBy: uid,
+      updatedAt: serverTimestamp(),
+      updatedBy: uid,
+      schemaVersion: 1,
+    });
+    await assertSucceeds(setDoc(doc(firestore, `${CLOSED}/tasks/t-new`), newTask('matter-closed')));
+    await assertFails(setDoc(doc(firestore, `${ARCHIVED}/tasks/t-new`), newTask('matter-archived')));
+  });
+});
+
 describe('time entries (BILL-01)', () => {
   const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-time-privileged`;
   const DELETED_MATTER = `orgs/${ORG}/matters/matter-time-deleted`;
@@ -3062,6 +3146,223 @@ describe('disbursements (BILL-04)', () => {
     await assertFails(updateDoc(doc(db(env, 'owner'), PRESETS), stamped({ createdBy: 'x' }, uidFor('owner'))));
     // Other settings documents stay server-only.
     await assertFails(getDoc(doc(db(env, 'owner'), `orgs/${ORG}/settings/clerk`)));
+  });
+});
+
+describe('estate register (CORE-16)', () => {
+  const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-estate-privileged`;
+  const DELETED_MATTER = `orgs/${ORG}/matters/matter-estate-deleted`;
+  const created = (uid: string) => ({
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+  });
+  const newAsset = (uid: string, extra: Record<string, unknown> = {}) => ({
+    class: 'real_property',
+    description: '12 Example Street, Geelong (fictional)',
+    institution: 'Title 1234/567',
+    valueAtDeathCents: 90_000_000,
+    valuationSource: 'Agent appraisal',
+    valuedOn: '2026-08-01',
+    jointlyHeld: true,
+    jointHolding: 'tenants_in_common',
+    shareBps: 5000,
+    passesOutsideEstate: false,
+    status: 'valued',
+    realisedCents: 0,
+    originalCurrency: 'NZD',
+    originalAmount: 1.5,
+    documentIds: ['doc-1'],
+    notes: 'Fictional',
+    ...created(uid),
+    ...extra,
+  });
+  const newLiability = (uid: string, extra: Record<string, unknown> = {}) => ({
+    class: 'funeral',
+    creditor: 'Bay Funerals (fictional)',
+    reference: 'INV-1',
+    amountCents: 850_000,
+    status: 'notified',
+    notes: 'Fictional',
+    ...created(uid),
+    ...extra,
+  });
+  const newDistribution = (uid: string, extra: Record<string, unknown> = {}) => ({
+    beneficiaryPartyId: 'beneficiary_c-1',
+    kind: 'specific',
+    assetId: 'asset-1',
+    amountCents: 100,
+    share: 'One half',
+    status: 'paid',
+    paidOn: '2026-10-01',
+    notes: 'Fictional',
+    ...created(uid),
+    ...extra,
+  });
+  const minimal = (record: Record<string, unknown>, ...drop: string[]) =>
+    Object.fromEntries(Object.entries(record).filter(([key]) => !drop.includes(key)));
+
+  beforeAll(async () => {
+    await seedAdmin(env, async (f) => {
+      const matter = seedData(specFor('matters'));
+      await setDoc(doc(f, PRIVILEGED_MATTER), { ...matter, privileged: true });
+      await setDoc(doc(f, `${PRIVILEGED_MATTER}/assets/a-1`), seedData(specFor('assets')));
+      await setDoc(doc(f, DELETED_MATTER), { ...matter, deletedAt: Timestamp.fromMillis(1), deletedBy: 'x' });
+      await setDoc(doc(f, `${DELETED_MATTER}/assets/a-1`), seedData(specFor('assets')));
+    });
+  });
+
+  it.each(ROLES)('creating register records as %s follows matter.edit', async (role) => {
+    const uid = uidFor(role);
+    const firestore = db(env, role);
+    const writes = [
+      setDoc(doc(firestore, `${MATTER}/assets/new-${role}`), newAsset(uid)),
+      setDoc(doc(firestore, `${MATTER}/liabilities/new-${role}`), newLiability(uid)),
+      setDoc(doc(firestore, `${MATTER}/distributions/new-${role}`), newDistribution(uid)),
+    ];
+    for (const write of writes) await (allows(role, 'matter.edit') ? assertSucceeds(write) : assertFails(write));
+  });
+
+  it('a create carries only valid values, integer cents of 0 or more, and the caller’s stamp', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const asset = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${MATTER}/assets/${id}`), newAsset(uid, extra)));
+    await asset('negative', { valueAtDeathCents: -1 });
+    await asset('fraction', { valueAtDeathCents: 10.5 });
+    await asset('text-value', { valueAtDeathCents: '100' });
+    await asset('realised', { realisedCents: -5 });
+    await asset('class', { class: 'crypto' });
+    await asset('blank', { description: '  ' });
+    await asset('long', { description: 'x'.repeat(301) });
+    await asset('institution', { institution: 'x'.repeat(301) });
+    await asset('source', { valuationSource: 5 });
+    await asset('notes', { notes: 'x'.repeat(2001) });
+    await asset('date', { valuedOn: '01/08/2026' });
+    await asset('joint', { jointlyHeld: 'yes' });
+    await asset('outside', { passesOutsideEstate: 'no' });
+    await asset('holding', { jointHolding: 'coparceners' });
+    await asset('share-high', { shareBps: 10_001 });
+    await asset('share-zero', { shareBps: 0 });
+    await asset('status', { status: 'sold' });
+    await asset('currency', { originalCurrency: 'usd' });
+    await asset('amount', { originalAmount: -1 });
+    await asset('docs', { documentIds: Array.from({ length: 21 }, (_, i) => `d-${i}`) });
+    await asset('server-field', { needsValueReview: true });
+    await asset('creator', { createdBy: 'someone-else' });
+    await asset('created-at', { createdAt: Timestamp.fromMillis(0) });
+    await asset('version', { schemaVersion: 2 });
+    await assertFails(setDoc(doc(firestore, `${MATTER}/assets/no-status`), minimal(newAsset(uid), 'status')));
+    await assertSucceeds(
+      setDoc(
+        doc(firestore, `${MATTER}/assets/minimal`),
+        minimal(
+          newAsset(uid, { originalAmount: 2 }),
+          'institution',
+          'valuationSource',
+          'valuedOn',
+          'jointHolding',
+          'shareBps',
+          'realisedCents',
+          'originalCurrency',
+          'originalAmount',
+          'notes',
+        ),
+      ),
+    );
+
+    const liability = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${MATTER}/liabilities/${id}`), newLiability(uid, extra)));
+    await liability('negative', { amountCents: -1 });
+    await liability('fraction', { amountCents: 0.5 });
+    await liability('class', { class: 'gambling' });
+    await liability('creditor', { creditor: '' });
+    await liability('status', { status: 'forgiven' });
+    await liability('reference', { reference: 'x'.repeat(301) });
+    await assertSucceeds(
+      setDoc(
+        doc(firestore, `${MATTER}/liabilities/minimal`),
+        minimal(newLiability(uid, { amountCents: 0 }), 'reference', 'notes'),
+      ),
+    );
+
+    const distribution = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${MATTER}/distributions/${id}`), newDistribution(uid, extra)));
+    await distribution('negative', { amountCents: -100 });
+    await distribution('kind', { kind: 'legacy' });
+    await distribution('beneficiary', { beneficiaryPartyId: '' });
+    await distribution('asset', { assetId: '' });
+    await distribution('status', { status: 'owed' });
+    await distribution('paid-on', { paidOn: 'yesterday' });
+    await distribution('share', { share: 7 });
+    await distribution('review', { needsValueReview: true });
+    await assertSucceeds(
+      setDoc(
+        doc(firestore, `${MATTER}/distributions/minimal`),
+        minimal(
+          newDistribution(uid, { kind: 'residuary', status: 'planned', needsValueReview: false }),
+          'assetId',
+          'amountCents',
+          'share',
+          'paidOn',
+          'notes',
+        ),
+      ),
+    );
+  });
+
+  it('edits keep the values valid, and only a person clears needsValueReview', async () => {
+    const uid = uidFor('lawyer');
+    const firestore = db(env, 'lawyer');
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, `${MATTER}/assets/edit-1`), seedData(specFor('assets')));
+      await setDoc(doc(f, `${MATTER}/liabilities/edit-1`), seedData(specFor('liabilities')));
+      await setDoc(doc(f, `${MATTER}/distributions/edit-1`), {
+        ...seedData(specFor('distributions')),
+        needsValueReview: true,
+      });
+    });
+    const asset = doc(firestore, `${MATTER}/assets/edit-1`);
+    await assertSucceeds(updateDoc(asset, stamped({ valueAtDeathCents: 1_000, status: 'valued' }, uid)));
+    await assertFails(updateDoc(asset, stamped({ valueAtDeathCents: -1_000 }, uid)));
+    await assertFails(updateDoc(asset, stamped({ shareBps: 20_000 }, uid)));
+    const liability = doc(firestore, `${MATTER}/liabilities/edit-1`);
+    await assertSucceeds(updateDoc(liability, stamped({ amountCents: 12_345, status: 'paid' }, uid)));
+    await assertFails(updateDoc(liability, stamped({ amountCents: 1.25 }, uid)));
+    const distribution = doc(firestore, `${MATTER}/distributions/edit-1`);
+    await assertSucceeds(updateDoc(distribution, stamped({ status: 'approved' }, uid)));
+    await assertSucceeds(updateDoc(distribution, stamped({ needsValueReview: false }, uid)));
+    await assertFails(updateDoc(distribution, stamped({ needsValueReview: true }, uid)));
+    await assertFails(updateDoc(distribution, stamped({ amountCents: -1 }, uid)));
+    // Soft delete and restore.
+    await assertSucceeds(updateDoc(asset, { deletedAt: serverTimestamp(), deletedBy: uid, ...stamped({}, uid) }));
+    await assertSucceeds(updateDoc(asset, { deletedAt: deleteField(), deletedBy: deleteField(), ...stamped({}, uid) }));
+  });
+
+  it('a privileged matter’s register needs privileged.view; a deleted matter’s is frozen', async () => {
+    await assertFails(getDoc(doc(db(env, 'readonly'), `${PRIVILEGED_MATTER}/assets/a-1`)));
+    await assertFails(getDoc(doc(db(env, 'paralegal'), `${PRIVILEGED_MATTER}/assets/a-1`)));
+    await assertSucceeds(getDoc(doc(db(env, 'lawyer'), `${PRIVILEGED_MATTER}/assets/a-1`)));
+    await assertFails(
+      setDoc(doc(db(env, 'paralegal'), `${PRIVILEGED_MATTER}/assets/new`), newAsset(uidFor('paralegal'))),
+    );
+    await assertSucceeds(setDoc(doc(db(env, 'lawyer'), `${PRIVILEGED_MATTER}/assets/new`), newAsset(uidFor('lawyer'))));
+    await assertSucceeds(getDoc(doc(db(env, 'lawyer'), `${DELETED_MATTER}/assets/a-1`)));
+    await assertFails(setDoc(doc(db(env, 'lawyer'), `${DELETED_MATTER}/assets/new`), newAsset(uidFor('lawyer'))));
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'lawyer'), `${DELETED_MATTER}/assets/a-1`),
+        stamped({ description: 'Edited' }, uidFor('lawyer')),
+      ),
+    );
+  });
+
+  it('nobody hard deletes register records', async () => {
+    await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/assets/doc-1`)));
+    await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/liabilities/doc-1`)));
+    await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/distributions/doc-1`)));
   });
 });
 

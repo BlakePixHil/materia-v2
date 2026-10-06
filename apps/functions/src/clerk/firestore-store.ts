@@ -3,7 +3,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { DomainError } from '@materia/domain';
 
 import { STREAM_FLUSH_MS } from './features';
-import type { ClerkStore, FinalMessage, MessageSink, MeterEntry, OrgClerkSettings } from './store';
+import type { ClerkStore, FinalMessage, MessageSink, MeterEntry, OrgClerkSettings, RateSlot } from './store';
 
 const SYSTEM = 'system';
 
@@ -46,7 +46,7 @@ function meterValues(entry: MeterEntry): Record<string, FieldValue> {
 
 /**
  * The gateway's Firestore persistence (AI-02):
- * - the per-user window in `orgs/{orgId}/counters/clerk-rate-{uid}` (server-only);
+ * - the per-user window and daily count in `orgs/{orgId}/counters/clerk-rate-{uid}` (server-only);
  * - metering in `orgs/{orgId}/metrics/clerk-{YYYY-MM}` (totals, `feature.<f>.*`, `user.<uid>.*`,
  *   and `citation_verified`/`citation_unverified` from AI-05's verification);
  * - streamed replies in `clerkThreads/{t}/messages/{m}`, with the verbatim assistant turn (and the
@@ -59,21 +59,25 @@ export function firestoreClerkStore(db: Firestore, now: () => number = Date.now)
       return (org.get('settings.clerk') as OrgClerkSettings | undefined) ?? {};
     },
 
-    async takeRateSlot(orgId, uid, nowMs, limit): Promise<boolean> {
+    async takeRateSlot(orgId, uid, nowMs, limit): Promise<RateSlot> {
       const ref = db.doc(`orgs/${orgId}/counters/clerk-rate-${uid}`);
       return db.runTransaction(async (tx) => {
         const snapshot = await tx.get(ref);
         const hits = ((snapshot.get('hits') as number[] | undefined) ?? []).filter((at) => at > nowMs - limit.windowMs);
-        if (hits.length >= limit.requests) return false;
-        tx.set(ref, { hits: [...hits, nowMs], updatedAt: FieldValue.serverTimestamp() });
-        return true;
+        if (hits.length >= limit.requests) return 'window';
+        const day = limit.daily?.day ?? (snapshot.get('day') as string | undefined) ?? null;
+        const dayCount = snapshot.get('day') === day ? ((snapshot.get('dayCount') as number | undefined) ?? 0) : 0;
+        if (limit.daily && dayCount >= limit.daily.limit) return 'daily';
+        tx.set(ref, { hits: [...hits, nowMs], day, dayCount: dayCount + 1, updatedAt: FieldValue.serverTimestamp() });
+        return 'ok';
       });
     },
 
-    async periodTokens(orgId, period): Promise<number> {
+    async periodUsage(orgId, period): Promise<{ tokens: number; costMicros: number }> {
       const snapshot = await db.doc(`orgs/${orgId}/metrics/${period}`).get();
-      const tokens = (snapshot.get('values') as Record<string, unknown> | undefined)?.['tokens'];
-      return typeof tokens === 'number' ? tokens : 0;
+      const values = (snapshot.get('values') as Record<string, unknown> | undefined) ?? {};
+      const num = (value: unknown) => (typeof value === 'number' ? value : 0);
+      return { tokens: num(values['tokens']), costMicros: num(values['costMicros']) };
     },
 
     async meter(orgId, period, entry, at): Promise<void> {

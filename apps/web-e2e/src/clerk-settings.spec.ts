@@ -5,14 +5,15 @@ import { expectNoA11yViolations, signInAsTestUser } from '@materia/test-utils/e2
 import { uniqueOrg } from './support/matters';
 
 /**
- * Settings → Clerk (AI-02a) against the emulators: an admin saves the firm's own Anthropic key
+ * Settings → Clerk and AI (AI-02a, AI-13) against the emulators: an admin acknowledges the data-use
+ * disclosure, turns a feature off and sets the limits; saves the firm's own Anthropic key
  * (validated by the fake model), sees only its last four characters, switches the model and removes
- * the key; a lawyer can't open the page. Fictional keys only.
+ * the key. A lawyer sees the page read-only. Fictional keys only.
  */
 
 const KEY = 'sk-ant-api03-fictional-e2e-key-000000004321';
 
-test.describe('Settings → Clerk', () => {
+test.describe('Settings → Clerk and AI', () => {
   test('save a key, see last4, switch the model and remove it', async ({ page, request }) => {
     test.setTimeout(90_000);
     const orgId = uniqueOrg();
@@ -22,10 +23,32 @@ test.describe('Settings → Clerk', () => {
     });
 
     await page.goto('/settings/clerk');
-    await expect(page.getByRole('heading', { level: 1, name: 'Clerk' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Clerk and AI' })).toBeVisible();
     // The first call cold-starts the Functions emulator.
     await expect(page.locator('[data-key-status]')).toContainText('No key saved', { timeout: 20_000 });
-    await expect(page.locator('[data-disclosure]')).toContainText('your firm’s own Anthropic account and terms');
+    await expect(page.locator('[data-disclosure]')).toContainText("your firm's own Anthropic API account");
+    await expectNoA11yViolations(page);
+
+    // The disclosure gate (AI-13): acknowledged once, with who and when.
+    await expect(page.locator('[data-ack-needed]')).toBeVisible();
+    await page.getByRole('button', { name: 'I’ve read this, turn Clerk on' }).click();
+    await expect(page.locator('[data-acknowledged]')).toContainText('Acknowledged by Priya Fictional', {
+      timeout: 20_000,
+    });
+
+    // A feature off, saved at once; and the limits.
+    const drafting = page.getByRole('switch', { name: 'Draft documents' });
+    await expect(drafting).toBeChecked();
+    await drafting.click();
+    await expect(drafting).not.toBeChecked();
+    await page.getByLabel('Monthly spend limit').fill('250');
+    await page.getByLabel('Requests per person per day').fill('150');
+    await page.getByRole('button', { name: 'Save limits' }).click();
+    await expect(page.getByText('Limits saved').first()).toBeVisible({ timeout: 20_000 });
+    await page.reload();
+    await expect(page.getByLabel('Monthly spend limit')).toHaveValue('250.00', { timeout: 20_000 });
+    await expect(page.getByRole('switch', { name: 'Draft documents' })).not.toBeChecked();
+    await expect(page.locator('[data-budget-meter]')).toBeVisible();
     await expectNoA11yViolations(page);
 
     // A value that isn't an Anthropic key is caught before anything is sent.
@@ -57,13 +80,22 @@ test.describe('Settings → Clerk', () => {
     await expect(page.locator('[data-key-status]')).toContainText('No key saved');
   });
 
-  test('a lawyer can’t open it', async ({ page, request }) => {
+  test('a lawyer sees what is on, read-only, and how Clerk works', async ({ page, request }) => {
     const orgId = uniqueOrg();
     await signInAsTestUser(page, request, {
       claims: { orgId, role: 'lawyer', orgName: 'Fictional Clerk Practice' },
       displayName: 'Jordan Fictional',
     });
     await page.goto('/settings/clerk');
-    await expect(page).toHaveURL(/\/no-access/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Clerk and AI' })).toBeVisible();
+    await expect(page.locator('[data-ack-needed]')).toContainText('until an owner or admin');
+    await expect(page.getByRole('switch')).toHaveCount(0);
+    await expect(page.getByText('Anthropic API key')).toHaveCount(0);
+    await expectNoA11yViolations(page);
+
+    await page.getByRole('link', { name: 'How Clerk works' }).first().click();
+    await expect(page).toHaveURL(/\/help\/clerk$/);
+    await expect(page.getByRole('heading', { level: 2 })).toHaveCount(7);
+    await expectNoA11yViolations(page);
   });
 });

@@ -47,8 +47,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     roles: SETTINGS_ADMIN_ROLES,
     flag: 'templates.system',
   },
-  // Clerk settings (AI-02a, then AI-13): the route is the Clerk thread's own.
-  { path: 'clerk', label: 'Clerk and AI', icon: 'sparkle', group: 'Clerk', roles: SETTINGS_ADMIN_ROLES },
+  // Clerk and AI (AI-02a, AI-13): everyone; read-only below owners and admins.
+  { path: 'clerk', label: 'Clerk and AI', icon: 'sparkle', group: 'Clerk' },
   { path: 'audit', label: 'Audit log', icon: 'shield', group: 'Records', roles: SETTINGS_ADMIN_ROLES },
 ];
 
