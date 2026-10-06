@@ -31,10 +31,18 @@ export interface RulesCoverage {
 export async function writeRulesCoverage(): Promise<RulesCoverage> {
   const host = process.env['FIRESTORE_EMULATOR_HOST'] ?? '127.0.0.1:8080';
   const base = `http://${host}/emulator/v1/projects/${PROJECT_ID}:ruleCoverage`;
-  const report = (await (await fetch(base)).json()) as {
-    rules: { files: { content: string }[] };
-    report: CoverageNode[];
+  const response = await fetch(base);
+  const report = (await response.json()) as {
+    rules?: { files: { content: string }[] };
+    report?: CoverageNode[];
+    error?: unknown;
   };
+  // The emulator builds the whole report in memory and answers 500 when its heap is too small.
+  if (!response.ok || !report.rules || !report.report)
+    throw new Error(
+      `No rules coverage report (HTTP ${response.status}: ${JSON.stringify(report.error ?? null)}). ` +
+        'Give the emulator more heap, e.g. JAVA_TOOL_OPTIONS=-Xmx4g.',
+    );
   const source = report.rules.files[0]?.content ?? '';
 
   // A child can start at its parent's offset, so branch values come from the top-level nodes only.
