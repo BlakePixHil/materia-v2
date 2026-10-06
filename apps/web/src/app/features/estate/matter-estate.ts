@@ -231,7 +231,7 @@ const MAX_EXPORT_PAGES = 50;
                 [(ngModel)]="newAssetValue"
               />
             </span>
-            <button mtButton size="sm" type="submit" iconStart="plus" [loading]="addingAsset()">Add</button>
+            <button mtButton size="sm" type="submit" iconStart="plus" [loading]="addingAsset() > 0">Add</button>
           </form>
           @if (assetError(); as message) {
             <p class="caption danger" role="alert">{{ message }}</p>
@@ -307,7 +307,7 @@ const MAX_EXPORT_PAGES = 50;
                 [(ngModel)]="newLiabilityAmount"
               />
             </span>
-            <button mtButton size="sm" type="submit" iconStart="plus" [loading]="addingLiability()">Add</button>
+            <button mtButton size="sm" type="submit" iconStart="plus" [loading]="addingLiability() > 0">Add</button>
           </form>
           @if (liabilityError(); as message) {
             <p class="caption danger" role="alert">{{ message }}</p>
@@ -646,8 +646,9 @@ export class MatterEstate {
   protected newLiabilityClass: LiabilityClass = 'debt';
   protected newLiabilityCreditor = '';
   protected newLiabilityAmount = '';
-  protected readonly addingAsset = signal(false);
-  protected readonly addingLiability = signal(false);
+  /** Quick-entry saves still waiting for the server's answer (the Add buttons' spinners). */
+  protected readonly addingAsset = signal(0);
+  protected readonly addingLiability = signal(0);
   protected readonly assetError = signal<string | null>(null);
   protected readonly liabilityError = signal<string | null>(null);
   private readonly assetDescription = viewChild<ElementRef<HTMLInputElement>>('assetDescription');
@@ -835,15 +836,22 @@ export class MatterEstate {
     }
   }
 
-  /** Enter in any cell of the quick-entry row adds the asset, then the description is ready for the next. */
+  /**
+   * Enter in any cell of the quick-entry row adds the asset, and the description is ready for the
+   * next at once: the row shows as soon as Firestore has it locally, and its answer can come seconds
+   * later, by when the user may be typing elsewhere. A failed save puts back what was entered.
+   */
   protected async quickAsset(): Promise<void> {
     const description = this.newAssetDescription.trim();
     const value = parseMoneyInput(this.newAssetValue);
     if (!description) return this.assetError.set('Describe the asset.');
     if ('error' in value) return this.assetError.set(value.error);
-    if (this.addingAsset()) return;
+    const entered = { description: this.newAssetDescription, value: this.newAssetValue };
     this.assetError.set(null);
-    this.addingAsset.set(true);
+    this.newAssetDescription = '';
+    this.newAssetValue = '';
+    this.assetDescription()?.nativeElement.focus();
+    this.addingAsset.update((n) => n + 1);
     try {
       await this.assetsRepo.create({
         class: this.newAssetClass,
@@ -854,25 +862,30 @@ export class MatterEstate {
         status: value.value === undefined ? 'identified' : 'valued',
         documentIds: [],
       });
-      this.newAssetDescription = '';
-      this.newAssetValue = '';
-      this.assetDescription()?.nativeElement.focus();
     } catch (error) {
+      if (!this.newAssetDescription && !this.newAssetValue) {
+        this.newAssetDescription = entered.description;
+        this.newAssetValue = entered.value;
+      }
       this.assetError.set(`${ESTATE_SAVE_FAILED}. ${errorCopy(error)}`);
     } finally {
-      this.addingAsset.set(false);
+      this.addingAsset.update((n) => n - 1);
     }
   }
 
+  /** The liability's quick-entry row, the same way as the asset's. */
   protected async quickLiability(): Promise<void> {
     const creditor = this.newLiabilityCreditor.trim();
     const amount = parseMoneyInput(this.newLiabilityAmount);
     if (!creditor) return this.liabilityError.set('Name the creditor.');
     if ('error' in amount) return this.liabilityError.set(amount.error);
     if (amount.value === undefined) return this.liabilityError.set('Enter the amount owed.');
-    if (this.addingLiability()) return;
+    const entered = { creditor: this.newLiabilityCreditor, amount: this.newLiabilityAmount };
     this.liabilityError.set(null);
-    this.addingLiability.set(true);
+    this.newLiabilityCreditor = '';
+    this.newLiabilityAmount = '';
+    this.liabilityCreditor()?.nativeElement.focus();
+    this.addingLiability.update((n) => n + 1);
     try {
       await this.liabilitiesRepo.create({
         class: this.newLiabilityClass,
@@ -880,13 +893,14 @@ export class MatterEstate {
         amountCents: amount.value,
         status: 'notified',
       });
-      this.newLiabilityCreditor = '';
-      this.newLiabilityAmount = '';
-      this.liabilityCreditor()?.nativeElement.focus();
     } catch (error) {
+      if (!this.newLiabilityCreditor && !this.newLiabilityAmount) {
+        this.newLiabilityCreditor = entered.creditor;
+        this.newLiabilityAmount = entered.amount;
+      }
       this.liabilityError.set(`${ESTATE_SAVE_FAILED}. ${errorCopy(error)}`);
     } finally {
-      this.addingLiability.set(false);
+      this.addingLiability.update((n) => n - 1);
     }
   }
 
