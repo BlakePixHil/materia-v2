@@ -1,6 +1,6 @@
 import { AdminApi } from './admin-api.ts';
 import { scripted } from './fake.ts';
-import { parseArgs, status } from './status.ts';
+import { parseArgs, runExport, status } from './status.ts';
 
 /** The backup status report (SEC-03) against scripted Google APIs. Everything here is fictional. */
 
@@ -8,7 +8,7 @@ const NOW = Date.parse('2026-10-07T21:00:00Z');
 
 describe('status', () => {
   it('reports backups, exports, the files copy, the export job and its logs, and the transfer run', async () => {
-    const { deps, calls } = scripted([
+    const { deps, calls, headers } = scripted([
       {
         backups: [
           {
@@ -77,12 +77,30 @@ describe('status', () => {
     expect(markdown).toContain('| 2026-10-06T15:01:00Z | INFO | ok kind=daily documents=120 |');
     expect(markdown).toContain('⚠️ GET https://storagetransfer.googleapis.com/v1/transferJobs: 403');
     const logs = calls.find((c) => c.url.endsWith('entries:list'));
+    expect(headers[calls.indexOf(logs as (typeof calls)[number])]?.['x-goog-user-project']).toBe('p');
+    expect(headers[0]?.['x-goog-user-project']).toBeUndefined();
     expect(logs?.body).toMatchObject({ resourceNames: ['projects/p'], orderBy: 'timestamp desc' });
     expect(JSON.stringify(logs?.body)).toContain('timestamp >= \\"2026-09-29T21:00:00.000Z\\"');
   });
 
+  it('runs the export job now', async () => {
+    const job = 'projects/p/locations/l/jobs/firebase-schedule-backups-exportFirestore-australia-southeast1';
+    const { deps, calls } = scripted([
+      { jobs: [{ name: 'projects/p/locations/l/jobs/other' }, { name: job }] },
+      { name: job },
+    ]);
+    expect(await runExport(new AdminApi(deps, 'p'), 'l')).toContain(
+      'Started firebase-schedule-backups-exportFirestore',
+    );
+    expect(calls[1]).toMatchObject({ method: 'POST', url: `https://cloudscheduler.googleapis.com/v1/${job}:run` });
+
+    const none = scripted([{ jobs: [] }]);
+    await expect(runExport(new AdminApi(none.deps, 'p'), 'l')).rejects.toThrow('No Cloud Scheduler job');
+  });
+
   it('needs a project', () => {
-    expect(parseArgs(['--project', 'materia-v2-dev'])).toEqual({ project: 'materia-v2-dev' });
+    expect(parseArgs(['--project', 'materia-v2-dev'])).toEqual({ project: 'materia-v2-dev', runExport: false });
+    expect(parseArgs(['--project', 'p', '--run-export']).runExport).toBe(true);
     expect(() => parseArgs([])).toThrow('Usage');
   });
 });
