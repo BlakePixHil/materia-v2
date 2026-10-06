@@ -16,12 +16,19 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type 
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
 
-import { computeTimeEntry, wipContribution, type Role, type SetTimeEntryStatusResult } from '@materia/domain';
+import {
+  computeTimeEntry,
+  wipContribution,
+  type BillingWipResult,
+  type Role,
+  type SetTimeEntryStatusResult,
+} from '@materia/domain';
 
 /**
  * BILL-01 through the emulators: client-created drafts and the time-onWrite trigger (values
  * recomputed over tampered ones, the rate in force on the entry date, matter.wipCents under
- * concurrent edits) and time-setStatus. Everything is fictional.
+ * concurrent edits) and time-setStatus. BILL-03: finalise, approve with optimistic concurrency,
+ * write-down, write-off and send back, each audited, and billing-wip. Everything is fictional.
  */
 const PROJECT_ID = 'demo-materia';
 const ORG = 'org-time';
@@ -50,11 +57,20 @@ async function signInAs(role: Role) {
   await signInWithEmailAndPassword(auth, `${uidOf(role)}@example.test`, PASSWORD);
 }
 
-const setStatus = (data: Record<string, unknown>) =>
-  httpsCallable<Record<string, unknown>, SetTimeEntryStatusResult>(
-    getFunctions(client, 'australia-southeast1'),
-    'time-setStatus',
-  )({ requestId: randomUUID(), ...data }).then((result) => result.data);
+const call =
+  <T = SetTimeEntryStatusResult>(name: string) =>
+  (data: Record<string, unknown>) =>
+    httpsCallable<Record<string, unknown>, T>(
+      getFunctions(client, 'australia-southeast1'),
+      name,
+    )({
+      requestId: randomUUID(),
+      ...data,
+    }).then((result) => result.data);
+const setStatus = call('time-setStatus');
+const writeDown = call('time-writeDown');
+const reject = call('time-reject');
+const wip = call<BillingWipResult>('billing-wip');
 
 async function poll<T>(read: () => Promise<T>, done: (value: T) => boolean, timeoutMs = 45_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
@@ -263,6 +279,7 @@ describe('time-onWrite', () => {
     expect(await setStatus({ matterId: MATTER_ID, entryIds: ['para', 'missing'], status: 'final' })).toEqual({
       updated: ['para'],
       skipped: ['missing'],
+      conflicts: [],
     });
     expect(await data(`${ENTRIES}/para`)).toMatchObject({ status: 'final', amountCents: 30000 });
     await expect(
@@ -271,5 +288,173 @@ describe('time-onWrite', () => {
     // Final entries are still work in progress until billed.
     const { wip, expected } = await settledWip();
     expect(wip).toBe(expected);
+  });
+});
+
+/** The semantic audit rows for the matter with `action`, newest first. */
+async function audits(action: string) {
+  const rows = await db.collection(`orgs/${ORG}/audit`).where('action', '==', action).get();
+  return rows.docs
+    .map((d) => d.data())
+    .filter((row) => row['source'] === 'callable')
+    .sort((a, b) => b['at'].toMillis() - a['at'].toMillis());
+}
+
+const millis = async (path: string) => ((await data(path))['updatedAt'] as { toMillis(): number }).toMillis();
+
+/** A draft written by the paralegal, settled by the trigger (priced at the org default rate). */
+async function settledDraft(id: string, minutes: number): Promise<number> {
+  await signInAs('paralegal');
+  await setDoc(
+    doc(firestore, `${ENTRIES}/${id}`),
+    clientEntry(uidOf('paralegal'), { minutes, narrative: `Fictional ${id}` }),
+  );
+  await poll(
+    () => data(`${ENTRIES}/${id}`),
+    (entry) => entry['wipCountedCents'] === entry['amountCents'] && entry['amountCents'] === minutes * 500,
+  );
+  return millis(`${ENTRIES}/${id}`);
+}
+
+describe('BILL-03 review', () => {
+  it('approves what the reviewer saw and reports entries changed meanwhile, audited', async () => {
+    const seenA = await settledDraft('rev-a', 30);
+    const seenB = await settledDraft('rev-b', 60);
+    // The paralegal edits rev-b after the reviewer loaded it.
+    await updateDoc(doc(firestore, `${ENTRIES}/rev-b`), stamped(uidOf('paralegal'), { narrative: 'Edited meanwhile' }));
+    await poll(
+      () => millis(`${ENTRIES}/rev-b`),
+      (at) => at !== seenB,
+    );
+
+    await signInAs('lawyer');
+    const result = await setStatus({
+      matterId: MATTER_ID,
+      entryIds: ['rev-a', 'rev-b'],
+      status: 'final',
+      expectedUpdatedAt: { 'rev-a': seenA, 'rev-b': seenB },
+    });
+    expect(result).toEqual({ updated: ['rev-a'], skipped: [], conflicts: ['rev-b'] });
+    expect(await data(`${ENTRIES}/rev-a`)).toMatchObject({ status: 'final', updatedBy: uidOf('lawyer') });
+    expect(await data(`${ENTRIES}/rev-b`)).toMatchObject({ status: 'draft', narrative: 'Edited meanwhile' });
+    const [row] = await audits('time.finalised');
+    expect(row).toMatchObject({
+      actor: { uid: uidOf('lawyer') },
+      entity: { path: MATTER },
+      summary: '1 time entry marked final',
+      data: { entryIds: ['rev-a'] },
+    });
+  });
+
+  it('writes down to fewer units, keeping the original, and moves WIP', async () => {
+    const seen = await settledDraft('wd-a', 60);
+    await signInAs('lawyer');
+    const result = await writeDown({
+      matterId: MATTER_ID,
+      entryIds: ['wd-a'],
+      newUnits: 4,
+      reason: 'Fictional over-servicing',
+      expectedUpdatedAt: { 'wd-a': seen },
+    });
+    expect(result).toEqual({ updated: ['wd-a'], skipped: [], conflicts: [] });
+    const entry = await data(`${ENTRIES}/wd-a`);
+    expect(entry).toMatchObject({
+      status: 'final',
+      units: 4,
+      amountCents: 12000,
+      writeDown: {
+        originalUnits: 10,
+        originalAmountCents: 30000,
+        by: uidOf('lawyer'),
+        reason: 'Fictional over-servicing',
+      },
+    });
+    // A second write-down keeps the first original.
+    await writeDown({ matterId: MATTER_ID, entryIds: ['wd-a'], percent: 50, reason: 'Fictional second look' });
+    expect(await data(`${ENTRIES}/wd-a`)).toMatchObject({
+      units: 2,
+      amountCents: 6000,
+      writeDown: { originalUnits: 10, originalAmountCents: 30000, reason: 'Fictional second look' },
+    });
+    const [row] = await audits('time.written_down');
+    expect(row).toMatchObject({ summary: '1 time entry written down', data: { entryIds: ['wd-a'], percent: 50 } });
+    const { wip: wipCents, expected } = await settledWip();
+    expect(wipCents).toBe(expected);
+  });
+
+  it('writes off, taking the entry out of WIP, and refuses people without time.approve', async () => {
+    await settledDraft('wo-a', 12);
+    await expect(
+      writeDown({ matterId: MATTER_ID, entryIds: ['wo-a'], writeOff: true, reason: 'Fictional' }),
+    ).rejects.toMatchObject({ code: 'functions/permission-denied' } satisfies Partial<FunctionsError>);
+
+    await signInAs('lawyer');
+    expect(
+      await writeDown({
+        matterId: MATTER_ID,
+        entryIds: ['wo-a', 'wd-a'],
+        writeOff: true,
+        reason: 'Fictional goodwill',
+      }),
+    ).toMatchObject({ updated: ['wo-a', 'wd-a'], conflicts: [] });
+    const entry = await data(`${ENTRIES}/wo-a`);
+    expect(entry).toMatchObject({
+      status: 'written_off',
+      amountCents: 6000,
+      writeDown: { originalAmountCents: 6000, reason: 'Fictional goodwill' },
+    });
+    expect(wipContribution(entry)).toBe(0);
+    // Written off already: skipped.
+    expect(await writeDown({ matterId: MATTER_ID, entryIds: ['wo-a'], percent: 10, reason: 'Again' })).toMatchObject({
+      updated: [],
+      skipped: ['wo-a'],
+    });
+    const [row] = await audits('time.written_off');
+    expect(row).toMatchObject({ summary: '2 time entries written off', data: { entryIds: ['wo-a', 'wd-a'] } });
+    const { wip: wipCents, expected } = await settledWip();
+    expect(wipCents).toBe(expected);
+  });
+
+  it('sends a draft back with a note, which approving clears', async () => {
+    const seen = await settledDraft('sb-a', 18);
+    await signInAs('lawyer');
+    expect(
+      await reject({
+        matterId: MATTER_ID,
+        entryIds: ['sb-a'],
+        note: 'Which letter?',
+        expectedUpdatedAt: { 'sb-a': seen },
+      }),
+    ).toEqual({ updated: ['sb-a'], skipped: [], conflicts: [] });
+    expect(await data(`${ENTRIES}/sb-a`)).toMatchObject({
+      status: 'draft',
+      rejection: { note: 'Which letter?', by: uidOf('lawyer') },
+    });
+    const [row] = await audits('time.rejected');
+    expect(row).toMatchObject({ summary: '1 time entry sent back', data: { entryIds: ['sb-a'] } });
+
+    await setStatus({ matterId: MATTER_ID, entryIds: ['sb-a'], status: 'final' });
+    const approved = await data(`${ENTRIES}/sb-a`);
+    expect(approved['status']).toBe('final');
+    expect(approved['rejection']).toBeUndefined();
+  });
+
+  it('adds up unbilled final time by matter for billing.view', async () => {
+    await signInAs('paralegal');
+    await expect(wip({})).rejects.toMatchObject({ code: 'functions/permission-denied' });
+    await signInAs('lawyer');
+    const result = await wip({});
+    const finals = (await db.collection(ENTRIES).where('status', '==', 'final').get()).docs
+      .map((d) => d.data())
+      .filter((entry) => entry['billable'] && !entry['deletedAt'] && !entry['invoiceId']);
+    const row = result.rows.find((r) => r.matterId === MATTER_ID);
+    expect(row).toMatchObject({
+      number: 'TM-2026-0001',
+      timeCents: finals.reduce((sum, entry) => sum + Number(entry['amountCents']), 0),
+      entries: finals.length,
+      closed: false,
+      budgetPct: null,
+    });
+    expect(result.truncated).toBe(false);
   });
 });

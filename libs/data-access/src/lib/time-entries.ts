@@ -2,13 +2,18 @@ import { inject } from '@angular/core';
 import * as z from 'zod';
 
 import {
+  BILLING_CALLABLES,
   DomainError,
   SoftDeleteShape,
   TIME_CALLABLES,
   TimeEntry,
   TimeEntryCreateInput,
+  type BillingWipResult,
+  type RejectTimeEntriesInput,
   type SetTimeEntryStatusInput,
   type SetTimeEntryStatusResult,
+  type TimeExportInput,
+  type TimeWriteDownInput,
 } from '@materia/domain';
 
 import type { CallableClient } from './callable-client';
@@ -34,6 +39,8 @@ export const TimeEntryItemSchema = /* @__PURE__ */ z.object({
   source: entry.source,
   taskId: entry.taskId,
   invoiceId: entry.invoiceId,
+  writeDown: entry.writeDown,
+  rejection: entry.rejection,
   createdAt: entry.createdAt.optional(),
   updatedAt: entry.updatedAt.optional(),
   deletedAt: SoftDeleteShape.deletedAt,
@@ -110,17 +117,50 @@ export const dayTimeQuery = (uid: string, date: string): QuerySpec<TimeEntryItem
   pageSize: 200,
 });
 
+/**
+ * One person's entries dated `from` to `to`, across every matter, oldest first (indexed: orgId,
+ * uid, date): My time's week and the FY budget card (BILL-03). Bounded at `pageSize`.
+ */
+export const personTimeQuery = (uid: string, from: string, to: string, pageSize = 500): QuerySpec<TimeEntryItem> => ({
+  where: [
+    ['uid', '==', uid],
+    ['date', '>=', from],
+    ['date', '<=', to],
+  ],
+  orderBy: [['date', 'asc']],
+  pageSize,
+});
+
+/**
+ * Drafts across the org, oldest first (indexed: orgId, status, date): the Approvals tab (BILL-03).
+ * Only roles with privileged.view read other people's entries through the group, which every
+ * approver (time.approve) has.
+ */
+export const DRAFT_TIME_QUERY: QuerySpec<TimeEntryItem> = {
+  where: [['status', '==', 'draft']],
+  orderBy: [['date', 'asc']],
+  pageSize: 500,
+};
+
 // ---------- callables ----------
 
 type Input<T> = Omit<T, 'requestId'>;
 
-/** The `time-*` callables (BILL-01). */
+/** The `time-*` callables (BILL-01, BILL-03) and `billing-wip`. */
 export interface TimeCallables {
   /**
    * `time-setStatus` (time.approve; idempotent): approves drafts (`final`, snapshotting each
    * entry's rate) or returns final entries to draft. Billed and written-off entries are skipped.
    */
   setStatus(input: Input<SetTimeEntryStatusInput>, options?: { requestId?: string }): Promise<SetTimeEntryStatusResult>;
+  /** `time-writeDown` (time.approve; idempotent, BILL-03): to new units, by a percentage, or a write-off. */
+  writeDown(input: Input<TimeWriteDownInput>, options?: { requestId?: string }): Promise<SetTimeEntryStatusResult>;
+  /** `time-reject` (time.approve; idempotent, BILL-03): sends drafts back to their authors with a note. */
+  reject(input: Input<RejectTimeEntriesInput>, options?: { requestId?: string }): Promise<SetTimeEntryStatusResult>;
+  /** `time-exportCsv` (time.approve, BILL-03): entries by filter as CSV. */
+  exportCsv(input: Input<TimeExportInput>): Promise<{ csv: string; rows: number; truncated: boolean }>;
+  /** `billing-wip` (billing.view, BILL-03): unbilled WIP by matter, aggregated on the server. */
+  wip(): Promise<BillingWipResult>;
 }
 
 export function timeCallables(client: Pick<CallableClient, 'call'>): TimeCallables {
@@ -130,5 +170,21 @@ export function timeCallables(client: Pick<CallableClient, 'call'>): TimeCallabl
         idempotent: true,
         ...options,
       }),
+    writeDown: (input, options = {}) =>
+      client.call<Input<TimeWriteDownInput>, SetTimeEntryStatusResult>(TIME_CALLABLES.writeDown, input, {
+        idempotent: true,
+        ...options,
+      }),
+    reject: (input, options = {}) =>
+      client.call<Input<RejectTimeEntriesInput>, SetTimeEntryStatusResult>(TIME_CALLABLES.reject, input, {
+        idempotent: true,
+        ...options,
+      }),
+    exportCsv: (input) =>
+      client.call<Input<TimeExportInput>, { csv: string; rows: number; truncated: boolean }>(
+        TIME_CALLABLES.exportCsv,
+        input,
+      ),
+    wip: () => client.call<Record<string, never>, BillingWipResult>(BILLING_CALLABLES.wip, {}),
   };
 }

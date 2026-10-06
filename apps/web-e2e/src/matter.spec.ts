@@ -83,7 +83,7 @@ test.describe('matter screen', () => {
     await facts.getByRole('button', { name: 'Save' }).click();
     await expect(facts).toContainText('SP-2026-04417');
     await page.reload();
-    await expect(page.locator('mt-key-facts')).toContainText('SP-2026-04417');
+    await expect(page.locator('mt-key-facts')).toContainText('SP-2026-04417', FIRST_LOAD);
 
     // Switch to Parties from the tabs.
     const tabs = page.getByRole('navigation', { name: 'Matter sections' });
@@ -112,7 +112,7 @@ test.describe('matter screen', () => {
     await expect(page).toHaveTitle(/Notes/);
 
     await page.goto('/matters/m-quill/parties');
-    await expect(parties).toContainText('Tamsin Larkwood');
+    await expect(parties).toContainText('Tamsin Larkwood', FIRST_LOAD);
     await tabs.getByRole('link', { name: 'Overview' }).click();
     await expect(page).toHaveURL(/\/matters\/m-quill\/overview$/);
     await page.goBack();
