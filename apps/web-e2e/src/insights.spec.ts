@@ -1,7 +1,15 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { insightsPeriod, shiftMonth, today } from '@materia/domain';
-import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import {
+  EMULATOR_PROJECT,
+  expectNoA11yViolations,
+  FIRESTORE_EMULATOR,
+  FIRST_CALL,
+  FIRST_LOAD,
+  setEmulatorDocuments,
+  signInAsTestUser,
+} from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
@@ -12,6 +20,9 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
  * matter. Months are relative to today in Melbourne, so the snapshot is always in the past.
  * Fictional data only.
  */
+
+const ADMIN = { Authorization: 'Bearer owner' };
+const DOCS = `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents`;
 
 const TODAY = today('Australia/Melbourne');
 const LAST = shiftMonth(TODAY.slice(0, 7), -1);
@@ -29,6 +40,8 @@ function meta(uid: string) {
 /**
  * The first month: $12,000 billed, $10,000 collected, a probate matter opened and a deadline met on
  * time. The last month: $8,000 billed and a deadline met late. The month between has no document.
+ * The billing figures are seeded; the matter and the deadlines are counted by INS-01's triggers
+ * into the same documents, so the test waits for their ledgers before opening the page.
  */
 async function seed(page: Page, request: Parameters<typeof signInAsTestUser>[1]) {
   const orgId = uniqueOrg();
@@ -71,32 +84,29 @@ async function seed(page: Page, request: Parameters<typeof signInAsTestUser>[1])
         billing: { dailyTargetMinutes: 360 },
       },
     },
-    // Opened mid-morning in Melbourne on the 15th of the first month.
-    { ...matter, data: { ...matter.data, createdAt: new Date(`${FIRST}-15T00:00:00Z`) } },
-    deadline('d-filed', 'File the probate application', `${FIRST}-20`, `${FIRST}-19`),
-    deadline('d-served', 'Serve the notice on the beneficiaries', `${LAST}-10`, `${LAST}-12`),
     {
       path: `orgs/${orgId}/metrics/month-${FIRST}`,
       data: {
         period: `month-${FIRST}`,
-        values: {
-          'billing.invoicedCents': 1_200_000,
-          'billing.collectedCents': 1_000_000,
-          'matters.opened': 1,
-          'matters.opened.type.probate': 1,
-          'deadlines.due': 1,
-          'deadlines.metOnTime': 1,
-        },
+        values: { 'billing.invoicedCents': 1_200_000, 'billing.collectedCents': 1_000_000 },
       },
     },
     {
       path: `orgs/${orgId}/metrics/month-${LAST}`,
-      data: {
-        period: `month-${LAST}`,
-        values: { 'billing.invoicedCents': 800_000, 'deadlines.due': 1, 'deadlines.metLate': 1 },
-      },
+      data: { period: `month-${LAST}`, values: { 'billing.invoicedCents': 800_000 } },
     },
   ]);
+  await setEmulatorDocuments(request, [
+    // Opened mid-morning in Melbourne on the 15th of the first month.
+    { ...matter, data: { ...matter.data, createdAt: new Date(`${FIRST}-15T00:00:00Z`) } },
+    deadline('d-filed', 'File the probate application', `${FIRST}-20`, `${FIRST}-19`),
+    deadline('d-served', 'Serve the notice on the beneficiaries', `${LAST}-10`, `${LAST}-12`),
+  ]);
+  // Each ledger is written in the same transaction as its record's figures.
+  for (const ledger of ['matter-m-quill', 'deadline-d-filed', 'deadline-d-served']) {
+    const path = `${DOCS}/orgs/${orgId}/matters/m-quill/metrics/${ledger}`;
+    await expect.poll(async () => (await request.get(path, { headers: ADMIN })).status(), FIRST_CALL).toBe(200);
+  }
 }
 
 test.describe('insights', () => {
