@@ -22,7 +22,10 @@ const {
   buildConflictFixture,
   buildLoadMatters,
   makeContact,
+  makeAsset,
   makeChecklistTemplate,
+  makeDistribution,
+  makeLiability,
   makeTaskGroupTemplate,
   makeCounter,
   makeDeadline,
@@ -38,6 +41,7 @@ const {
   makePersonalTask,
   makeTask,
   makeTimeEntry,
+  makeTrustSnapshot,
   makeUser,
 } = F;
 
@@ -209,6 +213,35 @@ interface MatterSpec {
   minimal?: boolean;
   /** Its deadlines also come from the engine (CORE-10), as deadlines-recompute would write them. */
   computeDeadlines?: boolean;
+}
+
+/**
+ * Each type's seeded fee (BILL-05). Estimates are fictional, in the range a Geelong firm might give
+ * in a Victorian costs disclosure. The Doyle estate's was revised once, so its history shows.
+ */
+function seedFee(type: D.MatterType, revised?: { at: Date; by: string }): D.Matter['fee'] {
+  const cents = (dollars: number) => (dollars * 100) as D.Cents;
+  if (revised) {
+    const from = { arrangement: 'hourly' as const, estimateCents: cents(4500) };
+    const to = { arrangement: 'hourly' as const, estimateLowCents: cents(4500), estimateHighCents: cents(6500) };
+    return {
+      ...to,
+      revision: 1,
+      history: [{ ...revised, from, to, reason: 'Second executor joined; estimate given as a range' }],
+    };
+  }
+  switch (type) {
+    case 'will':
+    case 'poa':
+      return { arrangement: 'fixed', amountCents: cents(1650), history: [] };
+    case 'trust':
+      return { arrangement: 'capped', capCents: cents(5000), estimateCents: cents(4000), history: [] };
+    case 'fp':
+    case 'contest':
+      return { arrangement: 'hourly', estimateLowCents: cents(25000), estimateHighCents: cents(40000), history: [] };
+    default:
+      return { arrangement: 'hourly', estimateLowCents: cents(4500), estimateHighCents: cents(6500), history: [] };
+  }
 }
 
 /** Twelve matters: every type and every status. Offsets are days from the anchor. */
@@ -748,6 +781,162 @@ const CLERK_THREADS: Readonly<Record<string, readonly ClerkThreadSpec[]>> = {
 };
 
 /**
+ * The estate register of the Doyle probate (CORE-16): assets in the estate adding up to its gross
+ * value key fact, assets passing outside it (super under a binding nomination, a joint tenancy's
+ * half), a foreign holding, liabilities and two distributions to Thomas. Values are invented.
+ */
+interface EstateRegisterSpec {
+  assets: (Partial<D.Asset> & { id: string })[];
+  liabilities: (Partial<D.Liability> & { id: string })[];
+  distributions: (Omit<Partial<D.Distribution>, 'beneficiaryPartyId' | 'assetId'> & {
+    id: string;
+    beneficiary: string;
+    asset?: string;
+  })[];
+}
+
+const ESTATE_REGISTERS: Readonly<Record<string, EstateRegisterSpec>> = {
+  'm-doyle-estate': {
+    assets: [
+      {
+        id: 'residence',
+        class: 'real_property',
+        description: 'Residence, 14 Fictional Crescent, Belmont',
+        institution: 'Volume 11234 Folio 567',
+        valueAtDeathCents: 980_000_00 as D.Cents,
+        valuationSource: 'Fictional Valuers Pty Ltd',
+        status: 'valued',
+      },
+      {
+        id: 'everyday',
+        class: 'bank',
+        description: 'Everyday account',
+        institution: 'Corio Savings Bank, account ending 4471',
+        valueAtDeathCents: 48_250_00 as D.Cents,
+        valuationSource: 'Bank date-of-death letter',
+        status: 'realised',
+        realisedCents: 48_250_00 as D.Cents,
+      },
+      {
+        id: 'term-deposit',
+        class: 'bank',
+        description: 'Term deposit',
+        institution: 'Corio Savings Bank, deposit ending 0902',
+        valueAtDeathCents: 120_000_00 as D.Cents,
+        status: 'valued',
+      },
+      {
+        id: 'mining-shares',
+        class: 'shares',
+        description: 'Fictional Mining Ltd, 2,000 ordinary shares',
+        institution: 'SRN ending 3318',
+        valueAtDeathCents: 36_250_00 as D.Cents,
+        status: 'identified',
+      },
+      {
+        id: 'us-fund',
+        class: 'shares',
+        description: 'US index fund units',
+        institution: 'Fictional Brokerage Inc.',
+        valueAtDeathCents: 70_000_00 as D.Cents,
+        originalCurrency: 'USD',
+        originalAmount: 46_000,
+        status: 'valued',
+      },
+      {
+        id: 'car',
+        class: 'vehicle',
+        description: '2019 hatchback, registration FIC-123',
+        valueAtDeathCents: 18_000_00 as D.Cents,
+        status: 'identified',
+      },
+      {
+        id: 'contents',
+        class: 'personal',
+        description: 'Household contents and jewellery',
+        valueAtDeathCents: 12_000_00 as D.Cents,
+        status: 'identified',
+      },
+      {
+        id: 'super',
+        class: 'superannuation',
+        description: 'Fictional Super, binding nomination to Thomas Doyle',
+        valueAtDeathCents: 310_000_00 as D.Cents,
+        passesOutsideEstate: true,
+        status: 'identified',
+      },
+      {
+        id: 'holiday-unit',
+        class: 'real_property',
+        description: 'Holiday unit, Lorne, held with Catherine Doyle',
+        valueAtDeathCents: 420_000_00 as D.Cents,
+        jointlyHeld: true,
+        jointHolding: 'joint_tenants',
+        shareBps: 5000,
+        passesOutsideEstate: true,
+        status: 'identified',
+      },
+    ],
+    liabilities: [
+      {
+        id: 'funeral',
+        class: 'funeral',
+        creditor: 'Fictional Funerals',
+        amountCents: 9_850_00 as D.Cents,
+        status: 'paid',
+      },
+      {
+        id: 'card',
+        class: 'debt',
+        creditor: 'Corio Savings Bank credit card',
+        reference: 'Card ending 8812',
+        amountCents: 4_120_35 as D.Cents,
+        status: 'notified',
+      },
+      {
+        id: 'tax',
+        class: 'tax',
+        creditor: 'Australian Taxation Office',
+        reference: 'Date of death return (estimate)',
+        amountCents: 6_500_00 as D.Cents,
+        status: 'notified',
+      },
+    ],
+    distributions: [
+      { id: 'car-to-thomas', beneficiary: 'c-thomas-doyle', kind: 'specific', asset: 'car', status: 'planned' },
+      { id: 'residue-thomas', beneficiary: 'c-thomas-doyle', kind: 'residuary', share: 'One half', status: 'planned' },
+    ],
+  },
+};
+
+/** A seeded register's documents and the totals `estate-onWrite` would keep on the matter. */
+function seedEstateRegister(matterId: string, register: EstateRegisterSpec, meta: Record<string, unknown>) {
+  const assetId = (id: string) => `${matterId}-asset-${id}`;
+  const assets = register.assets.map(({ id, ...fields }) => ({
+    id: assetId(id),
+    data: makeAsset({ ...meta, jointlyHeld: false, passesOutsideEstate: false, ...fields }),
+  }));
+  const liabilities = register.liabilities.map(({ id, ...fields }) => ({
+    id: `${matterId}-liability-${id}`,
+    data: makeLiability({ ...meta, ...fields }),
+  }));
+  const distributions = register.distributions.map(({ id, beneficiary, asset, ...fields }) => ({
+    id: `${matterId}-distribution-${id}`,
+    data: makeDistribution({
+      ...meta,
+      ...fields,
+      beneficiaryPartyId: domain.partyDocId('beneficiary', beneficiary),
+      ...(asset ? { assetId: assetId(asset) } : {}),
+    }),
+  }));
+  const totals = domain.estateTotals(
+    assets.map((asset) => asset.data),
+    liabilities.map((liability) => liability.data),
+  );
+  return { assets, liabilities, distributions, totals };
+}
+
+/**
  * The party rows a seeded matter gets: one client row per client (CORE-06: `clientContactIds`
  * follows the client rows), then its other parties, one row per role and contact.
  */
@@ -885,15 +1074,24 @@ export function buildDataset(options: {
       },
       // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02), and
       // matters follow their templates' stages and tasks (CORE-07), and the illustrative Victorian
-      // statutory deadline rules apply (CORE-10), and Clerk's suggestions show on the Overview (AI-07).
+      // statutory deadline rules apply (CORE-10), the Doyle probate has an estate register (CORE-16)
+      // and Clerk's suggestions show on the Overview (AI-07), as does the fee panel (BILL-05). Trust
+      // balances copied from the firm's trust records show on matters (BILL-11, ADR-035), and the
+      // retention destruction queue runs (CORE-19).
       flags: {
         'conflicts.enforced': true,
         'templates.system': true,
         'deadlines.ruleset.vic.v1': true,
+        'estate.register': true,
+        'matters.destruction': true,
         'clerk.features.suggestions': true,
+        'billing.trustDisplay': true,
+        // Fee arrangements, budgets and budget alerts on the Overview (BILL-05).
+        'billing.feeBudgets': true,
         // Disbursements and their presets (BILL-04), awaiting practitioner review (BILL-04a).
         'billing.disbursements': true,
       },
+      trust: { showOnMatters: true, system: 'other', otherName: 'In-house trust records', staleAfterDays: 30 },
     }),
   );
 
@@ -1002,6 +1200,27 @@ export function buildDataset(options: {
     matters.flatMap((m) => [...m.clients, ...m.parties.map(([id]) => id), ...(m.deceased ? [m.deceased] : [])]),
   );
   const contacts = scenario === 'minimal' ? CONTACTS.filter((c) => contactIds.has(c.id)) : CONTACTS;
+  // Two matters' trust balances, as copied from those records: one current, one out of date.
+  for (const [matterId, amountCents, daysAgo] of [
+    ['m-doyle-estate', 8_421_000, 3],
+    ['m-feather-admin', 500_000, 38],
+  ] as const) {
+    if (!matters.some((m) => m.id === matterId)) continue;
+    add(
+      `orgs/${org}/trustSnapshots/${matterId}`,
+      makeTrustSnapshot({
+        ...meta,
+        matterId,
+        amountCents: amountCents as D.Cents,
+        asAt: rel(-daysAgo),
+        source: 'manual',
+        sourceSystemName: 'In-house trust records',
+        recordedBy: PRIYA,
+        recordedAt: now,
+      }),
+    );
+  }
+
   const contactById = new Map(CONTACTS.map((c) => [c.id, c]));
   const nameOf = (id: string) => {
     const c = contactById.get(id);
@@ -1079,8 +1298,24 @@ export function buildDataset(options: {
           const units = Math.ceil(minutes / 6);
           return sum + domain.timeAmountCents(units, MEMBERS[uid]?.rate ?? 0);
         }, 0);
+    // The fee (BILL-05): fixed for wills and powers of attorney, a cap on the trust, hourly with a
+    // Victorian-style estimate range elsewhere. The budget is what the fees triggers would compute.
+    const fee = seedFee(spec.type, spec.id === 'm-doyle-estate' ? { at: now, by: JORDAN } : undefined);
+    const recorded = spec.time.reduce((sum, [, minutes, uid]) => {
+      const units = Math.ceil(minutes / 6);
+      return sum + domain.timeAmountCents(units, MEMBERS[uid]?.rate ?? 0);
+    }, 0);
+    const budget = domain.planBudget({
+      fee,
+      previous: null,
+      sums: { timeCents: recorded, disbursementsCents: 0, billedCents: closed ? recorded : 0 },
+      pcts: domain.DEFAULT_BUDGET_ALERT_PCTS,
+      alertsOn: false,
+    }).budget;
     const detail = MATTER_DETAILS[spec.id];
-    const estate =
+    const registerSpec = ESTATE_REGISTERS[spec.id];
+    const register = registerSpec ? seedEstateRegister(spec.id, registerSpec, meta) : null;
+    const estateFacts =
       detail && (detail.grantDate !== undefined || detail.grantNo || detail.grossValueCents !== undefined)
         ? {
             ...(detail.grantDate !== undefined ? { grantDate: rel(detail.grantDate) } : {}),
@@ -1088,6 +1323,10 @@ export function buildDataset(options: {
             ...(detail.grossValueCents !== undefined ? { grossValueCents: detail.grossValueCents as D.Cents } : {}),
           }
         : undefined;
+    // A matter with an estate register (CORE-16) carries the values estate-onWrite keeps.
+    const estate = register
+      ? { ...estateFacts, grossValueCents: register.totals.grossCents, netValueCents: register.totals.netCents }
+      : estateFacts;
     const facts =
       detail && (detail.willDate !== undefined || detail.courtFileNo)
         ? {
@@ -1171,6 +1410,7 @@ export function buildDataset(options: {
         templateId: template.id,
         templateVersion: template.version,
         estate,
+        ...(register ? { estateRegister: { ...register.totals, updatedAt: now } } : {}),
         facts,
         clientContactIds: spec.clients,
         deceased:
@@ -1186,10 +1426,8 @@ export function buildDataset(options: {
         referrerContactId: spec.referrer,
         referralSource: spec.referralSource,
         dispute: spec.dispute ? { kind: spec.dispute, proceedingIds: [] } : undefined,
-        fee:
-          spec.type === 'will' || spec.type === 'poa'
-            ? { arrangement: 'fixed', amountCents: 165_000 as D.Cents, history: [] }
-            : { arrangement: 'hourly', history: [] },
+        fee,
+        budget,
         costsDisclosure: {
           status: spec.type === 'will' ? 'not_required' : 'sent',
           ...(spec.type === 'will' ? {} : { sentOn: rel(-30) }),
@@ -1225,6 +1463,12 @@ export function buildDataset(options: {
         `${base}/parties/${domain.partyDocId(role, contactId)}`,
         makeParty({ ...meta, orgId: org, matterId: spec.id, contactId, role }),
       );
+    }
+    if (register) {
+      for (const asset of register.assets) add(`${base}/assets/${asset.id}`, asset.data);
+      for (const liability of register.liabilities) add(`${base}/liabilities/${liability.id}`, liability.data);
+      for (const distribution of register.distributions)
+        add(`${base}/distributions/${distribution.id}`, distribution.data);
     }
     spec.events.forEach(([kind, offset, label], i) =>
       add(

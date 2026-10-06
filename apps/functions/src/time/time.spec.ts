@@ -255,6 +255,13 @@ describe('time-onWrite', () => {
     });
     expect(w.doc(`orgs/${ORG}/matters/gone`)).toBeUndefined();
   });
+
+  it('leaves a destroyed matter’s tombstone alone when its entries are deleted (CORE-19)', async () => {
+    const w = world({ [`${TE}/te1`]: entry({ wipCountedCents: 13200 }) });
+    w.docs.set(M, { ...w.doc(M), wipCents: 13200, destroyedAt: NOW });
+    expect(await w.write('te1', undefined)).toEqual({ wipDelta: 0, patched: [] });
+    expect(w.wip()).toBe(13200);
+  });
 });
 
 const deps = (w: ReturnType<typeof world>): CallableDeps => ({
@@ -356,6 +363,16 @@ describe('time-setStatus', () => {
     await expect(call(w, { matterId: 'nope', entryIds: ['te1'], status: 'final' })).rejects.toMatchObject({
       code: 'not-found',
     });
+  });
+
+  it('refuses an archived matter (CORE-19)', async () => {
+    const w = seeded();
+    w.docs.set(M, { ...w.doc(M), status: 'archived' });
+    await expect(call(w, { matterId: 'm1', entryIds: ['te1'], status: 'final' })).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'matter_archived' },
+    });
+    expect(w.doc(`${TE}/te1`)?.['status']).toBe('draft');
   });
 });
 

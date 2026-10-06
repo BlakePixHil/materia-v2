@@ -8,9 +8,29 @@ import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 
 afterEach(cleanUpOverlays);
 
+type Page = Awaited<ReturnType<typeof openMatter>>;
+
+/** Ticks the checkbox labelled `label` in the open dialog. */
+async function check(page: Page, label: string): Promise<void> {
+  const box = [...page.body.querySelectorAll('mt-checkbox')].find((node) => page.text(node).startsWith(label));
+  const button = box?.querySelector<HTMLElement>('button');
+  if (!button) throw new Error(`No checkbox "${label}"`);
+  button.click();
+  await page.stable();
+}
+
+/** Picks the radio option labelled `label`. */
+async function choose(page: Page, label: string): Promise<void> {
+  const option = [...page.body.querySelectorAll('mt-radio-group label')].find((node) => page.text(node) === label);
+  const button = option?.querySelector<HTMLElement>('button');
+  if (!button) throw new Error(`No option "${label}"`);
+  button.click();
+  await page.stable();
+}
+
 describe('matter header', () => {
   it('shows the number, type, conflict status, title, status, people, labels, stages and tabs', async () => {
-    const page = await openMatter();
+    const page = await openMatter(undefined, { flags: { 'estate.register': true } });
     const header = page.text(page.header());
     expect(header).toContain('M-2026-0142');
     expect(header).toContain('Probate');
@@ -93,13 +113,62 @@ describe('status', () => {
     expect(page.text()).toContain('M-2026-0142 is on hold');
   });
 
-  it('closes the matter from the "…" menu with a reason', async () => {
+  it('closes the matter through its closing checklist (CORE-19)', async () => {
     const page = await openMatter();
     await page.click('More matter actions');
     await page.click('Close matter…', page.body.querySelector('[role="menu"]') ?? page.body);
-    await page.fill('Reason', 'Estate fully administered', page.dialog() ?? page.body);
+    const dialog = page.dialog();
+    expect(page.text(dialog)).toContain('No upcoming deadlines');
+    expect(page.text(dialog)).toContain('1 task still open.');
+    expect(page.text(dialog)).toContain('Kept until at least 4 Oct 2033 (7 years)');
+    const close = () => page.buttons('Close matter', dialog ?? page.body).at(-1);
+    expect(close()?.hasAttribute('disabled') || close()?.getAttribute('aria-disabled') === 'true').toBe(true);
+
+    await check(page, 'Cancel the 1 open task when closing');
+    await page.fill('Why cancel them', 'Superseded', dialog ?? page.body);
+    await choose(page, 'We hold no originals');
+    await check(page, 'Closing letter sent');
+    expect(page.text(dialog)).toContain('Final distribution recorded. Still to do');
+    await page.fill('Or say why there’s no final distribution', 'No residue to distribute', dialog ?? page.body);
+    await page.fill('Reason for closing', 'Estate fully administered', dialog ?? page.body);
     await page.submit(page.dialog());
-    expect(page.calls('matters-changeStatus')[0]).toMatchObject({ to: 'closed', reason: 'Estate fully administered' });
+    expect(page.calls('matters-close')[0]).toMatchObject({
+      matterId: 'm-whitfield',
+      reason: 'Estate fully administered',
+      checklist: { originals: 'none_held', closingLetterSent: true, finalDistributionRecorded: false },
+      cancelOpenTasks: { reason: 'Superseded' },
+      checklistOverrides: { final_distribution: 'No residue to distribute' },
+    });
+    expect(page.calls('matters-changeStatus')).toEqual([]);
+    expect(page.text(page.layout())).toContain('Closed on');
+    expect(page.text(page.layout())).toContain('Kept until at least 4 Oct 2033');
+  });
+
+  it('shows a closed matter read-only with a banner, and reopens it with a reason', async () => {
+    const page = await openMatter(undefined, {
+      matter: { status: 'closed', closedAt: new Date('2026-09-01T00:00:00Z'), destroyAfter: '2033-09-01' },
+    });
+    expect(page.text(page.layout())).toContain('It’s read-only apart from notes');
+    expect(page.text(page.layout())).toContain('Kept until at least 1 Sept 2033');
+    expect(page.buttons('Edit title')).toHaveLength(0);
+    await page.click('Status: Closed. Change status');
+    await page.click('Reopen…', page.body.querySelector('[role="menu"]') ?? page.body);
+    await page.fill('Reason', 'Further assets found', page.dialog() ?? page.body);
+    await page.submit(page.dialog());
+    expect(page.calls('matters-reopen')[0]).toMatchObject({ matterId: 'm-whitfield', reason: 'Further assets found' });
+    expect(page.text(page.layout())).not.toContain('read-only apart from notes');
+    expect(page.buttons('Edit title')).toHaveLength(1);
+  });
+
+  it('on an archived matter only lawyers and above add notes (CORE-19)', async () => {
+    const archived = { status: 'archived', closedAt: new Date('2026-06-01T00:00:00Z'), archivedAt: new Date() };
+    const lawyer = await openMatter('/matters/m-whitfield/notes', { matter: archived });
+    expect(lawyer.text(lawyer.layout())).toContain('It’s read-only; lawyers can still add notes.');
+    expect(lawyer.body.querySelector('[aria-label="New note"]')).not.toBeNull();
+    cleanUpOverlays();
+    TestBed.resetTestingModule();
+    const paralegal = await openMatter('/matters/m-whitfield/notes', { session: PARALEGAL, matter: archived });
+    expect(paralegal.body.querySelector('[aria-label="New note"]')).toBeNull();
   });
 
   it('shows a refused change with its reason', async () => {

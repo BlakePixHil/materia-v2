@@ -50,13 +50,14 @@ function planned(
   return { path, title, loadComponent: placeholder, data: { placeholder: { heading: title, ...data } }, ...extra };
 }
 
-/** The matter tabs built so far (CORE-06, CORE-08, CORE-10, CORE-12); the others show a placeholder. */
+/** The matter tabs built so far (CORE-06, CORE-08, CORE-10, CORE-12, CORE-13, CORE-16); the others show a placeholder. */
 const MATTER_TAB_PAGES: Record<string, Route['loadComponent']> = {
   overview: () => import('./features/matter-detail/matter-overview').then((m) => m.MatterOverview),
   tasks: () => import('./features/matter-detail/matter-tasks').then((m) => m.MatterTasks),
   deadlines: () => import('./features/deadlines/matter-deadlines').then((m) => m.MatterDeadlines),
   documents: () => import('./features/documents/matter-documents').then((m) => m.MatterDocuments),
   parties: () => import('./features/matter-detail/matter-parties').then((m) => m.MatterParties),
+  estate: () => import('./features/estate/matter-estate').then((m) => m.MatterEstate),
   notes: () => import('./features/notes/matter-notes').then((m) => m.MatterNotes),
   time: () => import('./features/time/matter-time').then((m) => m.MatterTime),
   activity: () => import('./features/matter-detail/matter-activity').then((m) => m.MatterActivityTab),
@@ -82,6 +83,13 @@ const matterRoutes: Route[] = [
     title: 'Matters board',
     data: { layout: 'board' },
     loadComponent: () => import('./features/matters/matters-page').then((m) => m.MattersPage),
+  },
+  // Closed matters due for destruction (CORE-19): owners and admins, behind `matters.destruction`.
+  {
+    path: 'destruction',
+    title: 'Destruction queue',
+    data: { crumb: 'Destruction queue' },
+    loadComponent: () => import('./features/matters/destruction-queue-page').then((m) => m.DestructionQueuePage),
   },
   // New matter intake (CORE-05).
   {
@@ -266,6 +274,15 @@ const shellRoutes: Route[] = [
         canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
         canDeactivate: [unsavedChangesGuard],
         loadComponent: () => import('./features/settings/billing-page').then((m) => m.BillingSettingsPage),
+      },
+      // Trust account (BILL-11, ADR-035): owners and admins, while `billing.trustDisplay` is on.
+      {
+        path: 'trust',
+        title: 'Trust account',
+        data: { crumb: 'Trust account' },
+        canActivate: [flagGuard('billing.trustDisplay'), roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/trust/trust-settings-page').then((m) => m.TrustSettingsPage),
       },
       // Matter numbering (CORE-21a): owners and admins (`org.settings`).
       {

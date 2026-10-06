@@ -124,6 +124,24 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'matters.destruction': defineFlag({
+    key: 'matters.destruction',
+    description:
+      'Retention destruction: the monthly destruction queue, approvals and permanent deletion of matters past their retention date (off until a practitioner signs the retention rules off, CORE-19a).',
+    owner: 'CORE-19',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
+  'estate.register': defineFlag({
+    key: 'estate.register',
+    description:
+      'The Estate tab: assets, liabilities, distributions and the inventory export (off until a practitioner reviews the asset classes and summary wording, CORE-16a).',
+    owner: 'CORE-16',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'litigation.enabled': defineFlag({
     key: 'litigation.enabled',
     description: 'Disputes: contested estates, proceedings and court deadlines.',
@@ -140,11 +158,29 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'billing.feeBudgets': defineFlag({
+    key: 'billing.feeBudgets',
+    description:
+      'Fee arrangements on the matter Overview: the budget meter, revising the fee and the 80%/100% budget alerts (off until a practitioner signs it off, BILL-05a).',
+    owner: 'BILL-05',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'billing.disbursements': defineFlag({
     key: 'billing.disbursements',
     description:
       'Disbursements on the matter Time tab, with GST treatment, receipts and the org presets (off until a practitioner signs off the GST treatment and presets, BILL-04a).',
     owner: 'BILL-04',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
+  'billing.trustDisplay': defineFlag({
+    key: 'billing.trustDisplay',
+    description:
+      'Trust balances copied from the firm’s trust records on matters, and Settings → Trust account (off until a practitioner checks the labels, BILL-10a).',
+    owner: 'BILL-11',
     type: 'boolean',
     default: false,
     serverEnforced: true,

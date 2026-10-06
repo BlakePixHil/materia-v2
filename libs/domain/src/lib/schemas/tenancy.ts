@@ -13,6 +13,7 @@ import {
   RoleSchema,
   RoundingSchema,
   ThemeSchema,
+  TrustRecordsSystemSchema,
 } from './enums';
 
 /** A matter number `{TYPE}` code (CORE-21a): 1 to 6 letters or digits. */
@@ -67,6 +68,8 @@ export const Org = withMeta(
       defaultRateCents: CentsSchema,
       invoicePrefix: z.string().max(10),
       paymentTermsDays: z.number().int().min(0).max(365),
+      /** Budget alert thresholds, percent of the fee basis (BILL-05); 80 and 100 when unset. */
+      budgetAlertPcts: z.array(z.number().int().min(1).max(200)).max(5).optional(),
       /** The daily time target on the Time and billing screen (BILL-03); 6 hours when unset. */
       dailyTargetMinutes: z
         .number()
@@ -82,6 +85,8 @@ export const Org = withMeta(
     feeDefaults: FeeDefaultsSchema.optional(),
     fy: z.object({ startMonth: z.number().int().min(1).max(12) }),
     retentionYears: z.number().int().min(1).default(7),
+    /** A destroyed matter's tombstone keeps its title (CORE-19); off by default, so only the number stays. */
+    destructionKeepsTitle: z.boolean().optional(),
     plan: z.enum(['trial', 'standard', 'enterprise']),
     /** Security policies (SEC-04), written only by `security-updatePolicy`. */
     security: OrgSecuritySchema,
@@ -95,6 +100,20 @@ export const Org = withMeta(
             thankYouTask: z.boolean().optional(),
           })
           .optional(),
+      })
+      .optional(),
+    /**
+     * Settings → Trust account (BILL-11, ADR-035): whether matters show the trust balance copied from
+     * the firm's own trust records, which records those are, and when a balance is out of date.
+     * Written only by `trust-updateSettings`, behind `billing.trustDisplay`.
+     */
+    trust: z
+      .object({
+        showOnMatters: z.boolean(),
+        system: TrustRecordsSystemSchema,
+        /** The records' name when `system` is `other` ("In-house trust records"). */
+        otherName: z.string().trim().max(60).optional(),
+        staleAfterDays: z.number().int().min(1).max(365),
       })
       .optional(),
     /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */
@@ -120,6 +139,7 @@ export const Org = withMeta(
       'holidayLocality',
       'retentionYears',
       'billing',
+      'trust',
     ],
   },
 );

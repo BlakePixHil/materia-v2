@@ -189,3 +189,17 @@ export function computeSafely(input: ComputeInput): EngineResult[] {
 export function storedTrace(deadline: ComputedDeadline): string[] {
   return explain({ ...deadline, trace: deadline.trace.filter((step) => step.kind !== 'past') });
 }
+
+/**
+ * Whether any rule of a rule set reads one of these matter facts, in a condition or an offset
+ * amount (`{fact, default}`). The estate register (CORE-16) recomputes a matter's deadlines when its
+ * estate values change only if its rule set reads them.
+ */
+export function ruleSetReadsFacts(ruleSet: Pick<RuleSet, 'rules'>, facts: readonly string[]): boolean {
+  return ruleSet.rules.some((rule) => {
+    if (rule.conditions.some((condition) => facts.includes(condition.fact))) return true;
+    if (!('offset' in rule)) return false;
+    const amount = Object.values(rule.offset)[0] as unknown;
+    return typeof amount === 'object' && amount !== null && 'fact' in amount && facts.includes(String(amount.fact));
+  });
+}

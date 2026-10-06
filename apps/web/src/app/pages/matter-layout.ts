@@ -23,6 +23,7 @@ import { onIntent } from '../core/commands/intents';
 import { matterCommands } from '../core/commands/matter-commands';
 import { recentRecorder } from '../core/commands/recents';
 import { errorCopy } from '../core/error-copy';
+import { FeatureFlagService } from '../core/flags/feature-flags';
 import { startTrace } from '../core/observability/perf';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterHeader } from '../features/matter-detail/matter-header';
@@ -116,6 +117,8 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
               This matter was deleted on {{ deletedOn() }}{{ deletedBy() }}. Everything here is read-only; an owner or
               admin can restore it within 30 days.
             </mt-note>
+          } @else if (closedText(); as text) {
+            <mt-note class="closed" icon="archive">{{ text }}</mt-note>
           }
           <mt-matter-header #header />
           @if (m.conflictAlert; as alert) {
@@ -153,7 +156,8 @@ export class MatterLayout {
     ),
     { initialValue: this.childPath() },
   );
-  protected readonly tabs = computed(() => matterTabsFor(this.screen.value()?.type));
+  private readonly flags = inject(FeatureFlagService);
+  protected readonly tabs = computed(() => matterTabsFor(this.screen.value()?.type, (key) => this.flags.isOn(key)));
 
   protected readonly state = computed<MatterState>(() => {
     const matter = this.screen.matter;
@@ -168,6 +172,22 @@ export class MatterLayout {
     return status === 'ready' && !matter.exists() ? 'not-found' : 'loading';
   });
   protected readonly loadError = computed(() => errorCopy(this.screen.matter.error()));
+  /** The closed or archived banner (CORE-19): when, what's still allowed, and how long it's kept. */
+  protected readonly closedText = computed(() => {
+    const matter = this.screen.value();
+    if (!matter || (matter.status !== 'closed' && matter.status !== 'archived')) return null;
+    const closedOn = matter.closedAt ? ` on ${formatDateOnly(matter.closedAt)}` : '';
+    const state =
+      matter.status === 'archived'
+        ? `Archived${matter.archivedAt ? ` on ${formatDateOnly(matter.archivedAt)}` : ''}, after closing${closedOn}. It’s read-only; lawyers can still add notes.`
+        : `Closed${closedOn}. It’s read-only apart from notes, and is archived 90 days after closing.`;
+    const kept = matter.legalHold?.on
+      ? 'A legal hold keeps it from destruction.'
+      : matter.destroyAfter
+        ? `Kept until at least ${formatDateOnly(matter.destroyAfter)}.`
+        : 'It has no destruction date.';
+    return `${state} ${kept}${this.screen.canStatus() ? ' Reopen it from the status menu to make changes.' : ''}`;
+  });
   protected readonly deletedOn = computed(() => formatDateOnly(this.screen.value()?.deletedAt ?? null));
   protected readonly deletedBy = computed(() => {
     const by = this.screen.value()?.deletedBy;
@@ -202,9 +222,7 @@ export class MatterLayout {
       const tab = this.activeTab()?.split('/')[0];
       const matter = this.screen.value();
       if (!matter || !tab || tab === 'conflicts') return;
-      if (!this.tabs().some((t) => t.path === tab)) {
-        untracked(() => void this.router.navigate(['overview'], { relativeTo: this.route, replaceUrl: true }));
-      }
+      if (!this.tabs().some((t) => t.path === tab)) untracked(() => void this.leaveUnavailableTab(tab));
     });
 
     // Today's Recent matters (CORE-14) and ⌘K's Recent (CORE-15): each matter opened is recorded once.
@@ -260,7 +278,7 @@ export class MatterLayout {
     const commands = inject(CommandRegistry);
     const context = inject(OrgContext);
     const group = 'This matter';
-    const ready = () => this.state() === 'ready' && !this.screen.deleted();
+    const ready = () => this.state() === 'ready' && !this.screen.readOnly();
 
     // The tab actions follow the matter (its id and number) and the role.
     const target = computed(
@@ -377,5 +395,12 @@ export class MatterLayout {
         ),
       ),
     ];
+  }
+
+  /** A tab the matter doesn't have lands on the overview, once the flags (which hide some tabs) are in. */
+  private async leaveUnavailableTab(tab: string): Promise<void> {
+    await this.flags.ready();
+    if (this.activeTab()?.split('/')[0] !== tab || this.tabs().some((t) => t.path === tab)) return;
+    await this.router.navigate(['overview'], { relativeTo: this.route, replaceUrl: true });
   }
 }

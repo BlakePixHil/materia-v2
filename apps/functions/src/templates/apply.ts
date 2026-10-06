@@ -26,7 +26,7 @@ import { stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
 import { requireFlag } from '../core/flags';
-import { liveMatter, matterPath } from '../matters/shared';
+import { writableMatter, matterPath } from '../matters/shared';
 import type { Clock } from '../ports';
 
 /** Statuses a matter's template can't change in: the file is shut. */
@@ -67,7 +67,7 @@ export async function applyTemplate(args: ApplyArgs): Promise<ApplyTemplateResul
   const entered = today(timeZone, now);
 
   return db.runTransaction(async (tx) => {
-    const data = liveMatter(await tx.get(ref), role, matterId);
+    const data = writableMatter(await tx.get(ref), role, matterId);
     assertOpen(data, matterId);
     const type = MatterTypeSchema.safeParse(data['type']);
     if (!type.success || type.data !== template.matterType) {

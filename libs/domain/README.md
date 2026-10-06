@@ -38,7 +38,10 @@ Each entity `X` exports `{ schema, create, update, version, path }` built by `wi
 | `matter.close` | ✓ | ✓ | ✓ |  |  |
 | `matter.status` | ✓ | ✓ | ✓ |  |  |
 | `matter.restore` | ✓ | ✓ |  |  |  |
+| `matter.legalHold` | ✓ | ✓ |  |  |  |
+| `matter.destroy` | ✓ | ✓ |  |  |  |
 | `matter.renumber` | ✓ | ✓ | ✓ |  |  |
+| `matter.fee` | ✓ | ✓ | ✓ |  |  |
 | `contact.edit` | ✓ | ✓ | ✓ | ✓ |  |
 | `contact.delete` | ✓ | ✓ | ✓ |  |  |
 | `contact.merge` | ✓ | ✓ |  |  |  |
@@ -55,6 +58,7 @@ Each entity `X` exports `{ schema, create, update, version, path }` built by `wi
 | `billing.view` | ✓ | ✓ | ✓ |  |  |
 | `billing.issue` | ✓ | ✓ |  |  |  |
 | `billing.void` | ✓ | ✓ |  |  |  |
+| `trust.record` | ✓ | ✓ | ✓ |  |  |
 | `clerk.use` | ✓ | ✓ | ✓ | ✓ |  |
 | `clerk.configure` | ✓ | ✓ |  |  |  |
 | `members.manage` | ✓ | ✓ |  |  |  |

@@ -148,6 +148,72 @@ service cloud.firestore {
         && validTask(data);
     }
 
+    // ---------- estate register (CORE-16) ----------
+    function estateMatter(orgId, matterId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
+    }
+    // can() has checked the member and the session, so the privileged check reads the role alone:
+    // visible() would run the session check again, and the register's validation is long enough
+    // that the two together pass the 1000-expression limit on a privileged matter.
+    function canEditEstate(orgId, matterId) {
+      let matter = estateMatter(orgId, matterId);
+      return can(orgId, 'matter.edit')
+        && (matter.privileged == false || claimRole() in perm('privileged.view'))
+        && matter.get('deletedAt', null) == null && matter.status != 'archived';
+    }
+    // A client-created register record: only its own fields plus meta, created and stamped by the caller.
+    function newEstateRecord(fields, required) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(fields.concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+        && data.keys().hasAll(required.concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+        && data.createdBy == uid() && data.createdAt == request.time && validMeta() && data.schemaVersion == 1;
+    }
+    function cents(data, field) {
+      return data[field] is int && data[field] >= 0;
+    }
+    function optionalCents(data, field) {
+      return !(field in data) || cents(data, field);
+    }
+    function text(data, field, max) {
+      return data[field] is string && data[field].trim().size() > 0 && data[field].size() <= max;
+    }
+    function optionalText(data, field, max) {
+      return !(field in data) || data[field] is string && data[field].size() <= max;
+    }
+    function optionalDate(data, field) {
+      return !(field in data) || data[field] is string && data[field].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+    function validAsset(data) {
+      return data['class'] in ['real_property', 'bank', 'shares', 'superannuation', 'insurance', 'vehicle', 'personal', 'business', 'debt_owed_to_estate', 'other']
+        && text(data, 'description', 300)
+        && optionalText(data, 'institution', 300) && optionalText(data, 'valuationSource', 300) && optionalText(data, 'notes', 2000)
+        && cents(data, 'valueAtDeathCents') && optionalCents(data, 'realisedCents')
+        && optionalDate(data, 'valuedOn')
+        && data.jointlyHeld is bool && data.passesOutsideEstate is bool
+        && (!('jointHolding' in data) || data.jointHolding in ['joint_tenants', 'tenants_in_common'])
+        && (!('shareBps' in data) || data.shareBps is int && data.shareBps >= 1 && data.shareBps <= 10000)
+        && data.status in ['identified', 'valued', 'realised', 'transferred']
+        && (!('originalCurrency' in data) || data.originalCurrency is string && data.originalCurrency.matches('^[A-Z]{3}$'))
+        && (!('originalAmount' in data) || (data.originalAmount is int || data.originalAmount is float) && data.originalAmount >= 0)
+        && data.documentIds is list && data.documentIds.size() <= 20;
+    }
+    function validLiability(data) {
+      return data['class'] in ['funeral', 'tax', 'debt', 'mortgage', 'costs', 'other']
+        && text(data, 'creditor', 300) && optionalText(data, 'reference', 300) && optionalText(data, 'notes', 2000)
+        && cents(data, 'amountCents')
+        && data.status in ['notified', 'paid', 'disputed'];
+    }
+    function validDistribution(data) {
+      return data.beneficiaryPartyId is string && data.beneficiaryPartyId.size() > 0
+        && data.kind in ['specific', 'pecuniary', 'residuary']
+        && optionalCents(data, 'amountCents')
+        && (!('assetId' in data) || data.assetId is string && data.assetId.size() > 0)
+        && optionalText(data, 'share', 300) && optionalText(data, 'notes', 2000)
+        && data.status in ['planned', 'approved', 'paid', 'cancelled']
+        && optionalDate(data, 'paidOn')
+        && (!('needsValueReview' in data) || data.needsValueReview is bool);
+    }
+
     // ---------- time entries (BILL-01) ----------
     // Fields a client may write when creating a time entry: `TimeEntryCreateInput` in libs/domain
     // (the rules tests check the two agree), plus the meta fields.
@@ -472,9 +538,14 @@ service cloud.firestore {
       // matters-* callables. Clients edit whitelisted fields of a live matter and soft delete it;
       // a deleted matter is frozen until an owner or admin restores it (matters-restore, 30 days).
       match /matters/{matterId} {
+        // Archived matters (CORE-19) are read-only: their records change only through callables
+        // (reopening, and notes by lawyers and above). Destroyed ones are tombstones (deletedAt).
+        function matterWritable() {
+          return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data.status != 'archived';
+        }
         allow read: if inOrg(orgId) && visible(orgId, resource.data);
         allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
-          && resource.data.get('deletedAt', null) == null
+          && resource.data.get('deletedAt', null) == null && resource.data.status != 'archived'
           && (can(orgId, 'matter.edit') && clientUpdate(fieldsMatter()) || can(orgId, 'matter.delete') && softDeleteOnly());
 
         // Server-written feed.
@@ -491,7 +562,8 @@ service cloud.firestore {
             return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
           }
           function canEditTasks() {
-            return can(orgId, 'task.edit') && visible(orgId, taskMatter()) && taskMatter().get('deletedAt', null) == null;
+            return can(orgId, 'task.edit') && visible(orgId, taskMatter()) && taskMatter().get('deletedAt', null) == null
+              && taskMatter().status != 'archived';
           }
           allow read: if inOrg(orgId) && visible(orgId, taskMatter());
           // `countedOpen: false` says the task isn't in openTaskCount yet (tasks-onWrite counts it).
@@ -510,7 +582,8 @@ service cloud.firestore {
             return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
           }
           function canEditDeadlines() {
-            return can(orgId, 'task.edit') && visible(orgId, deadlineMatter()) && deadlineMatter().get('deletedAt', null) == null;
+            return can(orgId, 'task.edit') && visible(orgId, deadlineMatter()) && deadlineMatter().get('deletedAt', null) == null
+              && deadlineMatter().status != 'archived';
           }
           function acknowledged() {
             return unchanged(['ackBy', 'ackAt'])
@@ -545,11 +618,13 @@ service cloud.firestore {
           }
           function canWriteTime(authorUid) {
             return (can(orgId, 'time.approve') || can(orgId, 'time.record') && authorUid == uid())
-              && visible(orgId, timeMatter()) && timeMatter().get('deletedAt', null) == null;
+              && visible(orgId, timeMatter()) && timeMatter().get('deletedAt', null) == null
+              && timeMatter().status != 'archived';
           }
           allow read: if inOrg(orgId) && visible(orgId, timeMatter());
           allow create: if can(orgId, 'time.record') && newTimeEntry(orgId, matterId)
-            && visible(orgId, timeMatter()) && timeMatter().get('deletedAt', null) == null;
+            && visible(orgId, timeMatter()) && timeMatter().get('deletedAt', null) == null
+            && timeMatter().status != 'archived';
           allow update: if canWriteTime(resource.data.uid)
             && resource.data.status == 'draft'
             && (clientUpdate(fieldsTimeEntry()) && validTimeEntry(request.resource.data) || softDelete());
@@ -576,6 +651,7 @@ service cloud.firestore {
           }
           allow read: if inOrg(orgId) && visible(orgId, resource.data) && visible(orgId, documentMatter());
           allow update: if visibleAndFlagOk(orgId, [resource.data.privileged, documentMatter().privileged])
+            && documentMatter().status != 'archived'
             && (can(orgId, 'document.upload') && clientUpdate(fieldsMatterDocument()) && validDocumentMeta(request.resource.data)
               || can(orgId, 'document.delete') && softDelete());
 
@@ -596,7 +672,7 @@ service cloud.firestore {
         match /notes/{noteId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
           allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
-            && editable(orgId, 'note.write', fieldsNote());
+            && editable(orgId, 'note.write', fieldsNote()) && matterWritable();
 
           // Earlier versions, appended by notes-update. Readable by whoever can read the note, and
           // a version that was privileged needs privileged.view itself (so a list by a role without
@@ -610,7 +686,7 @@ service cloud.firestore {
         match /offers/{offerId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
           allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
-            && editable(orgId, 'matter.edit', fieldsOffer());
+            && editable(orgId, 'matter.edit', fieldsOffer()) && matterWritable();
         }
 
         // Clerk suggestions (AI-07, ADR-037): written only by functions (proposeSuggestions and the
@@ -626,7 +702,7 @@ service cloud.firestore {
           // Share and notes only: adding, re-roling and removing parties go through the
           // matters-upsertParty and matters-removeParty callables, which keep clientContactIds and
           // the last-client rule (CORE-06). No client soft delete.
-          allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsParty());
+          allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsParty()) && matterWritable();
         }
         // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent,
         // which recompute the matter's deadlines in the same transaction.
@@ -643,56 +719,78 @@ service cloud.firestore {
           }
           function canWriteDisbursement() {
             return can(orgId, 'time.record')
-              && visible(orgId, disbursementMatter()) && disbursementMatter().get('deletedAt', null) == null;
+              && visible(orgId, disbursementMatter()) && disbursementMatter().get('deletedAt', null) == null
+              && disbursementMatter().status != 'archived';
           }
           allow read: if inOrg(orgId) && visible(orgId, disbursementMatter());
           allow create: if canWriteDisbursement() && newDisbursement(orgId, matterId);
           allow update: if canWriteDisbursement() && resource.data.status == 'unbilled'
             && (clientUpdate(fieldsDisbursement()) && validDisbursement(orgId, matterId, request.resource.data) || softDelete());
         }
+        // The estate register (CORE-16): assets, liabilities and distributions follow the matter's
+        // access (a privileged matter's need privileged.view). matter.edit roles create them, edit
+        // the whitelisted fields and soft delete (or restore) them on a live matter, with every
+        // amount integer cents of 0 or more. estate-onWrite keeps the matter's totals and flags
+        // distributions for review; neither is client-written.
         match /assets/{assetId} {
-          allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsAsset());
+          allow read: if inOrg(orgId) && visible(orgId, estateMatter(orgId, matterId));
+          allow create: if canEditEstate(orgId, matterId)
+            && newEstateRecord(fieldsAsset(), ['class', 'description', 'valueAtDeathCents', 'jointlyHeld', 'passesOutsideEstate', 'status', 'documentIds'])
+            && validAsset(request.resource.data);
+          allow update: if canEditEstate(orgId, matterId)
+            && (clientUpdate(fieldsAsset()) && validAsset(request.resource.data) || softDelete());
         }
         match /liabilities/{liabilityId} {
-          allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsLiability());
+          allow read: if inOrg(orgId) && visible(orgId, estateMatter(orgId, matterId));
+          allow create: if canEditEstate(orgId, matterId)
+            && newEstateRecord(fieldsLiability(), ['class', 'creditor', 'amountCents', 'status'])
+            && validLiability(request.resource.data);
+          allow update: if canEditEstate(orgId, matterId)
+            && (clientUpdate(fieldsLiability()) && validLiability(request.resource.data) || softDelete());
         }
         match /distributions/{distributionId} {
-          allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsDistribution());
+          allow read: if inOrg(orgId) && visible(orgId, estateMatter(orgId, matterId));
+          allow create: if canEditEstate(orgId, matterId)
+            && newEstateRecord(fieldsDistribution(), ['beneficiaryPartyId', 'kind', 'status'])
+            && request.resource.data.get('needsValueReview', false) == false
+            && validDistribution(request.resource.data);
+          // A person clears needsValueReview; only estate-onWrite sets it.
+          allow update: if canEditEstate(orgId, matterId)
+            && (clientUpdate(fieldsDistribution()) && validDistribution(request.resource.data)
+                && (unchanged(['needsValueReview']) || request.resource.data.get('needsValueReview', false) == false)
+              || softDelete());
         }
         match /proceedings/{proceedingId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsProceeding());
+          allow update: if editable(orgId, 'matter.edit', fieldsProceeding()) && matterWritable();
         }
         match /courtEvents/{courtEventId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsCourtEvent());
+          allow update: if editable(orgId, 'matter.edit', fieldsCourtEvent()) && matterWritable();
         }
         match /orders/{orderId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsCourtOrder());
+          allow update: if editable(orgId, 'matter.edit', fieldsCourtOrder()) && matterWritable();
         }
         match /chronology/{entryId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsChronologyEntry());
+          allow update: if editable(orgId, 'matter.edit', fieldsChronologyEntry()) && matterWritable();
         }
         match /issues/{issueId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsIssue());
+          allow update: if editable(orgId, 'matter.edit', fieldsIssue()) && matterWritable();
         }
         match /evidence/{evidenceId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsEvidence());
+          allow update: if editable(orgId, 'matter.edit', fieldsEvidence()) && matterWritable();
         }
         match /subpoenas/{subpoenaId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsSubpoena());
+          allow update: if editable(orgId, 'matter.edit', fieldsSubpoena()) && matterWritable();
         }
         match /courtBooks/{courtBookId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsCourtBook());
+          allow update: if editable(orgId, 'matter.edit', fieldsCourtBook()) && matterWritable();
         }
       }
 
@@ -813,6 +911,15 @@ service cloud.firestore {
         allow read: if inOrg(orgId) && resource.data.createdBy == uid();
       }
 
+      // Matter destruction (CORE-19): the queue and certificates are written by the matters-*
+      // functions; owners and admins review them.
+      match /destructionQueue/{matterId} {
+        allow read: if can(orgId, 'matter.destroy');
+      }
+      match /destructionCertificates/{certificateId} {
+        allow read: if can(orgId, 'matter.destroy');
+      }
+
       // Disbursement presets (BILL-04): every member reads them to prefill a disbursement; owners and
       // admins keep the list. Other settings documents stay server-only.
       match /settings/disbursementPresets {
@@ -827,6 +934,11 @@ service cloud.firestore {
       // Append-only audit log (FND-18): written by functions, read through the audit-query callable.
       match /audit/{entryId} {
         allow read, write: if false;
+      }
+      // Trust balance snapshots (BILL-11, ADR-035): copied from the firm's trust records, never a
+      // ledger. Only billing roles read them; `trust-recordSnapshot` writes and audits each change.
+      match /trustSnapshots/{matterId} {
+        allow read: if can(orgId, 'billing.view');
       }
       match /metrics/{metricId} {
         allow read: if can(orgId, 'billing.view');
@@ -909,7 +1021,10 @@ service cloud.firestore {
         'matter.close': ['owner', 'admin', 'lawyer'],
         'matter.status': ['owner', 'admin', 'lawyer'],
         'matter.restore': ['owner', 'admin'],
+        'matter.legalHold': ['owner', 'admin'],
+        'matter.destroy': ['owner', 'admin'],
         'matter.renumber': ['owner', 'admin', 'lawyer'],
+        'matter.fee': ['owner', 'admin', 'lawyer'],
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'contact.delete': ['owner', 'admin', 'lawyer'],
         'contact.merge': ['owner', 'admin'],
@@ -926,6 +1041,7 @@ service cloud.firestore {
         'billing.view': ['owner', 'admin', 'lawyer'],
         'billing.issue': ['owner', 'admin'],
         'billing.void': ['owner', 'admin'],
+        'trust.record': ['owner', 'admin', 'lawyer'],
         'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
         'clerk.configure': ['owner', 'admin'],
         'members.manage': ['owner', 'admin'],
@@ -940,7 +1056,7 @@ service cloud.firestore {
     }
     // Client-writable fields per entity (each entity's update schema keys).
     function fieldsActivity() { return ['kind', 'summary', 'actorUid', 'at', 'refs']; }
-    function fieldsAsset() { return ['class', 'description', 'valueAtDeathCents', 'valuationSource', 'jointlyHeld', 'passesOutsideEstate', 'status', 'realisedCents']; }
+    function fieldsAsset() { return ['class', 'description', 'institution', 'valueAtDeathCents', 'valuationSource', 'valuedOn', 'jointlyHeld', 'jointHolding', 'shareBps', 'passesOutsideEstate', 'status', 'realisedCents', 'originalCurrency', 'originalAmount', 'documentIds', 'notes']; }
     function fieldsAuditEntry() { return []; }
     function fieldsCalendar() { return ['jurisdiction', 'year', 'calendarId', 'kind', 'holidays', 'closures', 'source', 'verified']; }
     function fieldsChecklistTemplate() { return ['name', 'items', 'priority', 'dueInDays']; }
@@ -957,10 +1073,12 @@ service cloud.firestore {
     function fieldsCreditNote() { return []; }
     function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt']; }
     function fieldsDeadlineChange() { return []; }
+    function fieldsDestructionCertificate() { return []; }
+    function fieldsDestructionRequest() { return []; }
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
-    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'status', 'paidOn']; }
+    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'notes', 'needsValueReview']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
     function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }
@@ -970,7 +1088,7 @@ service cloud.firestore {
     function fieldsInvoice() { return ['lines', 'dueDate']; }
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
-    function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }
+    function fieldsLiability() { return ['class', 'creditor', 'reference', 'amountCents', 'status', 'notes']; }
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged', 'referrerContactId', 'referralSource', 'boardOrder']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }
     function fieldsMatterEvent() { return []; }
@@ -984,7 +1102,7 @@ service cloud.firestore {
     function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt', 'hiddenAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'plan', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'settings', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
@@ -998,6 +1116,7 @@ service cloud.firestore {
     function fieldsTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsTaskGroupTemplate() { return ['name', 'tasks']; }
     function fieldsTimeEntry() { return ['date', 'minutes', 'units', 'rateCents', 'amountCents', 'narrative', 'billable', 'taskId']; }
+    function fieldsTrustSnapshot() { return []; }
     function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl']; }
     // </generated:rules-sync>
 

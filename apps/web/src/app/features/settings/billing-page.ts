@@ -6,6 +6,7 @@ import { orgSettingsReadRepository, type OrgSettings } from '@materia/data-acces
 import {
   BILLING_UNIT_OPTIONS,
   BillingSettingsInput,
+  budgetAlertPcts,
   DEFAULT_DAILY_TARGET_MINUTES,
   feeProblems,
   MatterTypeSchema,
@@ -51,7 +52,19 @@ interface BillingForm {
   paymentTermsDays: string;
   dailyTargetHours: string;
   nextInvoiceNumber: string;
+  /** Budget alert thresholds (BILL-05), "80, 100". */
+  alertPcts: string;
   fees: Record<MatterType, FeeRow>;
+}
+
+/** "80, 100%" as thresholds; `undefined` when it isn't a list of whole percentages. */
+export function parseAlertPcts(text: string): number[] | undefined {
+  const parts = text
+    .split(/[\s,%]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length || parts.some((part) => !/^\d+$/.test(part))) return undefined;
+  return parts.map(Number);
 }
 
 function formOf(org: OrgSettings | undefined): BillingForm {
@@ -75,6 +88,7 @@ function formOf(org: OrgSettings | undefined): BillingForm {
     paymentTermsDays: String(billing.paymentTermsDays ?? 14),
     dailyTargetHours: String((billing.dailyTargetMinutes ?? DEFAULT_DAILY_TARGET_MINUTES) / 60),
     nextInvoiceNumber: '',
+    alertPcts: budgetAlertPcts(org).join(', '),
     fees,
   };
 }
@@ -154,151 +168,174 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
       }
     }
 
-    <form class="mt-col" style="gap: 24px" (submit)="$event.preventDefault(); save()">
-      <mt-settings-section title="Time" [headingLevel]="2">
-        <mt-text-field
-          name="defaultRate"
-          label="Default hourly rate"
-          description="Excluding GST. Used when a member has no rate of their own."
-          inputmode="decimal"
-          suffix="AUD / h"
-          [error]="rateProblem() ?? undefined"
-          [ngModel]="form().defaultRate"
-          (ngModelChange)="set({ defaultRate: $event ?? '' })"
-        />
-        <div class="pair">
-          <mt-select
-            name="unitMinutes"
-            label="Billing unit"
-            [native]="true"
-            [options]="units"
-            [ngModel]="form().unitMinutes"
-            (ngModelChange)="set({ unitMinutes: $event ?? 6 })"
-          />
-          <mt-select
-            name="rounding"
-            label="Rounding"
-            [native]="true"
-            [options]="roundings"
-            [ngModel]="form().rounding"
-            (ngModelChange)="set({ rounding: $event ?? 'up' })"
-          />
-        </div>
-      </mt-settings-section>
-
-      <mt-settings-section title="Invoices" [headingLevel]="2">
-        <mt-settings-row
-          title="Registered for GST"
-          description="Invoices show GST and are titled “Tax invoice” when on."
-        >
-          <mt-switch
-            name="gst"
-            label="Registered for GST"
-            labelHidden
-            [ngModel]="form().gstRegistered"
-            (ngModelChange)="set({ gstRegistered: !!$event })"
-          />
-        </mt-settings-row>
-        @if (gstChanged()) {
-          <mt-note tone="warning" data-gst-warning>
-            This applies to new invoices only. Invoices already issued keep their GST treatment.
-          </mt-note>
-        }
-        <div class="pair">
+    <!-- Shown once the org has loaded, so nothing typed is overwritten when the settings arrive. -->
+    @if (org.value()) {
+      <form class="mt-col" style="gap: 24px" (submit)="$event.preventDefault(); save()">
+        <mt-settings-section title="Time" [headingLevel]="2">
           <mt-text-field
-            name="invoicePrefix"
-            label="Invoice number prefix"
-            autocomplete="off"
-            [error]="prefixProblem() ?? undefined"
-            [ngModel]="form().invoicePrefix"
-            (ngModelChange)="set({ invoicePrefix: $event ?? '' })"
+            name="defaultRate"
+            label="Default hourly rate"
+            description="Excluding GST. Used when a member has no rate of their own."
+            inputmode="decimal"
+            suffix="AUD / h"
+            [error]="rateProblem() ?? undefined"
+            [ngModel]="form().defaultRate"
+            (ngModelChange)="set({ defaultRate: $event ?? '' })"
           />
-          <mt-text-field
-            name="paymentTermsDays"
-            label="Payment terms"
-            suffix="days"
-            inputmode="numeric"
-            [error]="termsProblem() ?? undefined"
-            [ngModel]="form().paymentTermsDays"
-            (ngModelChange)="set({ paymentTermsDays: $event ?? '' })"
-          />
-        </div>
-        <mt-text-field
-          name="dailyTargetHours"
-          label="Daily time target"
-          description="Each person’s weekday target on Time and billing."
-          suffix="hours"
-          inputmode="decimal"
-          [error]="targetProblem() ?? undefined"
-          [ngModel]="form().dailyTargetHours"
-          (ngModelChange)="set({ dailyTargetHours: $event ?? '' })"
-        />
-        <mt-text-field
-          name="nextInvoiceNumber"
-          label="Start invoice numbers at"
-          description="Only before the first invoice: invoice numbers are gapless and can’t change after that."
-          inputmode="numeric"
-          optional
-          [error]="nextNumberProblem() ?? undefined"
-          [ngModel]="form().nextInvoiceNumber"
-          (ngModelChange)="set({ nextInvoiceNumber: $event ?? '' })"
-        />
-      </mt-settings-section>
+          <div class="pair">
+            <mt-select
+              name="unitMinutes"
+              label="Billing unit"
+              [native]="true"
+              [options]="units"
+              [ngModel]="form().unitMinutes"
+              (ngModelChange)="set({ unitMinutes: $event ?? 6 })"
+            />
+            <mt-select
+              name="rounding"
+              label="Rounding"
+              [native]="true"
+              [options]="roundings"
+              [ngModel]="form().rounding"
+              (ngModelChange)="set({ rounding: $event ?? 'up' })"
+            />
+          </div>
+        </mt-settings-section>
 
-      <mt-settings-section
-        title="Fee defaults by matter type"
-        description="Filled in when a new matter of the type is opened. People can change them on the matter."
-        [headingLevel]="2"
-      >
-        <div class="fees" role="group" aria-label="Fee defaults">
-          @for (type of types; track type) {
-            @let row = form().fees[type];
-            <div class="fee-row" [attr.data-fee]="type">
-              <span class="label type">{{ typeLabel(type) }}</span>
-              <mt-select
-                size="sm"
-                [name]="'arr-' + type"
-                [label]="typeLabel(type) + ' fee arrangement'"
-                [native]="true"
-                [options]="arrangements"
-                [ngModel]="row.arrangement"
-                (ngModelChange)="setFee(type, { arrangement: $event ?? '' })"
-              />
-              @if (row.arrangement === 'fixed' || row.arrangement === 'capped') {
-                <mt-text-field
-                  size="sm"
-                  [name]="'amt-' + type"
-                  [label]="typeLabel(type) + (row.arrangement === 'fixed' ? ' fixed fee' : ' cap')"
-                  inputmode="decimal"
-                  [ngModel]="row.amount"
-                  (ngModelChange)="setFee(type, { amount: $event ?? '' })"
-                />
-              }
-              @if (row.arrangement && row.arrangement !== 'pro_bono') {
-                <mt-text-field
-                  size="sm"
-                  [name]="'est-' + type"
-                  [label]="typeLabel(type) + ' estimate'"
-                  inputmode="decimal"
-                  [ngModel]="row.estimate"
-                  (ngModelChange)="setFee(type, { estimate: $event ?? '' })"
-                />
-              }
-              @if (feeProblems()[type]; as problem) {
-                <span class="caption problem" role="alert">{{ problem }}</span>
-              }
-            </div>
+        <mt-settings-section title="Invoices" [headingLevel]="2">
+          <mt-settings-row
+            title="Registered for GST"
+            description="Invoices show GST and are titled “Tax invoice” when on."
+          >
+            <mt-switch
+              name="gst"
+              label="Registered for GST"
+              labelHidden
+              [ngModel]="form().gstRegistered"
+              (ngModelChange)="set({ gstRegistered: !!$event })"
+            />
+          </mt-settings-row>
+          @if (gstChanged()) {
+            <mt-note tone="warning" data-gst-warning>
+              This applies to new invoices only. Invoices already issued keep their GST treatment.
+            </mt-note>
           }
-        </div>
-      </mt-settings-section>
+          <div class="pair">
+            <mt-text-field
+              name="invoicePrefix"
+              label="Invoice number prefix"
+              autocomplete="off"
+              [error]="prefixProblem() ?? undefined"
+              [ngModel]="form().invoicePrefix"
+              (ngModelChange)="set({ invoicePrefix: $event ?? '' })"
+            />
+            <mt-text-field
+              name="paymentTermsDays"
+              label="Payment terms"
+              suffix="days"
+              inputmode="numeric"
+              [error]="termsProblem() ?? undefined"
+              [ngModel]="form().paymentTermsDays"
+              (ngModelChange)="set({ paymentTermsDays: $event ?? '' })"
+            />
+          </div>
+          <mt-text-field
+            name="dailyTargetHours"
+            label="Daily time target"
+            description="Each person’s weekday target on Time and billing."
+            suffix="hours"
+            inputmode="decimal"
+            [error]="targetProblem() ?? undefined"
+            [ngModel]="form().dailyTargetHours"
+            (ngModelChange)="set({ dailyTargetHours: $event ?? '' })"
+          />
+          <mt-text-field
+            name="nextInvoiceNumber"
+            label="Start invoice numbers at"
+            description="Only before the first invoice: invoice numbers are gapless and can’t change after that."
+            inputmode="numeric"
+            optional
+            [error]="nextNumberProblem() ?? undefined"
+            [ngModel]="form().nextInvoiceNumber"
+            (ngModelChange)="set({ nextInvoiceNumber: $event ?? '' })"
+          />
+        </mt-settings-section>
 
-      <div class="mt-row" style="gap: 8px">
-        <button mtButton variant="primary" type="submit" [loading]="saving()" [disabled]="!ready()">Save</button>
-        <button mtButton variant="ghost" type="button" [disabled]="!unsaved()" (click)="reset()">
-          Discard changes
-        </button>
-      </div>
-    </form>
+        @if (feeBudgetsOn()) {
+          <mt-settings-section
+            title="Matter budgets"
+            description="The responsible lawyer and their supervisor are alerted when a matter’s recorded time and disbursements reach these shares of its fixed fee, cap or estimate."
+            [headingLevel]="2"
+          >
+            <mt-text-field
+              name="alertPcts"
+              label="Alert at"
+              description="Percentages, separated by commas. Each fires once per fee revision."
+              suffix="%"
+              inputmode="numeric"
+              autocomplete="off"
+              [error]="alertProblem() ?? undefined"
+              [ngModel]="form().alertPcts"
+              (ngModelChange)="set({ alertPcts: $event ?? '' })"
+            />
+          </mt-settings-section>
+        }
+
+        <mt-settings-section
+          title="Fee defaults by matter type"
+          description="Filled in when a new matter of the type is opened. People can change them on the matter."
+          [headingLevel]="2"
+        >
+          <div class="fees" role="group" aria-label="Fee defaults">
+            @for (type of types; track type) {
+              @let row = form().fees[type];
+              <div class="fee-row" [attr.data-fee]="type">
+                <span class="label type">{{ typeLabel(type) }}</span>
+                <mt-select
+                  size="sm"
+                  [name]="'arr-' + type"
+                  [label]="typeLabel(type) + ' fee arrangement'"
+                  [native]="true"
+                  [options]="arrangements"
+                  [ngModel]="row.arrangement"
+                  (ngModelChange)="setFee(type, { arrangement: $event ?? '' })"
+                />
+                @if (row.arrangement === 'fixed' || row.arrangement === 'capped') {
+                  <mt-text-field
+                    size="sm"
+                    [name]="'amt-' + type"
+                    [label]="typeLabel(type) + (row.arrangement === 'fixed' ? ' fixed fee' : ' cap')"
+                    inputmode="decimal"
+                    [ngModel]="row.amount"
+                    (ngModelChange)="setFee(type, { amount: $event ?? '' })"
+                  />
+                }
+                @if (row.arrangement && row.arrangement !== 'pro_bono') {
+                  <mt-text-field
+                    size="sm"
+                    [name]="'est-' + type"
+                    [label]="typeLabel(type) + ' estimate'"
+                    inputmode="decimal"
+                    [ngModel]="row.estimate"
+                    (ngModelChange)="setFee(type, { estimate: $event ?? '' })"
+                  />
+                }
+                @if (feeProblems()[type]; as problem) {
+                  <span class="caption problem" role="alert">{{ problem }}</span>
+                }
+              </div>
+            }
+          </div>
+        </mt-settings-section>
+
+        <div class="mt-row" style="gap: 8px">
+          <button mtButton variant="primary" type="submit" [loading]="saving()" [disabled]="!ready()">Save</button>
+          <button mtButton variant="ghost" type="button" [disabled]="!unsaved()" (click)="reset()">
+            Discard changes
+          </button>
+        </div>
+      </form>
+    }
 
     <!-- Its own save: the presets live in their own document (BILL-04). -->
     @if (disbursementsOn()) {
@@ -343,8 +380,9 @@ export class BillingSettingsPage implements HasUnsavedChanges {
   private readonly context = inject(OrgContext);
   private readonly api = inject(SettingsApi);
   private readonly toasts = inject(ToastService);
-  protected readonly org = orgSettingsReadRepository().watch(() => this.context.orgId());
   private readonly flags = inject(FeatureFlagService);
+  protected readonly feeBudgetsOn = computed(() => this.flags.isOn('billing.feeBudgets'));
+  protected readonly org = orgSettingsReadRepository().watch(() => this.context.orgId());
   /** Disbursement presets (BILL-04) show while their flag is on. */
   protected readonly disbursementsOn = computed(() => this.flags.isOn('billing.disbursements'));
 
@@ -395,6 +433,14 @@ export class BillingSettingsPage implements HasUnsavedChanges {
     const n = Number(text);
     return Number.isInteger(n) && n >= 1 && n <= 9_999_999 ? null : 'Enter a whole number from 1.';
   });
+  private readonly alertPcts = computed(() => parseAlertPcts(this.form().alertPcts));
+  protected readonly alertProblem = computed(() => {
+    const pcts = this.alertPcts();
+    if (!pcts) return 'Enter whole percentages, such as 80, 100.';
+    return BillingSettingsInput.shape.budgetAlertPcts.safeParse(pcts).success
+      ? null
+      : 'Up to 5 different percentages from 1 to 200.';
+  });
   private readonly fees = computed(() => feeDefaultsOf(this.form().fees));
   protected readonly feeProblems = computed(() => this.fees().problems);
   private readonly billing = computed(() => {
@@ -406,12 +452,18 @@ export class BillingSettingsPage implements HasUnsavedChanges {
       gstRegistered: f.gstRegistered,
       invoicePrefix: f.invoicePrefix,
       paymentTermsDays: Number(f.paymentTermsDays),
+      budgetAlertPcts: this.alertPcts(),
       dailyTargetMinutes: targetMinutes(f.dailyTargetHours) ?? -1,
     });
   });
   protected readonly ready = computed(
     () =>
-      this.unsaved() && this.billing().success && !!this.fees().value && !this.nextNumberProblem() && !this.saving(),
+      this.unsaved() &&
+      this.billing().success &&
+      !this.alertProblem() &&
+      !!this.fees().value &&
+      !this.nextNumberProblem() &&
+      !this.saving(),
   );
   protected readonly loadError = computed(() => {
     const error = this.org.error();

@@ -6,7 +6,8 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
  * code uses (doc and collection refs, `==`, `in`, `array-contains` and range filters on dotted paths,
  * paging by document id,
  * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment`,
- * `FieldValue.delete` and `FieldValue.vector` with `findNearest`, and document listeners),
+ * `FieldValue.delete` and `FieldValue.vector` with `findNearest`, listing a document's subcollections
+ * and document listeners),
  * and an Admin Auth with users and custom claims.
  */
 
@@ -86,6 +87,16 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       create: async (data: Data) => write.create(path, data),
       delete: async () => void docs.delete(path),
       collection: (name: string) => collectionRef(`${path}/${name}`),
+      /** The subcollections that hold documents (Firestore lists only those). */
+      listCollections: async () => {
+        const depth = path.split('/').length + 2;
+        const names = new Set(
+          [...docs.keys()]
+            .filter((doc) => doc.startsWith(`${path}/`) && doc.split('/').length >= depth)
+            .map((doc) => doc.split('/')[depth - 2] as string),
+        );
+        return [...names].sort().map((name) => collectionRef(`${path}/${name}`));
+      },
       onSnapshot: (next: (snap: unknown) => void) => {
         const set = listeners.get(path) ?? new Set();
         listeners.set(path, set.add(next));
@@ -158,6 +169,24 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       },
       /** A count aggregation (`query.count().get()`). */
       count: () => ({ get: async () => ({ data: () => ({ count: select().length }) }) }),
+      /** `count` and `sum` aggregations (`query.aggregate({ total: AggregateField.sum('amountCents') })`). */
+      aggregate: (spec: Record<string, { aggregateType: string; _field?: string }>) => ({
+        get: async () => {
+          const found = select();
+          const result: Record<string, number> = {};
+          for (const [name, field] of Object.entries(spec)) {
+            if (field.aggregateType === 'count') result[name] = found.length;
+            else {
+              const values = found
+                .map((path) => valueAt(docs.get(path), String(field._field)))
+                .filter((value): value is number => typeof value === 'number');
+              const total = values.reduce((sum, value) => sum + value, 0);
+              result[name] = field.aggregateType === 'avg' ? (values.length ? total / values.length : NaN) : total;
+            }
+          }
+          return { data: () => result };
+        },
+      }),
       /** Vector search (`findNearest`), COSINE or EUCLIDEAN, with the distance in `distanceResultField`. */
       findNearest: (options: {
         vectorField: string;

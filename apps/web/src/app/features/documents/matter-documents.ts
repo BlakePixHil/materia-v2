@@ -434,8 +434,8 @@ export class MatterDocuments {
   private readonly router = inject(Router);
   private readonly picker = viewChild<ElementRef<HTMLInputElement>>('picker');
 
-  protected readonly canUpload = computed(() => this.uploadAllowed() && !this.screen.deleted());
-  protected readonly canDelete = computed(() => this.deleteAllowed() && !this.screen.deleted());
+  protected readonly canUpload = computed(() => this.uploadAllowed() && !this.screen.readOnly());
+  protected readonly canDelete = computed(() => this.deleteAllowed() && !this.screen.readOnly());
   /** Every role that sees the matter can download a selection as a zip (CORE-12b). */
   protected readonly canDownload = computed(() => !this.screen.deleted());
   protected readonly canPrivileged = can('privileged.view');

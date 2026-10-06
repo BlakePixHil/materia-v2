@@ -25,10 +25,13 @@ export interface MemoryMatter {
 
 export interface MemoryOrg {
   timezone?: string;
-  members: Record<string, { status: string; role: Role }>;
+  members: Record<string, { status: string; role: Role; displayName?: string; title?: string }>;
   contacts?: Record<string, string>;
   matters: Record<string, MemoryMatter>;
   metrics?: Record<string, Data>;
+  /** Trust balance snapshots by matter id, shown while `trust` is set (the flag and the org switch on). */
+  trustSnapshots?: Record<string, Data>;
+  trust?: { staleAfterDays: number };
 }
 
 const toRows = (records: Record<string, Data> | undefined): Row[] =>
@@ -106,6 +109,13 @@ export class MemoryContextSource implements ContextSource {
     return toRows(this.orgs[orgId]?.metrics)
       .sort((a, b) => b.id.localeCompare(a.id))
       .slice(0, limit);
+  }
+
+  async trustSnapshot(orgId: string, matterId: string) {
+    this.reads.push(`trust:${matterId}`);
+    const org = this.orgs[orgId];
+    const data = org?.trustSnapshots?.[matterId];
+    return org?.trust && data ? { snapshot: { id: matterId, data }, staleAfterDays: org.trust.staleAfterDays } : null;
   }
 }
 

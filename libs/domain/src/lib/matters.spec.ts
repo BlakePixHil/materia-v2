@@ -108,15 +108,17 @@ describe('status machine', () => {
     'open→on_hold',
     'on_hold→open',
     'open→closed',
+    'on_hold→closed',
     'closed→open',
     'closed→archived',
+    'archived→open',
   ]);
 
   it.each(statuses.flatMap((from) => statuses.map((to) => [from, to] as const)))('%s → %s', (from, to) => {
     expect(canTransition(from, to)).toBe(allowed.has(`${from}→${to}`));
   });
 
-  it('lists exactly the six allowed transitions', () => {
+  it('lists exactly the eight allowed transitions', () => {
     const count = Object.values(MATTER_TRANSITIONS).reduce((sum, targets) => sum + targets.length, 0);
     expect(count).toBe(allowed.size);
   });
@@ -124,7 +126,11 @@ describe('status machine', () => {
   it('needs an openable conflict determination to open a lead and a reason to reopen', () => {
     expect(transitionRequirements('lead', 'open')).toEqual(['conflict_openable']);
     expect(transitionRequirements('closed', 'open')).toEqual(['reason']);
-    expect(transitionRequirements('open', 'closed')).toEqual([]);
+    expect(transitionRequirements('archived', 'open')).toEqual(['reason']);
+    expect(transitionRequirements('closed', 'archived')).toEqual([]);
+    // Closing runs the closing checklist (CORE-19, matters-close).
+    expect(transitionRequirements('open', 'closed')).toEqual(['closing_checklist']);
+    expect(transitionRequirements('on_hold', 'closed')).toEqual(['closing_checklist']);
     expect(initialMatterStatus('clear')).toBe('open');
     expect(initialMatterStatus('potential')).toBe('open');
     expect(initialMatterStatus('conflict')).toBe('lead');

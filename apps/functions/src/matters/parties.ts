@@ -14,7 +14,7 @@ import {
 } from '@materia/domain';
 
 import { recordMatterActivity } from './denormalise';
-import { liveMatter, matterPath } from './shared';
+import { matterPath, writableMatter } from './shared';
 import { audit } from '../audit/audit';
 import { contactPath, isDeleted, isLive, stamp } from '../contacts/shared';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
@@ -86,7 +86,7 @@ async function changeParties(
   const matterRef = db.doc(matterPath(orgId, input.matterId));
   const now = clock.now();
   const change = await db.runTransaction(async (tx) => {
-    const matter = liveMatter(await tx.get(matterRef), role, input.matterId);
+    const matter = writableMatter(await tx.get(matterRef), role, input.matterId);
     await join?.read(tx);
     const snaps = await tx.get(db.collection(`${matterRef.path}/parties`));
     const rows = new Map(snaps.docs.map((doc) => [doc.id, asRow(doc.data() as Data)]));

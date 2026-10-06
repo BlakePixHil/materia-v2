@@ -3,7 +3,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { deleteObject, getBytes, ref, uploadBytes } from 'firebase/storage';
 
 import { PERMISSIONS, ROLES, UPLOAD_EXTENSIONS, uploadContentType, uploadSettings, type Role } from '@materia/domain';
-import { makeMatterDocument } from '@materia/test-utils';
+import { makeMatter, makeMatterDocument } from '@materia/test-utils';
 
 import {
   createRulesEnv,
@@ -23,6 +23,7 @@ const bytes = (size: number) => new Uint8Array(size);
 
 const storagePath = (documentId: string) => `${MATTER}/documents/${documentId}/v1`;
 const SHA = 'c'.repeat(64);
+const ARCHIVED = `orgs/${ORG}/matters/matter-archived`;
 
 let env: RulesTestEnvironment;
 
@@ -45,6 +46,10 @@ beforeAll(async () => {
   await env.clearFirestore();
   await env.clearStorage();
   await seedMembers(env);
+  await seedAdmin(env, async (f) => {
+    await setDoc(doc(f, MATTER), makeMatter({ status: 'open' }));
+    await setDoc(doc(f, ARCHIVED), makeMatter({ status: 'archived' }));
+  });
   await seedDocument('clean', { scan: 'clean', privileged: false });
   await seedDocument('pending-scan', { scan: 'pending', privileged: false });
   await seedDocument('infected', { scan: 'infected', privileged: false });
@@ -220,6 +225,11 @@ describe('uploads to pending/ (CORE-12)', () => {
       await assertFails(getBytes(ref(storage, path)));
       await assertFails(deleteObject(ref(storage, path)));
     }
+  });
+
+  it('archived (CORE-19) and missing matters take no uploads', async () => {
+    await assertFails(upload('owner', { path: `${ARCHIVED}/pending/${uploadId()}` }));
+    await assertFails(upload('owner', { path: `orgs/${ORG}/matters/matter-missing/pending/${uploadId()}` }));
   });
 
   it('denies another org, a suspended member and anonymous users', async () => {

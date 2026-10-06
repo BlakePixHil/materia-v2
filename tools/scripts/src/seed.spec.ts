@@ -302,14 +302,35 @@ describe('seed dataset', () => {
       'conflicts.enforced': true,
       'templates.system': true,
       'deadlines.ruleset.vic.v1': true,
+      'estate.register': true,
+      'matters.destruction': true,
       'clerk.features.suggestions': true,
+      'billing.feeBudgets': true,
       'billing.disbursements': true,
+      'billing.trustDisplay': true,
     });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
       expect(docsUnder('contacts').some((d) => d.path.endsWith(`/${id}`))).toBe(true);
     }
     const minimal = buildDataset({ anchor, fixtures, scenario: 'minimal' });
     expect(minimal.docs.some((d) => d.path.includes('/m-cf-'))).toBe(false);
+  });
+
+  it('gives the Doyle probate an estate register whose totals match its estate values (CORE-16)', () => {
+    const base = `orgs/${SEED_ORG_ID}/matters/m-doyle-estate`;
+    const rows = (collection: string) =>
+      dataset.docs.filter((d) => d.path.startsWith(`${base}/${collection}/`)).map((d) => d.data);
+    const assets = rows('assets') as unknown as D.AssetValues[];
+    const liabilities = rows('liabilities') as unknown as D.LiabilityValues[];
+    const totals = D.estateTotals(assets, liabilities);
+    const matter = dataset.docs.find((d) => d.path === base)?.data as Record<string, unknown>;
+    expect(totals).toMatchObject({ grossCents: 1_284_500_00, netCents: 1_264_029_65, outsideCents: 520_000_00 });
+    expect(matter['estate']).toMatchObject({ grossValueCents: totals.grossCents, netValueCents: totals.netCents });
+    expect(matter['estateRegister']).toMatchObject(totals);
+    const parties = dataset.docs
+      .filter((d) => d.path.startsWith(`${base}/parties/`))
+      .map((d) => d.path.split('/').pop());
+    for (const distribution of rows('distributions')) expect(parties).toContain(distribution['beneficiaryPartyId']);
   });
 
   it('seeds Clerk suggestions whose basis matches the matter and documents (AI-07)', () => {
@@ -341,6 +362,23 @@ describe('seed dataset', () => {
     expect(suggestions.some((d) => (d.data as D.Suggestion).privileged)).toBe(true);
   });
 
+  it('seeds each matter’s fee and the budget the fees triggers would keep (BILL-05)', () => {
+    // The practice's twelve matters (the conflict scenarios' matters have no time or budget).
+    const matters = dataset.docs.filter((d) => /\/matters\/[^/]+$/.test(d.path) && !d.path.includes('/m-cf-'));
+    expect(matters).toHaveLength(12);
+    for (const matter of matters) {
+      const time = dataset.docs
+        .filter((d) => d.path.startsWith(`${matter.path}/timeEntries/`))
+        .reduce((sum, d) => sum + (d.data['amountCents'] as number), 0);
+      const budget = matter.data['budget'] as Record<string, unknown>;
+      expect(budget['recordedCents']).toBe(time);
+      expect(budget['alerted']).toEqual([]);
+    }
+    const doyle = matters.find((d) => d.path.endsWith('/m-doyle-estate'))?.data['fee'] as Record<string, unknown>;
+    expect(doyle).toMatchObject({ arrangement: 'hourly', estimateHighCents: 650_000, revision: 1 });
+    expect(doyle['history']).toHaveLength(1);
+  });
+
   it('seeds a Clerk thread whose citations quote the fixture PDFs, one of them unverified (AI-05)', () => {
     const messages = dataset.docs.filter((d) => /\/clerkThreads\/m-doyle-estate-ct-1\/messages\/[^/]+$/.test(d.path));
     expect(messages.map((d) => (d.data as D.ClerkMessage).role)).toEqual(['user', 'assistant']);
@@ -358,6 +396,19 @@ describe('seed dataset', () => {
     }
     expect(citations.filter((c) => c.verified === false)).toHaveLength(1);
     expect(citations.some((c) => c.kind === 'record')).toBe(true);
+  });
+
+  it('seeds two copied trust balances, one out of date, with the switch on (BILL-11)', () => {
+    const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
+    expect(org?.['trust']).toMatchObject({ showOnMatters: true, staleAfterDays: 30 });
+    const snapshots = docsUnder('trustSnapshots').map((d) => d.data as D.TrustSnapshot);
+    expect(snapshots.map((s) => s.matterId)).toEqual(['m-doyle-estate', 'm-feather-admin']);
+    const matterIds = new Set(docsUnder('matters').map((d) => d.path.split('/').at(-1)));
+    expect(snapshots.every((s) => matterIds.has(s.matterId))).toBe(true);
+    expect(snapshots.map((s) => D.trustSnapshotOutOfDate(s.asAt, anchor as D.DateOnly, 30))).toEqual([false, true]);
+    expect(
+      buildDataset({ anchor, fixtures, scenario: 'empty' }).docs.some((d) => d.path.includes('trustSnapshots')),
+    ).toBe(false);
   });
 
   it('is deterministic for the same anchor', () => {

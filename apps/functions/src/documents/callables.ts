@@ -38,7 +38,7 @@ import { commitVersion, reserveVersion } from './pipeline';
 import { documentPath, isClean, loadDocument, versionsOf } from './shared';
 import { isDeleted } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
-import { liveMatter, matterPath } from '../matters/shared';
+import { matterPath, writableMatter } from '../matters/shared';
 
 type Data = Record<string, unknown>;
 
@@ -108,7 +108,7 @@ export function restoreVersionDefinition(files: () => FileStore = () => storageF
     roles: PERMISSIONS['document.upload'],
     idempotent: true,
     handler: async ({ input, orgId, uid, role, db, clock, log, requestId }): Promise<RestoreVersionResult> => {
-      const { doc } = await loadDocument(db, orgId, role, input.matterId, input.docId);
+      const { doc } = await loadDocument(db, orgId, role, input.matterId, input.docId, true);
       if (!isClean(doc)) {
         throw new DomainError('FAILED_PRECONDITION', 'The document hasn’t passed the malware scan', {
           reason: 'not_scanned',
@@ -174,7 +174,7 @@ export const resolveDuplicateDefinition = {
   roles: PERMISSIONS['document.upload'],
   idempotent: true,
   handler: async ({ input, orgId, uid, role, db, clock, log, requestId }): Promise<ResolveDuplicateResult> => {
-    const { doc } = await loadDocument(db, orgId, role, input.matterId, input.docId);
+    const { doc } = await loadDocument(db, orgId, role, input.matterId, input.docId, true);
     if (typeof doc['duplicateOf'] !== 'string') {
       throw new DomainError('FAILED_PRECONDITION', 'This document isn’t marked as a duplicate', {
         reason: 'not_duplicate',
@@ -213,7 +213,7 @@ export const bulkUpdateDefinition = {
     if (change.op !== 'category' && !can(role, 'document.delete')) {
       throw new DomainError('PERMISSION_DENIED', 'Your role can’t remove documents', { action: 'document.delete' });
     }
-    liveMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
+    writableMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
     const refs = input.docIds.map((id) => db.doc(documentPath(orgId, input.matterId, id)));
     const snaps = (await Promise.all(chunkWrites(refs, 300).map((chunk) => db.getAll(...chunk)))).flat();
     const now = clock.now();
@@ -271,7 +271,7 @@ export function saveAttachmentDefinition(files: () => FileStore = () => storageF
     roles: PERMISSIONS['document.upload'],
     idempotent: true,
     handler: async ({ input, orgId, uid, role, db, log, requestId }): Promise<SaveAttachmentResult> => {
-      const { doc } = await loadDocument(db, orgId, role, input.matterId, input.docId);
+      const { doc } = await loadDocument(db, orgId, role, input.matterId, input.docId, true);
       if (!isClean(doc)) {
         throw new DomainError('FAILED_PRECONDITION', 'The document hasn’t passed the malware scan', {
           reason: 'not_scanned',

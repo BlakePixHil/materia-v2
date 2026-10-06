@@ -23,18 +23,20 @@ import { MatterScreen } from './matter-screen';
 import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { statutoryDisabled } from '../deadlines/statutory-flag';
+import { MatterFeePanel } from '../fees/matter-fee-panel';
 import { matterResolver, memberResolver } from '../notes/note-mentions';
 import { noteTime } from '../notes/note-time';
 import { activityTitle, mentionsAcross, noteAuthor, type NoteRecord } from '../notes/note-view';
 import { MatterSuggestions } from '../suggestions/matter-suggestions';
+import { MatterTrust } from '../trust/matter-trust';
 
 /** How many open tasks the overview lists (the count shows them all). */
 const TASKS_SHOWN = 5;
 
 /**
- * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the next
- * five deadlines, open tasks, the three latest activity lines, "Clerk suggests…" (AI-07) and the
- * Clerk brief (AI-06 fills it).
+ * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the trust
+ * balance for billing roles (BILL-11, flagged), the next five deadlines, open tasks, the three latest
+ * activity lines, "Clerk suggests…" (AI-07) and the Clerk brief (AI-06 fills it).
  * Listens to the matter's pinned notes, deadlines, tasks and activity only while this tab is shown.
  */
 @Component({
@@ -42,7 +44,17 @@ const TASKS_SHOWN = 5;
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
-  imports: [RouterLink, MatterKeyFacts, MatterSuggestions, MtClerkMark, MtDeadlineChip, MtEmptyState, MtMarkdown],
+  imports: [
+    RouterLink,
+    MatterFeePanel,
+    MatterKeyFacts,
+    MatterSuggestions,
+    MatterTrust,
+    MtClerkMark,
+    MtDeadlineChip,
+    MtEmptyState,
+    MtMarkdown,
+  ],
   host: { class: 'mt-matter-overview' },
   template: `
     @if (pinned().length) {
@@ -66,6 +78,12 @@ const TASKS_SHOWN = 5;
         <div class="mt-card-h"><h2 class="mt-card-title" id="mt-ov-facts">Key facts</h2></div>
         <mt-matter-key-facts />
       </section>
+      @if (feesOn()) {
+        <!-- Its own chunk (BILL-05): the fee panel and its dialog load only when fee budgets are on. -->
+        @defer (on idle) {
+          <mt-matter-fee-panel />
+        }
+      }
       @if (suggestionsOn()) {
         <!-- Its own chunk (AI-07): the card, its editor and the callables load only when Clerk can suggest. -->
         @defer (on idle) {
@@ -86,6 +104,7 @@ const TASKS_SHOWN = 5;
       </section>
     </div>
     <div class="mt-col col">
+      <mt-matter-trust />
       <section class="mt-card" data-pad aria-labelledby="mt-ov-deadlines">
         <div class="mt-card-h">
           <h2 class="mt-card-title" id="mt-ov-deadlines">Next deadlines</h2>
@@ -225,6 +244,9 @@ export class MatterOverview {
   private readonly today = inject(MT_TODAY);
   private readonly flags = inject(FeatureFlagService);
   private readonly canClerk = can('clerk.use');
+  private readonly canBilling = can('billing.view');
+  /** Fee arrangements and budgets are on for the org and the role sees billing (BILL-05). */
+  protected readonly feesOn = computed(() => this.flags.isOn('billing.feeBudgets') && this.canBilling());
   /** Clerk suggestions are on for the org and the role may use Clerk (AI-07). */
   protected readonly suggestionsOn = computed(() => this.flags.isOn('clerk.features.suggestions') && this.canClerk());
   private readonly id = this.screen.id;

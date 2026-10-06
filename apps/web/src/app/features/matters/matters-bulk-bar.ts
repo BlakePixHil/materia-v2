@@ -106,6 +106,7 @@ export class MattersBulkBar {
   readonly clear = output();
   readonly checkConflicts = output();
 
-  protected readonly statuses = STATUS_ORDER;
+  /** Closing has a checklist per matter (CORE-19), so it isn't a bulk action. */
+  protected readonly statuses = STATUS_ORDER.filter((status) => status !== 'closed');
   protected readonly statusLabels = MATTER_STATUS_LABELS;
 }

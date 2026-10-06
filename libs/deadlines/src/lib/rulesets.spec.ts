@@ -9,6 +9,7 @@ import {
   fromRuleSetDoc,
   latestRuleSet,
   RULE_SET_FOR_JURISDICTION,
+  ruleSetReadsFacts,
   selectRules,
   statutoryFlagKey,
   storedTrace,
@@ -213,5 +214,35 @@ describe('storedTrace', () => {
     const lines = storedTrace(deadline);
     expect(lines.some((line) => line.startsWith('already past'))).toBe(false);
     expect(lines.at(-1)).toMatch(/^rule org.executor_year/);
+  });
+});
+
+describe('ruleSetReadsFacts (CORE-16)', () => {
+  const ESTATE_VALUES = ['estate.grossValueCents', 'estate.netValueCents'];
+  const base = VIC_RULESET_V1.rules.find((rule) => 'offset' in rule) as RuleSet['rules'][number];
+
+  it('is false for the Victorian rule set, which reads no estate values', () => {
+    expect(ruleSetReadsFacts(VIC_RULESET_V1, ESTATE_VALUES)).toBe(false);
+    expect(ruleSetReadsFacts(VIC_RULESET_V1, ['estate.hasMainResidence'])).toBe(true);
+  });
+
+  it('finds a fact in a condition or an offset amount', () => {
+    const condition = {
+      ...base,
+      conditions: [{ fact: 'estate.netValueCents', exists: true }],
+    } as RuleSet['rules'][number];
+    const offset = {
+      ...base,
+      conditions: [],
+      offset: { days: { fact: 'estate.grossValueCents', default: 0 } },
+    } as RuleSet['rules'][number];
+    expect(ruleSetReadsFacts({ rules: [condition] }, ESTATE_VALUES)).toBe(true);
+    expect(ruleSetReadsFacts({ rules: [offset] }, ESTATE_VALUES)).toBe(true);
+    expect(
+      ruleSetReadsFacts(
+        { rules: [{ ...base, conditions: [], offset: { days: 3 } } as RuleSet['rules'][number]] },
+        ESTATE_VALUES,
+      ),
+    ).toBe(false);
   });
 });

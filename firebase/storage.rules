@@ -26,6 +26,11 @@ service firebase.storage {
         && member.status == 'active'
         && request.auth.token.get('auth_time', 0) * 1000 >= member.get('sessionsValidAfter', timestamp.value(0)).toMillis();
     }
+    // Archived matters (CORE-19) take no new files; a missing matter fails the get() and denies.
+    function matterOpenForUploads(orgId, matterId) {
+      let matter = firestore.get(/databases/(default)/documents/orgs/$(orgId)/matters/$(matterId)).data;
+      return matter.get('deletedAt', null) == null && matter.status != 'archived';
+    }
     function documentMeta(orgId, matterId, documentId) {
       return firestore.get(/databases/(default)/documents/orgs/$(orgId)/matters/$(matterId)/documents/$(documentId)).data;
     }
@@ -78,6 +83,7 @@ service firebase.storage {
         && uploadId.matches('^[A-Za-z0-9_-]{8,64}$')
         && request.resource.size > 0
         && request.resource.size <= 50 * 1024 * 1024
+        && matterOpenForUploads(orgId, matterId)
         && validUpload(orgId, matterId);
     }
 
@@ -101,7 +107,10 @@ service firebase.storage {
         'matter.close': ['owner', 'admin', 'lawyer'],
         'matter.status': ['owner', 'admin', 'lawyer'],
         'matter.restore': ['owner', 'admin'],
+        'matter.legalHold': ['owner', 'admin'],
+        'matter.destroy': ['owner', 'admin'],
         'matter.renumber': ['owner', 'admin', 'lawyer'],
+        'matter.fee': ['owner', 'admin', 'lawyer'],
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'contact.delete': ['owner', 'admin', 'lawyer'],
         'contact.merge': ['owner', 'admin'],
@@ -118,6 +127,7 @@ service firebase.storage {
         'billing.view': ['owner', 'admin', 'lawyer'],
         'billing.issue': ['owner', 'admin'],
         'billing.void': ['owner', 'admin'],
+        'trust.record': ['owner', 'admin', 'lawyer'],
         'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
         'clerk.configure': ['owner', 'admin'],
         'members.manage': ['owner', 'admin'],
