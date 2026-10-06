@@ -19,9 +19,20 @@ import { byCodeUnit } from '../export/jsonl.ts';
 const DOCUMENT_PATH = /^orgs\/[^/]+\/matters\/[^/]+\/documents\/[^/]+$/;
 const AVATAR_PATH = /^users\/[^/]+\/avatar\.png$/;
 
-/** The legacy object behind a line and where its copy goes. `source` is absent when the object is missing. */
+/**
+ * The legacy object behind a line and where its copy goes. `source` is absent when the object is
+ * missing, and for `content`: bytes the transform extracted (an image a description embedded),
+ * which the copy uploads instead.
+ */
 export const CopySpecSchema = z.object({
   source: z.string().min(1).optional(),
+  content: z
+    .object({
+      encoding: z.literal('base64'),
+      data: z.string().min(1),
+      sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    })
+    .optional(),
   target: z.string().min(1),
   fileName: z.string().min(1),
   mime: z.string().min(3),

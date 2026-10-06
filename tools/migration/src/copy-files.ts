@@ -53,10 +53,10 @@ Exit codes: 0 every file copied, skipped, missing in legacy (reported) or infect
 1 bad arguments or an error; 5 some files are unscanned or failed: see files/report.json, then
 run it again.`;
 
-const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+export const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 /** The Storage emulator's JSON API root, from the variable `firebase emulators:exec` sets. */
-function storageEmulator(env: NodeJS.ProcessEnv): string {
+export function storageEmulator(env: NodeJS.ProcessEnv): string {
   const host = env['FIREBASE_STORAGE_EMULATOR_HOST'];
   if (!host) throw new Error('FIREBASE_STORAGE_EMULATOR_HOST is not set: run under `firebase emulators:exec`.');
   return `${host.includes('://') ? host : `http://${host}`}/storage/v1`;

@@ -330,6 +330,38 @@ describe('tasks-onWrite', () => {
     expect(w.under(`${M}/activity/`).at(-1)?.['refs']).toEqual({ taskId: 't1', assigneeUid: 'user-lawyer' });
   });
 
+  it('the migration load (MIG-06) notifies nobody and writes no activity, but the count follows', async () => {
+    const w = world();
+    const loaded = (at: Date) => ({
+      runId: 'run-1',
+      legacyPath: 'workflows/w/cards/c#checklist/l/item/i',
+      loadedAt: at,
+    });
+    const created = await w.writeTask(
+      't1',
+      task({ source: 'migration', assigneeUid: 'user-para', migration: loaded(new Date('2026-10-05T00:00:00Z')) }),
+    );
+    expect(created).toMatchObject({ countDelta: 1, notified: null, activity: [] });
+    // A delta reload that reassigns and completes it in one go.
+    const reloaded = await w.writeTask('t1', {
+      assigneeUid: 'user-read',
+      status: 'done',
+      updatedBy: 'user-para',
+      migration: loaded(new Date('2026-10-06T00:00:00Z')),
+    });
+    expect(reloaded).toMatchObject({ countDelta: -1, notified: null, activity: [] });
+    expect(w.under(`orgs/${ORG}/notifications/`)).toHaveLength(0);
+    expect(w.under(`${M}/activity/`)).toHaveLength(0);
+    expect(w.doc(M)).not.toHaveProperty('lastActivityAt');
+    // A person's later edit of the migrated task is an ordinary one.
+    const edited = await w.writeTask('t1', { assigneeUid: 'user-para', status: 'todo', updatedBy: 'user-lawyer' });
+    expect(edited).toMatchObject({
+      countDelta: 1,
+      notified: 'user-para',
+      activity: ['task.reopened', 'task.assigned'],
+    });
+  });
+
   it('keeps search in step with the title, writing it only when it changed (CORE-15)', async () => {
     const w = world();
     const first = await w.writeTask('t1', task({ title: 'Lodge the Inventory of Assets' }));

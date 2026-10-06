@@ -201,6 +201,31 @@ describe('firestore.indexes.json', () => {
     expect(vector?.fields.at(-1)?.vectorConfig).toEqual({ dimension: 768, flat: {} });
   });
 
+  it('the migration finds what one run loaded through a group index on migration.runId (MIG-06)', () => {
+    const overrides = file.fieldOverrides as {
+      collectionGroup: string;
+      fieldPath: string;
+      indexes: { order?: string; arrayConfig?: string; queryScope: string }[];
+    }[];
+    const groups = [
+      'members',
+      'contacts',
+      'checklistTemplates',
+      'matters',
+      'parties',
+      'tasks',
+      'notes',
+      'activity',
+      'documents',
+    ];
+    for (const group of groups) {
+      const override = overrides.find((o) => o.collectionGroup === group && o.fieldPath === 'migration.runId');
+      expect(override?.indexes, group).toContainEqual({ order: 'ASCENDING', queryScope: 'COLLECTION_GROUP' });
+      // An override replaces the automatic indexes, so the collection ones stay.
+      expect(override?.indexes, group).toContainEqual({ order: 'ASCENDING', queryScope: 'COLLECTION' });
+    }
+  });
+
   // Server-only operational collections (no client rules, default deny) with TTL policies (FND-15).
   const OPERATIONAL = new Set(['requests', 'eventGuards']);
 

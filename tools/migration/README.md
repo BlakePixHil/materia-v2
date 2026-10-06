@@ -1,6 +1,6 @@
 # Legacy migration CLI
 
-`pnpm materia-migrate <step>` moves one user's legacy materia data into Materia v2 ([plan](../../docs/08-legacy-migration-plan.md), [decision log](../../docs/migration/decisions.md)). Nothing in this tool writes to the legacy project. MIG-01 adds `audit` and `check-profile`, MIG-02 adds `export`, MIG-04 adds `auth-import`, and MIG-05 adds `copy-files`. The other steps print a placeholder until their tickets land.
+`pnpm materia-migrate <step>` moves one user's legacy materia data into Materia v2 ([plan](../../docs/08-legacy-migration-plan.md), [decision log](../../docs/migration/decisions.md)). Nothing in this tool writes to the legacy project. MIG-01 adds `audit` and `check-profile`, MIG-02 adds `export`, MIG-03 adds `transform`, MIG-04 adds `auth-import`, MIG-05 adds `copy-files`, and MIG-06 adds `load`, `verify`, `rollback` and `delta`. The other steps print a placeholder until their tickets land.
 
 ## `audit` (MIG-01)
 
@@ -75,6 +75,44 @@ NODE_USE_ENV_PROXY=1 pnpm materia-migrate export --profile tools/migration/profi
   | `--run-id`, `--resume`    | Name a run; finish an interrupted one within 55 minutes                                                                     |
   | `--source-project demo-…` | Read the Firestore, Storage and Auth emulators instead (made-up data). `--env emulator` also writes to the Storage emulator |
 
+## `transform` (MIG-03)
+
+Maps an exported run to v2 documents and writes them beside it: `transformed/<entity>.jsonl`, `idmap.jsonl` and `report.json`. The [runbook](../../docs/runbooks/migration-transform.md) has the steps, and [D-19](../../docs/migration/decisions.md#d-19-transform-new) the choices.
+
+```sh
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate transform --run <runId> \
+  --profile tools/migration/profiles/tristan-burke.json --target-org new --env dev
+```
+
+- **Reads** the run's `raw/*.jsonl`, each checked against the manifest's sha256, and nothing else. It never touches the legacy project or a v2 database.
+- **Maps** with pure functions, one module per entity in `src/transform/`. `run.ts` puts them together:
+  - `user.ts`: the org, user, member and profile photo;
+  - `card.ts`: matters, with `fee.ts`, `comments.ts`, `checklists.ts`, `history.ts`, `attachments.ts` and `html.ts`;
+  - `personal.ts` and `dashboard.ts`: personal tasks;
+  - `numbers.ts`: matter numbers, their reservations and counters;
+  - `referrers.ts` and `collaborators.ts`: contacts;
+  - `templates.ts`: checklist templates.
+- **Validates** every record against its `libs/domain` schema. A record that fails is rejected with everything under it. The run then writes only `report.json` and exits 5, unless `--allow-rejects`.
+- **Same output every time:**
+  - ids are `deterministicId('mig', legacyPath)`;
+  - the reference time is the export's `readTime`;
+  - each line is `{path, legacyPath, data, copy?}` with sorted keys, Timestamps as `{"$timestamp": "<ISO>"}`, and lines sorted by path.
+  - So a re-run writes the same bytes.
+- **Report:** counts in and out, every warning code (`MIG_W_*`) with its count and legacy paths, review totals by reason, rejects, files to copy and orphans. It holds no names, titles or values. A real run's report stays out of the repo.
+- **Logs:** counts only.
+- **Options:**
+
+  | Option                   | Meaning                                                                                           |
+  | ------------------------ | ------------------------------------------------------------------------------------------------- |
+  | `--target-org <id\|new>` | The org to load into, or `new`, whose id comes from the user's uid                                |
+  | `--env dev\|prod`        | Where the run is. `--env emulator` uses the Storage emulator's dev migration bucket               |
+  | `--dir <path>`           | Runs in a local directory (`<path>/<runId>/raw/…`), for made-up data only                         |
+  | `--base-run <runId>`     | For a delta: the run it continues, whose matter numbers it keeps                                  |
+  | `--allow-rejects`        | Write the output without the records that failed validation                                       |
+  | `--impersonate`, `--adc` | Who reads and writes the run: migration-runner in prod and your gcloud account in dev, by default |
+
+- **Exit codes:** 0 when transformed; 5 when records failed validation; 1 on bad arguments, a refused run or an error.
+
 ## `auth-import` (MIG-04)
 
 Moves one legacy Firebase Auth account into a v2 project with the same uid. It keeps the Auth record's email, every sign-in identity with the provider's id for the person (so Google sign-in finds the same account), and the password hash with the legacy scrypt parameters when there is one. The [runbook](../../docs/runbooks/migration-auth-import.md) has the cutover steps.
@@ -135,19 +173,50 @@ NODE_USE_ENV_PROXY=1 pnpm materia-migrate copy-files --run <runId> --env dev
 
 - **Exit codes:** 0 when every file was copied, skipped, missing in legacy or infected (both reported); 5 when some are unscanned or failed, so run it again; 1 on bad arguments or an error.
 
+## `load`, `verify`, `rollback` and `delta` (MIG-06)
+
+Write a transformed run into its v2 org, prove it, take it out again, and apply later changes. The [runbook](../../docs/runbooks/migration-load.md) has the steps, and [D-20](../../docs/migration/decisions.md#d-20-load-verify-rollback-and-delta-new) the choices.
+
+```sh
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate load --run <runId> --env dev --dry-run
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate load --run <runId> --env dev
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate verify --run <runId> --env dev
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate rollback --run <runId> --env dev
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate delta --run <deltaRunId> --env prod --confirm-prod [--apply-deletes]
+```
+
+- **`load`** (`src/load/load.ts`):
+  - **Reads** the transform's `transformed/*.jsonl` (MIG-03), each checked against the sha256 its `report.json` lists, and `files/documents.jsonl` from the copy (MIG-05). It refuses a run whose report lists no files (the transform rejected records) and a line its entity's schema rejects.
+  - **Writes** in dependency order: org, users, members, counters, matter numbers, contacts, templates, matters, parties, tasks, notes, activity, documents, personal tasks. Each phase finishes before the next starts, through a BulkWriter with retries. Every document carries `migration {runId, legacyPath, loadedAt}`, with `loadedAt` the load's time.
+  - **Conflict rule:** a document someone changed in v2 since it was loaded (`updatedAt` after `migration.loadedAt`, by anyone but the system) is left alone and reported as `MIG_C_USER_EDITED`. A document v2 made itself at a migration path is left alone as `MIG_C_NOT_MIGRATED`. Fields v2 maintains (counts, search, claims mirrors) keep v2's values.
+  - **Idempotent:** a re-run writes only what differs, so it finishes an interrupted load. What a later run finds unchanged keeps the run that loaded it.
+  - **Matter numbers:** the transform reserves them in legacy `createdOn` order. The load raises the org's counter to the run's (never lowers it) and refuses numbers another matter already holds.
+  - **After:** syncs each member's claims, writes the run's record (`orgs/{O}/migrations/{runId}`), one `migration.loaded` audit entry with the counts, and `load/report.json`.
+  - **Side effects:** the v2 triggers see the write set or restamp `migration` and send no notifications, write no activity or per-document audit entries, and queue no ingestion (MIG-09 backfills it). Counts, search, claims and metrics still follow.
+- **`verify`** (`src/load/verify.ts`): reads back every record the run loaded and compares it field by field, checks each copied file's size, sha256 and legacy MD5, each member's claims, and that nothing is privileged. On the emulator it also reads every record as the member through the security rules. Writes `verify/report.json` and `verify/verify-report.md`.
+- **`rollback`** (`src/load/rollback.ts`): deletes every document whose `migration.runId` is the run's (a collection-group query per kind, deepest first), what v2 hung under them (audit entries, activity, chunks), the run's matter numbers, its files (copies carrying its id, its quarantine, the profile photo), and the org when the run created it (`--keep-org` keeps it). It refuses, deleting nothing, while a record it didn't load sits under one it did, and lists them.
+- **`delta`** (`src/load/delta.ts`): loads a delta run (`export --since`, `transform --base-run`, `copy-files`) under the conflict rule, then finds what legacy deleted since: cards and attachments missing from the export's `raw/paths.jsonl`, and records of a changed card its new transform no longer has. They are listed in `delta/deletions.json` and deleted only with `--apply-deletes`, and never when changed in v2 or holding records made there.
+- **Prod** needs `--confirm-prod` and the org's name typed back, for `load`, `rollback` and `delta`. `--dry-run` writes nothing and needs neither.
+- **Credentials:** Application Default Credentials: your account in Cloud Shell. Firestore takes no others through the Admin SDK.
+- **Logs:** counts and paths only. **Exit codes:** 0 done (conflicts are reported, not errors); 5 some writes failed (run it again) or verify failed; 1 refused or an error, with nothing written when refused.
+
 ## Fixtures
 
-`fixtures/legacy/*.json` is a synthetic legacy dataset for the fictional Alex Rivers (no real data), holding every hazard the plan lists, plus his Auth account (`auth-export.json`). See [`fixtures/legacy/README.md`](fixtures/legacy/README.md). MIG-02 and MIG-03 reuse it. `loadLegacyFixtures()` in `src/legacy/fixtures.ts` loads it.
+`fixtures/legacy/*.json` is a synthetic legacy dataset for the fictional Alex Rivers (no real data), holding every hazard the plan lists, plus his Auth account (`auth-export.json`). See [`fixtures/legacy/README.md`](fixtures/legacy/README.md). MIG-02 and MIG-03 reuse it. `loadLegacyFixtures()` in `src/legacy/fixtures.ts` loads it. `fixtures/golden/` is the transform of its export, byte for byte: `src/transform/run.spec.ts` fails when the output changes, and `pnpm nx test migration --update` rewrites it after a deliberate change.
 
 ## Tests
 
 ```sh
 pnpm nx test migration
-pnpm nx run migration:test-integration   # export, auth-import and copy-files against the emulators
+pnpm nx run migration:test-integration   # export, transform, auth-import, copy-files and load against the emulators
 ```
 
 The export test loads the fixtures into a `demo-legacy` Firestore, Storage and Auth, and exports them to the migration bucket on the Storage emulator. Each Firestore file must be byte for byte the export of the fixtures in memory, and match the manifest's count and sha256. It also checks that a change made after the snapshot's `readTime` stays out, and covers a delta, a dry run and a profile that misses a board.
 
-The copy-files test copies made-up attachments from a `demo-legacy` bucket on the Storage emulator. It checks the bytes, metadata and records of a clean file, keeps an EICAR file in quarantine, reports a missing one, fails a copy whose checksum differs from the export's, and finds nothing to do on a re-run.
+The transform's tests run in memory. They transform the fixtures' export, compare it with the golden files, and check that the same bytes come back whatever order the records arrive in. The CLI test runs the command on a local run, a delta against its base, and a run with rejects. Against the Storage emulator, the transform reads the fixtures' export from the migration bucket and must write the golden files back.
+
+The copy-files test copies made-up attachments from a `demo-legacy` bucket on the Storage emulator. It checks the bytes, metadata and records of a clean file, keeps an EICAR file in quarantine, reports a missing one, fails a copy whose checksum differs from the export's, uploads an image a description embedded, and finds nothing to do on a re-run.
 
 The auth-import test imports a Google-only account and a scrypt password account, made up for each run. A Google credential for the imported identity then signs in to the same uid. The emulator stores hashes without checking them; the dev rehearsal proved a real password sign-in (see the runbook).
+
+The load test (`tests/load.int.spec.ts`) loads MIG-03's golden output (`fixtures/golden/`) into the Firestore emulator, with its files copied as MIG-05 leaves them (`src/load/golden.ts`). The unit tests use a smaller made-up run (`src/load/fixture.ts`). Verify must pass, reading every record as the member through the security rules, while someone outside the org is refused. A record edited in v2 must survive a second load and be reported, and the rollback must leave the emulator as it found it.

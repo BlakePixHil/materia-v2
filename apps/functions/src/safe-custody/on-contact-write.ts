@@ -2,6 +2,7 @@ import { contactDisplayName, type Contact, type SafeCustodyLocation } from '@mat
 
 import { derivedFields } from './shared';
 import { isDeleted, safeCustodyQuery } from '../contacts/shared';
+import { isMigrationWrite } from '../core/migration';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
 import { notify } from '../notifications/notify';
 
@@ -30,7 +31,8 @@ export async function onTestatorWrite(change: TriggerChange, ctx: TriggerContext
   const before = change.before?.data() as (Partial<Contact> & Data) | undefined;
   const orgId = ctx.params['orgId'] as string;
   const contactId = ctx.params['contactId'] as string;
-  const died = !!after.dateOfDeath && !before?.dateOfDeath && !isDeleted(after);
+  // A death the migration loads (MIG-06) was known in legacy: the packets' names follow, nobody is told.
+  const died = !!after.dateOfDeath && !before?.dateOfDeath && !isDeleted(after) && !isMigrationWrite(before, after);
   const name = contactDisplayName(after);
   const renamed = !!before && name !== contactDisplayName(before);
   if (!died && !renamed) return outcome;

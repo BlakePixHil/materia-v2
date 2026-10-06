@@ -2,15 +2,17 @@ import type { AdminApi } from './admin-api.ts';
 
 /**
  * `materia-scripts backup-status --project <id>` (SEC-03): what the backups have done lately, as
- * evidence and for diagnosis. Lists the managed backups, the nightly export folders (and any that
- * never finished), the files copy, the export's Cloud Scheduler job and recent log lines, and the
- * Storage Transfer job's latest run. Read-only. The `backup-drill` workflow runs it with source
+ * evidence and for diagnosis. Lists the managed backups, the nightly export folders in the exports
+ * bucket (and any that never finished) and their off-region copies in the backups bucket, the files
+ * copy, the export's Cloud Scheduler job and recent log lines, and the Storage Transfer jobs' latest
+ * runs. Read-only. The `backup-drill` workflow runs it with source
  * `status`. Each section reports its own error, so one missing permission doesn't hide the rest.
  * `--run-export` (workflow source `run-export`) then starts the export job now.
  */
 
 export interface StatusOptions {
   location: string;
+  exportsBucket: string;
   backupsBucket: string;
   now: () => number;
 }
@@ -64,13 +66,13 @@ export async function status(api: AdminApi, opts: StatusOptions): Promise<string
   );
 
   lines.push(
-    ...(await section(`Firestore exports (gs://${opts.backupsBucket})`, async () => {
-      const finished = await api.listExports(opts.backupsBucket);
+    ...(await section(`Firestore exports (gs://${opts.exportsBucket})`, async () => {
+      const finished = await api.listExports(opts.exportsBucket);
       const done = new Set(finished.map((f) => f.uri));
       const started = [];
       for (const kind of ['daily', 'monthly']) {
-        const { prefixes } = await api.listObjects(opts.backupsBucket, `${kind}/`, { delimiter: '/' });
-        started.push(...prefixes.map((p) => `gs://${opts.backupsBucket}/${p.replace(/\/$/, '')}`));
+        const { prefixes } = await api.listObjects(opts.exportsBucket, `${kind}/`, { delimiter: '/' });
+        started.push(...prefixes.map((p) => `gs://${opts.exportsBucket}/${p.replace(/\/$/, '')}`));
       }
       const unfinished = started.filter((uri) => !done.has(uri));
       return [
@@ -81,6 +83,15 @@ export async function status(api: AdminApi, opts: StatusOptions): Promise<string
         ...(unfinished.length ? ['', `Folders without a finished export: ${unfinished.join(', ')}`] : []),
       ];
     })),
+  );
+
+  lines.push(
+    ...(await section(`Off-region export copies (gs://${opts.backupsBucket})`, async () =>
+      table(
+        ['Folder', 'Snapshot'],
+        (await api.listExports(opts.backupsBucket)).map((f) => [f.uri, f.snapshotTime]),
+      ),
+    )),
   );
 
   lines.push(
@@ -123,7 +134,7 @@ export async function status(api: AdminApi, opts: StatusOptions): Promise<string
   );
 
   lines.push(
-    ...(await section('Files copy (Storage Transfer)', async () => {
+    ...(await section('Nightly copies (Storage Transfer)', async () => {
       const rows = [];
       for (const job of await api.transferJobs()) {
         const op = job.latestOperationName ? await api.transferOperation(job.latestOperationName) : undefined;
@@ -170,7 +181,12 @@ export async function main(argv: string[] = []): Promise<void> {
   const { appendFile } = await import('node:fs/promises');
   const api = new AdminApi(apiDeps(), project);
   const location = 'australia-southeast1';
-  const markdown = await status(api, { location, backupsBucket: `${project}-backups`, now: Date.now });
+  const markdown = await status(api, {
+    location,
+    exportsBucket: `${project}-exports`,
+    backupsBucket: `${project}-backups`,
+    now: Date.now,
+  });
   if (args.runExport) {
     const line = await runExport(api, location);
     console.log(line);

@@ -26,7 +26,9 @@ import type { RunSink } from '../export/sink.ts';
  *
  * 1. **Quarantine:** a server-side copy of exactly the exported generation of the legacy object into
  *    `migration-quarantine/{runId}/{target}` in the v2 files bucket, a path no client can read
- *    (storage.rules), checked against the export's size, MD5 and CRC32C.
+ *    (storage.rules), checked against the export's size, MD5 and CRC32C. An image the transform
+ *    extracted from a description (`copy.content`) is uploaded there instead, once its bytes match
+ *    the transform's sha256.
  * 2. **Read back:** the copy's sha256, and what its bytes are (magic bytes).
  * 3. **Scan:** the ClamAV service (CORE-12a). Infected copies stay in quarantine and are reported;
  *    if the scanner can't be reached, the copy waits there and a re-run scans it.
@@ -117,7 +119,7 @@ export async function copyFile(
 ): Promise<FileResult> {
   const { store, filesBucket, runId } = ctx;
   const { copy } = item;
-  if (!copy.source) return { outcome: 'missing' };
+  if (!copy.source && !copy.content) return { outcome: 'missing' };
   if (copy.sizeBytes > MAX_FILE_BYTES) return { outcome: 'failed', reason: 'too_large' };
   if (!copy.md5Hash && !copy.crc32c) return { outcome: 'failed', reason: 'no_checksum' };
 
@@ -154,11 +156,24 @@ export async function copyFile(
   }
   const baseMetadata = { migrationRunId: runId, legacyPath: item.legacyPath };
   if (!holding) {
-    holding = await store.rewrite(
-      { bucket: ctx.sourceBucket, name: copy.source, ...(copy.generation ? { generation: copy.generation } : {}) },
-      { bucket: filesBucket, name: held },
-      { contentType: copy.mime, metadata: { ...baseMetadata, scan: 'pending' } },
-    );
+    const resource = { contentType: copy.mime, metadata: { ...baseMetadata, scan: 'pending' } };
+    if (copy.source) {
+      holding = await store.rewrite(
+        { bucket: ctx.sourceBucket, name: copy.source, ...(copy.generation ? { generation: copy.generation } : {}) },
+        { bucket: filesBucket, name: held },
+        resource,
+      );
+    } else {
+      // Bytes the transform extracted: they must be what it hashed before they go anywhere.
+      const bytes = Buffer.from(copy.content?.data ?? '', 'base64');
+      if (
+        bytes.length !== copy.sizeBytes ||
+        createHash('sha256').update(bytes).digest('hex') !== copy.content?.sha256
+      ) {
+        return { outcome: 'failed', reason: 'checksum_mismatch' };
+      }
+      holding = await store.upload(filesBucket, held, bytes, resource);
+    }
     if (!holding) return { outcome: 'failed', reason: 'source_gone' };
     if (!sameContent(holding, copy)) {
       await release(holding);
