@@ -16,7 +16,7 @@
           "title": "Waiting on SOAs",
           "status": "open",
           "stageId": "safe_custody",
-          "note": "Read as signed and waiting on the statement of account (D-04)"
+          "note": "Signed and waiting on the statement of account (D-04, Blake, 2026-10-06)"
         },
         { "title": "Close file", "status": "closed", "stageId": "closed" }
       ]
@@ -33,7 +33,7 @@
           "status": "open",
           "matterType": "admin",
           "stageId": "assets_collected",
-          "note": "No grant needed, so administration rather than probate (D-04)"
+          "note": "No grant needed, so administration rather than probate (D-04, Blake, 2026-10-06)"
         },
         { "title": "Stage 1 (pre-filing)", "status": "open", "stageId": "documents" },
         { "title": "Stage 2 (filed)", "status": "open", "stageId": "application_filed" },
@@ -84,5 +84,8 @@
     "conflictCheck": "clear_unless_lead",
     "costsDisclosure": "required_unless_closed"
   },
-  "signOff": {}
+  "signOff": {
+    "user": { "name": "Tristan Burke", "on": "2026-10-06", "note": "Signed off through Blake in the project thread" },
+    "productOwner": { "name": "Blake Linnell", "on": "2026-10-06" }
+  }
 }
