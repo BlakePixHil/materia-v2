@@ -53,7 +53,11 @@ async function signInAs(role: Role) {
 
 function callable<T>(name: string, timeout?: number) {
   return (input: Record<string, unknown>) =>
-    httpsCallable<Record<string, unknown>, T>(getFunctions(client, 'australia-southeast1'), name, { timeout })({
+    httpsCallable<Record<string, unknown>, T>(
+      getFunctions(client, 'australia-southeast1'),
+      name,
+      timeout ? { timeout } : {},
+    )({
       requestId: randomUUID(),
       ...input,
     }).then((result) => result.data);
