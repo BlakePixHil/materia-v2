@@ -324,7 +324,7 @@ describe('scoring', () => {
     expect(scored.scores).toMatchObject({ citationSupport: 0.75, costUsd: 0.0015, latencyMs: 1200 });
   });
 
-  it('names the citations and refusal checks that fell short, never their text', () => {
+  it('names the citations and refusal checks that fell short', () => {
     const scored = scoreCase(
       suiteConfig({ citations: 'api' }),
       evalCase('x'),
@@ -339,6 +339,7 @@ describe('scoring', () => {
       new Map([['d-will', ['I appoint A as executor.', 'Signed.']]]),
     );
     expect(scored.misses).toEqual(['citation:d-will:p2', 'refusal:no-decline', 'refusal:predicts']);
+    expect(scored.excerpt).toBe('You will win.');
   });
 });
 

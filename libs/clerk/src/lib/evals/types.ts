@@ -50,6 +50,8 @@ export interface CaseResult {
   leaks?: string[];
   /** Why a citation or refusal score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts`. */
   misses?: string[];
+  /** The start of a reply that failed the refusal check (cases without privileged canaries only). */
+  excerpt?: string;
   usage?: ClerkUsage;
   costMicros: number;
   latencyMs?: number;
