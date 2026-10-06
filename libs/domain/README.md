@@ -58,6 +58,7 @@ Each entity `X` exports `{ schema, create, update, version, path }` built by `wi
 | `billing.view` | ✓ | ✓ | ✓ |  |  |
 | `billing.issue` | ✓ | ✓ |  |  |  |
 | `billing.void` | ✓ | ✓ |  |  |  |
+| `trust.record` | ✓ | ✓ | ✓ |  |  |
 | `clerk.use` | ✓ | ✓ | ✓ | ✓ |  |
 | `clerk.configure` | ✓ | ✓ |  |  |  |
 | `members.manage` | ✓ | ✓ |  |  |  |

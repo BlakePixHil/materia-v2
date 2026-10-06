@@ -28,6 +28,7 @@ export * from './lib/search';
 export * from './lib/safe-custody';
 export * from './lib/security';
 export * from './lib/time-entries';
+export * from './lib/trust';
 export * from './lib/fees';
 export * from './lib/disbursements';
 export * from './lib/testing/in-memory-firestore';

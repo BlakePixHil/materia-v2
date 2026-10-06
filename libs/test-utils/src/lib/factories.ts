@@ -665,6 +665,21 @@ export const makeIntegration = (o: Partial<D.Integration> = {}) =>
     o,
   );
 
+export const makeTrustSnapshot = (o: Partial<D.TrustSnapshot> = {}) =>
+  build(
+    D.TrustSnapshot,
+    {
+      matterId: 'matter-1',
+      amountCents: 8_421_000,
+      asAt: d('2026-10-02'),
+      source: 'manual',
+      sourceSystemName: 'In-house trust records',
+      recordedBy: 'user-test-lawyer',
+      recordedAt: FIXED_INSTANT,
+    },
+    o,
+  );
+
 export const makeSafeCustody = (o: Partial<D.SafeCustody> = {}) =>
   build(
     D.SafeCustody,
@@ -887,6 +902,7 @@ export const ENTITY_FACTORIES = {
   Notification: [D.Notification, makeNotification],
   Integration: [D.Integration, makeIntegration],
   SafeCustody: [D.SafeCustody, makeSafeCustody],
+  TrustSnapshot: [D.TrustSnapshot, makeTrustSnapshot],
   MigrationRun: [D.MigrationRun, makeMigrationRun],
   RuleSetVersion: [D.RuleSetVersion, makeRuleSetVersion],
   Calendar: [D.Calendar, makeCalendar],

@@ -46,6 +46,7 @@ import {
   Notification,
   Integration,
   SafeCustody,
+  TrustSnapshot,
   MigrationRun,
   RuleSetVersion,
   Calendar,
@@ -210,6 +211,9 @@ export const IntegrationUpdateSchema = Integration.update;
 export const SafeCustodySchema = SafeCustody.schema;
 export const SafeCustodyCreateSchema = SafeCustody.create;
 export const SafeCustodyUpdateSchema = SafeCustody.update;
+export const TrustSnapshotSchema = TrustSnapshot.schema;
+export const TrustSnapshotCreateSchema = TrustSnapshot.create;
+export const TrustSnapshotUpdateSchema = TrustSnapshot.update;
 export const MigrationRunSchema = MigrationRun.schema;
 export const MigrationRunCreateSchema = MigrationRun.create;
 export const MigrationRunUpdateSchema = MigrationRun.update;

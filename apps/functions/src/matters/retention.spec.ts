@@ -412,6 +412,8 @@ describe('destruction', () => {
       [`orgs/${ORG}/clerkThreads/th1/messages/x1`]: { text: 'Question' },
       [`orgs/${ORG}/clerkThreads/th2`]: { matterId: 'm2', title: 'Other' },
       [`orgs/${ORG}/notifications/nt1`]: { matterId: 'm1', title: 'Task assigned' },
+      [`orgs/${ORG}/trustSnapshots/m1`]: { matterId: 'm1', balanceCents: 0, asAt: '2026-01-31' },
+      [`orgs/${ORG}/trustSnapshots/m2`]: { matterId: 'm2', balanceCents: 1_000, asAt: '2026-01-31' },
       [`orgs/${ORG}/audit/a1`]: { action: 'update', entity: { path: `${M}/m1` } },
       [`${Q}/m1`]: {
         status: 'approved',
@@ -435,6 +437,8 @@ describe('destruction', () => {
     expect(remaining).not.toContain(`orgs/${ORG}/clerkThreads/th1/messages/x1`);
     expect(remaining).toContain(`orgs/${ORG}/clerkThreads/th2`);
     expect(remaining).not.toContain(`orgs/${ORG}/notifications/nt1`);
+    expect(remaining).not.toContain(`orgs/${ORG}/trustSnapshots/m1`);
+    expect(remaining).toContain(`orgs/${ORG}/trustSnapshots/m2`);
     expect(remaining).toContain(`orgs/${ORG}/audit/a1`);
     expect([...files.objects.keys()].filter((path) => path.startsWith(`${M}/m1/`))).toEqual([]);
     expect(files.objects.has(`${M}/m2/documents/doc9/v1`)).toBe(true);
@@ -462,7 +466,7 @@ describe('destruction', () => {
     );
     expect(tombstone).toMatchObject({ number: 'M-2026-0001', destroyedBy: 'user-admin', certificateId: 'dc-m1' });
 
-    const counts = { files: 2, documents: 1, records: 8 };
+    const counts = { files: 2, documents: 1, records: 9 };
     expect(w.doc(`${Q}/m1`)).toMatchObject({
       status: 'destroyed',
       stage: 'certificate',

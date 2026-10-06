@@ -3,7 +3,7 @@
   "title": "Chat answers (AI-06)",
   "ticket": "AI-06",
   "feature": "chat",
-  "promptId": "chat-answer@0.1.0",
+  "promptId": "chat@1.0.0",
   "subset": [
     "chat-001",
     "chat-002",

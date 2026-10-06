@@ -47,8 +47,8 @@ export interface ChatRunDeps {
   flag: (orgId: string, key: FlagKey) => Promise<boolean>;
 }
 
-/** The line before the question in the chat prompt, by command. */
-const TASKS: Record<ClerkChatCommand | 'question', string> = {
+/** The line before the question in the chat prompt, by command (the evals ask plain questions). */
+export const CHAT_TASKS: Record<ClerkChatCommand | 'question', string> = {
   question: 'The person asks:',
   summarise:
     'The person used /summarise: summarise this matter for them, citing your sources, then answer what they add:',
@@ -143,7 +143,7 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
       ctx,
       feature: 'chat',
       promptId: CHAT_PROMPT,
-      vars: { task: TASKS[parsed.command ?? 'question'], question: parsed.question },
+      vars: { task: CHAT_TASKS[parsed.command ?? 'question'], question: parsed.question },
       context,
       history,
       prelude,

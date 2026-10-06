@@ -39,6 +39,7 @@ import { defineQueue } from '../core/tasks';
 import { filesBucket, storageFiles, type FileStore } from '../documents/files';
 import type { Clock } from '../ports';
 import { systemClock } from '../ports/container';
+import { matterTrustDoc } from '../trust/shared';
 
 /*
  * Retention destruction (CORE-19), behind the `matters.destruction` flag until a practitioner signs
@@ -432,15 +433,17 @@ export async function destroyMatter(
     await mark('records');
   }
   if (!after(stage, 'references')) {
-    // Outside the matter: its Clerk threads (and their messages) and its notifications.
-    const [threads, notifications] = await Promise.all([
+    // Outside the matter: its Clerk threads (and their messages), its notifications and its trust
+    // record (BILL-11).
+    const [threads, notifications, trust] = await Promise.all([
       db.collection(`orgs/${orgId}/clerkThreads`).where('matterId', '==', matterId).get(),
       db.collection(`orgs/${orgId}/notifications`).where('matterId', '==', matterId).get(),
+      matterTrustDoc(db, orgId, matterId).get(),
     ]);
     for (const thread of threads.docs) {
       for (const sub of await thread.ref.listCollections()) await deleteTree(db, sub, requestRef);
     }
-    const refs = [...threads.docs, ...notifications.docs].map((doc) => doc.ref);
+    const refs = [...threads.docs, ...notifications.docs, ...(trust.exists ? [trust] : [])].map((doc) => doc.ref);
     for (let start = 0; start < refs.length; start += DELETE_BATCH) {
       const batch = db.batch();
       const chunk = refs.slice(start, start + DELETE_BATCH);
