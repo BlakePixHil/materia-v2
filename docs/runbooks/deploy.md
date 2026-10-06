@@ -25,7 +25,7 @@ Actions minutes are billed, and most of them go to CI. CI's `gate` job (`.github
 
 | Mode | When | Runs |
 | -- | -- | -- |
-| `full` | PRs, the morning run, a manual dispatch | every job; PRs skip CodeQL and run e2e in Chromium only (`E2E_CHROMIUM_ONLY=1`), the morning run adds CodeQL and WebKit (iPhone Safari) |
+| `full` | PRs, the morning run, a manual dispatch | every job; PRs skip CodeQL and run e2e in Chromium only (`E2E_CHROMIUM_ONLY=1`), the morning run adds CodeQL and WebKit (iPhone Safari); WebKit jobs show red when they fail but don't fail the run, so they never hold up the dev deploy |
 | `main` | a push to `main` in the day | lint, typecheck, unit, rules, integration, build (e2e, Storybook, container tests, Terraform and security already passed on the PR) |
 | `docs` | only docs changed (`docs/`, top-level Markdown, READMEs) | lint |
 | `skip` | a push to `main` in quiet hours (22:00–07:30 Melbourne), or a morning run with nothing new | nothing |
