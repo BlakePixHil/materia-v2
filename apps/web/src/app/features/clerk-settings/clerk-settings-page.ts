@@ -467,16 +467,23 @@ export class ClerkSettingsPage {
   ]);
 
   constructor() {
-    // The limits fields follow the saved settings until someone edits them.
-    let filled = false;
+    // The limits fields follow the saved settings unless someone has typed other values. "Typed"
+    // means the text differs from what was last filled in: after a reload the first snapshot can
+    // come from the offline cache, older than the server's, and the untouched fields must still
+    // take the server's values when they arrive.
+    let filled: { budget: string; daily: string } | null = null;
     effect(() => {
       if (!this.loaded()) return;
       const settings = this.settings();
       untracked(() => {
-        if (filled && this.limitsChanged()) return;
-        filled = true;
-        this.budgetText.set(dollarsText(settings?.monthlyBudgetCents));
-        this.dailyText.set(settings?.perUserDailyRequests ? String(settings.perUserDailyRequests) : '');
+        const typed = !!filled && (this.budgetText() !== filled.budget || this.dailyText() !== filled.daily);
+        if (typed && this.limitsChanged()) return;
+        filled = {
+          budget: dollarsText(settings?.monthlyBudgetCents),
+          daily: settings?.perUserDailyRequests ? String(settings.perUserDailyRequests) : '',
+        };
+        this.budgetText.set(filled.budget);
+        this.dailyText.set(filled.daily);
       });
     });
     effect(() => {

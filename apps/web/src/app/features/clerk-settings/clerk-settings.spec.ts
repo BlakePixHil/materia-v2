@@ -229,6 +229,31 @@ describe('Settings → Clerk and AI', () => {
     expect(page.calls('clerk-updateSettings').at(-1)).toEqual({ monthlyBudgetCents: null, perUserDailyRequests: 200 });
   });
 
+  it('fills the limits from settings that arrive after the first snapshot, but keeps what someone typed', async () => {
+    // After a reload the first snapshot can come from the offline cache, older than the server's.
+    const page = await open('/settings/clerk', ADMIN, { ackVersion: CLERK_DISCLOSURE_VERSION });
+    const field = (label: string) =>
+      [...page.el.querySelectorAll('mt-text-field')].find((f) => f.textContent?.includes(label))?.querySelector('input')
+        ?.value;
+    expect(field('Monthly spend limit')).toBe('');
+
+    const org = page.firestore.get(`orgs/${ORG}`) ?? {};
+    const later = (clerk: Record<string, unknown>) =>
+      page.firestore.set(`orgs/${ORG}`, {
+        ...org,
+        settings: { clerk: { ackVersion: CLERK_DISCLOSURE_VERSION, ...clerk } },
+      });
+    later({ monthlyBudgetCents: 25_000, perUserDailyRequests: 150 });
+    await page.stable();
+    expect(field('Monthly spend limit')).toBe('250.00');
+    expect(field('Requests per person per day')).toBe('150');
+
+    await page.type('Monthly spend limit', '300');
+    later({ monthlyBudgetCents: 40_000, perUserDailyRequests: 150 });
+    await page.stable();
+    expect(field('Monthly spend limit')).toBe('300');
+  });
+
   it('shows a lawyer what is on and the disclosure, read-only, with no key, limits or usage', async () => {
     const page = await open('/settings/clerk', LAWYER, {
       ackVersion: CLERK_DISCLOSURE_VERSION,

@@ -39,7 +39,8 @@ test('sign-out leaves no cached Firestore data', async ({ page, request, isMobil
   test.skip(isMobile, 'Sign-out lives in the desktop user menu');
   const account = await createTestAccount(request);
   await signInThroughUi(page, account);
-  await expect(page).toHaveURL(/\/today$/);
+  // Signing in waits on the emulators (token, org and MFA policy), which other workers keep busy.
+  await expect(page).toHaveURL(/\/today$/, { timeout: 20_000 });
   // The data layer (FND-19) keeps Firestore's persistent cache in IndexedDB once a listener starts.
   const firestoreDbs = () =>
     page.evaluate(async () =>
@@ -59,7 +60,8 @@ test('signing out in one tab signs out the other', async ({ context, page, reque
   test.skip(isMobile, 'Sign-out lives in the desktop user menu');
   const account = await createTestAccount(request, { displayName: 'Tab Fictional' });
   await signInThroughUi(page, account);
-  await expect(page).toHaveURL(/\/today$/);
+  // Signing in waits on the emulators (token, org and MFA policy), which other workers keep busy.
+  await expect(page).toHaveURL(/\/today$/, { timeout: 20_000 });
 
   // A second tab shares the sign-in and follows live data (the members list).
   const other = await context.newPage();
@@ -127,7 +129,8 @@ test('reset a forgotten password from the emailed link', async ({ page, request 
   await page.getByRole('button', { name: 'Save password' }).click();
   await expect(page.getByRole('heading', { name: 'Password changed' })).toBeVisible();
   await signInThroughUi(page, { email: account.email, password: 'a brand new passphrase' });
-  await expect(page).toHaveURL(/\/today$/);
+  // Signing in waits on the emulators (token, org and MFA policy), which other workers keep busy.
+  await expect(page).toHaveURL(/\/today$/, { timeout: 20_000 });
 });
 
 for (const theme of ['light', 'dark'] as const) {
