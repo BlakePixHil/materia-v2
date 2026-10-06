@@ -1,6 +1,7 @@
 import type { ReferralSource, ReferrerIndustry, MatterStatus } from './schemas/enums';
 import { ReferrerIndustrySchema } from './schemas/enums';
 import { addDays, type DateOnly } from './values/date-only';
+import { cents, type Cents } from './values/money';
 
 /**
  * Referrers and referral tracking (CORE-18): contacts flagged `isReferrer` (with `referrerMeta`),
@@ -82,15 +83,23 @@ export interface ReferredMatterLike {
   status: MatterStatus;
   createdAt?: Date | undefined;
   deletedAt?: unknown;
+  /** `matter.budget` (BILL-05): `billedCents` is what has been billed on it, less credit notes. */
+  budget?: { billedCents: number } | null | undefined;
 }
 
-/** The totals a referrer's "Referrals" section shows (billed fees join once BILL-07 exists). */
+/** The totals a referrer's "Referrals" section shows. */
 export interface ReferralTotals {
   count: number;
   /** Matters still being worked (lead, open, on hold). */
   active: number;
   /** When the latest referred matter was created; null without any. */
   lastReferredAt: Date | null;
+  /**
+   * What has been billed on the referred matters (BILL-07): the sum of their `budget.billedCents`
+   * (time and disbursements ex GST, less credit notes, kept by the fees triggers). Shown only to
+   * roles with billing.view.
+   */
+  billedCents: Cents;
 }
 
 export function referralTotals(matters: readonly ReferredMatterLike[]): ReferralTotals {
@@ -100,6 +109,7 @@ export function referralTotals(matters: readonly ReferredMatterLike[]): Referral
     count: live.length,
     active: live.filter((m) => m.status === 'lead' || m.status === 'open' || m.status === 'on_hold').length,
     lastReferredAt: times.length ? new Date(Math.max(...times)) : null,
+    billedCents: cents(live.reduce((sum, m) => sum + (m.budget?.billedCents ?? 0), 0)),
   };
 }
 
