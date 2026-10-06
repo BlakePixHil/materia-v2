@@ -2,6 +2,7 @@ import * as z from 'zod';
 
 import { ConflictStatusSchema } from './conflicts';
 import { DEFAULT_ORG_TIMEZONE } from './constants';
+import { assessDisclosure, disclosureBasisCents, disclosureNeed, DisclosureWaiverInput } from './costs-disclosure';
 import type { CreateMatterInput } from './matters';
 import { DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './schemas/common';
 import {
@@ -336,65 +337,54 @@ export const FeeInput = z
 export type FeeInput = z.infer<typeof FeeInput>;
 
 /**
- * The estimate costs disclosure is judged on: the estimate when given, else the fixed fee or the
- * cap; zero for pro bono; undefined when nothing says (an hourly matter without an estimate).
- */
-export function feeEstimateCents(fee: Pick<FeeInput, 'arrangement' | 'amountCents' | 'capCents' | 'estimateCents'>) {
-  if (fee.arrangement === 'pro_bono') return 0 as Cents;
-  if (fee.estimateCents !== undefined) return fee.estimateCents;
-  if (fee.arrangement === 'fixed') return fee.amountCents;
-  if (fee.arrangement === 'capped') return fee.capCents;
-  return undefined;
-}
-
-/**
- * PLACEHOLDER (BILL-06 owns the real rules): below this estimate no costs disclosure is required.
- * It mirrors the Uniform Law's $750 floor for orientation only; it is not legal advice and must
- * not be relied on until BILL-06 replaces `costsDisclosureRequirement` with the reviewed rules.
- */
-export const COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS = 750_00;
-
-export type CostsDisclosureRequirement = 'required' | 'not_required';
-
-/**
- * Whether a matter needs a costs disclosure, from its estimate. PLACEHOLDER: a single threshold
- * (`COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS`) until BILL-06. An unknown estimate needs one.
- */
-export function costsDisclosureRequirement(estimateCents: number | undefined): CostsDisclosureRequirement {
-  if (estimateCents === undefined) return 'required';
-  return estimateCents < COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS ? 'not_required' : 'required';
-}
-
-/**
- * The costs disclosure a new matter starts with. `waived` is recorded as given (a client who
- * waived disclosure, BILL-06 checks when that is allowed); `not_required` must match the estimate.
+ * The costs disclosure a new matter asks for at intake (BILL-06): `required` or `not_required` as
+ * its estimate implies (the server assesses it again and refuses a `not_required` the estimate
+ * doesn't allow), or `waived` with a lawyer's reason (lawyers and above only). `estimateCents` is
+ * the estimate it was judged on.
  */
 export const CostsDisclosureInput = z
   .object({
     status: z.enum(['required', 'not_required', 'waived']),
     estimateCents: AmountCents.optional(),
+    waiver: DisclosureWaiverInput.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, ctx) => {
+    if (input.status === 'waived' && !input.waiver) {
+      ctx.addIssue({ code: 'custom', path: ['waiver', 'reason'], message: 'Choose why no disclosure is needed' });
+    }
+    if (input.status !== 'waived' && input.waiver) {
+      ctx.addIssue({ code: 'custom', path: ['waiver'], message: 'Only a waived disclosure has a reason' });
+    }
+  });
 export type CostsDisclosureInput = z.infer<typeof CostsDisclosureInput>;
 
 export const IntakeFeesStep = z
   .object({
     fee: FeeInput,
-    /** The client waived costs disclosure (stored as `waived`; otherwise computed from the estimate). */
+    /** No disclosure is needed (an exception the Uniform Law allows): stored as `waived` with its reason. */
     costsDisclosureWaived: z.boolean().default(false),
+    waiver: DisclosureWaiverInput.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((step, ctx) => {
+    if (step.costsDisclosureWaived && !step.waiver) {
+      ctx.addIssue({ code: 'custom', path: ['waiver', 'reason'], message: 'Choose why no disclosure is needed' });
+    }
+  });
 export type IntakeFeesStep = z.infer<typeof IntakeFeesStep>;
 
-/** The costs disclosure for a fees step: waived, or the requirement for the fee's estimate. */
+/** The costs disclosure for a fees step: waived with its reason, or what the fee's estimate needs in the jurisdiction. */
 export function intakeCostsDisclosure(
-  step: Pick<IntakeFeesStep, 'fee' | 'costsDisclosureWaived'>,
+  step: Pick<IntakeFeesStep, 'fee' | 'costsDisclosureWaived' | 'waiver'>,
+  jurisdiction: string,
 ): CostsDisclosureInput {
-  const estimateCents = feeEstimateCents(step.fee);
-  return {
-    status: step.costsDisclosureWaived ? 'waived' : costsDisclosureRequirement(estimateCents),
-    ...(estimateCents !== undefined ? { estimateCents } : {}),
-  };
+  const estimateCents = disclosureBasisCents(step.fee);
+  if (step.costsDisclosureWaived && step.waiver) {
+    return { status: 'waived', ...(estimateCents !== undefined ? { estimateCents } : {}), waiver: step.waiver };
+  }
+  const need = disclosureNeed(assessDisclosure({ jurisdiction, estimateHighCents: estimateCents }), step.fee);
+  return { status: need.status, ...(estimateCents !== undefined ? { estimateCents } : {}) };
 }
 
 // ---------- step 6: conflict ----------
@@ -562,7 +552,7 @@ export function intakeToCreateMatterInput(form: IntakeForm, requestId: string): 
     parties: [...form.parties.parties, ...detailsParties(details, form.clients.clientContactIds)],
     events: [],
     fee: form.fees.fee,
-    costsDisclosure: intakeCostsDisclosure(form.fees),
+    costsDisclosure: intakeCostsDisclosure(form.fees, form.type.jurisdiction),
     conflictCheckId: form.conflict.checkId,
   };
 }

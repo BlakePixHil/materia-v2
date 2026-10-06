@@ -32,6 +32,7 @@ export * from './lib/time-entries';
 export * from './lib/trust';
 export * from './lib/xero';
 export * from './lib/fees';
+export * from './lib/costs';
 export * from './lib/disbursements';
 export * from './lib/invoices';
 export * from './lib/payments';

@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 import { DEFAULT_ORG_TIMEZONE } from './constants';
+import { DisclosureChangePctSchema } from './costs-disclosure';
 import { BudgetAlertPctsSchema } from './fees';
 import { isMatterNumberFormat } from './matters';
 import { validTimeZone } from './notifications';
@@ -137,6 +138,8 @@ export const BillingSettingsInput = z.object({
   paymentTermsDays: z.number().int().min(0).max(365),
   /** Budget alert thresholds (BILL-05); absent means the defaults, 80% and 100%. */
   budgetAlertPcts: BudgetAlertPctsSchema.optional(),
+  /** An estimate rising by more than this percentage makes a disclosure out of date (BILL-06); 10% when unset. */
+  disclosureChangePct: DisclosureChangePctSchema.optional(),
   /** The daily time target (BILL-03), in minutes; 6 hours when unset. */
   dailyTargetMinutes: z
     .number()

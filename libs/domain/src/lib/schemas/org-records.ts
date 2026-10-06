@@ -739,6 +739,8 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
   // A testator whose original is held in safe custody has died (CORE-17): to the packet's lawyer.
   z.object({ kind: z.literal('safe_custody'), packetId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('budget_alert'), matterId: DocIdSchema, ...notificationBase }),
+  // A costs disclosure is due: unsent 7 days on, or an estimate revision made it out of date (BILL-06).
+  z.object({ kind: z.literal('costs_disclosure'), matterId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('system'), ...notificationBase }),
 ]);
 export type NotificationKind = z.infer<typeof NotificationPayloadSchema>['kind'];

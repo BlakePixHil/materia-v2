@@ -76,6 +76,8 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   fee: matter.fee.optional(),
   /** The budget against the fee (BILL-05), kept by the fees triggers. */
   budget: matter.budget,
+  /** The costs disclosure (CORE-05, BILL-06); a malformed one reads as absent rather than hiding the matter. */
+  costsDisclosure: matter.costsDisclosure.optional().catch(undefined),
   /** What its issued invoices still owe (BILL-08), kept by `billing-outstandingOnInvoice`. */
   outstandingCents: matter.outstandingCents,
   priority: matter.priority,

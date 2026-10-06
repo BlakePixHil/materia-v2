@@ -54,8 +54,8 @@ async function poll<T>(read: () => Promise<T>, done: (value: T) => boolean, time
 
 type Budget = { recordedCents?: number; pct?: number; revision?: number; alerted?: number[] };
 const budget = async () => ((await db.doc(MATTER).get()).get('budget') ?? {}) as Budget;
-const budgetAt = (recordedCents: number, timeoutMs?: number) =>
-  poll(budget, (b) => b.recordedCents === recordedCents && Array.isArray(b.alerted), timeoutMs);
+const budgetAt = (recordedCents: number) =>
+  poll(budget, (b) => b.recordedCents === recordedCents && Array.isArray(b.alerted));
 const alerts = async () =>
   (await db.collection(`orgs/${ORG}/notifications`).where('matterId', '==', MATTER_ID).get()).docs
     .map((d) => d.data())
@@ -129,9 +129,7 @@ afterAll(async () => {
 describe('budget alerts', () => {
   it('fire once per threshold per fee revision, to the responsible lawyer and their supervisor', async () => {
     await addTime(85000);
-    // The first trigger can queue behind the earlier spec files' trigger backlog in the shared
-    // emulator (thousands of audit and conflict runs), so it gets longer than the rest.
-    expect(await budgetAt(85000, 150_000)).toMatchObject({ pct: 85, revision: 0, alerted: [80] });
+    expect(await budgetAt(85000)).toMatchObject({ pct: 85, revision: 0, alerted: [80] });
     const first = await poll(alerts, (sent) => sent.length >= 2);
     expect(first.map((n) => n['recipientUid']).sort()).toEqual([uidOf('lawyer'), uidOf('owner')]);
     expect(first[0]).toMatchObject({ title: 'Budget 80% used: FM-2026-0001', link: `/matters/${MATTER_ID}/overview` });
@@ -185,7 +183,6 @@ describe('budget alerts', () => {
     await addTime(15000);
     expect(await budgetAt(122000)).toMatchObject({ pct: 81, revision: 1, alerted: [80] });
     expect(await poll(alerts, (sent) => sent.length >= 6)).toHaveLength(6);
-    // Five trigger rounds and a callable, each waiting on the Functions emulator (cold starts in CI),
-    // the first behind whatever the earlier files left queued.
-  }, 240_000);
+    // Five trigger rounds and a callable, each waiting on the Functions emulator (cold starts in CI).
+  }, 120_000);
 });

@@ -124,7 +124,17 @@ describe('matters-createMatter intake (CORE-05)', () => {
     const matter = w.doc(`${M}/${matterId}`);
     expect(matter).toMatchObject({
       fee: { arrangement: 'fixed', amountCents: 330000, history: [] },
-      costsDisclosure: { status: 'required', estimateCents: 330000 },
+      costsDisclosure: {
+        status: 'required',
+        requirement: 'full',
+        bandId: 'full',
+        rulesVersion: 'vic-v1',
+        basisEstimateCents: 330000,
+        requiredSince: '2026-10-04',
+        history: [
+          { by: 'user-lawyer', action: 'assessed', status: 'required', requirement: 'full', estimateCents: 330000 },
+        ],
+      },
       conflictCheck: { status: 'clear', resultId: 'chk-1', checkedBy: 'user-lawyer' },
       deceased: { contactId: 'c-bertram', dateOfDeath: '2026-08-01' },
       facts: { willDate: '2019-03-14' },
@@ -249,7 +259,40 @@ describe('matters-createMatter intake (CORE-05)', () => {
     const { costsDisclosure: _omit, ...rest } = intake();
     void _omit;
     const { matterId } = await w.call({ ...rest, fee: { arrangement: 'fixed', amountCents: 50000 } });
-    expect(w.doc(`${M}/${matterId}`)?.['costsDisclosure']).toEqual({ status: 'not_required', estimateCents: 50000 });
+    const disclosure = w.doc(`${M}/${matterId}`)?.['costsDisclosure'] as Record<string, unknown>;
+    expect(disclosure).toMatchObject({
+      status: 'not_required',
+      requirement: 'none',
+      bandId: 'below-lower-threshold',
+      notRequiredReason: 'below_threshold',
+      basisEstimateCents: 50000,
+    });
+    expect(disclosure['requiredSince']).toBeUndefined();
+  });
+
+  it('a waiver needs its reason and a lawyer (BILL-06)', async () => {
+    const w = world();
+    const waived = { ...intake(), costsDisclosure: { status: 'waived' } };
+    expect(await failureOf(w.call(waived))).toMatchObject({
+      fields: { 'costsDisclosure.waiver.reason': ['Choose why no disclosure is needed'] },
+    });
+    const withReason = {
+      ...intake(),
+      costsDisclosure: { status: 'waived', estimateCents: 330000, waiver: { reason: 'sophisticated_client' } },
+    };
+    expect(await failureOf(w.call(withReason, 'paralegal'))).toMatchObject({
+      code: 'PERMISSION_DENIED',
+      reason: 'disclosure_waiver_role',
+    });
+    const { matterId } = await w.call(withReason);
+    const disclosure = w.doc(`${M}/${matterId}`)?.['costsDisclosure'] as Record<string, unknown>;
+    expect(disclosure).toMatchObject({
+      status: 'waived',
+      requirement: 'full',
+      waiver: { reason: 'sophisticated_client', by: 'user-lawyer' },
+      history: [{ action: 'waived', status: 'waived' }],
+    });
+    expect(disclosure['requiredSince']).toBeUndefined();
   });
 
   it('refuses an events date of death that disagrees with the deceased', async () => {
@@ -303,21 +346,41 @@ describe('intake helpers', () => {
     expect(intakeEvents(matter)).toEqual([]);
   });
 
-  it('intakeFeeAndDisclosure needs a fee and keeps a given disclosure', () => {
-    expect(() => intakeFeeAndDisclosure({ matter: {} } as never)).toThrow('Invalid matter');
+  it('intakeFeeAndDisclosure needs a fee, assesses the disclosure and keeps one already sent', () => {
+    const options = {
+      role: 'lawyer' as Role,
+      uid: 'user-lawyer',
+      now: new Date('2026-10-04T01:00:00Z'),
+      today: '2026-10-04' as never,
+    };
+    expect(() => intakeFeeAndDisclosure({ matter: { jurisdiction: 'VIC' } } as never, options)).toThrow(
+      'Invalid matter',
+    );
     expect(
-      intakeFeeAndDisclosure({
-        matter: {
-          fee: { arrangement: 'hourly', history: [] },
-          costsDisclosure: { status: 'sent', sentOn: '2026-10-01' },
-        },
-      } as never),
-    ).toEqual({
+      intakeFeeAndDisclosure(
+        {
+          matter: {
+            jurisdiction: 'VIC',
+            fee: { arrangement: 'hourly', history: [] },
+            costsDisclosure: { status: 'sent', sentOn: '2026-10-01' },
+          },
+        } as never,
+        options,
+      ),
+    ).toMatchObject({
       fee: { arrangement: 'hourly', history: [] },
       costsDisclosure: { status: 'sent', sentOn: '2026-10-01' },
     });
-    expect(intakeFeeAndDisclosure({ matter: {}, fee: { arrangement: 'hourly' } } as never).costsDisclosure).toEqual({
-      status: 'required',
-    });
+    expect(
+      intakeFeeAndDisclosure({ matter: { jurisdiction: 'VIC' }, fee: { arrangement: 'hourly' } } as never, options)
+        .costsDisclosure,
+    ).toMatchObject({ status: 'required', requiredSince: '2026-10-04' });
+    // No rules for NSW yet: a disclosure is required and nothing is assumed about its form.
+    const nsw = intakeFeeAndDisclosure(
+      { matter: { jurisdiction: 'NSW' }, fee: { arrangement: 'fixed', amountCents: 50000 } } as never,
+      options,
+    ).costsDisclosure;
+    expect(nsw).toMatchObject({ status: 'required', basisEstimateCents: 50000 });
+    expect(nsw.requirement).toBeUndefined();
   });
 });

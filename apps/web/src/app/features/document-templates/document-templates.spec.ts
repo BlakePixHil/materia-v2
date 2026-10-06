@@ -316,6 +316,7 @@ describe('New from template (matter Documents tab)', () => {
       'LetterheadLetterhead · built in',
       'File noteFile note · built in',
       'Costs disclosure (placeholder)Costs disclosure · built in',
+      'Costs disclosure, short form (placeholder)Costs disclosure · built in',
     ]);
   });
 
