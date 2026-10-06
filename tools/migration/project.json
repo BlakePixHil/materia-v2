@@ -25,7 +25,7 @@
       "executor": "nx:run-commands",
       "parallelism": false,
       "options": {
-        "command": "firebase emulators:exec --only auth --project demo-materia --config firebase.json \"vitest run --config tools/migration/vitest.integration.config.mts\"",
+        "command": "firebase emulators:exec --only auth,firestore,storage --project demo-materia --config firebase.json \"vitest run --config tools/migration/vitest.integration.config.mts\"",
         "cwd": "{workspaceRoot}"
       }
     }

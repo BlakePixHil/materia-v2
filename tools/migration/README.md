@@ -1,6 +1,6 @@
 # Legacy migration CLI
 
-`pnpm materia-migrate <step>` moves one user's legacy materia data into Materia v2 ([plan](../../docs/08-legacy-migration-plan.md), [decision log](../../docs/migration/decisions.md)). Nothing in this tool writes to the legacy project. MIG-01 adds `audit` and `check-profile`, and MIG-04 adds `auth-import`. The other steps print a placeholder until their tickets land.
+`pnpm materia-migrate <step>` moves one user's legacy materia data into Materia v2 ([plan](../../docs/08-legacy-migration-plan.md), [decision log](../../docs/migration/decisions.md)). Nothing in this tool writes to the legacy project. MIG-01 adds `audit` and `check-profile`, MIG-02 adds `export`, and MIG-04 adds `auth-import`. The other steps print a placeholder until their tickets land.
 
 ## `audit` (MIG-01)
 
@@ -46,6 +46,35 @@ pnpm materia-migrate check-profile --profile tools/migration/profiles/tristan-bu
 
 It exits 1 when the profile is invalid or incomplete.
 
+## `export` (MIG-02)
+
+Reads one user's legacy data read-only, as one Firestore snapshot, and writes it as JSONL with a manifest to `gs://materia-v2-<env>-migration/runs/<runId>/`. The [runbook](../../docs/runbooks/migration-export.md) has the file layout and the cutover steps, and [D-17](../../docs/migration/decisions.md#d-17-export-new) the choices.
+
+```sh
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate export --profile tools/migration/profiles/tristan-burke.json \
+  --dry-run --compare-audit /mnt/project-files/mig-01/audit/audit-report.json
+```
+
+- **Read-only:**
+  - It runs the same IAM check as the audit before it reads anything, and stops with exit code 3 on credentials that could write.
+  - The reader sends only GETs and read-only POSTs (`runQuery`, `runAggregationQuery`, `batchGet`, `accounts:lookup`). Anything else throws before it is sent.
+- **Scope:** the audit's, narrowed by the profile. The user's profile, dashboard items, integrations and workspaces. Every board they are on or own that the profile doesn't exclude, with all its cards (archived too), attachments and checklist templates. Their referrers. Other users' names, the Auth record without secrets, and the Storage objects' metadata. A board the profile doesn't name stops the export with exit code 4.
+- **One snapshot:** every Firestore read is at the `readTime` the server gave at the start. Queries page on a `__name__` cursor.
+- **Output:**
+  - One `{path, id, data, readTime}` per line, sorted, with sorted keys, so the same snapshot gives the same sha256.
+  - Files stream up in resumable 8 MiB chunks, and each upload is checked against the MD5 Storage computes.
+  - It writes only to a `materia-v2-(dev|prod)-migration` bucket.
+- **Logs:** counts only.
+- **Options:**
+
+  | Option                    | Meaning                                                                                                                     |
+  | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+  | `--env dev\|prod`         | Where the run goes. Prod is written by `migration-runner`, dev by your gcloud account                                       |
+  | `--dry-run`               | Read and count, write nothing. With `--compare-audit <report>`, compare the counts with the audit's                         |
+  | `--since <iso>`           | A delta: cards and attachments changed since then, plus `raw/paths.jsonl`                                                   |
+  | `--run-id`, `--resume`    | Name a run; finish an interrupted one within 55 minutes                                                                     |
+  | `--source-project demo-…` | Read the Firestore, Storage and Auth emulators instead (made-up data). `--env emulator` also writes to the Storage emulator |
+
 ## `auth-import` (MIG-04)
 
 Moves one legacy Firebase Auth account into a v2 project with the same uid. It keeps the Auth record's email, every sign-in identity with the provider's id for the person (so Google sign-in finds the same account), and the password hash with the legacy scrypt parameters when there is one. The [runbook](../../docs/runbooks/migration-auth-import.md) has the cutover steps.
@@ -79,7 +108,9 @@ NODE_USE_ENV_PROXY=1 pnpm materia-migrate auth-import --target materia-v2-dev \
 
 ```sh
 pnpm nx test migration
-pnpm nx run migration:test-integration   # auth-import against the Auth emulator
+pnpm nx run migration:test-integration   # export and auth-import against the emulators
 ```
 
-The emulator test imports a Google-only account and a scrypt password account, made up for each run. A Google credential for the imported identity then signs in to the same uid. The emulator stores hashes without checking them; the dev rehearsal proved a real password sign-in (see the runbook).
+The export test loads the fixtures into a `demo-legacy` Firestore, Storage and Auth, and exports them to the migration bucket on the Storage emulator. Each Firestore file must be byte for byte the export of the fixtures in memory, and match the manifest's count and sha256. It also checks that a change made after the snapshot's `readTime` stays out, and covers a delta, a dry run and a profile that misses a board.
+
+The auth-import test imports a Google-only account and a scrypt password account, made up for each run. A Google credential for the imported identity then signs in to the same uid. The emulator stores hashes without checking them; the dev rehearsal proved a real password sign-in (see the runbook).

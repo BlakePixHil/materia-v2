@@ -4,7 +4,7 @@
 
 - **Legacy:** repo `BlakePixHil/materia-web-app`. Firebase prod project `matt-r-1fe15`; dev project `materia-dev-26bf0`. Domains `app.materia.au` and `app.mattr.com.au`.
 - **Target:** the Materia v2 prod org created for the user, after prod launches. There is no staging, so rehearsals run on dev and are rolled back afterwards ([decision log](migration/decisions.md) D-15).
-- **Tooling:** `tools/migration`, a Node CLI. Commands: `audit` and `check-profile` (MIG-01, built), then `export`, `transform`, `load`, `verify`, `delta`, `rollback` and `report`.
+- **Tooling:** `tools/migration`, a Node CLI. Commands: `audit` and `check-profile` (MIG-01), `export` (MIG-02) and `auth-import` (MIG-04) are built; `transform`, `load`, `verify`, `delta`, `rollback` and `report` follow.
 - **Decisions:** the user's mapping choices are in [`docs/migration/decisions.md`](migration/decisions.md) and the mapping profile `tools/migration/profiles/<user>.json`.
 
 ## Legacy model (source facts)
@@ -120,6 +120,7 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
    - Fetch the password-hash parameters (not needed for a Google-only user, such as this one: D-16).
    - **Done for MIG-01:** `legacy-migration-reader@matt-r-1fe15.iam.gserviceaccount.com`, impersonated with short-lived tokens. `materia-migrate audit` refuses any credentials that can write.
 2. **Export:** query by uid, then write JSONL to `gs://<v2-env>-migration/runs/{runId}/raw/` (australia-southeast1, CMEK, uniform access, 90-day lifecycle after cutover), with a `manifest.json` of counts and sha256s.
+   - **Built in MIG-02:** `materia-migrate export` reads one Firestore snapshot (a single `readTime`) through the read-only account. It writes to the dev bucket for rehearsals and the prod bucket at cutover. The [runbook](runbooks/migration-export.md) and decision D-17 have the details.
 3. **Transform:**
    - Pure functions (`tools/migration/src/transform/*`) produce v2 entities validated by the `libs/domain` zod schemas.
    - Deterministic v2 ids: `base62(sha256(namespace + legacyPath))[0..20]`.
@@ -134,7 +135,7 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
    - 20 random cards diffed field by field;
    - a rules check that the user can read everything as themselves;
    - deadline recompute proposals generated into a review queue (MIG-09).
-6. **Delta:** re-export items with `updatedOn > lastRunAt`, then transform and load. The run is idempotent.
+6. **Delta:** re-export items with `updatedOn > lastRunAt`, then transform and load. The run is idempotent. `export --since <last run's readTime>` filters cards and attachments, writes everything else in full, and lists every path in scope so the load can see deletions (D-17).
 7. **Rollback:** `rollback --run {runId}` deletes every v2 document with `migration.runId == runId`, plus the Storage prefix. It refuses on prod without `--confirm-prod`, and writes an audit entry.
 
 ## Rehearsal & cutover

@@ -4,6 +4,7 @@ import {
   profileName,
   referencedUids,
   type AuthSummary,
+  type LegacyData,
   type LegacyDoc,
   type LegacySnapshot,
   type StorageObject,
@@ -11,8 +12,8 @@ import {
 
 /**
  * Read-only access to the legacy project. There is deliberately no write method: the REST reader
- * sends only GETs and `:runQuery`, and the audit checks the credentials can't write before it
- * starts (audit/iam.ts).
+ * sends only GETs and read-only POSTs (`:runQuery`, `:batchGet`…), and the audit and export check
+ * the credentials can't write before they start (audit/iam.ts).
  */
 export interface LegacyReader {
   get(path: string): Promise<LegacyDoc | null>;
@@ -20,16 +21,26 @@ export interface LegacyReader {
   list(collectionPath: string): Promise<LegacyDoc[]>;
   /** A top-level collection filtered on one field. */
   query(collectionId: string, field: string, op: 'array-contains' | '==', value: string): Promise<LegacyDoc[]>;
+  /** How many documents of a top-level collection match one field (the export's notifications count). */
+  count?(collectionId: string, field: string, op: 'array-contains' | '==', value: string): Promise<number>;
   /** Storage objects whose names start with `prefix`. */
   objects(prefix: string): Promise<StorageObject[]>;
   /** The Auth record's sign-in facts, or undefined when the reader can't see Auth. */
   authUser?(uid: string): Promise<AuthSummary | undefined>;
+  /** The Auth record as the export keeps it (rest.ts `exportAuthRecord`), or null when there is none. */
+  authRecord?(uid: string): Promise<LegacyData | null>;
 }
 
-/** A reader over documents in memory: the fixtures in tests, and later a MIG-02 export. */
+/** A reader over documents in memory: the fixtures in tests. */
 export function memoryReader(docs: readonly LegacyDoc[], objects: readonly StorageObject[] = []): LegacyReader {
   const byPath = new Map(docs.map((doc) => [doc.path, doc]));
   const parentOf = (path: string) => path.slice(0, path.lastIndexOf('/'));
+  const matching = (collectionId: string, field: string, op: 'array-contains' | '==', value: string) =>
+    docs.filter((doc) => {
+      if (parentOf(doc.path) !== collectionId) return false;
+      const fieldValue = doc.data[field];
+      return op === '==' ? fieldValue === value : Array.isArray(fieldValue) && fieldValue.includes(value);
+    });
   return {
     async get(path) {
       return byPath.get(path) ?? null;
@@ -38,11 +49,10 @@ export function memoryReader(docs: readonly LegacyDoc[], objects: readonly Stora
       return docs.filter((doc) => parentOf(doc.path) === collectionPath);
     },
     async query(collectionId, field, op, value) {
-      return docs.filter((doc) => {
-        if (parentOf(doc.path) !== collectionId) return false;
-        const fieldValue = doc.data[field];
-        return op === '==' ? fieldValue === value : Array.isArray(fieldValue) && fieldValue.includes(value);
-      });
+      return matching(collectionId, field, op, value);
+    },
+    async count(collectionId, field, op, value) {
+      return matching(collectionId, field, op, value).length;
     },
     async objects(prefix) {
       return objects.filter((object) => object.name.startsWith(prefix));
@@ -55,7 +65,7 @@ function uniqueByPath(docs: LegacyDoc[]): LegacyDoc[] {
 }
 
 /** Runs `fn` over `items` with at most `limit` in flight. */
-async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   // One iterator shared by the workers: each takes the next item when it is free.
   const queue = items.entries();

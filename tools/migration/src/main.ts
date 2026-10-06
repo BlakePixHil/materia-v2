@@ -1,5 +1,6 @@
 import { auditCommand, checkProfileCommand } from './audit.ts';
 import { authImportCommand } from './auth-import.ts';
+import { exportCommand } from './export.ts';
 
 /**
  * `materia-migrate <step>`: the legacy materia to v2 migration CLI (Legacy migration plan).
@@ -22,6 +23,7 @@ type Step = keyof typeof STEPS;
 const COMMANDS: Partial<Record<Step, (argv: string[]) => Promise<number>>> = {
   audit: (argv) => auditCommand(argv),
   'check-profile': (argv) => checkProfileCommand(argv),
+  export: (argv) => exportCommand(argv),
   'auth-import': (argv) => authImportCommand(argv),
 };
 
