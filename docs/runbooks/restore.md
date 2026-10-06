@@ -127,7 +127,7 @@ PITR and the managed backups live in australia-southeast1 with the database. The
 
 ## Drill
 
-The `backup-drill` workflow runs quarterly on dev (1 January, April, July and October) and on demand (Actions → backup-drill → Run workflow; source `all`, `backup`, `export` or `pitr`). For each source it restores the newest backup or export into a scratch database `drill-…`, compares every collection group's count with the live database as it was at the snapshot time (PITR), writes the RPO and restore time to the run summary, and deletes the scratch database. Locally: `pnpm materia-scripts backup-drill --project materia-v2-dev --source backup` (refuses prod).
+The `backup-drill` workflow runs quarterly on dev (1 January, April, July and October) and on demand (Actions → backup-drill → Run workflow; source `all`, `backup`, `export` or `pitr`). For each source it restores the newest backup or export into a scratch database `drill-…`, compares every collection group's count with the live database as it was at the snapshot time (PITR; a managed backup's snapshot falls mid-minute, so its counts must lie between the live counts at the minutes either side), writes the RPO and restore time to the run summary, and deletes the scratch database. It first deletes any `drill-…` database a cancelled run left behind. Locally: `pnpm materia-scripts backup-drill --project materia-v2-dev --source backup` (refuses prod).
 
 After each drill, add a row:
 

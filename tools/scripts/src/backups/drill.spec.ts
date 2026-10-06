@@ -1,5 +1,14 @@
 import { AdminApi } from './admin-api.ts';
-import { drill, parseArgs, pitrSnapshot, scratchId, summary, type DrillDatabases, type DrillOptions } from './drill.ts';
+import {
+  deleteLeftovers,
+  drill,
+  parseArgs,
+  pitrSnapshot,
+  scratchId,
+  summary,
+  type DrillDatabases,
+  type DrillOptions,
+} from './drill.ts';
 import { scripted } from './fake.ts';
 
 /** The restore drill (SEC-03) against a scripted API and fake counts. */
@@ -73,6 +82,52 @@ describe('drill', () => {
     expect(calls.at(-1)).toMatchObject({ method: 'DELETE', url: expect.stringContaining(`/databases/${db}`) });
   });
 
+  it('compares a backup taken mid-minute with the live counts at the minutes either side', async () => {
+    const { deps, clock } = scripted([
+      {
+        backups: [
+          {
+            name: 'projects/p/locations/l/backups/b1',
+            database: 'projects/p/databases/(default)',
+            snapshotTime: '2026-10-05T11:14:35.891229Z',
+            state: 'READY',
+          },
+        ],
+      },
+      op('ops/restore'),
+      { name: 'ops/delete', done: true },
+    ]);
+    const db = 'drill-20261006-0000-backup';
+    const liveAt: Record<string, Record<string, number>> = {
+      '2026-10-05T11:14:00.000Z': { matters: 3, tasks: 10, notes: 4 },
+      '2026-10-05T11:15:00.000Z': { matters: 3, tasks: 12, notes: 4 },
+    };
+    const readTimes: (string | undefined)[] = [];
+    const result = await drill(
+      new AdminApi(deps, 'p'),
+      {
+        collectionIds: async () => ['matters', 'notes', 'tasks'],
+        count: async (id, group, readTime) => {
+          if (id === db) return { matters: 3, tasks: 11, notes: 5 }[group] ?? 0;
+          readTimes.push(readTime);
+          return liveAt[readTime as string]?.[group] ?? -1;
+        },
+      },
+      'backup',
+      options(clock, []),
+    );
+    expect(new Set(readTimes)).toEqual(new Set(Object.keys(liveAt)));
+    expect(result.liveReadTimes).toEqual(Object.keys(liveAt));
+    expect(result.groups.find((g) => g.group === 'tasks')).toEqual({
+      group: 'tasks',
+      restored: 11,
+      live: 10,
+      liveNextMinute: 12,
+    });
+    expect(result.mismatches).toEqual(['notes: restored 5, live 4 to 4']);
+    expect(summary([{ ...result, mismatches: [] }])).toContain('✅ counts match (within the snapshot minute)');
+  });
+
   it('imports the newest export into a new database and reports mismatched counts', async () => {
     const { deps, calls, clock } = scripted([
       { items: [{ name: 'daily/2026-10-05T14-59-00Z/2026-10-05T14-59-00Z.overall_export_metadata' }] },
@@ -136,6 +191,30 @@ describe('drill', () => {
   });
 });
 
+describe('deleteLeftovers', () => {
+  it('deletes only drill- databases', async () => {
+    const { deps, calls } = scripted([
+      {
+        databases: [
+          { name: 'projects/p/databases/(default)' },
+          { name: 'projects/p/databases/drill-20261006-2100-backup' },
+          { name: 'projects/p/databases/restore-20261006' },
+        ],
+      },
+      op('del'),
+    ]);
+    const lines: string[] = [];
+    expect(await deleteLeftovers(new AdminApi(deps, 'p'), (line) => lines.push(line))).toEqual([
+      'drill-20261006-2100-backup',
+    ]);
+    expect(calls.map((c) => `${c.method} ${c.url.split('/v1/')[1]}`)).toEqual([
+      'GET projects/p/databases',
+      'DELETE projects/p/databases/drill-20261006-2100-backup',
+    ]);
+    expect(lines).toEqual(['deleted leftover drill-20261006-2100-backup']);
+  });
+});
+
 describe('summary', () => {
   it('renders a table row per source and lists mismatches', () => {
     const base = {
@@ -147,6 +226,7 @@ describe('summary', () => {
       verifySeconds: 12,
       documents: 13,
       groups: [{ group: 'matters', restored: 3, live: 3 }],
+      liveReadTimes: ['2026-10-05T14:00:00Z'],
       deleted: true,
     };
     const markdown = summary([
