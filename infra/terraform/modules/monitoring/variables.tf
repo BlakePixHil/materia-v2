@@ -48,6 +48,7 @@ variable "scheduled_jobs" {
     "documents-sweepPending"    = 3600
     "suggestions-expire"        = 3600
     "deadlines-upgradeRuleSets" = 3600
+    "xero-pullPayments"         = 3600
     "deadlines-flagMissed"      = 86400
     "backups-exportFirestore"   = 86400
     "matters-archiveClosed"     = 86400

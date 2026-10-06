@@ -288,8 +288,130 @@ export interface CalendarPort {
   deleteEvent(uid: string, externalId: string): Promise<void>;
 }
 
+/**
+ * Sends one request with the practice's Xero access token (the vault's `authorizedFetch`, INT-01):
+ * a 401 refreshes once, a short Retry-After is waited out, a long one throws RATE_LIMITED.
+ */
+export type AuthorizedSend = (url: string, init: RequestInit) => Promise<Response>;
+
+/** A Xero organisation the connection can reach. */
+export interface XeroTenantRecord {
+  tenantId: string;
+  tenantName: string;
+}
+
+export interface XeroContactRecord {
+  id: string;
+  name: string;
+  email?: string;
+  archived: boolean;
+}
+
+/** A contact to create: the invoice's buyer (BILL-09). */
+export interface XeroContactInput {
+  name: string;
+  email?: string;
+  /** The ABN. */
+  taxNumber?: string;
+  address?: string;
+}
+
+/** One line, in cents. `taxAmountCents` pins Xero's GST to the line's own (Materia's tax invoice). */
+export interface XeroLineInput {
+  description: string;
+  quantity: number;
+  unitAmountCents: number;
+  accountCode: string;
+  taxType?: string;
+  taxAmountCents?: number;
+}
+
+/** An ACCREC invoice or ACCRECCREDIT credit note, authorised (approved) on creation. */
+export interface XeroDocumentInput {
+  contactId: string;
+  number: string;
+  date: string;
+  dueDate?: string;
+  reference?: string;
+  /** `NoTax` when the firm isn't registered for GST. */
+  lineAmountTypes: 'Exclusive' | 'NoTax';
+  lines: XeroLineInput[];
+}
+
+export interface XeroPaymentSummary {
+  id: string;
+  date: string;
+  amountCents: number;
+  reference?: string;
+}
+
+export interface XeroDocumentRecord {
+  id: string;
+  number: string;
+  /** ACCREC, ACCRECCREDIT (or anything else someone entered by hand). */
+  type: string;
+  /** DRAFT, SUBMITTED, AUTHORISED, PAID, VOIDED, DELETED. */
+  status: string;
+  reference?: string;
+  totalCents: number;
+  contactId?: string;
+  /** Invoices fetched by id: the payments Xero holds against it. */
+  payments?: XeroPaymentSummary[];
+}
+
+/** A payment against a receivable invoice (`ACCRECPAYMENT`), from `/Payments`. */
+export interface XeroPaymentRecord extends XeroPaymentSummary {
+  invoiceId: string;
+  /** Deleted in Xero: a payment Materia recorded from it is reversed. */
+  deleted: boolean;
+  updatedAt?: Date;
+}
+
+export type XeroFailure = 'rejected' | 'not_found' | 'forbidden' | 'unavailable';
+
+/** Xero answered with an error (validation messages are Xero's own words, safe to show). */
+export class XeroApiError extends Error {
+  constructor(
+    readonly failure: XeroFailure,
+    message: string,
+    readonly status: number,
+    readonly messages: readonly string[] = [],
+  ) {
+    super(message);
+    this.name = 'XeroApiError';
+  }
+}
+
+/**
+ * The Accounting API calls BILL-09 makes, in cents and ISO dates. `idempotencyKey` makes a
+ * retried create return the first one's result instead of a duplicate.
+ */
+export interface XeroClient {
+  tenants(): Promise<XeroTenantRecord[]>;
+  /** Active accounts invoice lines can use (not bank accounts), with their class (REVENUE, LIABILITY…). */
+  accounts(tenantId: string): Promise<{ code: string; name: string; class: string }[]>;
+  contact(tenantId: string, contactId: string): Promise<XeroContactRecord | null>;
+  contactsByEmail(tenantId: string, email: string): Promise<XeroContactRecord[]>;
+  createContact(tenantId: string, contact: XeroContactInput, idempotencyKey: string): Promise<XeroContactRecord>;
+  invoiceByNumber(tenantId: string, number: string): Promise<XeroDocumentRecord | null>;
+  invoice(tenantId: string, invoiceId: string): Promise<XeroDocumentRecord | null>;
+  createInvoice(tenantId: string, invoice: XeroDocumentInput, idempotencyKey: string): Promise<XeroDocumentRecord>;
+  voidInvoice(tenantId: string, invoiceId: string): Promise<void>;
+  creditNoteByNumber(tenantId: string, number: string): Promise<XeroDocumentRecord | null>;
+  createCreditNote(tenantId: string, note: XeroDocumentInput, idempotencyKey: string): Promise<XeroDocumentRecord>;
+  allocateCreditNote(
+    tenantId: string,
+    creditNoteId: string,
+    allocation: { invoiceId: string; amountCents: number; date: string },
+    idempotencyKey: string,
+  ): Promise<void>;
+  /** Receivable payments changed since `modifiedSince`, oldest change first, 100 a page. */
+  payments(tenantId: string, options: { modifiedSince: Date; page: number }): Promise<XeroPaymentRecord[]>;
+}
+
+/** Xero's Accounting API (BILL-09), over the practice's connection. */
 export interface XeroPort {
-  pushInvoice(orgId: string, invoiceId: string): Promise<{ xeroInvoiceId: string }>;
+  client(send: AuthorizedSend): XeroClient;
 }
 
 /** A file to scan (CORE-12): the quarantined object and its bytes, which the trigger already read. */

@@ -33,5 +33,6 @@ export * as backups from './backups/index';
 export * as trust from './trust/index';
 export * as security from './security/index';
 export * as integrations from './integrations/index';
+export * as xero from './xero/index';
 // Emulator-only tools (the dev mail preview): undefined, so never deployed, anywhere else.
 export * as dev from './dev/index';

@@ -12,7 +12,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
-import { can } from '@materia/data-access';
+import { can, OrgContext } from '@materia/data-access';
 import {
   contactsRepository,
   creditNoteRepository,
@@ -20,6 +20,7 @@ import {
   invoiceCallables,
   invoiceCreditNotesQuery,
   matterDetailRepository,
+  orgXeroSettingsRepository,
   paymentCallables,
   trustSnapshotRepository,
   type CreditNoteItem,
@@ -40,6 +41,7 @@ import {
   trustSnapshotLine,
   type InvoiceClientLike,
   type InvoicePayment,
+  type XeroSync,
 } from '@materia/domain';
 import { DialogService, formatAud, MtBadge, MtButton, MtCheckbox, MtNote, ToastService } from '@materia/ui';
 
@@ -53,6 +55,7 @@ import {
   type SendInvoiceDialogResult,
   type VoidInvoiceDialogData,
 } from './invoice-dialogs';
+import { InvoiceXero, POSSIBLE_DUPLICATE_COPY, XeroChip, xeroSyncIn } from './invoice-xero';
 import { dateText, INVOICE_STATUS_TONES, invoiceStatusLabel, LIVE_INVOICE_STATUSES } from './invoices-view';
 import {
   PaymentDialog,
@@ -76,13 +79,14 @@ type CreditNote = WithId<CreditNoteItem>;
  * it (`billing-sendInvoice`: to the clients by default; never automatic), record payments and
  * render a failed PDF again; owners and admins void an unpaid one, credit it, reverse a payment and
  * refund credit held. When no client has an email address, sending is off and the PDF is offered
- * to print.
+ * to print. While `integrations.xero` is on and the practice has chosen its Xero organisation, it
+ * shows where the invoice and its credit notes stand in Xero (BILL-09).
  */
 @Component({
   selector: 'mt-invoice-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [FormsModule, RouterLink, MtBadge, MtButton, MtCheckbox, MtNote, PdfViewer],
+  imports: [FormsModule, RouterLink, InvoiceXero, MtBadge, MtButton, MtCheckbox, MtNote, PdfViewer, XeroChip],
   host: { class: 'mt-col mt-invoice-detail' },
   template: `
     @let inv = invoice();
@@ -91,6 +95,9 @@ type CreditNote = WithId<CreditNoteItem>;
         <div class="mt-row title-row">
           <h1 class="title-l">{{ title() }} {{ inv.number }}</h1>
           <mt-badge [tone]="tone()" data-testid="invoice-status">{{ statusLabel() }}</mt-badge>
+          @if (xeroOn()) {
+            <mt-xero-chip kind="invoice" data-testid="invoice-xero" [sync]="xeroSync()" />
+          }
         </div>
         <a class="caption" [routerLink]="['/matters', inv.matterId, 'time']">{{ matterLabel() }}</a>
       </div>
@@ -142,6 +149,9 @@ type CreditNote = WithId<CreditNoteItem>;
       <mt-note tone="info" data-testid="invoice-no-email"
         >The client has no email address, so it can’t be emailed. Download the PDF to print and post it.</mt-note
       >
+    }
+    @if (xeroOn()) {
+      <mt-invoice-xero [invoice]="inv" [sync]="xeroSync()" [canSend]="canIssue()" />
     }
 
     <div class="grid">
@@ -247,6 +257,11 @@ type CreditNote = WithId<CreditNoteItem>;
                 <li class="mt-card mt-col note" [class.reversed]="!!payment.reversedAt" [attr.data-kind]="payment.kind">
                   <div class="mt-row">
                     <span class="label-m">{{ payment.kind === 'refund' ? 'Refund' : methodLabel(payment) }}</span>
+                    @if (possibleDuplicate(payment)) {
+                      <mt-badge tone="warning" data-testid="payment-duplicate" [attr.title]="duplicateCopy"
+                        >Possible duplicate</mt-badge
+                      >
+                    }
                     <span class="caption t-3">{{ date(payment.date) }}</span>
                     <span class="num mt-ml"
                       >{{ payment.kind === 'refund' ? '−' : '' }}{{ money(payment.amountCents) }}</span
@@ -254,6 +269,9 @@ type CreditNote = WithId<CreditNoteItem>;
                   </div>
                   @if (paymentDetail(payment); as detail) {
                     <span class="caption t-3">{{ detail }}</span>
+                  }
+                  @if (possibleDuplicate(payment)) {
+                    <span class="caption t-2">{{ duplicateCopy }}</span>
                   }
                   @if (payment.reversedAt) {
                     <span class="caption" data-testid="payment-reversed">Reversed: {{ payment.reversalReason }}</span>
@@ -278,6 +296,9 @@ type CreditNote = WithId<CreditNoteItem>;
               <li class="mt-card mt-col note">
                 <div class="mt-row">
                   <span class="label-m">{{ note.number }}</span>
+                  @if (xeroOn() && note.xero) {
+                    <mt-xero-chip kind="creditNote" data-testid="credit-note-xero" [sync]="noteXero(note)" />
+                  }
                   <span class="caption t-3">{{ date(note.issueDate) }}</span>
                   <span class="num mt-ml">{{ money(note.totalCents) }}</span>
                 </div>
@@ -319,6 +340,7 @@ type CreditNote = WithId<CreditNoteItem>;
     .mt-invoice-detail .title-row {
       align-items: center;
       gap: var(--space-8);
+      flex-wrap: wrap;
     }
     .mt-invoice-detail .actions {
       gap: var(--space-8);
@@ -409,6 +431,7 @@ export class InvoiceDetail {
   protected readonly canIssue = can('billing.issue');
   protected readonly canVoid = can('billing.void');
   private readonly flags = inject(FeatureFlagService);
+  private readonly context = inject(OrgContext);
   private readonly trustSnapshots = trustSnapshotRepository();
   private readonly canViewTrust = can('billing.view');
   private readonly canRecordTrust = can('trust.record');
@@ -416,6 +439,14 @@ export class InvoiceDetail {
   protected readonly markingTrust = signal(false);
 
   private readonly matter = matterDetailRepository().watch(() => this.invoice().matterId);
+  /** Xero (BILL-09): the practice's settings are read only while the flag is on. */
+  private readonly xeroFlag = computed(() => this.flags.isOn('integrations.xero'));
+  private readonly xeroOrg = orgXeroSettingsRepository().watch(() => (this.xeroFlag() ? this.context.orgId() : null));
+  private readonly xeroSettings = computed(() => (this.xeroFlag() ? (this.xeroOrg.value()?.xero ?? null) : null));
+  /** Xero is on and the practice has chosen its Xero organisation. */
+  protected readonly xeroOn = computed(() => !!this.xeroSettings());
+  protected readonly xeroSync = computed(() => xeroSyncIn(this.invoice().xero, this.xeroSettings()));
+  protected readonly duplicateCopy = POSSIBLE_DUPLICATE_COPY;
   protected readonly creditNotes = creditNoteRepository().watchQuery(() => invoiceCreditNotesQuery(this.invoice().id));
 
   protected readonly gst = computed(() => this.invoice().gstRegistered !== false);
@@ -560,6 +591,17 @@ export class InvoiceDetail {
     } catch (error) {
       this.toasts.show({ title: 'The credit note wasn’t issued', description: errorCopy(error), tone: 'danger' });
     }
+  }
+
+  protected noteXero(note: CreditNote): XeroSync | null {
+    return xeroSyncIn(note.xero, this.xeroSettings());
+  }
+
+  /** A payment from Xero that may be one already recorded here, while both still count (BILL-09). */
+  protected possibleDuplicate(payment: InvoicePayment): boolean {
+    if (!payment.possibleDuplicateOf || payment.reversedAt) return false;
+    const twin = this.invoice().payments.find((other) => other.id === payment.possibleDuplicateOf);
+    return !twin?.reversedAt;
   }
 
   protected methodLabel(payment: InvoicePayment): string {

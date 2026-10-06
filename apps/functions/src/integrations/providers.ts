@@ -2,6 +2,8 @@ import type { SecretParam } from 'firebase-functions/params';
 
 import type { IntegrationAccount, OAuthProvider } from '@materia/domain';
 
+import { secretValue, XERO_CLIENT_ID, XERO_CLIENT_SECRET } from '../core/secrets';
+
 /**
  * How the token vault talks to one OAuth provider (INT-01, ADR-051). Endpoints and scopes are
  * code; the client id and secret come from Secret Manager, so every function that uses the
@@ -26,12 +28,38 @@ export interface OAuthProviderConfig {
 }
 
 /**
- * The live providers. None yet: Xero arrives with BILL-09, Microsoft with INT-01b and Google with
- * INT-04, each with its secrets in Terraform (`modules/firebase_env/security.tf`) and its flag in
- * `OAUTH_PROVIDER_INFO`. Until then the real adapter answers `not_configured`; the emulator's fake
- * connects any provider whose flag is on.
+ * Xero (BILL-09, ADR-053): the practice's organisation. Granular scopes, which Xero requires of
+ * apps registered since March 2026: contacts, invoices and credit notes, payments, and reading
+ * the chart of accounts. `openid profile email` name who connected it. Refresh tokens rotate on
+ * every refresh and expire after 60 days unused.
  */
-export const OAUTH_PROVIDER_CONFIGS: Partial<Record<OAuthProvider, OAuthProviderConfig>> = {};
+export const XERO_OAUTH: OAuthProviderConfig = {
+  authorizeUrl: 'https://login.xero.com/identity/connect/authorize',
+  tokenUrl: 'https://identity.xero.com/connect/token',
+  revokeUrl: 'https://identity.xero.com/connect/revocation',
+  scopes: [
+    'openid',
+    'profile',
+    'email',
+    'offline_access',
+    'accounting.contacts',
+    'accounting.invoices',
+    'accounting.payments',
+    'accounting.settings.read',
+  ],
+  clientAuth: 'basic',
+  clientId: () => secretValue(() => XERO_CLIENT_ID.value()),
+  clientSecret: () => secretValue(() => XERO_CLIENT_SECRET.value()),
+  secrets: [XERO_CLIENT_ID, XERO_CLIENT_SECRET],
+};
+
+/**
+ * The live providers: Xero (BILL-09). Microsoft arrives with INT-01b and Google with INT-04, each
+ * with its secrets in Terraform (`modules/firebase_env/security.tf`) and its flag in
+ * `OAUTH_PROVIDER_INFO`. Until then the real adapter answers `not_configured` for them; the
+ * emulator's fake connects any provider whose flag is on.
+ */
+export const OAUTH_PROVIDER_CONFIGS: Partial<Record<OAuthProvider, OAuthProviderConfig>> = { xero: XERO_OAUTH };
 
 /** Every provider's secrets, for the functions that connect, refresh or revoke. */
 export const OAUTH_SECRETS: SecretParam[] = Object.values(OAUTH_PROVIDER_CONFIGS).flatMap((config) => [

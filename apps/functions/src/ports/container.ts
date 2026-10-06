@@ -19,6 +19,7 @@ import { httpOAuth } from '../integrations/oauth';
 import { cloudRunJobs } from '../jobs/cloud-run';
 import { mailFrom, postmarkMail } from '../mail/postmark';
 import { emulatorPush, fcmPush } from '../notifications/push';
+import { httpXero } from '../xero/client';
 
 export const systemClock = { now: () => new Date() };
 
@@ -52,7 +53,7 @@ function realPorts(): Ports {
       project: () => process.env['GCLOUD_PROJECT'] ?? process.env['GOOGLE_CLOUD_PROJECT'] ?? '',
     }),
     calendar: notConfigured('CalendarPort'), // INT-01
-    xero: notConfigured('XeroPort'), // BILL-08
+    xero: httpXero(),
     // CORE-12: ClamAV over HTTP. Until the scanner service is deployed (CLAMAV_SCAN_URL empty),
     // every upload stays quarantined as "Scanning delayed": fail closed.
     malwareScan: clamavScanner({ url: clamavScanUrl }),

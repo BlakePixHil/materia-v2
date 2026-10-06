@@ -18,7 +18,8 @@ export const SETTINGS_ADMIN_ROLES: readonly Role[] = ['owner', 'admin'];
 
 /**
  * The Settings pages, in sidebar order. A new settings page adds its route under `settings` in
- * app.routes.ts and an entry here (Clerk settings, AI-13; integrations, INT-03; security, SEC-04; trust account, BILL-11; document templates, INT-06).
+ * app.routes.ts and an entry here (Clerk settings, AI-13; security, SEC-04; trust account, BILL-11;
+ * integrations, BILL-09 and INT-03; document templates, INT-06).
  */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   // The person's own (CORE-20).
@@ -37,6 +38,15 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     group: 'Firm',
     roles: SETTINGS_ADMIN_ROLES,
     flag: 'billing.trustDisplay',
+  },
+  // The practice's Xero connection and where invoices go in it (BILL-09).
+  {
+    path: 'integrations',
+    label: 'Integrations',
+    icon: 'link',
+    group: 'Firm',
+    roles: SETTINGS_ADMIN_ROLES,
+    flag: 'integrations.xero',
   },
   { path: 'numbering', label: 'Matter numbering', icon: 'list', group: 'Practice', roles: SETTINGS_ADMIN_ROLES },
   {
