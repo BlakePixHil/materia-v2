@@ -94,18 +94,18 @@ export function disbursementGroupRepository(): GroupRepository<DisbursementItem>
 }
 
 /** `orgs/{orgId}/settings/disbursementPresets` as read (BILL-04). A malformed list reads as missing. */
-export const DisbursementPresetsDocSchema = /* @__PURE__ */ z.object({
+export const DisbursementPresetsItemSchema = /* @__PURE__ */ z.object({
   presets: z.array(DisbursementPresetSchema).catch([]),
 });
-export type DisbursementPresetsDoc = z.infer<typeof DisbursementPresetsDocSchema>;
+export type DisbursementPresetsItem = z.infer<typeof DisbursementPresetsItemSchema>;
 
 /**
  * The org's disbursement presets document, by id `disbursementPresets`. Every member reads it;
  * owners and admins create it (the first save) and replace its list.
  */
-export function disbursementPresetsRepository(): Repository<DisbursementPresetsDoc> {
+export function disbursementPresetsRepository(): Repository<DisbursementPresetsItem> {
   return repo((orgId) => `orgs/${orgId}/settings`, {
-    schema: DisbursementPresetsDocSchema,
+    schema: DisbursementPresetsItemSchema,
     version: DisbursementPresetsDoc.version,
     create: DisbursementPresetsDoc.create,
     update: DisbursementPresetsDoc.update,

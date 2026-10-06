@@ -166,14 +166,16 @@ function presetsOf(rows: readonly PresetRow[]): { value?: DisbursementPreset[]; 
       display: flex;
       flex-direction: column;
       gap: var(--space-12, 12px);
+      container-type: inline-size;
     }
     .preset {
       display: grid;
-      grid-template-columns: minmax(180px, 2fr) 140px 150px minmax(120px, 1fr) 110px auto;
+      grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1.2fr)) minmax(0, 1fr) auto;
       gap: var(--space-8, 8px);
       align-items: end;
     }
-    @media (max-width: 900px) {
+    /* Six fields fit on one line only on a wide settings column; otherwise two per line. */
+    @container (max-width: 880px) {
       .preset {
         grid-template-columns: 1fr 1fr;
         padding-bottom: var(--space-12, 12px);
