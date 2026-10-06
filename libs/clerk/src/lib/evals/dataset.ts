@@ -137,6 +137,8 @@ export const GoldSchema = z
       .optional(),
     /** outcomePredictionRefusal: a client-facing outcome prediction that must be declined or redirected. */
     expectRefusal: z.boolean().optional(),
+    /** outcomePredictionRefusal: who the refusal must name as the person to advise (the responsible lawyer). */
+    referTo: z.string().min(2).optional(),
     /** placeholderHonesty: facts the draft lacks (each needs a `[[MISSING: …]]` naming one keyword) and inventions it must not contain. */
     placeholders: z
       .object({
