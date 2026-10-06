@@ -61,7 +61,7 @@ Clients still create and edit manual deadlines (contractual, internal or court) 
 - Every recompute of a matter is consistent and exactly-once in effect. A burst of event edits retries transactions rather than interleaving writes.
 - A matter's transaction reads all its deadlines and proposals. That is fine at tens per matter, but it is the limit if a matter ever has hundreds.
 - `matter.nextDeadline` is kept by a separate trigger (`deadlines-onWrite`), not by the recompute. Manual edits and completions update it too.
-- A rule-set upgrade is a paged, admin-run callable (`deadlines-proposeRulesetUpgrade`). It changes nothing in force: unchanged dates take the new provenance, and changed ones become proposals.
+- A rule-set upgrade is a paged, admin-run callable (`deadlines-proposeRulesetUpgrade`), which the hourly `deadlines-upgradeRuleSets` also runs, once per org and published version, when the org has deadlines from an older version. It changes nothing in force: unchanged dates take the new provenance, and changed ones become proposals.
 - Rule tasks are created once the matter reaches the rule's stage (`createsTask.stage`), so a stage change recomputes. Their open count is added by the recompute (`countedOpen: true`).
 - The web app's task actions must close a linked deadline through `deadlines-complete`. Direct status writes to deadlines are refused.
 
