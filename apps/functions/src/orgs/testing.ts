@@ -5,7 +5,8 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
  * Test doubles for the orgs and contacts unit tests: an in-memory Firestore with just what that
  * code uses (doc and collection refs, `==`, `in`, `array-contains` and range filters on dotted paths,
  * paging by document id,
- * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment`,
+ * field masks, collection groups, getAll, batches and serial transactions, `set` with `merge` (maps
+ * merge field by field), `FieldValue.increment`,
  * `FieldValue.delete` and `FieldValue.vector` with `findNearest`, listing a document's subcollections
  * and document listeners),
  * and an Admin Auth with users and custom claims.
@@ -38,6 +39,22 @@ function apply(previous: Data | undefined, data: Data): Data {
   const next: Data = { ...previous };
   for (const [key, value] of Object.entries(data)) {
     next[key] = isDeleteSentinel(value) ? value : stored(value, previous?.[key]);
+  }
+  return Object.fromEntries(Object.entries(next).filter(([, value]) => !isDeleteSentinel(value)));
+}
+
+const isPlainMap = (value: unknown): value is Data =>
+  !!value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype;
+
+/** `set` with `merge`: maps merge field by field, as Firestore's do, so increments and deletes reach nested fields. */
+function merge(previous: Data | undefined, data: Data): Data {
+  const next: Data = { ...previous };
+  for (const [key, value] of Object.entries(data)) {
+    if (isDeleteSentinel(value)) next[key] = value;
+    else if (isPlainMap(value) && Object.keys(value).length) {
+      const current = previous?.[key];
+      next[key] = merge(isPlainMap(current) ? current : undefined, value);
+    } else next[key] = stored(value, previous?.[key]);
   }
   return Object.fromEntries(Object.entries(next).filter(([, value]) => !isDeleteSentinel(value)));
 }
@@ -109,7 +126,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
 
   const write = {
     set(path: string, data: Data, options?: { merge?: boolean }) {
-      docs.set(path, apply(options?.merge ? docs.get(path) : undefined, data));
+      docs.set(path, options?.merge ? merge(docs.get(path), data) : apply(undefined, data));
       notify(path);
     },
     update(path: string, data: Data) {

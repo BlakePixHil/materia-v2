@@ -179,6 +179,33 @@ resource "google_logging_metric" "trigger_failures" {
   label_extractors = { fn = "EXTRACT(jsonPayload.fn)" }
 }
 
+# The practice metrics' drift counter (INS-01, ADR-048): one point per org the nightly
+# metrics-recompute found out of step with its records, valued at the period documents it
+# corrected (the count is orgs with drift, the sum documents). A steady trickle means a trigger
+# misses writes.
+resource "google_logging_metric" "metrics_drift" {
+  project = var.project_id
+  name    = "metrics_drift"
+  filter  = "${local.run_logs} AND jsonPayload.message=\"metrics drift corrected\""
+
+  metric_descriptor {
+    metric_kind  = "DELTA"
+    value_type   = "DISTRIBUTION"
+    unit         = "1"
+    display_name = "Practice metrics documents corrected by the nightly recompute"
+  }
+
+  value_extractor = "EXTRACT(jsonPayload.keys)"
+
+  bucket_options {
+    exponential_buckets {
+      num_finite_buckets = 16
+      growth_factor      = 2
+      scale              = 1
+    }
+  }
+}
+
 resource "google_logging_metric" "scheduled_job_runs" {
   project = var.project_id
   name    = "scheduled_job_runs"

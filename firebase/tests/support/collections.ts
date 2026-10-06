@@ -1,6 +1,6 @@
 import { serverTimestamp, Timestamp } from 'firebase/firestore';
 
-import { PERMISSIONS, ROLES, type Action, type Role } from '@materia/domain';
+import { MEMBER_METRICS_READERS, PERMISSIONS, ROLES, type Action, type Role } from '@materia/domain';
 import { ENTITY_FACTORIES } from '@materia/test-utils';
 
 import { MATTER, ORG, uidFor } from './harness';
@@ -20,8 +20,8 @@ export interface CollectionSpec {
   entity?: keyof typeof ENTITY_FACTORIES;
   /** Seed overrides (merged over the factory output). */
   seed?: Record<string, unknown>;
-  /** Who can read: everyone in the org, an action's roles, only the document's owner, or nobody. */
-  read: 'members' | 'signed-in' | 'owner' | 'none' | Action;
+  /** Who can read: everyone in the org, an action's roles, a role list, only the document's owner, or nobody. */
+  read: 'members' | 'signed-in' | 'owner' | 'none' | Action | readonly Role[];
   /** Who can update: an action's roles, an explicit role list, only the owner, or nobody. */
   update: 'none' | 'owner' | Action | readonly Role[];
   /** For 'owner' specs: the owning uid (defaults to the lawyer). */
@@ -338,11 +338,43 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'none',
     update: 'none',
   },
+  // Practice metrics (INS-01): every member reads the rollups; Clerk metering and aged debtors
+  // need billing.view; everyone's figures follow insights.memberVisibility (lawyers by default).
   {
     collection: 'metrics',
-    docPath: `orgs/${ORG}/metrics/2026-03`,
+    docPath: `orgs/${ORG}/metrics/month-2026-10`,
     entity: 'Metrics',
+    read: 'members',
+    update: 'none',
+  },
+  {
+    collection: 'metrics (clerk)',
+    docPath: `orgs/${ORG}/metrics/clerk-2026-10`,
+    entity: 'Metrics',
+    seed: { period: 'clerk-2026-10', values: { tokens: 1200, costMicros: 5000 } },
     read: 'billing.view',
+    update: 'none',
+  },
+  {
+    collection: 'shards',
+    docPath: `orgs/${ORG}/metrics/month-2026-10/shards/3`,
+    entity: 'MetricsShard',
+    read: 'members',
+    update: 'none',
+  },
+  {
+    collection: 'byMember',
+    docPath: `orgs/${ORG}/metrics/month-2026-10/byMember/member-x`,
+    entity: 'MemberMetrics',
+    seed: { uid: 'member-x' },
+    read: MEMBER_METRICS_READERS.lawyers,
+    update: 'none',
+  },
+  {
+    collection: 'metrics (ledger)',
+    docPath: `${MATTER}/metrics/time-entry-1`,
+    entity: 'MetricsLedger',
+    read: 'none',
     update: 'none',
   },
   {

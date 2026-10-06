@@ -35,6 +35,7 @@ import {
   Liability,
   Distribution,
 } from './matter-records';
+import { MemberMetrics, MetricsLedger, MetricsShard } from './metrics';
 import {
   Invoice,
   CreditNote,
@@ -214,6 +215,15 @@ export const TaskGroupTemplateUpdateSchema = TaskGroupTemplate.update;
 export const MetricsSchema = Metrics.schema;
 export const MetricsCreateSchema = Metrics.create;
 export const MetricsUpdateSchema = Metrics.update;
+export const MemberMetricsSchema = MemberMetrics.schema;
+export const MemberMetricsCreateSchema = MemberMetrics.create;
+export const MemberMetricsUpdateSchema = MemberMetrics.update;
+export const MetricsShardSchema = MetricsShard.schema;
+export const MetricsShardCreateSchema = MetricsShard.create;
+export const MetricsShardUpdateSchema = MetricsShard.update;
+export const MetricsLedgerSchema = MetricsLedger.schema;
+export const MetricsLedgerCreateSchema = MetricsLedger.create;
+export const MetricsLedgerUpdateSchema = MetricsLedger.update;
 export const AuditEntrySchema = AuditEntry.schema;
 export const AuditEntryCreateSchema = AuditEntry.create;
 export const AuditEntryUpdateSchema = AuditEntry.update;

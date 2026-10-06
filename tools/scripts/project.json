@@ -31,7 +31,7 @@
         "{workspaceRoot}/libs/test-utils/fixtures/**/*"
       ],
       "options": {
-        "command": "firebase emulators:exec --only auth,firestore,storage --project demo-materia --config firebase.json \"node tools/scripts/bin/materia-scripts.mjs seed && node tools/scripts/bin/materia-scripts.mjs seed --verify\"",
+        "command": "firebase emulators:exec --only auth,firestore,storage --project demo-materia --config firebase.json \"node tools/scripts/bin/materia-scripts.mjs seed && node tools/scripts/bin/materia-scripts.mjs seed --verify && node tools/scripts/bin/materia-scripts.mjs backfill-metrics --project demo-materia --from 2025-07\"",
         "cwd": "{workspaceRoot}"
       }
     }
