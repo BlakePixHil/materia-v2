@@ -25,6 +25,7 @@ import {
 import {
   ManualDeadlineCreateInput,
   MatterTaskCreateInput,
+  MEMBER_METRICS_READERS,
   PERMISSIONS,
   ROLES,
   DisbursementCreateInput,
@@ -3491,6 +3492,98 @@ describe('estate register (CORE-16)', () => {
     await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/assets/doc-1`)));
     await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/liabilities/doc-1`)));
     await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/distributions/doc-1`)));
+  });
+});
+
+describe('practice metrics (INS-01)', () => {
+  const METRICS = `orgs/${ORG}/metrics`;
+  const figuresOf = (uid: string) => `${METRICS}/month-2026-10/byMember/${uid}`;
+  const setVisibility = (memberVisibility: string | null) =>
+    seedAdmin(env, (firestore) =>
+      updateDoc(doc(firestore, `orgs/${ORG}`), {
+        'settings.insights.memberVisibility': memberVisibility ?? deleteField(),
+      }),
+    );
+  const others = (role: Role) => ROLES.filter((other) => other !== role);
+
+  beforeAll(async () => {
+    await seed(specFor('orgs'));
+    await seedAdmin(env, async (firestore) => {
+      for (const role of ROLES)
+        await setDoc(doc(firestore, figuresOf(uidFor(role))), { ...seedData(specFor('byMember')), uid: uidFor(role) });
+      for (const period of ['day-2026-10-05', 'fy-2026', 'debtors-2026-10-05'])
+        await setDoc(doc(firestore, `${METRICS}/${period}`), { ...seedData(specFor('metrics')), period });
+    });
+  });
+  afterEach(() => setVisibility(null));
+
+  it.each(ROLES)('%s reads their own figures, whatever the org shows of everyone’s', async (role) => {
+    for (const visibility of ['admins', 'lawyers', 'everyone']) {
+      await setVisibility(visibility);
+      await assertSucceeds(getDoc(doc(db(env, role), figuresOf(uidFor(role)))));
+    }
+  });
+
+  it.each(['lawyers', 'admins', 'everyone'] as const)(
+    'with memberVisibility %s, everyone’s figures follow MEMBER_METRICS_READERS',
+    async (visibility) => {
+      await setVisibility(visibility);
+      for (const role of ROLES)
+        for (const other of others(role)) {
+          const read = getDoc(doc(db(env, role), figuresOf(uidFor(other))));
+          await (MEMBER_METRICS_READERS[visibility].includes(role) ? assertSucceeds(read) : assertFails(read));
+        }
+    },
+  );
+
+  it('listing a period’s member figures needs to see everyone’s', async () => {
+    const list = (role: Role) => getDocs(collection(db(env, role), `${METRICS}/month-2026-10/byMember`));
+    await assertSucceeds(list('lawyer'));
+    await assertFails(list('paralegal'));
+    await setVisibility('everyone');
+    await assertSucceeds(list('paralegal'));
+  });
+
+  it.each(EVERYONE)('day and FY rollups are for every member; aged debtors need billing.view (%s)', async (who) => {
+    const { firestore } = firestoreOf(who);
+    for (const period of ['day-2026-10-05', 'fy-2026']) {
+      const read = getDoc(doc(firestore, `${METRICS}/${period}`));
+      await (isMember(who) ? assertSucceeds(read) : assertFails(read));
+    }
+    const debtors = getDoc(doc(firestore, `${METRICS}/debtors-2026-10-05`));
+    await (allows(who, 'billing.view') ? assertSucceeds(debtors) : assertFails(debtors));
+  });
+
+  it('a suspended member doesn’t read even their own figures', async () => {
+    await seedAdmin(env, (firestore) =>
+      setDoc(doc(firestore, figuresOf(SUSPENDED_UID)), { ...seedData(specFor('byMember')), uid: SUSPENDED_UID }),
+    );
+    await assertFails(getDoc(doc(db(env, 'lawyer', ORG, SUSPENDED_UID), figuresOf(SUSPENDED_UID))));
+  });
+
+  it('owners and admins choose whose figures lawyers see; nobody else does', async () => {
+    const choose = (role: Role, memberVisibility: string) =>
+      updateDoc(
+        doc(db(env, role), `orgs/${ORG}`),
+        stamped({ 'settings.insights.memberVisibility': memberVisibility }, uidFor(role)),
+      );
+    await assertSucceeds(choose('owner', 'everyone'));
+    await assertSucceeds(choose('admin', 'admins'));
+    await assertFails(choose('lawyer', 'everyone'));
+    await assertFails(choose('paralegal', 'everyone'));
+  });
+
+  it('only functions write the metrics', async () => {
+    const owner = db(env, 'owner');
+    const figures = { values: { 'time.minutes': 1 }, updatedAt: serverTimestamp(), updatedBy: uidFor('owner') };
+    await assertFails(
+      setDoc(doc(owner, `${METRICS}/month-2026-11`), { ...seedData(specFor('metrics')), period: 'month-2026-11' }),
+    );
+    await assertFails(updateDoc(doc(owner, `${METRICS}/month-2026-10`), figures));
+    await assertFails(updateDoc(doc(owner, figuresOf(uidFor('owner'))), figures));
+    await assertFails(updateDoc(doc(owner, `${METRICS}/month-2026-10/shards/3`), figures));
+    await assertFails(getDoc(doc(owner, `${MATTER}/metrics/time-entry-1`)));
+    await assertFails(deleteDoc(doc(owner, `${MATTER}/metrics/time-entry-1`)));
   });
 });
 

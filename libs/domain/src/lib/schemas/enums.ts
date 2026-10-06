@@ -40,6 +40,13 @@ export type ReferrerIndustry = z.infer<typeof ReferrerIndustrySchema>;
 export const ReferralSourceSchema = z.enum(['unknown', 'website', 'existing_client', 'walk_in']);
 export type ReferralSource = z.infer<typeof ReferralSourceSchema>;
 
+/**
+ * Who sees every member's figures in the metrics rollups (INS-01, `settings.insights.memberVisibility`):
+ * lawyers and above (the default), only owners and admins, or everyone. Each member always sees their own.
+ */
+export const MemberMetricsVisibilitySchema = z.enum(['lawyers', 'admins', 'everyone']);
+export type MemberMetricsVisibility = z.infer<typeof MemberMetricsVisibilitySchema>;
+
 export const RoleSchema = z.enum(['owner', 'admin', 'lawyer', 'paralegal', 'readonly']);
 export type Role = z.infer<typeof RoleSchema>;
 

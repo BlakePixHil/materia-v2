@@ -9,6 +9,7 @@ import {
   InviteStatusSchema,
   JurisdictionSchema,
   MatterTypeSchema,
+  MemberMetricsVisibilitySchema,
   MemberStatusSchema,
   RoleSchema,
   RoundingSchema,
@@ -98,6 +99,12 @@ export const Org = withMeta(
           .object({
             /** A "Thank referrer" task when a referred matter opens (CORE-18). Off unless set. */
             thankYouTask: z.boolean().optional(),
+          })
+          .optional(),
+        insights: z
+          .object({
+            /** Who sees every member's figures (INS-01); lawyers and above when unset. */
+            memberVisibility: MemberMetricsVisibilitySchema.optional(),
           })
           .optional(),
       })

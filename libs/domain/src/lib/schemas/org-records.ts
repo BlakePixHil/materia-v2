@@ -332,13 +332,17 @@ export const TaskGroupTemplate = withMeta(
 );
 
 /**
- * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY`, or
- * `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per feature and per user).
+ * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY` (INS-01,
+ * ADR-048: org-wide counters in `values`, members' in `byMember/{uid}`, a large org's in
+ * `shards/{n}` too), or `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per
+ * feature and per user).
  */
 export const Metrics = withMeta(
   {
     period: z.string().regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4}|clerk-\d{4}-\d{2})$/),
     values: z.record(z.string(), z.number()),
+    /** The day the snapshot figures (`wip.`, `active.`, `overdue.`, `debtors.`) were taken (INS-01). */
+    snapshotOn: DateOnlySchema.optional(),
   },
   { path: `${ORG}/metrics`, migratable: false },
 );

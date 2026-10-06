@@ -47,5 +47,6 @@ variable "scheduled_jobs" {
     "documents-sweepPending"  = 3600
     "deadlines-flagMissed"    = 86400
     "backups-exportFirestore" = 86400
+    "metrics-recompute"       = 86400
   }
 }

@@ -43,6 +43,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   safeCustody: domain.SafeCustody,
   invoices: domain.Invoice,
   creditNotes: domain.CreditNote,
+  disbursements: domain.Disbursement,
   // A union of kinds: every kind shares these fields (FND-20).
   notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
 } as never;
@@ -104,6 +105,27 @@ describe('firestore.indexes.json', () => {
         .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`);
     expect(key('invoices')).toEqual(['COLLECTION:matterId:ASCENDING,createdAt:DESCENDING']);
     expect(key('creditNotes')).toEqual(['COLLECTION:invoiceId:ASCENDING,createdAt:ASCENDING']);
+  });
+
+  it('the nightly metrics recompute reads a month of records through group indexes, and no rollup map is indexed (INS-01)', () => {
+    const groups = file.indexes
+      .filter((i) => i.queryScope === 'COLLECTION_GROUP')
+      .map((i) => `${i.collectionGroup}:${i.fields.map((f) => f.fieldPath).join(',')}`);
+    expect(groups).toEqual(
+      expect.arrayContaining(['timeEntries:orgId,date', 'disbursements:orgId,date', 'deadlines:orgId,status,dueDate']),
+    );
+    const exempt = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; indexes?: unknown[] }[])
+      .filter((o) => o.indexes?.length === 0)
+      .map((o) => `${o.collectionGroup}.${o.fieldPath}`);
+    expect(exempt).toEqual(
+      expect.arrayContaining([
+        'metrics.values',
+        'metrics.counted',
+        'metrics.stages',
+        'byMember.values',
+        'shards.values',
+      ]),
+    );
   });
 
   it('a matter’s conflict checks are listed newest first (CORE-02)', () => {
