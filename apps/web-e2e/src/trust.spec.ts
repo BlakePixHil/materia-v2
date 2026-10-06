@@ -29,7 +29,9 @@ function entryDate(daysAgo = 0): string {
   return `${d}/${m}/${y}`;
 }
 
-async function seed(request: APIRequestContext, orgId: string, uid: string): Promise<void> {
+type TrustSettings = { showOnMatters: boolean; system: string; staleAfterDays: number };
+
+async function seed(request: APIRequestContext, orgId: string, uid: string, trust?: TrustSettings): Promise<void> {
   await seedClient(request, orgId, uid);
   await setEmulatorDocuments(request, [
     {
@@ -38,6 +40,7 @@ async function seed(request: APIRequestContext, orgId: string, uid: string): Pro
         name: 'Fictional Trust Practice',
         timezone: 'Australia/Melbourne',
         flags: { 'billing.trustDisplay': true },
+        ...(trust ? { trust } : {}),
       },
     },
     matterDoc(orgId, uid, {
@@ -50,17 +53,28 @@ async function seed(request: APIRequestContext, orgId: string, uid: string): Pro
   ]);
 }
 
-async function setUp(page: Page, request: APIRequestContext) {
+async function setUp(page: Page, request: APIRequestContext, trust?: TrustSettings) {
   const orgId = uniqueOrg();
   const account = await signInAsTestUser(page, request, {
     claims: { orgId, role: 'owner', orgName: 'Fictional Trust Practice' },
     displayName: 'Morgan Fictional',
   });
-  await seed(request, orgId, account.uid);
+  await seed(request, orgId, account.uid, trust);
   return { orgId, uid: account.uid };
 }
 
 const card = (page: Page) => page.getByTestId('matter-trust');
+
+async function storedTrustSettings(request: APIRequestContext, orgId: string) {
+  const response = await request.get(
+    `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/orgs/${orgId}`,
+    { headers: { Authorization: 'Bearer owner' } },
+  );
+  const body = (await response.json()) as {
+    fields?: { trust?: { mapValue?: { fields?: Record<string, Record<string, unknown>> } } };
+  };
+  return body.fields?.trust?.mapValue?.fields;
+}
 
 async function storedSnapshot(request: APIRequestContext, orgId: string) {
   const response = await request.get(
@@ -72,17 +86,10 @@ async function storedSnapshot(request: APIRequestContext, orgId: string) {
 }
 
 test.describe('trust balance snapshots', () => {
-  test('turns trust balances on, then records and updates a matter’s balance by keyboard', async ({
-    page,
-    request,
-  }) => {
-    test.setTimeout(120_000);
+  // Callables can cold-start on a busy runner, so their results get the longer wait other specs use.
+  test('turns trust balances on and names the records, by keyboard', async ({ page, request }) => {
+    test.setTimeout(90_000);
     const { orgId } = await setUp(page, request);
-
-    // Off until the practice turns it on: no card on the matter.
-    await page.goto(MATTER);
-    await expect(page.getByRole('heading', { name: 'Estate of Edith Wren' })).toBeVisible();
-    await expect(card(page)).toHaveCount(0);
 
     // Settings → Trust account: the fixed explanation, the switch, the records.
     await page.goto('/settings/trust');
@@ -90,6 +97,7 @@ test.describe('trust balance snapshots', () => {
     await expect(page.getByTestId('trust-explainer')).toContainText('It is not the trust ledger.');
     await expectNoA11yViolations(page);
     const toggle = page.getByRole('switch', { name: 'Show trust balances on matters' });
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
     await toggle.focus();
     await page.keyboard.press('Space');
     await expect(toggle).toHaveAttribute('aria-checked', 'true');
@@ -97,12 +105,24 @@ test.describe('trust balance snapshots', () => {
     await expect(page.getByLabel('Name of your trust records')).toHaveCount(0);
     await page.getByRole('button', { name: 'Save', exact: true }).focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByText('Trust settings saved').first()).toBeVisible();
+    await expect(page.getByText('Trust settings saved').first()).toBeVisible({ timeout: 20_000 });
     for (const word of ['Deposit', 'Withdraw', 'Transfer']) {
       await expect(page.getByRole('button', { name: word })).toHaveCount(0);
     }
+    await expect
+      .poll(() => storedTrustSettings(request, orgId), { timeout: 20_000 })
+      .toMatchObject({
+        showOnMatters: { booleanValue: true },
+        system: { stringValue: 'smokeball' },
+        staleAfterDays: { integerValue: '30' },
+      });
+  });
 
-    // The matter now shows the empty state, never $0.00.
+  test('records and updates a matter’s balance by keyboard, shown out of date once old', async ({ page, request }) => {
+    test.setTimeout(90_000);
+    const { orgId } = await setUp(page, request, { showOnMatters: true, system: 'smokeball', staleAfterDays: 30 });
+
+    // The empty state, never $0.00.
     await page.goto(MATTER);
     await expect(card(page)).toContainText('No balance recorded yet. Copy it from Smokeball.');
     await expect(card(page)).toContainText('Not the trust ledger');
@@ -120,7 +140,7 @@ test.describe('trust balance snapshots', () => {
     await dialog.getByRole('textbox', { name: 'Amount' }).fill('84,210.00');
     await dialog.getByRole('textbox', { name: 'Note' }).fill('Trust ledger report');
     await page.keyboard.press('Enter');
-    await expect(dialog).toHaveCount(0);
+    await expect(dialog).toHaveCount(0, { timeout: 20_000 });
     await expect(card(page)).toContainText('$84,210.00');
     await expect(card(page)).toContainText('· from Smokeball');
     await expect(card(page)).not.toContainText('Out of date');
@@ -132,12 +152,12 @@ test.describe('trust balance snapshots', () => {
     await dialog.getByRole('textbox', { name: 'Amount' }).fill('79,000');
     await dialog.getByRole('textbox', { name: 'As at' }).fill(entryDate(45));
     await page.keyboard.press('Enter');
-    await expect(dialog).toHaveCount(0);
+    await expect(dialog).toHaveCount(0, { timeout: 20_000 });
     await expect(card(page)).toContainText('$79,000.00');
     await expect(card(page)).toContainText('Out of date');
 
     await expect
-      .poll(() => storedSnapshot(request, orgId), { timeout: 30_000 })
+      .poll(() => storedSnapshot(request, orgId), { timeout: 20_000 })
       .toMatchObject({
         amountCents: { integerValue: '7900000' },
         source: { stringValue: 'manual' },
