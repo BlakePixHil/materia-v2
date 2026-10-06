@@ -167,6 +167,7 @@ const deadline: SuggestionHandler<'deadline'> = {
           kind: payload.kind,
           critical: payload.critical,
           assigneeUid,
+          privileged: matter['privileged'] === true,
         }),
       );
       if (!fields.success) throw invalid(issuesOf(fields.error));

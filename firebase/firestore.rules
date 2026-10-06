@@ -289,7 +289,7 @@ service cloud.firestore {
     // Fields a client may write when creating a manual deadline: `ManualDeadlineCreateInput` in
     // libs/domain (the rules tests check the two agree), plus the meta fields.
     function manualDeadlineCreateFields() {
-      return ['orgId', 'matterId', 'title', 'dueDate', 'dueTime', 'kind', 'critical', 'status', 'assigneeUid', 'reminders'];
+      return ['orgId', 'matterId', 'title', 'dueDate', 'dueTime', 'kind', 'critical', 'status', 'assigneeUid', 'reminders', 'privileged'];
     }
     // The values a manual deadline may hold after a client write.
     function validManualDeadline(data) {
@@ -306,7 +306,7 @@ service cloud.firestore {
     function newManualDeadline(orgId, matterId) {
       let data = request.resource.data;
       return data.keys().hasOnly(manualDeadlineCreateFields().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
-        && data.keys().hasAll(['orgId', 'matterId', 'title', 'dueDate', 'kind', 'critical', 'status', 'assigneeUid', 'reminders', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
+        && data.keys().hasAll(['orgId', 'matterId', 'title', 'dueDate', 'kind', 'critical', 'status', 'assigneeUid', 'reminders', 'privileged', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
         && data.orgId == orgId && data.matterId == matterId && data.status == 'upcoming'
         && data.createdBy == uid() && data.createdAt == request.time && validMeta() && data.schemaVersion == 1
         && validManualDeadline(data);
@@ -625,6 +625,9 @@ service cloud.firestore {
         // and closing go through callables. task.edit roles create manual deadlines (contractual,
         // internal or court) on a live, visible matter, edit their whitelisted fields while upcoming,
         // and soft delete them. Status changes (done, waived, missed) go through deadlines-complete.
+        // Reads follow the matter's access, like tasks (CORE-10b): a privileged matter's deadlines
+        // need privileged.view. Each deadline carries a copy of the matter's `privileged` flag for the
+        // collection-group rule below; a manual one is created with the matter's.
         match /deadlines/{deadlineId} {
           function deadlineMatter() {
             return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
@@ -637,8 +640,9 @@ service cloud.firestore {
             return unchanged(['ackBy', 'ackAt'])
               || request.resource.data.get('ackBy', null) == uid() && request.resource.data.get('ackAt', null) == request.time;
           }
-          allow read: if inOrg(orgId);
-          allow create: if canEditDeadlines() && newManualDeadline(orgId, matterId);
+          allow read: if inOrg(orgId) && visible(orgId, deadlineMatter());
+          allow create: if canEditDeadlines() && newManualDeadline(orgId, matterId)
+            && request.resource.data.privileged == deadlineMatter().privileged;
           allow update: if canEditDeadlines() && (
             resource.data.get('computed', null) == null && (
               resource.data.status == 'upcoming'
@@ -651,9 +655,10 @@ service cloud.firestore {
         }
 
         // Proposed changes to computed deadlines (CORE-10): server-written, decided through
-        // deadlines-resolveChange.
+        // deadlines-resolveChange. Readable like the matter's deadlines (CORE-10b).
         match /deadlineChanges/{changeId} {
-          allow read: if inOrg(orgId);
+          allow read: if inOrg(orgId)
+            && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data);
         }
 
         // Time entries (BILL-01): drafts are written client-direct by their author (or anyone with
@@ -753,9 +758,11 @@ service cloud.firestore {
           allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsParty()) && matterWritable();
         }
         // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent,
-        // which recompute the matter's deadlines in the same transaction.
+        // which recompute the matter's deadlines in the same transaction. Readable like the matter's
+        // deadlines (CORE-10b).
         match /events/{eventId} {
-          allow read: if inOrg(orgId);
+          allow read: if inOrg(orgId)
+            && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data);
         }
         // Disbursements (BILL-04): unbilled ones are written client-direct by time.record roles on a
         // live matter they can see. disbursements-onWrite recomputes the GST and keeps the matter's
@@ -1028,12 +1035,18 @@ service cloud.firestore {
         && (resource.data.assigneeUid == uid()
           || resource.data.get('matterId', null) != null && canViewPrivileged(claimOrg()));
     }
+    // Deadlines across matters (CORE-10: the Deadlines screen, Today). A group query can't check
+    // each deadline's matter, so it reads the copy of the matter's flag each deadline carries
+    // (CORE-10b): roles without privileged.view must query `privileged == false`. This rule also
+    // matches single reads, where the path rule checks the matter itself.
     match /{path=**}/deadlines/{deadlineId} {
-      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg())
+        && visible(claimOrg(), resource.data);
     }
-    // Pending deadline changes across matters (CORE-10: "changes waiting on me").
+    // Pending deadline changes across matters (CORE-10: "changes waiting on me"), likewise.
     match /{path=**}/deadlineChanges/{changeId} {
-      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg())
+        && visible(claimOrg(), resource.data);
     }
     // Time entries across matters (BILL-01, as tasks in ADR-026): a group query can't check each
     // entry's matter, so my own entries, or everyone's with privileged.view.

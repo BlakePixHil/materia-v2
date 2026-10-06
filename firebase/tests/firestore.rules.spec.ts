@@ -729,7 +729,13 @@ describe('collection groups', () => {
 
   it('a member queries their org across matters', async () => {
     const firestore = db(env, 'paralegal');
-    await assertSucceeds(getDocs(query(collectionGroup(firestore, 'deadlines'), where('orgId', '==', ORG))));
+    // Without privileged.view, proving the deadlines aren't on privileged matters (CORE-10b).
+    await assertSucceeds(
+      getDocs(
+        query(collectionGroup(firestore, 'deadlines'), where('orgId', '==', ORG), where('privileged', '==', false)),
+      ),
+    );
+    await assertSucceeds(getDocs(query(collectionGroup(db(env, 'lawyer'), 'deadlines'), where('orgId', '==', ORG))));
   });
 
   // BILL-01: time entries through the group follow tasks (ADR-026).
@@ -2253,6 +2259,7 @@ describe('deadlines (CORE-10)', () => {
     status: 'upcoming',
     assigneeUid: uid,
     reminders: [{ offsetDays: 7 }],
+    privileged: false,
     createdAt: serverTimestamp(),
     createdBy: uid,
     updatedAt: serverTimestamp(),
@@ -2332,7 +2339,7 @@ describe('deadlines (CORE-10)', () => {
     await assertSucceeds(
       setDoc(
         doc(db(env, 'lawyer'), `${PRIVILEGED_MATTER}/deadlines/l`),
-        newDeadline(uidFor('lawyer'), 'matter-deadlines-privileged'),
+        newDeadline(uidFor('lawyer'), 'matter-deadlines-privileged', { privileged: true }),
       ),
     );
     await assertFails(
@@ -2341,6 +2348,33 @@ describe('deadlines (CORE-10)', () => {
         newDeadline(uidFor('lawyer'), 'matter-deadlines-deleted'),
       ),
     );
+  });
+
+  it('a manual deadline copies its matter’s privileged flag (CORE-10b)', async () => {
+    const lawyer = db(env, 'lawyer');
+    const uid = uidFor('lawyer');
+    const PRIVILEGED_ID = 'matter-deadlines-privileged';
+    await assertFails(
+      setDoc(doc(lawyer, `${PRIVILEGED_MATTER}/deadlines/copy-false`), newDeadline(uid, PRIVILEGED_ID)),
+    );
+    await assertSucceeds(
+      setDoc(
+        doc(lawyer, `${PRIVILEGED_MATTER}/deadlines/copy-true`),
+        newDeadline(uid, PRIVILEGED_ID, { privileged: true }),
+      ),
+    );
+    await assertFails(
+      setDoc(doc(lawyer, `${MATTER}/deadlines/copy-true`), newDeadline(uid, 'matter-1', { privileged: true })),
+    );
+    await assertFails(
+      setDoc(doc(lawyer, `${MATTER}/deadlines/copy-text`), newDeadline(uid, 'matter-1', { privileged: 'no' })),
+    );
+    const missing = newDeadline(uid) as Record<string, unknown>;
+    delete missing['privileged'];
+    await assertFails(setDoc(doc(lawyer, `${MATTER}/deadlines/copy-missing`), missing));
+    // Nor does an edit change it.
+    await seedManual();
+    await assertFails(updateDoc(doc(lawyer, MANUAL), stamped({ privileged: true }, uid)));
   });
 
   it('a manual deadline’s whitelisted fields are edited while upcoming, with valid values', async () => {
@@ -2410,6 +2444,7 @@ describe('deadlines (CORE-10)', () => {
         query(
           collectionGroup(paralegal, 'deadlineChanges'),
           where('orgId', '==', ORG),
+          where('privileged', '==', false),
           where('assigneeUid', '==', uidFor('lawyer')),
           where('status', '==', 'pending'),
         ),
@@ -2438,6 +2473,84 @@ describe('deadlines (CORE-10)', () => {
         query(group, where('orgId', '==', ORG), where('status', '==', 'upcoming'), where('pastOnCreation', '==', true)),
       ),
     );
+  });
+
+  // CORE-10b: privileged material is never shown to roles without privileged.view, and a
+  // collection-group query can't read each record's matter, so it reads the copy of the flag.
+  describe('a privileged matter’s deadlines, proposals and events (CORE-10b)', () => {
+    const RECORDS = [
+      ['deadlines', 'pd-1'],
+      ['deadlineChanges', 'pc-1'],
+      ['events', 'pe-1'],
+    ] as const;
+    const SEEDED = { deadlines: 'doc-1', deadlineChanges: 'change-1', events: 'doc-1' } as const;
+
+    beforeAll(async () => {
+      await seedAdmin(env, async (f) => {
+        for (const [collectionId, id] of RECORDS) {
+          await setDoc(doc(f, `${PRIVILEGED_MATTER}/${collectionId}/${id}`), {
+            ...seedData(specFor(collectionId)),
+            ...(collectionId === 'events' ? {} : { matterId: 'matter-deadlines-privileged' }),
+            privileged: true,
+          });
+        }
+      });
+    });
+
+    it.each(ROLES)('one, or the matter’s list, as %s follows privileged.view', async (role) => {
+      const firestore = db(env, role);
+      const expected = allows(role, 'privileged.view') ? assertSucceeds : assertFails;
+      for (const [collectionId, id] of RECORDS) {
+        await expected(getDoc(doc(firestore, `${PRIVILEGED_MATTER}/${collectionId}/${id}`)));
+        await expected(getDocs(collection(firestore, `${PRIVILEGED_MATTER}/${collectionId}`)));
+        // Another matter's are every member's, with no filter: the rule reads the matter.
+        await assertSucceeds(getDoc(doc(firestore, `${MATTER}/${collectionId}/${SEEDED[collectionId]}`)));
+        await assertSucceeds(getDocs(collection(firestore, `${MATTER}/${collectionId}`)));
+      }
+    });
+
+    it.each(ROLES)('across matters as %s, a query without privileged.view proves privileged == false', async (role) => {
+      const firestore = db(env, role);
+      const viewer = allows(role, 'privileged.view');
+      for (const collectionId of ['deadlines', 'deadlineChanges']) {
+        const group = collectionGroup(firestore, collectionId);
+        const everything = getDocs(query(group, where('orgId', '==', ORG)));
+        await (viewer ? assertSucceeds(everything) : assertFails(everything));
+        const privileged = getDocs(query(group, where('orgId', '==', ORG), where('privileged', '==', true)));
+        await (viewer ? assertSucceeds(privileged) : assertFails(privileged));
+        // A filter on another field doesn't get round it.
+        const byStatus = getDocs(query(group, where('orgId', '==', ORG), where('status', '==', 'upcoming')));
+        await (viewer ? assertSucceeds(byStatus) : assertFails(byStatus));
+        await assertSucceeds(getDocs(query(group, where('orgId', '==', ORG), where('privileged', '==', false))));
+      }
+      // Today's and the Deadlines screen's queries, as the repositories send them.
+      const deadlines = collectionGroup(firestore, 'deadlines');
+      const scoped = viewer ? [] : [where('privileged', '==', false)];
+      await assertSucceeds(
+        getDocs(
+          query(
+            deadlines,
+            where('orgId', '==', ORG),
+            ...scoped,
+            where('assigneeUid', '==', uidFor(role)),
+            where('status', '==', 'upcoming'),
+            orderBy('dueDate'),
+          ),
+        ),
+      );
+      await assertSucceeds(
+        getDocs(
+          query(
+            deadlines,
+            where('orgId', '==', ORG),
+            ...scoped,
+            where('escalatedTo', 'array-contains', uidFor(role)),
+            where('status', '==', 'upcoming'),
+            orderBy('dueDate'),
+          ),
+        ),
+      );
+    });
   });
 });
 

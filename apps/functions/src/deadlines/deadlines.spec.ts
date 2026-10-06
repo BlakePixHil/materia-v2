@@ -10,6 +10,7 @@ import { deleteEventDefinition, recomputeDefinition, upsertEventDefinition } fro
 import { flagMissedAllOrgs, flagMissedDeadlines } from './missed';
 import { onDeadlineWrite, onWriteDefinition, syncNextDeadline } from './on-write';
 import { overrideDefinition } from './override';
+import { privilegeChanged, syncMatterPrivilege } from './privilege';
 import { recomputeMatter } from './recompute';
 import { resolveChangeDefinition } from './resolve-change';
 import { engineEvents, matterFacts, templateRuleIds } from './shared';
@@ -17,7 +18,8 @@ import { proposeRulesetUpgradeDefinition } from './upgrade';
 import { runCallable, type CallableDefinition, type CallableDeps } from '../core/callable';
 import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
-import type { TriggerContext } from '../core/trigger';
+import type { TriggerChange, TriggerContext } from '../core/trigger';
+import { denormaliseDefinition } from '../matters/denormalise';
 import { memoryFirestore } from '../orgs/testing';
 import { FakeClock, fakePorts } from '../ports/fakes';
 
@@ -310,6 +312,75 @@ describe('deadlines-upsertEvent and recompute', () => {
     const result = await upsert(w, { kind: 'date_of_death', date: '2026-08-01' });
     expect(result.recompute.created).toEqual([]);
     expect(w.under(D)).toEqual([]);
+  });
+});
+
+describe('privileged copies (CORE-10b)', () => {
+  const COPIES = [D, `${MATTER}/deadlineChanges`, `${MATTER}/events`];
+  const flags = (w: World) => COPIES.map((path) => [...new Set(w.under(path).map((row) => row['privileged']))]);
+  /** A date of death, then a later edit of it: events, deadlines and a proposal. */
+  const history = async (w: World) => {
+    const first = await upsert(w, { kind: 'date_of_death', date: '2026-08-01' });
+    await upsert(w, { kind: 'date_of_death', date: '2026-07-01', eventId: first.eventId });
+    return first.eventId;
+  };
+
+  it('every event, deadline and proposal a recompute writes copies the matter’s flag', async () => {
+    const privileged = world({ matters: { m1: matterDoc({ privileged: true }) } });
+    await history(privileged);
+    expect(flags(privileged)).toEqual([[true], [true], [true]]);
+
+    const open = world();
+    const eventId = await history(open);
+    await open.call(deleteEventDefinition as never, { matterId: 'm1', eventId });
+    expect(flags(open)).toEqual([[false], [false], [false]]);
+  });
+
+  it('a flag that changes is copied to the records that differ, once', async () => {
+    const w = world();
+    await history(w);
+    const count = COPIES.reduce((sum, path) => sum + w.under(path).length, 0);
+    await w.db.doc(MATTER).update({ privileged: true });
+    expect(await syncMatterPrivilege(w.db as never, ORG, 'm1')).toBe(count);
+    expect(flags(w)).toEqual([[true], [true], [true]]);
+    expect(await syncMatterPrivilege(w.db as never, ORG, 'm1')).toBe(0);
+    // A destroyed matter's tombstone (CORE-19), or a missing matter, is left alone.
+    await w.db.doc(MATTER).update({ privileged: false, destroyedAt: new Date() });
+    expect(await syncMatterPrivilege(w.db as never, ORG, 'm1')).toBe(0);
+    expect(await syncMatterPrivilege(w.db as never, ORG, 'nope')).toBe(0);
+  });
+
+  it('matters-denormalise copies it when the matter’s flag changed, and only then', async () => {
+    const w = world();
+    await history(w);
+    const run = (before: Data | undefined, after: Data) =>
+      denormaliseDefinition.handler(
+        {
+          before: before ? { ref: { path: MATTER }, data: () => before } : undefined,
+          after: { ref: { path: MATTER }, data: () => after },
+        } as unknown as TriggerChange,
+        {
+          eventId: 'e1',
+          time: new Date('2026-10-05T01:00:00Z'),
+          params: { orgId: ORG, matterId: 'm1' },
+          log: w.log,
+          clock: w.clock,
+          db: w.db,
+          ports: w.ports,
+        } as unknown as TriggerContext,
+      );
+    const before = { ...(w.doc(MATTER) as Data) };
+    await w.db.doc(MATTER).update({ title: 'Estate of Fictional Person (renamed)' });
+    await run(before, w.doc(MATTER) as Data);
+    expect(flags(w)).toEqual([[false], [false], [false]]);
+    await w.db.doc(MATTER).update({ privileged: true });
+    await run(before, w.doc(MATTER) as Data);
+    expect(flags(w)).toEqual([[true], [true], [true]]);
+
+    expect(privilegeChanged({ privileged: false }, { privileged: true })).toBe(true);
+    expect(privilegeChanged({}, { privileged: false })).toBe(false);
+    expect(privilegeChanged(undefined, { privileged: true })).toBe(false);
+    expect(privilegeChanged({ privileged: true }, undefined)).toBe(false);
   });
 });
 
