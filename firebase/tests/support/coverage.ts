@@ -28,13 +28,36 @@ export interface RulesCoverage {
   missed: { line: number; text: string }[];
 }
 
+interface CoverageReport {
+  rules: { files: { content: string }[] };
+  report: CoverageNode[];
+}
+
+/**
+ * The emulator's report. Under CI load it now and then answers without one (an error body); a
+ * retry gets it, and a lasting failure says what came back rather than a TypeError.
+ */
+async function fetchCoverage(url: string, attempts = 3): Promise<CoverageReport> {
+  let last = '';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const response = await fetch(url);
+    const text = await response.text();
+    try {
+      const body = JSON.parse(text) as Partial<CoverageReport>;
+      if (body.rules?.files && Array.isArray(body.report)) return body as CoverageReport;
+    } catch {
+      // Not JSON: reported below.
+    }
+    last = `${response.status} ${text.slice(0, 300)}`;
+    await new Promise((resolve) => setTimeout(resolve, 2_000 * attempt));
+  }
+  throw new Error(`The emulator returned no rules coverage report: ${last}`);
+}
+
 export async function writeRulesCoverage(): Promise<RulesCoverage> {
   const host = process.env['FIRESTORE_EMULATOR_HOST'] ?? '127.0.0.1:8080';
   const base = `http://${host}/emulator/v1/projects/${PROJECT_ID}:ruleCoverage`;
-  const report = (await (await fetch(base)).json()) as {
-    rules: { files: { content: string }[] };
-    report: CoverageNode[];
-  };
+  const report = await fetchCoverage(base);
   const source = report.rules.files[0]?.content ?? '';
 
   // A child can start at its parent's offset, so branch values come from the top-level nodes only.
