@@ -9,6 +9,8 @@ import {
   MATTER_EVENTS_QUERY,
   matterDeadlineChangeRepository,
   matterDeadlineRepository,
+  matterDocumentRepository,
+  matterDocumentsQuery,
   matterEventRepository,
   PENDING_CHANGES_QUERY,
 } from '@materia/data-access/repository';
@@ -28,9 +30,10 @@ import { MatterScreen } from '../matter-detail/matter-screen';
 /**
  * A matter's Deadlines tab (CORE-10): proposed changes to decide, deadlines to review (already past
  * when computed), the open deadlines with their traces (a waiting one says why), the events they're
- * computed from (recorded, edited and deleted here) as a timeline, linked to their deadlines or drawn
- * to scale (the choice is remembered on this device), and the closed ones. Manual deadlines are added
- * here. Listens to the matter's deadlines, proposals and events only while the tab is shown.
+ * computed from (recorded, edited and deleted here, each with its time and source document) as a
+ * timeline, linked to their deadlines or drawn to scale (the choice is remembered on this device), and
+ * the closed ones. Manual deadlines are added here. Listens to the matter's deadlines, proposals and
+ * events only while the tab is shown (and its documents, for the events' sources).
  */
 @Component({
   selector: 'mt-matter-deadlines',
@@ -157,6 +160,8 @@ import { MatterScreen } from '../matter-detail/matter-screen';
           [view]="eventsView()"
           [canEdit]="canEditEvents()"
           [isBusy]="isBusy"
+          [matterId]="id() ?? ''"
+          [sources]="sourceNames()"
           (edit)="editEvent($event)"
           (remove)="deleteEvent($event)"
         />
@@ -247,7 +252,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
 export class MatterDeadlines {
   protected readonly screen = inject(MatterScreen);
   protected readonly actions = inject(DeadlineActions);
-  private readonly id = this.screen.id;
+  protected readonly id = this.screen.id;
 
   private readonly canTask = can('task.edit');
   private readonly canOverride = can('deadline.override');
@@ -294,6 +299,14 @@ export class MatterDeadlines {
       .map((change) => ({ key: `${matterId}/${change.id}`, matterId, change, matter }));
   });
   protected readonly eventRows = computed(() => this.events.value());
+  /** The names of the events' source documents, read only once an event has one (CORE-10). */
+  private readonly hasSources = computed(() => this.eventRows().some((event) => !!event.sourceDocumentId));
+  private readonly sourceDocuments = matterDocumentRepository(this.id).watchQuery(() =>
+    this.id() && this.hasSources() ? matterDocumentsQuery({ privilegedVisible: this.screen.canPrivileged() }) : null,
+  );
+  protected readonly sourceNames = computed(
+    () => new Map(this.sourceDocuments.value().map((doc) => [doc.id, doc.name] as const)),
+  );
   protected readonly eventBusy = computed(() => this.actions.isBusy(`event:${this.id() ?? ''}`));
 
   protected readonly eventsViewOptions: MtOption<EventsView>[] = [
