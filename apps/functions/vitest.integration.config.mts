@@ -6,7 +6,8 @@ import { defineConfig } from 'vitest/config';
 // The target runs the files in four shards, each against fresh emulators: the Functions emulator
 // keeps a worker process for every function it has run (about 90 by the end of one run, ~150 MB
 // each), and on a CI runner a new worker then failed to start and its request hung. Each shard is
-// wrapped in `timeout`, so a hang fails the job with its log instead of reaching the job's limit.
+// wrapped in `timeout` (6 minutes; the slowest shard takes about 4 on a runner), so a hang fails the
+// job with its log instead of reaching the job's limit.
 export default defineConfig({
   root: import.meta.dirname,
   resolve: { tsconfigPaths: true },
