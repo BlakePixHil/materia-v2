@@ -18,7 +18,9 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
  * invoice 16 days overdue; a lawyer records a part payment (the real `billing-recordPayment` makes
  * it part paid), the matter header shows what's still outstanding (`billing-outstandingOnInvoice`),
  * and the aged-debtors report (worked out by `billing-refreshDebtors`) lists the client in the
- * 1–30 days bucket with a 7-day reminder waiting for review, unsent. Fictional data only.
+ * 1–30 days bucket with a 7-day reminder waiting for review, unsent. BILL-12: the invoice is marked
+ * to be paid from trust, the payment from trust is recorded with its trust records reference, and
+ * Materia asks to update the matter's trust balance, changing nothing itself. Fictional data only.
  */
 
 const MATTER = 'm-quill';
@@ -96,6 +98,41 @@ async function setUp(request: APIRequestContext, orgId: string, uid: string): Pr
   ]);
 }
 
+/** BILL-12: trust balances on, and the matter's balance copied from the firm's trust records. */
+async function setUpTrust(request: APIRequestContext, orgId: string, uid: string): Promise<void> {
+  await setUp(request, orgId, uid);
+  const now = new Date();
+  await setEmulatorDocuments(request, [
+    {
+      path: `orgs/${orgId}`,
+      data: {
+        name: 'Fictional Payments Practice',
+        timezone: 'Australia/Melbourne',
+        billing: { unitMinutes: 6, gstRegistered: true, invoicePrefix: 'INV-', paymentTermsDays: 14 },
+        flags: { 'billing.invoicing': true, 'billing.trustDisplay': true },
+        trust: { showOnMatters: true, system: 'leap', staleAfterDays: 30 },
+      },
+    },
+    {
+      path: `orgs/${orgId}/trustSnapshots/${MATTER}`,
+      data: {
+        matterId: MATTER,
+        amountCents: 500_000,
+        asAt: today('Australia/Melbourne'),
+        source: 'manual',
+        sourceSystemName: 'LEAP',
+        recordedBy: uid,
+        recordedAt: now,
+        createdAt: now,
+        createdBy: uid,
+        updatedAt: now,
+        updatedBy: uid,
+        schemaVersion: 1,
+      },
+    },
+  ]);
+}
+
 async function get(request: APIRequestContext, docPath: string): Promise<Fields> {
   const response = await request.get(`${DOCS}/${docPath}`, { headers: ADMIN });
   return ((await response.json()) as { fields?: Fields }).fields ?? {};
@@ -144,5 +181,49 @@ test.describe('payments and aged debtors', () => {
     await expectNoA11yViolations(page);
     await page.emulateMedia({ colorScheme: 'dark' });
     await expectNoA11yViolations(page);
+  });
+
+  test('mark an invoice to be paid from trust, record the payment, see the prompt', async ({ page, request }) => {
+    test.setTimeout(120_000);
+    const orgId = uniqueOrg();
+    const account = await signInAsTestUser(page, request, {
+      claims: { orgId, role: 'lawyer', orgName: 'Fictional Payments Practice' },
+      displayName: 'Jordan Fictional',
+    });
+    await setUpTrust(request, orgId, account.uid);
+
+    // 1. Mark it to be paid from trust: only the intention is recorded.
+    await page.goto(`/billing/invoices/${INVOICE}`);
+    await expect(page.getByTestId('invoice-owing')).toHaveText('$1,100.00', FIRST_LOAD);
+    const option = page.getByRole('checkbox', { name: 'To be paid from trust' });
+    await option.focus();
+    await page.keyboard.press('Space');
+    await expect
+      .poll(async () => (await get(request, `orgs/${orgId}/invoices/${INVOICE}`))['paidFromTrust'], FIRST_CALL)
+      .toEqual({ booleanValue: true });
+    await expect(option).toBeChecked();
+
+    // 2. Record the payment from trust, after the withdrawal, with its reference.
+    await page.getByRole('button', { name: 'Record payment' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('textbox', { name: 'Amount (AUD)' }).fill('400');
+    await dialog.getByRole('combobox', { name: 'Method' }).selectOption({ label: 'From trust' });
+    await expect(dialog.getByTestId('payment-trust')).toHaveText(
+      'Record this after the withdrawal is made in your trust records.',
+    );
+    await dialog.getByRole('textbox', { name: 'Trust records reference' }).fill('TR-0042');
+    await expectNoA11yViolations(page);
+    await dialog.getByRole('button', { name: 'Record payment' }).click();
+
+    // 3. The prompt to copy the new balance; nothing changes it by itself.
+    const prompt = page.getByRole('dialog', { name: 'Update the trust balance?' });
+    await expect(prompt).toContainText('$5,000.00', FIRST_CALL);
+    await expect(prompt).toContainText('from LEAP');
+    await expectNoA11yViolations(page);
+    await prompt.getByRole('button', { name: 'Not now' }).click();
+    await expect(page.getByTestId('payments')).toContainText('Ref TR-0042');
+    const snapshot = await get(request, `orgs/${orgId}/trustSnapshots/${MATTER}`);
+    expect(snapshot['amountCents']).toEqual({ integerValue: '500000' });
+    await expect(page.getByText(/available in trust/i)).toHaveCount(0);
   });
 });

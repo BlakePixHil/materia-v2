@@ -1,6 +1,12 @@
 import { join } from 'node:path';
 
-import { ESTATE_INVENTORY_FOOTER, inventorySchedule, invoicePdfData, type InventoryInput } from '@materia/domain';
+import {
+  ESTATE_INVENTORY_FOOTER,
+  inventorySchedule,
+  invoicePdfData,
+  trustNoticeFor,
+  type InventoryInput,
+} from '@materia/domain';
 
 // The renderer reads its template folder when loaded: point it at apps/jobs/templates first.
 process.env['TEMPLATE_DIR'] = join(import.meta.dirname, '../../templates');
@@ -235,5 +241,26 @@ describe('invoice template', () => {
     expect(credit).toContain('Credits invoice');
     expect(credit).toContain('Total credited');
     expect(credit).not.toContain('Payment is due');
+  });
+
+  it('prints the r 42(3) notice only on an invoice that carries one (BILL-12)', async () => {
+    const notice = trustNoticeFor({
+      firm: 'Harbour & Vine Legal',
+      amount: '$1,936.00',
+      matter: 'M-2026-0142 (Estate of Margaret Whitfield)',
+      number: 'INV-000042',
+    });
+    const withNotice = await renderTemplate('invoice', invoicePdfData({ ...invoice, trustNotice: notice }));
+    expect(withNotice).toContain('data-notice="trust"');
+    expect(withNotice).toContain(
+      'Harbour &amp; Vine Legal intends to withdraw $1,936.00 from money held in trust for you on M-2026-0142',
+    );
+    const without = await renderTemplate('invoice', invoicePdfData(invoice));
+    expect(without).not.toContain('data-notice="trust"');
+    const credit = await renderTemplate(
+      'invoice',
+      invoicePdfData({ ...invoice, trustNotice: notice }, { invoiceNumber: 'INV-000042', reason: 'Fee reduced' }),
+    );
+    expect(credit).not.toContain('data-notice="trust"');
   });
 });

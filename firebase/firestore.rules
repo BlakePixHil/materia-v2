@@ -210,7 +210,7 @@ service cloud.firestore {
         && (!('assetId' in data) || data.assetId is string && data.assetId.size() > 0)
         && optionalText(data, 'share', 300) && optionalText(data, 'notes', 2000)
         && data.status in ['planned', 'approved', 'paid', 'cancelled']
-        && optionalDate(data, 'paidOn')
+        && optionalDate(data, 'paidOn') && optionalText(data, 'paymentReference', 300)
         && (!('needsValueReview' in data) || data.needsValueReview is bool);
     }
 
@@ -1161,7 +1161,7 @@ service cloud.firestore {
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
-    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'notes', 'needsValueReview']; }
+    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'paymentReference', 'notes', 'needsValueReview']; }
     function fieldsDocTemplate() { return []; }
     function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }

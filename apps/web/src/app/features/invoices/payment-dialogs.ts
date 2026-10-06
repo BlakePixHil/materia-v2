@@ -6,6 +6,7 @@ import {
   owingCents,
   PAYMENT_METHOD_LABELS,
   PAYMENT_WARNING_COPY,
+  TRUST_PAYMENT_COPY,
   type InvoiceMoneyLike,
   type PaymentMethod,
 } from '@materia/domain';
@@ -63,7 +64,7 @@ const METHOD_OPTIONS: MtOption<PaymentMethod>[] = (
           <mt-text-field
             class="mt-grow"
             name="date"
-            [label]="refund ? 'Date refunded' : 'Date received'"
+            [label]="refund ? 'Date refunded' : fromTrust() ? 'Date withdrawn' : 'Date received'"
             placeholder="DD/MM/YYYY"
             [error]="dateError() ?? undefined"
             [ngModel]="dateText()"
@@ -88,13 +89,19 @@ const METHOD_OPTIONS: MtOption<PaymentMethod>[] = (
           [ngModel]="method()"
           (ngModelChange)="method.set($event ?? 'eft')"
         />
+        @if (fromTrust()) {
+          <mt-note tone="info" data-testid="payment-trust">{{ trustCopy }}</mt-note>
+        }
         <mt-text-field
           name="reference"
-          label="Reference"
-          description="A receipt, cheque or bank reference."
-          [optional]="true"
+          [label]="fromTrust() ? 'Trust records reference' : 'Reference'"
+          [description]="
+            fromTrust() ? 'The withdrawal’s reference in your trust records.' : 'A receipt, cheque or bank reference.'
+          "
+          [optional]="!fromTrust()"
+          [required]="fromTrust()"
           [ngModel]="reference()"
-          (ngModelChange)="reference.set($event ?? '')"
+          (ngModelChange)="reference.set($event ?? ''); touched.set(false)"
         />
         @if (!refund) {
           <mt-text-field
@@ -161,6 +168,9 @@ export class PaymentDialog {
   protected readonly payer = signal('');
   protected readonly credit = signal(false);
   protected readonly touched = signal(false);
+  /** BILL-12: a payment from trust is recorded after the withdrawal, with its reference. */
+  protected readonly fromTrust = computed(() => this.method() === 'trust_transfer');
+  protected readonly trustCopy = TRUST_PAYMENT_COPY;
 
   private readonly date = computed(() => parseEntryDate(this.dateText(), this.today()));
   private readonly amount = computed(() => parseDollars(this.amountText()));
@@ -181,7 +191,14 @@ export class PaymentDialog {
     if (!date || !amount) return null;
     return checkPayment(
       this.data.invoice,
-      { kind: this.data.kind, date, amountCents: amount, credit: this.credit() },
+      {
+        kind: this.data.kind,
+        date,
+        amountCents: amount,
+        credit: this.credit(),
+        method: this.method(),
+        reference: this.reference(),
+      },
       this.today(),
     );
   });
@@ -211,16 +228,26 @@ export class PaymentDialog {
 export interface ReversePaymentDialogData {
   number: string;
   what: string;
+  /** BILL-12: reversing a payment from trust: the trust records need their own correction. */
+  trustWarning?: string | undefined;
 }
 
 /** Reverses a payment or refund (BILL-08): a bounced cheque, or one recorded in error. Closes with the reason. */
 @Component({
   selector: 'mt-reverse-payment-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtDialog, MtTextarea],
+  imports: [FormsModule, MtButton, MtDialog, MtNote, MtTextarea],
   template: `
     <mt-dialog size="sm" role="alertdialog" [title]="'Reverse ' + data.what + '?'" [description]="description">
-      <form id="mt-reverse-payment-form" (submit)="$event.preventDefault(); save()">
+      <form
+        id="mt-reverse-payment-form"
+        class="mt-col"
+        style="gap: var(--space-12)"
+        (submit)="$event.preventDefault(); save()"
+      >
+        @if (data.trustWarning; as warning) {
+          <mt-note tone="warning" data-testid="reverse-trust-warning">{{ warning }}</mt-note>
+        }
         <mt-textarea
           name="reason"
           label="Reason"
