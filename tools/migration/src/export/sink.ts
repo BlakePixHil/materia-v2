@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, normalize, resolve } from 'node:path';
 
 import type { RestDeps } from '../legacy/rest.ts';
 
@@ -251,6 +253,50 @@ export function memorySink(runId: string, files = new Map<string, string>()): Ru
     },
     async read(name) {
       return files.get(name) ?? null;
+    },
+  };
+}
+
+/**
+ * A run in a local directory (`<dir>/raw/…`, `<dir>/transformed/…`), for made-up data: the
+ * fixtures and emulator rehearsals. Real runs stay in the migration bucket (D-17).
+ */
+export function dirSink(dir: string): RunSink {
+  const pathOf = (name: string) => {
+    const relative = normalize(name);
+    if (isAbsolute(relative) || relative.startsWith('..')) throw new Error(`${name} is outside the run.`);
+    return join(dir, relative);
+  };
+  return {
+    location: `${resolve(dir)}/`,
+    async create(name, _contentType, { once = false } = {}) {
+      const path = pathOf(name);
+      if (
+        once &&
+        (await access(path).then(
+          () => true,
+          () => false,
+        ))
+      )
+        throw new Error(`${name} already exists.`);
+      let text = '';
+      return {
+        async write(chunk) {
+          text += chunk;
+        },
+        async close() {
+          await mkdir(dirname(path), { recursive: true });
+          await writeFile(path, text);
+        },
+      };
+    },
+    async read(name) {
+      try {
+        return await readFile(pathOf(name), 'utf8');
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        throw err;
+      }
     },
   };
 }

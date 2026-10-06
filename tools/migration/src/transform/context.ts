@@ -203,11 +203,15 @@ export interface TransformedRecord {
   copy?: CopyPlan;
 }
 
-/** A Storage object MIG-05 copies: the legacy object by name, or bytes the transform extracted. */
+/**
+ * A file MIG-05 copies into v2 Storage (its contract: `tools/migration/src/files/contract.ts`): the
+ * legacy object by name, or bytes the transform extracted. The version it becomes takes its upload
+ * time and uploader from the document's `createdAt` and `createdBy`.
+ */
 export interface CopyPlan {
   /** The legacy object name; absent when the object is missing (or for extracted bytes). */
   source?: string;
-  /** Bytes the transform extracted (an inline image in a description), base64. */
+  /** Bytes the transform extracted (an image embedded in a description), base64. */
   content?: { encoding: 'base64'; data: string; sha256: string };
   target: string;
   fileName: string;
@@ -218,9 +222,6 @@ export interface CopyPlan {
   generation?: string;
   /** Served as a download only, never inline (svg, gif and bmp, D-13). */
   downloadOnly?: boolean;
-  /** Who uploaded it: the user, or `migration` for someone else. */
-  uploadedBy: string;
-  uploadedAt: Date;
 }
 
 /** The transformed files, `transformed/{entity}.jsonl`, in the order a load writes them. */

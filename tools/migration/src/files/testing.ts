@@ -59,6 +59,10 @@ export function memoryStore() {
       if (object.data.length > maxBytes) throw new Error('too big');
       return object.data;
     },
+    async upload(bucket, name, bytes, resource) {
+      calls.push({ op: 'upload', bucket, name });
+      return put(bucket, name, bytes, resource);
+    },
     async patchMetadata(bucket, name, metadata) {
       calls.push({ op: 'patch', bucket, name });
       const object = objects.get(key(bucket, name));

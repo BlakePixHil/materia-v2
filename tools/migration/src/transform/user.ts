@@ -1,6 +1,6 @@
 import { domain } from '../domain.ts';
 import { migratedMeta, type ReviewCode, type TransformContext, type TransformedRecord } from './context.ts';
-import { fyStartYear, readInstant } from './dates.ts';
+import { fyStartYear } from './dates.ts';
 import { centsOf, cleanText } from './values.ts';
 import type { ExportRecord } from '../export/jsonl.ts';
 import type { StorageObject } from '../legacy/snapshot.ts';
@@ -160,8 +160,6 @@ export function mapProfile(ctx: TransformContext, input: ProfileInput): ProfileR
         ...(input.photo.md5Hash ? { md5Hash: input.photo.md5Hash } : {}),
         ...(input.photo.crc32c ? { crc32c: input.photo.crc32c } : {}),
         ...(input.photo.generation ? { generation: input.photo.generation } : {}),
-        uploadedBy: ctx.uid,
-        uploadedAt: readInstant(input.photo.updated) ?? ctx.asOf,
       },
     });
   }

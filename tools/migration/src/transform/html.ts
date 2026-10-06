@@ -89,6 +89,8 @@ export interface InlineImage {
   base64: string;
   sizeBytes: number;
   sha256: string;
+  /** Base64 MD5, as Storage reports it, so the copy (MIG-05) can check what it stored. */
+  md5Hash: string;
 }
 
 export interface HtmlOptions {
@@ -220,16 +222,18 @@ function image(walk: Walk, node: HtmlNode): string {
     const mime = (data[1] ?? '').toLowerCase().replace('image/jpg', 'image/jpeg');
     const found: InlineImage = {
       mime,
-      extension: mime === 'image/jpeg' ? 'jpg' : mime.slice('image/'.length),
+      extension: mime === 'image/jpeg' ? 'jpg' : mime === 'image/svg+xml' ? 'svg' : mime.slice('image/'.length),
       base64: bytes.toString('base64'),
       sizeBytes: bytes.length,
       sha256: createHash('sha256').update(bytes).digest('hex'),
+      md5Hash: createHash('md5').update(bytes).digest('base64'),
     };
     walk.images.push(found);
     return walk.options.imageText(walk.images.length - 1, found);
   }
   if (/^https?:/i.test(src) || src.startsWith('//')) walk.remoteImages++;
-  else if (/^\s*javascript:/i.test(src)) walk.unsafeRemoved++;
+  // `javascript:`, and data images that aren't plain bitmaps (an SVG can carry script).
+  else if (/^\s*(javascript|data):/i.test(src)) walk.unsafeRemoved++;
   return alt ? escapeText(alt) : '';
 }
 

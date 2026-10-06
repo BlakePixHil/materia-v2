@@ -2,6 +2,7 @@ import { auditCommand, checkProfileCommand } from './audit.ts';
 import { authImportCommand } from './auth-import.ts';
 import { copyFilesCommand } from './copy-files.ts';
 import { exportCommand } from './export.ts';
+import { transformCommand } from './transform.ts';
 
 /**
  * `materia-migrate <step>`: the legacy materia to v2 migration CLI (Legacy migration plan).
@@ -26,6 +27,7 @@ const COMMANDS: Partial<Record<Step, (argv: string[]) => Promise<number>>> = {
   audit: (argv) => auditCommand(argv),
   'check-profile': (argv) => checkProfileCommand(argv),
   export: (argv) => exportCommand(argv),
+  transform: (argv) => transformCommand(argv),
   'auth-import': (argv) => authImportCommand(argv),
   'copy-files': (argv) => copyFilesCommand(argv),
 };

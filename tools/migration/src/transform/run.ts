@@ -97,10 +97,11 @@ export interface TransformReport {
     copyBytes: number;
     /** Documents whose legacy object is missing (nothing to copy). */
     missingObjects: number;
-    /** Objects under a card's attachments with no attachment document. */
-    orphans: string[];
-    /** Board-level files (`workflows/{wf}/attachments/`), not migrated (D-13). */
-    boardLevel: string[];
+    /**
+     * Legacy objects no document names, for a decision (D-13, D-18): files under a card with no
+     * attachment document, and board-level files (`workflows/{wf}/attachments/`). Names and sizes.
+     */
+    orphans: { name: string; size: number }[];
   };
   integrations: { provider: string; type: string; connected: boolean }[];
   workspaces: { prime: number; nonPrime: string[] };
@@ -125,7 +126,10 @@ export class TransformRefusedError extends Error {
   }
 }
 
+/** Where the outputs go in the run, beside the export's `raw/` and `manifest.json`. */
 export const OUTPUT_DIR = 'transformed';
+export const REPORT_FILE = 'report.json';
+export const IDMAP_FILE = 'idmap.jsonl';
 
 /** The schema each output entity must pass. */
 const SCHEMAS: Record<Exclude<EntityName, 'avatars'>, z.ZodType> = {
@@ -164,8 +168,6 @@ export const CopyPlanSchema = z
     crc32c: z.string().min(1).optional(),
     generation: z.string().min(1).optional(),
     downloadOnly: z.literal(true).optional(),
-    uploadedBy: z.string().min(1),
-    uploadedAt: z.date(),
   })
   .strict()
   .refine((copy) => !(copy.source && copy.content), { message: 'A copy has a source or content, not both' });
@@ -331,12 +333,13 @@ export function runTransform(raw: RawRun, args: TransformArgs): TransformOutput 
     const key = cardKeyOf(attachment.path);
     if (key) used.add(`${cardPathOf(key)}/attachments/${docId(attachment.path)}`);
   }
-  const orphans: string[] = [];
-  const boardLevel: string[] = [];
-  for (const name of objects.keys()) {
-    const attachment = /^(workflows\/[^/]+\/cards\/[^/]+\/attachments\/[^/.]+)/.exec(name);
-    if (attachment && !used.has(attachment[1] as string)) orphans.push(name);
-    else if (/^workflows\/[^/]+\/attachments\//.test(name)) boardLevel.push(name);
+  const orphans: { name: string; size: number }[] = [];
+  for (const object of objects.values()) {
+    const attachment = /^(workflows\/[^/]+\/cards\/[^/]+\/attachments\/[^/.]+)/.exec(object.name);
+    const unnamed = attachment
+      ? !used.has(attachment[1] as string)
+      : /^workflows\/[^/]+\/attachments\//.test(object.name);
+    if (unnamed) orphans.push({ name: object.name, size: object.size });
   }
 
   const { kept, rejects } = validate(records);
@@ -368,15 +371,14 @@ export function runTransform(raw: RawRun, args: TransformArgs): TransformOutput 
       copyBytes: copies.reduce((sum, r) => sum + (r.copy?.sizeBytes ?? 0), 0),
       missingObjects: kept.filter((r) => r.entity === 'documents' && r.copy && !r.copy.source && !r.copy.content)
         .length,
-      orphans: orphans.sort(byCodeUnit),
-      boardLevel: boardLevel.sort(byCodeUnit),
+      orphans: orphans.sort((a, b) => byCodeUnit(a.name, b.name)),
     },
     integrations: integrations.sort((a, b) => byCodeUnit(`${a.type}/${a.provider}`, `${b.type}/${b.provider}`)),
     workspaces: { prime: workspaces.prime, nonPrime: workspaces.nonPrime.sort(byCodeUnit) },
     notifications: manifest.counts.notifications ?? null,
     files: output.summary,
   };
-  output.files.set(`${OUTPUT_DIR}/report.json`, reportJson(report));
+  output.files.set(REPORT_FILE, reportJson(report));
   return { files: output.files, report, rejected: rejects.length > 0 };
 }
 
@@ -497,6 +499,6 @@ function writeOutput(records: readonly TransformedRecord[]) {
   const idmap = records
     .map((r) => ({ legacyPath: r.legacyPath, v2Path: r.path }))
     .sort((a, b) => byCodeUnit(a.legacyPath, b.legacyPath) || byCodeUnit(a.v2Path, b.v2Path));
-  put(`${OUTPUT_DIR}/idmap.jsonl`, idmap.map(idmapLine));
+  put(IDMAP_FILE, idmap.map(idmapLine));
   return { files, summary };
 }

@@ -64,7 +64,7 @@ function extensionOf(name: string): string {
 function documentRecord(
   ctx: TransformContext,
   matter: MatterRef,
-  input: { legacyPath: string; name: string; createdAt: Date; updatedAt: Date; copy: CopyPlan },
+  input: { legacyPath: string; name: string; createdAt: Date; updatedAt: Date; by: string; copy: CopyPlan },
 ): TransformedRecord {
   const id = migId(input.legacyPath);
   return {
@@ -91,7 +91,8 @@ function documentRecord(
         legacyPath: input.legacyPath,
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,
-        by: ctx.uid,
+        // MIG-05 makes these the version's upload time and uploader.
+        by: input.by,
       }),
     },
     copy: input.copy,
@@ -139,14 +140,16 @@ export function mapAttachment(
   const downloadOnly = DOWNLOAD_ONLY.has(extension) || /^image\/(svg\+xml|gif|bmp)$/i.test(mime);
   if (downloadOnly) ctx.warnings.add('MIG_W_ATTACHMENT_DOWNLOAD_ONLY', path);
 
-  const { createdAt, updatedAt } = createdAndUpdated(ctx, data, path);
-  const uploader = str(data['uploadedBy']);
+  const dates = createdAndUpdated(ctx, data, path);
+  const createdAt = readInstant(data['uploadedAt']) ?? dates.createdAt;
   const id = migId(path);
   return documentRecord(ctx, matter, {
     legacyPath: path,
     name: fileName,
     createdAt,
-    updatedAt,
+    updatedAt: dates.updatedAt > createdAt ? dates.updatedAt : createdAt,
+    // Someone else's upload is the migration's: they aren't a member.
+    by: str(data['uploadedBy']) === ctx.uid ? ctx.uid : MIGRATION_ACTOR,
     copy: {
       ...(object ? { source: object.name } : {}),
       target: documentTarget(matter, id),
@@ -157,8 +160,6 @@ export function mapAttachment(
       ...(object?.crc32c ? { crc32c: object.crc32c } : {}),
       ...(object?.generation ? { generation: object.generation } : {}),
       ...(downloadOnly ? { downloadOnly: true } : {}),
-      uploadedBy: uploader === ctx.uid ? ctx.uid : MIGRATION_ACTOR,
-      uploadedAt: readInstant(data['uploadedAt']) ?? createdAt,
     },
   });
 }
@@ -178,15 +179,15 @@ export function inlineImageDocument(
     name: fileName,
     createdAt: matter.createdAt,
     updatedAt: matter.updatedAt,
+    by: ctx.uid,
     copy: {
       content: { encoding: 'base64', data: image.base64, sha256: image.sha256 },
       target: documentTarget(matter, migId(legacyPath)),
       fileName,
       mime: image.mime,
       sizeBytes: image.sizeBytes,
+      md5Hash: image.md5Hash,
       ...(DOWNLOAD_ONLY.has(image.extension) ? { downloadOnly: true } : {}),
-      uploadedBy: ctx.uid,
-      uploadedAt: matter.createdAt,
     },
   });
 }
