@@ -3,7 +3,7 @@
 # a day old even when nothing is merged. (freshclam also runs inside the container while it is up.)
 # Prod: add a `production` job here once prod is live (MVP: prod waits for launch).
 # Every dev deploy rebuilds the scanner too, so to save Actions minutes the refresh is skipped when
-# dev was deployed in the last 24 hours. It runs after CI's morning run (about 06:30 Melbourne).
+# dev was deployed in the last 24 hours. It runs after CI's morning run (06:31 Melbourne).
 name: scanner-signatures
 
 on:
