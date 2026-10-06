@@ -14,7 +14,7 @@ const CITATIONS: CitationVm[] = [
   { n: 1, documentId: 'd-will', label: 'Will · cl. 6', page: 3, quote: 'I leave nothing to my son.' },
   { n: 2, documentId: 'd-act', label: 'Succession Act s 57', kind: 'law' },
   { n: 3, documentId: 'd-super', label: 'Super statement', page: 2, state: 'restricted', quote: 'secret' },
-  { n: 4, documentId: 'd-note', label: 'File note 14 Aug', state: 'removed' },
+  { n: 4, documentId: 'd-note', label: 'File note 14 Aug', state: 'removed', quote: 'Thomas asked for a copy.' },
 ];
 
 const ANSWER = [
@@ -57,7 +57,30 @@ describe('MtClerkMessage', () => {
     const sources = screen.getByRole('group', { name: 'Sources' });
     expect(within(sources).getAllByRole('button')).toHaveLength(4);
     await userEvent.click(screen.getByRole('button', { name: 'Source 1: Will · cl. 6 p 3' }));
-    expect(open).toHaveBeenCalledWith({ documentId: 'd-will', page: 3, quote: 'I leave nothing to my son.' });
+    expect(open).toHaveBeenCalledWith({ documentId: 'd-will', n: 1, page: 3, quote: 'I leave nothing to my son.' });
+  });
+
+  it('drops unverified citations and marks a claim left with none as unverified (AI-05)', async () => {
+    const citations: CitationVm[] = [
+      { n: 1, documentId: 'd-will', label: 'Will', page: 1, quote: 'I appoint my daughter.', verified: false },
+      { n: 2, documentId: 'd-will', label: 'Will', page: 2, quote: 'the residue of my estate' },
+      { n: 3, documentId: 'd-note', label: 'File note', quote: 'Invented words.', verified: false },
+    ];
+    const { container } = await render(MtClerkMessage, {
+      inputs: { content: 'Avery is the executor.[1] The residue is split.[1, 2] Thomas objected.[3]', citations },
+    });
+    const sups = [...container.querySelectorAll('sup')];
+    expect(sups.map((sup) => sup.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Sources 2']);
+    const unverified = container.querySelectorAll('.mt-msg-unverified');
+    expect(unverified).toHaveLength(2);
+    expect(unverified[0]).toHaveTextContent('unverified');
+    expect(unverified[0]).toHaveAttribute('title', 'Clerk’s source for this couldn’t be found in the document');
+    const sources = screen.getByRole('group', { name: 'Sources' });
+    expect(
+      within(sources)
+        .getAllByRole('button')
+        .map((b) => b.getAttribute('aria-label')),
+    ).toEqual(['Source 2: Will p 2']);
   });
 
   it('streams with a caret, hiding unfinished markers and unused citations', async () => {
@@ -137,8 +160,13 @@ describe('MtCitation', () => {
     expect(restricted).toHaveAttribute('aria-disabled', 'true');
     expect(restricted).not.toHaveTextContent('Super statement');
     await userEvent.click(restricted);
-    await userEvent.click(screen.getByRole('button', { name: 'Source 4: File note 14 Aug (removed document)' }));
+    // A removed document still shows the quote it was cited for.
+    const removed = screen.getByRole('button', { name: 'Source 4: Removed document: “Thomas asked for a copy.”' });
+    expect(removed).toHaveTextContent('Removed document: “Thomas asked for a copy.”');
+    await userEvent.click(removed);
     expect(open).not.toHaveBeenCalled();
+    removed.focus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Thomas asked for a copy.');
     expect(screen.getByRole('button', { name: 'Source: Email · K. Ho' })).toBeInTheDocument();
   });
 });

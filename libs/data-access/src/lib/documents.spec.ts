@@ -206,6 +206,7 @@ describe('documentCallables', () => {
     await api.saveAttachment({ matterId: 'm-1', docId: 'd-3', attachmentIndex: 0 });
     await api.startZip({ matterId: 'm-1', docIds: ['d-1', 'd-2'] });
     await api.exportUrl('job-1');
+    await api.citationText({ matterId: 'm-1', docId: 'd-1', version: 2, pages: [3] });
     expect(calls.map((c) => c.name)).toEqual([
       DOCUMENT_CALLABLES.getDownloadUrl,
       DOCUMENT_CALLABLES.restoreVersion,
@@ -214,9 +215,11 @@ describe('documentCallables', () => {
       DOCUMENT_CALLABLES.saveAttachment,
       DOCUMENT_CALLABLES.startZip,
       GET_EXPORT_URL_CALLABLE,
+      DOCUMENT_CALLABLES.citationText,
     ]);
     expect(calls[0]?.data).not.toHaveProperty('requestId');
     for (const call of calls.slice(1, 6)) expect(call.data['requestId']).toBe('00000000-0000-4000-8000-000000000001');
     expect(calls[6]?.data).toEqual({ jobId: 'job-1' });
+    expect(calls[7]?.data).not.toHaveProperty('requestId');
   });
 });
