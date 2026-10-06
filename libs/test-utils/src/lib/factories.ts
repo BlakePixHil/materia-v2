@@ -759,6 +759,37 @@ export const makeIntegration = (o: Partial<D.Integration> = {}) =>
     o,
   );
 
+export const makeIntegrationStatus = (o: Partial<D.IntegrationStatus> = {}) =>
+  build(
+    D.IntegrationStatus,
+    {
+      provider: 'microsoft',
+      level: 'user',
+      uid: TEST_UID,
+      status: 'connected',
+      scopes: ['Calendars.ReadWrite'],
+      account: { email: 'connected@example.test' },
+      connectedAt: new Date('2026-10-06T00:00:00Z'),
+      connectedBy: TEST_UID,
+    },
+    o,
+  );
+
+export const makeIntegrationState = (o: Partial<D.IntegrationState> = {}) =>
+  build(
+    D.IntegrationState,
+    {
+      provider: 'microsoft',
+      level: 'user',
+      uid: TEST_UID,
+      codeVerifier: 'v'.repeat(43),
+      redirectUri: 'https://materia-v2-dev.web.app/integrations/callback/microsoft',
+      returnTo: '/settings',
+      expireAt: new Date('2026-10-06T00:10:00Z'),
+    },
+    o,
+  );
+
 export const makeTrustSnapshot = (o: Partial<D.TrustSnapshot> = {}) =>
   build(
     D.TrustSnapshot,
@@ -1001,6 +1032,8 @@ export const ENTITY_FACTORIES = {
   AuditEntry: [D.AuditEntry, makeAuditEntry],
   Notification: [D.Notification, makeNotification],
   Integration: [D.Integration, makeIntegration],
+  IntegrationStatus: [D.IntegrationStatus, makeIntegrationStatus],
+  IntegrationState: [D.IntegrationState, makeIntegrationState],
   SafeCustody: [D.SafeCustody, makeSafeCustody],
   TrustSnapshot: [D.TrustSnapshot, makeTrustSnapshot],
   MigrationRun: [D.MigrationRun, makeMigrationRun],

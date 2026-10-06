@@ -48,6 +48,8 @@ import {
   AuditEntry,
   Notification,
   Integration,
+  IntegrationState,
+  IntegrationStatus,
   SafeCustody,
   TrustSnapshot,
   MigrationRun,
@@ -226,6 +228,12 @@ export const NotificationUpdateSchema = Notification.update;
 export const IntegrationSchema = Integration.schema;
 export const IntegrationCreateSchema = Integration.create;
 export const IntegrationUpdateSchema = Integration.update;
+export const IntegrationStatusSchema = IntegrationStatus.schema;
+export const IntegrationStatusCreateSchema = IntegrationStatus.create;
+export const IntegrationStatusUpdateSchema = IntegrationStatus.update;
+export const IntegrationStateSchema = IntegrationState.schema;
+export const IntegrationStateCreateSchema = IntegrationState.create;
+export const IntegrationStateUpdateSchema = IntegrationState.update;
 export const SafeCustodySchema = SafeCustody.schema;
 export const SafeCustodyCreateSchema = SafeCustody.create;
 export const SafeCustodyUpdateSchema = SafeCustody.update;

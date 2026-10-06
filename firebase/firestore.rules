@@ -1055,6 +1055,16 @@ service cloud.firestore {
       match /integrations/{integrationId} {
         allow read, write: if false;
       }
+      // The client-readable mirror of an OAuth connection (INT-01, ADR-051), with nothing secret: a
+      // practice connection (`uid` null) is read by its members, a person's own only by them.
+      // Written only by the token vault.
+      match /integrationStatus/{integrationId} {
+        allow read: if inOrg(orgId) && (resource.data.uid == null || resource.data.uid == uid());
+      }
+      // OAuth connect attempts (INT-01): the state's hash and the PKCE verifier. Server-only.
+      match /integrationStates/{stateId} {
+        allow read, write: if false;
+      }
       // Daily digest records (FND-20), `digest-{uid}-{date}`: written by notifications-digest so a
       // person gets one a day; Firestore TTL deletes them after 30 days.
       match /digests/{digestId} {
@@ -1197,6 +1207,8 @@ service cloud.firestore {
     function fieldsFactCitation() { return []; }
     function fieldsIntakeDraft() { return ['orgId', 'kind', 'step', 'stateJson', 'expireAt']; }
     function fieldsIntegration() { return []; }
+    function fieldsIntegrationState() { return []; }
+    function fieldsIntegrationStatus() { return []; }
     function fieldsInvite() { return ['role']; }
     function fieldsInvoice() { return []; }
     function fieldsInvoiceReminder() { return []; }

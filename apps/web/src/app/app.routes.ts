@@ -258,6 +258,13 @@ const shellRoutes: Route[] = [
     title: 'Insights',
     loadComponent: () => import('./features/insights/insights-page').then((m) => m.InsightsPage),
   },
+  // Where an OAuth provider sends the browser back after consent (INT-01, ADR-051).
+  {
+    path: 'integrations/callback/:provider',
+    title: 'Connecting',
+    loadComponent: () =>
+      import('./features/integrations/integration-callback-page').then((m) => m.IntegrationCallbackPage),
+  },
   // How Clerk works (AI-13): the seven Clerk rules in plain words, linked from the Clerk panel.
   {
     path: 'help/clerk',

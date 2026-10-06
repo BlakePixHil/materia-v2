@@ -3,7 +3,7 @@
  * the container picks fakes in the emulator and tests. Payloads carry ids and content only as
  * needed for the call; adapters must not log content.
  */
-import { DomainError } from '@materia/domain';
+import { DomainError, type IntegrationAccount, type OAuthProvider } from '@materia/domain';
 
 export interface Clock {
   now(): Date;
@@ -194,6 +194,70 @@ export interface KmsPort {
 }
 
 /**
+ * Tokens from a provider's token endpoint (INT-01). Held in memory only: the refresh token is
+ * encrypted before it is stored, and neither is ever logged or returned to a client.
+ */
+export interface OAuthTokenSet {
+  accessToken: string;
+  /** A refresh token: on the first exchange, and on each refresh by providers that rotate them. */
+  refreshToken?: string;
+  /** Seconds until the access token expires. */
+  expiresIn: number;
+  /** The scopes granted, when the provider says. */
+  scopes?: string[];
+  /** Who the tokens are for, from the ID token's claims (no secrets). */
+  account?: IntegrationAccount;
+}
+
+export interface OAuthAuthorizationRequest {
+  state: string;
+  /** The PKCE challenge, `S256` of the verifier the exchange sends. */
+  codeChallenge: string;
+  redirectUri: string;
+}
+
+export interface OAuthCodeExchange {
+  code: string;
+  codeVerifier: string;
+  redirectUri: string;
+}
+
+/**
+ * Why a provider refused (INT-01): `invalid_grant` (the code or refresh token is revoked, expired
+ * or wrong: reconnect, never retry), `consent_required` (an administrator must approve the app),
+ * `not_configured` (no client id or secret in this environment), `rejected` (any other refusal)
+ * or `transient` (unreachable, rate limited or a server error: worth a retry).
+ */
+export type OAuthFailure = 'invalid_grant' | 'consent_required' | 'not_configured' | 'rejected' | 'transient';
+
+/** A provider failure, classified. Never carries a token, code or the provider's description. */
+export class OAuthError extends Error {
+  constructor(
+    readonly failure: OAuthFailure,
+    message: string = failure,
+    readonly status?: number,
+    readonly retryAfterMs?: number,
+  ) {
+    super(message);
+    this.name = 'OAuthError';
+  }
+}
+
+/**
+ * OAuth 2.0 for every integration (INT-01, ADR-051): the authorisation-code flow with PKCE,
+ * refresh and revocation. The real adapter (`integrations/oauth.ts`) reads each provider's
+ * endpoints and client credentials from the registry; the fake consents at once.
+ */
+export interface OAuthPort {
+  /** The provider's consent page. Throws `OAuthError('not_configured')` without a client id. */
+  authorizationUrl(provider: OAuthProvider, request: OAuthAuthorizationRequest): Promise<string>;
+  exchangeCode(provider: OAuthProvider, request: OAuthCodeExchange): Promise<OAuthTokenSet>;
+  refresh(provider: OAuthProvider, refreshToken: string): Promise<OAuthTokenSet>;
+  /** Revokes a refresh token: false when the provider can't revoke tokens. Throws `OAuthError`. */
+  revoke(provider: OAuthProvider, refreshToken: string): Promise<boolean>;
+}
+
+/**
  * Text embeddings (ADR-012, AI-04): Vertex AI in `australia-southeast1`, 768 dimensions. Chunks are
  * embedded as `document`s and searches as a `query` (the model embeds the two differently).
  */
@@ -328,6 +392,10 @@ export interface Ports {
   clerkModel: ClerkModelPort;
   /** The `clerk-api-keys` crypto key (AI-02a). */
   clerkKms: KmsPort;
+  /** OAuth for integrations (INT-01). */
+  oauth: OAuthPort;
+  /** The `oauth-tokens` crypto key (INT-01): integration refresh tokens. */
+  oauthKms: KmsPort;
   embedding: EmbeddingPort;
   calendar: CalendarPort;
   xero: XeroPort;
