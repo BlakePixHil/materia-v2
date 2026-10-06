@@ -250,7 +250,9 @@ describe('billing-issueInvoice', () => {
     expect(w.doc(`${M}/disbursements/d1`)).toMatchObject({ status: 'billed', invoiceId });
     expect(w.doc(M)).toMatchObject({ lastInvoicedOn: '2026-10-06' });
     expect(w.doc(`orgs/${ORG}/counters/invoice`)).toMatchObject({ next: 2 });
-    expect(w.entries(`orgs/${ORG}/audit/`).map((a) => a['action'])).toContain('invoice.issued');
+    expect(w.entries(`orgs/${ORG}/audit/`).map((a) => (a as Record<string, unknown>)['action'])).toContain(
+      'invoice.issued',
+    );
     const job = w.doc(`orgs/${ORG}/jobs/${String(invoice(w, invoiceId)['pdfJobId'])}`);
     expect(job).toMatchObject({
       type: 'pdf.render',
@@ -375,7 +377,9 @@ describe('billing-voidInvoice', () => {
     expect(w.doc(`${M}/timeEntries/t1`)).not.toHaveProperty('invoiceId');
     expect(w.doc(`${M}/disbursements/d1`)).toMatchObject({ status: 'unbilled' });
     expect(w.doc(M)).toMatchObject({ lastInvoicedOn: '2026-10-08' });
-    expect(w.entries(`orgs/${ORG}/audit/`).map((a) => a['action'])).toContain('invoice.voided');
+    expect(w.entries(`orgs/${ORG}/audit/`).map((a) => (a as Record<string, unknown>)['action'])).toContain(
+      'invoice.voided',
+    );
     // Idempotent; the counter isn't touched.
     await w.call(voidDefinition as never, { invoiceId: first.invoiceId, reason: 'Again' }, 'owner');
     expect(w.doc(`orgs/${ORG}/counters/invoice`)).toMatchObject({ next: 3 });
@@ -432,7 +436,9 @@ describe('billing-createCreditNote', () => {
     await expect(credit({ full: true })).rejects.toMatchObject({ code: 'failed-precondition' });
     // The billed work stays billed.
     expect(w.doc(`${M}/timeEntries/t1`)).toMatchObject({ status: 'billed' });
-    expect(w.entries(`orgs/${ORG}/audit/`).filter((a) => a['action'] === 'invoice.credited')).toHaveLength(2);
+    expect(
+      w.entries(`orgs/${ORG}/audit/`).filter((a) => (a as Record<string, unknown>)['action'] === 'invoice.credited'),
+    ).toHaveLength(2);
   });
 
   it('refuses pre-bills and void invoices', async () => {
@@ -506,7 +512,9 @@ describe('billing-sendInvoice', () => {
       sentBy: 'user-lawyer',
       sentTo: ['lan@example.com', 'executor@example.com'],
     });
-    expect(w.entries(`orgs/${ORG}/audit/`).find((a) => a['action'] === 'invoice.sent')).toMatchObject({
+    expect(
+      w.entries(`orgs/${ORG}/audit/`).find((a) => (a as Record<string, unknown>)['action'] === 'invoice.sent'),
+    ).toMatchObject({
       data: { number: 'INV-000001', recipients: 2 },
     });
   });

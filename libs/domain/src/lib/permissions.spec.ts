@@ -13,10 +13,12 @@ describe('permissions', () => {
     expect(can('paralegal', 'matter.view')).toBe(true);
   });
 
-  it('reserves billing, members and exports for owners and admins', () => {
-    for (const action of ['billing.issue', 'members.manage', 'export.includePrivileged'] as const) {
+  it('reserves voids, members and exports for owners and admins', () => {
+    for (const action of ['billing.void', 'members.manage', 'export.includePrivileged'] as const) {
       expect(ROLES.filter((role) => can(role, action))).toEqual(['owner', 'admin']);
     }
+    // Lawyers and above issue and send invoices (BILL-07).
+    expect(ROLES.filter((role) => can(role, 'billing.issue'))).toEqual(['owner', 'admin', 'lawyer']);
     expect(PERMISSIONS['org.delete']).toEqual(['owner']);
   });
 
