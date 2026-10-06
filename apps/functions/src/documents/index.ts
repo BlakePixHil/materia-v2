@@ -3,12 +3,14 @@
 // (Office and HEIC previews through the preview service, CORE-12a),
 // documents-sweepPending (hourly expiry of quarantined uploads) and the callables
 // documents-getDownloadUrl, documents-restoreVersion, documents-resolveDuplicate,
-// documents-bulkUpdate, documents-saveAttachment and documents-startZip (a zip of a selection, built
-// by the jobs image, CORE-12b). Clients edit document metadata directly (the rules check it).
+// documents-bulkUpdate, documents-saveAttachment, documents-startZip (a zip of a selection, built
+// by the jobs image, CORE-12b) and documents-citationText (AI-05: a cited version's page text from its
+// chunks, for the citation viewer). Clients edit document metadata directly (the rules check it).
 // Clerk ingestion (AI-04): documents-onIngestChange (queues ingestion, keeps chunks' privileged flag,
 // deletes chunks with the document), documents-ingest (Cloud Tasks) and documents-backfillIngest.
 // documents-onWrite keeps each document's ⌘K `search` tokens from its name (CORE-15).
 export { bulkUpdate, getDownloadUrl, resolveDuplicate, restoreVersion, saveAttachment } from './callables';
+export { citationText } from './citation-text';
 export { onUpload, render, rescan, sweepPending } from './on-upload';
 export { onWrite } from './on-write';
 export { startZip } from './zip';

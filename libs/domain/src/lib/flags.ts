@@ -149,6 +149,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'billing.disbursements': defineFlag({
+    key: 'billing.disbursements',
+    description:
+      'Disbursements on the matter Time tab, with GST treatment, receipts and the org presets (off until a practitioner signs off the GST treatment and presets, BILL-04a).',
+    owner: 'BILL-04',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'integrations.microsoft': defineFlag({
     key: 'integrations.microsoft',
     description: 'Microsoft 365 connection and calendar push.',

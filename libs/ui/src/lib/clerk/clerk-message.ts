@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, output, ViewEncapsulation } from '@angular/core';
 
-import { type CitationOpenEvent, type CitationVm, MtCitation } from './citation';
+import { type CitationOpenEvent, type CitationVm, MtCitation, shownCitations } from './citation';
 import { MtClerkMark } from './clerk-mark';
 import { citedRefs, type MdInline, parseMarkdown } from './markdown';
 import { MtButton } from '../button/button';
@@ -13,6 +13,8 @@ export type ClerkMessageState = 'streaming' | 'done' | 'stopped' | 'error';
  * ClerkMessage (`mt-clerk-message`): one of Clerk's answers, with the Clerk mark. `content` is Markdown
  * (streamed in as it arrives) parsed by the safe subset in `markdown.ts`, so no model HTML is ever
  * rendered. `[1]` markers become superscripts linked to the Citation chips below the answer.
+ * Citations that failed verification (`verified: false`, AI-05) are never shown: a marker left with
+ * none of its sources reads "unverified" beside its claim, once the answer is finished.
  *
  * States: `streaming` shows a caret and marks the answer busy; `stopped` notes that the answer is
  * partial; `error` shows the message and a Retry button (`retry`). Actions ("Draft advice") are
@@ -28,6 +30,18 @@ export type ClerkMessageState = 'streaming' | 'done' | 'stopped' | 'error';
     '../../generated/components/caret.css',
   ],
   imports: [NgTemplateOutlet, MtClerkMark, MtCitation, MtButton, MtIcon],
+  styles: `
+    .mt-msg .mt-msg-unverified {
+      display: inline-block;
+      margin-left: var(--space-4);
+      padding: 0 var(--space-4);
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius-xs);
+      font: 500 11px/16px var(--font-mono);
+      color: var(--text-secondary);
+      vertical-align: baseline;
+    }
+  `,
   host: {
     class: 'mt-msg',
     'data-role': 'clerk',
@@ -143,7 +157,13 @@ export type ClerkMessageState = 'streaming' | 'done' | 'stopped' | 'error';
             /></a>
           }
           @case ('cite') {
-            <sup><span class="mt-sr">Sources </span>{{ refsText(node) }}</sup>
+            @if (refsText(node); as refs) {
+              <sup><span class="mt-sr">Sources </span>{{ refs }}</sup>
+            } @else if (state() !== 'streaming') {
+              <span class="mt-msg-unverified" title="Clerk’s source for this couldn’t be found in the document"
+                >unverified</span
+              >
+            }
           }
         }
       }
@@ -169,14 +189,24 @@ export class MtClerkMessage {
   protected readonly blocks = computed(() => parseMarkdown(this.content(), this.state() === 'streaming'));
   /** Citations used in the text so far, in order; all of them once the answer is done. */
   protected readonly shownCitations = computed(() => {
-    const all = this.citations();
+    const all = shownCitations(this.citations());
     if (this.state() !== 'streaming') return all;
     const used = new Set(citedRefs(this.blocks()));
     return all.filter((citation) => citation.n === undefined || used.has(citation.n));
   });
+  /** Marker numbers with a shown source. Unnumbered citations can't be checked against markers. */
+  private readonly shownRefs = computed(() => {
+    const all = this.citations();
+    if (all.some((citation) => citation.n === undefined)) return null;
+    return new Set(shownCitations(all).map((citation) => citation.n as number));
+  });
 
+  /** A marker's numbers that still have a source; empty when verification dropped them all. */
   protected refsText(node: MdInline): string {
-    return node.type === 'cite' ? node.refs.join(' ') : '';
+    if (node.type !== 'cite') return '';
+    const shown = this.shownRefs();
+    const refs = shown && this.state() !== 'streaming' ? node.refs.filter((ref) => shown.has(ref)) : node.refs;
+    return refs.join(' ');
   }
 }
 
