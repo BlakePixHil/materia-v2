@@ -359,6 +359,13 @@ jobs:
           # busy runner a late first call has taken longer, failing with "Failed to load function";
           # test-integration sets the same.
           FUNCTIONS_DISCOVERY_TIMEOUT: '120'
+          # The Functions emulator keeps a worker process (the whole functions bundle, about 150 MB)
+          # for every function called and never stops one: a shard reached 79 workers and 12 GB on a
+          # 7 GB runner, which swapped until a 20 ms trigger took a second and saves timed out. Our
+          # firebase-tools patch (patches/) stops the workers idle longest beyond this many.
+          FUNCTIONS_EMULATOR_MAX_WORKERS: '20'
+          # Workers load the bundle from V8's code cache after the first: about a third faster.
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
           # PRs test Chromium only; the morning run and dispatches add WebKit (iPhone Safari).
           E2E_CHROMIUM_ONLY: ${{ github.event_name == 'pull_request' && '1' || '' }}
           E2E_PROJECTS: ${{ github.event_name == 'pull_request' && '--project=chromium' || '--project=chromium --project=webkit-mobile' }}

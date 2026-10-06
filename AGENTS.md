@@ -93,6 +93,7 @@ CI (`.github/workflows/ci.yml`) runs every job with `nx affected`; `ci-ok` is th
 - **Zoneless Angular:** the app uses `provideZonelessChangeDetection()` and doesn't ship `zone.js`. Don't add libraries that need zone.js.
 - **Functions deploy artefact:** `nx build functions` bundles workspace libs into `dist/apps/functions/main.js` and writes a `package.json` with external dependencies only (no `workspace:` deps). Rules and indexes live in `firebase/`; `firebase.json` and `.firebaserc` are at the root (`--config firebase.json`).
 - **Deploys (FND-05)** run only in GitHub Actions: merges to `main` deploy to dev (`deploy-dev.yml`), release tags promote the same build to prod after approval (`deploy-prod.yml`). Never deploy from a session or a laptop. Runbooks: [deploy](docs/runbooks/deploy.md), [rollback](docs/runbooks/rollback.md), [hotfix](docs/runbooks/hotfix.md). Keep `@smoke` e2e tests read-only: they run against prod.
+- **firebase-tools is patched** (`patches/firebase-tools@15.32.1.patch`, pnpm `patchedDependencies`): with `FUNCTIONS_EMULATOR_MAX_WORKERS` set, the Functions emulator stops the workers idle longest beyond that many (each is a ~150 MB process; unpatched it keeps one per function ever called). CI's e2e sets 20. Upgrading firebase-tools fails `pnpm install` until the patch is redone with `pnpm patch firebase-tools@<version>`.
 - **TypeScript is pinned to 6.0.x** (Angular 22's supported range). Don't upgrade to TypeScript 7 until Angular and Nx support it.
 
 ### How to add a callable
