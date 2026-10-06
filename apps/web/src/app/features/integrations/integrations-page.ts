@@ -126,26 +126,30 @@ const XERO_PITCH = 'Send issued invoices and credit notes to Xero, and bring pay
     <!-- Shown once the org has loaded, so nothing typed is overwritten when the settings arrive. -->
     @if (org.value() && loaded()) {
       <section class="mt-col" style="gap: 16px" aria-label="Xero" data-testid="xero">
-        <mt-integration-card name="Xero" [description]="cardDescription()" [status]="cardStatus()">
-          @if (connection() === 'disconnected') {
-            <button mtButton variant="primary" size="sm" [loading]="connecting()" (click)="connect()">
-              Connect Xero
-            </button>
-          } @else {
-            <button mtButton variant="ghost" size="sm" [loading]="disconnecting()" (click)="disconnect()">
-              Disconnect
-            </button>
-          }
+        <mt-integration-card
+          name="Xero"
+          [description]="pitch"
+          [status]="cardStatus()"
+          [meta]="cardMeta()"
+          data-testid="xero-card"
+        >
+          <div class="mt-row" style="gap: 6px">
+            @if (connection() === 'disconnected') {
+              <button mtButton variant="primary" size="sm" [loading]="connecting()" (click)="connect()">
+                Connect Xero
+              </button>
+            } @else {
+              @if (connection() === 'reconnect_required') {
+                <button mtButton variant="secondary" size="sm" [loading]="connecting()" (click)="connect()">
+                  Reconnect Xero
+                </button>
+              }
+              <button mtButton variant="ghost" size="sm" [loading]="disconnecting()" (click)="disconnect()">
+                Disconnect
+              </button>
+            }
+          </div>
         </mt-integration-card>
-
-        @if (connection() === 'reconnect_required') {
-          <mt-note tone="warning" data-testid="xero-reconnect">
-            Xero needs reconnecting. Sending to Xero and bringing payments back are paused.
-            <button mtButton variant="secondary" size="sm" [loading]="connecting()" (click)="connect()">
-              Reconnect Xero
-            </button>
-          </mt-note>
-        }
 
         @if (connection() === 'connected') {
           @if (optionsError(); as message) {
@@ -293,13 +297,19 @@ export class IntegrationsPage implements HasUnsavedChanges {
 
   /** The connection: no status document is the same as never connected. */
   protected readonly connection = computed(() => this.status.value()?.status ?? 'disconnected');
+  protected readonly pitch = XERO_PITCH;
   protected readonly cardStatus = computed<MtIntegrationStatus>(() => {
     const connection = this.connection();
-    return connection === 'connected' ? 'connected' : connection === 'reconnect_required' ? 'error' : 'disconnected';
+    return connection === 'reconnect_required' ? 'reconnect' : connection;
   });
-  protected readonly cardDescription = computed(() => {
+  /** Who it's connected as, or why it needs reconnecting. */
+  protected readonly cardMeta = computed(() => {
     const status = this.status.value();
-    if (!status || status.status === 'disconnected') return XERO_PITCH;
+    if (!status || status.status === 'disconnected') return undefined;
+    if (status.status === 'reconnect_required') {
+      const on = status.reconnectRequiredAt ? ` on ${formatDateOnly(status.reconnectRequiredAt, this.timeZone)}` : '';
+      return `Xero refused Materia’s saved sign-in${on}. Sending to Xero and bringing payments back are paused until someone reconnects; nothing is lost.`;
+    }
     const account = status.account?.tenantName ?? status.account?.name ?? status.account?.email;
     const since = status.connectedAt ? ` on ${formatDateOnly(status.connectedAt, this.timeZone)}` : '';
     return account ? `Connected as ${account}${since}.` : `Connected${since}.`;
