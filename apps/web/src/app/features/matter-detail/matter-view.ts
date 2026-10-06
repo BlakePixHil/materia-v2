@@ -19,6 +19,7 @@ import { formatAud, formatDateOnly } from '@materia/ui';
 
 import { errorCopy } from '../../core/error-copy';
 import { formatDateInput, parseDateInput, PARTY_ROLE_LABELS } from '../contacts/contact-form';
+import { retentionErrorCopy } from '../matters/matters-view';
 
 /** The matter on the screen. */
 export type MatterRecord = WithId<MatterDetail>;
@@ -31,6 +32,8 @@ export function matterErrorCopy(error: unknown): string {
   const details = error instanceof DomainError ? error.details : undefined;
   const reason = details?.['reason'];
   if (reason === 'matter_closed') return 'Reopen the matter before changing its stage.';
+  const retention = retentionErrorCopy(reason);
+  if (retention) return retention;
   if (reason === 'stage_back_requires_lawyer') return 'Only a lawyer can move a matter back a stage.';
   if (reason === 'no_template') return 'This matter isn’t on a template, so there’s nothing to upgrade.';
   if (reason === 'stage_unmapped') {
@@ -185,11 +188,12 @@ const STATUS_ACTIONS: Readonly<Record<MatterStatus, string>> = {
 export function statusChoices(status: MatterStatus, conflictOpenable: boolean): StatusChoice[] {
   return MATTER_TRANSITIONS[status].map((to) => {
     const requirements = transitionRequirements(status, to);
-    const reopen = status === 'closed' && to === 'open';
+    const reopen = (status === 'closed' || status === 'archived') && to === 'open';
     const choice: StatusChoice = {
       to,
       label: reopen ? 'Reopen…' : STATUS_ACTIONS[to],
-      needsReason: to === 'closed' || requirements.includes('reason'),
+      // Closing asks through the closing checklist (CORE-19) instead.
+      needsReason: requirements.includes('reason'),
     };
     if (requirements.includes('conflict_openable') && !conflictOpenable) {
       choice.blocked = 'The conflict check needs a lawyer’s determination first';

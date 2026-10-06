@@ -10,6 +10,10 @@ type Data = Record<string, unknown>;
 /** `orgs/{orgId}/trustSnapshots/{matterId}`: one snapshot per matter, the latest copy only. */
 export const trustSnapshotPath = (orgId: string, matterId: string) => `orgs/${orgId}/trustSnapshots/${matterId}`;
 
+/** A matter's trust record (its snapshot), which destroying the matter deletes (CORE-19). */
+export const matterTrustDoc = (db: Firestore, orgId: string, matterId: string) =>
+  db.doc(trustSnapshotPath(orgId, matterId));
+
 /** The org, with the trust feature on: the flag is server-enforced (FND-23). */
 export async function trustOrg(
   db: Firestore,

@@ -159,7 +159,7 @@ service cloud.firestore {
       let matter = estateMatter(orgId, matterId);
       return can(orgId, 'matter.edit')
         && (matter.privileged == false || claimRole() in perm('privileged.view'))
-        && matter.get('deletedAt', null) == null;
+        && matter.get('deletedAt', null) == null && matter.status != 'archived';
     }
     // A client-created register record: only its own fields plus meta, created and stamped by the caller.
     function newEstateRecord(fields, required) {
@@ -534,9 +534,14 @@ service cloud.firestore {
       // matters-* callables. Clients edit whitelisted fields of a live matter and soft delete it;
       // a deleted matter is frozen until an owner or admin restores it (matters-restore, 30 days).
       match /matters/{matterId} {
+        // Archived matters (CORE-19) are read-only: their records change only through callables
+        // (reopening, and notes by lawyers and above). Destroyed ones are tombstones (deletedAt).
+        function matterWritable() {
+          return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data.status != 'archived';
+        }
         allow read: if inOrg(orgId) && visible(orgId, resource.data);
         allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
-          && resource.data.get('deletedAt', null) == null
+          && resource.data.get('deletedAt', null) == null && resource.data.status != 'archived'
           && (can(orgId, 'matter.edit') && clientUpdate(fieldsMatter()) || can(orgId, 'matter.delete') && softDeleteOnly());
 
         // Server-written feed.
@@ -553,7 +558,8 @@ service cloud.firestore {
             return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
           }
           function canEditTasks() {
-            return can(orgId, 'task.edit') && visible(orgId, taskMatter()) && taskMatter().get('deletedAt', null) == null;
+            return can(orgId, 'task.edit') && visible(orgId, taskMatter()) && taskMatter().get('deletedAt', null) == null
+              && taskMatter().status != 'archived';
           }
           allow read: if inOrg(orgId) && visible(orgId, taskMatter());
           // `countedOpen: false` says the task isn't in openTaskCount yet (tasks-onWrite counts it).
@@ -572,7 +578,8 @@ service cloud.firestore {
             return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
           }
           function canEditDeadlines() {
-            return can(orgId, 'task.edit') && visible(orgId, deadlineMatter()) && deadlineMatter().get('deletedAt', null) == null;
+            return can(orgId, 'task.edit') && visible(orgId, deadlineMatter()) && deadlineMatter().get('deletedAt', null) == null
+              && deadlineMatter().status != 'archived';
           }
           function acknowledged() {
             return unchanged(['ackBy', 'ackAt'])
@@ -607,11 +614,13 @@ service cloud.firestore {
           }
           function canWriteTime(authorUid) {
             return (can(orgId, 'time.approve') || can(orgId, 'time.record') && authorUid == uid())
-              && visible(orgId, timeMatter()) && timeMatter().get('deletedAt', null) == null;
+              && visible(orgId, timeMatter()) && timeMatter().get('deletedAt', null) == null
+              && timeMatter().status != 'archived';
           }
           allow read: if inOrg(orgId) && visible(orgId, timeMatter());
           allow create: if can(orgId, 'time.record') && newTimeEntry(orgId, matterId)
-            && visible(orgId, timeMatter()) && timeMatter().get('deletedAt', null) == null;
+            && visible(orgId, timeMatter()) && timeMatter().get('deletedAt', null) == null
+            && timeMatter().status != 'archived';
           allow update: if canWriteTime(resource.data.uid)
             && resource.data.status == 'draft'
             && (clientUpdate(fieldsTimeEntry()) && validTimeEntry(request.resource.data) || softDelete());
@@ -638,6 +647,7 @@ service cloud.firestore {
           }
           allow read: if inOrg(orgId) && visible(orgId, resource.data) && visible(orgId, documentMatter());
           allow update: if visibleAndFlagOk(orgId, [resource.data.privileged, documentMatter().privileged])
+            && documentMatter().status != 'archived'
             && (can(orgId, 'document.upload') && clientUpdate(fieldsMatterDocument()) && validDocumentMeta(request.resource.data)
               || can(orgId, 'document.delete') && softDelete());
 
@@ -658,7 +668,7 @@ service cloud.firestore {
         match /notes/{noteId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
           allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
-            && editable(orgId, 'note.write', fieldsNote());
+            && editable(orgId, 'note.write', fieldsNote()) && matterWritable();
 
           // Earlier versions, appended by notes-update. Readable by whoever can read the note, and
           // a version that was privileged needs privileged.view itself (so a list by a role without
@@ -672,7 +682,7 @@ service cloud.firestore {
         match /offers/{offerId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
           allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
-            && editable(orgId, 'matter.edit', fieldsOffer());
+            && editable(orgId, 'matter.edit', fieldsOffer()) && matterWritable();
         }
 
         // Clerk suggestions (AI-07, ADR-037): written only by functions (proposeSuggestions and the
@@ -688,7 +698,7 @@ service cloud.firestore {
           // Share and notes only: adding, re-roling and removing parties go through the
           // matters-upsertParty and matters-removeParty callables, which keep clientContactIds and
           // the last-client rule (CORE-06). No client soft delete.
-          allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsParty());
+          allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsParty()) && matterWritable();
         }
         // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent,
         // which recompute the matter's deadlines in the same transaction.
@@ -705,7 +715,8 @@ service cloud.firestore {
           }
           function canWriteDisbursement() {
             return can(orgId, 'time.record')
-              && visible(orgId, disbursementMatter()) && disbursementMatter().get('deletedAt', null) == null;
+              && visible(orgId, disbursementMatter()) && disbursementMatter().get('deletedAt', null) == null
+              && disbursementMatter().status != 'archived';
           }
           allow read: if inOrg(orgId) && visible(orgId, disbursementMatter());
           allow create: if canWriteDisbursement() && newDisbursement(orgId, matterId);
@@ -747,35 +758,35 @@ service cloud.firestore {
         }
         match /proceedings/{proceedingId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsProceeding());
+          allow update: if editable(orgId, 'matter.edit', fieldsProceeding()) && matterWritable();
         }
         match /courtEvents/{courtEventId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsCourtEvent());
+          allow update: if editable(orgId, 'matter.edit', fieldsCourtEvent()) && matterWritable();
         }
         match /orders/{orderId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsCourtOrder());
+          allow update: if editable(orgId, 'matter.edit', fieldsCourtOrder()) && matterWritable();
         }
         match /chronology/{entryId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsChronologyEntry());
+          allow update: if editable(orgId, 'matter.edit', fieldsChronologyEntry()) && matterWritable();
         }
         match /issues/{issueId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsIssue());
+          allow update: if editable(orgId, 'matter.edit', fieldsIssue()) && matterWritable();
         }
         match /evidence/{evidenceId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsEvidence());
+          allow update: if editable(orgId, 'matter.edit', fieldsEvidence()) && matterWritable();
         }
         match /subpoenas/{subpoenaId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsSubpoena());
+          allow update: if editable(orgId, 'matter.edit', fieldsSubpoena()) && matterWritable();
         }
         match /courtBooks/{courtBookId} {
           allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'matter.edit', fieldsCourtBook());
+          allow update: if editable(orgId, 'matter.edit', fieldsCourtBook()) && matterWritable();
         }
       }
 
@@ -896,6 +907,15 @@ service cloud.firestore {
         allow read: if inOrg(orgId) && resource.data.createdBy == uid();
       }
 
+      // Matter destruction (CORE-19): the queue and certificates are written by the matters-*
+      // functions; owners and admins review them.
+      match /destructionQueue/{matterId} {
+        allow read: if can(orgId, 'matter.destroy');
+      }
+      match /destructionCertificates/{certificateId} {
+        allow read: if can(orgId, 'matter.destroy');
+      }
+
       // Disbursement presets (BILL-04): every member reads them to prefill a disbursement; owners and
       // admins keep the list. Other settings documents stay server-only.
       match /settings/disbursementPresets {
@@ -997,6 +1017,8 @@ service cloud.firestore {
         'matter.close': ['owner', 'admin', 'lawyer'],
         'matter.status': ['owner', 'admin', 'lawyer'],
         'matter.restore': ['owner', 'admin'],
+        'matter.legalHold': ['owner', 'admin'],
+        'matter.destroy': ['owner', 'admin'],
         'matter.renumber': ['owner', 'admin', 'lawyer'],
         'matter.fee': ['owner', 'admin', 'lawyer'],
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
@@ -1047,6 +1069,8 @@ service cloud.firestore {
     function fieldsCreditNote() { return []; }
     function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt']; }
     function fieldsDeadlineChange() { return []; }
+    function fieldsDestructionCertificate() { return []; }
+    function fieldsDestructionRequest() { return []; }
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
@@ -1074,7 +1098,7 @@ service cloud.firestore {
     function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt', 'hiddenAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'plan', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'settings', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }

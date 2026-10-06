@@ -17,7 +17,7 @@ import {
 
 import { isDeleted } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
-import { liveMatter, matterPath } from '../matters/shared';
+import { writableMatter, matterPath } from '../matters/shared';
 
 type Data = Record<string, unknown>;
 
@@ -93,7 +93,7 @@ export const bulkUpdateDefinition = {
       matterSnaps
         .filter((snap) => {
           try {
-            liveMatter(snap, role, snap.id);
+            writableMatter(snap, role, snap.id);
             return true;
           } catch {
             return false;

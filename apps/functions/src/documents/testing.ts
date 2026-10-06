@@ -154,4 +154,9 @@ export class MemoryFiles implements FileStore {
   async list(prefix: string) {
     return [...this.objects.values()].map((entry) => entry.object).filter((object) => object.path.startsWith(prefix));
   }
+  async purge(prefix: string) {
+    const paths = [...this.objects.keys()].filter((path) => path.startsWith(prefix));
+    for (const path of paths) this.objects.delete(path);
+    return paths.length;
+  }
 }

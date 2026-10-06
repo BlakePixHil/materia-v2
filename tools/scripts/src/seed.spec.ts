@@ -303,6 +303,7 @@ describe('seed dataset', () => {
       'templates.system': true,
       'deadlines.ruleset.vic.v1': true,
       'estate.register': true,
+      'matters.destruction': true,
       'clerk.features.suggestions': true,
       'billing.feeBudgets': true,
       'billing.disbursements': true,

@@ -11,7 +11,7 @@ import { auditReview, REMOVE, reviewEntries } from './review';
 import { rateOrg, timeEntryPath } from './shared';
 import { isDeleted } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
-import { liveMatter, matterPath } from '../matters/shared';
+import { matterPath, writableMatter } from '../matters/shared';
 
 type Data = Record<string, unknown>;
 
@@ -30,8 +30,8 @@ export function statusPatch(entry: Data | undefined, status: 'draft' | 'final'):
  * that `time-onWrite` leaves the values alone and only keeps the matter's WIP. Entries that are
  * missing, deleted, billed, written off or already in that status are skipped and listed; entries
  * changed since the caller saw them (`expectedUpdatedAt`) are conflicts. One transaction, so an
- * author's edit can't slip in between the check and the approval. The matter must be live and
- * visible to the caller. Audited as `time.finalised` or `time.returned_to_draft`.
+ * author's edit can't slip in between the check and the approval. The matter must be live, not
+ * archived (CORE-19), and visible to the caller. Audited as `time.finalised` or `time.returned_to_draft`.
  */
 export const setStatusDefinition = {
   name: 'time-setStatus',
@@ -40,7 +40,7 @@ export const setStatusDefinition = {
   idempotent: true,
   handler: async (ctx): Promise<SetTimeEntryStatusResult> => {
     const { input, orgId, role, db, log } = ctx;
-    const matter = liveMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
+    const matter = writableMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
     const ids = [...new Set(input.entryIds)];
     const org = input.status === 'final' ? rateOrg((await db.doc(`orgs/${orgId}`).get()).data()) : null;
     const members = new Map<string, RateMember | null>();

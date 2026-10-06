@@ -53,7 +53,7 @@ import { compact, isDeleted } from '../contacts/shared';
 import { isEnabled } from '../core/flags';
 import type { Log } from '../core/log';
 import type { TxJoin } from '../core/tx-join';
-import { liveMatter, matterPath } from '../matters/shared';
+import { matterPath, writableMatter } from '../matters/shared';
 import { notify, type NotifyResult } from '../notifications/notify';
 import type { Clock, Ports } from '../ports';
 import { planPendingFills } from '../templates/fill-pending';
@@ -238,7 +238,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
 
   const outcome = await db.runTransaction(async (tx: Transaction) => {
     notified = [];
-    const matter = liveMatter(await tx.get(matterRef), role, matterId);
+    const matter = writableMatter(await tx.get(matterRef), role, matterId);
     await request.join?.read(tx);
     const version = typeof matter['recomputeVersion'] === 'number' ? matter['recomputeVersion'] : 0;
 

@@ -35,12 +35,14 @@ export async function syncDisbursement(change: TriggerChange, ctx: TriggerContex
   const ref = db.doc(disbursementPath(orgId, matterId, disbursementId));
   const matterRef = db.doc(matterPath(orgId, matterId));
   const matter = await matterRef.get();
+  // A destroyed matter's tombstone (CORE-19) keeps no WIP or activity.
+  const live = matter.exists && !matter.get('destroyedAt');
 
   const plan = await db.runTransaction(async (tx) => {
     const current = await tx.get(ref);
     const planned = planDisbursementSync(current.exists ? (current.data() as Data) : undefined, before);
     // Without the matter there's no total to keep; leave the count alone so nothing is lost.
-    if (!matter.exists) {
+    if (!live) {
       delete planned.patch['wipCountedCents'];
       planned.wipDelta = 0;
     }
@@ -49,7 +51,7 @@ export async function syncDisbursement(change: TriggerChange, ctx: TriggerContex
     return planned;
   });
 
-  if (!before && after && matter.exists) await recordMatterActivity(db, orgId, matterId, ctx.time);
+  if (!before && after && live) await recordMatterActivity(db, orgId, matterId, ctx.time);
 
   const outcome = { wipDelta: plan.wipDelta, patched: Object.keys(plan.patch) };
   log.info('disbursement synced', { matterId, disbursementId, ...outcome });

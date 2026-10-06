@@ -51,7 +51,8 @@ export async function syncEstateTotals(
   const matterRef = db.doc(matterPath(orgId, matterId));
   return db.runTransaction(async (tx) => {
     const matter = await tx.get(matterRef);
-    if (!matter.exists) return null;
+    // A destroyed matter's tombstone (CORE-19) keeps no estate totals.
+    if (!matter.exists || matter.get('destroyedAt')) return null;
     const [assets, liabilities] = await Promise.all([
       tx.get(db.collection(`${matterRef.path}/assets`)),
       tx.get(db.collection(`${matterRef.path}/liabilities`)),
@@ -155,7 +156,7 @@ export async function syncEstate(
   const matterId = ctx.params['matterId'] as string;
   const synced = await syncEstateTotals(ctx.db, orgId, matterId, ctx.time);
   if (!synced) {
-    ctx.log.info('estate sync skipped: no matter', { matterId });
+    ctx.log.info('estate sync skipped: no matter, or a destroyed one', { matterId });
     return { synced: false, totals: null, valueChanged: false, recomputed: false, flagged: [] };
   }
   let flagged: string[] = [];

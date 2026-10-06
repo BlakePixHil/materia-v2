@@ -26,6 +26,23 @@ export function liveMatter(snap: DocumentSnapshot, role: Role, matterId: string)
   return data;
 }
 
+/**
+ * A live matter (`liveMatter`) that may still change: not archived (CORE-19). An archived matter is
+ * read-only until it is reopened, so writes to it are FAILED_PRECONDITION with
+ * `details.reason: 'matter_archived'`. (Notes are the exception: `notes-create` lets a lawyer add one.)
+ */
+export function writableMatter(snap: DocumentSnapshot, role: Role, matterId: string): Data {
+  const data = liveMatter(snap, role, matterId);
+  if (data['status'] === 'archived') throw archivedError(matterId);
+  return data;
+}
+
+export const archivedError = (matterId: string) =>
+  new DomainError('FAILED_PRECONDITION', 'The matter is archived: reopen it to make changes', {
+    reason: 'matter_archived',
+    matterId,
+  });
+
 /** The display names of the contacts a matter's search covers (missing contacts are skipped). */
 export async function contactNames(db: Firestore, orgId: string, ids: readonly string[]): Promise<Map<string, string>> {
   const unique = [...new Set(ids.filter(Boolean))];

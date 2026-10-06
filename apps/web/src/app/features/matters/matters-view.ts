@@ -198,5 +198,25 @@ export function changeStatusErrorCopy(error: unknown): string {
       ? 'The conflict check found a conflict, so the matter can’t open.'
       : 'The conflict check needs a lawyer’s determination before the matter can open.';
   }
-  return errorCopy(error);
+  return retentionErrorCopy(details?.['reason']) ?? errorCopy(error);
+}
+
+/** Closing and retention refusals (CORE-19), by `details.reason`; undefined for anything else. */
+export function retentionErrorCopy(reason: unknown): string | undefined {
+  switch (reason) {
+    case 'closing_checklist_required':
+      return 'Close the matter from its page, where the closing checklist is.';
+    case 'closing_checklist':
+      return 'Finish the closing checklist first.';
+    case 'matter_archived':
+      return 'The matter is archived, so it can’t change. Reopen it first.';
+    case 'destruction_in_progress':
+      return 'The matter is being destroyed, so it can’t change.';
+    case 'not_due':
+      return 'The matter is no longer due for destruction.';
+    case 'not_pending':
+      return 'That destruction was already approved or cancelled.';
+    default:
+      return undefined;
+  }
 }

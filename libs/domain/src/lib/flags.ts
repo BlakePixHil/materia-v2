@@ -124,6 +124,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'matters.destruction': defineFlag({
+    key: 'matters.destruction',
+    description:
+      'Retention destruction: the monthly destruction queue, approvals and permanent deletion of matters past their retention date (off until a practitioner signs the retention rules off, CORE-19a).',
+    owner: 'CORE-19',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'estate.register': defineFlag({
     key: 'estate.register',
     description:

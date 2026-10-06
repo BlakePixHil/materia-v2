@@ -196,6 +196,16 @@ describe('disbursements-onWrite', () => {
     });
     expect(w.doc(`orgs/${ORG}/matters/gone`)).toBeUndefined();
   });
+
+  it("leaves a destroyed matter's tombstone alone when its disbursements are deleted (CORE-19)", async () => {
+    const w = world({
+      [M]: { number: 'M-2026-0042', destroyedAt: NOW, disbursementWipCents: 0 },
+      [`${DB}/d1`]: disbursement({ wipCountedCents: 2_000 }),
+    });
+    expect(await w.write('d1', undefined)).toEqual({ wipDelta: 0, patched: [] });
+    expect(w.doc(M)?.['disbursementWipCents']).toBe(0);
+    expect(w.doc(M)?.['lastActivityAt']).toBeUndefined();
+  });
 });
 
 describe('disbursements-setStatus', () => {
@@ -254,5 +264,14 @@ describe('disbursements-setStatus', () => {
     await expect(call(w, input, 'paralegal')).rejects.toMatchObject({ code: 'permission-denied' });
     await expect(call(w, { ...input, matterId: 'nope' })).rejects.toMatchObject({ code: 'not-found' });
     await expect(call(seeded(false), input)).rejects.toMatchObject({ details: { code: 'FEATURE_DISABLED' } });
+  });
+
+  it('refuses an archived matter (CORE-19)', async () => {
+    const w = seeded();
+    w.docs.set(M, { ...w.doc(M), status: 'archived' });
+    await expect(call(w, { matterId: 'm1', disbursementIds: ['d1'], status: 'written_off' })).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'matter_archived' },
+    });
   });
 });

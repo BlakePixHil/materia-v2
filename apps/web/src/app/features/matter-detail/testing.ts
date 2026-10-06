@@ -10,6 +10,7 @@ import {
   confirmationMatches,
   contactSearchTokens,
   DEFAULT_MATTER_STAGES,
+  evaluateClosing,
   matterSearchTokens,
   parseMentions,
   partyDocId,
@@ -194,6 +195,39 @@ export function serverCallables(): Record<string, FakeCallable> {
       const [path, doc] = partyDoc(role, contactId, data['share'] ? { share: data['share'] } : {});
       fs.set(path, doc);
       return { matterId: data['matterId'], partyId, clientContactIds: clientIds(fs) };
+    },
+    // Closing (CORE-19): one open task, no deadlines; a 7-year retention from today.
+    'matters-closingChecklist': (data) => ({
+      ...evaluateClosing('probate', { upcomingDeadlines: 0, openTasks: 1 }, (data['checklist'] ?? {}) as never),
+      counts: { upcomingDeadlines: 0, openTasks: 1 },
+      warnings: [],
+      retentionYears: 7,
+      destroyAfter: '2033-10-04',
+      holds: [],
+    }),
+    'matters-close': (data, fs) => {
+      fs.set(MATTER, {
+        ...fs.get(MATTER),
+        status: 'closed',
+        closedAt: new Date('2026-10-04T01:00:00Z'),
+        closeReason: data['reason'],
+        destroyAfter: '2033-10-04',
+      });
+      return { matterId: data['matterId'], status: 'closed', destroyAfter: '2033-10-04', holds: [], tasksCancelled: 1 };
+    },
+    'matters-reopen': (data, fs) => {
+      const reopened = Object.entries(fs.get(MATTER) as Seed).filter(
+        ([field]) => !['closedAt', 'closeReason', 'destroyAfter'].includes(field),
+      );
+      fs.set(MATTER, { ...Object.fromEntries(reopened), status: 'open' });
+      return { matterId: data['matterId'], status: 'open' };
+    },
+    'matters-setLegalHold': (data, fs) => {
+      fs.set(MATTER, {
+        ...fs.get(MATTER),
+        legalHold: { on: data['on'], reason: data['reason'], by: ME, at: new Date() },
+      });
+      return { matterId: data['matterId'], on: data['on'], destroyAfter: null, holds: [] };
     },
     'matters-removeParty': (data, fs) => {
       const path = `${MATTER}/parties/${String(data['partyId'])}`;

@@ -54,11 +54,14 @@ export async function syncTimeEntry(change: TriggerChange, ctx: TriggerContext):
     : null;
   if (!billing) log.warn('org has no billing settings; time entry values left as written', { matterId, entryId });
 
+  // A destroyed matter's tombstone (CORE-19) keeps no WIP or activity.
+  const live = matter.exists && !matter.get('destroyedAt');
+
   const plan = await db.runTransaction(async (tx) => {
     const current = await tx.get(entryRef);
     const planned = planTimeSync(current.exists ? (current.data() as Data) : undefined, before, inputs);
     // Without the matter there's no WIP to keep; leave the count alone so nothing is lost.
-    if (!matter.exists) {
+    if (!live) {
       delete planned.patch['wipCountedCents'];
       planned.wipDelta = 0;
     }
@@ -67,7 +70,7 @@ export async function syncTimeEntry(change: TriggerChange, ctx: TriggerContext):
     return planned;
   });
 
-  if (!before && after && matter.exists) await recordMatterActivity(db, orgId, matterId, ctx.time);
+  if (!before && after && live) await recordMatterActivity(db, orgId, matterId, ctx.time);
 
   const outcome = { wipDelta: plan.wipDelta, patched: Object.keys(plan.patch) };
   log.info('time entry synced', { matterId, entryId, ...outcome });

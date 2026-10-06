@@ -1,6 +1,6 @@
 import type * as z from 'zod';
 
-import { CreateNoteInput, Note, parseMentions, PERMISSIONS, type SaveNoteResult } from '@materia/domain';
+import { can, CreateNoteInput, Note, parseMentions, PERMISSIONS, type SaveNoteResult } from '@materia/domain';
 
 import { assertMayMarkPrivileged, notesPath, noteMentions, notifyMentions, readPeople } from './shared';
 import { audit } from '../audit/audit';
@@ -8,7 +8,7 @@ import { stamp } from '../contacts/shared';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
 import type { TxJoin } from '../core/tx-join';
-import { liveMatter, matterPath } from '../matters/shared';
+import { archivedError, liveMatter, matterPath } from '../matters/shared';
 
 /**
  * `notes-create` (CORE-13, `note.write`, idempotent). Adds a note to a live matter the caller can
@@ -17,7 +17,8 @@ import { liveMatter, matterPath } from '../matters/shared';
  * author) gets a `mention` notification. `privileged` needs `privileged.view` (PERMISSION_DENIED,
  * `details.reason: 'privileged_requires_lawyer'`); a note on a privileged matter is always
  * privileged, and members who can't open it are returned as `unreachable` instead of notified.
- * Audited as `note.created` (no note text).
+ * Audited as `note.created` (no note text). An archived matter (CORE-19) is read-only except for
+ * notes added by a lawyer or above (`matter.close` roles), which the audit entry marks `archived`.
  */
 export const createDefinition = {
   name: 'notes-create',
@@ -49,6 +50,9 @@ export async function createNote(
 
   const outcome = await db.runTransaction(async (tx) => {
     const matter = liveMatter(await tx.get(matterRef), role, input.matterId);
+    // An archived matter (CORE-19) takes notes from lawyers and above only, audited as such.
+    const archived = matter['status'] === 'archived';
+    if (archived && !can(role, 'matter.close')) throw archivedError(input.matterId);
     await options.join?.read(tx);
     const privileged = input.privileged || matter['privileged'] === true;
     const people = await readPeople(tx, db, orgId, [uid, ...parseMentions(input.bodyMd).uids]);
@@ -81,7 +85,7 @@ export async function createNote(
       people,
     });
     options.join?.write(tx, noteRef.path);
-    return { ...sent, privileged, mentioned: mentions.uids.length };
+    return { ...sent, privileged, archived, mentioned: mentions.uids.length };
   });
   await outcome.dispatch();
 
@@ -94,6 +98,7 @@ export async function createNote(
       data: {
         privileged: outcome.privileged,
         pinned: input.pinned,
+        ...(outcome.archived ? { archived: true } : {}),
         mentioned: outcome.mentioned,
         notified: outcome.notified.length,
       },

@@ -85,6 +85,8 @@ export const Org = withMeta(
     feeDefaults: FeeDefaultsSchema.optional(),
     fy: z.object({ startMonth: z.number().int().min(1).max(12) }),
     retentionYears: z.number().int().min(1).default(7),
+    /** A destroyed matter's tombstone keeps its title (CORE-19); off by default, so only the number stays. */
+    destructionKeepsTitle: z.boolean().optional(),
     plan: z.enum(['trial', 'standard', 'enterprise']),
     /** Security policies (SEC-04), written only by `security-updatePolicy`. */
     security: OrgSecuritySchema,

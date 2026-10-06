@@ -84,6 +84,13 @@ const matterRoutes: Route[] = [
     data: { layout: 'board' },
     loadComponent: () => import('./features/matters/matters-page').then((m) => m.MattersPage),
   },
+  // Closed matters due for destruction (CORE-19): owners and admins, behind `matters.destruction`.
+  {
+    path: 'destruction',
+    title: 'Destruction queue',
+    data: { crumb: 'Destruction queue' },
+    loadComponent: () => import('./features/matters/destruction-queue-page').then((m) => m.DestructionQueuePage),
+  },
   // New matter intake (CORE-05).
   {
     path: 'new',

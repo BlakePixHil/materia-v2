@@ -43,7 +43,7 @@ This register lists cross-cutting edge cases. When a ticket touches one of these
 - Minor or incapacitated beneficiaries, which affects distribution and the parties to a family provision claim.
 - A family provision claim made after the window closes, 6 months after the grant (Administration and Probate Act 1958 (Vic) s 99), which needs an extension of time; a claim considered before any grant exists (the window hasn't started).
 - Matters merged, split or duplicated by mistake: merge-matter tooling (admin only, audited).
-- A matter closed and then reopened, with retention dates recalculated.
+- A matter closed and then reopened, with retention dates recalculated (CORE-19: reopening clears `destroyAfter` and cancels a queued destruction; closing again dates it afresh).
 
 ## Documents
 

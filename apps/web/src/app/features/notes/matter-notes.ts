@@ -93,7 +93,7 @@ interface NoteEdit {
         <span class="caption t-3">{{ rows().length === 1 ? '1 note' : rows().length + ' notes' }}</span>
       }
     </div>
-    @if (canWrite()) {
+    @if (canAdd()) {
       <section class="mt-card composer" data-pad aria-label="New note">
         <mt-note-editor
           #composer
@@ -316,8 +316,15 @@ export class MatterNotes {
   private readonly editor = viewChild<NoteEditor>('editor');
 
   private readonly canNote = can('note.write');
-  /** The role may write notes and the matter isn't deleted. */
-  protected readonly canWrite = computed(() => this.canNote() && !this.screen.deleted());
+  /**
+   * Notes stay open on a closed matter (CORE-19). Once it's archived, lawyers and above still add
+   * notes (audited); existing notes are no longer edited, pinned or deleted.
+   */
+  protected readonly canAdd = computed(
+    () => this.canNote() && !this.screen.deleted() && (!this.screen.archived() || this.screen.canClose()),
+  );
+  /** The role may edit, pin and delete notes: the matter isn't deleted or archived. */
+  protected readonly canWrite = computed(() => this.canNote() && !this.screen.deleted() && !this.screen.archived());
   protected readonly matterPrivileged = computed(() => !!this.screen.value()?.privileged);
 
   protected readonly notes = this.repo.watchQuery(() =>
@@ -354,7 +361,7 @@ export class MatterNotes {
         description: 'Write a note',
         group: 'Notes',
         scope: 'route',
-        when: () => this.canWrite(),
+        when: () => this.canAdd(),
         handler: () => this.composer()?.focus(),
       }),
       shortcuts.register({

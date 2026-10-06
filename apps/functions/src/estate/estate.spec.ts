@@ -225,6 +225,13 @@ describe('estate-onWrite', () => {
     });
   });
 
+  it('keeps no totals on a destroyed matter’s tombstone (CORE-19)', async () => {
+    const w = world();
+    w.docs.set(M, { ...w.doc(M), destroyedAt: NOW });
+    expect((await w.write('assets', 'a1', asset())).synced).toBe(false);
+    expect(w.doc(M)?.['estateRegister']).toBeUndefined();
+  });
+
   it('recomputes deadlines only when the matter’s rule set reads the estate values', async () => {
     const w = world();
     const ctx = (params: Data = {}) =>

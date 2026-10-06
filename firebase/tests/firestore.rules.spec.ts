@@ -2722,6 +2722,74 @@ describe('notes (CORE-13)', () => {
   });
 });
 
+describe('closed and archived matters (CORE-19)', () => {
+  const CLOSED = `orgs/${ORG}/matters/matter-closed`;
+  const ARCHIVED = `orgs/${ORG}/matters/matter-archived`;
+  // Every matter subcollection a client may update, moved under the two matters.
+  const records = COLLECTIONS.filter(
+    (spec) => spec.update !== 'none' && new RegExp(`^${MATTER}/[A-Za-z]+/[^/]+$`).test(spec.docPath),
+  );
+  const under = (matter: string, spec: CollectionSpec) => spec.docPath.replace(MATTER, matter);
+
+  beforeAll(() =>
+    seedAdmin(env, async (f) => {
+      const matter = { ...seedData(specFor('matters')), deletedAt: null, closedAt: Timestamp.now() };
+      await setDoc(doc(f, CLOSED), { ...matter, status: 'closed' });
+      await setDoc(doc(f, ARCHIVED), { ...matter, status: 'archived', archivedAt: Timestamp.now() });
+      for (const spec of records) {
+        await setDoc(doc(f, under(CLOSED, spec)), seedData(spec));
+        await setDoc(doc(f, under(ARCHIVED, spec)), seedData(spec));
+      }
+    }),
+  );
+
+  it('has matter records to check', () => {
+    expect(records.map((spec) => spec.collection)).toEqual(
+      expect.arrayContaining(['tasks', 'deadlines', 'documents', 'notes', 'parties', 'assets']),
+    );
+  });
+
+  it.each(records.map((spec) => [spec.collection, spec] as const))(
+    '%s: editable on a closed matter, read-only once archived',
+    async (_name, spec) => {
+      const role = writerFor(spec);
+      const firestore = db(env, role);
+      const change = stamped(changeFor(spec), uidFor(role));
+      await assertSucceeds(updateDoc(doc(firestore, under(CLOSED, spec)), change));
+      await assertSucceeds(getDoc(doc(firestore, under(ARCHIVED, spec))));
+      await assertFails(updateDoc(doc(firestore, under(ARCHIVED, spec)), change));
+    },
+  );
+
+  it('the archived matter itself is read-only, and takes no new tasks', async () => {
+    const firestore = db(env, 'owner');
+    const uid = uidFor('owner');
+    await assertSucceeds(updateDoc(doc(firestore, CLOSED), stamped({ title: 'Renamed while closed' }, uid)));
+    await assertSucceeds(getDoc(doc(firestore, ARCHIVED)));
+    await assertFails(updateDoc(doc(firestore, ARCHIVED), stamped({ title: 'Renamed while archived' }, uid)));
+    const newTask = (matterId: string) => ({
+      title: 'Fictional follow-up',
+      status: 'todo',
+      priority: 'high',
+      dueDate: '2026-10-20',
+      assigneeUid: uid,
+      checklist: [],
+      order: 1024,
+      source: 'manual',
+      countedOpen: false,
+      orgId: ORG,
+      matterId,
+      createdAt: serverTimestamp(),
+      createdBy: uid,
+      updatedAt: serverTimestamp(),
+      updatedBy: uid,
+      schemaVersion: 1,
+    });
+    await assertSucceeds(setDoc(doc(firestore, `${CLOSED}/tasks/t-new`), newTask('matter-closed')));
+    await assertFails(setDoc(doc(firestore, `${ARCHIVED}/tasks/t-new`), newTask('matter-archived')));
+  });
+});
+
 describe('time entries (BILL-01)', () => {
   const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-time-privileged`;
   const DELETED_MATTER = `orgs/${ORG}/matters/matter-time-deleted`;

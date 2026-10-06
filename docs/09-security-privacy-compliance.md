@@ -12,7 +12,7 @@ Client personal information is often sensitive: health information in capacity d
 - **Legal Profession Uniform Law, as applied in Victoria, and its Rules.** The regulator is the Victorian Legal Services Board and Commissioner.
   - Confidentiality.
   - Costs disclosure (Part 4.3).
-  - File retention: the firm's policy, commonly 7 years after closure. Original wills are held indefinitely in safe custody.
+  - File retention: the firm's policy, commonly 7 years after closure. Original wills are held indefinitely in safe custody. Materia (CORE-19) dates each closed matter for destruction `retentionYears` after closing (default 7) and never dates a will or POA with originals in custody, a matter involving a minor, or one under legal hold. Nothing is destroyed without an admin approving it, and the `matters.destruction` flag stays off in production until a practitioner signs off the periods (CORE-19a).
   - Trust money: out of scope for v1. Materia never keeps trust records; it may only show a labelled balance snapshot ([ADR-035](adr/035-trust-accounting.md)).
   - **(sign-off)**
 - **Privilege.** Privilege is never waived by the system: no automatic sharing, and privileged flags carry through exports, AI outputs and emails.
@@ -93,6 +93,7 @@ Client personal information is often sensitive: health information in capacity d
 - Daily managed exports to `australia-southeast2`, with a 35-day retention and monthly copies kept for 1 year.
 - Storage soft-delete (30 days) and object versioning (non-current versions kept 90 days) on the document bucket, plus a nightly copy to `australia-southeast2`.
 - A quarterly restore drill (the `backup-drill` workflow on dev).
+- Destroying a matter (CORE-19) deletes its live data only. Backups, PITR, Storage soft-delete, non-current versions and the nightly Storage copy keep it until they expire (35 days for daily exports, 1 year for the monthly copies), and a restore drill must not bring a destroyed matter back into the live database. The destruction certificate says so.
 
 **Supply chain**
 - Renovate or Dependabot with grouped updates, `pnpm audit`, CodeQL and gitleaks.

@@ -234,10 +234,10 @@ export class MatterSuggestions {
     return isExpired(item, this.now());
   }
 
-  /** clerk.use, the kind's action, and privileged.view for a privileged one; never on a deleted matter. */
+  /** clerk.use, the kind's action, and privileged.view for a privileged one; never on a deleted or closed matter (CORE-19). */
   protected mayAccept(item: SuggestionRecord): boolean {
     const role = this.context.role();
-    return !!role && !this.screen.deleted() && canAcceptSuggestion(role, item.kind, item.privileged);
+    return !!role && !this.screen.readOnly() && canAcceptSuggestion(role, item.kind, item.privileged);
   }
 
   protected bulk(kind: SuggestionKind, count: number): string {

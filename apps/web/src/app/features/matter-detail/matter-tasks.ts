@@ -213,7 +213,7 @@ export class MatterTasks {
   private readonly addButton = viewChild('addButton', { read: ElementRef<HTMLElement> });
 
   private readonly canTask = can('task.edit');
-  protected readonly canEdit = computed(() => this.canTask() && !this.screen.deleted());
+  protected readonly canEdit = computed(() => this.canTask() && !this.screen.readOnly());
 
   protected readonly tasks = this.repo.watchQuery(forMatter(this.id, MATTER_TASKS_QUERY));
   protected readonly loadError = computed(() => errorCopy(this.tasks.error()));

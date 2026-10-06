@@ -1067,12 +1067,14 @@ export function buildDataset(options: {
       // matters follow their templates' stages and tasks (CORE-07), and the illustrative Victorian
       // statutory deadline rules apply (CORE-10), the Doyle probate has an estate register (CORE-16)
       // and Clerk's suggestions show on the Overview (AI-07), as does the fee panel (BILL-05). Trust
-      // balances copied from the firm's trust records show on matters (BILL-11, ADR-035).
+      // balances copied from the firm's trust records show on matters (BILL-11, ADR-035), and the
+      // retention destruction queue runs (CORE-19).
       flags: {
         'conflicts.enforced': true,
         'templates.system': true,
         'deadlines.ruleset.vic.v1': true,
         'estate.register': true,
+        'matters.destruction': true,
         'clerk.features.suggestions': true,
         'billing.trustDisplay': true,
         // Fee arrangements, budgets and budget alerts on the Overview (BILL-05).

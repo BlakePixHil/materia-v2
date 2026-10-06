@@ -11,7 +11,7 @@ import {
 
 import {
   contactNames,
-  liveMatter,
+  writableMatter,
   matterNumberPath,
   matterPath,
   matterSearch,
@@ -45,13 +45,13 @@ export const renumberDefinition = {
     const meta = { createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid };
 
     // Names for the search tokens, read before the transaction (they don't change the outcome).
-    const before = liveMatter(await ref.get(), role, input.matterId);
+    const before = writableMatter(await ref.get(), role, input.matterId);
     const names = await contactNames(db, orgId, searchContactIds(before));
     const org = (await db.doc(`orgs/${orgId}`).get()).data() ?? {};
     const timeZone = typeof org['timezone'] === 'string' && org['timezone'] ? org['timezone'] : DEFAULT_ORG_TIMEZONE;
 
     const from = await db.runTransaction(async (tx) => {
-      const data = liveMatter(await tx.get(ref), role, input.matterId);
+      const data = writableMatter(await tx.get(ref), role, input.matterId);
       const current = typeof data['number'] === 'string' ? data['number'] : '';
       if (current === number) return null;
       const oldKey = current ? matterNumberKey(current) : null;
