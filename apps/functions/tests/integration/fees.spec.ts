@@ -183,5 +183,6 @@ describe('budget alerts', () => {
     await addTime(15000);
     expect(await budgetAt(122000)).toMatchObject({ pct: 81, revision: 1, alerted: [80] });
     expect(await poll(alerts, (sent) => sent.length >= 6)).toHaveLength(6);
-  });
+    // Five trigger rounds and a callable, each waiting on the Functions emulator (cold starts in CI).
+  }, 120_000);
 });
