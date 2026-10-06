@@ -1,0 +1,8 @@
+{
+  "id": "ins-007",
+  "fields": {
+    "insufficientData": false
+  },
+  "mustNotContain": ["accountant", "accounting", "financial planner", "financial planning", "website"],
+  "canaries": ["c-canary-ref-m4k8", "c-canary-ref-z2p6"]
+}

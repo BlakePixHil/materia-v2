@@ -1,0 +1,7 @@
+{
+  "id": "ins-010",
+  "fields": {
+    "insufficientData": false
+  },
+  "mustNotContain": ["last year", "previous month", "compared with June"]
+}

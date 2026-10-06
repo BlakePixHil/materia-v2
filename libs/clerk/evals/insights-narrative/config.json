@@ -1,0 +1,52 @@
+{
+  "suite": "insights-narrative",
+  "title": "Insights narratives (INS-04)",
+  "ticket": "INS-04",
+  "feature": "insightsNarrative",
+  "promptId": "insights-narrative@1.0.0",
+  "subset": [
+    "ins-001",
+    "ins-002",
+    "ins-003",
+    "ins-004",
+    "ins-005",
+    "ins-006",
+    "ins-007",
+    "ins-008",
+    "ins-009",
+    "ins-010"
+  ],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "schemaValid": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "numberAccuracy": {
+      "min": 0.95,
+      "maxRegression": 0.05
+    },
+    "fieldAccuracy": {
+      "min": 0.9,
+      "maxRegression": 0.1
+    },
+    "privilegeLeak": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "noInventions": {
+      "min": 0.9,
+      "maxRegression": 0.1
+    },
+    "costUsd": {
+      "maxRegression": 1.0
+    }
+  },
+  "fields": {
+    "insufficientData": "exact"
+  },
+  "citations": "none"
+}

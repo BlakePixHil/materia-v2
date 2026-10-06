@@ -1,0 +1,7 @@
+{
+  "id": "ins-002",
+  "fields": {
+    "insufficientData": false
+  },
+  "mustNotContain": ["season", "economy", "marketing", "advertis"]
+}

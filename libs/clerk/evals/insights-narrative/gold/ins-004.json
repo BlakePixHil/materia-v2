@@ -1,0 +1,7 @@
+{
+  "id": "ins-004",
+  "fields": {
+    "insufficientData": false
+  },
+  "mustNotContain": ["Christmas", "holiday", "season", "leave"]
+}

@@ -162,7 +162,7 @@ See [ADR-044](adr/044-clerk-chat-panel.md). Code: `apps/functions/src/clerk/chat
 
 See [ADR-034](adr/034-clerk-context-assembly.md). Code: `apps/functions/src/clerk/context/`.
 
-- **Entry point:** `clerkContext({db}).buildContext({ctx, scope: {matterId} | {org: 'metrics'}, feature, attachments?, query?})` returns `{system, contextBlocks: {stable, volatile}, documents, searchResults, manifest, truncated}`. Pass the result to the gateway as `run({..., context})`: the base system prompt goes before the feature prompt's system section, the stable blocks (matter facts and recent notes, with the cache breakpoint) come first, then attachments and excerpts, then the volatile `<context_notice>`, then the question. The result carries `manifest`, `truncated` and `privileged`; the message stores `manifest` and `privileged` from the moment it is created.
+- **Entry point:** `clerkContext({db}).buildContext({ctx, scope: {matterId} | {org: 'metrics', current, comparison}, feature, attachments?, query?})` returns `{system, contextBlocks: {stable, volatile}, documents, searchResults, manifest, truncated}`. Pass the result to the gateway as `run({..., context})`: the base system prompt goes before the feature prompt's system section, the stable blocks (matter facts and recent notes, with the cache breakpoint) come first, then attachments and excerpts, then the volatile `<context_notice>`, then the question. The result carries `manifest`, `truncated` and `privileged`; the message stores `manifest` and `privileged` from the moment it is created.
 - **Access:** the role in the request must have `clerk.use`; the member document is re-read uncached (suspended, removed or no longer `clerk.use`: `ACCESS_REVOKED`). The matter must exist, be live and pass `can(role, 'matter.view', {privileged})` for the request's role (else `NOT_FOUND`, which never reveals a privileged matter) and for the current role (else `ACCESS_REVOKED`). Privileged material needs `privileged.view` in both. Ids are checked as document ids (no `/`), so a client can't name a path; everything is read under `orgs/{claim orgId}/matters/{matterId}`.
 - **Facts** (compact JSON in `<matter_facts>`): the matter summary (number, title, type, status, stage, responsible lawyer by name and title while an active member, clients, deceased, estate, key facts, dispute, costs disclosure, next deadline), the fee summary (only when fee fields exist), parties by name and role, events, upcoming and blocked deadlines with rule citation and trace (top 20), open tasks (top 30, soonest due first). Server-only fields (search tokens, email token, legacy billing) are never picked.
 - **Notes:** the 10 newest live notes, each in `<matter_note>`, cut at 2,000 characters with a `[… truncated: N more characters]` marker. Without `privileged.view` the query itself filters `privileged == false`.
@@ -170,7 +170,7 @@ See [ADR-034](adr/034-clerk-context-assembly.md). Code: `apps/functions/src/cler
 - **Retrieval:** only when there is a query, through `ChunkSearchPort.searchChunks({orgId, matterId, query, k: 24, allowPrivileged})` (AI-04's port). Hits are filtered again (privileged, live, clean, current version, this matter, not already attached), de-duplicated by (document, page), and the 12 closest are sent as `search_result` blocks in `<excerpt>`. A matter's documents are never listed: only attachments and hits are read, by id.
 - **Budget:** per feature in `context/policy.ts` (`CONTEXT_POLICIES`, e.g. chat 40k tokens). The system prompt, facts and query are fixed; excerpts (farthest first), then notes (oldest first), then attachments (last first) are dropped until the rest fits. `truncated = {droppedDocs, droppedChunks, droppedNotes}` (or `null`) is on the manifest, the gateway result and, as a notice, in the prompt. Tokens are a character estimate (`TokenCounter` port) until the provider adapter exposes the token-counting endpoint.
 - **Untrusted framing:** `<matter_facts>`, `<matter_note>`, `<document>`, `<excerpt>` and `<org_metrics>` are data; their text can't open or close a framing tag (escaped to `&lt;`), and JSON escapes `<`. The base system prompt (`system@1.1.0`) says to ignore and report instructions found inside them, and to send a client-facing prediction request to the responsible lawyer by name.
-- **Metrics scope:** `scope: {org: 'metrics'}` is allowed only for a feature whose policy lists `metrics` (none yet; INS-04 adds one) and roles with `billing.view` (as the rules on `metrics/`). It reads the newest `month-*` and `fy-*` rollups, numbers only, with no documents, notes or retrieval.
+- **Metrics scope (INS-04):** `scope: {org: 'metrics', current, comparison}` is allowed only for a feature whose policy lists `metrics` (`insightsNarrative`), for any role with `clerk.use` (every member reads the month documents). `current` and `comparison` (or null) name the months of each period (at most 24, as `YYYY-MM`). It reads those `month-*` documents with their shards and gives Clerk `narrativeFigures`: a fixed catalogue of org totals as display text, with the change and relative change worked out. There are no counters keyed by a contact or a member, and no documents, notes or retrieval. The result carries `figures` for the number check. See "Insights narratives (INS-04)" below.
 
 ## Suggestions (AI-07)
 
@@ -200,8 +200,29 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md) and "Clerk suggestions (AI-07
 | Time capture assist | AI-11 | time-entry suggestions | low |
 | Chronology from documents | LIT-06 | chronology suggestions with sources | high |
 | Orders extraction | LIT-04 | order suggestions with due dates | high |
-| Insights narrative | INS-04 | narrative citing metric cells | low |
+| Insights narrative | INS-04 | paragraphs, each citing the figures it uses | low |
 | Voice → structured | MOB-03 | note and time-entry suggestions | low |
+
+## Insights narratives (INS-04)
+
+See [ADR-054](adr/054-insights-narratives.md). Code: `libs/domain/src/lib/insights-narrative.ts`, `apps/functions/src/clerk/insights.ts`, `apps/web/src/app/features/insights/insights-narrative.ts`.
+
+- **Callable:** `clerk-explainInsights({range, from?, to?, compare, mode})` uses the Insights URL's selection; the periods are worked out on the org's today and FY start. The modes are:
+  - `cached`: the kept explanation of the selection, or null.
+  - `explain`: the kept explanation, or a new one.
+  - `refresh`: a new one once the kept one is 10 minutes old.
+
+  It returns `{narrative, problem?}`. `narrative` is `{periodLabel, comparisonLabel, paragraphs[{text, citations[{metric, dimension?, period, label, value}]}], insufficientData, omitted, generatedAt, refreshAfter, expiresAt, stale, promptRef}`. `problem` is `failed` (the model didn't finish) or `unverified` (no paragraph passed the number check).
+- **Switches:** `gateway.assertOn(ctx, 'insightsNarrative')` runs before a kept explanation is read: role `clerk.use`, `clerk.enabled`, `clerk.features.insightsNarrative`, the practice's Clerk switch and its "Explain Insights" toggle (`settings.clerk.features.insightsNarrative`), and the acknowledgement.
+- **Prompt:** `insights-narrative@1.0.0` (low effort), output `insightsNarrative`: `{paragraphs (≤ 4) [{text, citations (≤ 8) [{metric, period: 'current'|'comparison', dimension?}]}], insufficientData}`.
+- **Number check:** `checkNarrativeParagraph` accepts a paragraph only when each of its numbers is one of these:
+  - a cited figure's value in a cited period;
+  - that figure's change or relative change, when both periods are cited;
+  - a number in a period label.
+
+  It must also cite only figures it was given. `verifiedNarrative` drops the rest and counts them as `omitted`. Logs carry counts only, never the text.
+- **Cache:** `orgs/{orgId}/insightsNarratives/{narrativeKey}` (server-only) holds the checked paragraphs, `figuresHash`, `promptRef`, `model`, `generatedAt`, the months and `generatedBy`, kept for 24 hours. A different hash makes the kept one `stale`. With no figures in either period the answer is `insufficientData` with no call and nothing kept.
+- **UI:** the "What changed" card under the Stats on Insights. Chips (label and value) pick out the hero, a Stat or a chart, and the bar for a matter type or deadline result. Refresh waits out the 10 minutes. The card is hidden for read-only members and when the practice has turned the feature off.
 
 ## Evals (AI-12)
 

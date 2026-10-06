@@ -1,0 +1,73 @@
+{
+  "id": "ins-002",
+  "description": "This financial year to date against the same months last year: more probate, fewer wills",
+  "role": "lawyer",
+  "today": "2026-10-15",
+  "insights": {
+    "range": "this_fy",
+    "compare": "previous"
+  },
+  "metrics": {
+    "2026-07": {
+      "matters.opened": 8,
+      "billing.invoicedCents": 3000000,
+      "billing.collectedCents": 2800000,
+      "matters.opened.type.probate": 4,
+      "matters.opened.type.will": 3,
+      "matters.opened.type.poa": 1
+    },
+    "2026-08": {
+      "matters.opened": 7,
+      "billing.invoicedCents": 3400000,
+      "billing.collectedCents": 3100000,
+      "matters.opened.type.probate": 5,
+      "matters.opened.type.will": 2
+    },
+    "2026-09": {
+      "matters.opened": 9,
+      "billing.invoicedCents": 3900000,
+      "billing.collectedCents": 3300000,
+      "matters.opened.type.probate": 6,
+      "matters.opened.type.will": 2,
+      "matters.opened.type.contest": 1
+    },
+    "2026-10": {
+      "matters.opened": 4,
+      "billing.invoicedCents": 1500000,
+      "billing.collectedCents": 1200000,
+      "matters.opened.type.probate": 3,
+      "matters.opened.type.will": 1,
+      "active.matters": 61
+    },
+    "2025-07": {
+      "matters.opened": 6,
+      "billing.invoicedCents": 2600000,
+      "billing.collectedCents": 2500000,
+      "matters.opened.type.probate": 2,
+      "matters.opened.type.will": 4
+    },
+    "2025-08": {
+      "matters.opened": 6,
+      "billing.invoicedCents": 2900000,
+      "billing.collectedCents": 2700000,
+      "matters.opened.type.probate": 2,
+      "matters.opened.type.will": 3,
+      "matters.opened.type.poa": 1
+    },
+    "2025-09": {
+      "matters.opened": 5,
+      "billing.invoicedCents": 3100000,
+      "billing.collectedCents": 2900000,
+      "matters.opened.type.probate": 2,
+      "matters.opened.type.will": 3
+    },
+    "2025-10": {
+      "matters.opened": 7,
+      "billing.invoicedCents": 3300000,
+      "billing.collectedCents": 3000000,
+      "matters.opened.type.probate": 3,
+      "matters.opened.type.will": 4,
+      "active.matters": 52
+    }
+  }
+}

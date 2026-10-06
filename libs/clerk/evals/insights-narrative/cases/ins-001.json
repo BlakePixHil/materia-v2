@@ -1,0 +1,58 @@
+{
+  "id": "ins-001",
+  "description": "Collections fell while money owed 61 to 90 days past due rose (month on month)",
+  "role": "lawyer",
+  "today": "2026-06-10",
+  "insights": {
+    "range": "last_month",
+    "compare": "previous"
+  },
+  "metrics": {
+    "2026-04": {
+      "billing.invoicedCents": 4200000,
+      "billing.collectedCents": 3850000,
+      "time.billable.minutes": 18000,
+      "time.recordedCents": 9000000,
+      "matters.opened": 6,
+      "matters.opened.type.probate": 3,
+      "matters.opened.type.will": 3,
+      "matters.closed": 4,
+      "deadlines.due": 9,
+      "deadlines.metOnTime": 9,
+      "active.matters": 48,
+      "overdue.deadlines": 0,
+      "matters.opened.referred": 1,
+      "matters.opened.referrer.c-canary-ref-q7x2": 1,
+      "referrals.billedCents": 300000,
+      "referrals.referrer.c-canary-ref-q7x2.billedCents": 300000,
+      "debtors.total": 2100000,
+      "debtors.invoices": 11,
+      "debtors.current": 1200000,
+      "debtors.d1_30": 500000,
+      "debtors.d31_60": 250000,
+      "debtors.d61_90": 150000,
+      "debtors.d90_plus": 0
+    },
+    "2026-05": {
+      "billing.invoicedCents": 4650000,
+      "billing.collectedCents": 3157000,
+      "time.billable.minutes": 19200,
+      "time.recordedCents": 9600000,
+      "matters.opened": 5,
+      "matters.opened.type.probate": 3,
+      "matters.opened.type.will": 2,
+      "matters.closed": 3,
+      "deadlines.due": 8,
+      "deadlines.metOnTime": 8,
+      "active.matters": 50,
+      "overdue.deadlines": 0,
+      "debtors.total": 3400000,
+      "debtors.invoices": 15,
+      "debtors.current": 1300000,
+      "debtors.d1_30": 600000,
+      "debtors.d31_60": 400000,
+      "debtors.d61_90": 900000,
+      "debtors.d90_plus": 200000
+    }
+  }
+}

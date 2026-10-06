@@ -1,0 +1,7 @@
+{
+  "id": "ins-006",
+  "fields": {
+    "insufficientData": false
+  },
+  "mustNotContain": ["billing run", "forgot", "end of month", "end-of-month"]
+}

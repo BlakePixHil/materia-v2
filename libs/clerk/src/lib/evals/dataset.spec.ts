@@ -13,8 +13,17 @@ import {
   readTextFixture,
   suiteIds,
 } from './dataset';
+import { insightsCase } from './insights';
 
-const FEATURE_SUITES = ['brief', 'chat', 'classification', 'drafting', 'time-assist', 'will-extraction'];
+const FEATURE_SUITES = [
+  'brief',
+  'chat',
+  'classification',
+  'drafting',
+  'insights-narrative',
+  'time-assist',
+  'will-extraction',
+];
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -64,6 +73,20 @@ describe('the committed eval datasets', () => {
       for (const canary of privilege.gold.get(evalCase.id)?.canaries ?? []) {
         expect(privileged).toContain(canary);
         expect(open).not.toContain(canary);
+      }
+    }
+  });
+
+  it('insights cases plant their canaries only in metric keys the narrative scope leaves out', () => {
+    const suite = loadSuite('insights-narrative');
+    const canaried = suite.cases.filter((c) => suite.gold.get(c.id)?.canaries?.length);
+    expect(canaried.length).toBeGreaterThanOrEqual(2);
+    for (const evalCase of suite.cases) {
+      const figures = JSON.stringify(insightsCase(evalCase)?.figures);
+      expect(insightsCase(evalCase)).not.toBeNull();
+      for (const canary of suite.gold.get(evalCase.id)?.canaries ?? []) {
+        expect(JSON.stringify(evalCase.metrics)).toContain(canary);
+        expect(figures).not.toContain(canary);
       }
     }
   });

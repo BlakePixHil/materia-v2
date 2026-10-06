@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import * as z from 'zod';
 
+import { INSIGHTS_COMPARISONS, INSIGHTS_RANGES } from '@materia/domain';
+
 /**
  * The eval datasets (AI-12): `libs/clerk/evals/<suite>/{config.json, cases/*.json, gold/*.json}`
  * plus the shared `fixtures/`, `config.json` (budgets, concurrency) and `baselines.json`. Every
@@ -28,6 +30,7 @@ export const METRICS = [
   'noInventions',
   'draftAccuracy',
   'draftHonesty',
+  'numberAccuracy',
   'latencyMs',
   'costUsd',
 ] as const;
@@ -53,6 +56,7 @@ export const FieldMode = z.enum(['exact', 'normalised', 'setF1', 'date']);
 export type FieldMode = z.infer<typeof FieldMode>;
 
 const SuiteId = z.string().regex(/^[a-z][a-z0-9-]*$/);
+const MonthId = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const CaseId = z.string().regex(/^[a-z][a-z0-9-]*$/);
 
 export const SuiteConfigSchema = z
@@ -62,7 +66,16 @@ export const SuiteConfigSchema = z
     /** The Linear key of the feature this suite gates (AI-06, AI-08, …). */
     ticket: z.string().regex(/^[A-Z]+-\d+[a-z]?$/),
     /** The gateway feature the cases run as (its kill switch and timeout). */
-    feature: z.enum(['chat', 'suggestions', 'classification', 'brief', 'willExtraction', 'drafting', 'timeAssist']),
+    feature: z.enum([
+      'chat',
+      'suggestions',
+      'classification',
+      'brief',
+      'willExtraction',
+      'drafting',
+      'timeAssist',
+      'insightsNarrative',
+    ]),
     /** `id@version` of the prompt under test. A case may name its own (injection, privilege). */
     promptId: z.string().regex(/^[a-z][a-zA-Z0-9-]*@\d+\.\d+\.\d+$/),
     /** The `--subset` cases run on pull requests (about 10). */
@@ -116,6 +129,21 @@ export const EvalCaseSchema = z
     documents: z.array(CaseDocumentSchema).default([]),
     /** The user's request (the chat question, the drafting instruction, the time-capture notes, …). */
     query: z.string().default(''),
+    /**
+     * Insights narratives (INS-04): the practice's org figures by month (`2026-05` → the
+     * `metrics/month-2026-05` document's `values`), and the Insights selection the case explains.
+     */
+    metrics: z.record(MonthId, z.record(z.string(), z.number())).default({}),
+    insights: z
+      .object({
+        range: z.enum(INSIGHTS_RANGES),
+        from: MonthId.optional(),
+        to: MonthId.optional(),
+        compare: z.enum(INSIGHTS_COMPARISONS),
+        fyStartMonth: z.number().int().min(1).max(12).default(7),
+      })
+      .strict()
+      .optional(),
     tags: z.array(z.string()).default([]),
   })
   .strict();
