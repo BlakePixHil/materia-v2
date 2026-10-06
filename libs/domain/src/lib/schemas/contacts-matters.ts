@@ -386,6 +386,8 @@ export const Matter = withMeta(
     recomputeVersion: z.number().int().min(0).default(0),
     emailToken: z.string().optional(),
     legacyBilling: z.record(z.string(), z.unknown()).optional(),
+    /** Raw legacy fields a migrated matter keeps for reference (MIG-03): the legacy `fee` as it was. Read-only. */
+    legacy: z.record(z.string(), z.unknown()).optional(),
   },
   {
     path: 'orgs/{orgId}/matters',
@@ -425,6 +427,7 @@ export const Matter = withMeta(
       'recomputeVersion',
       'emailToken',
       'legacyBilling',
+      'legacy',
       'budget',
       'closedAt',
       'closeReason',
