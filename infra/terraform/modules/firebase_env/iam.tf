@@ -241,7 +241,7 @@ resource "google_secret_manager_secret_iam_member" "deployer_clerk_evals_key" {
   member    = "serviceAccount:${google_service_account.deployer.email}"
 }
 
-# migration-runner: Firestore writes and the migration bucket, nothing else.
+# migration-runner: Firestore writes, the migration bucket and the files bucket, nothing else.
 resource "google_project_iam_member" "migration_runner_firestore" {
   count   = var.enable_migration_runner ? 1 : 0
   project = google_project.this.project_id
@@ -252,6 +252,16 @@ resource "google_project_iam_member" "migration_runner_firestore" {
 resource "google_storage_bucket_iam_member" "migration_runner_bucket" {
   count  = var.enable_migration_runner ? 1 : 0
   bucket = google_storage_bucket.migration.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.migration_runner[0].email}"
+}
+
+# The attachment copy (MIG-05) writes copies into the files bucket, reads them back and moves
+# clean ones out of its quarantine prefix. Read on the legacy bucket is granted in the legacy
+# project for the cutover only (docs/runbooks/migration-copy-files.md).
+resource "google_storage_bucket_iam_member" "migration_runner_files" {
+  count  = var.enable_migration_runner ? 1 : 0
+  bucket = google_storage_bucket.default.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.migration_runner[0].email}"
 }

@@ -33,10 +33,13 @@ export interface DrillResult {
   restoreSeconds: number;
   verifySeconds: number;
   documents: number;
-  groups: { group: string; restored: number; live: number }[];
+  /** Live counts at the snapshot time, or at the minutes either side when it isn't a whole minute. */
+  groups: { group: string; restored: number; live: number; liveNextMinute?: number }[];
   mismatches: string[];
   /** False when the snapshot is outside the PITR window, so counts compare against today's data. */
   exact: boolean;
+  /** The PITR read times the live counts were taken at (none when not exact). */
+  liveReadTimes: string[];
   deleted: boolean;
 }
 
@@ -49,6 +52,20 @@ export interface DrillOptions {
 }
 
 const PITR_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60_000;
+
+/**
+ * Where to read the live database to compare with a snapshot: at the snapshot time when it's a
+ * whole minute (exports), otherwise at the minutes either side (managed backups snapshot at any
+ * second, and PITR reads older than an hour must be whole minutes). A restored count between the
+ * two matches.
+ */
+export function liveReadTimes(snapshotTime: string): string[] {
+  const snapshotMs = new Date(snapshotTime).getTime();
+  const floor = Math.floor(snapshotMs / MINUTE_MS) * MINUTE_MS;
+  if (floor === snapshotMs) return [snapshotTime];
+  return [new Date(floor).toISOString(), new Date(floor + MINUTE_MS).toISOString()];
+}
 
 /** `drill-20261006-0930-backup`: a valid, unique-enough database id. */
 export function scratchId(source: DrillSource, at: number): string {
@@ -88,6 +105,19 @@ async function restoreInto(
   return picked;
 }
 
+/**
+ * Deletes scratch databases a previous drill left behind (a cancelled or timed-out run never
+ * reaches its own clean-up). Only `drill-…` ids, never anything else.
+ */
+export async function deleteLeftovers(api: AdminApi, log: (line: string) => void): Promise<string[]> {
+  const leftovers = (await api.listDatabases()).filter((id) => id.startsWith('drill-'));
+  for (const id of leftovers) {
+    await api.wait(await api.deleteDatabase(id));
+    log(`deleted leftover ${id}`);
+  }
+  return leftovers;
+}
+
 export async function drill(
   api: AdminApi,
   dbs: DrillDatabases,
@@ -102,22 +132,34 @@ export async function drill(
   try {
     const picked = await restoreInto(api, source, database, opts);
     const restored = opts.now();
+    opts.log(`  restored in ${Math.round((restored - started) / 1000)} s`);
     const snapshotMs = new Date(picked.snapshotTime).getTime();
     const exact = restored - snapshotMs < PITR_WINDOW_MS - 10 * 60 * 1000;
+    const readTimes = exact ? liveReadTimes(picked.snapshotTime) : [undefined];
     const ids = [
       ...new Set([...(await dbs.collectionIds(database)), ...(await dbs.collectionIds('(default)'))]),
     ].sort();
+    opts.log(`  comparing ${ids.length} collection groups`);
     const groups = [];
     for (const group of ids) {
+      const live = [];
+      for (const readTime of readTimes) live.push(await dbs.count('(default)', group, readTime));
       groups.push({
         group,
         restored: await dbs.count(database, group),
-        live: await dbs.count('(default)', group, exact ? picked.snapshotTime : undefined),
+        live: live[0] as number,
+        ...(live.length > 1 ? { liveNextMinute: live[1] as number } : {}),
       });
     }
     const mismatches = groups
-      .filter((g) => g.restored !== g.live)
-      .map((g) => `${g.group}: restored ${g.restored}, live ${g.live}`);
+      .filter((g) => {
+        const other = g.liveNextMinute ?? g.live;
+        return g.restored < Math.min(g.live, other) || g.restored > Math.max(g.live, other);
+      })
+      .map(
+        (g) =>
+          `${g.group}: restored ${g.restored}, live ${g.live}${g.liveNextMinute === undefined ? '' : ` to ${g.liveNextMinute}`}`,
+      );
     const verified = opts.now();
     for (const line of mismatches) opts.log(`  MISMATCH ${line}`);
     result = {
@@ -131,6 +173,7 @@ export async function drill(
       groups,
       mismatches,
       exact,
+      liveReadTimes: readTimes.filter((t) => t !== undefined),
     };
   } finally {
     if (!opts.keep) {
@@ -159,7 +202,9 @@ export function summary(results: readonly DrillResult[]): string {
     const result = r.mismatches.length
       ? `❌ ${r.mismatches.length} mismatched`
       : r.exact
-        ? '✅ counts match'
+        ? r.liveReadTimes.length > 1
+          ? '✅ counts match (within the snapshot minute)'
+          : '✅ counts match'
         : '⚠️ counts vs today';
     lines.push(
       `| ${r.source} | ${r.snapshotTime} | ${r.rpoMinutes} min | ${r.restoreSeconds} s | ${r.verifySeconds} s | ${r.documents} | ${r.groups.length} | ${result} |`,
@@ -211,24 +256,36 @@ export async function main(argv: string[] = []): Promise<void> {
     count: (id, group, readTime) => countGroup(getFirestore(app, id), group, readTime),
   };
   const results: DrillResult[] = [];
+  const failures: string[] = [];
   try {
+    if (!args.keep) await deleteLeftovers(api, (line) => console.log(line));
     for (const source of args.sources) {
-      results.push(
-        await drill(api, dbs, source, {
-          location: 'australia-southeast1',
-          backupsBucket: `${args.project}-backups`,
-          keep: args.keep,
-          now: Date.now,
-          log: (line) => console.log(line),
-        }),
-      );
+      try {
+        results.push(
+          await drill(api, dbs, source, {
+            location: 'australia-southeast1',
+            backupsBucket: `${args.project}-backups`,
+            keep: args.keep,
+            now: Date.now,
+            log: (line) => console.log(line),
+          }),
+        );
+      } catch (error) {
+        // One source failing shouldn't stop the others from being drilled.
+        failures.push(`${source}: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(`backup-drill ${source} failed:`, error);
+      }
     }
   } finally {
     await deleteApp(app);
   }
-  const markdown = summary(results);
+  const markdown = [
+    summary(results),
+    ...(failures.length ? ['', '**Failed**', '', ...failures.map((f) => `- ${f}`)] : []),
+  ].join('\n');
   console.log(markdown);
   console.log(JSON.stringify(results.map((r) => ({ ...r, groups: r.groups.length }))));
   if (process.env['GITHUB_STEP_SUMMARY']) await appendFile(process.env['GITHUB_STEP_SUMMARY'], `${markdown}\n`);
+  if (failures.length) throw new Error(`Restore drill failed for ${failures.length} source(s) (see above)`);
   if (results.some((r) => r.mismatches.length)) throw new Error('Restore drill: counts differ (see above)');
 }

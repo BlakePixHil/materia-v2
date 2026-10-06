@@ -1,19 +1,31 @@
-import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
+import type {
+  DocumentReference,
+  DocumentSnapshot,
+  Firestore,
+  Query,
+  QuerySnapshot,
+  Transaction,
+} from 'firebase-admin/firestore';
 
 import {
   contactDisplayName,
   DomainError,
+  formatPacketNo,
   locationKey,
   packetSearchTokens,
+  SAFE_CUSTODY_COUNTER,
+  SafeCustody,
   type Contact,
+  type DateOnly,
   type MatterDocumentRef,
   type Role,
+  type SafeCustodyItem,
   type SafeCustodyLocation,
 } from '@materia/domain';
 
-import { contactPath, isDeleted } from '../contacts/shared';
+import { compact, contactPath, isDeleted } from '../contacts/shared';
 import { isClean, loadDocument } from '../documents/shared';
-import { liveMatter, matterPath } from '../matters/shared';
+import { counterPath, liveMatter, matterPath } from '../matters/shared';
 
 /** Shared helpers for the will safe-custody register (CORE-17). */
 
@@ -41,13 +53,17 @@ export function assertOpen(packet: Data): void {
   }
 }
 
+/** Reads a document directly, or through a transaction. */
+type Read = (ref: DocumentReference) => Promise<DocumentSnapshot>;
+
 /** Follows `mergedInto` (CORE-01 merges) to the contact kept, at most a few hops. */
-async function followMerges(db: Firestore, orgId: string, contactId: string): Promise<DocumentSnapshot> {
-  let snap = await db.doc(contactPath(orgId, contactId)).get();
+async function followMerges(db: Firestore, orgId: string, contactId: string, read?: Read): Promise<DocumentSnapshot> {
+  const get: Read = read ?? ((ref) => ref.get());
+  let snap = await get(db.doc(contactPath(orgId, contactId)));
   for (let hop = 0; hop < 5; hop++) {
     const next = snap.get('mergedInto') as string | undefined;
     if (!next) break;
-    snap = await db.doc(contactPath(orgId, next)).get();
+    snap = await get(db.doc(contactPath(orgId, next)));
   }
   return snap;
 }
@@ -60,8 +76,9 @@ export async function resolveTestator(
   db: Firestore,
   orgId: string,
   contactId: string,
+  read?: Read,
 ): Promise<{ id: string; name: string; data: Data }> {
-  const snap = await followMerges(db, orgId, contactId);
+  const snap = await followMerges(db, orgId, contactId, read);
   const data = snap.data();
   if (!snap.exists || !data || isDeleted(data) || data['mergedInto']) {
     throw new DomainError('INVALID_ARGUMENT', 'Testator not found', {
@@ -129,4 +146,103 @@ export async function assertDocument(
 /** The denormalised fields: search tokens and the stocktake's sort key. */
 export function derivedFields(packetNo: string, testatorName: string, location: Partial<SafeCustodyLocation>) {
   return { search: packetSearchTokens(packetNo, testatorName, location), locationKey: locationKey(location) };
+}
+
+/**
+ * Reserves the next packet number (`SC-000001` onwards, never reused) in a transaction: reads the
+ * `safe-custody` counter now; `commit` writes it back, after the transaction's other reads.
+ */
+export async function reservePacketNo(
+  tx: Transaction,
+  db: Firestore,
+  orgId: string,
+  uid: string,
+  now: Date,
+): Promise<{ packetNo: string; commit: () => void }> {
+  const counterRef = db.doc(counterPath(orgId, SAFE_CUSTODY_COUNTER));
+  const counter = await tx.get(counterRef);
+  const seq = typeof counter.get('next') === 'number' ? (counter.get('next') as number) : 1;
+  const meta = { updatedAt: now, updatedBy: uid };
+  return {
+    packetNo: formatPacketNo(seq),
+    commit: () =>
+      tx.set(
+        counterRef,
+        counter.exists
+          ? { next: seq + 1, ...meta }
+          : { next: seq + 1, createdAt: now, createdBy: uid, ...meta, schemaVersion: 1 },
+        { merge: true },
+      ),
+  };
+}
+
+export interface NewPacket {
+  packetNo: string;
+  testator: { id: string; name: string };
+  responsibleUid: string;
+  matterId?: string | undefined;
+  items: SafeCustodyItem[];
+  location: SafeCustodyLocation;
+  receivedOn: DateOnly | string;
+  notes?: string | undefined;
+  /** The `in` movement's reason. */
+  reason?: string;
+}
+
+/** Writes a new packet, `held` at its location with an `in` movement (`safeCustody-receive`, closing). */
+export function createPacket(
+  tx: Transaction,
+  ref: DocumentReference,
+  packet: NewPacket,
+  meta: { uid: string; now: Date; requestId: string },
+): void {
+  const { uid, now, requestId } = meta;
+  tx.create(
+    ref,
+    SafeCustody.schema.parse(
+      compact({
+        packetNo: packet.packetNo,
+        testatorContactId: packet.testator.id,
+        testatorName: packet.testator.name,
+        responsibleUid: packet.responsibleUid,
+        matterId: packet.matterId,
+        items: packet.items,
+        location: packet.location,
+        receivedOn: packet.receivedOn,
+        status: 'held',
+        movements: [
+          compact({
+            at: now,
+            by: uid,
+            kind: 'in',
+            reason: packet.reason ?? 'Received into safe custody',
+            location: packet.location,
+          }),
+        ],
+        notes: packet.notes || undefined,
+        pendingDestruction: null,
+        ...derivedFields(packet.packetNo, packet.testator.name, packet.location),
+        createdAt: now,
+        createdBy: uid,
+        updatedAt: now,
+        updatedBy: uid,
+        schemaVersion: SafeCustody.version,
+        _requestId: requestId,
+      }),
+    ),
+  );
+}
+
+/** A testator's packets still in the firm's custody (held or out), oldest first. */
+export async function openPacketsOf(
+  read: (query: Query) => Promise<QuerySnapshot>,
+  db: Firestore,
+  orgId: string,
+  testatorContactId: string,
+): Promise<{ id: string; ref: DocumentReference; data: Data }[]> {
+  const snap = await read(db.collection(packetsPath(orgId)).where('testatorContactId', '==', testatorContactId));
+  return snap.docs
+    .map((doc) => ({ id: doc.id, ref: doc.ref, data: doc.data() }))
+    .filter(({ data }) => !isDeleted(data) && !CLOSED_STATUSES.has(data['status']))
+    .sort((a, b) => String(a.data['packetNo']).localeCompare(String(b.data['packetNo'])));
 }

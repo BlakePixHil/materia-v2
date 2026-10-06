@@ -125,6 +125,7 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
    - Pure functions (`tools/migration/src/transform/*`) produce v2 entities validated by the `libs/domain` zod schemas.
    - Deterministic v2 ids: `base62(sha256(namespace + legacyPath))[0..20]`.
    - Outputs: `transformed/*.jsonl` and `report.json` (warnings per item, with stable codes such as `MIG_W_ASSIGNEE_FOREIGN`).
+   - **Attachments (built in MIG-05):** `materia-migrate copy-files` then copies every planned attachment and the profile photo into the v2 files bucket, server to server, through a quarantine: verified against the export's checksums, hashed (sha256) and scanned before it reaches its document path. It writes `files/documents.jsonl` with version 1 filled in, which the load reads ([runbook](runbooks/migration-copy-files.md), D-18).
 4. **Load:**
    - BulkWriter with upserts by deterministic id.
    - A document is skipped and reported if the v2 doc's `updatedAt` is later than its `migration.loadedAt` (the user edited it after load).

@@ -263,7 +263,15 @@ async function signInMember(uid: string, orgId: string, role: Role = 'lawyer') {
   await adminAuth.deleteUser(uid).catch(() => undefined);
   await adminAuth.createUser({ uid, email: `${uid}@example.test`, password: PASSWORD });
   await adminAuth.setCustomUserClaims(uid, { orgId, role });
+  await db.doc(`users/${uid}`).delete();
   await db.doc(`orgs/${orgId}/members/${uid}`).set({ role, status: 'active' });
+  // A reset deletes the previous test's member document, and that delete's auth-syncClaims run can
+  // clear these claims after they are set. Triggers arrive in order, so once this write's own run
+  // has mirrored the membership, the earlier run is done and the claims are the member's.
+  for (const started = Date.now(); (await db.doc(`users/${uid}`).get()).get(`memberships.${orgId}.role`) !== role;) {
+    if (Date.now() - started > 60_000) throw new Error(`auth-syncClaims never mirrored ${uid} into ${orgId}`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   await signOut(auth);
   await signInWithEmailAndPassword(auth, `${uid}@example.test`, PASSWORD);
 }

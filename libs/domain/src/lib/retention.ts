@@ -10,6 +10,7 @@ import {
   type OriginalsOutcome,
   type RetentionHold,
 } from './schemas/enums';
+import { SafeCustodyLocationSchema } from './schemas/org-records';
 import { addDays, addMonths, type DateOnly } from './values/date-only';
 import { formatCents, type Cents } from './values/money';
 
@@ -386,11 +387,26 @@ export interface ClosingWarning {
   number: string;
 }
 
+/**
+ * Where a will matter's original goes if it's placed in safe custody on closing (CORE-17a): the
+ * testator (a live `testator` party, or null when the matter has none) and their packet still in
+ * custody, which the will joins; without one, closing creates a packet and needs its location.
+ */
+export interface ClosingSafeCustody {
+  testator: { contactId: string; name: string } | null;
+  packet: { id: string; packetNo: string } | null;
+}
+
 export interface ClosingChecklistResult extends ClosingEvaluation, Retention {
   counts: ClosingCounts;
   warnings: ClosingWarning[];
   retentionYears: number;
+  /** Will matters only (CORE-17a). */
+  safeCustody?: ClosingSafeCustody;
 }
+
+/** Matter types whose original goes into a safe custody packet when closed with `originals: 'safe_custody'`. */
+export const SAFE_CUSTODY_ON_CLOSE_TYPES: readonly MatterType[] = ['will'];
 
 /** `matters-close` (`matter.close`: lawyer and above). */
 export const CloseMatterInput = z.object({
@@ -401,6 +417,11 @@ export const CloseMatterInput = z.object({
   /** Bulk-cancel the open tasks, with this reason (the "no open tasks" item). */
   cancelOpenTasks: z.object({ reason: Reason }).optional(),
   checklistOverrides: ClosingOverridesSchema.optional(),
+  /**
+   * A will matter closed with its original into safe custody, when the testator has no packet in
+   * custody yet: where the new packet is kept (CORE-17a). Ignored when the will joins their packet.
+   */
+  safeCustodyLocation: SafeCustodyLocationSchema.optional(),
 });
 export type CloseMatterInput = z.input<typeof CloseMatterInput>;
 
@@ -408,6 +429,8 @@ export interface CloseMatterResult extends Retention {
   matterId: string;
   status: 'closed';
   tasksCancelled: number;
+  /** The packet the original will went into (CORE-17a): `created` when closing made it. */
+  packet?: { id: string; packetNo: string; created: boolean };
 }
 
 /** `matters-reopen` (`matter.status`): a closed or archived matter back to open, with a reason. */

@@ -102,6 +102,8 @@ export const ClosingRecordSchema = z.object({
   overrides: z.record(z.string(), z.string()).optional(),
   tasksCancelled: z.number().int().min(0).default(0),
   holds: z.array(RetentionHoldSchema).default([]),
+  /** The safe custody packet a will matter's original went into on closing (CORE-17a). */
+  safeCustody: z.object({ packetId: DocIdSchema, packetNo: z.string(), created: z.boolean() }).strict().optional(),
 });
 export type ClosingRecord = z.infer<typeof ClosingRecordSchema>;
 
