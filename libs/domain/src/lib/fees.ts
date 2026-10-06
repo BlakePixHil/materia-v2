@@ -32,7 +32,10 @@ export function budgetAlertPcts(
   return parsed.success ? parsed.data : [...DEFAULT_BUDGET_ALERT_PCTS];
 }
 
-type BasisFee = Pick<FeeTerms, 'arrangement' | 'amountCents' | 'capCents' | 'estimateCents' | 'estimateHighCents'>;
+/** The terms a basis is read from (optional fields may be present as undefined, as zod parses them). */
+type BasisFee = Pick<FeeTerms, 'arrangement'> & {
+  [K in 'amountCents' | 'capCents' | 'estimateCents' | 'estimateHighCents']?: FeeTerms[K] | undefined;
+};
 
 /**
  * What a matter's budget is measured against: the fixed fee, the cap, or the top of the estimate
@@ -85,7 +88,7 @@ export interface BudgetPlan {
  * (the flag is off) nothing is marked alerted, so the alerts still fire once it's turned on.
  */
 export function planBudget(options: {
-  fee: (BasisFee & { revision?: number }) | null | undefined;
+  fee: (BasisFee & { revision?: number | undefined }) | null | undefined;
   previous: MatterBudget | null | undefined;
   sums: BudgetSums;
   pcts: readonly number[];
