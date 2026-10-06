@@ -25,8 +25,10 @@ import {
 import {
   contactDisplayName,
   formatPhone,
+  PARTY_ROLE_ORDER,
   REFERRER_INDUSTRIES,
   REFERRER_INDUSTRY_LABELS,
+  type PartyRole,
   type ReferrerIndustry,
 } from '@materia/domain';
 import {
@@ -46,6 +48,7 @@ import {
 
 import { ContactDeleteDialog, type ContactDeleteDialogData } from './contact-delete-dialog';
 import { ContactDetail } from './contact-detail';
+import { PARTY_ROLE_LABELS } from './contact-form';
 import { ContactFormDialog, type ContactFormDialogData, type ContactFormDialogResult } from './contact-form-dialog';
 import { ContactMergeDialog, type ContactMergeDialogData, type ContactMergeDialogResult } from './contact-merge-dialog';
 import { ReferralSettings } from './referral-settings';
@@ -62,6 +65,12 @@ type Row = WithId<ContactListItem>;
 const INDUSTRY_FILTERS: MtOption<string>[] = [
   { value: '', label: 'Any industry' },
   ...REFERRER_INDUSTRIES.map((industry) => ({ value: industry, label: REFERRER_INDUSTRY_LABELS[industry] })),
+];
+
+/** The "Role in matters" filter (CORE-01a): a role the contact holds on a live, unprivileged matter. */
+const ROLE_FILTERS: MtOption<string>[] = [
+  { value: '', label: 'Any role' },
+  ...PARTY_ROLE_ORDER.map((role) => ({ value: role, label: PARTY_ROLE_LABELS[role] })),
 ];
 
 const KIND_FILTERS: MtOption<string>[] = [
@@ -143,15 +152,24 @@ const KIND_FILTERS: MtOption<string>[] = [
           />
           <mt-referral-settings />
         }
-        @if (tagOptions().length > 1) {
+        <div class="mt-contacts-selects">
           <mt-select
-            label="Tag"
+            label="Role in matters"
             [native]="true"
-            [options]="tagOptions()"
-            [ngModel]="tag()"
-            (ngModelChange)="tag.set($event ?? '')"
+            [options]="roleFilters"
+            [ngModel]="role()"
+            (ngModelChange)="role.set($event ?? '')"
           />
-        }
+          @if (tagOptions().length > 1) {
+            <mt-select
+              label="Tag"
+              [native]="true"
+              [options]="tagOptions()"
+              [ngModel]="tag()"
+              (ngModelChange)="tag.set($event ?? '')"
+            />
+          }
+        </div>
       </div>
 
       <div class="mt-contacts-rows">
@@ -286,6 +304,11 @@ const KIND_FILTERS: MtOption<string>[] = [
       padding: var(--space-12);
       border-bottom: 1px solid var(--border-default);
     }
+    .mt-contacts-selects {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: var(--space-8);
+    }
     .mt-contacts-chips {
       display: flex;
       flex-wrap: wrap;
@@ -399,16 +422,19 @@ export class ContactsPage {
   protected readonly referrersOnly = signal(false);
   protected readonly industryFilters = INDUSTRY_FILTERS;
   protected readonly industry = signal('');
+  protected readonly roleFilters = ROLE_FILTERS;
+  protected readonly role = signal('');
   private readonly filters = computed<ContactFilters>(() => ({
     query: this.query(),
     kind: (this.kind() || null) as 'person' | 'organisation' | null,
     tag: this.tag() || null,
     referrersOnly: this.referrersOnly(),
     industry: this.referrersOnly() ? ((this.industry() || null) as ReferrerIndustry | null) : null,
+    role: (this.role() || null) as PartyRole | null,
   }));
   protected readonly filtered = computed(() => {
     const f = this.filters();
-    return !!(f.query?.trim() || f.kind || f.tag || f.referrersOnly);
+    return !!(f.query?.trim() || f.kind || f.tag || f.referrersOnly || f.role);
   });
 
   /** The live list: one Firestore filter (see `contactListQuery`), the rest applied here. */
@@ -538,8 +564,9 @@ export class ContactsPage {
     return contactDisplayName(row);
   }
 
-  /** The row's second line: the first email or phone, or the organisation. */
+  /** The row's second line: its roles while filtering by role, else the first email or phone, or tags. */
   protected caption(row: ContactListItem): string {
+    if (this.role() && row.matterRoles.length) return row.matterRoles.map((role) => PARTY_ROLE_LABELS[role]).join(', ');
     if (this.referrersOnly() && row.referrerMeta) {
       const { industry, company } = row.referrerMeta;
       const meta = [industry ? REFERRER_INDUSTRY_LABELS[industry] : null, company].filter(Boolean).join(' · ');

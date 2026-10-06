@@ -362,6 +362,27 @@ describe('a pre-bill', () => {
     expect(page.text(byTestId('pre-bill-total'))).toBe('$517.00');
   });
 
+  it('keeps unsaved changes when the same pre-bill arrives again', async () => {
+    const page = await openDraft();
+    const letter = [...(byTestId('pre-bill-time')?.querySelectorAll('mt-checkbox') ?? [])].find((box) =>
+      box.textContent?.includes('Letter to the executor'),
+    );
+    letter?.querySelector<HTMLElement>('[role="checkbox"]')?.click();
+    await page.click('Add fixed fee');
+    await page.fill('Fixed fee', 'Grant of probate application');
+    await page.fill('Amount ex GST', '1000');
+    // ($690 − $220 + $1,000) + 10% GST.
+    expect(page.text(byTestId('pre-bill-total'))).toBe('$1,617.00');
+
+    // Another snapshot of the same pre-bill (here the PDF bookkeeping; in the browser also the server
+    // confirming a cached copy) is a new object with the same id.
+    const path = `${INVOICES}/inv-draft`;
+    page.firestore.set(path, { ...page.firestore.get(path), pdfAttempts: 0 });
+    await page.stable();
+    expect(page.text(byTestId('pre-bill-total'))).toBe('$1,617.00');
+    expect(page.text(byTestId('pre-bill-preview'))).toContain('Grant of probate application');
+  });
+
   it('marks the pre-bill changed since it was saved', async () => {
     await openDraft();
     // Saved with no lines, so everything now billable is new.
