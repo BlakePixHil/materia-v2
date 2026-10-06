@@ -7,6 +7,7 @@ import {
   dueForDestruction,
   evaluateClosing,
   isMinorOn,
+  unbilledWipCents,
   laterDestroyAfter,
   retentionDate,
   retentionFor,
@@ -14,19 +15,20 @@ import {
 import { dateOnly } from './values/date-only';
 
 const d = dateOnly;
-const none = { upcomingDeadlines: 0, openTasks: 0 };
+const none = { upcomingDeadlines: 0, openTasks: 0, unbilledWipCents: 0 };
 
 describe('closing checklist (CORE-19)', () => {
-  it('asks estates for the final distribution, and no one for unbilled WIP until BILL-03', () => {
+  it('asks everyone about unbilled WIP, and estates for the final distribution', () => {
     expect(closingItemsFor('probate')).toEqual([
       'deadlines',
       'tasks',
+      'wip',
       'originals',
       'closing_letter',
       'final_distribution',
     ]);
     expect(closingItemsFor('admin')).toContain('final_distribution');
-    expect(closingItemsFor('will')).toEqual(['deadlines', 'tasks', 'originals', 'closing_letter']);
+    expect(closingItemsFor('will')).toEqual(['deadlines', 'tasks', 'wip', 'originals', 'closing_letter']);
     expect(closingItemsFor('contest')).not.toContain('final_distribution');
   });
 
@@ -38,7 +40,7 @@ describe('closing checklist (CORE-19)', () => {
   });
 
   it('blocks on upcoming deadlines, open tasks and unanswered items', () => {
-    const result = evaluateClosing('probate', { upcomingDeadlines: 2, openTasks: 1 }, {});
+    const result = evaluateClosing('probate', { upcomingDeadlines: 2, openTasks: 1, unbilledWipCents: 0 }, {});
     expect(result.ready).toBe(false);
     expect(result.blocking).toEqual(['deadlines', 'tasks', 'originals', 'closing_letter', 'final_distribution']);
     expect(result.items[0]?.detail).toBe('2 deadlines still upcoming: complete, waive or supersede them first.');
@@ -48,7 +50,7 @@ describe('closing checklist (CORE-19)', () => {
   it('lets open tasks be bulk-cancelled, but never upcoming deadlines', () => {
     const result = evaluateClosing(
       'will',
-      { upcomingDeadlines: 1, openTasks: 3 },
+      { upcomingDeadlines: 1, openTasks: 3, unbilledWipCents: 0 },
       { originals: 'none_held', closingLetterSent: true },
       { cancelOpenTasks: true },
     );
@@ -76,6 +78,31 @@ describe('closing checklist (CORE-19)', () => {
       'closing_letter',
       'final_distribution',
     ]);
+  });
+
+  it('blocks on unbilled time and disbursements unless a reason is given (CORE-19b)', () => {
+    const answers = { originals: 'returned', closingLetterSent: true } as const;
+    const wip = { ...none, unbilledWipCents: 123_45 };
+    const blocked = evaluateClosing('will', wip, answers);
+    expect(blocked.blocking).toEqual(['wip']);
+    expect(blocked.items.find((item) => item.id === 'wip')?.detail).toBe(
+      '$123.45 of time and disbursements not yet billed: bill or write it off, or give a reason.',
+    );
+    const overridden = evaluateClosing('will', wip, answers, { overrides: { wip: 'Written off by agreement' } });
+    expect(overridden.ready).toBe(true);
+    expect(overridden.items.find((item) => item.id === 'wip')).toMatchObject({
+      state: 'overridden',
+      detail: 'Written off by agreement',
+    });
+    // A reason with nothing unbilled changes nothing.
+    expect(evaluateClosing('will', none, answers, { overrides: { wip: 'x' } }).items[2]?.state).toBe('done');
+  });
+
+  it('counts unbilled WIP as time plus disbursements, ignoring missing or bad values', () => {
+    expect(unbilledWipCents({ wipCents: 100_00, disbursementWipCents: 25_50 })).toBe(125_50);
+    expect(unbilledWipCents({ disbursementWipCents: 25_50 })).toBe(25_50);
+    expect(unbilledWipCents({ wipCents: -5, disbursementWipCents: 'x' })).toBe(0);
+    expect(unbilledWipCents({})).toBe(0);
   });
 
   it('needs a reason to close', () => {

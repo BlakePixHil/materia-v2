@@ -144,6 +144,32 @@ describe('status', () => {
     expect(page.text(page.layout())).toContain('Kept until at least 4 Oct 2033');
   });
 
+  it('blocks closing on unbilled WIP unless a reason is given, linking to the time tab (CORE-19b)', async () => {
+    const page = await openMatter(undefined, { matter: { wipCents: 1_200_00, disbursementWipCents: 55_00 } });
+    await page.click('More matter actions');
+    await page.click('Close matter…', page.body.querySelector('[role="menu"]') ?? page.body);
+    const dialog = page.dialog() ?? page.body;
+    expect(page.text(dialog)).toContain('No unbilled WIP. Still to do');
+    expect(page.text(dialog)).toContain('$1,255.00 of time and disbursements not yet billed');
+    const link = [...dialog.querySelectorAll('a')].find((a) => page.text(a) === 'Review time and disbursements');
+    expect(link?.getAttribute('href')).toBe('/matters/m-whitfield/time');
+
+    await check(page, 'Cancel the 1 open task when closing');
+    await page.fill('Why cancel them', 'Superseded', dialog);
+    await choose(page, 'We hold no originals');
+    await check(page, 'Closing letter sent');
+    await check(page, 'Final distribution recorded');
+    await page.fill('Reason for closing', 'Estate fully administered', dialog);
+    const close = () => page.buttons('Close matter', dialog).at(-1);
+    expect(close()?.hasAttribute('disabled') || close()?.getAttribute('aria-disabled') === 'true').toBe(true);
+
+    await page.fill('Or say why it won’t be billed', 'Written off by agreement with the executor', dialog);
+    await page.submit(page.dialog());
+    expect(page.calls('matters-close')[0]).toMatchObject({
+      checklistOverrides: { wip: 'Written off by agreement with the executor' },
+    });
+  });
+
   it('shows a closed matter read-only with a banner, and reopens it with a reason', async () => {
     const page = await openMatter(undefined, {
       matter: { status: 'closed', closedAt: new Date('2026-09-01T00:00:00Z'), destroyAfter: '2033-09-01' },

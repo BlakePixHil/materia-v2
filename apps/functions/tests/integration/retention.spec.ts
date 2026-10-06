@@ -168,22 +168,31 @@ afterAll(async () => {
 
 describe('closing and retention through the emulators', () => {
   it('closes through the checklist (cancelling the open task), then reopens with a reason', async () => {
+    // Unbilled time and disbursements (CORE-19b), as BILL-03 and BILL-04 keep them on the matter.
+    await db.doc(MATTER).update({ wipCents: 300_00, disbursementWipCents: 55_00 });
     await signInAs('lawyer');
     const checklist = await call<ClosingChecklistResult>(MATTER_CALLABLES.closingChecklist, { matterId: MATTER_ID });
-    expect(checklist.counts).toEqual({ upcomingDeadlines: 0, openTasks: 1 });
-    expect(checklist.blocking).toEqual(['tasks', 'originals', 'closing_letter', 'final_distribution']);
+    expect(checklist.counts).toEqual({ upcomingDeadlines: 0, openTasks: 1, unbilledWipCents: 355_00 });
+    expect(checklist.blocking).toEqual(['tasks', 'wip', 'originals', 'closing_letter', 'final_distribution']);
     expect(checklist.destroyAfter).toBe('2033-10-05');
 
     const refused = await failure(closeMatter());
     expect(refused.code).toBe('functions/failed-precondition');
-    expect(refused.details).toMatchObject({ reason: 'closing_checklist', blocking: ['tasks'] });
+    expect(refused.details).toMatchObject({ reason: 'closing_checklist', blocking: ['tasks', 'wip'] });
     // A plain status change can't close it.
     const plain = await failure(call(MATTER_CALLABLES.changeStatus, withRequest({ to: 'closed', reason: 'x' })));
     expect(plain.details).toMatchObject({ reason: 'closing_checklist_required' });
 
-    const closed = await closeMatter({ cancelOpenTasks: { reason: 'Superseded by the final account' } });
+    const closed = await closeMatter({
+      cancelOpenTasks: { reason: 'Superseded by the final account' },
+      checklistOverrides: { wip: 'Written off by agreement with the executor' },
+    });
     expect(closed).toMatchObject({ status: 'closed', destroyAfter: '2033-10-05', tasksCancelled: 1 });
-    expect(await matter()).toMatchObject({ status: 'closed', destroyAfter: '2033-10-05' });
+    expect(await matter()).toMatchObject({
+      status: 'closed',
+      destroyAfter: '2033-10-05',
+      closing: { overrides: { wip: 'Written off by agreement with the executor' } },
+    });
     expect((await db.doc(TASK).get()).get('status')).toBe('cancelled');
     expect(await audited('matter.closed')).toHaveLength(1);
 
@@ -193,6 +202,8 @@ describe('closing and retention through the emulators', () => {
     expect(reopened).not.toHaveProperty('destroyAfter');
     expect(reopened).not.toHaveProperty('closedAt');
     expect(await audited('matter.reopened')).toHaveLength(1);
+    // Billed since: nothing unbilled for the tests below.
+    await db.doc(MATTER).update({ wipCents: 0, disbursementWipCents: 0 });
   });
 
   it('archives 90 days after closing, after which clients can no longer edit it', async () => {
