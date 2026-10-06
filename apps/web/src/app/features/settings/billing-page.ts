@@ -6,6 +6,7 @@ import { orgSettingsReadRepository, type OrgSettings } from '@materia/data-acces
 import {
   BILLING_UNIT_OPTIONS,
   BillingSettingsInput,
+  budgetAlertPcts,
   feeProblems,
   MatterTypeSchema,
   type FeeDefault,
@@ -29,6 +30,7 @@ import { dollarsText, parseDollars } from './money';
 import { SettingsApi } from './settings-api';
 import { warnBeforeUnload, type HasUnsavedChanges } from './unsaved-changes';
 import { errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { FEE_ARRANGEMENT_OPTIONS } from '../intake/intake-state';
 
 const TYPES = MatterTypeSchema.options;
@@ -47,7 +49,19 @@ interface BillingForm {
   invoicePrefix: string;
   paymentTermsDays: string;
   nextInvoiceNumber: string;
+  /** Budget alert thresholds (BILL-05), "80, 100". */
+  alertPcts: string;
   fees: Record<MatterType, FeeRow>;
+}
+
+/** "80, 100%" as thresholds; `undefined` when it isn't a list of whole percentages. */
+export function parseAlertPcts(text: string): number[] | undefined {
+  const parts = text
+    .split(/[\s,%]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length || parts.some((part) => !/^\d+$/.test(part))) return undefined;
+  return parts.map(Number);
 }
 
 function formOf(org: OrgSettings | undefined): BillingForm {
@@ -70,6 +84,7 @@ function formOf(org: OrgSettings | undefined): BillingForm {
     invoicePrefix: billing.invoicePrefix ?? 'INV-',
     paymentTermsDays: String(billing.paymentTermsDays ?? 14),
     nextInvoiceNumber: '',
+    alertPcts: budgetAlertPcts(org).join(', '),
     fees,
   };
 }
@@ -213,6 +228,26 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
         />
       </mt-settings-section>
 
+      @if (feeBudgetsOn()) {
+        <mt-settings-section
+          title="Matter budgets"
+          description="The responsible lawyer and their supervisor are alerted when a matter’s recorded time and disbursements reach these shares of its fixed fee, cap or estimate."
+          [headingLevel]="2"
+        >
+          <mt-text-field
+            name="alertPcts"
+            label="Alert at"
+            description="Percentages, separated by commas. Each fires once per fee revision."
+            suffix="%"
+            inputmode="numeric"
+            autocomplete="off"
+            [error]="alertProblem() ?? undefined"
+            [ngModel]="form().alertPcts"
+            (ngModelChange)="set({ alertPcts: $event ?? '' })"
+          />
+        </mt-settings-section>
+      }
+
       <mt-settings-section
         title="Fee defaults by matter type"
         description="Filled in when a new matter of the type is opened. People can change them on the matter."
@@ -306,6 +341,8 @@ export class BillingSettingsPage implements HasUnsavedChanges {
   private readonly context = inject(OrgContext);
   private readonly api = inject(SettingsApi);
   private readonly toasts = inject(ToastService);
+  private readonly flags = inject(FeatureFlagService);
+  protected readonly feeBudgetsOn = computed(() => this.flags.isOn('billing.feeBudgets'));
   protected readonly org = orgSettingsReadRepository().watch(() => this.context.orgId());
 
   protected readonly types = TYPES;
@@ -352,6 +389,14 @@ export class BillingSettingsPage implements HasUnsavedChanges {
     const n = Number(text);
     return Number.isInteger(n) && n >= 1 && n <= 9_999_999 ? null : 'Enter a whole number from 1.';
   });
+  private readonly alertPcts = computed(() => parseAlertPcts(this.form().alertPcts));
+  protected readonly alertProblem = computed(() => {
+    const pcts = this.alertPcts();
+    if (!pcts) return 'Enter whole percentages, such as 80, 100.';
+    return BillingSettingsInput.shape.budgetAlertPcts.safeParse(pcts).success
+      ? null
+      : 'Up to 5 different percentages from 1 to 200.';
+  });
   private readonly fees = computed(() => feeDefaultsOf(this.form().fees));
   protected readonly feeProblems = computed(() => this.fees().problems);
   private readonly billing = computed(() => {
@@ -363,11 +408,17 @@ export class BillingSettingsPage implements HasUnsavedChanges {
       gstRegistered: f.gstRegistered,
       invoicePrefix: f.invoicePrefix,
       paymentTermsDays: Number(f.paymentTermsDays),
+      budgetAlertPcts: this.alertPcts(),
     });
   });
   protected readonly ready = computed(
     () =>
-      this.unsaved() && this.billing().success && !!this.fees().value && !this.nextNumberProblem() && !this.saving(),
+      this.unsaved() &&
+      this.billing().success &&
+      !this.alertProblem() &&
+      !!this.fees().value &&
+      !this.nextNumberProblem() &&
+      !this.saving(),
   );
   protected readonly loadError = computed(() => {
     const error = this.org.error();

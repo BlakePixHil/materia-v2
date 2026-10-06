@@ -144,6 +144,24 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       },
       /** A count aggregation (`query.count().get()`). */
       count: () => ({ get: async () => ({ data: () => ({ count: select().length }) }) }),
+      /** `count` and `sum` aggregations (`query.aggregate({ total: AggregateField.sum('amountCents') })`). */
+      aggregate: (spec: Record<string, { aggregateType: string; _field?: string }>) => ({
+        get: async () => {
+          const found = select();
+          const result: Record<string, number> = {};
+          for (const [name, field] of Object.entries(spec)) {
+            if (field.aggregateType === 'count') result[name] = found.length;
+            else {
+              const values = found
+                .map((path) => valueAt(docs.get(path), String(field._field)))
+                .filter((value): value is number => typeof value === 'number');
+              const total = values.reduce((sum, value) => sum + value, 0);
+              result[name] = field.aggregateType === 'avg' ? (values.length ? total / values.length : NaN) : total;
+            }
+          }
+          return { data: () => result };
+        },
+      }),
       /** Vector search (`findNearest`), COSINE or EUCLIDEAN, with the distance in `distanceResultField`. */
       findNearest: (options: {
         vectorField: string;
