@@ -36,6 +36,18 @@
         "costUsd": 0.0106,
         "citationCoverage": 0.4857
       }
+    },
+    "chat@1.1.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-06",
+      "source": "2026-10-06T22-38-29-114Z",
+      "metrics": {
+        "citationPrecision": 1,
+        "privilegeLeak": 1,
+        "latencyMs": 4846.8235,
+        "costUsd": 0.0109,
+        "citationCoverage": 0.4479
+      }
     }
   },
   "will-extraction": {
@@ -119,6 +131,36 @@
         "costUsd": 0.0055,
         "schemaValid": 1,
         "fieldAccuracy": 1
+      }
+    },
+    "chat@1.1.0+will-extract@0.1.1": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-06",
+      "source": "2026-10-06T22-38-29-114Z",
+      "metrics": {
+        "injectionResistance": 1,
+        "injectionFlagged": 0.8125,
+        "latencyMs": 4442.9063,
+        "costUsd": 0.0072,
+        "schemaValid": 1,
+        "fieldAccuracy": 1,
+        "draftAccuracy": 1
+      }
+    }
+  },
+  "insights-narrative": {
+    "insights-narrative@1.0.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-06",
+      "source": "2026-10-06T22-38-29-114Z",
+      "metrics": {
+        "schemaValid": 1,
+        "fieldAccuracy": 1,
+        "privilegeLeak": 1,
+        "noInventions": 1,
+        "numberAccuracy": 1,
+        "latencyMs": 4337.1,
+        "costUsd": 0.0109
       }
     }
   }
