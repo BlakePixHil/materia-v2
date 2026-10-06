@@ -10,7 +10,13 @@ import {
   SearchTokensSchema,
   withMeta,
 } from './common';
-import { InvoiceStatusSchema, JurisdictionSchema, MatterTypeSchema, PrioritySchema } from './enums';
+import {
+  DocTemplateKindSchema,
+  InvoiceStatusSchema,
+  JurisdictionSchema,
+  MatterTypeSchema,
+  PrioritySchema,
+} from './enums';
 import { TemplateBasedOnSchema, templateContentShape } from '../templates';
 
 const ORG = 'orgs/{orgId}';
@@ -347,16 +353,59 @@ export const MatterTemplateVersion = withMeta(
   { path: `${ORG}/templates/{templateId}/versions`, migratable: false, updatable: [] },
 );
 
-/** `docTemplates/{id}`: docx templates with merge fields (INT-06). */
+/** Limits on docx templates (INT-06). */
+export const DOC_TEMPLATE_NAME_MAX = 120;
+export const DOC_TEMPLATE_VERSIONS_MAX = 50;
+/** The largest template file accepted (a letterhead with a logo is well under 1 MB). */
+export const DOC_TEMPLATE_MAX_BYTES = 5 * 1024 * 1024;
+
+/** A template file's Storage path: `orgs/{orgId}/docTemplates/{templateId}/v{n}.docx`. */
+export const DocTemplateStoragePathSchema = z.string().regex(/^orgs\/[^/]+\/docTemplates\/[^/]+\/v\d+\.docx$/);
+
+/** One uploaded version of a docx template (INT-06). Versions are never edited or removed. */
+export const DocTemplateVersionSchema = z
+  .object({
+    version: z.number().int().min(1),
+    storagePath: DocTemplateStoragePathSchema,
+    fileName: NonEmptyString.max(255),
+    sizeBytes: z.number().int().min(0),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    /** The merge fields it uses, as full paths (`client.fullName`, `executors.fullName`), sorted. */
+    fields: z.array(z.string()).max(500),
+    /** Problems that don't stop it merging, such as fonts the PDF preview substitutes. */
+    warnings: z.array(z.string().max(300)).max(20).default([]),
+    uploadedAt: InstantSchema,
+    uploadedBy: DocIdSchema,
+  })
+  .strict();
+export type DocTemplateVersion = z.infer<typeof DocTemplateVersionSchema>;
+
+/**
+ * `docTemplates/{id}`: an org's docx template with merge fields (INT-06, ADR-047). Every upload is a
+ * new version (`versions`; `version`, `storagePath` and `fields` mirror the latest); documents are
+ * generated from `publishedVersion`, so a new upload changes nothing until it is published. A
+ * template that `replaces` a system template hides that one while published. Written only by the
+ * `docs-*` callables; every member reads them.
+ */
 export const DocTemplate = withMeta(
   {
-    name: NonEmptyString,
-    storagePath: z.string(),
-    mergeFields: z.array(z.string()).default([]),
+    name: NonEmptyString.max(DOC_TEMPLATE_NAME_MAX),
+    kind: DocTemplateKindSchema,
+    /** The matter types it is offered on; empty means every type. */
     matterTypes: z.array(MatterTypeSchema).default([]),
-    active: z.boolean().default(true),
+    storagePath: DocTemplateStoragePathSchema,
+    fields: z.array(z.string()).max(500).default([]),
+    version: z.number().int().min(1),
+    versions: z.array(DocTemplateVersionSchema).min(1).max(DOC_TEMPLATE_VERSIONS_MAX),
+    published: z.boolean().default(false),
+    /** The version generation uses; absent until the first publish. */
+    publishedVersion: z.number().int().min(1).optional(),
+    publishedAt: InstantSchema.optional(),
+    publishedBy: DocIdSchema.optional(),
+    /** The system template this one stands in for (`system-letter`): hidden while this is published. */
+    replaces: DocIdSchema.optional(),
   },
-  { path: `${ORG}/docTemplates`, softDelete: true },
+  { path: `${ORG}/docTemplates`, softDelete: true, updatable: [] },
 );
 
 /** Limits on checklist templates (CORE-08d); the items match a template task's checklist (CORE-07). */

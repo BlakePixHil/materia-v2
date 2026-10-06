@@ -957,9 +957,11 @@ service cloud.firestore {
         allow update: if canEditTaskGroupTemplates()
           && (clientUpdate(fieldsTaskGroupTemplate()) && validTaskGroupTemplate(request.resource.data) || softDelete());
       }
+      // Document templates (INT-06): every member reads them (to generate on a matter); uploads,
+      // versions, publishing and deletes go through the docs-* callables, which check the tags
+      // and scan the file.
       match /docTemplates/{templateId} {
         allow read: if inOrg(orgId);
-        allow update: if editable(orgId, 'org.settings', fieldsDocTemplate());
       }
 
       // Original will packets (CORE-17): every member reads the register; every write goes
@@ -998,6 +1000,11 @@ service cloud.firestore {
 
       // Disbursement presets (BILL-04): every member reads them to prefill a disbursement; owners and
       // admins keep the list. Other settings documents stay server-only.
+      // The letterhead's contact details (INT-06): every member reads them; docs-saveLetterhead writes.
+      match /settings/letterhead {
+        allow read: if inOrg(orgId);
+      }
+
       match /settings/disbursementPresets {
         allow read: if inOrg(orgId);
         allow create: if can(orgId, 'org.settings') && validPresets()
@@ -1175,7 +1182,7 @@ service cloud.firestore {
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'notes', 'needsValueReview']; }
-    function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
+    function fieldsDocTemplate() { return []; }
     function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }
     function fieldsIntakeDraft() { return ['orgId', 'kind', 'step', 'stateJson', 'expireAt']; }
@@ -1185,6 +1192,7 @@ service cloud.firestore {
     function fieldsInvoiceReminder() { return []; }
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
+    function fieldsLetterheadDoc() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'reference', 'amountCents', 'status', 'notes']; }
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged', 'referrerContactId', 'referralSource', 'boardOrder']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }

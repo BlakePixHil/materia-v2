@@ -88,7 +88,7 @@ async function writeDocs(db: Firestore, docs: { path: string; data: Record<strin
 export function entityRegistry(): { pattern: RegExp; name: string; schema: z.ZodType }[] {
   return Object.entries(unwrap(domainModule) as Record<string, unknown>)
     .filter(
-      (entry): entry is [string, { path: string; schema: z.ZodType }] =>
+      (entry): entry is [string, { path: string; schema: z.ZodType; docId?: string }] =>
         typeof entry[1] === 'object' &&
         entry[1] !== null &&
         'schema' in entry[1] &&
@@ -98,8 +98,12 @@ export function entityRegistry(): { pattern: RegExp; name: string; schema: z.Zod
     .map(([name, entity]) => ({
       name,
       schema: entity.schema,
-      pattern: new RegExp(`^${entity.path.replace(/\{[^}]+\}/g, '[^/]+')}/[^/]+$`),
-    }));
+      // A settings document with its own id (`settings/letterhead`) is matched before the others.
+      exact: typeof entity.docId === 'string',
+      pattern: new RegExp(`^${entity.path.replace(/\{[^}]+\}/g, '[^/]+')}/${entity.docId ?? '[^/]+'}$`),
+    }))
+    .sort((a, b) => Number(b.exact) - Number(a.exact))
+    .map(({ name, schema, pattern }) => ({ name, schema, pattern }));
 }
 
 /** Firestore Timestamps back to Dates, as the client converters do (ADR-008). */

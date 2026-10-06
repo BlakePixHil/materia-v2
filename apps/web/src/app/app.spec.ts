@@ -131,6 +131,7 @@ describe('app routes', () => {
       'Billing and rates',
       'Security',
       'Matter numbering',
+      'Document templates',
       'Clerk and AI',
       'Audit log',
     ]);
@@ -144,13 +145,16 @@ describe('app routes', () => {
     expect(lawyerNav).toEqual(['Profile', 'Preferences', 'Team and roles', 'Security', 'Clerk and AI']);
   });
 
-  it.each(['/settings/practice', '/settings/billing', '/settings/audit', '/settings/numbering'])(
-    '%s is for owners and admins: a lawyer gets no access (CORE-21)',
-    async (url) => {
-      const { router } = await setup(url);
-      expect(router.url).toBe('/no-access');
-    },
-  );
+  it.each([
+    '/settings/practice',
+    '/settings/billing',
+    '/settings/audit',
+    '/settings/numbering',
+    '/settings/document-templates',
+  ])('%s is for owners and admins: a lawyer gets no access (CORE-21)', async (url) => {
+    const { router } = await setup(url);
+    expect(router.url).toBe('/no-access');
+  });
 
   it('an unknown settings page lands on the team (CORE-21)', async () => {
     const { router } = await setup('/settings/firm/people');

@@ -39,6 +39,7 @@ export * from './lib/deadlines';
 export * from './lib/today';
 export * from './lib/notifications';
 export * from './lib/documents';
+export * from './lib/doc-templates';
 export * from './lib/org-settings';
 export * from './lib/notes';
 export * from './lib/estate';

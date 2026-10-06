@@ -111,6 +111,22 @@ export const DocumentCategorySchema = z.enum([
 ]);
 export const DocumentSourceSchema = z.enum(['upload', 'email', 'clerk_draft', 'migration', 'camera', 'generated']);
 
+/**
+ * What a docx template is for (INT-06): a letterhead (a blank letter with a `{@body}` block, which
+ * Clerk drafting fills), a letter, a file note, a costs disclosure (BILL-06), a chronology export
+ * (LIT-06) or a court book index (LIT-10). The kind sets the generated document's category and tags.
+ */
+export const DocTemplateKindSchema = z.enum([
+  'letterhead',
+  'letter',
+  'file_note',
+  'costs_disclosure',
+  'chronology',
+  'court_book_index',
+  'other',
+]);
+export type DocTemplateKind = z.infer<typeof DocTemplateKindSchema>;
+
 export const TimeEntryStatusSchema = z.enum(['draft', 'final', 'billed', 'written_off']);
 export type TimeEntryStatus = z.infer<typeof TimeEntryStatusSchema>;
 export const GstTreatmentSchema = z.enum(['taxable', 'gst_free', 'input_taxed']);

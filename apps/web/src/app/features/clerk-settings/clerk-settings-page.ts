@@ -15,9 +15,11 @@ import {
   clerkAcknowledged,
   clerkMeteringPeriod,
   DEFAULT_CLERK_MODEL,
+  DEFAULT_OCR_DAILY_PAGES,
   formatUsdCents,
   looksLikeAnthropicKey,
   MAX_DAILY_REQUESTS,
+  MAX_OCR_DAILY_PAGES,
   microsToCents,
   normaliseAnthropicKey,
   ORG_CLERK_FEATURES,
@@ -52,18 +54,18 @@ import { errorCopy } from '../../core/error-copy';
 import { dollarsText, parseDollars } from '../settings/money';
 
 /** "1,250" → 1250; empty is null; anything else undefined (invalid). */
-function parseCount(text: string): number | null | undefined {
+function parseCount(text: string, min: number, max: number): number | null | undefined {
   const trimmed = text.replace(/[,\s]/g, '');
   if (!trimmed) return null;
   const value = Number(trimmed);
-  return Number.isInteger(value) && value >= 1 && value <= MAX_DAILY_REQUESTS ? value : undefined;
+  return Number.isInteger(value) && value >= min && value <= max ? value : undefined;
 }
 
 /**
  * Settings → Clerk and AI (`/settings/clerk`, AI-02a and AI-13). Owners and admins:
  * - acknowledge the data-use disclosure (Clerk stays off until they do, and again for a new version);
  * - turn Clerk on or off for the practice and per feature (saved at once);
- * - set the monthly spend limit and the per-person daily request limit;
+ * - set the monthly spend limit, the per-person daily request limit and the daily scanned-page limit (AI-04);
  * - save the firm's Anthropic API key and choose the model (AI-02a);
  * - see this month's usage and cost.
  * Everyone else sees which features are on and the disclosure, read-only. Every change goes
@@ -204,7 +206,7 @@ function parseCount(text: string): number | null | undefined {
         @if (canConfigure()) {
           <mt-settings-section
             title="Limits"
-            description="Clerk stops for the rest of the month at the spend limit, and for a person for the rest of the day at the request limit. Leave a limit empty for none."
+            description="Clerk stops for the rest of the month at the spend limit, and for a person for the rest of the day at the request limit. Leave either empty for none. Scanned documents past the daily page limit wait until the next day."
             [headingLevel]="2"
           >
             <form class="mt-col" style="gap: 12px" (submit)="$event.preventDefault(); saveLimits()">
@@ -227,6 +229,16 @@ function parseCount(text: string): number | null | undefined {
                   [ngModel]="dailyText()"
                   (ngModelChange)="dailyText.set($event ?? '')"
                 />
+                <mt-text-field
+                  name="clerk-ocr-pages"
+                  label="Scanned pages read per day"
+                  [description]="'Empty uses ' + defaultOcrPages + '. 0 stops reading scans.'"
+                  inputmode="numeric"
+                  [placeholder]="'' + defaultOcrPages"
+                  [error]="ocrProblem() ?? undefined"
+                  [ngModel]="ocrText()"
+                  (ngModelChange)="ocrText.set($event ?? '')"
+                />
               </div>
               <div>
                 <button
@@ -234,7 +246,7 @@ function parseCount(text: string): number | null | undefined {
                   variant="secondary"
                   type="submit"
                   [loading]="saving() === 'limits'"
-                  [disabled]="!limitsChanged() || !!budgetProblem() || !!dailyProblem()"
+                  [disabled]="!limitsChanged() || !!budgetProblem() || !!dailyProblem() || !!ocrProblem()"
                 >
                   Save limits
                 </button>
@@ -535,8 +547,11 @@ export class ClerkSettingsPage {
   );
   protected readonly budgetText = signal('');
   protected readonly dailyText = signal('');
+  protected readonly ocrText = signal('');
+  protected readonly defaultOcrPages = DEFAULT_OCR_DAILY_PAGES;
   private readonly budgetCents = computed(() => parseDollars(this.budgetText()));
-  private readonly dailyRequests = computed(() => parseCount(this.dailyText()));
+  private readonly dailyRequests = computed(() => parseCount(this.dailyText(), 1, MAX_DAILY_REQUESTS));
+  private readonly ocrPages = computed(() => parseCount(this.ocrText(), 0, MAX_OCR_DAILY_PAGES));
   protected readonly budgetProblem = computed(() =>
     this.budgetCents() === undefined ? 'Enter an amount in dollars, such as 250.' : null,
   );
@@ -545,11 +560,15 @@ export class ClerkSettingsPage {
       ? `Enter a whole number from 1 to ${MAX_DAILY_REQUESTS.toLocaleString()}.`
       : null,
   );
+  protected readonly ocrProblem = computed(() =>
+    this.ocrPages() === undefined ? `Enter a whole number from 0 to ${MAX_OCR_DAILY_PAGES.toLocaleString()}.` : null,
+  );
   protected readonly limitsChanged = computed(
     () =>
       this.loaded() &&
       (this.budgetCents() !== (this.settings()?.monthlyBudgetCents ?? null) ||
-        this.dailyRequests() !== (this.settings()?.perUserDailyRequests ?? null)),
+        this.dailyRequests() !== (this.settings()?.perUserDailyRequests ?? null) ||
+        this.ocrPages() !== (this.settings()?.ocrDailyPages ?? null)),
   );
 
   // ---------- key and model (AI-02a) ----------
@@ -589,16 +608,27 @@ export class ClerkSettingsPage {
   ]);
 
   constructor() {
-    // The limits fields follow the saved settings until someone edits them.
-    let filled = false;
+    // The limits fields follow the saved settings unless someone has typed other values. "Typed"
+    // means the text differs from what was last filled in: after a reload the first snapshot can
+    // come from the offline cache, older than the server's, and the untouched fields must still
+    // take the server's values when they arrive.
+    let filled: { budget: string; daily: string; ocr: string } | null = null;
     effect(() => {
       if (!this.loaded()) return;
       const settings = this.settings();
       untracked(() => {
-        if (filled && this.limitsChanged()) return;
-        filled = true;
-        this.budgetText.set(dollarsText(settings?.monthlyBudgetCents));
-        this.dailyText.set(settings?.perUserDailyRequests ? String(settings.perUserDailyRequests) : '');
+        const typed =
+          !!filled &&
+          (this.budgetText() !== filled.budget || this.dailyText() !== filled.daily || this.ocrText() !== filled.ocr);
+        if (typed && this.limitsChanged()) return;
+        filled = {
+          budget: dollarsText(settings?.monthlyBudgetCents),
+          daily: settings?.perUserDailyRequests ? String(settings.perUserDailyRequests) : '',
+          ocr: settings?.ocrDailyPages !== undefined ? String(settings.ocrDailyPages) : '',
+        };
+        this.budgetText.set(filled.budget);
+        this.dailyText.set(filled.daily);
+        this.ocrText.set(filled.ocr);
       });
     });
     effect(() => {
@@ -648,7 +678,8 @@ export class ClerkSettingsPage {
   protected async saveLimits(): Promise<void> {
     const budget = this.budgetCents();
     const daily = this.dailyRequests();
-    if (budget === undefined || daily === undefined || !this.limitsChanged()) return;
+    const ocr = this.ocrPages();
+    if (budget === undefined || daily === undefined || ocr === undefined || !this.limitsChanged()) return;
     const spent = microsToCents(this.thisMonth.value()?.values['costMicros'] ?? 0);
     if (budget !== null && budget <= spent && budget !== (this.settings()?.monthlyBudgetCents ?? null)) {
       const ok = await this.dialogs.confirm({
@@ -659,7 +690,7 @@ export class ClerkSettingsPage {
       });
       if (!ok) return;
     }
-    if (await this.update({ monthlyBudgetCents: budget, perUserDailyRequests: daily }, 'limits'))
+    if (await this.update({ monthlyBudgetCents: budget, perUserDailyRequests: daily, ocrDailyPages: ocr }, 'limits'))
       this.toasts.show({ title: 'Limits saved', tone: 'success' });
   }
 

@@ -1102,6 +1102,17 @@ export function buildDataset(options: {
     presets: domain.DEFAULT_DISBURSEMENT_PRESETS.map((preset) => ({ ...preset })),
   });
 
+  // The letterhead's contact details (INT-06), as an admin saves them in Settings → Document templates.
+  add(`orgs/${org}/settings/${domain.LETTERHEAD_DOC}`, {
+    ...meta,
+    schemaVersion: 1,
+    address: 'Level 2, 10 Example Street\nGeelong VIC 3220',
+    phone: '(03) 5200 0000',
+    email: 'reception@harbourvine.example',
+    website: 'harbourvine.example',
+    footer: 'Fictional practice for demonstration only.',
+  });
+
   for (const account of SEED_ACCOUNTS) {
     const member = MEMBERS[account.uid] as (typeof MEMBERS)[string];
     const [firstName = account.displayName, lastName = ''] = account.displayName.split(' ');

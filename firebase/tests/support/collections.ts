@@ -262,12 +262,13 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'members',
     update: 'task.edit',
   },
+  // Document templates (INT-06): read by members; every write is a docs-* callable.
   {
     collection: 'docTemplates',
     docPath: `orgs/${ORG}/docTemplates/doctemplate-1`,
     entity: 'DocTemplate',
     read: 'members',
-    update: 'org.settings',
+    update: 'none',
   },
   {
     collection: 'safeCustody',
