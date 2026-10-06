@@ -1,6 +1,6 @@
-import { FieldPath, type Firestore, type QuerySnapshot } from 'firebase-admin/firestore';
+import { type Firestore, type QuerySnapshot } from 'firebase-admin/firestore';
 
-import { contactDisplayName, RoleSchema, trustSettingsOf, type Contact } from '@materia/domain';
+import { contactDisplayName, RoleSchema, sumMetricShards, trustSettingsOf, type Contact } from '@materia/domain';
 
 import type { ContextSource, Row } from './ports';
 import { isEnabled } from '../../core/flags';
@@ -94,10 +94,24 @@ export function firestoreContextSource(db: Firestore): ContextSource {
       return snaps.filter((snap) => snap.exists).map((snap) => ({ id: snap.id, data: snap.data() ?? {} }));
     },
 
-    async metrics(orgId, limit) {
-      return rows(
-        await db.collection(`orgs/${orgId}/metrics`).orderBy(FieldPath.documentId(), 'desc').limit(limit).get(),
+    async metricMonths(orgId, months) {
+      const read = await Promise.all(
+        months.map(async (month) => {
+          const ref = db.doc(`orgs/${orgId}/metrics/month-${month}`);
+          // Shards exist only in an org that has had more than 20 active members (ADR-048); the
+          // nightly recompute folds them back, so most months have none.
+          const [snap, shards] = await Promise.all([ref.get(), ref.collection('shards').get()]);
+          if (!snap.exists && shards.empty) return null;
+          const data: Record<string, unknown> = snap.data() ?? { period: `month-${month}` };
+          const values = sumMetricShards(
+            data['values'] as Record<string, unknown> | undefined,
+            shards.docs.map((shard) => shard.get('values') as Record<string, unknown> | undefined),
+          );
+          const row: Row = { id: ref.id, data: { ...data, values } };
+          return row;
+        }),
       );
+      return read.filter((row): row is Row => row !== null);
     },
 
     async trustSnapshot(orgId, matterId) {

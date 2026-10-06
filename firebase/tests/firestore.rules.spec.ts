@@ -3749,6 +3749,14 @@ describe('practice metrics (INS-01)', () => {
     await assertFails(getDoc(doc(owner, `${MATTER}/metrics/time-entry-1`)));
     await assertFails(deleteDoc(doc(owner, `${MATTER}/metrics/time-entry-1`)));
   });
+
+  it.each(EVERYONE)('Clerk’s kept Insights explanations are server-only (INS-04), as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const path = `orgs/${ORG}/insightsNarratives/2026-09_2026-09__2026-08_2026-08`;
+    await assertFails(getDoc(doc(firestore, path)));
+    await assertFails(getDocs(collection(firestore, `orgs/${ORG}/insightsNarratives`)));
+    await assertFails(setDoc(doc(firestore, path), { paragraphs: [], generatedBy: uid }));
+  });
 });
 
 describe('document templates and the letterhead (INT-06)', () => {

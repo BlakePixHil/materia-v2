@@ -274,14 +274,15 @@ export function createClerkGateway(deps: GatewayDeps) {
   const random = deps.random ?? Math.random;
   const now = deps.now ?? Date.now;
 
-  async function run<TOutput = unknown>(input: ClerkRunInput<TOutput>): Promise<ClerkRunResult<TOutput>> {
-    const { ctx } = input;
-    const started = now();
-    const feature = CLERK_FEATURES[input.feature];
+  /**
+   * Step 1 of `run` on its own: the role, the kill switches, the org's own toggles and its
+   * acknowledgement of the data-use disclosure. A feature that shows a kept reply without calling
+   * the model (INS-04) checks this first, so turning Clerk off hides what it wrote too.
+   */
+  async function assertOn(ctx: Pick<GatewayContext, 'orgId' | 'role'>, name: ClerkFeature): Promise<OrgClerkSettings> {
+    const feature = CLERK_FEATURES[name];
     if (!(PERMISSIONS['clerk.use'] as readonly Role[]).includes(ctx.role))
       throw new DomainError('PERMISSION_DENIED', 'This role cannot use Clerk');
-
-    // 1. Kill switches, before anything else.
     if (!(await deps.flag(ctx.orgId, 'clerk.enabled'))) throw disabled('clerk.enabled');
     if (feature.flag && !(await deps.flag(ctx.orgId, feature.flag))) throw disabled(feature.flag);
     const settings = await deps.store.orgSettings(ctx.orgId);
@@ -293,6 +294,16 @@ export function createClerkGateway(deps: GatewayDeps) {
       throw disabled(`org.settings.clerk.features.${orgFeature}`);
     if (!('noClientData' in feature && feature.noClientData) && !clerkAcknowledged(settings))
       throw disabled('org.settings.clerk.acknowledgement');
+    return settings;
+  }
+
+  async function run<TOutput = unknown>(input: ClerkRunInput<TOutput>): Promise<ClerkRunResult<TOutput>> {
+    const { ctx } = input;
+    const started = now();
+    const feature = CLERK_FEATURES[input.feature];
+
+    // 1. Kill switches, before anything else.
+    const settings = await assertOn(ctx, input.feature);
 
     // 1b. The org's own key and model (BYOK). No key: Clerk is off for the org. A key Anthropic
     // rejected stays unusable until an admin replaces it. Resolved per call, so a rotated key
@@ -736,7 +747,7 @@ export function createClerkGateway(deps: GatewayDeps) {
     return cost.micros;
   }
 
-  return { run };
+  return { run, assertOn };
 }
 
 export type ClerkGateway = ReturnType<typeof createClerkGateway>;

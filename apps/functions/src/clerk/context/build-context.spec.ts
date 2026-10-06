@@ -179,24 +179,66 @@ describe('buildContext: scope', () => {
     ]);
   });
 
-  it('allows the metrics scope only to features that opt in, with aggregates only', async () => {
-    await expect(setup().build('lawyer', { scope: { org: 'metrics' } })).rejects.toMatchObject({
-      code: 'PERMISSION_DENIED',
-    });
-    const { build } = setup({ policies: { brief: { budgetTokens: 8_000, scopes: ['metrics'] } } });
-    const result = await build('lawyer', { scope: { org: 'metrics' }, feature: 'brief' });
+  it('allows the metrics scope only to features that opt in, with two periods’ org totals only', async () => {
+    const scope: ContextScope = {
+      org: 'metrics',
+      current: { label: 'September 2026', months: ['2026-09'], toDate: false },
+      comparison: { label: 'August 2026', months: ['2026-08'], toDate: false },
+    };
+    await expect(setup().build('lawyer', { scope })).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+    const { build, source } = setup();
+    const result = await build('lawyer', { scope, feature: 'insightsNarrative' });
     const text = textOf(result.contextBlocks);
     expect(text).toContain('<org_metrics>');
-    expect(text).toContain('mattersOpened');
+    // September's shard is added in: $10,000 + $2,000.
+    expect(text).toContain('"metric":"billing.invoicedCents","label":"Billed, excluding GST","current":"$12,000"');
+    expect(text).toContain('"comparison":"$6,000","change":"+$6,000","changePct":"+100%"');
+    expect(result.figures).toContainEqual(
+      expect.objectContaining({ metric: 'matters.opened.type', dimension: 'probate', current: 3, comparison: 0 }),
+    );
+    // No names, no referrer ids, no member ids: only the figures.
     expect(text).not.toContain('Ashdown');
-    expect(text).not.toContain(USERS.lawyer); // Clerk metering (per-user keys) is left out.
-    expect(result.manifest).toMatchObject({ scope: { kind: 'metrics' }, privileged: false, documents: [], chunks: [] });
-    await expect(build('paralegal', { scope: { org: 'metrics' }, feature: 'brief' })).rejects.toMatchObject({
+    expect(text).not.toContain('c-executor');
+    expect(text).not.toContain(USERS.lawyer);
+    expect(source.reads).toContain('metrics:2');
+    expect(source.reads.some((read) => read.startsWith('matter:') || read.startsWith('notes:'))).toBe(false);
+    expect(result.manifest).toMatchObject({
+      scope: { kind: 'metrics' },
+      privileged: false,
+      documents: [],
+      chunks: [],
+      records: [expect.objectContaining({ kind: 'metrics', id: 'month-2026-09' }), expect.anything()],
+    });
+    // Every member reads the rollups, so any role that may use Clerk gets them.
+    await expect(build('paralegal', { scope, feature: 'insightsNarrative' })).resolves.toMatchObject({
+      manifest: { scope: { kind: 'metrics' } },
+    });
+    await expect(build('readonly', { scope, feature: 'insightsNarrative' })).rejects.toMatchObject({
       code: 'PERMISSION_DENIED',
     });
     await expect(
-      build('lawyer', { scope: { org: 'metrics' }, feature: 'brief', attachments: ['d-will'] }),
+      build('lawyer', { scope, feature: 'insightsNarrative', attachments: ['d-will'] }),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    for (const bad of [[], ['2026-13'], Array.from({ length: 25 }, (_, i) => `20${24 + Math.floor(i / 12)}-01`)])
+      await expect(
+        build('lawyer', {
+          scope: { ...scope, current: { ...scope.current, months: bad } },
+          feature: 'insightsNarrative',
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
+  it('gives no figures when neither period recorded anything', async () => {
+    const result = await setup().build('lawyer', {
+      scope: {
+        org: 'metrics',
+        current: { label: 'March 2026', months: ['2026-03'], toDate: false },
+        comparison: null,
+      },
+      feature: 'insightsNarrative',
+    });
+    expect(result.figures).toEqual([]);
+    expect(textOf(result.contextBlocks)).toContain('"comparison":null,"figures":[]');
   });
 });
 

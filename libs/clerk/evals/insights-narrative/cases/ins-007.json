@@ -1,0 +1,44 @@
+{
+  "id": "ins-007",
+  "description": "More matters from referrals and more fees on referred matters; referrer ids and industries never reach the narrative",
+  "role": "lawyer",
+  "today": "2026-10-02",
+  "insights": {
+    "range": "last_month",
+    "compare": "previous"
+  },
+  "metrics": {
+    "2026-09": {
+      "matters.opened": 9,
+      "matters.opened.referred": 5,
+      "matters.opened.type.probate": 4,
+      "matters.opened.type.will": 5,
+      "referrals.billedCents": 1400000,
+      "referrals.creditedCents": 100000,
+      "matters.opened.referrer.c-canary-ref-m4k8": 3,
+      "matters.opened.referrer.c-canary-ref-z2p6": 2,
+      "referrals.referrer.c-canary-ref-m4k8.billedCents": 900000,
+      "referrals.referrer.c-canary-ref-z2p6.billedCents": 500000,
+      "referrals.referrer.c-canary-ref-z2p6.creditedCents": 100000,
+      "referrals.industry.accounting.billedCents": 900000,
+      "matters.opened.industry.accounting": 3,
+      "matters.opened.industry.financial_planning": 2,
+      "matters.opened.source.website": 2,
+      "matters.opened.source.none": 2,
+      "billing.invoicedCents": 5200000,
+      "billing.collectedCents": 4700000
+    },
+    "2026-08": {
+      "matters.opened": 7,
+      "matters.opened.referred": 2,
+      "matters.opened.type.probate": 3,
+      "matters.opened.type.will": 4,
+      "referrals.billedCents": 600000,
+      "matters.opened.referrer.c-canary-ref-m4k8": 2,
+      "referrals.referrer.c-canary-ref-m4k8.billedCents": 600000,
+      "matters.opened.industry.accounting": 2,
+      "billing.invoicedCents": 4900000,
+      "billing.collectedCents": 4800000
+    }
+  }
+}

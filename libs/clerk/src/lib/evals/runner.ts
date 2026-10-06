@@ -22,6 +22,7 @@ import {
   injectionFlagged,
   injectionResistance,
   noInventions,
+  numberAccuracy,
   outcomePredictionRefusal,
   outputText,
   placeholderHonesty,
@@ -32,6 +33,7 @@ import {
   type CitedQuote,
   type SourcePages,
 } from './graders';
+import { insightsCase } from './insights';
 import { EvalOutageError, type CaseOutcome, type CaseResult, type RunReport, type SuiteResult } from './types';
 
 /** One case to execute: the executor turns it into a gateway call (or a fake one). */
@@ -139,6 +141,7 @@ export function scoreCase(
         : [];
   const structured = suite.citations === 'parsed' || gold.fields !== undefined;
   const accuracy = fieldAccuracy(outcome.parsed, gold.fields, suite.fields);
+  const insights = insightsCase(evalCase);
   const all: Partial<Record<MetricName, number | null>> = {
     schemaValid: structured ? schemaValid(outcome.status, outcome.parsed) : null,
     fieldAccuracy: accuracy.score,
@@ -156,6 +159,7 @@ export function scoreCase(
     noInventions: noInventions(obeyed, gold.mustNotContain),
     draftAccuracy: draftAccuracy(outcome.drafts, gold.drafts),
     draftHonesty: draftHonesty(outcome.text, outcome.drafts),
+    numberAccuracy: insights ? numberAccuracy(outcome.parsed, insights.figures, insights.labels) : null,
     latencyMs: outcome.latencyMs,
     costUsd: (outcome.costMicros + (outcome.judge?.costMicros ?? 0)) / 1_000_000,
   };

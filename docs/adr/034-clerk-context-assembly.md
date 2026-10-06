@@ -20,7 +20,7 @@ We will build every Clerk context with one function, `buildContext` (`apps/funct
 6. **Cache-friendly layout.** The base system prompt (`system@1.0.0`, with today's date in the org time zone) and the stable matter facts and notes come first, ending in a cache breakpoint; attachments, excerpts, notices and the question follow.
 7. **Untrusted framing.** Practice material is wrapped in `<matter_facts>`, `<matter_note>`, `<document>`, `<excerpt>` and `<org_metrics>`; text inside can't open or close those tags (escaped), and JSON escapes `<`. The system prompt says their content is data and that instructions found in it are ignored and reported.
 8. **A manifest for audit.** The message stores the manifest (ids, versions, counts, notices, truncation, token use; never text) when it is created, so a failed call still records what Clerk was shown.
-9. **Cross-matter reads only through an explicit scope.** `scope: {org: 'metrics'}` gives the newest monthly and financial-year rollups (numbers only) to features whose policy lists `metrics` and roles with `billing.view`. No feature lists it yet; the Insights narrative (INS-04) will.
+9. **Cross-matter reads only through an explicit scope.** `scope: {org: 'metrics'}` gives the newest monthly and financial-year rollups (numbers only) to features whose policy lists `metrics` and roles with `billing.view`. No feature lists it yet; the Insights narrative (INS-04) will. (Changed by [ADR-054](054-insights-narratives.md): the scope names the two periods' months, adds their shards, gives a fixed catalogue of figures as text, and is open to every `clerk.use` role, since every member reads those documents.)
 
 ## Consequences
 

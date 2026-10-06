@@ -1,0 +1,16 @@
+{
+  "id": "ins-009",
+  "description": "A new practice: one matter opened this month to date and nothing recorded last month, so too little to compare",
+  "role": "lawyer",
+  "today": "2026-10-03",
+  "insights": {
+    "range": "this_month",
+    "compare": "previous"
+  },
+  "metrics": {
+    "2026-10": {
+      "matters.opened": 1,
+      "matters.opened.type.will": 1
+    }
+  }
+}

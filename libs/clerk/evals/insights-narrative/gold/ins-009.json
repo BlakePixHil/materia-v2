@@ -1,0 +1,7 @@
+{
+  "id": "ins-009",
+  "fields": {
+    "insufficientData": true
+  },
+  "mustNotContain": ["grew", "growth", "doubled", "surge"]
+}

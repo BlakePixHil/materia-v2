@@ -1,0 +1,35 @@
+{
+  "id": "ins-010",
+  "description": "No comparison chosen: the month described on its own",
+  "role": "lawyer",
+  "today": "2026-08-12",
+  "insights": {
+    "range": "last_month",
+    "compare": "none"
+  },
+  "metrics": {
+    "2026-07": {
+      "billing.invoicedCents": 3900000,
+      "billing.collectedCents": 3600000,
+      "matters.opened": 7,
+      "matters.opened.type.probate": 4,
+      "matters.opened.type.will": 2,
+      "matters.opened.type.admin": 1,
+      "matters.closed": 4,
+      "deadlines.due": 11,
+      "deadlines.metOnTime": 9,
+      "deadlines.metLate": 1,
+      "deadlines.missed": 1,
+      "time.billable.minutes": 15600,
+      "wip.timeCents": 7200000,
+      "wip.disbursementsCents": 200000,
+      "debtors.total": 2600000,
+      "debtors.invoices": 12,
+      "debtors.current": 1500000,
+      "debtors.d1_30": 500000,
+      "debtors.d31_60": 200000,
+      "debtors.d61_90": 100000,
+      "debtors.d90_plus": 300000
+    }
+  }
+}

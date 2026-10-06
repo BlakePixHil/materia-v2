@@ -12,6 +12,7 @@ import {
   ORG,
   PARALEGAL,
   PRIYA,
+  READONLY,
 } from '../matter-detail/testing';
 
 /**
@@ -345,5 +346,188 @@ describe('Insights', () => {
     await page.click('Try again');
     await page.stable(10);
     expect(page.text(page.body.querySelector('[data-testid="hero-billed"]'))).toBe('$60,000.00');
+  });
+});
+
+describe('Insights: Clerk explains what changed (INS-04)', () => {
+  const CLERK = { 'clerk.enabled': true, 'clerk.features.insightsNarrative': true };
+  const billed = {
+    metric: 'billing.invoicedCents',
+    period: 'current',
+    label: 'Billed, excluding GST',
+    value: '$60,000',
+  };
+  const wills = {
+    metric: 'matters.opened.type',
+    dimension: 'will',
+    period: 'current',
+    label: 'Matters opened: wills',
+    value: '1',
+  };
+  const missed = { metric: 'deadlines.missed', period: 'current', label: 'Deadlines missed', value: '1' };
+  const recorded = { metric: 'time.recordedCents', period: 'current', label: 'Time recorded', value: '$80,000' };
+
+  /** An explanation written just now, so Refresh waits its 10 minutes. */
+  function narrative(extra: Seed = {}) {
+    const at = Date.now();
+    return {
+      periodLabel: 'FY2026–27 to date',
+      comparisonLabel: null,
+      paragraphs: [
+        { text: 'So far this year the practice has billed $60,000.', citations: [billed] },
+        {
+          text: 'It opened 1 will, 1 deadline was missed and $80,000 of time was recorded.',
+          citations: [wills, missed, recorded],
+        },
+      ],
+      insufficientData: false,
+      omitted: 1,
+      generatedAt: new Date(at).toISOString(),
+      refreshAfter: new Date(at + 600_000).toISOString(),
+      expiresAt: new Date(at + 86_400_000).toISOString(),
+      stale: false,
+      promptRef: 'insights-narrative@1.0.0',
+      ...extra,
+    };
+  }
+  const explaining = (kept: Seed | null = null) => ({
+    // The kept explanation is this FY's; every other selection has none.
+    'clerk-explainInsights': (data: Seed) => ({
+      narrative: data['mode'] !== 'cached' ? narrative() : data['range'] === 'this_fy' ? kept : null,
+    }),
+  });
+  const section = (page: Page) => page.body.querySelector<HTMLElement>('[data-testid="insights-narrative"]');
+  const chip = (page: Page, label: string) =>
+    [...(section(page)?.querySelectorAll<HTMLElement>('.mt-cite') ?? [])].find((node) =>
+      page.text(node).startsWith(label),
+    ) ?? null;
+  const bars = (page: Page, title: string) =>
+    [...(card(page, title)?.querySelectorAll('path.bar') ?? [])].map((bar) => bar.classList.contains('muted'));
+
+  it('is hidden while Clerk or the feature is off', async () => {
+    const page = await open('/insights?period=this_fy', { flags: { 'clerk.enabled': true } });
+    expect(section(page)).toBeNull();
+    expect(page.calls('clerk-explainInsights')).toEqual([]);
+  });
+
+  it('explains the selection with Clerk, then picks out each cited figure from its chip', async () => {
+    const page = await open('/insights?period=this_fy', { flags: CLERK, callables: explaining() });
+    expect(page.calls('clerk-explainInsights')).toEqual([{ range: 'this_fy', compare: 'none', mode: 'cached' }]);
+    expect(page.text(section(page))).toContain('Clerk can describe what changed in FY2026–27 to date');
+
+    await page.click('Explain with Clerk', section(page) as HTMLElement);
+    await page.stable(10);
+    expect(page.calls('clerk-explainInsights')[1]).toMatchObject({
+      range: 'this_fy',
+      compare: 'none',
+      mode: 'explain',
+    });
+    const text = page.text(section(page));
+    expect(text).toContain('So far this year the practice has billed $60,000.');
+    expect(page.text(section(page)?.querySelector('[data-testid="narrative-omitted"]'))).toBe(
+      'Clerk left out a paragraph whose numbers didn’t match the figures.',
+    );
+    // Just written: Refresh waits 10 minutes.
+    expect(page.buttons('Refresh', section(page) as HTMLElement)[0]?.hasAttribute('disabled')).toBe(true);
+
+    // A Stat's figure: the hero is outlined.
+    chip(page, 'Billed, excluding GST')?.click();
+    await page.stable();
+    expect(page.body.querySelector('[data-testid="insights-hero"]')?.hasAttribute('data-cited')).toBe(true);
+
+    // A chart's bar: the others mute.
+    chip(page, 'Matters opened: wills')?.click();
+    await page.stable();
+    expect(page.body.querySelector('[data-testid="insights-hero"]')?.hasAttribute('data-cited')).toBe(false);
+    expect(card(page, 'Matters opened by type')?.hasAttribute('data-cited')).toBe(true);
+    expect(bars(page, 'Matters opened by type')).toEqual([true, false]);
+    chip(page, 'Deadlines missed')?.click();
+    await page.stable();
+    // Met on time (muted) and missed: the empty results draw no bar.
+    expect(bars(page, 'Deadline performance')).toEqual([true, false]);
+
+    // A figure the screen doesn't show stays a plain chip.
+    expect(chip(page, 'Time recorded')?.tagName).toBe('SPAN');
+  });
+
+  it('shows the explanation kept for the selection, says when the figures have moved, and refreshes it', async () => {
+    const kept = narrative({ stale: true, refreshAfter: new Date(Date.now() - 1000).toISOString() });
+    const page = await open('/insights?period=this_fy', { flags: CLERK, callables: explaining(kept) });
+    expect(page.text(section(page))).toContain('So far this year the practice has billed $60,000.');
+    expect(page.text(section(page)?.querySelector('[data-testid="narrative-stale"]'))).toContain(
+      'The figures have changed since Clerk wrote this.',
+    );
+    await page.click('Refresh', section(page) as HTMLElement);
+    await page.stable(10);
+    expect(page.calls('clerk-explainInsights').map((call) => call['mode'])).toEqual(['cached', 'refresh']);
+    expect(section(page)?.querySelector('[data-testid="narrative-stale"]')).toBeNull();
+
+    // Another period asks for its own.
+    await choose(page, 'Period', 'Last month');
+    expect(page.calls('clerk-explainInsights').at(-1)).toEqual({
+      range: 'last_month',
+      compare: 'none',
+      mode: 'cached',
+    });
+    expect(page.text(section(page))).toContain('Clerk can describe what changed in September 2026');
+  });
+
+  it('says when Clerk’s explanation failed or didn’t match the figures', async () => {
+    const page = await open('/insights?period=this_fy', {
+      flags: CLERK,
+      callables: {
+        'clerk-explainInsights': (data: Seed) =>
+          data['mode'] === 'cached' ? { narrative: null } : { narrative: null, problem: 'unverified' },
+      },
+    });
+    await page.click('Explain with Clerk', section(page) as HTMLElement);
+    await page.stable(10);
+    expect(page.text(section(page)?.querySelector('[data-testid="narrative-problem"]'))).toContain(
+      'Clerk’s explanation didn’t match the figures, so it isn’t shown.',
+    );
+  });
+
+  it('is hidden when the practice has turned it off, and explains why when Explain is refused', async () => {
+    const off = await open('/insights?period=this_fy', {
+      flags: CLERK,
+      callables: {
+        'clerk-explainInsights': () => {
+          throw {
+            code: 'functions/failed-precondition',
+            details: { code: 'CLERK_DISABLED', switch: 'org.settings.clerk.features.insightsNarrative' },
+          };
+        },
+      },
+    });
+    expect(section(off)).toBeNull();
+    cleanUpOverlays();
+    TestBed.resetTestingModule();
+
+    const page = await open('/insights?period=this_fy', {
+      flags: CLERK,
+      callables: {
+        'clerk-explainInsights': (data: Seed) => {
+          if (data['mode'] === 'cached') return { narrative: null };
+          throw {
+            code: 'functions/failed-precondition',
+            details: { code: 'CLERK_DISABLED', switch: 'org.byok.missing' },
+          };
+        },
+      },
+    });
+    await page.click('Explain with Clerk', section(page) as HTMLElement);
+    await page.stable(10);
+    expect(page.text(section(page)?.querySelector('[data-testid="narrative-problem"]'))).toContain(
+      'Clerk needs your practice’s Anthropic API key.',
+    );
+  });
+
+  it('is not shown to read-only members', async () => {
+    const page = await open('/insights?period=this_fy', {
+      flags: CLERK,
+      callables: explaining(),
+      session: READONLY,
+    });
+    expect(section(page)).toBeNull();
   });
 });
