@@ -1,10 +1,12 @@
 import type { z } from 'zod';
 
 import {
+  citedClaims,
   CLERK_FALLBACKS,
   clerkModelFor,
   costMicros,
   mapCitations,
+  markClaims,
   OUTPUT_SCHEMAS,
   renderPrompt,
   totalTokens,
@@ -34,7 +36,9 @@ import {
   type ClerkModelResult,
   type Clock,
 } from '../ports';
+import { verifyCitations } from './citations';
 import type { ClerkContext } from './context/build-context';
+import type { DocumentTextPort } from './context/ports';
 import {
   CLERK_FEATURES,
   DEFAULT_MONTHLY_TOKEN_BUDGET,
@@ -89,6 +93,10 @@ export interface ClerkRunResult<TOutput = unknown> {
   status: ClerkRunStatus;
   text?: string;
   parsed?: TOutput;
+  /**
+   * The reply's citations (ADR-043). For a matter-scoped reply they are verified against the
+   * chunks: those whose quote wasn't found carry `verified: false` and must not be shown.
+   */
   citations: ClerkCitation[];
   usage: ClerkUsage;
   stopReason: string;
@@ -113,6 +121,11 @@ export interface GatewayDeps {
   fallbackModels?: readonly string[];
   /** Let the API reroute refusals itself (first-party API, ADR-011a). */
   serverFallbacks?: boolean;
+  /**
+   * Page text from chunks (AI-04), to verify a matter-scoped reply's citations (AI-05). Without it,
+   * or without a matter context, citations are stored unchecked.
+   */
+  citationText?: DocumentTextPort;
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
   now?: () => number;
@@ -394,19 +407,42 @@ export function createClerkGateway(deps: GatewayDeps) {
       }
     }
 
-    // 8. Citations, cost, metering.
-    const mapped = mapCitations(result.citations as ModelCitation[], { documents, searchResults });
-    const cost = await meter(input, ctx, period, result.model, primary, result.usage, {
-      used: usedTokens,
-      limit: budget,
-    });
+    // 8. Citations (mapped, then verified against the chunks for a matter-scoped reply, AI-05),
+    // cost, metering. A citation whose quote isn't on its page is kept with `verified: false`:
+    // never shown, counted as `citation_unverified`.
+    const sources = { documents, searchResults };
+    const mapped = mapCitations(result.citations as ModelCitation[], sources);
+    let citations = mapped.citations;
+    const checked = { verified: 0, unverified: 0 };
+    const scope = context?.manifest.scope;
+    if (citations.length && scope?.kind === 'matter' && deps.citationText) {
+      const verified = await verifyCitations(
+        citations,
+        { orgId: ctx.orgId, matterId: scope.matterId },
+        deps.citationText,
+      );
+      citations = verified.citations;
+      checked.verified = verified.verified;
+      checked.unverified = verified.unverified;
+    }
+    const cost = await meter(
+      input,
+      ctx,
+      period,
+      result.model,
+      primary,
+      result.usage,
+      { used: usedTokens, limit: budget },
+      checked,
+    );
     const fallbackUsed = modelIndex > 0 || result.serverFallback;
 
-    // 9. The message, verbatim turn included.
+    // 9. The message, verbatim turn included. Each cited claim carries `[n]` markers for its
+    // citations (n = index + 1 in `citations`), so the UI can mark a claim that lost them all.
     await sink?.finish({
       status,
-      text: result.text,
-      citations: mapped.citations,
+      text: citations.length ? markClaims(citedClaims(result.content, result.text, citations, sources)) : result.text,
+      citations,
       usage: result.usage,
       model: result.model,
       fallbackUsed,
@@ -425,8 +461,9 @@ export function createClerkGateway(deps: GatewayDeps) {
       latencyMs: now() - started,
       attempts,
       fallbackUsed,
-      citations: mapped.citations.length,
+      citations: citations.length,
       unmappedCitations: mapped.unmapped,
+      ...(checked.unverified ? { unverifiedCitations: checked.unverified } : {}),
       ...(invalidIssues ? { invalidIssues } : {}),
     });
 
@@ -434,7 +471,7 @@ export function createClerkGateway(deps: GatewayDeps) {
       status,
       text: result.text,
       ...(parsed !== undefined ? { parsed } : {}),
-      citations: mapped.citations,
+      citations,
       usage: result.usage,
       stopReason: result.stopReason,
       model: result.model,
@@ -456,13 +493,21 @@ export function createClerkGateway(deps: GatewayDeps) {
     primary: string,
     usage: ClerkUsage,
     budget?: { used: number; limit: number },
+    citations?: { verified: number; unverified: number },
   ): Promise<number> {
     const cost = costMicros(model, usage, primary);
     try {
       await deps.store.meter(
         ctx.orgId,
         period,
-        { feature: input.feature, uid: ctx.uid, usage, costMicros: cost.micros, costEstimated: cost.estimated },
+        {
+          feature: input.feature,
+          uid: ctx.uid,
+          usage,
+          costMicros: cost.micros,
+          costEstimated: cost.estimated,
+          ...(citations && citations.verified + citations.unverified ? { citations } : {}),
+        },
         ctx.clock.now(),
       );
       // The ops dashboard's Clerk tokens and spend, and the "Clerk budget at 80%" alert (FND-21).

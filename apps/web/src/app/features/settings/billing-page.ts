@@ -30,6 +30,8 @@ import { dollarsText, parseDollars } from './money';
 import { SettingsApi } from './settings-api';
 import { warnBeforeUnload, type HasUnsavedChanges } from './unsaved-changes';
 import { errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { DisbursementPresetsSettings } from '../disbursements/disbursement-presets-settings';
 import { FEE_ARRANGEMENT_OPTIONS } from '../intake/intake-state';
 
 const TYPES = MatterTypeSchema.options;
@@ -122,7 +124,17 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
 @Component({
   selector: 'mt-billing-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtNote, MtSelect, MtSettingsRow, MtSettingsSection, MtSwitch, MtTextField],
+  imports: [
+    DisbursementPresetsSettings,
+    FormsModule,
+    MtButton,
+    MtNote,
+    MtSelect,
+    MtSettingsRow,
+    MtSettingsSection,
+    MtSwitch,
+    MtTextField,
+  ],
   host: { class: 'mt-col', style: 'gap: 24px; max-width: 760px' },
   template: `
     <div class="mt-col" style="gap: 6px">
@@ -287,6 +299,11 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
         </button>
       </div>
     </form>
+
+    <!-- Its own save: the presets live in their own document (BILL-04). -->
+    @if (disbursementsOn()) {
+      <mt-disbursement-presets-settings />
+    }
   `,
   styles: `
     .pair {
@@ -327,6 +344,9 @@ export class BillingSettingsPage implements HasUnsavedChanges {
   private readonly api = inject(SettingsApi);
   private readonly toasts = inject(ToastService);
   protected readonly org = orgSettingsReadRepository().watch(() => this.context.orgId());
+  private readonly flags = inject(FeatureFlagService);
+  /** Disbursement presets (BILL-04) show while their flag is on. */
+  protected readonly disbursementsOn = computed(() => this.flags.isOn('billing.disbursements'));
 
   protected readonly types = TYPES;
   protected readonly units: MtOption<number>[] = BILLING_UNIT_OPTIONS.map((m) => ({

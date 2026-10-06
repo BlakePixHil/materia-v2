@@ -212,9 +212,10 @@ export interface BasisSources {
 export function basisDocumentIds(suggestion: {
   kind: SuggestionKind;
   payload: unknown;
-  citations?: readonly { documentId: string }[] | undefined;
+  citations?: readonly { documentId?: string | undefined }[] | undefined;
 }): string[] {
-  const ids = (suggestion.citations ?? []).map((citation) => citation.documentId);
+  // Record citations (AI-05) name no document; only cited documents are part of the basis.
+  const ids = (suggestion.citations ?? []).flatMap((citation) => (citation.documentId ? [citation.documentId] : []));
   const target = (suggestion.payload as { documentId?: unknown } | undefined)?.documentId;
   if (suggestion.kind === 'document_meta' && typeof target === 'string') ids.push(target);
   return [...new Set(ids)];
@@ -247,7 +248,7 @@ export function suggestionBasisParts(
   suggestion: {
     kind: SuggestionKind;
     payload: unknown;
-    citations?: readonly { documentId: string }[] | undefined;
+    citations?: readonly { documentId?: string | undefined }[] | undefined;
   },
   sources: BasisSources,
 ): BasisParts {
@@ -301,7 +302,11 @@ export function suggestionBasisParts(
 
 /** Whether the sources make a suggestion privileged: the matter, or a cited or targeted document. */
 export function sourcesPrivileged(
-  suggestion: { kind: SuggestionKind; payload: unknown; citations?: readonly { documentId: string }[] | undefined },
+  suggestion: {
+    kind: SuggestionKind;
+    payload: unknown;
+    citations?: readonly { documentId?: string | undefined }[] | undefined;
+  },
   sources: BasisSources,
 ): boolean {
   if (sources.matter['privileged'] === true) return true;

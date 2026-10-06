@@ -702,20 +702,71 @@ export const TimeEntry = withMeta(
   },
 );
 
-/** `matters/{matterId}/disbursements/{id}`. */
+/** Limits the rules enforce on client-written disbursements (BILL-04). */
+export const DISBURSEMENT_TEXT_MAX = 500;
+export const DISBURSEMENT_PAYEE_MAX = 200;
+/** One disbursement's sanity cap: $1,000,000. */
+export const DISBURSEMENT_MAX_CENTS = 100_000_000;
+export const DisbursementStatusSchema = z.enum(['unbilled', 'billed', 'written_off']);
+export type DisbursementStatus = z.infer<typeof DisbursementStatusSchema>;
+export const DisbursementCategorySchema = z.enum([
+  'court_fee',
+  'advertising',
+  'search',
+  'certificate',
+  'valuation',
+  'courier',
+  'other',
+]);
+export type DisbursementCategory = z.infer<typeof DisbursementCategorySchema>;
+
+/**
+ * `matters/{matterId}/disbursements/{id}` (BILL-04): an outlay on the client's behalf. Unbilled ones
+ * are written client-direct; `disbursements-onWrite` recomputes `amountExGstCents` (from
+ * `amountIncGstCents` when it was entered GST-inclusive) and `gstCents` from the treatment, never
+ * trusting the client's preview, and keeps the matter's `disbursementWipCents`. Writing off and
+ * restoring go through `disbursements-setStatus`; billed ones (BILL-07) are immutable.
+ */
 export const Disbursement = withMeta(
   {
+    ...GroupKeys,
     date: DateOnlySchema,
-    description: NonEmptyString,
+    description: NonEmptyString.max(DISBURSEMENT_TEXT_MAX),
+    payee: z.string().max(DISBURSEMENT_PAYEE_MAX),
+    category: DisbursementCategorySchema.optional(),
+    /** The preset it was started from, if any (presets only prefill). */
+    presetId: DocIdSchema.nullable().optional(),
     amountExGstCents: CentsSchema,
     gstCents: CentsSchema,
+    /** The GST-inclusive amount as entered; `null` or absent when it was entered excluding GST. */
+    amountIncGstCents: CentsSchema.nullable().optional(),
     gstTreatment: GstTreatmentSchema,
-    payee: z.string(),
-    receiptDocumentId: DocIdSchema.optional(),
-    status: z.enum(['draft', 'final', 'billed', 'written_off']),
+    /** The receipt: a document on the same matter (CORE-12). */
+    receiptDocumentId: DocIdSchema.nullable().optional(),
+    status: DisbursementStatusSchema,
     invoiceId: DocIdSchema.optional(),
+    /** What this disbursement adds to the matter's `disbursementWipCents` right now; kept by the trigger. */
+    wipCountedCents: CentsSchema.default(0 as never),
   },
-  { path: `${MATTER}/disbursements`, softDelete: true, serverOwned: ['gstCents', 'invoiceId'] },
+  {
+    path: `${MATTER}/disbursements`,
+    softDelete: true,
+    serverOwned: ['orgId', 'matterId', 'invoiceId', 'wipCountedCents'],
+    // `amountExGstCents` and `gstCents` are the client's preview, recomputed by the trigger. The
+    // status moves only through `disbursements-setStatus` (and invoicing).
+    updatable: [
+      'date',
+      'description',
+      'payee',
+      'category',
+      'presetId',
+      'amountExGstCents',
+      'gstCents',
+      'amountIncGstCents',
+      'gstTreatment',
+      'receiptDocumentId',
+    ],
+  },
 );
 
 /** `matters/{matterId}/assets/{id}`: the estate register. */

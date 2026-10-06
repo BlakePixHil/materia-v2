@@ -1,6 +1,14 @@
-import { booleanAttribute, ChangeDetectionStrategy, Component, input, output, ViewEncapsulation } from '@angular/core';
+import {
+  booleanAttribute,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  output,
+  ViewEncapsulation,
+} from '@angular/core';
 
-import { type CitationOpenEvent, type CitationVm, MtCitation } from './citation';
+import { type CitationOpenEvent, type CitationVm, MtCitation, shownCitations } from './citation';
 import { MtClerkMark } from './clerk-mark';
 import { MtButton } from '../button/button';
 import { MtIcon } from '../icon/icon';
@@ -66,9 +74,9 @@ export interface SuggestionVm {
       }
     </span>
     <div class="mt-suggestion-preview"><ng-content /></div>
-    @if (suggestion().citations?.length) {
+    @if (citations().length) {
       <div class="mt-cites mt-suggestion-cites" role="group" aria-label="Sources">
-        @for (citation of suggestion().citations; track citation.n ?? citation.documentId) {
+        @for (citation of citations(); track citation.n ?? citation.documentId) {
           <mt-citation [citation]="citation" (open)="citationOpen.emit($event)" />
         }
       </div>
@@ -88,4 +96,7 @@ export class MtSuggestion {
   readonly edit = output();
   readonly dismiss = output();
   readonly citationOpen = output<CitationOpenEvent>();
+
+  /** Its sources, without any that failed verification (AI-05). */
+  protected readonly citations = computed(() => shownCitations(this.suggestion().citations ?? []));
 }

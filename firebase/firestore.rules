@@ -175,6 +175,50 @@ service cloud.firestore {
         && validTimeEntry(data);
     }
 
+    // ---------- disbursements (BILL-04) ----------
+    // Fields a client may write when creating a disbursement: `DisbursementCreateInput` in
+    // libs/domain (the rules tests check the two agree), plus the meta fields.
+    function disbursementCreateFields() {
+      return ['orgId', 'matterId', 'date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId', 'status', 'wipCountedCents'];
+    }
+    function optionalId(data, field) {
+      return data.get(field, null) == null || data.get(field, null) is string && data.get(field, null).size() > 0;
+    }
+    // The values a disbursement may hold after a client write (up to $1,000,000). The receipt is a
+    // document on the same matter.
+    function validDisbursement(orgId, matterId, data) {
+      return data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.description is string && data.description.trim().size() > 0 && data.description.size() <= 500
+        && data.payee is string && data.payee.size() <= 200
+        && (data.get('category', null) == null || data.category in ['court_fee', 'advertising', 'search', 'certificate', 'valuation', 'courier', 'other'])
+        && optionalId(data, 'presetId')
+        && data.amountExGstCents is int && data.amountExGstCents >= 0 && data.amountExGstCents <= 100000000
+        && data.gstCents is int && data.gstCents >= 0
+        && (data.get('amountIncGstCents', null) == null
+          || data.amountIncGstCents is int && data.amountIncGstCents > 0 && data.amountIncGstCents <= 100000000)
+        && data.gstTreatment in ['taxable', 'gst_free', 'input_taxed']
+        && optionalId(data, 'receiptDocumentId')
+        && (data.get('receiptDocumentId', null) == null
+          || exists(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)/documents/$(data.receiptDocumentId)));
+    }
+    // A client-created disbursement: unbilled on this matter, not yet counted.
+    function newDisbursement(orgId, matterId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(disbursementCreateFields().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+        && data.keys().hasAll(['orgId', 'matterId', 'date', 'description', 'payee', 'amountExGstCents', 'gstCents', 'gstTreatment', 'status', 'wipCountedCents', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
+        && data.orgId == orgId && data.matterId == matterId
+        && data.status == 'unbilled' && data.wipCountedCents == 0
+        && data.createdBy == uid() && data.createdAt == request.time && validMeta() && data.schemaVersion == 1
+        && validDisbursement(orgId, matterId, data);
+    }
+    // The org's presets (BILL-04): a list the client validates (`DisbursementPresetsSchema`); readers
+    // fall back to the starting presets when it is malformed.
+    function validPresets() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['presets', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
+        && data.presets is list && data.presets.size() <= 50 && validMeta();
+    }
+
     // ---------- deadlines (CORE-10) ----------
     // Fields a client may write when creating a manual deadline: `ManualDeadlineCreateInput` in
     // libs/domain (the rules tests check the two agree), plus the meta fields.
@@ -585,9 +629,22 @@ service cloud.firestore {
         match /events/{eventId} {
           allow read: if inOrg(orgId);
         }
+        // Disbursements (BILL-04): unbilled ones are written client-direct by time.record roles on a
+        // live matter they can see. disbursements-onWrite recomputes the GST and keeps the matter's
+        // disbursementWipCents; writing off goes through disbursements-setStatus, and billed ones
+        // never change from a client (invariant 5).
         match /disbursements/{disbursementId} {
-          allow read: if inOrg(orgId);
-          allow update: if editable(orgId, 'time.record', fieldsDisbursement());
+          function disbursementMatter() {
+            return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
+          }
+          function canWriteDisbursement() {
+            return can(orgId, 'time.record')
+              && visible(orgId, disbursementMatter()) && disbursementMatter().get('deletedAt', null) == null;
+          }
+          allow read: if inOrg(orgId) && visible(orgId, disbursementMatter());
+          allow create: if canWriteDisbursement() && newDisbursement(orgId, matterId);
+          allow update: if canWriteDisbursement() && resource.data.status == 'unbilled'
+            && (clientUpdate(fieldsDisbursement()) && validDisbursement(orgId, matterId, request.resource.data) || softDelete());
         }
         match /assets/{assetId} {
           allow read: if inOrg(orgId);
@@ -745,6 +802,16 @@ service cloud.firestore {
         allow read: if inOrg(orgId) && resource.data.createdBy == uid();
       }
 
+      // Disbursement presets (BILL-04): every member reads them to prefill a disbursement; owners and
+      // admins keep the list. Other settings documents stay server-only.
+      match /settings/disbursementPresets {
+        allow read: if inOrg(orgId);
+        allow create: if can(orgId, 'org.settings') && validPresets()
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt == request.time
+          && request.resource.data.schemaVersion == 1;
+        allow update: if can(orgId, 'org.settings') && clientUpdate(['presets']) && validPresets();
+      }
+
       // Server-only collections.
       // Append-only audit log (FND-18): written by functions, read through the audit-query callable.
       match /audit/{entryId} {
@@ -801,6 +868,11 @@ service cloud.firestore {
     match /{path=**}/timeEntries/{entryId} {
       allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg())
         && (resource.data.uid == uid() || canViewPrivileged(claimOrg()));
+    }
+    // Disbursements across matters (BILL-04, for WIP): like time entries, a group query can't check
+    // each one's matter, so only roles with privileged.view read them through the group.
+    match /{path=**}/disbursements/{disbursementId} {
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && canViewPrivileged(claimOrg());
     }
     // ⌘K document search (CORE-15, ADR-033): a group query can't `get()` each document's matter, and
     // a document on a matter marked privileged later may not be privileged itself, so only roles
@@ -875,7 +947,8 @@ service cloud.firestore {
     function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt']; }
     function fieldsDeadlineChange() { return []; }
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
-    function fieldsDisbursement() { return ['date', 'description', 'amountExGstCents', 'gstTreatment', 'payee', 'receiptDocumentId', 'status']; }
+    function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
+    function fieldsDisbursementPresetsDoc() { return ['presets']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'status', 'paidOn']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
     function fieldsDocumentHash() { return []; }

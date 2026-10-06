@@ -84,6 +84,11 @@ const CONTENT: Record<FixtureName, Block[][]> = {
   'court-order': COURT_ORDER,
 };
 
+/** A fixture's text, one string per page (what the seed's citations quote; AI-05). */
+export function fixturePageText(name: FixtureName): string[] {
+  return CONTENT[name].map((blocks) => blocks.map((block) => block.text).join('\n'));
+}
+
 const TITLES: Record<FixtureName, string> = {
   will: 'Will (fictional sample)',
   'death-certificate': 'Death certificate (SAMPLE)',
