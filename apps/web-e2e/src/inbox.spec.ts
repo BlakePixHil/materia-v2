@@ -136,7 +136,13 @@ test.describe('inbox', () => {
   test('filters, triages from the keyboard and archives', async ({ page, request }) => {
     test.setTimeout(90_000);
     await signIn(page, request);
-    await page.goto('/inbox');
+    // Arrive from a page with buttons on it, so the button styles load before the Inbox's own.
+    await page.goto('/today');
+    await expect(page.getByRole('link', { name: 'New matter' })).toBeVisible(LIVE);
+    await page
+      .getByRole('navigation', { name: 'Main' })
+      .getByRole('link', { name: /^Inbox/ })
+      .click();
     await expect(rows(page)).toHaveCount(4, LIVE);
     await expect(page.locator('.mt-inbox .mt-chip[data-filter="all"]')).toContainText('All 4');
     // A matter I can't read: it says so, and no inline action opens it.
@@ -157,6 +163,14 @@ test.describe('inbox', () => {
     await expect(row(page, 'Draft the will for Bram Ostler')).toBeFocused();
     await page.keyboard.press('x');
     await expect(page.locator('.mt-inbox .bulk')).toContainText('2 selected');
+    // A hovered action takes the light hover fill with dark text, like the other bulk bars, not the
+    // bar's white text.
+    const bar = page.locator('.mt-inbox .bulk');
+    const markRead = bar.getByRole('button', { name: /Mark read/ });
+    await markRead.hover();
+    await expect(markRead).toHaveAttribute('data-hover', '');
+    const barColor = await bar.evaluate((el) => getComputedStyle(el).color);
+    await expect(markRead).not.toHaveCSS('color', barColor);
     await page.keyboard.press('y');
     await expect(rows(page)).toHaveCount(2);
     await expect(page.locator('.mt-toaster')).toContainText('2 notifications archived');
