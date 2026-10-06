@@ -43,9 +43,14 @@ const recordSnapshot = ({ requestId: _requestId, ...data }: Seed, fs: Page['fire
 
 /** Waits for the lazily loaded dialog. */
 async function opened(page: Page): Promise<HTMLElement> {
-  for (let i = 0; i < 20 && !page.dialog(); i++) await page.stable(10);
+  const dialog = await vi.waitFor(async () => {
+    await page.stable(10);
+    const shown = page.dialog();
+    if (!shown) throw new Error('The dialog hasn’t opened yet');
+    return shown;
+  });
   await page.stable();
-  return page.dialog() as HTMLElement;
+  return dialog;
 }
 
 const card = (page: Page) => page.body.querySelector<HTMLElement>('[data-testid="matter-trust"]');
