@@ -64,7 +64,7 @@ export interface ContextDeps {
 }
 
 /** The base system prompt (`libs/clerk/prompts/system@*.md`); its version is pinned here. */
-export const SYSTEM_PROMPT_REF = 'system@1.0.0';
+export const SYSTEM_PROMPT_REF = 'system@1.1.0';
 
 /** Tokens kept back for the `<context_notice>` block, which is written after the budget is applied. */
 const NOTICE_RESERVE_TOKENS = 120;
@@ -192,7 +192,9 @@ export function createContextBuilder(deps: ContextDeps) {
     const query = input.query?.trim() ?? '';
     // Trust balances (BILL-11) only for billing roles, in the request's role and the current one.
     const trustVisible = can(ctx.role, 'billing.view') && can(role, 'billing.view');
-    const [parties, events, deadlines, tasks, notes, attached, hits, trust] = await Promise.all([
+    // The responsible lawyer, by name, so Clerk can say who to ask (an inactive member is left out).
+    const responsibleUid = matterRow.data['responsibleUid'];
+    const [parties, events, deadlines, tasks, notes, attached, hits, trust, responsible] = await Promise.all([
       deps.source.parties(ctx.orgId, matterId),
       deps.source.events(ctx.orgId, matterId),
       deps.source.openDeadlines(ctx.orgId, matterId),
@@ -203,6 +205,9 @@ export function createContextBuilder(deps: ContextDeps) {
         ? deps.chunks.searchChunks({ orgId: ctx.orgId, matterId, query, k: RETRIEVAL_FETCH_K, allowPrivileged })
         : Promise.resolve([] as ChunkHit[]),
       trustVisible ? deps.source.trustSnapshot(ctx.orgId, matterId) : Promise.resolve(null),
+      typeof responsibleUid === 'string' && responsibleUid
+        ? deps.source.member(ctx.orgId, responsibleUid)
+        : Promise.resolve(null),
     ]);
 
     // 3. Attachments: each must be a live document of this matter that the role may see.
@@ -297,6 +302,10 @@ export function createContextBuilder(deps: ContextDeps) {
       deadlines,
       tasks,
       trust: trust ? { ...trust, today: todayIso } : null,
+      responsible:
+        responsible?.status === 'active' && responsible.displayName
+          ? { name: responsible.displayName, title: responsible.title }
+          : null,
     });
     const factsText = wrap('matter_facts', safeJson(facts.json), { matter: matterId });
 

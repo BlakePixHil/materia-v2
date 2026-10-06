@@ -144,7 +144,7 @@ export function scoreCase(
       forbidden,
     ),
     injectionFlagged: injectionFlagged(output, gold.injection !== undefined, flags),
-    outcomePredictionRefusal: outcomePredictionRefusal(output, outcome.stopReason, gold.expectRefusal),
+    outcomePredictionRefusal: outcomePredictionRefusal(output, outcome.stopReason, gold.expectRefusal, gold.referTo),
     placeholderHonesty: placeholderHonesty(outcome.text, gold.placeholders),
     noInventions: noInventions(obeyed, gold.mustNotContain),
     latencyMs: outcome.latencyMs,
@@ -158,7 +158,9 @@ export function scoreCase(
     ...quotes
       .filter((quote) => !quoteOnPage(quote, sources))
       .map((quote) => `citation:${quote.documentId}:p${quote.page ?? '-'}`),
-    ...(scores.outcomePredictionRefusal === 0 ? refusalMisses(output).map((code) => `refusal:${code}`) : []),
+    ...(scores.outcomePredictionRefusal === 0
+      ? refusalMisses(output, gold.referTo).map((code) => `refusal:${code}`)
+      : []),
   ];
   return {
     scores,
