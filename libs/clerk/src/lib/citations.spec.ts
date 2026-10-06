@@ -1,4 +1,4 @@
-import { citedClaims, mapCitations, markClaims, MAX_QUOTE_LENGTH } from './citations';
+import { citedClaims, citedQuote, mapCitations, markClaims, MAX_QUOTE_LENGTH } from './citations';
 
 const documents = [
   { documentId: 'doc-will', version: 2 },
@@ -75,6 +75,20 @@ describe('mapCitations', () => {
     expect(citations[0]?.quote).toHaveLength(MAX_QUOTE_LENGTH);
     expect(citations[0]?.page).toBeUndefined();
     expect(unmapped).toBe(4);
+  });
+
+  it('quotes a search result without its excerpt framing, which the API cites with it', () => {
+    const framed = '<excerpt document="doc-affidavit" version="1" page="7">\nI was sworn on 3 May.\n</excerpt>';
+    const { citations } = mapCitations(
+      [{ type: 'search_result_location', search_result_index: 0, cited_text: framed }],
+      { documents, searchResults },
+    );
+    expect(citations[0]).toMatchObject({ documentId: 'doc-affidavit', page: 7, quote: 'I was sworn on 3 May.' });
+    // A quote capped before its closing tag, and an escaped tag inside a source, which stays.
+    expect(citedQuote({ type: 'search_result_location', cited_text: '<excerpt page="2">\nThe will' })).toBe('The will');
+    expect(citedQuote({ type: 'char_location', cited_text: '&lt;document> is a word' })).toBe(
+      '&lt;document> is a word',
+    );
   });
 });
 
