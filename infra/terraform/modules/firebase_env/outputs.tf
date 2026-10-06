@@ -46,6 +46,7 @@ output "buckets" {
   value = {
     files     = google_storage_bucket.default.name
     backups   = google_storage_bucket.backups.name
+    exports   = google_storage_bucket.exports.name
     migration = google_storage_bucket.migration.name
   }
 }
