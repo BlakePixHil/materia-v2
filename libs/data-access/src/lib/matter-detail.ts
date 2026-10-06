@@ -27,6 +27,8 @@ import {
   type RenumberMatterResult,
   type ReopenMatterInput,
   type ReopenMatterResult,
+  type RestoreMatterInput,
+  type RestoreMatterResult,
   type SetLegalHoldInput,
   type SetLegalHoldResult,
   type TaskStatus,
@@ -355,6 +357,8 @@ export interface MatterCallables {
   reopen(input: Input<ReopenMatterInput>): Promise<ReopenMatterResult>;
   /** `matters-setLegalHold` (matter.legalHold, CORE-19): a hold keeps the matter from destruction. */
   setLegalHold(input: Input<SetLegalHoldInput>): Promise<SetLegalHoldResult>;
+  /** `matters-restore` (matter.restore, CORE-03): a deleted matter back, within MATTER_RESTORE_WINDOW_DAYS. */
+  restore(input: Input<RestoreMatterInput>): Promise<RestoreMatterResult>;
 }
 
 export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCallables {
@@ -374,5 +378,6 @@ export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCal
     close: call(MATTER_CALLABLES.close),
     reopen: call(MATTER_CALLABLES.reopen),
     setLegalHold: call(MATTER_CALLABLES.setLegalHold),
+    restore: call(MATTER_CALLABLES.restore),
   };
 }

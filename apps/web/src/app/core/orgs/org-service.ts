@@ -207,6 +207,17 @@ export class OrgService {
     return this.call('orgs-removeMember', { uid });
   }
 
+  /** Pauses a member's access, or with `suspended: false` reinstates them. */
+  suspendMember(uid: string, suspended: boolean): Promise<unknown> {
+    return this.call('orgs-suspendMember', { uid, suspended });
+  }
+
+  /** Makes another active member the owner; the caller becomes an admin, so their claims refresh at once. */
+  async transferOwnership(toUid: string): Promise<void> {
+    await this.call('orgs-transferOwnership', { toUid });
+    await this.auth.refreshClaims().catch(() => undefined);
+  }
+
   invites() {
     const orgId = this.auth.activeOrgId();
     return orgId ? this.port.invites(orgId) : Promise.resolve([]);

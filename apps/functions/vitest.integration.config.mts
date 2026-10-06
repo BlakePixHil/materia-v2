@@ -17,6 +17,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/integration/**/*.spec.ts'],
+    // Each file starts once the triggers earlier files queued have run (see the file).
+    setupFiles: ['tests/integration/support/drain-triggers.ts'],
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 60_000,

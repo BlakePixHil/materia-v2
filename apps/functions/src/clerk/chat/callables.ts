@@ -32,8 +32,9 @@ import type { Clock, Ports } from '../../ports';
 import { systemClock } from '../../ports/container';
 import { firestoreContextSource } from '../context/firestore-source';
 import { clerkContext } from '../context/service';
-import { DEFAULT_MONTHLY_TOKEN_BUDGET, meteringPeriod } from '../features';
-import { BYOK_MISSING_SWITCH } from '../gateway';
+import { meteringPeriod } from '../features';
+import { firestoreClerkStore } from '../firestore-store';
+import { assertWithinBudget, BYOK_MISSING_SWITCH } from '../gateway';
 import { anthropicKeyPath } from '../keyring';
 import { clerkGateway } from '../service';
 import type { OrgClerkSettings } from '../store';
@@ -65,7 +66,7 @@ export function threadTitle(text: string): string {
 /**
  * Says at once why Clerk can't answer, so the Composer can show it and offer the manual path
  * (AI-06): the kill switches, the org's own settings (its "Ask Clerk" switch and the data-use
- * disclosure, AI-13), no usable key, or the month's budget used.
+ * disclosure, AI-13), no usable key, or the month's token budget or spend limit used.
  * The gateway checks all of these again when the answer runs (and the per-user window then).
  */
 async function checkAvailable(db: Firestore, orgId: string, clock: Clock): Promise<void> {
@@ -85,10 +86,9 @@ async function checkAvailable(db: Firestore, orgId: string, clock: Clock): Promi
     throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: BYOK_MISSING_SWITCH });
   if (key.get('status') === 'invalid')
     throw new DomainError('CLERK_KEY_INVALID', 'Anthropic rejected the org’s API key; an admin must replace it');
+  // The month's token budget and spend limit, read and checked as the gateway does.
   const period = meteringPeriod(clock.now());
-  const used = (await db.doc(`orgs/${orgId}/metrics/${period}`).get()).get('values.tokens');
-  if (typeof used === 'number' && used >= (settings.monthlyTokenBudget ?? DEFAULT_MONTHLY_TOKEN_BUDGET))
-    throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk budget used', { period });
+  assertWithinBudget(settings, await firestoreClerkStore(db).periodUsage(orgId, period), period);
 }
 
 /** A thread the caller owns, live, on the matter; anything else is NOT_FOUND (never revealed). */

@@ -6,6 +6,8 @@ import { myDevicesRepository, orgSettingsReadRepository, type DeviceItem } from 
 import {
   DEFAULT_ORG_TIMEZONE,
   DEFAULT_QUIET_HOURS,
+  DEFAULT_TASK_REMINDER_DAYS,
+  TASK_REMINDER_DAYS_MAX,
   timeZoneOptions,
   today,
   toDisplay,
@@ -61,6 +63,12 @@ const HALF_HOURS: MtOption<string>[] = Array.from({ length: 48 }, (_, i) => {
   return { value: `${String(hour).padStart(2, '0')}:${minute ? '30' : '00'}`, label: hourLabel(hour, minute) };
 });
 
+/** How long before a task is due its reminder goes out: on the day, or 1 to 14 days before. */
+const TASK_REMINDER_DAYS: MtOption<number>[] = Array.from({ length: TASK_REMINDER_DAYS_MAX + 1 }, (_, days) => ({
+  value: days,
+  label: days === 0 ? 'On the day they’re due' : `${days} ${days === 1 ? 'day' : 'days'} before they’re due`,
+}));
+
 const PLATFORMS: Record<DeviceItem['platform'], string> = {
   web: 'Web browser',
   ios: 'iPhone or iPad',
@@ -69,7 +77,8 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
 
 /**
  * Settings → Preferences (`/settings/preferences`, CORE-20; everyone): appearance, the start page,
- * notifications (kinds × channels, quiet hours, the daily digest and the time zone they follow),
+ * notifications (kinds × channels, how early task reminders come (CORE-11), quiet hours, the daily
+ * digest and the time zone they follow),
  * the keyboard shortcuts and the devices that get push notifications. Every change saves at once
  * to `users/{uid}.prefs` (client-direct, so it queues offline) and applies in every open tab.
  */
@@ -156,6 +165,15 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
         />
       </mt-settings-row>
       <mt-notification-matrix [prefs]="notifications()" (changed)="saveNotifications($event)" />
+      <mt-select
+        name="taskReminderDays"
+        label="Remind me about tasks"
+        description="At 8:00 am in the practice’s time zone. A reminder that would fall on a weekend or public holiday comes the business day before."
+        [native]="true"
+        [options]="taskReminderDays"
+        [ngModel]="notifications().taskReminderDays ?? defaultTaskReminderDays"
+        (ngModelChange)="saveNotifications({ taskReminderDays: +$event })"
+      />
 
       <mt-settings-row title="Quiet hours" description="No email or push between these times.">
         <mt-switch
@@ -300,6 +318,8 @@ export class PreferencesPage {
   protected readonly hours = HOURS;
   protected readonly halfHours = HALF_HOURS;
   protected readonly defaultQuietHours = DEFAULT_QUIET_HOURS;
+  protected readonly taskReminderDays = TASK_REMINDER_DAYS;
+  protected readonly defaultTaskReminderDays = DEFAULT_TASK_REMINDER_DAYS;
 
   protected readonly prefs = this.userPrefs.prefs;
   protected readonly notifications = computed(() => this.prefs().notifications);

@@ -42,7 +42,7 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
  * The Inbox (`/inbox`, CORE-22, DES-01): every notification I get, grouped by day, filtered by
  * kind and read state, with each one's action in its row (Acknowledge, Accept or Reject, Review,
  * Reconnect), selection and bulk mark read or archive, and the selected one beside the list on a
- * wide screen.
+ * wide screen. Notification settings leads to Settings → Preferences, where the notifications are.
  *
  * Keyboard: j/k move, Enter opens, e marks read, u unread, a acknowledges, x selects, y archives,
  * Esc clears the selection, Shift+E marks everything listed read.
@@ -76,6 +76,9 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
   host: { class: 'mt-inbox', '(keydown)': 'onKey($event)' },
   template: `
     <ng-template mtPageActions>
+      <a mtButton variant="ghost" size="sm" iconStart="settings" routerLink="/settings/preferences">
+        Notification settings
+      </a>
       <button
         mtButton
         variant="ghost"
