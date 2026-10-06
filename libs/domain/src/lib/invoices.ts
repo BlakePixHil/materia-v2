@@ -607,6 +607,14 @@ export interface InvoicePdfData {
   reason?: string;
 }
 
+/** A stored line or itemisation row as the PDF reads it (amounts as plain integers). */
+type Plain<T> = Omit<T, 'amountExGstCents' | 'gstCents' | 'unitPriceCents' | 'date'> & {
+  date?: string | undefined;
+  amountExGstCents: number;
+  gstCents?: number;
+  unitPriceCents?: number | undefined;
+};
+
 const money = (value: number) => formatCents(cents(value));
 const display = (value: string | undefined) => (value ? toDisplay(value as DateOnly) : '');
 const hoursText = (value: number) => value.toFixed(2);
@@ -622,8 +630,8 @@ export function invoicePdfData(
     number: string;
     issueDate?: string | undefined;
     dueDate?: string | undefined;
-    lines: readonly InvoiceLine[];
-    itemisation?: readonly InvoiceItem[] | undefined;
+    lines: readonly (Plain<InvoiceLine> & { gstCents: number })[];
+    itemisation?: readonly Plain<InvoiceItem>[] | undefined;
     subtotalCents: number;
     gstCents: number;
     totalCents: number;

@@ -112,3 +112,16 @@ export async function uncompressed(path: string): Promise<string> {
 }
 
 export const docPath = (doc: string, version = 1) => `orgs/org-1/matters/m-1/documents/${doc}/v${version}`;
+
+/** The text of every page, in reading order (PDF.js, as the web app's viewer reads it). */
+export async function pdfText(path: string): Promise<string> {
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const pdf = await getDocument({ data: new Uint8Array(await readFile(path)), useSystemFonts: false }).promise;
+  const pages: string[] = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const content = await (await pdf.getPage(n)).getTextContent();
+    pages.push(content.items.map((item) => ('str' in item ? `${item.str}${item.hasEOL ? '\n' : ''}` : '')).join(''));
+  }
+  await pdf.destroy();
+  return pages.join('\n');
+}

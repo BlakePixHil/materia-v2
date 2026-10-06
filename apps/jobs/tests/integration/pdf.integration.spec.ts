@@ -4,11 +4,14 @@ import { join } from 'node:path';
 
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
+import { buildInvoice, invoicePdfData } from '@materia/domain';
+
 import {
   docPath,
   FIXTURES,
   JOB_FIXTURES,
   jobFolder,
+  pdfText,
   progressLines,
   qpdfJson,
   readJob,
@@ -240,6 +243,86 @@ describe('pdf.render', () => {
     const dir = await jobFolder({ ...renderJob, input: { templateId: 'no-such-template', data: {} } });
     expect((await runJob(dir)).code).toBe(2);
     expect((await readJob(dir)).error).toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  // BILL-07: the tax invoice's text, extracted from the printed PDF, carries every ATO element.
+  it('renders a tax invoice whose text has every tax invoice element', async () => {
+    const build = buildInvoice(
+      {
+        paymentTermsDays: 14,
+        extraLines: [{ kind: 'fixed_fee', description: 'Grant of probate (fixed fee)', amountExGstCents: 250000 }],
+      },
+      {
+        gstRegistered: true,
+        entries: [
+          {
+            id: 't1',
+            uid: 'u1',
+            date: '2026-09-01',
+            units: 15,
+            rateCents: 44000,
+            amountCents: 66000,
+            narrative: 'Advice to the executor on the will',
+            billable: true,
+            status: 'final',
+          },
+        ],
+        disbursements: [
+          {
+            id: 'd1',
+            date: '2026-09-02',
+            description: 'Probate filing fee',
+            payee: 'Supreme Court of Victoria',
+            amountExGstCents: 33310,
+            gstCents: 0,
+            gstTreatment: 'gst_free',
+            status: 'unbilled',
+          },
+        ],
+        people: { u1: 'Pat Lawyer' },
+      },
+    );
+    const data = invoicePdfData({
+      ...build,
+      number: 'INV-000042',
+      issueDate: '2026-10-06',
+      dueDate: '2026-10-20',
+      gstRegistered: true,
+      supplier: { name: 'Harbour & Vine Legal', abn: '12345678901' },
+      buyer: { name: 'Lan Nguyễn', address: '1 Fictional St, Geelong VIC 3220' },
+      paymentTermsDays: 14,
+      matterNumber: 'M-2026-0042',
+    });
+    const dir = await jobFolder({
+      ...renderJob,
+      input: { templateId: 'invoice', data: { ...data, documentRef: 'invoices/inv-1' } },
+      target: { kind: 'matter', matterId: 'm-1', name: 'Tax invoice INV-000042', category: 'financial' },
+    });
+    const result = await runJob(dir);
+    expect(result.code, result.stdout).toBe(0);
+    expect((await readJob(dir)).output).toMatchObject({ pages: 1, documentId: 'job-job-1' });
+
+    const text = (await pdfText(join(dir, 'storage', OUTPUT))).replace(/\s+/g, ' ');
+    for (const element of [
+      'Tax invoice', // the words "Tax invoice"
+      'Harbour & Vine Legal', // the supplier
+      'ABN 12 345 678 901', // and its ABN
+      'Issued 6 Oct 2026', // the issue date
+      'Lan Nguyễn', // the buyer
+      'Advice to the executor on the will', // a description,
+      '1.50 h', // quantity
+      '$440.00/h', // and price
+      '$660.00',
+      '$66.00', // GST for each item
+      'GST-free', // GST-free items identified
+      'Probate filing fee (Supreme Court of Victoria) *',
+      'Subtotal ex GST',
+      '$3,493.10',
+      '$316.00',
+      '$3,809.10',
+      'Total includes GST of $316.00.',
+    ])
+      expect(text).toContain(element);
   });
 
   // CORE-17: the safe custody receipt and stocktake print to one page each.
