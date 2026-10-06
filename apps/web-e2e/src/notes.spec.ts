@@ -5,6 +5,7 @@ import {
   EMULATOR_PROJECT,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
+  FIRST_CALL,
   FIRST_LOAD,
   setEmulatorDocuments,
   signInAsTestUser,
@@ -22,6 +23,14 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 const NOTES = '/matters/m-quill/notes';
 /** Callables cold-start the Functions emulator, and the activity feed is written by a trigger. */
 const SERVER = { timeout: 20_000 };
+
+/**
+ * The answer to a POST to `name`. Each callable's first call starts its worker, and on a busy
+ * runner the request or its answer has waited 20 s in the emulator: wait for the server's answer
+ * itself, then the UI check after it keeps its own timeout.
+ */
+const answered = (page: Page, name: string) =>
+  page.waitForResponse((res) => res.url().endsWith(`/${name}`) && res.request().method() === 'POST', FIRST_CALL);
 
 async function setUp(page: Page, request: APIRequestContext) {
   const orgId = uniqueOrg();
@@ -91,7 +100,9 @@ test.describe('notes', () => {
     await expect(people).toBeHidden();
     await expect(composer).toHaveValue(/Ask @\[[^\]]+\] $/);
     await composer.pressSequentially('to collect it.');
+    const created = answered(page, 'notes-create');
     await composer.press('ControlOrMeta+Enter');
+    await created;
 
     await expect(composer).toHaveValue('', SERVER);
     const note = noteCards(page).first();
@@ -128,7 +139,9 @@ test.describe('notes', () => {
     await expect(editor).toBeFocused();
     await editor.press('End');
     await editor.pressSequentially(' Collected on Monday.');
+    const updated = answered(page, 'notes-update');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await updated;
     await expect(editor).toBeHidden(SERVER);
     const edited = noteCards(page).first();
     await expect(edited).toContainText('Collected on Monday.');
