@@ -136,6 +136,35 @@ resource "google_storage_bucket" "backups" {
   depends_on = [time_sleep.services_ready]
 }
 
+# Where the nightly Firestore export lands first (SEC-03, backups.tf). Firestore exports to and
+# imports from buckets in the database's own region only, so the export is written here and Storage
+# Transfer copies it into the backups bucket in the backup region. Imports (the drill, a restore)
+# read from here; an export older than this bucket keeps is copied back from the backups bucket
+# first (docs/runbooks/restore.md).
+resource "google_storage_bucket" "exports" {
+  #checkov:skip=CKV_GCP_62:Object access is captured by Cloud Audit Logs (DATA_READ/DATA_WRITE on allServices).
+  #checkov:skip=CKV_GCP_78:Short-lived staging copies; the versioned copy is the backups bucket.
+  project                     = google_project.this.project_id
+  name                        = "${var.project_id}-exports"
+  location                    = var.region
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = !var.deletion_protection
+  labels                      = local.labels
+
+  lifecycle_rule {
+    condition {
+      age = var.export_staging_retention_days
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  depends_on = [time_sleep.services_ready]
+}
+
 # Legacy migration working area (MIG-02): CMEK-encrypted, short-lived.
 data "google_storage_project_service_account" "gcs" {
   project    = google_project.this.project_id

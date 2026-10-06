@@ -7,7 +7,7 @@ import { parseArgs, runExport, status } from './status.ts';
 const NOW = Date.parse('2026-10-07T21:00:00Z');
 
 describe('status', () => {
-  it('reports backups, exports, the files copy, the export job and its logs, and the transfer run', async () => {
+  it('reports backups, exports and their off-region copies, the files copy, the export job and its logs, and the transfer run', async () => {
     const { deps, calls, headers } = scripted([
       {
         backups: [
@@ -30,6 +30,8 @@ describe('status', () => {
       { items: [] },
       { prefixes: ['daily/2026-10-06T14-59-00Z/', 'daily/2026-10-07T14-59-00Z/'] },
       { prefixes: [] },
+      { items: [{ name: 'daily/2026-10-05T14-59-00Z/2026-10-05T14-59-00Z.overall_export_metadata' }] },
+      { items: [] },
       { items: [{ name: 'files/a' }, { name: 'files/b' }], nextPageToken: 't' },
       {
         jobs: [
@@ -61,13 +63,16 @@ describe('status', () => {
     ]);
     const markdown = await status(new AdminApi(deps, 'p'), {
       location: 'australia-southeast1',
+      exportsBucket: 'p-exports',
       backupsBucket: 'p-backups',
       now: () => NOW,
     });
     expect(markdown).toContain('| 2026-10-06T11:14:35Z | READY | 2026-10-13T11:14:35Z |');
     expect(markdown).not.toContain('backups/b2');
-    expect(markdown).toContain('| gs://p-backups/daily/2026-10-06T14-59-00Z | 2026-10-06T14:59:00Z |');
-    expect(markdown).toContain('Folders without a finished export: gs://p-backups/daily/2026-10-07T14-59-00Z');
+    expect(markdown).toContain('| gs://p-exports/daily/2026-10-06T14-59-00Z | 2026-10-06T14:59:00Z |');
+    expect(markdown).toContain('Folders without a finished export: gs://p-exports/daily/2026-10-07T14-59-00Z');
+    expect(markdown).toContain('#### Off-region export copies (gs://p-backups)');
+    expect(markdown).toContain('| gs://p-backups/daily/2026-10-05T14-59-00Z | 2026-10-05T14:59:00Z |');
     expect(markdown).toContain('2+ objects under gs://p-backups/files/.');
     expect(markdown).toContain(
       '| firebase-schedule-backups-exportFirestore-australia-southeast1 | 0 2 * * * | ENABLED | 2026-10-07T15:00:00Z | 13 INTERNAL |',

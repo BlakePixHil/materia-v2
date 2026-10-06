@@ -3,7 +3,8 @@ import type { AdminApi, Operation } from './admin-api.ts';
 /**
  * `materia-scripts backup-drill --project <id> [--source backup|export|pitr|all] [--keep]` (SEC-03):
  * the restore drill. Restores the newest managed backup, the newest nightly export (from the
- * backups bucket in australia-southeast2) or a PITR clone into a scratch database `drill-…`,
+ * exports bucket in the database's region, the only place Firestore imports from) or a PITR clone
+ * into a scratch database `drill-…`,
  * checks every collection group's document count against the live database as of the same
  * snapshot time (PITR), records how long it took, and deletes the scratch database. The
  * quarterly `backup-drill` workflow runs it on dev with `--source all`; results go to the run
@@ -45,7 +46,7 @@ export interface DrillResult {
 
 export interface DrillOptions {
   location: string;
-  backupsBucket: string;
+  exportsBucket: string;
   keep: boolean;
   now: () => number;
   log: (line: string) => void;
@@ -90,8 +91,8 @@ async function restoreInto(
     picked = { from: backup.name, snapshotTime: backup.snapshotTime };
     op = await api.restore(database, backup.name);
   } else if (source === 'export') {
-    const [folder] = await api.listExports(opts.backupsBucket);
-    if (!folder) throw new Error(`No finished export in gs://${opts.backupsBucket}`);
+    const [folder] = await api.listExports(opts.exportsBucket);
+    if (!folder) throw new Error(`No finished export in gs://${opts.exportsBucket}`);
     picked = { from: folder.uri, snapshotTime: folder.snapshotTime };
     await api.wait(await api.createDatabase(database, opts.location));
     op = await api.importDocuments(database, folder.uri);
@@ -272,7 +273,7 @@ export async function main(argv: string[] = []): Promise<void> {
         results.push(
           await drill(api, dbs, source, {
             location: 'australia-southeast1',
-            backupsBucket: `${args.project}-backups`,
+            exportsBucket: `${args.project}-exports`,
             keep: args.keep,
             now: Date.now,
             log: (line) => console.log(line),
