@@ -24,6 +24,7 @@ export {
   persistentLocalCache,
   persistentMultipleTabManager,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   startAfter,

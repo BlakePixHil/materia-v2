@@ -32,6 +32,11 @@ import { MATTER_QUERY_MIN } from '../notes/note-view';
 export interface TimeQuickEntryData {
   /** The matter open behind the dialog, picked to start with. */
   matterId?: string | null | undefined;
+  /**
+   * Only choose a matter (the timer's switch, BILL-02): picking one closes the dialog with it
+   * instead of showing the time form. The title and description replace "Log time".
+   */
+  pick?: { title: string; description: string } | undefined;
 }
 
 /** What the dialog closes with: the matter the time went on, or `undefined` when cancelled. */
@@ -63,7 +68,11 @@ const choiceOf = (matter: PickedMatter): MatterChoice => ({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule, MtButton, MtDialog, MtSearchField, TimeEntryForm],
   template: `
-    <mt-dialog size="md" title="Log time" description="Record time on a matter.">
+    <mt-dialog
+      size="md"
+      [title]="ref.data.pick?.title ?? 'Log time'"
+      [description]="ref.data.pick?.description ?? 'Record time on a matter.'"
+    >
       <div class="mt-col quick" style="gap: var(--space-16)">
         @if (matter(); as picked) {
           <div class="mt-row picked">
@@ -195,7 +204,7 @@ export class TimeQuickEntry {
     (await this.dayTime(this.context.uid() ?? '', date)) ?? 0;
 
   constructor() {
-    const start = this.ref.data?.matterId;
+    const start = this.ref.data?.pick ? null : this.ref.data?.matterId;
     if (start)
       void this.open(start).then((found) => {
         if (!found) void this.loadRecents();
@@ -262,6 +271,10 @@ export class TimeQuickEntry {
     try {
       const matter = await this.matters.get(id);
       if (!matter || matter.deletedAt) return false;
+      if (this.ref.data?.pick) {
+        this.ref.close({ matterId: matter.id, number: matter.number });
+        return true;
+      }
       this.matter.set(matter);
       afterNextRender(() => this.form()?.focus(), { injector: this.injector });
       return true;

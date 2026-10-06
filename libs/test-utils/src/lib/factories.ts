@@ -114,6 +114,22 @@ export const makeUser = (o: Partial<D.User> = {}) =>
 export const makeDevice = (o: Partial<D.Device> = {}) =>
   build(D.Device, { token: 'fake-fcm-token-0001', platform: 'web', lastSeenAt: FIXED_INSTANT }, o);
 
+export const makeTimer = (o: Partial<D.Timer> = {}) =>
+  build(
+    D.Timer,
+    {
+      orgId: TEST_ORG_ID,
+      matterId: TEST_MATTER_ID,
+      matterNumber: 'M-2026-0001',
+      startedAt: FIXED_INSTANT,
+      accumulatedMs: 0,
+      running: true,
+      narrativeDraft: '',
+      lastHeartbeatAt: FIXED_INSTANT,
+    },
+    o,
+  );
+
 export const makeContact = (o: Partial<D.Contact> = {}) =>
   build(
     D.Contact,
@@ -807,6 +823,7 @@ export const ENTITY_FACTORIES = {
   Invite: [D.Invite, makeInvite],
   User: [D.User, makeUser],
   Device: [D.Device, makeDevice],
+  Timer: [D.Timer, makeTimer],
   Contact: [D.Contact, makeContact],
   Matter: [D.Matter, makeMatter],
   Party: [D.Party, makeParty],

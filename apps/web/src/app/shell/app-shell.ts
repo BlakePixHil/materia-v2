@@ -35,6 +35,7 @@ import {
   MtMenuSeparator,
   MtMenuTrigger,
   MtNavItem,
+  MtNote,
   MtTabBar,
   ThemeService,
   ToastService,
@@ -56,6 +57,9 @@ import { NotificationsStore } from '../core/notifications/notifications-store';
 import { OfflineError, OrgService } from '../core/orgs/org-service';
 import { UserPrefsService } from '../core/profile/user-prefs';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
+import { clockLabel } from '../core/timer/clock-label';
+import { TimerStore, type TimerTarget } from '../core/timer/timer-store';
+import { MtTimerWidget } from '../core/timer/timer-widget';
 import { MatterRefs, routeCrumbs } from '../core/title-strategy';
 
 /** Where the collapsed-sidebar choice is kept, per user. */
@@ -106,8 +110,10 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtMenuTrigger,
     MtMfaGraceBanner,
     MtNavItem,
+    MtNote,
     MtNotificationsPopover,
     MtTabBar,
+    MtTimerWidget,
     NgpPopover,
     NgpPopoverTrigger,
   ],
@@ -249,6 +255,8 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         <div class="mt-topbar">
           <mt-breadcrumb [items]="crumbs()" />
           <div class="mt-ml mt-row" style="gap: 6px">
+            <!-- The global timer (BILL-02): on every page. -->
+            <mt-timer-widget [compact]="mobile()" [currentMatter]="currentMatter()" />
             @if (header.actions(); as actions) {
               <ng-container [ngTemplateOutlet]="actions" />
             }
@@ -270,6 +278,15 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         </div>
         <div class="mt-page">
           <mt-mfa-grace-banner />
+          @if (timer.forgotten(); as flag) {
+            <mt-note tone="warning" class="mt-timer-banner" data-testid="timer-forgotten">
+              {{ forgottenText() }}
+              <span class="mt-row" style="gap: 6px; margin-top: 6px">
+                <button mtButton size="sm" variant="primary" (click)="timer.stop()">Stop timer</button>
+                <button mtButton size="sm" variant="ghost" (click)="timer.dismissForgotten()">Keep it running</button>
+              </span>
+            </mt-note>
+          }
           <router-outlet />
         </div>
       </main>
@@ -421,6 +438,28 @@ export class AppShellComponent {
     { initialValue: this.router.url },
   );
   private readonly matterRefs = inject(MatterRefs);
+  /** The global timer (BILL-02). */
+  protected readonly timer = inject(TimerStore);
+  /** The matter open behind the shell (its number once the matter screen has it), for the timer. */
+  protected readonly currentMatter = computed<TimerTarget | null>(
+    () => {
+      const id = /^\/matters\/([^/?#]+)/.exec(this.url())?.[1];
+      if (!id || id === 'new' || id === 'board') return null;
+      const number = this.matterRefs.all()[id];
+      return number ? { matterId: id, matterNumber: number } : null;
+    },
+    { equal: (a, b) => a?.matterId === b?.matterId && a?.matterNumber === b?.matterNumber },
+  );
+  /** The forgotten-timer banner's words. */
+  protected readonly forgottenText = computed(() => {
+    const timer = this.timer.timer();
+    const flag = this.timer.forgotten();
+    if (!timer || !flag) return '';
+    const since = timer.startedAt ? clockLabel(timer.startedAt, new Date(this.timer.serverNow())) : null;
+    return flag.reason === 'midnight'
+      ? `Your timer on ${timer.matterNumber} has been running since ${since ?? 'yesterday'}. Did you forget to stop it?`
+      : `Your timer on ${timer.matterNumber} has been running for more than 10 hours. Did you forget to stop it?`;
+  });
   protected readonly crumbs = computed(() => {
     this.url();
     return routeCrumbs(this.router.routerState.snapshot.root, (id) => this.matterRefs.label(id));
@@ -593,6 +632,13 @@ export class AppShellComponent {
         handler: () => void this.openQuickTime(),
       }),
       this.shortcuts.register({
+        combo: 'shift+t',
+        description: 'Start or pause the timer',
+        group: 'Time',
+        when: () => this.canRecordTime(),
+        handler: () => this.timer.toggle(this.currentMatter()),
+      }),
+      this.shortcuts.register({
         combo: 'mod+j',
         description: 'Ask Clerk',
         group: 'General',
@@ -672,6 +718,49 @@ export class AppShellComponent {
         shortcut: 't',
         when: () => allowed('time.record'),
         run: () => void this.openQuickTime(),
+      },
+      // The global timer (BILL-02), from anywhere: on the open matter, else a matter picked.
+      {
+        id: 'timer.start',
+        title: 'Start timer',
+        group: 'Time',
+        icon: 'timer',
+        keywords: ['clock', 'stopwatch', 'track', 'time'],
+        shortcut: 'shift+t',
+        when: () => allowed('time.record'),
+        run: () => {
+          const matter = this.currentMatter();
+          if (matter) void this.timer.start(matter);
+          else void this.timer.switchMatter('Start timer');
+        },
+      },
+      {
+        id: 'timer.pause',
+        title: 'Pause timer',
+        group: 'Time',
+        icon: 'timer',
+        keywords: ['clock', 'stopwatch', 'break'],
+        shortcut: 'shift+t',
+        when: () => this.timer.running(),
+        run: () => this.timer.pause(),
+      },
+      {
+        id: 'timer.stop',
+        title: 'Stop timer',
+        group: 'Time',
+        icon: 'timer',
+        keywords: ['clock', 'stopwatch', 'save', 'finish'],
+        when: () => !!this.timer.timer(),
+        run: () => void this.timer.stop(),
+      },
+      {
+        id: 'timer.switch',
+        title: 'Switch timer to another matter',
+        group: 'Time',
+        icon: 'timer',
+        keywords: ['clock', 'stopwatch', 'move', 'change'],
+        when: () => allowed('time.record') && !!this.timer.timer(),
+        run: () => void this.timer.switchMatter(),
       },
       {
         id: 'theme.toggle',

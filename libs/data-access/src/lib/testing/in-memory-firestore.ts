@@ -1,6 +1,8 @@
 import type { Provider } from '@angular/core';
 
 import { FIRESTORE_DRIVER } from '../firestore/firestore-driver';
+import { TIMER_PORT } from '../timer';
+import { InMemoryTimerPort } from './in-memory-timer';
 import type {
   CollectionDriver,
   DriverFactory,
@@ -385,10 +387,18 @@ export class InMemoryFirestore {
   }
 }
 
-/** Provides an `InMemoryFirestore` as the repositories' driver (returned so tests can seed it). */
-export function provideInMemoryFirestore(firestore = new InMemoryFirestore()): Provider[] {
+/**
+ * Provides an `InMemoryFirestore` as the repositories' driver (returned so tests can seed it), and
+ * an in-memory timer (BILL-02) so nothing starts the full SDK.
+ */
+export function provideInMemoryFirestore(
+  firestore = new InMemoryFirestore(),
+  timer = new InMemoryTimerPort(),
+): Provider[] {
   return [
     { provide: FIRESTORE_DRIVER, useValue: firestore.driver },
     { provide: InMemoryFirestore, useValue: firestore },
+    { provide: InMemoryTimerPort, useValue: timer },
+    { provide: TIMER_PORT, useValue: timer },
   ];
 }

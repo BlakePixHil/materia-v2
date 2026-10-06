@@ -28,3 +28,4 @@ export * from './lib/safe-custody';
 export * from './lib/security';
 export * from './lib/time-entries';
 export * from './lib/testing/in-memory-firestore';
+export * from './lib/testing/in-memory-timer';

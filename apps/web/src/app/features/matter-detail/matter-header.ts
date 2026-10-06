@@ -46,6 +46,7 @@ import { MatterScreen } from './matter-screen';
 import { LONG_TITLE, matterErrorCopy, statusChoices, statusLabel, type StatusChoice } from './matter-view';
 import type { ReferralChoice, ReferralDialogData } from './referral-dialog';
 import { errorCodeOf, errorCopy } from '../../core/error-copy';
+import { TimerStore } from '../../core/timer/timer-store';
 import { CONFLICT_STATUS_TONES, conflictBadgeText } from '../conflicts/conflict-view';
 import { MatterNameDialog, type MatterNameDialogData } from '../matters/matter-name-dialog';
 import { changeStatusErrorCopy } from '../matters/matters-view';
@@ -101,6 +102,12 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
           <a mtButton variant="secondary" size="sm" iconStart="search" routerLink="conflicts">Conflict check</a>
         }
         <span class="mt-ml mt-row actions">
+          @if (canTime()) {
+            <!-- The global timer (BILL-02): Shift+T anywhere on the matter. -->
+            <button mtButton variant="secondary" size="sm" iconStart="timer" kbd="shift+t" (click)="toggleTimer(m)">
+              {{ timerLabel() }}
+            </button>
+          }
           @if (statusEditable()) {
             <button
               mtButton
@@ -378,6 +385,13 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
 })
 export class MatterHeader {
   protected readonly screen = inject(MatterScreen);
+  private readonly timer = inject(TimerStore);
+  /** The timer (BILL-02) can start here: a live matter and a role that records time. */
+  protected readonly canTime = computed(() => this.timer.canRecord() && !this.screen.deleted());
+  protected readonly timerLabel = computed(() => {
+    if (this.timer.timer()?.matterId !== this.screen.value()?.id) return 'Start timer';
+    return this.timer.running() ? 'Pause timer' : 'Resume timer';
+  });
   private readonly dialogs = inject(DialogService);
   private readonly toasts = inject(ToastService);
   private readonly router = inject(Router);
@@ -645,6 +659,11 @@ export class MatterHeader {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /** Starts, pauses or resumes the timer on this matter. */
+  protected toggleTimer(matter: { id: string; number: string }): void {
+    this.timer.toggle({ matterId: matter.id, matterNumber: matter.number });
   }
 
   async copyNumber(): Promise<void> {

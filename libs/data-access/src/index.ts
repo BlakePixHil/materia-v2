@@ -16,4 +16,5 @@ export * from './lib/optimistic';
 export * from './lib/permissions';
 export * from './lib/lifecycle';
 export * from './lib/jobs';
+export * from './lib/timer';
 export * from './lib/tenancy';
