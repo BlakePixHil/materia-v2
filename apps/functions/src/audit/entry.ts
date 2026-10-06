@@ -25,6 +25,8 @@ export const EXCLUDED_COLLECTIONS = new Set([
   // Integrations (INT-01): connect attempts, and the status mirror of `integrations` (which is audited).
   'integrationStates',
   'integrationStatus',
+  // Xero (BILL-09): which Xero contact a matter's clients are; the invoices it's used on are audited.
+  'xeroContacts',
 ]);
 
 /**
@@ -59,6 +61,9 @@ export const NOISE_FIELDS = new Set([
   'encryptedRefreshToken',
   'kmsKeyVersion',
   'refreshedAt',
+  // Invoices and credit notes (BILL-09): their copy in Xero, written by the Xero sync. Sending on
+  // demand (`xero-push`) is audited itself; payments brought back change `payments`, which isn't noise.
+  'xero',
 ]);
 
 /** Bookkeeping fields: never listed as changes. */

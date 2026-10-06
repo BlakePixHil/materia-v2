@@ -416,6 +416,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'none',
     update: 'none',
   },
+  // Which Xero contact a matter's clients are invoiced as (BILL-09): server-only.
+  {
+    collection: 'xeroContacts',
+    docPath: `orgs/${ORG}/xeroContacts/xero-link-1`,
+    entity: 'XeroContactLink',
+    read: 'none',
+    update: 'none',
+  },
   {
     collection: 'counters',
     docPath: `orgs/${ORG}/counters/matter-2026`,

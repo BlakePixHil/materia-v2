@@ -26,10 +26,10 @@ import type {
   SignedUrlPort,
   SignedUrlRequest,
   TranscriptionPort,
-  XeroPort,
 } from './index';
 import { OAuthError, PreviewUnavailableError, ScannerUnavailableError } from './index';
 import { FakeClerkModel } from '../clerk/providers/fake';
+import { FakeXero } from '../xero/fake';
 
 /**
  * Push (FND-20): records each message. Tokens starting `invalid-` are reported as gone (FCM's
@@ -265,12 +265,6 @@ export class FakeCalendar implements CalendarPort {
   }
 }
 
-export const fakeXero: XeroPort = {
-  async pushInvoice(_orgId, invoiceId) {
-    return { xeroInvoiceId: `xero-${invoiceId}` };
-  },
-};
-
 /**
  * The EICAR anti-virus test string, which every scanner reports as infected (it is harmless).
  * Built from two halves so this source file isn't flagged itself.
@@ -370,7 +364,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     oauthKms: new FakeKms('fake-kms/oauth-tokens/cryptoKeyVersions/1'),
     embedding: fakeEmbedding,
     calendar: new FakeCalendar(),
-    xero: fakeXero,
+    xero: new FakeXero(),
     malwareScan: fakeMalwareScan,
     preview: fakePreview,
     signedUrls: new FakeSignedUrls(),

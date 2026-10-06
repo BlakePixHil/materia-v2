@@ -790,6 +790,18 @@ export const makeIntegrationState = (o: Partial<D.IntegrationState> = {}) =>
     o,
   );
 
+export const makeXeroContactLink = (o: Partial<D.XeroContactLink> = {}) =>
+  build(
+    D.XeroContactLink,
+    {
+      tenantId: '7d0f3b1e-5a6c-4e2b-9f1d-2c3b4a5d6e7f',
+      contactId: 'fake-cont-000001',
+      clientContactIds: ['contact-1'],
+      name: 'Fictional Client',
+    },
+    o,
+  );
+
 export const makeTrustSnapshot = (o: Partial<D.TrustSnapshot> = {}) =>
   build(
     D.TrustSnapshot,
@@ -1034,6 +1046,7 @@ export const ENTITY_FACTORIES = {
   Integration: [D.Integration, makeIntegration],
   IntegrationStatus: [D.IntegrationStatus, makeIntegrationStatus],
   IntegrationState: [D.IntegrationState, makeIntegrationState],
+  XeroContactLink: [D.XeroContactLink, makeXeroContactLink],
   SafeCustody: [D.SafeCustody, makeSafeCustody],
   TrustSnapshot: [D.TrustSnapshot, makeTrustSnapshot],
   MigrationRun: [D.MigrationRun, makeMigrationRun],

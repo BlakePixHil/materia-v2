@@ -26,6 +26,7 @@ import {
   OAuthProviderSchema,
 } from '../integrations';
 import { TemplateBasedOnSchema, templateContentShape } from '../templates';
+import { XeroPullStateSchema, XeroSyncSchema } from '../xero';
 
 const ORG = 'orgs/{orgId}';
 
@@ -80,7 +81,8 @@ export const InvoiceExtraLineSchema = z.object({
 });
 export type InvoiceExtraLine = z.infer<typeof InvoiceExtraLineSchema>;
 
-export const PaymentMethodSchema = z.enum(['eft', 'card', 'cheque', 'trust_transfer', 'other']);
+/** `xero`: a payment made in Xero and brought across (BILL-09); never recorded by hand. */
+export const PaymentMethodSchema = z.enum(['eft', 'card', 'cheque', 'trust_transfer', 'other', 'xero']);
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 
 /**
@@ -104,6 +106,11 @@ export const InvoicePaymentSchema = z.object({
   reversedAt: InstantSchema.optional(),
   reversedBy: DocIdSchema.optional(),
   reversalReason: z.string().optional(),
+  /**
+   * A payment from Xero (id `xero-{PaymentID}`) that looks like one already recorded by hand: the
+   * same amount within a week (BILL-09). Both count until someone reverses one.
+   */
+  possibleDuplicateOf: z.string().optional(),
 });
 export type InvoicePayment = z.infer<typeof InvoicePaymentSchema>;
 
@@ -187,7 +194,8 @@ export const Invoice = withMeta(
     /** The credit notes against it and their total (inc GST). */
     creditNoteIds: z.array(DocIdSchema).default([]),
     creditedCents: CentsSchema.default(0 as never),
-    xero: z.object({ invoiceId: z.string(), syncedAt: InstantSchema, error: z.string().optional() }).optional(),
+    /** Its copy in Xero (BILL-09). */
+    xero: XeroSyncSchema.optional(),
     payments: z.array(InvoicePaymentSchema).default([]),
     /**
      * BILL-12 (ADR-035): the firm intends to pay this invoice from money held in trust. Only the
@@ -259,10 +267,21 @@ export const CreditNote = withMeta(
     supplier: InvoicePartySchema.optional(),
     buyer: InvoicePartySchema.optional(),
     ...InvoicePdfShape,
+    /** Its copy in Xero, allocated against the invoice there (BILL-09). */
+    xero: XeroSyncSchema.optional(),
   },
   {
     path: `${ORG}/creditNotes`,
-    serverOwned: ['number', 'subtotalCents', 'gstCents', 'totalCents', 'pdfStatus', 'pdfJobId', 'pdfDocumentId'],
+    serverOwned: [
+      'number',
+      'subtotalCents',
+      'gstCents',
+      'totalCents',
+      'pdfStatus',
+      'pdfJobId',
+      'pdfDocumentId',
+      'xero',
+    ],
     updatable: [],
   },
 );
@@ -802,6 +821,8 @@ export const IntegrationStatus = withMeta(
     /** A uid, or `system` (the member was removed). */
     disconnectedBy: z.string().min(1).optional(),
     reason: IntegrationStatusReasonSchema.optional(),
+    /** Xero: when payments were last brought across (BILL-09). Reset by reconnecting. */
+    sync: XeroPullStateSchema.optional(),
   },
   { path: `${ORG}/integrationStatus`, migratable: false, updatable: [] },
 );
@@ -824,6 +845,22 @@ export const IntegrationState = withMeta(
     expireAt: InstantSchema,
   },
   { path: `${ORG}/integrationStates`, migratable: false, updatable: [] },
+);
+
+/**
+ * `xeroContacts/{tenantId}_{hash}` (BILL-09, ADR-053): the Xero contact a matter's clients are
+ * invoiced as, in one Xero organisation. Keyed by the organisation and the (sorted) client
+ * contacts, so joint clients ("A and B") get one contact of their own. Server-only.
+ */
+export const XeroContactLink = withMeta(
+  {
+    tenantId: z.string().max(64),
+    contactId: z.string().max(64),
+    clientContactIds: z.array(DocIdSchema).min(1).max(20),
+    /** The name it was created or matched with in Xero. */
+    name: z.string().max(255),
+  },
+  { path: `${ORG}/xeroContacts`, migratable: false, updatable: [] },
 );
 
 /** A stored matter document: originals' scans and release authorities (CORE-17). */
@@ -1024,6 +1061,7 @@ export type AuditEntry = z.infer<typeof AuditEntry.schema>;
 export type Integration = z.infer<typeof Integration.schema>;
 export type IntegrationStatus = z.infer<typeof IntegrationStatus.schema>;
 export type IntegrationState = z.infer<typeof IntegrationState.schema>;
+export type XeroContactLink = z.infer<typeof XeroContactLink.schema>;
 export type SafeCustody = z.infer<typeof SafeCustody.schema>;
 export type TrustSnapshot = z.infer<typeof TrustSnapshot.schema>;
 export type MigrationRun = z.infer<typeof MigrationRun.schema>;

@@ -77,6 +77,11 @@ This register lists cross-cutting edge cases. When a ticket touches one of these
 - An OAuth token is revoked by the user outside Materia: mark the integration disconnected and notify, without crashing the sync loop. (INT-01: `reconnect_required`, one `integration_error` notification, no retries until reconnected.)
 - An OAuth consent link is opened by someone other than the person who started it: refused, and the attempt is left for its owner (INT-01, ADR-051).
 - A provider rotates refresh tokens (Xero) while a person reconnects: the refresh only stores its new token if the connection is still the same one (`connectionId`).
+- Xero already has an invoice with the number (typed in by hand): reported on the invoice as a conflict and never overwritten. One with the same type, total and reference is an earlier send, and is adopted (BILL-09, ADR-053).
+- Two clients share a name in Xero: contacts are matched by a stored link or a unique email, never by name; a new contact whose name is taken gets the client's Materia reference in brackets.
+- A payment is recorded in Materia by hand and in Xero: the Xero one is still recorded (once, by Xero's payment id) and marked "Possible duplicate" when the amounts match within 7 days. One that would overpay is listed on the invoice as not recorded, and the owners and admins are told once.
+- A payment is deleted in Xero: the payment recorded from it is reversed. Xero refuses to void an invoice with payments, or to allocate a credit note to one already paid there: the reason shows on the document.
+- Xero rate-limits (60 calls a minute per organisation): the `xero-push` queue sends one document a second, and a 429 reschedules the task for when Xero says without using a try.
 - A calendar event is deleted in Outlook: don't recreate it endlessly. Respect the deletion and flag it.
 - Duplicate calendar events from legacy and v2 after migration.
 - Microsoft Graph throttling (429 with `Retry-After`).
