@@ -119,7 +119,8 @@ test.describe('Clerk suggestions', () => {
 
     await page.goto(OVERVIEW);
     await expect(region(page)).toBeVisible(SERVER);
-    await expect(card(page, 'Order a valuation of 9 Fictional Lane')).toContainText('p. 2');
+    // The chip names the cited document once it's read (AI-05).
+    await expect(card(page, 'Order a valuation of 9 Fictional Lane')).toContainText('Will of Edwin Marlow p 2');
     await expect(region(page).getByRole('button', { name: 'Accept all 2 tasks' })).toBeVisible();
     await expectNoA11yViolations(page);
 

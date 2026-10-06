@@ -4,9 +4,12 @@ import type { Timestamp } from 'firebase-admin/firestore';
 
 import type { Role } from '@materia/domain';
 
+import { exportCsvDefinition } from './export';
 import { onWriteDefinition, syncTimeEntry, type TimeWriteOutcome } from './on-write';
+import { rejectDefinition } from './reject';
 import { setStatusDefinition, statusPatch } from './set-status';
 import { planTimeSync, rateOrg } from './shared';
+import { writeDownDefinition } from './write-down';
 import { runCallable, type CallableDeps } from '../core/callable';
 import { createLog } from '../core/log';
 import type { TriggerChange, TriggerContext } from '../core/trigger';
@@ -261,19 +264,22 @@ describe('time-onWrite', () => {
   });
 });
 
+const deps = (w: ReturnType<typeof world>): CallableDeps => ({
+  db: () => w.db,
+  clock: w.clock,
+  ports: () => fakePorts(),
+  memberLookup: async () => true,
+  idempotency: {
+    begin: async () => ({ replay: false }),
+    complete: async () => undefined,
+    abandon: async () => undefined,
+  },
+  sink: () => undefined,
+});
+const audits = (w: ReturnType<typeof world>) =>
+  [...w.docs.entries()].filter(([path]) => path.startsWith(`orgs/${ORG}/audit/`)).map(([, value]) => value);
+
 describe('time-setStatus', () => {
-  const deps = (w: ReturnType<typeof world>): CallableDeps => ({
-    db: () => w.db,
-    clock: w.clock,
-    ports: () => fakePorts(),
-    memberLookup: async () => true,
-    idempotency: {
-      begin: async () => ({ replay: false }),
-      complete: async () => undefined,
-      abandon: async () => undefined,
-    },
-    sink: () => undefined,
-  });
   const call = (w: ReturnType<typeof world>, data: Record<string, unknown>, role: Role = 'lawyer') =>
     runCallable(
       setStatusDefinition,
@@ -296,7 +302,7 @@ describe('time-setStatus', () => {
       entryIds: ['te1', 'te2', 'te3', 'te4', 'te5', 'missing'],
       status: 'final',
     });
-    expect(result).toEqual({ updated: ['te1', 'te5'], skipped: ['te2', 'te3', 'te4', 'missing'] });
+    expect(result).toEqual({ updated: ['te1', 'te5'], skipped: ['te2', 'te3', 'te4', 'missing'], conflicts: [] });
     expect(w.doc(`${TE}/te1`)).toMatchObject({
       status: 'final',
       rateCents: 44000,
@@ -305,6 +311,37 @@ describe('time-setStatus', () => {
     });
     // A member with no rate history keeps their single rate.
     expect(w.doc(`${TE}/te5`)).toMatchObject({ status: 'final', rateCents: 22000, amountCents: 6600 });
+    // BILL-03: one semantic audit row for the call, with ids only.
+    expect(audits(w)).toEqual([
+      expect.objectContaining({
+        action: 'time.finalised',
+        summary: '2 time entries marked final',
+        entity: expect.objectContaining({ path: M }),
+        data: { entryIds: ['te1', 'te5'] },
+      }),
+    ]);
+  });
+
+  it('leaves an entry the author changed since the approver saw it (optimistic concurrency)', async () => {
+    const seen = new Date('2026-10-08T00:00:00Z');
+    const w = world({
+      [`${TE}/te1`]: entry({ updatedAt: new Date('2026-10-08T00:05:00Z') }),
+      [`${TE}/te5`]: entry({ uid: 'user-para', updatedAt: seen }),
+    });
+    const result = await call(w, {
+      matterId: 'm1',
+      entryIds: ['te1', 'te5'],
+      status: 'final',
+      expectedUpdatedAt: { te1: seen.getTime(), te5: seen.getTime() },
+    });
+    expect(result).toEqual({ updated: ['te5'], skipped: [], conflicts: ['te1'] });
+    expect(w.doc(`${TE}/te1`)?.['status']).toBe('draft');
+  });
+
+  it('clears a send-back note on approval', async () => {
+    const w = world({ [`${TE}/te1`]: entry({ rejection: { note: 'Which call?', by: 'user-lawyer', at: NOW } }) });
+    await call(w, { matterId: 'm1', entryIds: ['te1'], status: 'final' });
+    expect(w.doc(`${TE}/te1`)).not.toHaveProperty('rejection');
   });
 
   it('returns final entries to draft', async () => {
@@ -312,8 +349,10 @@ describe('time-setStatus', () => {
     expect(await call(w, { matterId: 'm1', entryIds: ['te1', 'te2'], status: 'draft' })).toEqual({
       updated: ['te2'],
       skipped: ['te1'],
+      conflicts: [],
     });
     expect(w.doc(`${TE}/te2`)?.['status']).toBe('draft');
+    expect(audits(w)).toEqual([expect.objectContaining({ action: 'time.returned_to_draft' })]);
   });
 
   it('needs time.approve and a matter the caller can see', async () => {
@@ -334,5 +373,166 @@ describe('time-setStatus', () => {
       details: { reason: 'matter_archived' },
     });
     expect(w.doc(`${TE}/te1`)?.['status']).toBe('draft');
+  });
+});
+
+describe('time-writeDown', () => {
+  const call = (w: ReturnType<typeof world>, data: Record<string, unknown>, role: Role = 'lawyer') =>
+    runCallable(
+      writeDownDefinition,
+      {
+        data: { requestId: randomUUID(), matterId: 'm1', reason: 'Over the estimate', ...data },
+        auth: { uid: `user-${role}`, token: { orgId: ORG, role } },
+      },
+      deps(w),
+    );
+  const seeded = () =>
+    world({
+      [`${TE}/te1`]: entry({ status: 'final', units: 10, amountCents: 44000, minutes: 60 }),
+      [`${TE}/te2`]: entry({
+        units: 5,
+        amountCents: 22000,
+        rejection: { note: 'Which call?', by: 'user-lawyer', at: NOW },
+      }),
+      [`${TE}/te3`]: entry({ status: 'billed' }),
+    });
+
+  it('writes one entry down to new units, approving it and keeping the originals', async () => {
+    const w = seeded();
+    expect(await call(w, { entryIds: ['te1'], newUnits: 6 })).toEqual({ updated: ['te1'], skipped: [], conflicts: [] });
+    expect(w.doc(`${TE}/te1`)).toMatchObject({
+      status: 'final',
+      minutes: 60,
+      units: 6,
+      amountCents: 26400,
+      writeDown: { originalUnits: 10, originalAmountCents: 44000, by: 'user-lawyer', reason: 'Over the estimate' },
+      updatedBy: 'user-lawyer',
+    });
+    expect(audits(w)).toEqual([
+      expect.objectContaining({
+        action: 'time.written_down',
+        summary: '1 time entry written down',
+        data: { entryIds: ['te1'], newUnits: 6 },
+      }),
+    ]);
+  });
+
+  it('writes drafts down by a percentage, clearing a send-back note, and skips billed time', async () => {
+    const w = seeded();
+    expect(await call(w, { entryIds: ['te2', 'te3'], percent: 20 })).toEqual({
+      updated: ['te2'],
+      skipped: ['te3'],
+      conflicts: [],
+    });
+    const te2 = w.doc(`${TE}/te2`);
+    expect(te2).toMatchObject({ status: 'final', units: 4, amountCents: 17600 });
+    expect(te2).not.toHaveProperty('rejection');
+  });
+
+  it('writes entries off, moving them out of WIP through the trigger', async () => {
+    const w = seeded();
+    await w.write('te1', {});
+    expect(w.wip()).toBe(44000);
+    await call(w, { entryIds: ['te1'], writeOff: true });
+    expect(w.doc(`${TE}/te1`)).toMatchObject({ status: 'written_off', amountCents: 44000 });
+    await w.fire(`${TE}/te1`, w.doc(`${TE}/te1`));
+    expect(w.wip()).toBe(0);
+    expect(audits(w)).toEqual([expect.objectContaining({ action: 'time.written_off', data: { entryIds: ['te1'] } })]);
+  });
+
+  it('skips a write-down that wouldn’t lower the value, and needs time.approve', async () => {
+    const w = seeded();
+    expect(await call(w, { entryIds: ['te1'], newUnits: 12 })).toMatchObject({ updated: [], skipped: ['te1'] });
+    expect(audits(w)).toEqual([]);
+    await expect(call(w, { entryIds: ['te1'], percent: 10 }, 'paralegal')).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
+    await expect(call(w, { entryIds: ['te1'] })).rejects.toMatchObject({ code: 'invalid-argument' });
+  });
+});
+
+describe('time-reject', () => {
+  const call = (w: ReturnType<typeof world>, data: Record<string, unknown>) =>
+    runCallable(
+      rejectDefinition,
+      {
+        data: { requestId: randomUUID(), matterId: 'm1', note: 'Which call was this?', ...data },
+        auth: { uid: 'user-lawyer', token: { orgId: ORG, role: 'lawyer' } },
+      },
+      deps(w),
+    );
+
+  it('sends drafts back with a note and leaves other entries', async () => {
+    const w = world({
+      [`${TE}/te1`]: entry({ uid: 'user-para' }),
+      [`${TE}/te2`]: entry({ status: 'final' }),
+    });
+    expect(await call(w, { entryIds: ['te1', 'te2'] })).toEqual({ updated: ['te1'], skipped: ['te2'], conflicts: [] });
+    const te1 = w.doc(`${TE}/te1`) as Record<string, Timestamp | Record<string, unknown>>;
+    expect(te1).toMatchObject({ status: 'draft', rejection: { note: 'Which call was this?', by: 'user-lawyer' } });
+    expect(((te1['rejection'] as Record<string, Timestamp>)['at'] as Timestamp).toDate()).toEqual(NOW);
+    expect((te1['updatedAt'] as Timestamp).toDate()).toEqual(NOW);
+    expect(audits(w)).toEqual([
+      expect.objectContaining({
+        action: 'time.rejected',
+        summary: '1 time entry sent back',
+        data: { entryIds: ['te1'] },
+      }),
+    ]);
+  });
+});
+
+describe('time-exportCsv', () => {
+  const call = (w: ReturnType<typeof world>, data: Record<string, unknown>, role: Role = 'lawyer') =>
+    runCallable(
+      exportCsvDefinition,
+      {
+        data: { from: '2026-10-01', to: '2026-10-31', ...data },
+        auth: { uid: `user-${role}`, token: { orgId: ORG, role } },
+      },
+      deps(w),
+    );
+  const seeded = () =>
+    world({
+      [`orgs/${ORG}/members/user-lawyer`]: { ...meta, role: 'lawyer', status: 'active', displayName: 'Jordan Price' },
+      [M]: {
+        ...meta,
+        number: 'M-2026-0042',
+        title: 'Estate of Ivy Santoro',
+        type: 'probate',
+        responsibleUid: 'user-lawyer',
+      },
+      [`${TE}/te1`]: entry({ status: 'final', date: '2026-10-02', narrative: '=cmd' }),
+      [`${TE}/te2`]: entry({ date: '2026-10-03' }),
+      [`${TE}/te3`]: entry({ status: 'final', date: '2026-09-30' }),
+      [`${TE}/te4`]: entry({ status: 'final', date: '2026-10-04', deletedAt: NOW }),
+      [`orgs/${ORG}/matters/m-priv/timeEntries/te5`]: entry({
+        matterId: 'm-priv',
+        status: 'final',
+        date: '2026-10-05',
+      }),
+    });
+
+  it('exports the filtered entries as CSV, oldest first, and audits the export', async () => {
+    const w = seeded();
+    const result = await call(w, { unbilledOnly: true });
+    expect(result).toMatchObject({ rows: 2, truncated: false });
+    const lines = result.csv.split('\r\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toBe(
+      "2026-10-02,M-2026-0042,Estate of Ivy Santoro,Jordan Price,'=cmd,18,3,0.30,440.00,132.00,Yes,final,,",
+    );
+    expect(lines[2]).toContain('M-2026-0043');
+    expect(audits(w)).toEqual([
+      expect.objectContaining({ action: 'time.exported', summary: 'Time exported (2 entries)' }),
+    ]);
+  });
+
+  it('filters by person, status, responsible lawyer and matter type', async () => {
+    const w = seeded();
+    expect((await call(w, { uid: 'user-lawyer', status: 'draft' })).rows).toBe(1);
+    expect((await call(w, { matterType: 'will' })).rows).toBe(0);
+    expect((await call(w, { responsibleUid: 'user-lawyer' })).rows).toBe(2);
+    await expect(call(w, {}, 'paralegal')).rejects.toMatchObject({ code: 'permission-denied' });
   });
 });

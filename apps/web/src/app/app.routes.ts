@@ -205,11 +205,13 @@ const shellRoutes: Route[] = [
       },
     ],
   },
-  planned('billing', 'Time & billing', {
-    ticket: 'BILL-03',
-    icon: 'billing',
-    description: 'Time entries, invoices and trust.',
-  }),
+  // My time, WIP by matter and approvals (BILL-03).
+  {
+    path: 'billing',
+    title: 'Time & billing',
+    data: { crumb: 'Time & billing' },
+    loadComponent: () => import('./features/billing/billing-page').then((m) => m.BillingPage),
+  },
   planned('insights', 'Insights', {
     ticket: 'INS-02',
     icon: 'insights',

@@ -131,17 +131,39 @@ export class FakeUploadPort implements UploadPort {
   }
 }
 
-/** A PDF.js stand-in: `pages` pages whose text is "Fictional page N", or a load failure. */
-export function fakePdfJs(options: { pages?: number; error?: { name: string } } = {}) {
+/**
+ * A PDF.js stand-in: `pages` pages whose text is "Fictional page N" (or `texts[N]`, one text item
+ * per line at 12pt; `null` is a scanned page with no text layer), or a load failure.
+ */
+export function fakePdfJs(
+  options: { pages?: number; error?: { name: string }; texts?: Record<number, string | null> } = {},
+) {
   const opened: string[] = [];
   const rendered: number[] = [];
+  const items = (number: number) => {
+    const text = options.texts && number in options.texts ? options.texts[number] : `Fictional page ${number}`;
+    return (text ?? '')
+      .split('\n')
+      .filter(Boolean)
+      .map((str, line) => ({
+        str,
+        transform: [12, 0, 0, 12, 72, 700 - line * 16],
+        width: str.length * 6,
+        height: 12,
+        hasEOL: true,
+      }));
+  };
   const page = (number: number) => ({
-    getViewport: ({ scale }: { scale: number }) => ({ width: 600 * scale, height: 800 * scale }),
+    getViewport: ({ scale }: { scale: number }) => ({
+      width: 600 * scale,
+      height: 800 * scale,
+      transform: [scale, 0, 0, -scale, 0, 800 * scale],
+    }),
     render: () => {
       rendered.push(number);
       return { promise: Promise.resolve() };
     },
-    getTextContent: () => Promise.resolve({ items: [{ str: `Fictional page ${number}` }] }),
+    getTextContent: () => Promise.resolve({ items: items(number) }),
   });
   const lib = {
     getDocument: (params: { url: string }) => {

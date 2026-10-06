@@ -218,6 +218,10 @@ export const Matter = withMeta(
       .optional(),
     openTaskCount: z.number().int().min(0).default(0),
     wipCents: CentsSchema.default(0 as never),
+    /** The date of the matter's last invoice (BILL-07 sets it); the WIP tab shows it (BILL-03). */
+    lastInvoicedOn: DateOnlySchema.optional(),
+    /** Unbilled, live disbursements ex GST (BILL-04), kept by `disbursements-onWrite`; time is `wipCents`. */
+    disbursementWipCents: CentsSchema.optional(),
     lastActivityAt: InstantSchema.optional(),
     litigationSummary: z.record(z.string(), z.unknown()).optional(),
     recomputeVersion: z.number().int().min(0).default(0),
@@ -253,6 +257,8 @@ export const Matter = withMeta(
       'nextDeadline',
       'openTaskCount',
       'wipCents',
+      'lastInvoicedOn',
+      'disbursementWipCents',
       'lastActivityAt',
       'litigationSummary',
       'recomputeVersion',

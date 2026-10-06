@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { CLERK_MODELS, getPrompt, type ClerkCitation, type PromptVariables } from '@materia/clerk';
+import { CLERK_MODELS, getPrompt, MAX_QUOTE_LENGTH, type ClerkCitation, type PromptVariables } from '@materia/clerk';
 import {
   EVALS_DIR,
   EvalOutageError,
@@ -157,7 +157,12 @@ export function textSpans(content: readonly unknown[]): TextSpan[] {
 }
 
 function quotes(citations: readonly ClerkCitation[]): CitedQuote[] {
-  return citations.map((c) => ({ documentId: c.documentId, quote: c.quote, ...(c.page ? { page: c.page } : {}) }));
+  return citations.map((c) => ({
+    documentId: c.documentId,
+    quote: c.quote,
+    ...(c.page ? { page: c.page } : {}),
+    ...(c.pageEnd ? { pageEnd: c.pageEnd } : {}),
+  }));
 }
 
 /** One judge item per cited span: the claim, the quote and its page's text. */
@@ -171,11 +176,14 @@ export function judgeItems(
     const block = raw as { type?: string; text?: string; citations?: { cited_text?: string }[] | null };
     if (block.type !== 'text' || !block.text || !block.citations?.length) continue;
     for (const cited of block.citations) {
-      const match = citations.find((c) => c.quote === cited.cited_text);
+      // The gateway stores the API's quote trimmed and capped (mapCitation), so compare the same way.
+      const citedText = (cited.cited_text ?? '').trim().slice(0, MAX_QUOTE_LENGTH);
+      const match = citations.find((c) => c.quote === citedText);
       if (!match) continue;
+      const docPages = pages.get(match.documentId);
       const pageText = match.page
-        ? pages.get(match.documentId)?.[match.page - 1]
-        : pages.get(match.documentId)?.join('\n');
+        ? docPages?.slice(match.page - 1, match.pageEnd ?? match.page).join('\n') || undefined
+        : docPages?.join('\n');
       items.push(
         [
           `Item ${items.length}:`,

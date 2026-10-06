@@ -17,6 +17,7 @@ export const NON_ACTIVITY_FIELDS: ReadonlySet<string> = new Set([
   'nextDeadline',
   'openTaskCount',
   'wipCents',
+  'disbursementWipCents',
   'recomputeVersion',
   'litigationSummary',
   'budget',
@@ -58,7 +59,7 @@ export function staleMatterFields(current: Data, names: ReadonlyMap<string, stri
   // Hook points for later tickets, kept here so one trigger owns a matter's list fields:
   // - openTaskCount: maintained from the tasks subcollection (tasks feature);
   // - nextDeadline: the earliest upcoming deadline (CORE-10, deadline engine);
-  // - wipCents: unbilled time and disbursements (BILL-01).
+  // - wipCents: unbilled time (BILL-01); disbursementWipCents: unbilled disbursements (BILL-04).
   // Those writers update the matter with only these fields, which NON_ACTIVITY_FIELDS lists, so
   // they don't count as activity here; they call recordMatterActivity when their write is activity.
   return patch;

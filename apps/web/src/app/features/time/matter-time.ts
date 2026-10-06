@@ -51,7 +51,9 @@ import { dayHeading, timeEntryRow } from './time-view';
 import { onIntent } from '../../core/commands/intents';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
+import { MatterDisbursements } from '../disbursements/matter-disbursements';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
 type Entry = WithId<TimeEntryItem>;
@@ -62,12 +64,23 @@ const EVERYONE = '';
  * billable value), an add row at the top (`t` focuses it; date defaults to today), drafts edited in
  * place or deleted from their row's menu, and Mark final / Back to draft for approvers
  * (`time-setStatus`). Filter by person. Listens to this matter's entries only while it's shown.
+ * The matter's disbursements (BILL-04) follow, behind `billing.disbursements`.
  */
 @Component({
   selector: 'mt-matter-time',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [FormsModule, MT_MENU, MtEmptyState, MtIconButton, MtNote, MtSelect, MtTimeEntry, TimeEntryForm],
+  imports: [
+    FormsModule,
+    MT_MENU,
+    MatterDisbursements,
+    MtEmptyState,
+    MtIconButton,
+    MtNote,
+    MtSelect,
+    MtTimeEntry,
+    TimeEntryForm,
+  ],
   host: { class: 'mt-matter-time' },
   template: `
     <div class="mt-row head">
@@ -187,8 +200,14 @@ const EVERYONE = '';
         }
       }
     }
+    @if (disbursementsOn()) {
+      <mt-matter-disbursements class="disbursements" />
+    }
   `,
   styles: `
+    .mt-matter-time .disbursements {
+      margin-top: var(--space-16);
+    }
     .mt-matter-time {
       display: flex;
       flex-direction: column;
@@ -250,10 +269,13 @@ export class MatterTime {
   private readonly api = timeCallables(inject(CALLABLES));
   private readonly repo = matterTimeRepository(this.screen.id);
   private readonly addForm = viewChild<TimeEntryForm>('addForm');
+  private readonly flags = inject(FeatureFlagService);
 
   private readonly canRecordTime = can('time.record');
   private readonly canApprove = can('time.approve');
   protected readonly canRecord = computed(() => this.canRecordTime() && !this.screen.deleted());
+  /** Disbursements (BILL-04) sit under the time while their flag is on. */
+  protected readonly disbursementsOn = computed(() => this.flags.isOn('billing.disbursements'));
 
   protected readonly entries = this.repo.watchQuery(forMatter(this.screen.id, MATTER_TIME_QUERY));
   protected readonly loadError = computed(() => errorCopy(this.entries.error()));
