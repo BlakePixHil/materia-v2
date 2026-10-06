@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 
+import { evaluateClosing } from '@materia/domain';
+
 import { cleanUpOverlays, LAWYER, MATTER, ME, openMatter, PARALEGAL, PRIYA, READONLY } from './testing';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 
@@ -168,6 +170,94 @@ describe('status', () => {
     expect(page.calls('matters-close')[0]).toMatchObject({
       checklistOverrides: { wip: 'Written off by agreement with the executor' },
     });
+  });
+
+  it('places a will’s original in a new safe custody packet on closing, then links to it (CORE-17a)', async () => {
+    const custody = { testator: { contactId: 'c-margaret', name: 'Margaret Whitfield' }, packet: null };
+    const checklist = (data: Record<string, unknown>) => ({
+      ...evaluateClosing(
+        'will',
+        { upcomingDeadlines: 0, openTasks: 0, unbilledWipCents: 0 },
+        (data['checklist'] ?? {}) as never,
+      ),
+      counts: { upcomingDeadlines: 0, openTasks: 0, unbilledWipCents: 0 },
+      warnings: [],
+      retentionYears: 7,
+      destroyAfter: null,
+      holds: ['originals_in_custody'],
+      safeCustody: custody,
+    });
+    const page = await openMatter(undefined, {
+      matter: { type: 'will' },
+      callables: {
+        'matters-closingChecklist': checklist,
+        'matters-close': (data, fs) => {
+          fs.set(MATTER, {
+            ...fs.get(MATTER),
+            status: 'closed',
+            closedAt: new Date('2026-10-04T01:00:00Z'),
+            closing: {
+              originals: 'safe_custody',
+              closingLetterSent: true,
+              finalDistributionRecorded: false,
+              tasksCancelled: 0,
+              holds: ['originals_in_custody'],
+              safeCustody: { packetId: 'p-new', packetNo: 'SC-000003', created: true },
+            },
+          });
+          return { matterId: data['matterId'], status: 'closed', destroyAfter: null, holds: [], tasksCancelled: 0 };
+        },
+      },
+    });
+    await page.click('More matter actions');
+    await page.click('Close matter…', page.body.querySelector('[role="menu"]') ?? page.body);
+    const dialog = page.dialog() ?? page.body;
+    await choose(page, 'Placed in safe custody');
+    expect(page.text(dialog)).toContain('New safe custody packet for Margaret Whitfield');
+    await check(page, 'Closing letter sent');
+    await page.fill('Reason for closing', 'Will signed and stored', dialog);
+    const close = () => page.buttons('Close matter', dialog).at(-1);
+    // The new packet needs a site.
+    expect(close()?.hasAttribute('disabled') || close()?.getAttribute('aria-disabled') === 'true').toBe(true);
+    await page.fill('Site', 'Geelong office', dialog);
+    await page.fill('Safe or cabinet', 'Safe 2', dialog);
+    await page.submit(page.dialog());
+    expect(page.calls('matters-close')[0]).toMatchObject({
+      checklist: { originals: 'safe_custody' },
+      safeCustodyLocation: { site: 'Geelong office', cabinet: 'Safe 2', slot: '' },
+    });
+    const link = [...(page.layout()?.querySelectorAll('a') ?? [])].find((a) => page.text(a) === 'SC-000003');
+    expect(link?.getAttribute('href')).toBe('/safe-custody/p-new');
+  });
+
+  it('says which packet a will joins when the testator already has one (CORE-17a)', async () => {
+    const page = await openMatter(undefined, {
+      matter: { type: 'will' },
+      callables: {
+        'matters-closingChecklist': (data) => ({
+          ...evaluateClosing(
+            'will',
+            { upcomingDeadlines: 0, openTasks: 0, unbilledWipCents: 0 },
+            (data['checklist'] ?? {}) as never,
+          ),
+          counts: { upcomingDeadlines: 0, openTasks: 0, unbilledWipCents: 0 },
+          warnings: [],
+          retentionYears: 7,
+          destroyAfter: null,
+          holds: [],
+          safeCustody: {
+            testator: { contactId: 'c-margaret', name: 'Margaret Whitfield' },
+            packet: { id: 'p-old', packetNo: 'SC-000001' },
+          },
+        }),
+      },
+    });
+    await page.click('More matter actions');
+    await page.click('Close matter…', page.body.querySelector('[role="menu"]') ?? page.body);
+    const dialog = page.dialog() ?? page.body;
+    await choose(page, 'Placed in safe custody');
+    expect(page.text(dialog)).toContain('The original will joins Margaret Whitfield’s safe custody packet SC-000001.');
+    expect(page.text(dialog)).not.toContain('New safe custody packet');
   });
 
   it('shows a closed matter read-only with a banner, and reopens it with a reason', async () => {

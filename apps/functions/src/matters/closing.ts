@@ -12,6 +12,7 @@ import {
   OPEN_TASK_STATUSES,
   PERMISSIONS,
   retentionFor,
+  SAFE_CUSTODY_ON_CLOSE_TYPES,
   validTimeZone,
   dateOnlyAt,
   DEFAULT_RETENTION_YEARS,
@@ -24,6 +25,7 @@ import {
   type Role,
 } from '@materia/domain';
 
+import { custodySummary, planCustody, readCustody, type CustodyPlacement } from './closing-custody';
 import { matterPath, writableMatter } from './shared';
 import { audit } from '../audit/audit';
 import { isDeleted, stamp } from '../contacts/shared';
@@ -81,6 +83,8 @@ export interface ClosingReads {
   reminding: DocumentReference[];
   /** Whether a live party is under 18 on `on`. */
   hasMinor: boolean;
+  /** The live `testator` party's contact (a will matter's), if any. */
+  testatorContactId?: string;
 }
 
 export async function readClosing(
@@ -115,7 +119,10 @@ export async function readClosing(
     return typeof dob === 'string' && !contact.get('dateOfDeath') && isMinorOn(dob as DateOnly, on);
   });
   const openTasks = live(tasks.docs);
+  const testator = live(parties.docs).find((party) => party.data()?.['role'] === 'testator');
+  const testatorContactId = testator?.data()?.['contactId'];
   return {
+    ...(typeof testatorContactId === 'string' && testatorContactId ? { testatorContactId } : {}),
     counts: {
       upcomingDeadlines: live(deadlines.docs).length,
       openTasks: openTasks.length,
@@ -180,12 +187,16 @@ export const closingChecklistDefinition = {
       hasMinor: reads.hasMinor,
       legalHold: legalHoldOn(matter),
     });
+    const custody = SAFE_CUSTODY_ON_CLOSE_TYPES.includes(type)
+      ? custodySummary(await readCustody(db, directReader(db), orgId, reads.testatorContactId))
+      : undefined;
     return {
       ...evaluation,
       ...retention,
       counts: reads.counts,
       warnings: await relatedOpenWarnings(db, orgId, role, matter),
       retentionYears: settings.retentionYears,
+      ...(custody ? { safeCustody: custody } : {}),
     };
   },
 } satisfies CallableDefinition<typeof ClosingChecklistInput, ClosingChecklistResult>;
@@ -196,7 +207,10 @@ export const closingChecklistDefinition = {
  * `details.blocking`, when an item is still to do), cancels the open tasks when asked, clears the
  * deadlines' scheduled reminders, and sets status `closed`, `closedAt`, `closeReason`, `closing`
  * and `destroyAfter` (closing day + the org's `retentionYears`, or none for a legal hold, a minor,
- * or a will or POA whose originals are in safe custody). Audited as `matter.closed`.
+ * or a will or POA whose originals are in safe custody). A will matter's original into safe
+ * custody joins the testator's packet, or a new one at `safeCustodyLocation` (CORE-17a):
+ * FAILED_PRECONDITION `safe_custody_testator` without a testator party, `safe_custody_location`
+ * when a new packet needs its location. Audited as `matter.closed`.
  */
 export const closeDefinition = {
   name: 'matters-close',
@@ -244,6 +258,21 @@ export const closeDefinition = {
         hasMinor: reads.hasMinor,
         legalHold: legalHoldOn(matter),
       });
+      // A will's original into safe custody (CORE-17a): read now, filed with the other writes.
+      const fileCustody =
+        SAFE_CUSTODY_ON_CLOSE_TYPES.includes(type) && input.checklist.originals === 'safe_custody'
+          ? await planCustody(tx, db, {
+              orgId,
+              matterId: input.matterId,
+              matter,
+              testatorContactId: reads.testatorContactId,
+              location: input.safeCustodyLocation,
+              receivedOn: closedOn,
+              uid,
+              now,
+              requestId,
+            })
+          : undefined;
       const meta = stamp(uid, now, requestId);
       if (input.cancelOpenTasks) for (const task of reads.openTasks) tx.update(task, { status: 'cancelled', ...meta });
       for (const deadline of reads.reminding) tx.update(deadline, { nextReminderAt: FieldValue.delete() });
@@ -260,6 +289,8 @@ export const closeDefinition = {
         tasksCancelled: input.cancelOpenTasks ? reads.openTasks.length : 0,
         holds: retention.holds,
       };
+      const packet: CustodyPlacement | undefined = fileCustody?.();
+      if (packet) Object.assign(closing, { safeCustody: packet });
       tx.update(ref, {
         status: 'closed',
         closedAt: now,
@@ -269,7 +300,13 @@ export const closeDefinition = {
         archivedAt: FieldValue.delete(),
         ...meta,
       });
-      return { from, retention, tasksCancelled: closing.tasksCancelled, overridden: Object.keys(usedOverrides) };
+      return {
+        from,
+        retention,
+        tasksCancelled: closing.tasksCancelled,
+        overridden: Object.keys(usedOverrides),
+        packet,
+      };
     });
 
     await audit(ctx, {
@@ -284,6 +321,7 @@ export const closeDefinition = {
         tasksCancelled: outcome.tasksCancelled,
         ...(input.cancelOpenTasks && outcome.tasksCancelled ? { cancelReason: input.cancelOpenTasks.reason } : {}),
         ...(outcome.overridden.length ? { overridden: outcome.overridden } : {}),
+        ...(outcome.packet ? { safeCustody: outcome.packet } : {}),
       },
     });
     log.info('matter closed', {
@@ -296,6 +334,11 @@ export const closeDefinition = {
       status: 'closed',
       tasksCancelled: outcome.tasksCancelled,
       ...outcome.retention,
+      ...(outcome.packet
+        ? {
+            packet: { id: outcome.packet.packetId, packetNo: outcome.packet.packetNo, created: outcome.packet.created },
+          }
+        : {}),
     };
   },
 } satisfies CallableDefinition<typeof CloseMatterInput, CloseMatterResult>;

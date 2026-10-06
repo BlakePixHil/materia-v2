@@ -56,7 +56,7 @@ export function retentionText(
 
 /**
  * Closes a matter through its closing checklist (CORE-19): the server's counts (deadlines, open
- * tasks, unbilled WIP from CORE-19b), the questions it asks (originals, the closing letter, estates' final distribution), a
+ * tasks, unbilled WIP from CORE-19b), a will's safe custody packet (CORE-17a), the questions it asks (originals, the closing letter, estates' final distribution), a
  * reason, and the retention date closing sets. Closes with the result, or `undefined`.
  */
 @Component({
@@ -141,6 +141,43 @@ export function retentionText(
             [ngModel]="originals()"
             (ngModelChange)="setOriginals($event)"
           />
+
+          @if (intoCustody(); as custody) {
+            @if (!custody.testator) {
+              <mt-note tone="warning">Add the testator as a party to place the original will in safe custody.</mt-note>
+            } @else if (custody.packet; as packet) {
+              <p class="caption t-3 custody">
+                The original will joins {{ custody.testator.name }}’s safe custody packet
+                <a [routerLink]="['/safe-custody', packet.id]" (click)="cancel()">{{ packet.packetNo }}</a
+                >.
+              </p>
+            } @else {
+              <fieldset class="custody-location">
+                <legend class="label">New safe custody packet for {{ custody.testator.name }}</legend>
+                <mt-text-field
+                  name="custodySite"
+                  label="Site"
+                  [required]="true"
+                  [ngModel]="custodySite()"
+                  (ngModelChange)="custodySite.set($event ?? '')"
+                />
+                <mt-text-field
+                  name="custodyCabinet"
+                  label="Safe or cabinet"
+                  [optional]="true"
+                  [ngModel]="custodyCabinet()"
+                  (ngModelChange)="custodyCabinet.set($event ?? '')"
+                />
+                <mt-text-field
+                  name="custodySlot"
+                  label="Slot or envelope"
+                  [optional]="true"
+                  [ngModel]="custodySlot()"
+                  (ngModelChange)="custodySlot.set($event ?? '')"
+                />
+              </fieldset>
+            }
+          }
 
           <mt-checkbox
             name="closingLetter"
@@ -234,6 +271,17 @@ export function retentionText(
     .wip-link {
       align-self: flex-start;
     }
+    .custody {
+      margin: 0;
+    }
+    .custody-location {
+      border: 0;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
   `,
 })
 export class CloseMatterDialog {
@@ -252,6 +300,9 @@ export class CloseMatterDialog {
   protected readonly finalDistributionRecorded = signal(false);
   protected readonly finalDistributionWhy = signal('');
   protected readonly wipWhy = signal('');
+  protected readonly custodySite = signal('');
+  protected readonly custodyCabinet = signal('');
+  protected readonly custodySlot = signal('');
   protected readonly cancelTasks = signal(false);
   protected readonly cancelReason = signal('');
   protected readonly reason = signal('');
@@ -291,8 +342,22 @@ export class CloseMatterDialog {
     const checklist = this.checklist();
     return checklist ? retentionText(checklist) : '';
   });
+  /** A will's original going into safe custody (CORE-17a): the testator and their packet, if any. */
+  protected readonly intoCustody = computed(() =>
+    this.originals() === 'safe_custody' ? (this.checklist()?.safeCustody ?? null) : null,
+  );
+  /** Closing creates a packet, so it needs the packet's location. */
+  private readonly needsLocation = computed(() => {
+    const custody = this.intoCustody();
+    return !!custody?.testator && !custody.packet;
+  });
+  private readonly custodyReady = computed(() => {
+    const custody = this.intoCustody();
+    return !custody || (!!custody.testator && (!!custody.packet || !!this.custodySite().trim()));
+  });
   protected readonly canSubmit = computed(
-    () => !!this.checklist() && this.evaluation().ready && !!this.reason().trim() && !this.busy(),
+    () =>
+      !!this.checklist() && this.evaluation().ready && this.custodyReady() && !!this.reason().trim() && !this.busy(),
   );
 
   constructor() {
@@ -351,6 +416,15 @@ export class CloseMatterDialog {
           ? { cancelOpenTasks: { reason: this.cancelReason().trim() } }
           : {}),
         ...(Object.keys(overrides).length ? { checklistOverrides: overrides } : {}),
+        ...(this.needsLocation()
+          ? {
+              safeCustodyLocation: {
+                site: this.custodySite().trim(),
+                cabinet: this.custodyCabinet().trim(),
+                slot: this.custodySlot().trim(),
+              },
+            }
+          : {}),
       });
       void this.ref.close(result);
     } catch (error) {
