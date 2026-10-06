@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { HttpsError } from 'firebase-functions/v2/https';
 
 import {
+  CLERK_CHAT_DRAFT_TOOLS,
   CLERK_CHAT_TOOLS,
   CLERK_DISCLOSURE_VERSION,
   type RetryClerkMessageResult,
@@ -20,12 +21,12 @@ import {
   threadTitle,
 } from './callables';
 import { CHAT_HISTORY_BUDGET_TOKENS } from './history';
-import { runChatMessage, type ChatRunDeps } from './run';
+import { DRAFT_RATIONALE, runChatMessage, type ChatRunDeps } from './run';
 import { runCallable, type CallableDefinition, type CallableDeps } from '../../core/callable';
 import { clearFlagCaches, setRemoteFlagLoader } from '../../core/flags';
 import { createLog } from '../../core/log';
 import { memoryFirestore } from '../../orgs/testing';
-import type { ClerkModelRequest } from '../../ports';
+import { ClerkModelError, type ClerkModelRequest } from '../../ports';
 import { FakeClock, FakeKms, FakeTaskQueue, fakePorts } from '../../ports/fakes';
 import { createContextBuilder } from '../context/build-context';
 import { firestoreContextSource } from '../context/firestore-source';
@@ -237,11 +238,11 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
 
     expect(await w.runNext()).toBe('answered');
     const answer = w.message(sent.threadId, sent.messageId);
-    expect(answer).toMatchObject({ status: 'done', promptId: 'chat@1.0.0', manifest: { scope: { kind: 'matter' } } });
+    expect(answer).toMatchObject({ status: 'done', promptId: 'chat@1.1.0', manifest: { scope: { kind: 'matter' } } });
     expect(w.text(answer)).toBe('Fake Clerk reply.');
-    // Read-only tools offered, none forced; the context first, the question last.
+    // Read and drafting tools offered, none forced; the context first, the question last.
     const [chat] = w.chatRequests();
-    expect(chat?.tools?.map((tool) => tool.name)).toEqual([...CLERK_CHAT_TOOLS]);
+    expect(chat?.tools?.map((tool) => tool.name)).toEqual([...CLERK_CHAT_TOOLS, ...CLERK_CHAT_DRAFT_TOOLS]);
     expect(chat?.messages).toHaveLength(1);
     expect(JSON.stringify(blocksOf(chat, 0).at(-1))).toContain('Who is the executor?');
     expect(w.exchange(sent.threadId, sent.messageId)).toBeDefined();
@@ -372,6 +373,83 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
     const sent = await w.ask('[fake:propose] Anything to do?');
     expect(w.message(sent.threadId, sent.messageId)['suggestionIds']).toEqual([]);
     expect(w.model.requests.some((request) => request.output)).toBe(false);
+    // Nor drafting tools (AI-06b).
+    expect(w.chatRequests()[0]?.tools?.map((tool) => tool.name)).toEqual([...CLERK_CHAT_TOOLS]);
+  });
+
+  describe('drafting from a direct request (AI-06b)', () => {
+    const NOTE = 'Called Morgan Ashdown about the house valuation; they will send it Friday.';
+    const drafting = (): FakeStep[] => [
+      { toolUses: [{ name: 'draft_note', input: { text: NOTE } }] },
+      { chunks: ['I’ve drafted that file note: it is waiting below for you to confirm.'] },
+    ];
+
+    it('drafts the note as a suggestion linked from the answer, and skips the proposals step', async () => {
+      const w = await world({ script: drafting() });
+      // A paralegal: nothing privileged in what Clerk saw, so neither is the draft.
+      const sent = await w.ask(`Add a file note saying ${NOTE}`, {}, 'paralegal');
+      const answer = w.message(sent.threadId, sent.messageId);
+      expect(answer['status']).toBe('done');
+      expect(answer['toolCalls']).toEqual([expect.objectContaining({ name: 'draft_note', status: 'done' })]);
+      const ids = answer['suggestionIds'] as string[];
+      expect(ids).toHaveLength(1);
+      const suggestion = w.store.docs.get(`orgs/${ORG}/matters/${MATTER}/suggestions/${ids[0]}`) as Data;
+      expect(suggestion).toMatchObject({
+        kind: 'note',
+        status: 'proposed',
+        payload: { bodyMd: NOTE, pinned: false },
+        rationale: DRAFT_RATIONALE,
+        privileged: false,
+        promptId: 'chat',
+        promptVersion: '1.1.0',
+        dedupeKey: expect.stringMatching(new RegExp(`^ask:${sent.userMessageId}:note:`)),
+      });
+      // Clerk was told what happened; nothing else was proposed.
+      expect(JSON.stringify(w.chatRequests()[1]?.messages)).toContain('waiting below your answer');
+      expect(w.model.requests.some((request) => request.output?.name === 'chatProposals')).toBe(false);
+      // Nothing is on the matter until the person accepts it.
+      expect([...w.store.docs.keys()].filter((key) => key.includes(`/matters/${MATTER}/notes/`))).toEqual(
+        Object.keys(fixtureMatter().notes ?? {}).map((id) => `orgs/${ORG}/matters/${MATTER}/notes/${id}`),
+      );
+    });
+
+    it('never drafts twice for the same question, and tells Clerk so', async () => {
+      const w = await world({ script: [...drafting(), ...drafting()] });
+      const first = await w.ask(`Add a file note saying ${NOTE}`);
+      const retried = await w.retry({ threadId: first.threadId, messageId: first.messageId });
+      expect(await w.runNext()).toBe('answered');
+      expect(w.message(first.threadId, retried.messageId)['suggestionIds']).toEqual([]);
+      expect(JSON.stringify(w.chatRequests()[3]?.messages)).toContain('already exists for this question');
+      const notes = [...w.store.docs.keys()].filter((key) => key.includes(`/matters/${MATTER}/suggestions/`));
+      expect(notes).toHaveLength(1);
+    });
+
+    it('keeps a draft linked when the answer fails after drafting', async () => {
+      const w = await world({
+        script: [drafting()[0] as FakeStep, { error: new ClerkModelError('bad_request', 'bad', 400) }],
+      });
+      const sent = await w.ask(`Add a file note saying ${NOTE}`, {}, 'paralegal');
+      expect(sent.outcome).toBe('failed');
+      const answer = w.message(sent.threadId, sent.messageId);
+      expect(answer['status']).toBe('error');
+      expect(answer['suggestionIds']).toHaveLength(1);
+    });
+
+    it('marks a draft privileged when the thread already is (Clerk rule 6)', async () => {
+      const w = await world({
+        script: [
+          { toolUses: [{ name: 'search_documents', input: { query: 'advice' } }] },
+          { chunks: ['Counsel advised on the claim.'] },
+          { chunks: ['{"proposals":[]}'] },
+          ...drafting(),
+        ],
+      });
+      const first = await w.ask('What did counsel advise?');
+      expect(w.thread(first.threadId)['privileged']).toBe(true);
+      const sent = await w.ask(`Add a file note saying ${NOTE}`, { threadId: first.threadId });
+      const [id] = w.message(sent.threadId, sent.messageId)['suggestionIds'] as string[];
+      expect(w.store.docs.get(`orgs/${ORG}/matters/${MATTER}/suggestions/${id}`)).toMatchObject({ privileged: true });
+    });
   });
 
   it('shows a refusal honestly and proposes nothing', async () => {

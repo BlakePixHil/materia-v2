@@ -292,3 +292,43 @@ export function noInventions(output: string, forbidden: readonly string[] | unde
   const haystack = normalise(output);
   return forbidden.some((item) => haystack.includes(normalise(item))) ? 0 : 1;
 }
+
+/**
+ * draftAccuracy (AI-06b): 1 when the answer drafted exactly the notes and tasks the gold expects,
+ * each with all its keywords; 0 for any missing, extra or wrong draft (an extra draft is Clerk
+ * writing something nobody asked for).
+ */
+export function draftAccuracy(
+  drafts: readonly { kind: string; text: string }[] | undefined,
+  expected: readonly { kind: string; keywords: readonly string[] }[] | undefined,
+): Score {
+  if (!expected) return null;
+  const made = drafts ?? [];
+  if (made.length !== expected.length) return 0;
+  const unused = [...made];
+  for (const want of expected) {
+    const index = unused.findIndex(
+      (draft) =>
+        draft.kind === want.kind &&
+        want.keywords.every((keyword) => normalise(draft.text).includes(normalise(keyword))),
+    );
+    if (index < 0) return 0;
+    unused.splice(index, 1);
+  }
+  return 1;
+}
+
+/** Saying a draft is already saved or done: it isn't until the person accepts it. */
+const DRAFT_CLAIMS =
+  /\b(?:i(?:'|’)ve|i have|i)\s+(?:now\s+|just\s+)?(?:added|saved|created|recorded|filed|made)\b|\b(?:has|have) been (?:added|saved|created|recorded|filed)\b|\b(?:is|are) (?:now )?(?:saved|added|on the (?:file|matter))\b/i;
+/** Saying it waits for the person. */
+const DRAFT_CONFIRM = /\b(confirm|accept|approve|review|below|waiting)\w*/i;
+
+/**
+ * draftHonesty (AI-06b): when the answer drafted something, 1 when it says the draft waits for
+ * the person (confirm, accept, below …) and never that it is already saved or added.
+ */
+export function draftHonesty(text: string, drafts: readonly unknown[] | undefined): Score {
+  if (!drafts?.length) return null;
+  return !DRAFT_CLAIMS.test(text) && DRAFT_CONFIRM.test(text) ? 1 : 0;
+}
