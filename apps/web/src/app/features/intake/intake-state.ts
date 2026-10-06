@@ -3,19 +3,21 @@ import type { z } from 'zod';
 import {
   contactDisplayName,
   contactSubject,
-  costsDisclosureRequirement,
-  feeEstimateCents,
+  assessDisclosure,
+  DISCLOSURE_WAIVER_REASON_LABELS,
+  disclosureBasisCents,
+  disclosureNeed,
+  disclosureNeedText,
   INTAKE_STEP_SCHEMAS,
   INTAKE_STEPS,
-  intakeCostsDisclosure,
   intakeDetailsStep,
   intakeFormSchema,
-  IntakeFeesStep,
   OTHER_SIDE_ROLE,
   type ConflictStatus,
   type ConflictSubject,
-  type CostsDisclosureInput,
   type DateOnly,
+  type DisclosureFee,
+  type DisclosureWaiverReason,
   type DisputeRole,
   type FeeArrangement,
   type FeeDefault,
@@ -84,7 +86,10 @@ export interface IntakeFeesState {
   rateOverride: string;
   upliftPct: string;
   condition: string;
+  /** No costs disclosure is needed (lawyers and above, BILL-06), with the reason and a note. */
   waived: boolean;
+  waiverReason: DisclosureWaiverReason | '';
+  waiverNote: string;
 }
 
 export interface IntakeConflictState {
@@ -160,6 +165,8 @@ export function emptyIntakeState(): IntakeState {
       upliftPct: '',
       condition: '',
       waived: false,
+      waiverReason: '',
+      waiverNote: '',
     },
     conflict: { run: null, status: 'pending', reason: '' },
     review: { title: '', titleEdited: false, responsibleUid: '', teamUids: [], labels: '', priority: 'none' },
@@ -390,7 +397,10 @@ export function feeInput(fees: IntakeFeesState): StepInput {
       fee['conditional'] = { upliftPct: upliftPct ?? 0, condition: fees.condition };
     }
   }
-  return { value: { fee, costsDisclosureWaived: fees.waived }, errors };
+  const note = fees.waiverNote.trim();
+  const waiver =
+    fees.waived && fees.waiverReason ? { reason: fees.waiverReason, ...(note ? { note } : {}) } : undefined;
+  return { value: { fee, costsDisclosureWaived: fees.waived, ...(waiver ? { waiver } : {}) }, errors };
 }
 
 function stepInput(state: IntakeState, step: IntakeStepId): StepInput {
@@ -670,23 +680,51 @@ export function suggestedTitle(state: IntakeState): string {
   }
 }
 
-/** The costs disclosure the fees step implies (PLACEHOLDER rule until BILL-06), or null while the fee is invalid. */
-export function costsDisclosureFor(fees: IntakeFeesState): (CostsDisclosureInput & { estimateKnown: boolean }) | null {
+/** What the fees step implies for the costs disclosure (BILL-06), for the step and the review. */
+export interface IntakeDisclosure {
+  status: 'required' | 'not_required' | 'waived';
+  estimateCents?: number;
+  /** "Full disclosure required (estimate $4,500.00)", "No disclosure needed: Sophisticated client". */
+  text: string;
+  /** The jurisdiction's rules are illustrative until a practitioner signs them off (BILL-06a). */
+  illustrative: boolean;
+}
+
+/**
+ * The costs disclosure the fees step implies under the jurisdiction's rules (the server assesses
+ * it again), or null while an amount doesn't parse. A half-filled fee still shows what its
+ * estimate implies.
+ */
+export function costsDisclosureFor(fees: IntakeFeesState, jurisdiction = 'VIC'): IntakeDisclosure | null {
   const { value, errors } = feeInput(fees);
   if (Object.keys(errors).length) return null;
-  const parsed = IntakeFeesStep.safeParse(value);
-  if (!parsed.success) {
-    // A half-filled fee still shows what its estimate implies.
-    const fee = value['fee'] as Parameters<typeof feeEstimateCents>[0];
-    const estimateCents = feeEstimateCents(fee);
+  const fee = value['fee'] as DisclosureFee;
+  const basis = disclosureBasisCents(fee);
+  const assessment = assessDisclosure({ jurisdiction, estimateHighCents: basis });
+  const need = disclosureNeed(assessment, fee);
+  const estimate = basis !== undefined ? { estimateCents: basis } : {};
+  if (fees.waived) {
+    const reason = fees.waiverReason ? `: ${DISCLOSURE_WAIVER_REASON_LABELS[fees.waiverReason]}` : '';
     return {
-      status: fees.waived ? 'waived' : costsDisclosureRequirement(estimateCents),
-      ...(estimateCents !== undefined ? { estimateCents } : {}),
-      estimateKnown: estimateCents !== undefined,
+      status: 'waived',
+      ...estimate,
+      text: `No disclosure needed${reason}`,
+      illustrative: assessment.illustrative,
     };
   }
-  const disclosure = intakeCostsDisclosure(parsed.data);
-  return { ...disclosure, estimateKnown: disclosure.estimateCents !== undefined };
+  return {
+    status: need.status,
+    ...estimate,
+    text: disclosureNeedText({
+      status: need.status,
+      requirement: assessment.requirement,
+      rulesVersion: assessment.rulesVersion,
+      basisEstimateCents: basis,
+      notRequiredReason: need.notRequiredReason,
+      jurisdiction,
+    }),
+    illustrative: assessment.illustrative,
+  };
 }
 
 /** A contact as the form keeps it. */

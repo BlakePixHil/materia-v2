@@ -134,17 +134,40 @@ describe('validation and the create input', () => {
     ).toEqual({});
   });
 
-  it('shows the disclosure a half-filled fee implies', () => {
+  it('shows the disclosure a half-filled fee implies under the VIC rules', () => {
     const fees = emptyIntakeState().fees;
-    expect(costsDisclosureFor({ ...fees, arrangement: 'capped', cap: '' })).toMatchObject({
+    expect(costsDisclosureFor({ ...fees, arrangement: 'capped', cap: '' })).toEqual({
       status: 'required',
-      estimateKnown: false,
+      text: 'Required: estimate needed',
+      illustrative: true,
     });
     expect(costsDisclosureFor({ ...fees, estimate: 'x' })).toBeNull();
     expect(costsDisclosureFor({ ...fees, estimate: '700' })).toMatchObject({
       status: 'not_required',
       estimateCents: 70000,
+      text: 'Not required (estimate $700.00)',
     });
+    expect(costsDisclosureFor({ ...fees, estimate: '2,000' })?.text).toBe(
+      'Short-form disclosure required (estimate $2,000.00)',
+    );
+    expect(costsDisclosureFor({ ...fees, estimate: '2,000' }, 'NSW')).toMatchObject({
+      status: 'required',
+      text: 'Rules not configured for NSW (estimate $2,000.00)',
+      illustrative: false,
+    });
+    expect(
+      costsDisclosureFor({ ...fees, estimate: '2,000', waived: true, waiverReason: 'sophisticated_client' }),
+    ).toMatchObject({ status: 'waived', text: 'No disclosure needed: Sophisticated client' });
+  });
+
+  it('needs a reason for "no disclosure needed", and sends it', () => {
+    const state = probateState();
+    state.fees = { ...state.fees, waived: true };
+    expect(validateStep(state, 'fees', TODAY)).toEqual({ 'waiver.reason': 'Choose why no disclosure is needed' });
+    state.fees = { ...state.fees, waiverReason: 'other' };
+    expect(validateStep(state, 'fees', TODAY)).toEqual({ 'waiver.note': 'Say why no disclosure is needed' });
+    state.fees = { ...state.fees, waiverNote: 'Retainer with the bank' };
+    expect(validateStep(state, 'fees', TODAY)).toEqual({});
   });
 });
 

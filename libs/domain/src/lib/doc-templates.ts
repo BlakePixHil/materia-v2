@@ -123,6 +123,14 @@ export const SYSTEM_DOC_TEMPLATES: readonly SystemDocTemplate[] = [
     description: 'An illustrative placeholder until the firm uploads its own disclosure. Not practitioner reviewed.',
     inputs: [],
   },
+  {
+    id: 'system-costs-disclosure-short',
+    name: 'Costs disclosure, short form (placeholder)',
+    kind: 'costs_disclosure',
+    description:
+      'An illustrative placeholder for matters whose estimate allows the uniform standard disclosure form (BILL-06). Not practitioner reviewed.',
+    inputs: [],
+  },
 ];
 
 export const isSystemDocTemplateId = (id: string): boolean => SYSTEM_DOC_TEMPLATES.some((t) => t.id === id);
@@ -302,6 +310,44 @@ export const DOC_MERGE_FIELD_SECTIONS: readonly MergeFieldSection[] = [
       { tag: 'fee.estimate', label: 'Estimate', type: 'money', example: '$6,000.00' },
       { tag: 'fee.estimateLow', label: 'Estimate, low', type: 'money', example: '$4,000.00' },
       { tag: 'fee.estimateHigh', label: 'Estimate, high', type: 'money', example: '$8,000.00' },
+    ],
+  },
+  {
+    id: 'disclosure',
+    title: 'Costs disclosure',
+    description:
+      'Filled in when a costs disclosure is generated from the matter’s Costs disclosure card. {#disclosure.updated}…{/disclosure.updated} shows only on an updated disclosure.',
+    prefix: 'disclosure',
+    fields: [
+      {
+        tag: 'disclosure.form',
+        label: 'Form',
+        type: 'text',
+        example: 'Short form (uniform standard disclosure form)',
+        optional: true,
+      },
+      { tag: 'disclosure.estimate', label: 'Estimate disclosed', type: 'money', example: '$6,000.00', optional: true },
+      {
+        tag: 'disclosure.updated',
+        label: 'An updated disclosure (a condition)',
+        type: 'text',
+        example: 'Updated',
+        optional: true,
+      },
+      {
+        tag: 'disclosure.previousEstimate',
+        label: 'Estimate disclosed before',
+        type: 'money',
+        example: '$4,000.00',
+        optional: true,
+      },
+      {
+        tag: 'disclosure.citation',
+        label: 'Rule',
+        type: 'text',
+        example: 'Legal Profession Uniform Law s 174',
+        optional: true,
+      },
     ],
   },
   {

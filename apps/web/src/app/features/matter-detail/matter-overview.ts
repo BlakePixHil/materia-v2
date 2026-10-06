@@ -22,6 +22,7 @@ import { MatterKeyFacts } from './matter-key-facts';
 import { MatterScreen } from './matter-screen';
 import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { MatterDisclosurePanel } from '../costs/matter-disclosure-panel';
 import { statutoryDisabled } from '../deadlines/statutory-flag';
 import { MatterFeePanel } from '../fees/matter-fee-panel';
 import { matterResolver, memberResolver } from '../notes/note-mentions';
@@ -35,8 +36,9 @@ const TASKS_SHOWN = 5;
 
 /**
  * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the trust
- * balance for billing roles (BILL-11, flagged), the next five deadlines, open tasks, the three latest
- * activity lines, "Clerk suggests…" (AI-07) and the Clerk brief (AI-06 fills it).
+ * balance for billing roles (BILL-11, flagged), the fee and costs disclosure panels (BILL-05 and
+ * BILL-06, flagged), the next five deadlines, open tasks, the three latest activity lines, "Clerk
+ * suggests…" (AI-07) and the Clerk brief (AI-06 fills it).
  * Listens to the matter's pinned notes, deadlines, tasks and activity only while this tab is shown.
  */
 @Component({
@@ -46,6 +48,7 @@ const TASKS_SHOWN = 5;
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
   imports: [
     RouterLink,
+    MatterDisclosurePanel,
     MatterFeePanel,
     MatterKeyFacts,
     MatterSuggestions,
@@ -82,6 +85,12 @@ const TASKS_SHOWN = 5;
         <!-- Its own chunk (BILL-05): the fee panel and its dialog load only when fee budgets are on. -->
         @defer (on idle) {
           <mt-matter-fee-panel />
+        }
+      }
+      @if (disclosureOn()) {
+        <!-- Its own chunk (BILL-06): the costs disclosure panel and its dialogs load only when the flag is on. -->
+        @defer (on idle) {
+          <mt-matter-disclosure-panel />
         }
       }
       @if (suggestionsOn()) {
@@ -247,6 +256,7 @@ export class MatterOverview {
   private readonly canBilling = can('billing.view');
   /** Fee arrangements and budgets are on for the org and the role sees billing (BILL-05). */
   protected readonly feesOn = computed(() => this.flags.isOn('billing.feeBudgets') && this.canBilling());
+  protected readonly disclosureOn = computed(() => this.flags.isOn('billing.costsDisclosure') && this.canBilling());
   /** Clerk suggestions are on for the org and the role may use Clerk (AI-07). */
   protected readonly suggestionsOn = computed(() => this.flags.isOn('clerk.features.suggestions') && this.canClerk());
   private readonly id = this.screen.id;
