@@ -1,11 +1,20 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { inject, Injectable, signal, type Signal } from '@angular/core';
 
 import { matterDocumentRepository } from '@materia/data-access/repository';
 import { DomainError, type CitationInput } from '@materia/domain';
 import type { CitationVm } from '@materia/ui';
 
 import { citationVms, viewerCitations, type CitedDocState, type ViewerCitation } from './citation-view';
-import { MatterScreen } from '../matter-detail/matter-screen';
+
+/**
+ * The matter citations are read on, and whether the reader may see privileged sources. The matter
+ * screen provides it (`useExisting: MatterScreen`), and so does the Clerk panel (AI-06), which
+ * lives in the shell, outside any matter screen.
+ */
+export abstract class CitationScope {
+  abstract readonly id: Signal<string | null>;
+  abstract readonly canPrivileged: Signal<boolean>;
+}
 
 /** The citation viewer's state: the citations it steps through and the one shown. */
 export interface CitationViewing {
@@ -17,11 +26,12 @@ export interface CitationViewing {
  * The cited documents of a matter screen and the citation viewer's state (AI-05). Each cited
  * document is read once, by id (never the matter's whole document list): a refused read is a source
  * the reader can't see ("Restricted source") and a missing one is gone ("Removed document").
- * Provide it where citations show (the Overview's suggestions; the Clerk panel later).
+ * Provide it, with a `CitationScope`, where citations show (the Overview's suggestions, the Clerk
+ * panel).
  */
 @Injectable()
 export class CitationSources {
-  private readonly screen = inject(MatterScreen);
+  private readonly screen = inject(CitationScope);
   private readonly repo = matterDocumentRepository(() => this.screen.id());
   private readonly states = signal<ReadonlyMap<string, CitedDocState>>(new Map());
   private readonly asked = new Set<string>();

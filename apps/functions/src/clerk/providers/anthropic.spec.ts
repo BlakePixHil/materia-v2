@@ -126,6 +126,61 @@ describe('Anthropic adapter', () => {
     expect(params.messages[1]?.content).toBe(turn);
   });
 
+  it('offers read-only tools without forcing one, and sends tool results with citable passages (AI-06)', async () => {
+    const params = (await buildParams(
+      request({
+        tools: [{ name: 'get_tasks', description: 'Open tasks', inputSchema: { type: 'object', properties: {} } }],
+        messages: [
+          { role: 'user', content: [{ type: 'text', text: 'What is open?' }] },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'tu-1', name: 'get_tasks', input: {} }] },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                toolUseId: 'tu-1',
+                content: [
+                  { type: 'text', text: '[]' },
+                  { type: 'search_result', source: 'materia:document/d-1/v1/page/2', title: 'Will', text: 'I appoint' },
+                ],
+              },
+              { type: 'tool_result', toolUseId: 'tu-2', content: [{ type: 'text', text: 'Failed' }], isError: true },
+            ],
+          },
+        ],
+      }),
+    )) as unknown as Record<string, unknown> & { messages: { content: Record<string, unknown>[] }[] };
+    expect(params['tools']).toEqual([
+      { name: 'get_tasks', description: 'Open tasks', input_schema: { type: 'object', properties: {} } },
+    ]);
+    expect(params).not.toHaveProperty('tool_choice');
+    expect(params.messages[2]?.content[0]).toEqual({
+      type: 'tool_result',
+      tool_use_id: 'tu-1',
+      content: [
+        { type: 'text', text: '[]' },
+        {
+          type: 'search_result',
+          source: 'materia:document/d-1/v1/page/2',
+          title: 'Will',
+          content: [{ type: 'text', text: 'I appoint' }],
+          citations: { enabled: true },
+        },
+      ],
+    });
+    expect(params.messages[2]?.content[1]).toMatchObject({ tool_use_id: 'tu-2', is_error: true });
+    expect(
+      toResult(
+        {
+          ...apiMessage,
+          stop_reason: 'tool_use',
+          content: [{ type: 'tool_use', id: 'tu-9', name: 'search_documents', input: { query: 'executor' } }],
+        },
+        'claude-opus-5-5',
+      ).toolUses,
+    ).toEqual([{ id: 'tu-9', name: 'search_documents', input: { query: 'executor' } }]);
+  });
+
   it('reads the final message: text, citations, usage, server fallback', () => {
     const result = toResult(apiMessage, 'claude-opus-5-5');
     expect(result).toMatchObject({

@@ -1,6 +1,13 @@
 import * as z from 'zod';
 
-import { DocumentCategorySchema } from '@materia/domain';
+import {
+  DeadlineProposalSchema,
+  DocumentCategorySchema,
+  EventProposalSchema,
+  KeyFactProposalSchema,
+  NoteProposalSchema,
+  TaskProposalSchema,
+} from '@materia/domain';
 
 /**
  * Structured-output schemas, by the name a prompt's `outputSchema` uses. The gateway sends the
@@ -85,12 +92,49 @@ export const DocumentClassificationOutput = z.object({
 });
 export type DocumentClassificationOutput = z.infer<typeof DocumentClassificationOutput>;
 
+/** A proposal's source: a verbatim quote from a page of a document the request included. */
+const ProposalCitation = z.object({
+  documentId: z.string(),
+  page: z.number().int().min(1),
+  quote: z.string().max(500),
+});
+
+function chatProposal<K extends string, P extends z.ZodType>(kind: K, payload: P) {
+  return z.object({
+    kind: z.literal(kind),
+    payload,
+    rationale: z.string().max(1000),
+    citations: z.array(ProposalCitation).max(5),
+  });
+}
+
+/**
+ * The chat panel's proposals step (AI-06, `chat-proposals@1`): changes the answer points to, each
+ * one of the AI-07 kinds with a handler (task, deadline, event, note, key fact), validated again
+ * by `proposeSuggestions` against the kind's payload schema. Usually empty.
+ */
+export const ChatProposalsOutput = z.object({
+  proposals: z
+    .array(
+      z.discriminatedUnion('kind', [
+        chatProposal('task', TaskProposalSchema),
+        chatProposal('deadline', DeadlineProposalSchema),
+        chatProposal('event', EventProposalSchema),
+        chatProposal('note', NoteProposalSchema),
+        chatProposal('key_fact', KeyFactProposalSchema),
+      ]),
+    )
+    .max(5),
+});
+export type ChatProposalsOutput = z.infer<typeof ChatProposalsOutput>;
+
 export const OUTPUT_SCHEMAS = {
   hello: HelloOutput,
   willExtraction: WillExtractionOutput,
   citationJudge: CitationJudgeOutput,
   ocrPage: OcrPageOutput,
   documentClassification: DocumentClassificationOutput,
+  chatProposals: ChatProposalsOutput,
 } as const satisfies Record<string, z.ZodType>;
 
 export type OutputSchemaName = keyof typeof OUTPUT_SCHEMAS;

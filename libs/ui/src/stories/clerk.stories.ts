@@ -260,7 +260,7 @@ export const Composer: Story = {
   render: () => ({
     props: {
       commands: [
-        { name: 'draft', description: 'Draft a letter or document' },
+        { name: 'draft', description: 'Draft a letter or document (coming soon)', disabled: true },
         { name: 'deadlines', description: 'List this matter’s deadlines' },
         { name: 'summarise', description: 'Summarise the matter' },
       ],

@@ -1,7 +1,16 @@
 import { CLERK_DISCLOSURE_VERSION, type ContextManifest } from '@materia/domain';
 
 import type { ClerkKeyring, OrgKey } from './keyring';
-import type { ClerkStore, FinalMessage, MessageSink, MeterEntry, OrgClerkSettings, RateLimit, RateSlot } from './store';
+import type {
+  ClerkStore,
+  FinalMessage,
+  MessageSink,
+  MeterEntry,
+  OrgClerkSettings,
+  RateLimit,
+  RateSlot,
+  ToolCallState,
+} from './store';
 
 interface MemoryMessage {
   writes: string[];
@@ -9,6 +18,8 @@ interface MemoryMessage {
   closed: boolean;
   stop: () => void;
   manifest?: ContextManifest;
+  /** Each update of the tool calls (AI-06). */
+  tools: ToolCallState[][];
 }
 
 /** Org settings that let every feature run: the current disclosure acknowledged (AI-13). */
@@ -63,6 +74,7 @@ export class MemoryClerkStore implements ClerkStore {
     const listeners: (() => void)[] = [];
     const record: MemoryMessage = {
       writes: [],
+      tools: [],
       closed: false,
       stop: () => listeners.forEach((l) => l()),
       ...(init?.manifest ? { manifest: init.manifest } : {}),
@@ -71,6 +83,7 @@ export class MemoryClerkStore implements ClerkStore {
     return {
       write: (text) => void record.writes.push(text),
       onStop: (listener) => void listeners.push(listener),
+      tools: (calls) => void record.tools.push(calls.map((call) => ({ ...call }))),
       finish: async (final) => {
         record.final = final;
       },

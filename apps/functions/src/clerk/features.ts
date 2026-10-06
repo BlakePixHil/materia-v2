@@ -11,6 +11,12 @@ export const CLERK_FEATURES = {
   /** The connectivity check behind `clerk-hello` (the live smoke test, AI-01b). */
   hello: { flag: null, timeoutMs: 30_000, noClientData: true },
   chat: { flag: 'clerk.features.chat', timeoutMs: 120_000, orgFeature: 'chat' },
+  // The chat panel's follow-on calls (AI-06): the proposals step after an answer, and the summary
+  // that seeds a continued thread. The question that led to them already took a slot in the
+  // person's request window, so they don't take another; the monthly budget still applies. The
+  // org's one "Ask Clerk" switch covers the whole panel (AI-13).
+  chatProposals: { flag: 'clerk.features.suggestions', timeoutMs: 60_000, background: true, orgFeature: 'chat' },
+  chatSummary: { flag: 'clerk.features.chat', timeoutMs: 60_000, background: true, orgFeature: 'chat' },
   suggestions: { flag: 'clerk.features.suggestions', timeoutMs: 90_000, orgFeature: 'suggestions' },
   // Background features (AI-04 ingestion) run without a person waiting, so the per-user request
   // window doesn't apply; the org's daily OCR page budget and the monthly token budget do.
@@ -51,6 +57,9 @@ export const DEFAULT_MONTHLY_TOKEN_BUDGET = 200_000_000;
 
 /** Retries of the primary model on 429, 529, 5xx and timeouts, before falling back. */
 export const MAX_RETRIES = 2;
+
+/** Tool rounds per answer (AI-06): then the model answers with what it has. */
+export const MAX_TOOL_ROUNDS = 6;
 
 /** How often streamed text is written to the message document. */
 export const STREAM_FLUSH_MS = 250;
