@@ -134,6 +134,13 @@ export const BillingSettingsInput = z.object({
     .max(10)
     .regex(/^[A-Za-z0-9-]*$/, { message: 'Use letters, digits and hyphens' }),
   paymentTermsDays: z.number().int().min(0).max(365),
+  /** The daily time target (BILL-03), in minutes; 6 hours when unset. */
+  dailyTargetMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 60)
+    .optional(),
 });
 
 /**

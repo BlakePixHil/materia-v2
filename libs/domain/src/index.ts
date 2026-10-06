@@ -47,4 +47,5 @@ export * from './lib/profile';
 export * from './lib/clerk-settings';
 export * from './lib/security';
 export * from './lib/time-entries';
+export * from './lib/billing';
 export * from './lib/disbursements';

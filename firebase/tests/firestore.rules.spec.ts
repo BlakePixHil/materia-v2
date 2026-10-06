@@ -3016,5 +3016,7 @@ describe('rules coverage', () => {
     const coverage = await writeRulesCoverage();
     expect(coverage.missed).toEqual([]);
     expect(coverage.coveragePct).toBeGreaterThanOrEqual(90);
-  }, 60_000);
+    // The emulator builds the whole report twice (JSON, then HTML for the artifact), and both grow
+    // with every rule evaluation in the run: 62.8 s on CI at 1,334 tests, so a minute is too tight.
+  }, 180_000);
 });

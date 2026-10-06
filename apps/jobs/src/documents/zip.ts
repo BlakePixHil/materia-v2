@@ -30,6 +30,9 @@ export const zipHandler: JobHandler<ZipRequest> = async ({ request, scratch, fil
   const outputPath = join(scratch, 'output.zip');
   const out = createWriteStream(outputPath);
   let failure: Error | undefined;
+  // Without a listener, a failed write is an unhandled error, and so is one cut short by the
+  // destroy() below (ERR_STREAM_DESTROYED from a writev still in flight when an input fails).
+  out.on('error', (error) => void (failure ??= error));
   // fflate calls back synchronously as entries are pushed; backpressure is handled after each push.
   const zip = new Zip((error, chunk, final) => {
     if (error) return void (failure ??= error);

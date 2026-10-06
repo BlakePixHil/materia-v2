@@ -67,6 +67,13 @@ export const Org = withMeta(
       defaultRateCents: CentsSchema,
       invoicePrefix: z.string().max(10),
       paymentTermsDays: z.number().int().min(0).max(365),
+      /** The daily time target on the Time and billing screen (BILL-03); 6 hours when unset. */
+      dailyTargetMinutes: z
+        .number()
+        .int()
+        .min(0)
+        .max(24 * 60)
+        .optional(),
     }),
     matterNumberFormat: z.string().min(1).default('M-{YYYY}-{seq:4}'),
     /** `{TYPE}` codes that replace DEFAULT_MATTER_TYPE_CODES in matter numbers (CORE-21a). */

@@ -470,7 +470,8 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
       margin-right: var(--space-8);
       font: 500 13px/18px var(--font-sans);
     }
-    .mt-inbox .bulk .mt-btn {
+    /* Not while hovered: the ghost hover fill is light, so it keeps its dark hover text there. */
+    .mt-inbox .bulk .mt-btn:not([data-hover]) {
       color: var(--text-inverse);
     }
     .mt-inbox .detail {

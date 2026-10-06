@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { contactSearchTokens } from '@materia/domain';
-import { expectNoA11yViolations, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
@@ -62,7 +62,7 @@ test.describe('referrers', () => {
 
     // Flag Tamsin as a referrer, a financial planner.
     await page.goto('/contacts?contact=c-tamsin');
-    await expect(detail.getByRole('heading', { level: 1, name: 'Tamsin Larkwood' })).toBeVisible();
+    await expect(detail.getByRole('heading', { level: 1, name: 'Tamsin Larkwood' })).toBeVisible(FIRST_LOAD);
     await detail.getByRole('button', { name: 'Edit' }).click();
     // Click, then wait for the state: the checkbox re-renders on the next change detection.
     const referrer = dialog.getByLabel('Refers clients to the practice');
@@ -90,7 +90,7 @@ test.describe('referrers', () => {
     // Record her on the matter from its header: referrers are listed before anything is typed.
     await page.goto('/matters/m-quill/overview');
     const referral = page.getByTestId('matter-referral');
-    await expect(referral).toContainText('Not recorded');
+    await expect(referral).toContainText('Not recorded', FIRST_LOAD);
     await referral.getByRole('button', { name: 'Change referral' }).click();
     await expect(dialog.getByRole('heading', { name: 'Referral for M-2026-0310' })).toBeVisible();
     await expectNoA11yViolations(page);
@@ -101,7 +101,7 @@ test.describe('referrers', () => {
     await expect(dialog).toHaveCount(0);
     await expect(referral).toContainText('Tamsin Larkwood');
     await page.reload();
-    await expect(page.getByTestId('matter-referral')).toContainText('Tamsin Larkwood');
+    await expect(page.getByTestId('matter-referral')).toContainText('Tamsin Larkwood', FIRST_LOAD);
 
     // Her page lists the matter she referred, with the totals.
     await page.getByTestId('matter-referral').getByRole('link', { name: 'Tamsin Larkwood' }).click();
