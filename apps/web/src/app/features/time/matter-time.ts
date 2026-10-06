@@ -54,6 +54,7 @@ import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MatterDisbursements } from '../disbursements/matter-disbursements';
+import { MatterBills } from '../invoices/matter-bills';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
 type Entry = WithId<TimeEntryItem>;
@@ -64,7 +65,8 @@ const EVERYONE = '';
  * billable value), an add row at the top (`t` focuses it; date defaults to today), drafts edited in
  * place or deleted from their row's menu, and Mark final / Back to draft for approvers
  * (`time-setStatus`). Filter by person. Listens to this matter's entries only while it's shown.
- * The matter's disbursements (BILL-04) follow, behind `billing.disbursements`.
+ * The matter's disbursements (BILL-04) follow, behind `billing.disbursements`, then its bills
+ * (BILL-07), behind `billing.invoicing`.
  */
 @Component({
   selector: 'mt-matter-time',
@@ -73,6 +75,7 @@ const EVERYONE = '';
   imports: [
     FormsModule,
     MT_MENU,
+    MatterBills,
     MatterDisbursements,
     MtEmptyState,
     MtIconButton,
@@ -203,6 +206,9 @@ const EVERYONE = '';
     @if (disbursementsOn()) {
       <mt-matter-disbursements class="disbursements" />
     }
+    @if (billsOn()) {
+      <mt-matter-bills class="disbursements" />
+    }
   `,
   styles: `
     .mt-matter-time .disbursements {
@@ -276,6 +282,9 @@ export class MatterTime {
   protected readonly canRecord = computed(() => this.canRecordTime() && !this.screen.deleted());
   /** Disbursements (BILL-04) sit under the time while their flag is on. */
   protected readonly disbursementsOn = computed(() => this.flags.isOn('billing.disbursements'));
+  /** Its bills (BILL-07) follow, for billing.view roles while `billing.invoicing` is on. */
+  private readonly canViewBilling = can('billing.view');
+  protected readonly billsOn = computed(() => this.flags.isOn('billing.invoicing') && this.canViewBilling());
 
   protected readonly entries = this.repo.watchQuery(forMatter(this.screen.id, MATTER_TIME_QUERY));
   protected readonly loadError = computed(() => errorCopy(this.entries.error()));

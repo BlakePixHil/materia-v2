@@ -1,6 +1,8 @@
 import { inject } from '@angular/core';
 import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 
+import type { Role } from '@materia/domain';
+
 import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgScopedGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
@@ -10,6 +12,9 @@ import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
 import { unsavedChangesGuard } from './features/settings/unsaved-changes';
 import { MATTER_TABS } from './pages/matter-tabs';
 import type { PlaceholderData } from './pages/placeholder';
+
+/** `billing.view` (libs/domain permissions), kept here so the routes don't pull in the domain barrel. */
+export const BILLING_VIEW_ROLES: readonly Role[] = ['owner', 'admin', 'lawyer'];
 
 declare const ngDevMode: unknown;
 
@@ -201,9 +206,35 @@ const shellRoutes: Route[] = [
   // My time, WIP by matter and approvals (BILL-03).
   {
     path: 'billing',
-    title: 'Time & billing',
     data: { crumb: 'Time & billing' },
-    loadComponent: () => import('./features/billing/billing-page').then((m) => m.BillingPage),
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        title: 'Time & billing',
+        loadComponent: () => import('./features/billing/billing-page').then((m) => m.BillingPage),
+      },
+      // Pre-bills, invoices and credit notes (BILL-07): billing.view roles, behind its flag.
+      {
+        path: 'invoices',
+        data: { crumb: 'Invoices' },
+        canActivate: [flagGuard('billing.invoicing'), roleGuard(BILLING_VIEW_ROLES)],
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            title: 'Invoices',
+            loadComponent: () => import('./features/invoices/invoices-page').then((m) => m.InvoicesPage),
+          },
+          {
+            path: ':id',
+            title: 'Invoice',
+            data: { crumb: 'Invoice' },
+            loadComponent: () => import('./features/invoices/invoice-page').then((m) => m.InvoicePage),
+          },
+        ],
+      },
+    ],
   },
   planned('insights', 'Insights', {
     ticket: 'INS-02',
