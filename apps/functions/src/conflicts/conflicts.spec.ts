@@ -511,6 +511,20 @@ describe('conflicts-onPartyAdded', () => {
     expect(w.inCollection('conflictChecks')).toHaveLength(0);
   });
 
+  it('skips parties the migration loads with their matter (MIG-06): no check, alert or notification', async () => {
+    const w = world();
+    const migration = { runId: 'run-1', legacyPath: 'workflows/w/cards/c#client', loadedAt: NOW };
+    const path = addParty(w, M.probate, C.barnaby, 'executor', { migration });
+    expect(await w.trigger(path)).toBe('skipped_migration');
+    // Nor when a later load restamps it.
+    const before = { ...w.doc(path), deletedAt: NOW };
+    w.docs.set(path, { ...w.doc(path), migration: { ...migration, loadedAt: new Date(NOW.getTime() + 1000) } });
+    expect(await w.trigger(path, before)).toBe('skipped_migration');
+    expect(w.inCollection('conflictChecks')).toHaveLength(0);
+    expect(w.inCollection('notifications')).toHaveLength(0);
+    expect(w.doc(`${M_PATH}/${M.probate}`)?.['conflictAlert']).toBeUndefined();
+  });
+
   it('re-checks a revived row (deleted → live) as an added party, by whoever revived it (CORE-06)', async () => {
     const w = world();
     // Written with the matter (same createdAt), removed, then added back by matters-upsertParty.

@@ -265,6 +265,22 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
   - **Costs disclosure reminders:** open matters import with disclosure `required` (D-11). Once `billing.costsDisclosure` is on, the nightly job reminds the lawyer of every one that has been required for 7 days, which on the first night is every open matter. Tristan settles them in review (MIG-08) before that flag goes on in prod.
   - **Evidence:** the fixture run is committed as a golden snapshot (`tools/migration/fixtures/golden/`), validates with no rejects and is byte-identical on a re-run, whatever order the records arrive in. Every mapper and hazard has a unit test.
 
+### D-20 Load, verify, rollback and delta (new)
+
+- **Status:** Default, from MIG-06 on 2026-10-06. It follows from D-08, D-13 to D-18 and MIG-03's output (D-19), and changes nothing they decided, so the sign-off above stands.
+- **Decision:**
+  - **How:** `materia-migrate load`, `verify`, `rollback` and `delta`, run by the operator in Cloud Shell with their own credentials (the Admin SDK takes no others for Firestore). The [runbook](../runbooks/migration-load.md) has the steps.
+  - **Only a finished transform loads:** each transformed file must match the sha256 in the transform's `report.json`, and a report that lists no files (the transform rejected records) is refused. Every line is checked against its entity's schema before anything is written.
+  - **Conflict rule:** a document is "changed in v2" when its `updatedAt` is after `migration.loadedAt` and the change wasn't the system's (triggers that stamp a document write `updatedBy: 'system'`). Such documents are left alone and reported as `MIG_C_USER_EDITED`. Fields v2 maintains itself (counts, search, the claims mirror) keep v2's values on a reload.
+  - **Side effects:** a write that sets or restamps `migration` is the load's. The triggers skip notifications, activity, conflict re-checks and ingestion for it, and the audit log records one `migration.loaded` entry per run instead of one per document. Counts, search, claims and metrics still follow. Migrated documents are ingested for Clerk by `documents-backfillIngest` after the load (MIG-09). Upcoming task reminders go out as for any task once loaded.
+  - **Matter numbers:** the transform reserves them (D-08). The load raises the org's counter to the run's, never lowers it, and refuses a number another matter holds.
+  - **Missing files:** a document whose legacy file is gone loads with `scan.status: 'error'` and `needsReview: MIG_W_ATTACHMENT_OBJECT_MISSING`, so the user sees the attachment existed. A copy that is unscanned or failed stops the load, unless `--skip-unfinished-files` loads it the same way with `MIG_W_ATTACHMENT_NOT_COPIED`.
+  - **Verify:** compares every loaded record field by field rather than 20 random cards, since one person's data is small. It checks each copied file's size, sha256 and legacy MD5, each member's claims, and that nothing is privileged. Reading every record as the person through the rules runs on the emulator, where the tool can sign as them; on dev and prod the claims and membership are checked instead.
+  - **Rollback:** finds the run's documents by `migration.runId`, deletes what v2 hung under them, its matter numbers and its files, and the org when the run created it. It refuses while records it didn't load sit under ones it did. While it runs, the run's record says `rolling_back`, so the audit trigger leaves its deletes out; it records one entry instead, or goes with the org.
+  - **Delta:** applies a run already exported (`--since`), transformed (`--base-run`) and copied, each step with its own credentials, rather than chaining them. A record the delta finds unchanged keeps the run that loaded it. Deletions found in the export's list of paths are reported, and deleted only with `--apply-deletes`, never when changed in v2.
+  - **Not set:** the user's `avatarUrl`. The photo is copied (D-18), and the user picks it in Settings → Profile.
+  - **Evidence:** the emulator test loads MIG-03's golden output (D-19) with its files copied, verifies it reading every record as the member through the rules, keeps a v2 edit on a reload, and rolls back to what was there before. The ticket's staging rehearsal becomes the dev rehearsal in MIG-07 (D-15).
+
 ## Descoped
 
 - **No staging rehearsals.** The plan's staging rehearsals move to dev (D-15).
@@ -273,3 +289,6 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 - **A staging export.** `--env` takes dev or prod (D-17).
 - **A Cloud Run job for attachment hashes.** The copy reads each file back itself (D-18).
 - **Label colours.** v2 labels are names only (D-19).
+- **A staging rehearsal of the load.** It moves to the MIG-07 dev rehearsal (D-20).
+- **Reading every record through the rules on dev and prod.** The emulator test does it; real environments check claims and membership (D-20).
+- **`delta` running the export and transform itself.** It applies a delta run made by those steps (D-20).

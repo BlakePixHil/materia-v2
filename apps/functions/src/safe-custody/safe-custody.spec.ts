@@ -500,6 +500,16 @@ describe('safeCustody-onContactWrite', () => {
     expect(await trigger(w, 'c-wren', w.doc(`${C}/c-wren`))).toEqual({ notified: [], renamed: [] });
   });
 
+  it('tells nobody of a death the migration loads (MIG-06), but the packet’s name still follows', async () => {
+    const w = world();
+    const { id } = await w.receive();
+    const before = w.doc(`${C}/c-wren`) as Data;
+    const migration = { runId: 'run-1', legacyPath: 'workflows/w/cards/c#client', loadedAt: NOW };
+    await w.db.doc(`${C}/c-wren`).update({ dateOfDeath: '2026-10-01', familyName: 'Wren-Hart', migration });
+    expect(await trigger(w, 'c-wren', before)).toEqual({ notified: [], renamed: [id] });
+    expect(w.under(`orgs/${ORG}/notifications`)).toHaveLength(0);
+  });
+
   it('keeps the packet’s testator name and search in step with the contact', async () => {
     const w = world();
     const { id } = await w.receive();
