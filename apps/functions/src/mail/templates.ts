@@ -99,6 +99,41 @@ Open Today: {{link}}
 You get this summary each morning. Change your notification settings: {{settingsLink}}`,
   },
 
+  // The weekly practice report (INS-03): Mondays at 07:00 org time, to owners and admins who opted
+  // in. Figures and matter numbers only: no titles, client names or deadline names.
+  weekly_report: {
+    subject: '{{subject}}',
+    html: `<!doctype html>
+<html lang="en-AU">
+  <body style="${BODY}">
+    <h1 style="font-size: 18px; margin: 0 0 4px">Weekly practice report</h1>
+    <p style="margin: 0 0 16px; color: #555">{{orgName}} · {{rangeLabel}}</p>
+    <table role="presentation" style="border-collapse: collapse; width: 100%">
+      {{#stats}}<tr><td style="padding: 4px 0">{{label}}</td><td style="padding: 4px 0; text-align: right; font-weight: 600">{{value}}</td></tr>
+      {{/stats}}
+    </table>
+    {{#topMatters}}{{#first}}<h2 style="font-size: 15px; margin: 16px 0 4px">Most work in progress</h2><ol>{{/first}}
+      <li><a href="{{link}}">{{number}}</a> · {{wip}}</li>{{#last}}</ol>{{/last}}{{/topMatters}}
+    <p><a href="{{deadlinesLink}}">{{criticalLabel}}</a></p>
+    <p><a href="{{insightsLink}}" style="${BUTTON}">Open Insights</a></p>
+    <p style="${FOOTER}">You get this report each Monday. <a href="{{settingsLink}}">Change your notification settings</a>.</p>
+  </body>
+</html>`,
+    text: `Weekly practice report
+{{orgName}} · {{rangeLabel}}
+
+{{#stats}}{{label}}: {{value}}
+{{/stats}}{{#topMatters}}{{#first}}
+Most work in progress
+{{/first}}- {{number}} · {{wip}}: {{link}}
+{{/topMatters}}
+{{criticalLabel}}: {{deadlinesLink}}
+
+Open Insights: {{insightsLink}}
+
+You get this report each Monday. Change your notification settings: {{settingsLink}}`,
+  },
+
   // An invoice to a client (BILL-07), sent only when someone sends it; the PDF is attached. The
   // subject carries the document's title, number and the firm, never matter content.
   invoice: {

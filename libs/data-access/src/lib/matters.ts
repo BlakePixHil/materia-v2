@@ -4,6 +4,7 @@ import * as z from 'zod';
 import {
   DestructionRequest,
   isIndexedMatterQuery,
+  matterPassesFilters,
   Matter,
   MATTER_LIST_PAGE_SIZE,
   MATTER_SORT_ORDER_FIELD,
@@ -12,7 +13,7 @@ import {
   searchQueryToken,
   searchWords,
   SoftDeleteShape,
-  type DateOnly,
+  type MatterFilterContext,
   type MatterListFilter,
   type MatterViewFilters,
   type MatterViewSort,
@@ -211,42 +212,19 @@ export function matterQueryPlan(
   };
 }
 
-export interface MatterFilterContext {
-  viewerUid?: string | null;
-  /** Today in the org's time zone, for "has overdue". */
-  today: DateOnly;
-  /** Now, for "closed within N days". */
-  now: Date;
-}
+export type { MatterFilterContext } from '@materia/domain';
 
 /**
  * Whether a loaded matter passes every filter. Applied to every row, so filters Firestore already
- * applied cost nothing and the ones it couldn't take still hold.
+ * applied cost nothing and the ones it couldn't take still hold. The same check decides what the
+ * list's CSV export holds (`matterPassesFilters`, INS-03).
  */
 export function matterMatchesFilters(
   row: MatterListItem,
   filters: MatterListFilters,
   context: MatterFilterContext,
 ): boolean {
-  if (row.deletedAt) return false;
-  if (filters.status?.length && !filters.status.includes(row.status)) return false;
-  if (filters.type?.length && !filters.type.includes(row.type)) return false;
-  const responsible = resolveResponsible(filters.responsible, context.viewerUid ?? null);
-  if (filters.responsible && row.responsibleUid !== responsible) return false;
-  if (filters.label && !row.labels.includes(filters.label)) return false;
-  if (filters.jurisdiction && row.jurisdiction !== filters.jurisdiction) return false;
-  if (filters.hasOverdue && !(row.nextDeadline && row.nextDeadline.dueDate < context.today)) return false;
-  if (filters.closedWithinDays) {
-    const since = context.now.getTime() - filters.closedWithinDays * 86_400_000;
-    if (!row.closedAt || row.closedAt.getTime() < since) return false;
-  }
-  const words = searchWords(filters.query).filter((word) => word.length >= 2);
-  if (words.length) {
-    const tokens = new Set(row.search);
-    const haystack = `${row.number} ${row.title}`.toLowerCase();
-    if (!words.every((word) => tokens.has(word.slice(0, 10)) || haystack.includes(word))) return false;
-  }
-  return true;
+  return matterPassesFilters(row, filters, context);
 }
 
 /** Whether any filter is set (for "No matters match" and "Clear filters"). */

@@ -147,6 +147,11 @@ export class MemoryFiles implements FileStore {
     });
     return 'written' as const;
   }
+  async writeStream(path: string, chunks: AsyncIterable<Uint8Array>, options: WriteOptions) {
+    const parts: Uint8Array[] = [];
+    for await (const chunk of chunks) parts.push(chunk);
+    return this.write(path, Buffer.concat(parts), options);
+  }
   async remove(path: string, generation?: string) {
     const found = this.objects.get(path);
     if (found && (!generation || found.object.generation === generation)) this.objects.delete(path);

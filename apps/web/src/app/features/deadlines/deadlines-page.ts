@@ -38,6 +38,7 @@ import { deadlineErrorCopy, deadlineKindLabel, monthOf, type ChangeRowVm, type D
 import { matterLookup } from './matter-lookup';
 import { PendingChanges } from './pending-changes';
 import { statutoryDisabled } from './statutory-flag';
+import { MtExportButton } from '../../core/exports/export-button';
 
 type View = 'list' | 'calendar';
 const VIEW_KEY = 'materia.deadlines.view';
@@ -69,6 +70,7 @@ function storedView(): View {
     MT_MENU,
     MtButton,
     MtEmptyState,
+    MtExportButton,
     MtIcon,
     MtNote,
     MtSegmentedControl,
@@ -78,8 +80,8 @@ function storedView(): View {
   template: `
     <div class="head">
       <h1 class="title-l">Deadlines</h1>
+      <mt-export-button class="mt-ml" kind="deadlines" [filters]="exportFilters()" />
       <mt-segmented-control
-        class="mt-ml"
         label="Deadlines view"
         [options]="viewOptions"
         [ngModel]="view()"
@@ -363,6 +365,14 @@ export class DeadlinesPage {
   protected readonly critical = signal(false);
   protected readonly kinds = signal<readonly string[]>([]);
   protected readonly jurisdictions = signal<readonly Jurisdiction[]>([]);
+  /** What Export writes: the upcoming deadlines these filters match (INS-03). */
+  protected readonly exportFilters = computed(() => ({
+    mine: this.mine(),
+    team: this.team(),
+    critical: this.critical(),
+    kinds: [...this.kinds()],
+    jurisdictions: [...this.jurisdictions()],
+  }));
   protected readonly filtered = computed(
     () => this.mine() || this.team() || this.critical() || this.kinds().length + this.jurisdictions().length > 0,
   );

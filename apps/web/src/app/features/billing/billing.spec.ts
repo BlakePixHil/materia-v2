@@ -1,5 +1,6 @@
 import { MT_TODAY } from '@materia/ui';
 
+import { EXPORT_DOWNLOAD } from '../../core/exports/export-button';
 import {
   ADMIN,
   cleanUpOverlays,
@@ -175,7 +176,14 @@ function reviewCallables(): Record<string, FakeCallable> {
     ),
     'time-reject': review((_entry, data) => ({ rejection: { note: data['note'], by: ME, at: new Date() } })),
     'billing-wip': () => WIP,
-    'time-exportCsv': () => ({ csv: 'Date,Matter\r\n2026-09-29,M-2026-0142\r\n', rows: 1, truncated: false }),
+    'exports-create': () => ({
+      jobId: 'job-1',
+      status: 'succeeded',
+      rows: 1,
+      url: 'https://storage.example.test/time.csv',
+      expiresAt: '2026-10-04T00:05:00Z',
+      fileName: 'Time entries 2026-10-04.csv',
+    }),
   };
 }
 
@@ -372,7 +380,10 @@ describe('time and billing screen', () => {
   });
 
   it('lists WIP by matter, flags closed matters, filters and exports', async () => {
-    const page = await open('/billing?tab=wip');
+    const downloads: string[] = [];
+    const page = await open('/billing?tab=wip', {
+      providers: [{ provide: EXPORT_DOWNLOAD, useValue: (url: string) => downloads.push(url) }],
+    });
     const rows = () =>
       [...page.body.querySelectorAll('mt-wip-tab tbody tr')].map((row) =>
         [...row.querySelectorAll('td')].map((cell) => page.text(cell)),
@@ -406,21 +417,16 @@ describe('time and billing screen', () => {
     expect(rows().map((row) => row[0])).toEqual(['M-2026-0150']);
     expect(stat(page, 'wip-total')).toBe('1 matter · $440.00');
 
-    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fictional');
-    const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined);
-    const saved = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    try {
-      await page.click('Export');
-      expect(page.calls('time-exportCsv')).toEqual([
-        expect.objectContaining({ from: '2000-01-01', to: '2026-10-04', unbilledOnly: true, matterType: 'trust' }),
-      ]);
-      expect(created).toHaveBeenCalled();
-      expect(saved).toHaveBeenCalled();
-    } finally {
-      created.mockRestore();
-      revoked.mockRestore();
-      saved.mockRestore();
-    }
+    // The unbilled entries behind the shown rows, as a CSV export (INS-03), without privileged matters.
+    await page.click('Export');
+    await page.click('CSV without privileged matters');
+    expect(page.calls('exports-create')).toEqual([
+      expect.objectContaining({
+        kind: 'time',
+        filters: { from: '2000-01-01', to: '2026-10-04', unbilledOnly: true, matterType: 'trust' },
+      }),
+    ]);
+    expect(downloads).toEqual(['https://storage.example.test/time.csv']);
 
     // A row opens the matter's Time tab.
     page.body.querySelector<HTMLElement>('mt-wip-tab tbody tr')?.click();

@@ -266,6 +266,12 @@ const shellRoutes: Route[] = [
     title: 'Insights',
     loadComponent: () => import('./features/insights/insights-page').then((m) => m.InsightsPage),
   },
+  // A finished CSV export (INS-03): where the export_ready notification leads.
+  {
+    path: 'exports/:jobId',
+    title: 'Export',
+    loadComponent: () => import('./features/exports/export-download-page').then((m) => m.ExportDownloadPage),
+  },
   // Where an OAuth provider sends the browser back after consent (INT-01, ADR-051).
   {
     path: 'integrations/callback/:provider',

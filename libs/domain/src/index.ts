@@ -64,3 +64,5 @@ export * from './lib/insights';
 export * from './lib/payments';
 export * from './lib/integrations';
 export * from './lib/xero';
+export * from './lib/exports';
+export * from './lib/weekly-report';

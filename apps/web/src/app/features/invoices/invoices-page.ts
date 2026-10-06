@@ -14,6 +14,7 @@ import {
   LIVE_INVOICE_STATUSES,
 } from './invoices-view';
 import { errorCopy } from '../../core/error-copy';
+import { MtExportButton } from '../../core/exports/export-button';
 
 type Filter = 'all' | 'draft' | 'live' | 'void';
 const FILTERS: MtOption<Filter>[] = [
@@ -31,13 +32,14 @@ const FILTERS: MtOption<Filter>[] = [
   selector: 'mt-invoices-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [FormsModule, RouterLink, MtBadge, MtButton, MtEmptyState, MtNote, MtSegmentedControl],
+  imports: [FormsModule, RouterLink, MtBadge, MtButton, MtEmptyState, MtExportButton, MtNote, MtSegmentedControl],
   host: { class: 'mt-col mt-invoices-page' },
   template: `
     <div class="mt-row head">
       <h1 class="title-l">Invoices</h1>
       <span class="caption t-3" data-testid="invoices-summary">{{ summary() }}</span>
       <a mtButton variant="ghost" size="sm" class="mt-ml" routerLink="/billing/debtors">Aged debtors</a>
+      <mt-export-button kind="invoices" [filters]="{ status: filter() }" />
       <mt-segmented-control
         label="Show"
         name="filter"

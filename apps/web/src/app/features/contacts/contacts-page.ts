@@ -56,6 +56,7 @@ import { CommandRegistry } from '../../core/commands/command-registry';
 import { onIntent } from '../../core/commands/intents';
 import { recentRecorder } from '../../core/commands/recents';
 import { errorCopy } from '../../core/error-copy';
+import { MtExportButton } from '../../core/exports/export-button';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 
@@ -93,6 +94,7 @@ const KIND_FILTERS: MtOption<string>[] = [
     MtAvatar,
     MtButton,
     MtEmptyState,
+    MtExportButton,
     MtNote,
     MtPageActions,
     MtSearchField,
@@ -105,6 +107,7 @@ const KIND_FILTERS: MtOption<string>[] = [
   host: { class: 'mt-contacts' },
   template: `
     <ng-template mtPageActions>
+      <mt-export-button kind="contacts" [filters]="exportFilters()" />
       @if (canEdit()) {
         <button mtButton variant="primary" size="sm" iconStart="plus" kbd="c" (click)="create()">New contact</button>
       }
@@ -432,6 +435,8 @@ export class ContactsPage {
     industry: this.referrersOnly() ? ((this.industry() || null) as ReferrerIndustry | null) : null,
     role: (this.role() || null) as PartyRole | null,
   }));
+  /** What Export writes: the contacts the list's filters match (INS-03). */
+  protected readonly exportFilters = computed(() => ({ ...this.filters(), query: this.query().trim() || null }));
   protected readonly filtered = computed(() => {
     const f = this.filters();
     return !!(f.query?.trim() || f.kind || f.tag || f.referrersOnly || f.role);
