@@ -2,21 +2,27 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS, type FeeArrangement } from '@materia/domain';
-import { formatAud, MtBadge, MtCheckbox, MtRadioGroup, MtTextField, MtTextarea } from '@materia/ui';
+import { can } from '@materia/data-access';
+import { DISCLOSURE_WAIVER_REASON_LABELS, type DisclosureWaiverReason, type FeeArrangement } from '@materia/domain';
+import { MtBadge, MtCheckbox, MtRadioGroup, MtSelect, MtTextField, MtTextarea, type MtOption } from '@materia/ui';
 
 import { costsDisclosureFor, FEE_ARRANGEMENT_OPTIONS } from './intake-state';
 import { IntakeStore } from './intake-store';
 
+const WAIVER_REASONS: MtOption<DisclosureWaiverReason>[] = (
+  Object.entries(DISCLOSURE_WAIVER_REASON_LABELS) as [DisclosureWaiverReason, string][]
+).map(([value, label]) => ({ value, label }));
+
 /**
  * Step 5: the fee arrangement (amount, estimate, cap, a rate override, a conditional uplift) and
- * the costs disclosure it implies. The disclosure rule is a PLACEHOLDER until BILL-06, and the
- * screen says so.
+ * the costs disclosure it implies under the jurisdiction's rules (BILL-06), marked illustrative
+ * until a practitioner signs the rules off. Lawyers and above can record that no disclosure is
+ * needed, with the reason.
  */
 @Component({
   selector: 'mt-intake-fees-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, NgTemplateOutlet, MtBadge, MtCheckbox, MtRadioGroup, MtTextField, MtTextarea],
+  imports: [FormsModule, NgTemplateOutlet, MtBadge, MtCheckbox, MtRadioGroup, MtSelect, MtTextField, MtTextarea],
   template: `
     @let f = store.state().fees;
     <section class="mt-col block" aria-labelledby="intake-fees-h">
@@ -84,19 +90,45 @@ import { IntakeStore } from './intake-store';
     <section class="mt-col block disclosure" aria-labelledby="intake-disclosure-h" data-testid="costs-disclosure">
       <div class="mt-row" style="gap: var(--space-8); align-items: center">
         <h2 id="intake-disclosure-h" class="heading">Costs disclosure</h2>
-        <mt-badge tone="warning">Provisional</mt-badge>
+        @if (disclosure()?.illustrative) {
+          <mt-badge tone="warning">Illustrative</mt-badge>
+        }
       </div>
-      @if (disclosure()) {
-        <p class="label" aria-live="polite">{{ disclosureText() }}</p>
+      @if (disclosure(); as d) {
+        <p class="label" aria-live="polite" data-testid="disclosure-need">{{ d.text }}</p>
       }
-      <mt-checkbox
-        label="The client waived costs disclosure"
-        [ngModel]="f.waived"
-        (ngModelChange)="store.fees({ waived: !!$event })"
-      />
+      @if (canWaive() || f.waived) {
+        <mt-checkbox
+          label="No disclosure is needed (an exception applies)"
+          [disabled]="!canWaive()"
+          [ngModel]="f.waived"
+          (ngModelChange)="store.fees({ waived: !!$event })"
+        />
+        @if (f.waived) {
+          <div class="grid">
+            <mt-select
+              label="Why no disclosure is needed"
+              [native]="true"
+              [options]="waiverReasons"
+              placeholder="Choose a reason"
+              [error]="store.error('waiver.reason')"
+              [ngModel]="f.waiverReason || null"
+              (ngModelChange)="store.fees({ waiverReason: $event ?? '' })"
+            />
+            <mt-text-field
+              label="Note"
+              [optional]="f.waiverReason !== 'other'"
+              autocomplete="off"
+              [error]="store.error('waiver.note')"
+              [ngModel]="f.waiverNote"
+              (ngModelChange)="store.fees({ waiverNote: $event ?? '' })"
+            />
+          </div>
+        }
+      }
       <p class="caption t-3">
-        Provisional until billing rules (BILL-06) are reviewed: for now a disclosure is required when the estimate is
-        {{ threshold }} or more, or unknown. This is a placeholder, not legal advice.
+        Worked out from the estimate (the top of a range) under the {{ jurisdiction }} disclosure rules. The rules are
+        illustrative until a practitioner reviews them: this is not legal advice.
       </p>
     </section>
 
@@ -145,16 +177,13 @@ import { IntakeStore } from './intake-store';
 export class IntakeFeesStep {
   protected readonly store = inject(IntakeStore);
   protected readonly arrangements = FEE_ARRANGEMENT_OPTIONS;
-  protected readonly threshold = formatAud(COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS);
+  protected readonly waiverReasons = WAIVER_REASONS;
+  /** Recording that no disclosure is needed is for lawyers and above (the server checks too). */
+  protected readonly canWaive = can('matter.fee');
+  /** New matters are Victorian for now (the type step). */
+  protected readonly jurisdiction = 'VIC';
 
-  protected readonly disclosure = computed(() => costsDisclosureFor(this.store.state().fees));
-  protected readonly disclosureText = computed(() => {
-    const d = this.disclosure();
-    if (!d) return '';
-    const estimate = d.estimateKnown ? `estimate ${formatAud(d.estimateCents ?? 0)}` : 'no estimate yet';
-    if (d.status === 'waived') return `Waived by the client (${estimate}).`;
-    return d.status === 'required' ? `Required (${estimate}).` : `Not required (${estimate}).`;
-  });
+  protected readonly disclosure = computed(() => costsDisclosureFor(this.store.state().fees, this.jurisdiction));
 
   protected setMoney(field: 'amount' | 'estimate' | 'cap' | 'rateOverride', value: string | null): void {
     this.store.fees({ [field]: value ?? '' });

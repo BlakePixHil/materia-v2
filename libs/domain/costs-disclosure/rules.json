@@ -1,0 +1,32 @@
+{
+  "$comment": "Costs disclosure rules (BILL-06, ADR-052), keyed by jurisdiction. ILLUSTRATIVE until a practitioner signs them off (BILL-06a): the thresholds, forms and citations must be verified before billing.costsDisclosure is turned on in production. A change to a jurisdiction's bands is a new version.",
+  "schemaVersion": 1,
+  "jurisdictions": {
+    "VIC": {
+      "version": "vic-v1",
+      "name": "Victoria (Legal Profession Uniform Law)",
+      "illustrative": true,
+      "bands": [
+        {
+          "id": "below-lower-threshold",
+          "maxCents": 75000,
+          "requirement": "none",
+          "citation": "Legal Profession Uniform Law s 174; Uniform General Rules r 72 (total legal costs not likely to exceed $750, excluding GST and disbursements)"
+        },
+        {
+          "id": "standard-form",
+          "maxCents": 300000,
+          "requirement": "short_form",
+          "formTemplateId": "system-costs-disclosure-short",
+          "citation": "Legal Profession Uniform Law s 174; Uniform General Rules r 72A (the uniform standard disclosure form, for total legal costs not likely to exceed $3,000)"
+        },
+        {
+          "id": "full",
+          "requirement": "full",
+          "formTemplateId": "system-costs-disclosure",
+          "citation": "Legal Profession Uniform Law s 174(1) and (2) (the basis of costs, an estimate of total legal costs and the client's rights)"
+        }
+      ]
+    }
+  }
+}

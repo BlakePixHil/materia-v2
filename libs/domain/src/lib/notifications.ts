@@ -55,6 +55,7 @@ export const NOTIFICATION_KINDS = {
   // CORE-17: a testator whose original will is in safe custody has died. High and emailed.
   safe_custody: { label: 'Safe custody wills', channels: ['inapp', 'email'], priority: 'high' },
   budget_alert: { label: 'Budget alerts', channels: ['inapp'], priority: 'normal' },
+  costs_disclosure: { label: 'Costs disclosures due', channels: ['inapp'], priority: 'normal' },
   system: { label: 'Account and system messages', channels: ['inapp'], priority: 'normal' },
 } as const satisfies Record<NotificationKind, NotificationKindSpec>;
 
@@ -102,6 +103,7 @@ export const INBOX_FILTER_OF = {
   export_ready: 'system',
   safe_custody: 'system',
   budget_alert: 'system',
+  costs_disclosure: 'system',
   system: 'system',
 } as const satisfies Record<NotificationKind, Exclude<InboxFilter, 'all'>>;
 

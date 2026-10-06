@@ -49,6 +49,7 @@ describe('the kind registry', () => {
       'integration_error',
       'export_ready',
       'budget_alert',
+      'costs_disclosure',
       'system',
       'deadline_missed',
       'task_assigned',

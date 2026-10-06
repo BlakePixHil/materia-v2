@@ -71,6 +71,8 @@ export const Org = withMeta(
       paymentTermsDays: z.number().int().min(0).max(365),
       /** Budget alert thresholds, percent of the fee basis (BILL-05); 80 and 100 when unset. */
       budgetAlertPcts: z.array(z.number().int().min(1).max(200)).max(5).optional(),
+      /** An estimate rising by more than this percentage needs an updated costs disclosure (BILL-06); 10 when unset. */
+      disclosureChangePct: z.number().int().min(1).max(100).optional(),
       /** The daily time target on the Time and billing screen (BILL-03); 6 hours when unset. */
       dailyTargetMinutes: z
         .number()

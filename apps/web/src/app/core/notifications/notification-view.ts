@@ -30,6 +30,7 @@ const GLYPHS: Record<NotificationKind, readonly [MtIconName, NotificationTone]> 
   invite: ['mail', null],
   invite_accepted: ['user-plus', null],
   budget_alert: ['billing', 'deadline'],
+  costs_disclosure: ['billing', 'deadline'],
   system: ['bell', null],
 };
 
