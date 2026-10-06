@@ -4,6 +4,7 @@ import { DomainError } from '@materia/domain';
 import {
   answerError,
   CHAT_COMMANDS,
+  MANUAL_PATH,
   messageNote,
   messageState,
   retryable,
@@ -11,6 +12,8 @@ import {
   workingLabel,
   type ChatMessage,
 } from './clerk-chat-view';
+import { CLERK_DISABLED_COPY } from '../../core/error-copy';
+import { resetPerformanceMonitoring, startPerformanceMonitoring } from '../../core/observability/perf';
 import { storedDocument } from '../documents/testing';
 import {
   cleanUpOverlays,
@@ -190,6 +193,45 @@ describe('Clerk chat panel', () => {
     expect(page.text(page.panel()?.querySelector('mt-clerk-message'))).toContain('Avery Quill is the executor.');
     expect(page.buttons('Copy', page.panel() ?? undefined)).toHaveLength(1);
     expect(page.buttons('Retry', page.panel() ?? undefined)).toHaveLength(1);
+  });
+
+  it.each([
+    ['clerk.features.chat', CLERK_DISABLED_COPY.featureKillSwitch],
+    ['clerk.enabled', CLERK_DISABLED_COPY.killSwitch],
+  ])('says when %s is off on Materia’s side, so nobody hunts through Settings for it', async (flag, copy) => {
+    const page = await open({ flags: { ...FLAGS, [flag]: false } });
+    const note = page.text(page.panel()?.querySelector('[data-clerk-off]'));
+    expect(note).toContain(copy);
+    expect(note).toContain(MANUAL_PATH);
+  });
+
+  it('times Clerk’s first words from Send and from Retry, and not an answer that ends without any', async () => {
+    const traces: string[] = [];
+    startPerformanceMonitoring(async () => (name) => void (name === 'clerk_first_token' && traces.push(name)));
+    try {
+      const page = await open();
+      await page.ask('Who is the executor?');
+      await page.answer(`${THREADS}/t-new-1/messages/a-1`, {
+        toolCalls: [{ id: 'x', name: 'search_documents', status: 'running' }],
+      });
+      expect(traces).toEqual([]);
+      await page.answer(`${THREADS}/t-new-1/messages/a-1`, { content: [{ type: 'text', text: 'Avery' }] });
+      expect(traces).toEqual(['clerk_first_token']);
+      await page.answer(`${THREADS}/t-new-1/messages/a-1`, {
+        status: 'done',
+        content: [{ type: 'text', text: 'Avery Quill.' }],
+      });
+      expect(traces).toEqual(['clerk_first_token']);
+
+      await page.click('Retry', page.panel() ?? undefined);
+      await page.answer(`${THREADS}/t-new-1/messages/a-retry-2`, {
+        status: 'error',
+        error: { code: 'CLERK_RATE_LIMITED' },
+      });
+      expect(traces).toEqual(['clerk_first_token']);
+    } finally {
+      resetPerformanceMonitoring();
+    }
   });
 
   it('stops an answer by setting stopRequested', async () => {

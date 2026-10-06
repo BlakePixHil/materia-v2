@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { HttpsError } from 'firebase-functions/v2/https';
 
-import { CLERK_DISCLOSURE_VERSION, type Role } from '@materia/domain';
+import { CLERK_DISCLOSURE_VERSION, MAX_OCR_DAILY_PAGES, type Role } from '@materia/domain';
 
 import { updateSettingsDefinition } from './settings';
 import { clearRetentionCache } from '../audit/retention';
@@ -87,6 +87,24 @@ describe('clerk-updateSettings', () => {
     expect(w.clerk()).not.toHaveProperty('monthlyBudgetCents');
     expect((await w.call({ monthlyBudgetCents: null, enabled: true })).changed).toEqual([]);
     expect(w.audits()).toHaveLength(1);
+  });
+
+  it('sets the daily OCR page limit, 0 included, and null goes back to the default', async () => {
+    const w = world();
+    expect((await w.call({ ocrDailyPages: 0 })).changed).toEqual(['ocrDailyPages']);
+    expect(w.clerk()['ocrDailyPages']).toBe(0);
+    expect((await w.call({ ocrDailyPages: 500 })).changed).toEqual(['ocrDailyPages']);
+    expect(w.clerk()['ocrDailyPages']).toBe(500);
+    expect((await w.call({ ocrDailyPages: null })).changed).toEqual(['ocrDailyPages']);
+    expect(w.clerk()).not.toHaveProperty('ocrDailyPages');
+    expect(w.audits().map((entry) => entry['data'])).toEqual([
+      { changes: { ocrDailyPages: { from: null, to: 0 } } },
+      { changes: { ocrDailyPages: { from: 0, to: 500 } } },
+      { changes: { ocrDailyPages: { from: 500, to: null } } },
+    ]);
+    expect((await errorOf(w.call({ ocrDailyPages: MAX_OCR_DAILY_PAGES + 1 })))?.details).toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
   });
 
   it('records who acknowledged which version of the disclosure, and refuses an old version', async () => {
