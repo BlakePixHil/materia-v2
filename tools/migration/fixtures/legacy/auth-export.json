@@ -1,0 +1,22 @@
+{
+  "users": [
+    {
+      "localId": "AlexRiversLegacyUid000000001",
+      "email": "alex.rivers@example.com",
+      "emailVerified": true,
+      "displayName": "Alex Rivers",
+      "photoUrl": "https://example.com/alex-rivers.png",
+      "lastSignedInAt": "1759708800000",
+      "createdAt": "1640995200000",
+      "providerUserInfo": [
+        {
+          "providerId": "google.com",
+          "rawId": "fixture-google-sub-alex-rivers",
+          "email": "alex.rivers@example.com",
+          "displayName": "Alex Rivers",
+          "photoUrl": "https://example.com/alex-rivers.png"
+        }
+      ]
+    }
+  ]
+}

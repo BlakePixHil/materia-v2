@@ -37,6 +37,7 @@ import { MemberMetrics, MetricsLedger, MetricsShard } from './metrics';
 import {
   Invoice,
   CreditNote,
+  InvoiceReminder,
   MatterTemplate,
   MatterTemplateVersion,
   DocTemplate,
@@ -182,6 +183,9 @@ export const InvoiceUpdateSchema = Invoice.update;
 export const CreditNoteSchema = CreditNote.schema;
 export const CreditNoteCreateSchema = CreditNote.create;
 export const CreditNoteUpdateSchema = CreditNote.update;
+export const InvoiceReminderSchema = InvoiceReminder.schema;
+export const InvoiceReminderCreateSchema = InvoiceReminder.create;
+export const InvoiceReminderUpdateSchema = InvoiceReminder.update;
 export const MatterTemplateSchema = MatterTemplate.schema;
 export const MatterTemplateCreateSchema = MatterTemplate.create;
 export const MatterTemplateUpdateSchema = MatterTemplate.update;

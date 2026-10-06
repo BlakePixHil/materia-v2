@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { contactNames, matterPath, matterSearch, searchContactIds } from './shared';
 import { changedFields } from '../audit/entry';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
+import { privilegeChanged, syncMatterPrivilege } from '../deadlines/privilege';
 import { fillFromKeyFacts } from '../templates/fill-pending';
 
 type Data = Record<string, unknown>;
@@ -18,6 +19,7 @@ export const NON_ACTIVITY_FIELDS: ReadonlySet<string> = new Set([
   'openTaskCount',
   'wipCents',
   'disbursementWipCents',
+  'outstandingCents',
   'recomputeVersion',
   'litigationSummary',
   'budget',
@@ -121,6 +123,12 @@ export const denormaliseDefinition: TriggerDefinition = {
     await denormalise(change, ctx);
     // A key fact standing for an event fills the template due dates waiting on it (CORE-07b).
     await fillFromKeyFacts(change, ctx);
+    // The matter's events, deadlines and proposals carry a copy of its privileged flag (CORE-10b).
+    if (privilegeChanged(change.before?.data(), change.after?.data())) {
+      const matterId = ctx.params['matterId'] as string;
+      const written = await syncMatterPrivilege(ctx.db, ctx.params['orgId'] as string, matterId);
+      ctx.log.info('privileged flag copied', { matterId, written });
+    }
   },
 };
 

@@ -241,6 +241,9 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
     const matter = writableMatter(await tx.get(matterRef), role, matterId);
     await request.join?.read(tx);
     const version = typeof matter['recomputeVersion'] === 'number' ? matter['recomputeVersion'] : 0;
+    // Events, deadlines and proposals carry a copy of the matter's flag (CORE-10b), which the rules
+    // read in cross-matter queries.
+    const privileged = matter['privileged'] === true;
 
     // ---- reads ----
     const event = request.event;
@@ -260,7 +263,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
     if (event) {
       eventId = event.eventId ?? db.collection(eventsPath(orgId, matterId)).doc().id;
       if (event.fields === null) {
-        eventData = { ...eventBefore, deletedAt: now, deletedBy: uid, ...stamp };
+        eventData = { ...eventBefore, privileged, deletedAt: now, deletedBy: uid, ...stamp };
       } else {
         eventData = MatterEvent.schema.parse(
           compact({
@@ -270,6 +273,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
             label: event.fields.label,
             meta: event.fields.meta ?? (eventBefore?.['meta'] as Data | undefined) ?? {},
             sourceDocumentId: event.fields.sourceDocumentId,
+            privileged,
             ...(eventBefore
               ? { createdAt: asDate(eventBefore['createdAt']) ?? now, createdBy: eventBefore['createdBy'] }
               : { createdAt: now, createdBy: uid }),
@@ -412,6 +416,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
             orgId,
             matterId,
             assigneeUid: responsibleUid,
+            privileged,
             ...(taskId ? { taskId } : {}),
             ...created,
             schemaVersion: Deadline.version,
@@ -483,6 +488,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
             status: 'pending',
             assigneeUid: responsibleUid,
             recomputeVersion: nextVersion,
+            privileged,
             ...created,
             schemaVersion: DeadlineChange.version,
           }),

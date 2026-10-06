@@ -52,6 +52,7 @@ variable "scheduled_jobs" {
     "backups-exportFirestore"   = 86400
     "matters-archiveClosed"     = 86400
     "jobs-sweepExports"         = 86400
+    "billing-debtorsNightly"    = 86400
     "metrics-recompute"         = 86400
     "matters-queueDestruction"  = 2678400 # monthly: alerts when a run fails, not when one is missed
   }

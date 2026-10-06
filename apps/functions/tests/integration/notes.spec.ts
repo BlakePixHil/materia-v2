@@ -234,6 +234,7 @@ describe('notes and the activity feed', () => {
       status: 'upcoming',
       assigneeUid: paralegal,
       reminders: [],
+      privileged: false,
       createdAt: serverTimestamp(),
       createdBy: paralegal,
       updatedAt: serverTimestamp(),

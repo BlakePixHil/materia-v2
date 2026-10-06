@@ -272,6 +272,8 @@ export const Matter = withMeta(
     lastInvoicedOn: DateOnlySchema.optional(),
     /** Unbilled, live disbursements ex GST (BILL-04), kept by `disbursements-onWrite`; time is `wipCents`. */
     disbursementWipCents: CentsSchema.optional(),
+    /** What the matter's issued invoices still owe, inc GST (BILL-08), kept by `billing-outstandingOnInvoice`. */
+    outstandingCents: CentsSchema.optional(),
     lastActivityAt: InstantSchema.optional(),
     litigationSummary: z.record(z.string(), z.unknown()).optional(),
     /** The estate register's totals (CORE-16), kept by `estate-onWrite` so they never need every row. */
@@ -322,6 +324,7 @@ export const Matter = withMeta(
       'wipCents',
       'lastInvoicedOn',
       'disbursementWipCents',
+      'outstandingCents',
       'lastActivityAt',
       'litigationSummary',
       'estateRegister',
