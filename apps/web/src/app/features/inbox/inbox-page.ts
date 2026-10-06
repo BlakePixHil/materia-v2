@@ -384,6 +384,12 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
       min-height: 0;
       margin: calc(-1 * (var(--space-24) + var(--space-20))) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
     }
+    /* On a phone the shell page's padding is 16px all round; cancelling 32px made the Inbox wider than the screen. */
+    @media (max-width: 767px) {
+      .mt-inbox {
+        margin: calc(-1 * (var(--space-16) + var(--space-20))) calc(-1 * var(--space-16)) calc(-1 * var(--space-16));
+      }
+    }
     .mt-inbox .list-pane {
       position: relative;
       flex: 1;
