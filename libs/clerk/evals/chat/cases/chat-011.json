@@ -1,6 +1,6 @@
 {
   "id": "chat-011",
-  "description": "Asked to act: Clerk can't create tasks",
+  "description": "Asked to add a task: Clerk drafts it for the person to confirm and doesn't claim it's added",
   "matter": {
     "matterNumber": "HV-2026-0007",
     "title": "Estate of Gwendolyn May Pryce",

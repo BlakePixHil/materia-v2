@@ -19,6 +19,7 @@ import {
   type CaseOutcome,
   type CaseRequest,
   type CitedQuote,
+  type DraftedItem,
   type EvalCase,
   type TextSpan,
 } from '@materia/clerk/evals';
@@ -27,7 +28,7 @@ import { DomainError, can } from '@materia/domain';
 import { createLog } from '../../core/log';
 import { ClerkModelError, type ClerkModelPort, type ClerkModelResult } from '../../ports';
 import { CHAT_PROMPT, CHAT_TASKS } from '../chat/run';
-import { createChatToolbox } from '../chat/tools';
+import { createChatToolbox, type ChatDraft } from '../chat/tools';
 import { createContextBuilder } from '../context/build-context';
 import { charEstimateCounter, type DocumentTextPort } from '../context/ports';
 import { MemoryContextSource } from '../context/testing';
@@ -233,7 +234,8 @@ export function isChatPrompt(promptRef: string): boolean {
  * One chat case the way the panel answers a question (AI-06 `runChatMessage`, without Firestore or
  * streaming): production's `buildContext` (AI-03) decides what the role may see from the case as an
  * in-memory matter, and the model may call the panel's read-only tools over the same matter. So the
- * privilege and injection suites test production's filtering, not a copy of it.
+ * privilege and injection suites test production's filtering, not a copy of it. The drafting tools
+ * (AI-06b) are offered as in production with suggestions on; their drafts are recorded, not saved.
  */
 async function runChat(
   gateway: ClerkGateway,
@@ -241,7 +243,7 @@ async function runChat(
   evalCase: EvalCase,
   promptRef: string,
   root: string,
-): Promise<ClerkRunResult> {
+): Promise<{ result: ClerkRunResult; drafts: DraftedItem[] }> {
   const source = new MemoryContextSource(evalOrg(evalCase, ctx.orgId, ctx.uid));
   const chunks = evalChunkSearch(evalCase, root);
   const documentText = evalDocumentText(evalCase, root);
@@ -257,11 +259,18 @@ async function runChat(
     attachments: evalAttachments(evalCase),
     query: evalCase.query,
   });
+  const drafts: DraftedItem[] = [];
   const tools = createChatToolbox(
     { context: source, records: evalToolRecords(source, ctx.orgId), chunks, documentText },
     { orgId: ctx.orgId, matterId: EVAL_MATTER, role: context.manifest.role },
+    {
+      draft: async (draft) => {
+        drafts.push({ kind: draft.kind, text: draftText(draft) });
+        return { status: 'drafted', suggestionId: `eval-draft-${drafts.length}` };
+      },
+    },
   );
-  return gateway.run({
+  const result = await gateway.run({
     ctx,
     feature: 'chat',
     promptId: promptRef,
@@ -269,6 +278,14 @@ async function runChat(
     context,
     tools,
   });
+  return { result, drafts };
+}
+
+/** A draft as the graders read it: a note's text, or a task's title, due date and details. */
+function draftText(draft: ChatDraft): string {
+  if (draft.kind === 'note') return draft.payload.bodyMd;
+  const { title, dueDate, descriptionMd } = draft.payload;
+  return [title, dueDate, descriptionMd].filter(Boolean).join(' · ');
 }
 
 /**
@@ -334,16 +351,24 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
     const { gateway, results, lastError } = gatewayFor(chat ? evalDocumentText(evalCase, root) : undefined);
     const started = now();
     let result: ClerkRunResult;
+    let drafts: DraftedItem[] | undefined;
     try {
-      result = chat
-        ? await runChat(gateway, { ...ctx, clock: { now: () => caseNow(evalCase) } }, evalCase, promptRef, root)
-        : await gateway.run({
-            ctx,
-            feature: FEATURES[request.feature],
-            promptId: promptRef,
-            vars: caseVariables(promptRef, evalCase, root),
-            documents: caseDocuments(evalCase, root, request.feature),
-          });
+      if (chat)
+        ({ result, drafts } = await runChat(
+          gateway,
+          { ...ctx, clock: { now: () => caseNow(evalCase) } },
+          evalCase,
+          promptRef,
+          root,
+        ));
+      else
+        result = await gateway.run({
+          ctx,
+          feature: FEATURES[request.feature],
+          promptId: promptRef,
+          vars: caseVariables(promptRef, evalCase, root),
+          documents: caseDocuments(evalCase, root, request.feature),
+        });
     } catch (error) {
       if (error instanceof DomainError && error.code === 'PERMISSION_DENIED')
         return {
@@ -377,6 +402,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
       usage: result.usage,
       costMicros: result.costMicros,
       latencyMs,
+      ...(drafts ? { drafts } : {}),
     };
 
     if (options.judge && request.suite.citations === 'api' && result.citations.length) {

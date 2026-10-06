@@ -345,12 +345,16 @@ describe('inputs', () => {
       dueDate: '2026-11-20',
       kind: 'contractual',
       assigneeUid: 'u-jordan',
+      privileged: false,
     };
     expect(ManualDeadlineCreateInput.parse(manual)).toMatchObject({
       status: 'upcoming',
       critical: false,
       reminders: [],
+      privileged: false,
     });
+    // The matter's flag is always copied (CORE-10b).
+    expect(ManualDeadlineCreateInput.safeParse({ ...manual, privileged: undefined }).success).toBe(false);
     expect(ManualDeadlineCreateInput.safeParse({ ...manual, kind: 'statutory' }).success).toBe(false);
     expect(ManualDeadlineCreateInput.safeParse({ ...manual, computed: {} }).success).toBe(false);
     expect(ManualDeadlineUpdateInput.safeParse({ kind: 'statutory' }).success).toBe(false);
