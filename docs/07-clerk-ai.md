@@ -54,7 +54,7 @@ The gateway is responsible for:
 - **Prompt management:** prompts are rendered from versioned templates in `libs/clerk/prompts/<id>@<version>.md`. Every call logs `promptId@version`.
 - **Prompt caching:** a stable system prompt plus matter context comes first, with a cache breakpoint after the static prefix.
 - **Structured outputs:** proposals use `output_config.format` with the JSON schema derived from the zod schema in `libs/clerk/schemas`. Validate again with zod on receipt. If validation fails, record a failure and don't retry blindly.
-- **Citations:** source documents go in as `document` content blocks (PDF or text) with `citations: {enabled: true}`, or as search-result blocks for chunks. Citation char/page ranges are mapped back to `{documentId, page, quote}`.
+- **Citations:** source documents go in as `document` content blocks (PDF or text) with `citations: {enabled: true}`, or as search-result blocks for chunks. Citation locations are mapped back to the `Citation` shape and checked against the page text (AI-05, below).
 - **Streaming to the client:** the function writes partial message text to `clerkThreads/{t}/messages/{m}` every 250 ms or so, and the client listens. This avoids long-lived HTTP from Functions and gives offline-safe history.
 - **Stop:** the client sets `stopRequested: true` on the message, and the gateway checks this between stream events and aborts.
 - **Metering:** `usage` (input, output and cache-read tokens) is written to `orgs/{orgId}/metrics/clerk-{month}` and to the message.
@@ -70,7 +70,7 @@ The gateway is responsible for:
 - **Resilience:** the SDK runs with `maxRetries: 0`, so the gateway owns retries. It retries the primary model twice on 429, 529, 5xx, timeouts and connection drops, with jittered backoff (0.5 s, then 1 s, × 0.5–1.5, or the provider's `retry-after`). It then tries the primary's fallback chain once each (Sonnet 5.5 → `claude-sonnet-5`; Opus 5.5 → `claude-opus-5` → `claude-sonnet-5-5`), as a fresh branch with no earlier assistant turns. A 401/403 marks the org's key invalid and ends as `CLERK_KEY_INVALID`. A provider 429 never switches models; it ends as `CLERK_BUSY`. If everything fails, the result is `CLERK_UNAVAILABLE`. Refusals use the API's server-side `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) on the primary only. Any hop sets `fallbackUsed`.
 - **Prompts:** `libs/clerk/prompts/<id>@<semver>.md` with front-matter (`id`, `version`, `effort`, `maxTokens`, `outputSchema?`, `tools?`), then a `# System` and a `# User` section. `renderPrompt` fails on a missing or unused variable. `pnpm materia-scripts clerk-prompts` compiles the files into `prompt-sources.generated.ts` for the Functions bundle, and a libs/clerk test fails when the two drift. Output schemas live in `libs/clerk/src/lib/schemas.ts`.
 - **Messages:** the gateway creates the assistant message (never overwriting one) and writes text at most every 250 ms. The final write adds the status, citations, usage, model and `fallbackUsed`. The verbatim assistant turn (thinking blocks included) is stored as JSON in the server-only `messages/{m}/private/raw`, so later turns can replay it unchanged.
-- **Metering:** `orgs/{orgId}/metrics/clerk-YYYY-MM` holds `values.{calls,tokens,inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens,costMicros}`, plus `feature.<f>.{calls,tokens,costMicros}` and `user.<uid>.{calls,tokens,costMicros}`. Costs come from `CLERK_PRICES` (`libs/clerk/src/lib/prices.ts`). A model without a confirmed price is costed at the primary's price and counted in `estimatedCostCalls`. A stopped stream meters the call with zero tokens, because the API reports no usage for an aborted stream.
+- **Metering:** `orgs/{orgId}/metrics/clerk-YYYY-MM` holds `values.{calls,tokens,inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens,costMicros}`, plus `citation_verified`/`citation_unverified` (AI-05), `feature.<f>.{calls,tokens,costMicros,citation_verified,citation_unverified}` and `user.<uid>.{calls,tokens,costMicros}`. Costs come from `CLERK_PRICES` (`libs/clerk/src/lib/prices.ts`). A model without a confirmed price is costed at the primary's price and counted in `estimatedCostCalls`. A stopped stream meters the call with zero tokens, because the API reports no usage for an aborted stream.
 - **SDK boundary:** ESLint `no-restricted-imports` blocks model SDKs everywhere except `apps/functions/src/clerk/providers/` (and the AI-01 bench script). `tools/scripts/src/model-sdk-imports.spec.ts` proves it.
 - **Smoke test:** the `clerk-hello` callable runs the `hello` prompt through the whole gateway. It needs `clerk.enabled` on for the org and the org's own key (it declares no secret). In the emulator it uses the fake model; on dev, after an admin saves a real key in Settings → Clerk, it is the live check (AI-02a).
 
@@ -93,6 +93,29 @@ See [ADR-038](adr/038-clerk-document-ingestion.md). Code in `apps/functions/src/
 - **Classification:** `classify-document@1` on the first three pages → a `document_meta` suggestion (`docmeta-{docId}-v{n}`) with category, title, date and parties. It never changes the document.
 - **Cost guard:** `settings.clerk.ocrDailyPages` (default 200 pages a day per org); over it the document is `queued` until the next Melbourne day.
 - **Status:** `ingest {status: pending|running|queued|done|failed|skipped, version, pages, ocrPages, chars, chunks, lowConfidencePages?, ocrUnavailablePages?, language?, reason?, error?, checkpoint?, queuedUntil?}`.
+
+### As built (AI-05): citations
+
+See [ADR-043](adr/043-citations.md).
+
+- **Shape** (`CitationSchema`, libs/domain): `{kind: 'document'|'record', documentId?, docVersion?, page?, pageEnd?, quote, charStart?, charEnd?, recordRef?: {collection, id}, verified?}`.
+  - A stored `version` is read as `docVersion`.
+  - `charStart` and `charEnd` count from the start of `page`.
+  - `pageEnd` is set only when the quote runs onto later pages.
+- **Mapping** (`libs/clerk` `mapCitation`, `citedClaims`, `markClaims`):
+  - `page_location` gives `page`/`pageEnd` (the API's end page is exclusive);
+  - `char_location` gives page-relative offsets;
+  - `content_block_location` and `search_result_location` give the chunk's document, version and page.
+  - The final message text carries `[n]` markers after each cited claim (`n` = the citation's index + 1).
+- **Verification** (`verifyCitations` in `apps/functions/src/clerk/citations.ts`, on matter-scoped replies):
+  - it reads the page text from the chunks and runs the domain's `checkCitations` (normalised; exact, or ≥ 0.9 fuzzy on the cited page or page range plus the next page; an ellipsis splits a quote);
+  - a failure is stored with `verified: false` and counted as `values.citation_unverified` and `feature.<f>.citation_unverified`, next to `citation_verified`.
+  - The UI never shows a failed citation. A claim left with none reads "unverified".
+  - The evals' `citationPrecision` uses the same matcher.
+- **`documents-citationText({matterId, docId, version?, pages?})`** (`matter.view`; privileged needs `privileged.view`):
+  - it returns `{version, pages: [{page, text, ocr}], truncated}` from the chunks, overlaps merged, up to 50 pages;
+  - the citation viewer uses it for DOCX, email and text sources, and for scanned PDF pages.
+- **Seed:** the Doyle estate has a fictional Clerk thread (`m-doyle-estate-ct-1`) with markers, a record citation and one `verified: false`. Its suggestions quote the will fixture.
 
 ## Context assembly (AI-03)
 

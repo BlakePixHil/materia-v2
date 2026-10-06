@@ -181,6 +181,7 @@ test.describe('time entries', () => {
 
     // 3. ⌘K "Log time" from the Matters list: pick the matter (recent first), then the time.
     await page.goto('/matters');
+    // The table renders once the list's first query answers, after the app boots on this load.
     await expect(page.getByRole('table', { name: 'Matters' })).toBeVisible(FIRST_LOAD);
     await page.keyboard.press('ControlOrMeta+k');
     await expect(page.getByRole('combobox')).toBeFocused();
