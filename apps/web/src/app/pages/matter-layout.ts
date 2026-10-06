@@ -127,7 +127,14 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
               }
             </mt-note>
           } @else if (closedText(); as text) {
-            <mt-note class="closed" icon="archive">{{ text }}</mt-note>
+            <mt-note class="closed" icon="archive"
+              >{{ text }}
+              @if (m.closing?.safeCustody; as packet) {
+                The original will is in safe custody:
+                <a [routerLink]="['/safe-custody', packet.packetId]">{{ packet.packetNo }}</a
+                >.
+              }
+            </mt-note>
           }
           <mt-matter-header #header />
           @if (m.conflictAlert; as alert) {

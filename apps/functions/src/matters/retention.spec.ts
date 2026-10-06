@@ -27,6 +27,13 @@ import { FakeClock, FakeTaskQueue, fakePorts } from '../ports/fakes';
 const ORG = 'org-r';
 const M = `orgs/${ORG}/matters`;
 const Q = `orgs/${ORG}/destructionQueue`;
+const SC = `orgs/${ORG}/safeCustody`;
+/** A will matter's testator party and contact (CORE-17a). */
+const TESTATOR = {
+  [`${M}/m1/parties/testator-c-will`]: { contactId: 'c-will', role: 'testator', deletedAt: null },
+  [`orgs/${ORG}/contacts/c-will`]: { kind: 'person', givenNames: 'Fictional', familyName: 'Quill', deletedAt: null },
+};
+const SAFE = { site: 'Geelong office', cabinet: 'Safe 2', slot: '14' };
 const meta = { createdBy: 'seed', updatedBy: 'seed', schemaVersion: 1 };
 const NOW = '2026-10-05T01:00:00.000Z';
 
@@ -201,9 +208,9 @@ describe('matters-close', () => {
   });
 
   it('sets no destroyAfter for a will in safe custody, a matter with a minor, or a legal hold', async () => {
-    const will = world({ [`${M}/m1`]: matter({ type: 'will' }) });
+    const will = world({ [`${M}/m1`]: matter({ type: 'will' }), ...TESTATOR });
     await expect(
-      will.close({ checklist: { originals: 'safe_custody', closingLetterSent: true } }),
+      will.close({ checklist: { originals: 'safe_custody', closingLetterSent: true }, safeCustodyLocation: SAFE }),
     ).resolves.toMatchObject({
       destroyAfter: null,
       holds: ['originals_in_custody'],
@@ -577,5 +584,119 @@ describe('destruction', () => {
     expect(await failureOf(definition.handler(w.ctx({ certificateId: 'dc-x' }, 'admin') as never))).toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+});
+
+describe('closing a will into safe custody (CORE-17a)', () => {
+  const intoCustody = { checklist: { originals: 'safe_custody', closingLetterSent: true } };
+  const packets = (w: ReturnType<typeof world>) =>
+    [...w.docs.entries()].filter(([path]) => path.startsWith(`${SC}/`)).map(([path, data]) => ({ path, data }));
+  const willWorld = (extra: Record<string, Record<string, unknown>> = {}) =>
+    world({
+      [`${M}/m1`]: matter({ type: 'will', responsibleUid: 'user-admin' }),
+      ...TESTATOR,
+      ...extra,
+    });
+
+  it('creates a numbered packet for the testator at the location given, linked to the matter', async () => {
+    const w = willWorld();
+    const result = await w.close({ ...intoCustody, safeCustodyLocation: SAFE });
+    const [packet] = packets(w);
+    expect(result.packet).toEqual({ id: packet?.path.split('/').pop(), packetNo: 'SC-000001', created: true });
+    expect(packet?.data).toMatchObject({
+      packetNo: 'SC-000001',
+      testatorContactId: 'c-will',
+      testatorName: 'Fictional Quill',
+      responsibleUid: 'user-admin',
+      matterId: 'm1',
+      items: [{ kind: 'will', description: 'Original will (matter M-2026-0001)' }],
+      location: SAFE,
+      receivedOn: '2026-10-05',
+      status: 'held',
+      movements: [
+        expect.objectContaining({ kind: 'in', reason: 'Original will received on closing matter M-2026-0001' }),
+      ],
+    });
+    expect(w.doc(`orgs/${ORG}/counters/safe-custody`)).toMatchObject({ next: 2 });
+    expect(w.doc(`${M}/m1`)?.['closing']).toMatchObject({
+      safeCustody: { packetNo: 'SC-000001', created: true },
+    });
+    expect(w.audits('matter.closed')[0]?.['data']).toMatchObject({ safeCustody: { packetNo: 'SC-000001' } });
+  });
+
+  it('adds the will to the testator’s packet still in custody, once', async () => {
+    const w = willWorld({
+      [`${SC}/p-old`]: {
+        packetNo: 'SC-000007',
+        testatorContactId: 'c-will',
+        status: 'out',
+        items: [{ kind: 'poa', description: 'Power of attorney' }],
+        movements: [],
+        location: { site: 'Geelong office', cabinet: 'Safe 1', slot: '' },
+        deletedAt: null,
+      },
+      [`${SC}/p-gone`]: { packetNo: 'SC-000002', testatorContactId: 'c-will', status: 'released', items: [] },
+    });
+    await expect(w.close(intoCustody)).resolves.toMatchObject({
+      packet: { id: 'p-old', packetNo: 'SC-000007', created: false },
+    });
+    expect(w.doc(`${SC}/p-old`)).toMatchObject({
+      matterId: 'm1',
+      items: [{ kind: 'poa' }, { kind: 'will', description: 'Original will (matter M-2026-0001)' }],
+      movements: [
+        expect.objectContaining({ kind: 'in', location: { site: 'Geelong office', cabinet: 'Safe 1', slot: '' } }),
+      ],
+    });
+    expect(packets(w)).toHaveLength(2);
+
+    // Reopened and closed again: the packet already holds this matter's will.
+    w.docs.set(`${M}/m1`, { ...w.doc(`${M}/m1`), status: 'open' });
+    await w.close(intoCustody);
+    expect((w.doc(`${SC}/p-old`)?.['items'] as unknown[]).length).toBe(2);
+    expect(packets(w)).toHaveLength(2);
+  });
+
+  it('needs a testator party, and a location for a new packet', async () => {
+    const none = world({ [`${M}/m1`]: matter({ type: 'will' }) });
+    expect(await failureOf(none.close(intoCustody))).toMatchObject({
+      code: 'FAILED_PRECONDITION',
+      details: { reason: 'safe_custody_testator' },
+    });
+    const noLocation = willWorld();
+    expect(await failureOf(noLocation.close(intoCustody))).toMatchObject({
+      details: { reason: 'safe_custody_location' },
+    });
+    expect(noLocation.doc(`${M}/m1`)?.['status']).toBe('open');
+    expect(packets(noLocation)).toEqual([]);
+  });
+
+  it('leaves safe custody alone for originals returned, and for other matter types', async () => {
+    const returned = willWorld();
+    await returned.close({ checklist: { originals: 'returned', closingLetterSent: true } });
+    expect(packets(returned)).toEqual([]);
+    const probate = world({ ...TESTATOR });
+    await probate.close({ checklist: { ...probate.answers, originals: 'safe_custody' } });
+    expect(packets(probate)).toEqual([]);
+  });
+
+  it('tells the checklist where the will would go', async () => {
+    const w = willWorld({
+      [`${SC}/p-old`]: {
+        packetNo: 'SC-000007',
+        testatorContactId: 'c-will',
+        status: 'held',
+        items: [],
+        deletedAt: null,
+      },
+    });
+    const result = await closingChecklistDefinition.handler(w.ctx({ matterId: 'm1' }) as never);
+    expect(result.safeCustody).toEqual({
+      testator: { contactId: 'c-will', name: 'Fictional Quill' },
+      packet: { id: 'p-old', packetNo: 'SC-000007' },
+    });
+    const fresh = await closingChecklistDefinition.handler(willWorld().ctx({ matterId: 'm1' }) as never);
+    expect(fresh.safeCustody).toEqual({ testator: { contactId: 'c-will', name: 'Fictional Quill' }, packet: null });
+    const probate = await closingChecklistDefinition.handler(world().ctx({ matterId: 'm1' }) as never);
+    expect(probate).not.toHaveProperty('safeCustody');
   });
 });

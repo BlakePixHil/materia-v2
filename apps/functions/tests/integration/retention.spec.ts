@@ -272,4 +272,72 @@ describe('closing and retention through the emulators', () => {
     expect(await audited('matter.closed')).toHaveLength(2);
     expect(await audited('matter.destroyed')).toHaveLength(1);
   }, 90_000);
+
+  it('closes a will matter with its original into a new safe custody packet, once (CORE-17a)', async () => {
+    const WILL = `orgs/${ORG}/matters/m-will`;
+    await db.doc(`orgs/${ORG}/contacts/c-testator`).set({
+      orgId: ORG,
+      kind: 'person',
+      givenNames: 'Fictional',
+      familyName: 'Testator',
+      deletedAt: null,
+    });
+    await db.doc(WILL).set({
+      orgId: ORG,
+      number: 'RT-2026-0002',
+      title: 'Will of Fictional Testator',
+      type: 'will',
+      status: 'open',
+      responsibleUid: uidOf('lawyer'),
+      teamUids: [],
+      labels: [],
+      privileged: false,
+      deletedAt: null,
+    });
+    await db
+      .doc(`${WILL}/parties/testator-c-testator`)
+      .set({ contactId: 'c-testator', role: 'testator', deletedAt: null });
+    await signInAs('lawyer');
+    const close = (extra: Data = {}) =>
+      call<Data>(MATTER_CALLABLES.close, {
+        requestId: crypto.randomUUID(),
+        matterId: 'm-will',
+        reason: 'Will signed and stored',
+        checklist: { originals: 'safe_custody', closingLetterSent: true },
+        ...extra,
+      });
+
+    const checklist = await call<ClosingChecklistResult>(MATTER_CALLABLES.closingChecklist, {
+      matterId: 'm-will',
+      checklist: { originals: 'safe_custody' },
+    });
+    expect(checklist.safeCustody).toEqual({
+      testator: { contactId: 'c-testator', name: 'Fictional Testator' },
+      packet: null,
+    });
+    expect((await failure(close())).details).toMatchObject({ reason: 'safe_custody_location' });
+
+    const closed = await close({ safeCustodyLocation: { site: 'Geelong office', cabinet: 'Safe 1', slot: '3' } });
+    expect(closed).toMatchObject({ destroyAfter: null, packet: { packetNo: 'SC-000001', created: true } });
+    const packets = async () =>
+      (await db.collection(`orgs/${ORG}/safeCustody`).where('testatorContactId', '==', 'c-testator').get()).docs;
+    const [packet] = await packets();
+    expect(packet?.data()).toMatchObject({
+      matterId: 'm-will',
+      status: 'held',
+      responsibleUid: uidOf('lawyer'),
+      items: [{ kind: 'will' }],
+      location: { site: 'Geelong office', cabinet: 'Safe 1', slot: '3' },
+    });
+
+    // Reopened and closed again: the will is already in the packet.
+    await call(MATTER_CALLABLES.reopen, {
+      requestId: crypto.randomUUID(),
+      matterId: 'm-will',
+      reason: 'Codicil to follow',
+    });
+    await expect(close()).resolves.toMatchObject({ packet: { id: packet?.id, created: false } });
+    expect(await packets()).toHaveLength(1);
+    expect((await packets())[0]?.get('items')).toHaveLength(1);
+  });
 });
