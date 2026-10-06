@@ -184,6 +184,11 @@ describe('chat tools', () => {
         (await duplicate.box.run({ id: 't1', name: 'draft_task', input: { title: 'Call the bank' } })).text,
       ).toContain('already exists');
       expect(duplicate.box.usage.drafted).toEqual([]);
+      const role = drafting(() => ({ status: 'not_allowed' }));
+      expect((await role.box.run({ id: 't1', name: 'draft_note', input: { text: 'A note' } })).text).toContain(
+        'role can’t add this',
+      );
+      expect(role.box.usage).toMatchObject({ drafting: true, drafted: [] });
     });
 
     it('drafts at most three per answer and rejects empty drafts', async () => {

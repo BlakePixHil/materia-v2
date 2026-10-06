@@ -2,6 +2,7 @@ import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import { clerkModelFor, type ChatProposalsOutput } from '@materia/clerk';
 import {
+  canAcceptSuggestion,
   defaultDedupeKey,
   DomainError,
   parseClerkCommand,
@@ -111,6 +112,8 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
     log,
     clock: deps.clock,
   };
+  // What Clerk drafted before a failure stays linked from the answer, so its cards still show.
+  let drafted: readonly string[] = [];
   try {
     const matterId = thread['matterId'];
     if (typeof matterId !== 'string') throw new DomainError('NOT_FOUND', 'This thread has no matter');
@@ -139,7 +142,7 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
           deps,
           ctx,
           matterId,
-          { questionId: question.id, model },
+          { questionId: question.id, model, role: context.manifest.role },
           () => privileged || thread['privileged'] === true,
         )
       : undefined;
@@ -155,6 +158,7 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
         ...(draft ? { draft } : {}),
       },
     );
+    drafted = toolbox.usage.drafted;
     if (privileged) await markPrivileged(threadRef, messageRef);
 
     const result = await deps.gateway.run({
@@ -197,6 +201,7 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
     return 'answered';
   } catch (error) {
     await fail(deps, messageRef, error);
+    if (drafted.length) await messageRef.update({ suggestionIds: [...drafted] }).catch(() => undefined);
     return 'failed';
   }
 }
@@ -206,17 +211,20 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
  * (AI-07), so it is validated, de-duplicated and expires like any other. Its `dedupeKey` is scoped
  * to the question, so a retry finds the draft it already made instead of drafting it again, and a
  * person can ask again later for a note they dismissed before. A draft is privileged when anything
- * Clerk had seen by then was: the context, an earlier answer in the thread, or a tool's result.
+ * Clerk had seen by then was: the context, an earlier answer in the thread, or a tool's result. A
+ * draft the asker's role couldn't accept isn't made.
  */
 function drafter(
   deps: ChatRunDeps,
   ctx: GatewayContext,
   matterId: string,
-  source: { questionId: string; model: string },
+  source: { questionId: string; model: string; role: Role },
   privileged: () => boolean,
 ): ChatDrafter {
   const [promptId, promptVersion] = CHAT_PROMPT.split('@') as [string, string];
   return async (draft) => {
+    // Never a card the person who asked couldn't accept.
+    if (!canAcceptSuggestion(source.role, draft.kind, privileged())) return { status: 'not_allowed' };
     const result = await proposeSuggestions(
       { db: deps.db, orgId: ctx.orgId, clock: deps.clock, log: ctx.log },
       matterId,

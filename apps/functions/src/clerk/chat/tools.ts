@@ -157,7 +157,7 @@ export type ChatDraft =
 /** What became of a draft (`proposeSuggestions`'s outcome, AI-07). */
 export type ChatDraftOutcome =
   | { status: 'drafted'; suggestionId: string }
-  | { status: 'duplicate' | 'exists' | 'disabled' | 'matter_unavailable' | 'invalid' };
+  | { status: 'duplicate' | 'exists' | 'disabled' | 'matter_unavailable' | 'invalid' | 'not_allowed' };
 
 /** Creates the suggestion for a draft: `runChatMessage` passes one when drafting is on. */
 export type ChatDrafter = (draft: ChatDraft) => Promise<ChatDraftOutcome>;
@@ -169,6 +169,7 @@ const DRAFT_RESULTS: Record<Exclude<ChatDraftOutcome['status'], 'drafted'>, stri
   disabled: 'Clerk suggestions are switched off for this practice, so nothing could be drafted.',
   matter_unavailable: 'This matter is closed or archived, so nothing can be added to it.',
   invalid: 'That draft isn’t valid, so it wasn’t drafted.',
+  not_allowed: 'The person’s role can’t add this on this matter, so it wasn’t drafted.',
 };
 
 const isDeleted = (data: Data) => data['deletedAt'] !== undefined && data['deletedAt'] !== null;

@@ -26,7 +26,7 @@ import { runCallable, type CallableDefinition, type CallableDeps } from '../../c
 import { clearFlagCaches, setRemoteFlagLoader } from '../../core/flags';
 import { createLog } from '../../core/log';
 import { memoryFirestore } from '../../orgs/testing';
-import type { ClerkModelRequest } from '../../ports';
+import { ClerkModelError, type ClerkModelRequest } from '../../ports';
 import { FakeClock, FakeKms, FakeTaskQueue, fakePorts } from '../../ports/fakes';
 import { createContextBuilder } from '../context/build-context';
 import { firestoreContextSource } from '../context/firestore-source';
@@ -422,6 +422,17 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
       expect(JSON.stringify(w.chatRequests()[3]?.messages)).toContain('already exists for this question');
       const notes = [...w.store.docs.keys()].filter((key) => key.includes(`/matters/${MATTER}/suggestions/`));
       expect(notes).toHaveLength(1);
+    });
+
+    it('keeps a draft linked when the answer fails after drafting', async () => {
+      const w = await world({
+        script: [drafting()[0] as FakeStep, { error: new ClerkModelError('bad_request', 'bad', 400) }],
+      });
+      const sent = await w.ask(`Add a file note saying ${NOTE}`, {}, 'paralegal');
+      expect(sent.outcome).toBe('failed');
+      const answer = w.message(sent.threadId, sent.messageId);
+      expect(answer['status']).toBe('error');
+      expect(answer['suggestionIds']).toHaveLength(1);
     });
 
     it('marks a draft privileged when the thread already is (Clerk rule 6)', async () => {
