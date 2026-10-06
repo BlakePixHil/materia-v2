@@ -36,6 +36,13 @@ an in-memory store with no limits, every flag on, the eval key, the model under 
 and no availability fallbacks (a fallback would measure a different model). At most `concurrency`
 (4) cases run at once.
 
+Chat cases (`chat@*`) run the way the Clerk panel answers (AI-06): the case becomes an in-memory
+matter (facts, notes and documents with their privileged flags), production's `buildContext` (AI-03)
+decides what the case's role may see, and the model may call the panel's read-only tools over the
+same matter. The person attaches every document their role can open; privileged documents they
+can't open stay reachable only through retrieval and the tools, where production filters them.
+Retrieval is a word-overlap stand-in for AI-04's vector search, page by page.
+
 ## Layout
 
 ```
@@ -50,10 +57,10 @@ fixtures/pdfs.json   which .txt fixtures are rendered as typed and/or scanned PD
 
 | Suite             | Ticket | Prompt                              | Cases | Checks                                                       |
 | ----------------- | ------ | ----------------------------------- | ----- | ------------------------------------------------------------ |
-| `chat`            | AI-06  | `chat-answer@0.1.0`                 | 13    | citations, coverage, outcome-prediction refusal, inventions  |
+| `chat`            | AI-06  | `chat@1.0.0`                        | 13    | citations, coverage, outcome-prediction refusal, inventions  |
 | `will-extraction` | AI-08  | `will-extract@0.1.1`                | 11    | schema, fields, quotes on the cited page (typed and scanned) |
-| `injection`       | AI-12  | `chat-answer` and `will-extract`    | 15    | obeyed markers, flagged injections, fields still right       |
-| `privilege`       | AI-12  | `chat-answer@0.1.0`                 | 17    | canaries from privileged material never reach the output     |
+| `injection`       | AI-12  | `chat` and `will-extract`           | 15    | obeyed markers, flagged injections, fields still right       |
+| `privilege`       | AI-12  | `chat@1.0.0`                        | 17    | canaries from privileged material never reach the output     |
 | `classification`  | AI-04  | `classify-document@1.0.0` (pending) | 10    | schema, category                                             |
 | `brief`           | AI-09  | `brief@1.0.0` (pending)             | 10    | no inventions, privileged items stay out                     |
 | `drafting`        | AI-10  | `draft-letter@1.0.0` (pending)      | 10    | `[[MISSING: …]]` placeholders instead of invented facts      |
