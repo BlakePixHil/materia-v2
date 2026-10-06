@@ -49,7 +49,8 @@ Functions (CORE-01): `contacts-create` (`contact.edit`; creates are callable-onl
 - `referrerContactId?` or, when no contact referred the matter, `referralSource?: 'unknown'|'website'|'existing_client'|'walk_in'` (CORE-18; never both). Set at intake (clients step) and edited on the matter header (client-direct). A referrer's contact page lists the live matters with their `referrerContactId` (equality filters only, no composite index; `privileged == false` without `privileged.view`), with the count, the active count and the last referral date; billed fees join with BILL-07.
 
 **Fees and conflicts**
-- `fee: {arrangement: 'hourly'|'fixed'|'capped'|'conditional'|'pro_bono', amountCents?, capCents?, estimateCents?, rateOverrideCents?, conditional?: {upliftPct (≤ 25), condition}, history[]}`. `FeeInput` (CORE-05) checks the arrangement: fixed needs `amountCents`, capped `capCents` (and an estimate within it), conditional `conditional`, pro bono no amounts.
+- `fee: {arrangement: 'hourly'|'fixed'|'capped'|'conditional'|'pro_bono', amountCents?, capCents?, estimateCents?, estimateLowCents?, estimateHighCents?, rateOverrideCents?, conditional?: {upliftPct (≤ 25), condition}, revision?, history[]}`. `FeeInput` (CORE-05, BILL-05) checks the arrangement: fixed needs `amountCents`, capped `capCents` (and an estimate within it), conditional `conditional` with its success definition (`condition`), pro bono no amounts, and the range low ≤ high. `history[]` entries are `{at, by, from, to, reason}` (older ones carry only `change`), written by `fees-update` (BILL-05), which also bumps `revision`.
+- `budget: {recordedCents, billedCents, basisCents?, pct?, timeCents, disbursementsCents, revision, alerted[]}` (BILL-05, server-owned): kept by the `fees-budgetOnTime` and `fees-budgetOnDisbursement` triggers (aggregation sums in one transaction) and `fees-update`. Recorded value is every live time entry at its rate (billable or not, any status) plus live disbursements ex GST; billed is what has status `billed`. The basis is the fixed fee, the cap, or `estimateHighCents` (else `estimateCents`); none for pro bono or an hourly matter without an estimate, and then `basisCents` and `pct` are absent. `pct` is a whole-number percentage (may pass 100). Alerts (`budget_alert`, to the responsible lawyer and their supervisor) fire at `org.billing.budgetAlertPcts` (default 80 and 100), once per threshold per fee revision (`alerted` resets when `revision` changes), only with the `billing.feeBudgets` flag on; pro bono never alerts. On a capped matter the value over the cap (`capExcessCents`) is not billed (BILL-07).
 - `costsDisclosure: {status: 'not_required'|'required'|'sent'|'updated'|'waived', sentOn?: DateOnly, estimateCents?, documentId?}`. At intake the status comes from the fee's estimate (`feeEstimateCents`: the estimate, else the fixed fee or cap, 0 for pro bono) through `costsDisclosureRequirement`, a **placeholder** single threshold (`COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS`, $750) until BILL-06 replaces it; an unknown estimate needs a disclosure.
 - `conflictCheck: {status: 'pending'|'clear'|'potential'|'conflict', checkedAt, checkedBy, resultId, reason?}`. `resultId` names the `conflictChecks` run the determination was made on; `reason` is required for `potential` and `conflict` (CORE-02).
 - `conflictAlert?: {checkId, contactId, partyId?, at, adverse}`: server-owned, set by `conflicts-onPartyAdded` when a party added to an open or on-hold matter is on other matters; cleared by `conflicts-determine` on the same check. It never blocks anything (CORE-02).
@@ -502,12 +503,12 @@ Every notification goes through `notify()` (`apps/functions/src/notifications/no
   - `supervisorUid` (CORE-11 escalation).
 - **matters:**
   - `legalHold {on, reason, by, at}` (CORE-19);
-  - `budget {recordedCents, billedCents, basisCents, pct}` (BILL-05);
+  - `budget {recordedCents, billedCents, basisCents?, pct?, timeCents, disbursementsCents, revision, alerted}` (BILL-05);
   - `referralSource` (CORE-18, see People above);
   - `litigationSummary` (LIT-02);
   - `recomputeVersion` (CORE-10);
   - `emailToken` (INT-05);
-  - `fee.history[]`, `fee.conditional` (BILL-05).
+  - `fee.history[]`, `fee.revision`, `fee.estimateLowCents`, `fee.estimateHighCents`, `fee.conditional` (BILL-05).
 - **deadlines:**
   - `pastOnCreation`;
   - a `blocked` status with `blockedReason` and `blockedCode`, and `overrideConflict`, `declined`, `resolution`, `missedCheck`, `taskId` (CORE-10);

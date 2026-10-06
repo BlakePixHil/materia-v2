@@ -47,5 +47,6 @@ export * from './lib/referrals';
 export * from './lib/profile';
 export * from './lib/security';
 export * from './lib/time-entries';
+export * from './lib/fees';
 export * from './lib/billing';
 export * from './lib/disbursements';

@@ -140,6 +140,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'billing.feeBudgets': defineFlag({
+    key: 'billing.feeBudgets',
+    description:
+      'Fee arrangements on the matter Overview: the budget meter, revising the fee and the 80%/100% budget alerts (off until a practitioner signs it off, BILL-05a).',
+    owner: 'BILL-05',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'billing.disbursements': defineFlag({
     key: 'billing.disbursements',
     description:
