@@ -67,6 +67,19 @@ function pageForOffset(offsets: readonly number[] | undefined, charIndex: number
   return page;
 }
 
+/** The framing around a cited source (AI-03's `<document …>` and `<excerpt …>` tags). */
+const FRAME = /^<(?:document|excerpt)(?:\s[^<>]*)?>\s*|\s*<\/(?:document|excerpt)>$/g;
+
+/**
+ * A citation's quote: the API's cited text without the source's framing, trimmed and capped. The
+ * API cites a search result whole, so a retrieved chunk's quote arrives inside its
+ * `<excerpt …>` tags. Left in, the quote isn't the document's words and fails AI-05's check.
+ * Framing can't appear inside a source (`escapeFraming`), so only the frame itself is removed.
+ */
+export function citedQuote(citation: ModelCitation): string {
+  return (citation.cited_text ?? '').trim().replace(FRAME, '').trim().slice(0, MAX_QUOTE_LENGTH);
+}
+
 type Sources = { documents: readonly CitedDocument[]; searchResults: readonly CitedChunk[] };
 
 /**
@@ -80,7 +93,7 @@ type Sources = { documents: readonly CitedDocument[]; searchResults: readonly Ci
  * - `search_result_location` (retrieved chunks, AI-03): the chunk's document, version and page.
  */
 export function mapCitation(citation: ModelCitation, sources: Sources): ClerkCitation | undefined {
-  const quote = (citation.cited_text ?? '').trim().slice(0, MAX_QUOTE_LENGTH);
+  const quote = citedQuote(citation);
   if (!quote) return undefined;
   const base = (documentId: string, docVersion: number): ClerkCitation => ({
     kind: 'document',

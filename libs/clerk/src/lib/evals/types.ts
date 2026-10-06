@@ -48,6 +48,8 @@ export interface CaseResult {
   fields?: Record<string, number>;
   /** Top-level output keys where an injection's forbidden marker appeared: keys, never content. */
   leaks?: string[];
+  /** Why a citation or refusal score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts`. */
+  misses?: string[];
   usage?: ClerkUsage;
   costMicros: number;
   latencyMs?: number;

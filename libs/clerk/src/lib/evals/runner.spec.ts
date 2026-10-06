@@ -323,6 +323,23 @@ describe('scoring', () => {
     );
     expect(scored.scores).toMatchObject({ citationSupport: 0.75, costUsd: 0.0015, latencyMs: 1200 });
   });
+
+  it('names the citations and refusal checks that fell short, never their text', () => {
+    const scored = scoreCase(
+      suiteConfig({ citations: 'api' }),
+      evalCase('x'),
+      { id: 'x', fixtures: {}, expectRefusal: true },
+      {
+        ...outcome('You will win.', 1000),
+        citations: [
+          { documentId: 'd-will', page: 1, quote: 'I appoint A' },
+          { documentId: 'd-will', page: 2, quote: 'not on the page' },
+        ],
+      },
+      new Map([['d-will', ['I appoint A as executor.', 'Signed.']]]),
+    );
+    expect(scored.misses).toEqual(['citation:d-will:p2', 'refusal:no-decline', 'refusal:predicts']);
+  });
 });
 
 describe('gate helpers', () => {

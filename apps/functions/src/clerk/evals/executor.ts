@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { CLERK_MODELS, getPrompt, MAX_QUOTE_LENGTH, type ClerkCitation, type PromptVariables } from '@materia/clerk';
+import {
+  CLERK_MODELS,
+  citedQuote,
+  getPrompt,
+  type ClerkCitation,
+  type ModelCitation,
+  type PromptVariables,
+} from '@materia/clerk';
 import {
   EVALS_DIR,
   EvalOutageError,
@@ -193,11 +200,11 @@ export function judgeItems(
 ): string[] {
   const items: string[] = [];
   for (const raw of content) {
-    const block = raw as { type?: string; text?: string; citations?: { cited_text?: string }[] | null };
+    const block = raw as { type?: string; text?: string; citations?: ModelCitation[] | null };
     if (block.type !== 'text' || !block.text || !block.citations?.length) continue;
     for (const cited of block.citations) {
-      // The gateway stores the API's quote trimmed and capped (mapCitation), so compare the same way.
-      const citedText = (cited.cited_text ?? '').trim().slice(0, MAX_QUOTE_LENGTH);
+      // The gateway stores the API's quote as `citedQuote` makes it (mapCitation), so compare the same way.
+      const citedText = citedQuote(cited);
       const match = citations.find((c) => c.quote === citedText);
       if (!match) continue;
       const docPages = pages.get(match.documentId);
