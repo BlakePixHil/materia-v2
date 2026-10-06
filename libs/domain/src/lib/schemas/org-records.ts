@@ -175,6 +175,13 @@ export const Invoice = withMeta(
     creditedCents: CentsSchema.default(0 as never),
     xero: z.object({ invoiceId: z.string(), syncedAt: InstantSchema, error: z.string().optional() }).optional(),
     payments: z.array(InvoicePaymentSchema).default([]),
+    /**
+     * BILL-12 (ADR-035): the firm intends to pay this invoice from money held in trust. Only the
+     * intention: the withdrawal is made, and recorded first, in the firm's trust system.
+     */
+    paidFromTrust: z.boolean().optional(),
+    /** The r 42(3) notice the PDF prints, frozen when given (`billing.trustNotice` on). */
+    trustNotice: z.object({ version: z.number().int().min(1), text: z.string() }).optional(),
   },
   {
     path: `${ORG}/invoices`,
@@ -210,6 +217,8 @@ export const Invoice = withMeta(
       'creditedCents',
       'xero',
       'payments',
+      'paidFromTrust',
+      'trustNotice',
     ],
     updatable: [],
   },

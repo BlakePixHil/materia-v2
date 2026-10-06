@@ -221,6 +221,35 @@ describe('estate tab', () => {
     expect(section).toContain('Residue$25,000.00');
   });
 
+  it('keeps the trust records reference of a distribution paid from trust (BILL-12)', async () => {
+    const page = await open({
+      configure: (fs) => {
+        fs.set(...partyDoc('beneficiary', 'c-bram'));
+        fs.set(`${MATTER}/distributions/d-1`, {
+          beneficiaryPartyId: BRAM,
+          kind: 'pecuniary',
+          amountCents: 1_500_000,
+          status: 'paid',
+          paidOn: '2026-10-01',
+          paymentReference: 'TR-0042',
+          deletedAt: null,
+          ...meta,
+        });
+      },
+    });
+    const section = page.text(page.body.querySelector('[aria-labelledby="mt-estate-distributions"]'));
+    expect(section).toContain('Pecuniary gift · $15,000.00 · Paid · Ref TR-0042');
+    await page.click('Edit distribution to Bram Ostler');
+    const dialog = page.dialog() ?? page.body;
+    await page.fill('Payment reference', 'TR-0043', dialog);
+    await page.submit(page.dialog());
+    expect(page.firestore.get(`${MATTER}/distributions/d-1`)).toMatchObject({
+      status: 'paid',
+      paymentReference: 'TR-0043',
+      amountCents: 1_500_000,
+    });
+  });
+
   it('flags a distribution for review and lets a person clear it', async () => {
     const page = await open({
       configure: (fs) => {

@@ -3544,6 +3544,7 @@ describe('estate register (CORE-16)', () => {
     await distribution('paid-on', { paidOn: 'yesterday' });
     await distribution('share', { share: 7 });
     await distribution('review', { needsValueReview: true });
+    await distribution('payment-reference', { paymentReference: 'x'.repeat(301) });
     await assertSucceeds(
       setDoc(
         doc(firestore, `${MATTER}/distributions/minimal`),
@@ -3579,6 +3580,11 @@ describe('estate register (CORE-16)', () => {
     await assertFails(updateDoc(liability, stamped({ amountCents: 1.25 }, uid)));
     const distribution = doc(firestore, `${MATTER}/distributions/edit-1`);
     await assertSucceeds(updateDoc(distribution, stamped({ status: 'approved' }, uid)));
+    // BILL-12: a distribution paid from trust keeps the trust system's reference; nothing else follows.
+    await assertSucceeds(
+      updateDoc(distribution, stamped({ status: 'paid', paidOn: '2026-10-06', paymentReference: 'TR-0042' }, uid)),
+    );
+    await assertFails(updateDoc(distribution, stamped({ paymentReference: 42 }, uid)));
     await assertSucceeds(updateDoc(distribution, stamped({ needsValueReview: false }, uid)));
     await assertFails(updateDoc(distribution, stamped({ needsValueReview: true }, uid)));
     await assertFails(updateDoc(distribution, stamped({ amountCents: -1 }, uid)));

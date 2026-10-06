@@ -38,6 +38,7 @@ import {
   INVOICE_EXTRA_LINES_MAX,
   INVOICE_NOTES_MAX,
   INVOICE_WARNING_COPY,
+  PAID_FROM_TRUST_COPY,
   unitsToHours,
   type DateOnly,
   type InvoiceDraftFieldsInput,
@@ -63,6 +64,7 @@ import {
 import { dateText, extraLineForm, extraLinesFrom, invoiceSourcesFrom, type ExtraLineForm } from './invoices-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { writeDownTime } from '../billing/write-down';
 import { formatEntryDate, parseEntryDate } from '../time/time-view';
 
@@ -76,6 +78,7 @@ interface PreBillForm {
   extraLines: ExtraLineForm[];
   notes: string;
   paymentTermsDays: string;
+  paidFromTrust: boolean;
 }
 
 function formOf(invoice: InvoiceItem): PreBillForm {
@@ -88,6 +91,7 @@ function formOf(invoice: InvoiceItem): PreBillForm {
     extraLines: invoice.extraLines.map(extraLineForm),
     notes: invoice.notes,
     paymentTermsDays: String(invoice.paymentTermsDays),
+    paidFromTrust: invoice.paidFromTrust === true,
   };
 }
 
@@ -102,6 +106,7 @@ function savedFields(invoice: InvoiceItem): InvoiceDraftFieldsInput {
     extraLines: invoice.extraLines,
     notes: invoice.notes,
     paymentTermsDays: invoice.paymentTermsDays,
+    paidFromTrust: invoice.paidFromTrust === true,
   };
 }
 
@@ -346,6 +351,13 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
           [ngModel]="form().paymentTermsDays"
           (ngModelChange)="patch({ paymentTermsDays: $event ?? '' })"
         />
+        <mt-checkbox
+          name="paidFromTrust"
+          label="To be paid from trust"
+          [description]="trustCopy"
+          [ngModel]="form().paidFromTrust"
+          (ngModelChange)="patch({ paidFromTrust: !!$event })"
+        />
       </section>
 
       <section class="mt-card preview" aria-labelledby="pb-preview" data-testid="pre-bill-preview">
@@ -435,6 +447,16 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
           Due {{ termsText() }} after it’s issued. Rounding: GST is worked out on each line, to the nearest cent (half
           up), then added up.
         </p>
+        @if (form().paidFromTrust) {
+          <p class="caption t-3" data-testid="pre-bill-trust">
+            To be paid from trust.
+            {{
+              trustNoticeOn()
+                ? 'The notice of intended withdrawal prints on the invoice.'
+                : 'No withdrawal notice prints until the wording is approved.'
+            }}
+          </p>
+        }
       </section>
     </div>
   `,
@@ -603,6 +625,7 @@ export class PreBill {
   readonly invoice = input.required<WithId<InvoiceItem>>();
 
   private readonly context = inject(OrgContext);
+  private readonly flags = inject(FeatureFlagService);
   private readonly router = inject(Router);
   private readonly dialogs = inject(DialogService);
   private readonly toasts = inject(ToastService);
@@ -617,6 +640,8 @@ export class PreBill {
   protected readonly warningCopy = INVOICE_WARNING_COPY;
   protected readonly extraMax = INVOICE_EXTRA_LINES_MAX;
   protected readonly notesMax = INVOICE_NOTES_MAX;
+  protected readonly trustCopy = PAID_FROM_TRUST_COPY;
+  protected readonly trustNoticeOn = computed(() => this.flags.isOn('billing.trustNotice'));
 
   protected readonly matterId = computed(() => this.invoice().matterId);
   private readonly matter = matterDetailRepository().watch(() => this.matterId());
@@ -705,6 +730,7 @@ export class PreBill {
       extraLines: this.extras().lines,
       notes: form.notes,
       paymentTermsDays: this.terms() ?? this.invoice().paymentTermsDays,
+      paidFromTrust: form.paidFromTrust,
     };
   });
 

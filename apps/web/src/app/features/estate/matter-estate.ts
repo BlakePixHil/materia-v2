@@ -342,7 +342,10 @@ const MAX_EXPORT_PAGES = 50;
               <li [attr.data-review]="row.needsValueReview ? '' : null">
                 <span class="mt-grow">
                   <span class="label">{{ beneficiaryName(row.beneficiaryPartyId) }}</span>
-                  <span class="caption t-2">{{ kindLabel(row) }} · {{ gift(row) }} · {{ statusLabel(row) }}</span>
+                  <span class="caption t-2"
+                    >{{ kindLabel(row) }} · {{ gift(row) }} · {{ statusLabel(row)
+                    }}{{ row.paymentReference ? ' · Ref ' + row.paymentReference : '' }}</span
+                  >
                   @if (row.needsValueReview) {
                     <span class="caption review">
                       <mt-icon name="alert" [size]="14" /> Needs review: an asset’s value changed after this was
