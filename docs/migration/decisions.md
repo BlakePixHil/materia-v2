@@ -279,7 +279,7 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
   - **Rollback:** finds the run's documents by `migration.runId`, deletes what v2 hung under them, its matter numbers and its files, and the org when the run created it. It refuses while records it didn't load sit under ones it did. While it runs, the run's record says `rolling_back`, so the audit trigger leaves its deletes out; it records one entry instead, or goes with the org.
   - **Delta:** applies a run already exported (`--since`), transformed (`--base-run`) and copied, each step with its own credentials, rather than chaining them. A record the delta finds unchanged keeps the run that loaded it. Deletions found in the export's list of paths are reported, and deleted only with `--apply-deletes`, never when changed in v2.
   - **Not set:** the user's `avatarUrl`. The photo is copied (D-18), and the user picks it in Settings → Profile.
-  - **Evidence:** the emulator test loads a made-up run, verifies it reading every record as the member through the rules, keeps a v2 edit on a reload, and rolls back to what was there before. The ticket's staging rehearsal becomes the dev rehearsal in MIG-07 (D-15).
+  - **Evidence:** the emulator test loads MIG-03's golden output (D-19) with its files copied, verifies it reading every record as the member through the rules, keeps a v2 edit on a reload, and rolls back to what was there before. The ticket's staging rehearsal becomes the dev rehearsal in MIG-07 (D-15).
 
 ## Descoped
 

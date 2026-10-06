@@ -1,4 +1,3 @@
-import { domain } from '../domain.ts';
 import {
   FIXTURE_ORG,
   FIXTURE_PATHS,
@@ -28,8 +27,7 @@ describe('readRun', () => {
       ['counters', 1],
       ['matter-numbers', 1],
       ['contacts', 1],
-      // Migratable with MIG-03's domain change.
-      ['checklist-templates', 'migration' in domain.ChecklistTemplate.schema.shape ? 1 : 0],
+      ['checklist-templates', 1],
       ['matters', 1],
       ['parties', 1],
       ['tasks', 1],
@@ -97,6 +95,11 @@ describe('readRun', () => {
     more.files['transformed/deadlines.jsonl'] = { count: 0, sha256: sha256('') };
     unknown.set('report.json', JSON.stringify(more));
     await expect(read({}, false, unknown)).rejects.toThrow(/deadlines.jsonl, which this load doesn't know/);
+
+    // A run's folder holding another run's lines: its rollback would never find them.
+    await expect(read({}, false, fixtureRun({ runId: 'run-other' }))).rejects.toThrow(
+      /line 1 carries run run-other: transform it again as run-fixture/,
+    );
   });
 
   it('refuses documents copied from another transform, or not copied at all', async () => {

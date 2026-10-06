@@ -79,8 +79,6 @@ export function encodeInstants(value: unknown): unknown {
 }
 
 /** Whether an entity's documents carry `migration` (the transform writes only those). */
-const canMigrate = (entity: { schema: z.ZodType }) => 'migration' in ((entity.schema as z.ZodObject).shape ?? {});
-
 const meta = { createdAt: CREATED, createdBy: FIXTURE_UID, updatedAt: UPDATED, updatedBy: FIXTURE_UID };
 
 function line(
@@ -214,16 +212,15 @@ export function fixtureLines(runId: string): Record<string, FixtureLine[]> {
         runId,
       ),
     ],
-    // Checklist templates become migratable with MIG-03's domain change; until then the run has none.
-    'checklist-templates': (canMigrate(d.ChecklistTemplate) ? [d.ChecklistTemplate] : []).map((entity) =>
+    'checklist-templates': [
       line(
-        entity,
+        d.ChecklistTemplate,
         P.template,
         `${profile}#checklist-template/probate`,
         { name: 'Probate kick-off', items: ['Order the death certificate'], priority: 'high' },
         runId,
       ),
-    ),
+    ],
     matters: [
       line(
         d.Matter,

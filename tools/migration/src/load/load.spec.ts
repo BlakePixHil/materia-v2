@@ -1,4 +1,3 @@
-import { domain } from '../domain.ts';
 import { FIXTURE_ORG, FIXTURE_PATHS, FIXTURE_UID, fixtureRun, type FixtureOptions } from './fixture.ts';
 import { LoadRefusedError, runLoad, type LoadArgs, type LoadReport } from './load.ts';
 import { memoryAuth, memoryDb } from './testing.ts';
@@ -8,7 +7,6 @@ import { memorySink } from '../export/sink.ts';
 const NOW = new Date('2026-10-06T10:00:00.000Z');
 const P = FIXTURE_PATHS;
 const ORG_NAME = 'Rivers Estate Law (Fictional)';
-const templates = 'migration' in domain.ChecklistTemplate.schema.shape;
 
 function setup(
   options: FixtureOptions = {},
@@ -70,7 +68,7 @@ describe('runLoad', () => {
     expect(s.sink.files.has('load/report.json')).toBe(false);
     expect(report).toMatchObject({ dryRun: true, complete: false, conflicts: [] });
     expect(report.counts['matters']).toMatchObject({ lines: 1, create: 1 });
-    expect(total(report, 'create')).toBe(templates ? 13 : 12);
+    expect(total(report, 'create')).toBe(13);
     expect(s.logs.join('\n')).toMatch(/matters\s+1 lines: 1 create/);
     expect(s.logs.at(-1)).toBe('Dry run: nothing written.');
   });
@@ -94,7 +92,6 @@ describe('runLoad', () => {
       expect(order.indexOf(earlier), `${earlier} before ${later}`).toBeLessThan(order.indexOf(later));
     }
     for (const path of Object.values(P)) {
-      if (path === P.template && !templates) continue;
       expect(s.target.get(path), path).toBeDefined();
     }
     expect(s.target.get(P.matter)?.['migration']).toEqual({
@@ -136,7 +133,7 @@ describe('runLoad', () => {
     const writesBefore = s.target.writes.length;
     const again = await s.load();
     expect(total(again, 'create') + total(again, 'update')).toBe(0);
-    expect(total(again, 'unchanged') + total(again, 'keep')).toBe(templates ? 13 : 12);
+    expect(total(again, 'unchanged') + total(again, 'keep')).toBe(13);
     expect(again.conflicts).toEqual([]);
     // Only the run record, the claims mirror and the audit entry.
     const paths = s.target.writes.slice(writesBefore).map((op) => op.path);

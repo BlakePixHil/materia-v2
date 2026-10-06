@@ -147,6 +147,11 @@ export async function readRun(sink: RunSink, runId: string, options: ReadOptions
         }
       }
       data = restamp(phase, data, options.now);
+      const lineRun = (data['migration'] as { runId?: unknown } | undefined)?.runId;
+      if (lineRun !== undefined && lineRun !== runId) {
+        // Its rollback, which finds the run's records by `migration.runId`, would miss them.
+        throw new TransformOutputError(`${where} carries run ${String(lineRun)}: transform it again as ${runId}.`);
+      }
       const parsed = (phase.entity.schema as z.ZodType<Data>).safeParse(data);
       if (!parsed.success) throw new TransformOutputError(`${where}: ${firstIssue(parsed.error)}.`);
       const { copy, result } = line.data;
