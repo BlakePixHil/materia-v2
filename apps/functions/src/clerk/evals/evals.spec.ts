@@ -88,6 +88,26 @@ describe('the eval executor', () => {
     expect(await run({ ...restricted, role: 'lawyer' })).toContain(secret.id);
   });
 
+  it('records what a chat answer drafts (AI-06b), without saving anything', async () => {
+    const model = new FakeClerkModel([
+      {
+        toolUses: [
+          { name: 'draft_note', input: { text: 'Called Alistair about the valuation.' } },
+          { name: 'draft_task', input: { title: 'Call the valuer', dueDate: '2026-03-21' } },
+        ],
+      },
+      { chunks: ['Drafted both: confirm them below.'] },
+    ]);
+    const outcome = await createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' })(
+      request(caseById('chat-015')),
+    );
+    expect(outcome.drafts).toEqual([
+      { kind: 'note', text: 'Called Alistair about the valuation.' },
+      { kind: 'task', text: 'Call the valuer · 2026-03-21' },
+    ]);
+    expect(JSON.stringify(model.requests[1]?.messages.slice(-1))).toContain('waiting below your answer');
+  });
+
   it('forces the model under test, with no availability fallbacks', async () => {
     const model = new FakeClerkModel([{ error: new ClerkModelError('overloaded') }], () => ({
       error: new ClerkModelError('overloaded'),
@@ -344,7 +364,7 @@ describe('the eval CLI', () => {
     const args = ['--feature=privilege', '--subset', '--accept-baseline', `--out=${out}`];
     expect(await main(args, { ...clean.io, root, model: new FakeClerkModel() })).toBe(0);
     const baselines = JSON.parse(readFileSync(path.join(root, 'baselines.json'), 'utf8'));
-    expect(baselines.privilege['chat@1.0.0']).toMatchObject({
+    expect(baselines.privilege['chat@1.1.0']).toMatchObject({
       model: 'claude-sonnet-5-5',
       acceptedAt: '2026-03-20',
     });

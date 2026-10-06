@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import * as z from 'zod';
 
 import {
+  can,
   Deadline,
   DEADLINE_CALLABLES,
   DeadlineChange,
@@ -32,6 +33,34 @@ import type { CallableClient } from './callable-client';
 import { OrgContext } from './org-context';
 import type { QuerySpec } from './query';
 import { groupRepo, repo, type GroupRepository, type Repository } from './repository';
+
+/**
+ * A group repository whose queries prove `privileged == false` for roles without
+ * `privileged.view` (CORE-10b): a cross-matter query can't check each record's matter, so the rules
+ * read the copy of the matter's flag every deadline and proposal carries. Each such query has an
+ * index with `privileged` after `orgId`. A live query waits until the role is known; a one-off read
+ * before then asks for non-privileged records only.
+ */
+function privilegeScoped<T extends { privileged?: boolean | undefined }>(
+  group: GroupRepository<T>,
+): GroupRepository<T> {
+  const context = inject(OrgContext);
+  const scope = (spec: QuerySpec<T> = {}): QuerySpec<T> => {
+    const role = context.role();
+    if (role && can(role, 'privileged.view')) return spec;
+    return { ...spec, where: [['privileged', '==', false], ...(spec.where ?? [])] };
+  };
+  return {
+    query: (spec) => group.query(scope(spec)),
+    count: (spec) => group.count(scope(spec)),
+    watchQuery: (spec, options) =>
+      group.watchQuery(() => {
+        if (!context.role()) return null;
+        const resolved = typeof spec === 'function' ? spec() : spec;
+        return resolved ? scope(resolved) : null;
+      }, options),
+  };
+}
 
 const deadline = Deadline.schema.shape;
 
@@ -67,13 +96,18 @@ export const DeadlineItemSchema = /* @__PURE__ */ z.object({
   escalatedAt: deadline.escalatedAt,
   escalatedTo: deadline.escalatedTo,
   pastOnCreation: deadline.pastOnCreation,
+  /** The matter's flag (CORE-10b); absent on deadlines written before it. */
+  privileged: deadline.privileged.optional(),
   updatedAt: deadline.updatedAt.optional(),
   updatedBy: deadline.updatedBy.optional(),
   deletedAt: SoftDeleteShape.deletedAt,
 });
 export type DeadlineItem = z.infer<typeof DeadlineItemSchema>;
 
-/** What a form gives a new manual deadline; the repository adds org, matter and status. */
+/**
+ * What a form gives a new manual deadline, plus the matter's `privileged` flag (the rules check it
+ * matches); the repository adds org, matter and status.
+ */
 export type NewManualDeadlineFields = Omit<z.input<typeof ManualDeadlineCreateInput>, 'orgId' | 'matterId' | 'status'>;
 
 /**
@@ -110,9 +144,12 @@ export function matterDeadlineRepository(matterId: () => string | null): Reposit
   };
 }
 
-/** Deadlines across the org's matters (the `deadlines` collection group, scoped to the active org). */
+/**
+ * Deadlines across the org's matters (the `deadlines` collection group, scoped to the active org),
+ * without privileged matters' for roles that can't see them (CORE-10b).
+ */
 export function deadlineGroupRepository(): GroupRepository<DeadlineItem> {
-  return groupRepo('deadlines', { schema: DeadlineItemSchema, version: Deadline.version });
+  return privilegeScoped(groupRepo('deadlines', { schema: DeadlineItemSchema, version: Deadline.version }));
 }
 
 /**
@@ -196,6 +233,8 @@ export const DeadlineChangeItemSchema = /* @__PURE__ */ z.object({
   assigneeUid: change.assigneeUid,
   resolvedBy: change.resolvedBy,
   resolvedAt: change.resolvedAt,
+  /** The matter's flag (CORE-10b); absent on proposals written before it. */
+  privileged: change.privileged.optional(),
   createdAt: change.createdAt.optional(),
 });
 export type DeadlineChangeItem = z.infer<typeof DeadlineChangeItemSchema>;
@@ -208,9 +247,14 @@ export function matterDeadlineChangeRepository(matterId: () => string | null): R
   });
 }
 
-/** Proposals across the org's matters (the `deadlineChanges` collection group). */
+/**
+ * Proposals across the org's matters (the `deadlineChanges` collection group), without privileged
+ * matters' for roles that can't see them (CORE-10b).
+ */
 export function deadlineChangeGroupRepository(): GroupRepository<DeadlineChangeItem> {
-  return groupRepo('deadlineChanges', { schema: DeadlineChangeItemSchema, version: DeadlineChange.version });
+  return privilegeScoped(
+    groupRepo('deadlineChanges', { schema: DeadlineChangeItemSchema, version: DeadlineChange.version }),
+  );
 }
 
 /** A matter's pending proposals (equality only: no composite index). */

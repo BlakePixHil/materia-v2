@@ -361,8 +361,8 @@ import { CitationViewer } from '../citations/citation-viewer';
             <div class="empty">
               <h2>Ask Clerk about {{ scope()?.label }}</h2>
               <p>
-                Clerk answers from this matter’s facts, notes and documents, and cites its sources. It can’t change
-                anything: anything it suggests waits for you to accept it.
+                Clerk answers from this matter’s facts, notes and documents, and cites its sources. Ask it to add a file
+                note or a task and it drafts one; nothing changes until you accept it.
               </p>
             </div>
           }

@@ -26,8 +26,8 @@ import { FakeClock, FakeTaskQueue } from '../../src/ports/fakes';
  * matter's deadlines (new, changed and removed), proposals and their decisions (a critical one
  * needs the matter number typed), overrides and the conflict flag, completion and its audit,
  * concurrent recomputes, matter.nextDeadline from the deadlines-onWrite trigger, a blocked deadline
- * when calendar data is missing, and the rule-set upgrade backfill, by hand and by the hourly job.
- * Everything is fictional.
+ * when calendar data is missing, the rule-set upgrade backfill, by hand and by the hourly job, and
+ * the matter's privileged flag copied to its records (CORE-10b). Everything is fictional.
  */
 const PROJECT_ID = 'demo-materia';
 const ORG = 'org-deadlines';
@@ -291,6 +291,7 @@ describe('recompute', () => {
       status: 'upcoming',
       assigneeUid: uid,
       reminders: [],
+      privileged: false,
       createdAt: serverTimestamp(),
       createdBy: uid,
       updatedAt: serverTimestamp(),
@@ -309,6 +310,22 @@ describe('recompute', () => {
         updatedBy: uid,
       }),
     ).rejects.toBeTruthy();
+  });
+
+  it('copies the matter’s privileged flag to its events, deadlines and proposals as it changes (CORE-10b)', async () => {
+    const flags = async () => {
+      const snaps = await Promise.all(
+        ['events', 'deadlines', 'deadlineChanges'].map((collection) => db.collection(`${MATTER}/${collection}`).get()),
+      );
+      return snaps.flatMap((snap) => snap.docs.map((d) => d.get('privileged') as unknown));
+    };
+    const before = await flags();
+    expect(before.length).toBeGreaterThan(3);
+    expect(new Set(before)).toEqual(new Set([false]));
+    await db.doc(MATTER).update({ privileged: true });
+    expect(new Set(await poll(flags, (values) => values.every((value) => value === true)))).toEqual(new Set([true]));
+    await db.doc(MATTER).update({ privileged: false });
+    expect(new Set(await poll(flags, (values) => values.every((value) => value === false)))).toEqual(new Set([false]));
   });
 });
 
