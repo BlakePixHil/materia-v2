@@ -102,6 +102,7 @@ async function restoreInto(
   }
   opts.log(`  restoring ${picked.from} (snapshot ${picked.snapshotTime}) into ${database}`);
   await api.wait(op);
+  await api.waitServing(database);
   return picked;
 }
 
@@ -111,11 +112,18 @@ async function restoreInto(
  */
 export async function deleteLeftovers(api: AdminApi, log: (line: string) => void): Promise<string[]> {
   const leftovers = (await api.listDatabases()).filter((id) => id.startsWith('drill-'));
+  const deleted = [];
   for (const id of leftovers) {
-    await api.wait(await api.deleteDatabase(id));
-    log(`deleted leftover ${id}`);
+    try {
+      await api.wait(await api.deleteDatabase(id));
+      deleted.push(id);
+      log(`deleted leftover ${id}`);
+    } catch (error) {
+      // Still restoring, most likely; the next run tries again.
+      log(`could not delete leftover ${id}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
-  return leftovers;
+  return deleted;
 }
 
 export async function drill(
