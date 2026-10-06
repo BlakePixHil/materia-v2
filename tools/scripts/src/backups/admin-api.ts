@@ -126,6 +126,12 @@ export class AdminApi {
     });
   }
 
+  /** The ids of the project's databases. */
+  async listDatabases(): Promise<string[]> {
+    const res = await this.call<{ databases?: { name: string }[] }>(`${FIRESTORE}/projects/${this.project}/databases`);
+    return (res.databases ?? []).map((d) => d.name.split('/').pop() as string);
+  }
+
   deleteDatabase(databaseId: string): Promise<Operation> {
     return this.call(`${FIRESTORE}/${this.databaseName(databaseId)}`, { method: 'DELETE' });
   }

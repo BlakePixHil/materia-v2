@@ -370,7 +370,8 @@ function defaultRunId(now: Date): string {
     .replace(/\.\d+Z$/, 'Z')}-${randomBytes(2).toString('hex')}`;
 }
 
-async function toolVersion(): Promise<string> {
+/** The package version and the commit, recorded in what a run writes. */
+export async function toolVersion(): Promise<string> {
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
   try {
     const { stdout } = await promisify(execFile)('git', ['rev-parse', '--short=12', 'HEAD'], {

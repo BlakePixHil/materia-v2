@@ -40,6 +40,19 @@ describe('AdminApi', () => {
     expect(calls[0]?.url).toBe(`${F}/projects/p/locations/australia-southeast1/backups`);
   });
 
+  it('lists database ids', async () => {
+    const { deps, calls } = scripted([
+      {
+        databases: [
+          { name: 'projects/p/databases/(default)' },
+          { name: 'projects/p/databases/drill-20261006-2100-backup' },
+        ],
+      },
+    ]);
+    expect(await new AdminApi(deps, 'p').listDatabases()).toEqual(['(default)', 'drill-20261006-2100-backup']);
+    expect(calls[0]?.url).toBe(`${F}/projects/p/databases`);
+  });
+
   it('restores, clones, creates, imports and deletes databases', async () => {
     const op = { name: 'projects/p/databases/x/operations/1', done: true };
     const { deps, calls } = scripted([op, op, op, op, op]);
