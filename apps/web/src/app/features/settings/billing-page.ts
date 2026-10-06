@@ -360,7 +360,6 @@ export class BillingSettingsPage implements HasUnsavedChanges {
   private readonly flags = inject(FeatureFlagService);
   protected readonly feeBudgetsOn = computed(() => this.flags.isOn('billing.feeBudgets'));
   protected readonly org = orgSettingsReadRepository().watch(() => this.context.orgId());
-  private readonly flags = inject(FeatureFlagService);
   /** Disbursement presets (BILL-04) show while their flag is on. */
   protected readonly disbursementsOn = computed(() => this.flags.isOn('billing.disbursements'));
 
