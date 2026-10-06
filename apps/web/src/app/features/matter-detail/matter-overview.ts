@@ -23,6 +23,7 @@ import { MatterScreen } from './matter-screen';
 import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { statutoryDisabled } from '../deadlines/statutory-flag';
+import { MatterFeePanel } from '../fees/matter-fee-panel';
 import { matterResolver, memberResolver } from '../notes/note-mentions';
 import { noteTime } from '../notes/note-time';
 import { activityTitle, mentionsAcross, noteAuthor, type NoteRecord } from '../notes/note-view';
@@ -45,6 +46,7 @@ const TASKS_SHOWN = 5;
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
   imports: [
     RouterLink,
+    MatterFeePanel,
     MatterKeyFacts,
     MatterSuggestions,
     MatterTrust,
@@ -76,6 +78,12 @@ const TASKS_SHOWN = 5;
         <div class="mt-card-h"><h2 class="mt-card-title" id="mt-ov-facts">Key facts</h2></div>
         <mt-matter-key-facts />
       </section>
+      @if (feesOn()) {
+        <!-- Its own chunk (BILL-05): the fee panel and its dialog load only when fee budgets are on. -->
+        @defer (on idle) {
+          <mt-matter-fee-panel />
+        }
+      }
       @if (suggestionsOn()) {
         <!-- Its own chunk (AI-07): the card, its editor and the callables load only when Clerk can suggest. -->
         @defer (on idle) {
@@ -236,6 +244,9 @@ export class MatterOverview {
   private readonly today = inject(MT_TODAY);
   private readonly flags = inject(FeatureFlagService);
   private readonly canClerk = can('clerk.use');
+  private readonly canBilling = can('billing.view');
+  /** Fee arrangements and budgets are on for the org and the role sees billing (BILL-05). */
+  protected readonly feesOn = computed(() => this.flags.isOn('billing.feeBudgets') && this.canBilling());
   /** Clerk suggestions are on for the org and the role may use Clerk (AI-07). */
   protected readonly suggestionsOn = computed(() => this.flags.isOn('clerk.features.suggestions') && this.canClerk());
   private readonly id = this.screen.id;

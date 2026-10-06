@@ -53,7 +53,15 @@ export const helloDefinition = {
         throw new DomainError('NOT_FOUND', 'Clerk thread not found');
     } else {
       thread = threads.doc();
-      await thread.create({ title: 'Clerk connectivity check', ownerUid: uid, matterId: null, shared: false, ...meta });
+      await thread.create({
+        title: 'Clerk connectivity check',
+        ownerUid: uid,
+        matterId: null,
+        shared: false,
+        privileged: false,
+        deletedAt: null,
+        ...meta,
+      });
     }
     const messages = thread.collection('messages');
     await messages.doc().create({
@@ -63,6 +71,8 @@ export const helloDefinition = {
       status: 'done',
       stopRequested: false,
       toolCalls: [],
+      suggestionIds: [],
+      privileged: false,
       ...meta,
     });
     const reply = messages.doc();
