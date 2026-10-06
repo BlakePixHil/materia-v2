@@ -1088,6 +1088,8 @@ export function buildDataset(options: {
         'billing.trustDisplay': true,
         // Fee arrangements, budgets and budget alerts on the Overview (BILL-05).
         'billing.feeBudgets': true,
+        // Costs disclosure tracking (BILL-06), illustrative until a practitioner signs it off (BILL-06a).
+        'billing.costsDisclosure': true,
         // Disbursements and their presets (BILL-04), awaiting practitioner review (BILL-04a).
         'billing.disbursements': true,
       },

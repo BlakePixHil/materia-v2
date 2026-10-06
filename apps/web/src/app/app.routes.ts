@@ -250,6 +250,14 @@ const shellRoutes: Route[] = [
         canActivate: [flagGuard('billing.invoicing'), roleGuard(BILLING_VIEW_ROLES)],
         loadComponent: () => import('./features/invoices/debtors-page').then((m) => m.DebtorsPage),
       },
+      // Outstanding costs disclosures (BILL-06): billing.view roles, behind its flag.
+      {
+        path: 'disclosures',
+        title: 'Costs disclosures',
+        data: { crumb: 'Costs disclosures' },
+        canActivate: [flagGuard('billing.costsDisclosure'), roleGuard(BILLING_VIEW_ROLES)],
+        loadComponent: () => import('./features/costs/disclosures-page').then((m) => m.DisclosuresPage),
+      },
     ],
   },
   // Insights (INS-02): practice figures from the INS-01 metrics rollups, for every member.

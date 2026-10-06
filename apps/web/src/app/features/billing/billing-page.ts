@@ -29,7 +29,7 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
  * Time and billing (`/billing`, BILL-03): the stats row (work in progress, recorded this week,
  * billable share), my FY budget card, then My time, WIP (billing.view) and Approvals
  * (time.approve). `?tab=wip` or `?tab=approvals` opens a tab. Record time opens quick entry (`t`);
- * Invoices opens the invoices list (BILL-07).
+ * Invoices opens the invoices list (BILL-07); Costs disclosures the outstanding disclosures (BILL-06).
  */
 @Component({
   selector: 'mt-billing-page',
@@ -56,6 +56,9 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
     <ng-template mtPageActions>
       @if (invoicesOn()) {
         <a mtButton variant="secondary" size="sm" iconStart="billing" routerLink="/billing/invoices">Invoices</a>
+      }
+      @if (disclosuresOn()) {
+        <a mtButton variant="ghost" size="sm" routerLink="/billing/disclosures">Costs disclosures</a>
       }
       @if (screen.canRecord()) {
         <button mtButton variant="primary" size="sm" iconStart="timer" kbd="t" (click)="record()">Record time</button>
@@ -223,6 +226,9 @@ export class BillingPage {
   protected readonly fyLimit = BillingScreen.FY_ENTRY_LIMIT;
   /** Invoices (BILL-07) for billing.view roles while `billing.invoicing` is on. */
   protected readonly invoicesOn = computed(() => this.flags.isOn('billing.invoicing') && this.screen.canViewBilling());
+  protected readonly disclosuresOn = computed(
+    () => this.flags.isOn('billing.costsDisclosure') && this.screen.canViewBilling(),
+  );
 
   protected readonly tab = signal<Tab>(initialTab(inject(ActivatedRoute).snapshot.queryParamMap.get('tab')));
   /** The chosen tab, or My time while (or if) I may not see it. */

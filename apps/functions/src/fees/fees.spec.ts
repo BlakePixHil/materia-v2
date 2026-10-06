@@ -283,3 +283,113 @@ describe('fees-update', () => {
     });
   });
 });
+
+describe('fees-update and the costs disclosure (BILL-06)', () => {
+  const deps = (w: ReturnType<typeof world>): CallableDeps => ({
+    db: () => w.db,
+    clock: w.clock,
+    ports: () => w.ports,
+    memberLookup: async () => true,
+    idempotency: {
+      begin: async () => ({ replay: false }),
+      complete: async () => undefined,
+      abandon: async () => undefined,
+    },
+    sink: () => undefined,
+  });
+  const revise = (w: ReturnType<typeof world>, amountCents: number) =>
+    runCallable(
+      updateDefinition,
+      {
+        data: {
+          requestId: randomUUID(),
+          matterId: 'm1',
+          reason: 'Probate application contested',
+          fee: { arrangement: 'fixed', amountCents },
+        },
+        auth: { uid: 'user-lawyer', token: { orgId: ORG, role: 'lawyer' } },
+      },
+      deps(w),
+    );
+  const sent = {
+    status: 'sent',
+    requirement: 'full',
+    bandId: 'full',
+    rulesVersion: 'vic-v1',
+    basisEstimateCents: 330000,
+    sentOn: '2026-09-01',
+    sentMethod: 'email',
+    sentEstimateCents: 330000,
+    sentBandId: 'full',
+    history: [],
+  };
+  /** The matter in Victoria with a disclosure; the flag on unless `flagOn` is false; the org's own percentage. */
+  const disclosed = (disclosure: Record<string, unknown>, flagOn = true, pct?: number) => {
+    const w = world();
+    w.docs.set(`orgs/${ORG}`, {
+      name: 'Harbour & Vine Legal',
+      timezone: 'Australia/Melbourne',
+      billing: pct ? { disclosureChangePct: pct } : {},
+      flags: { 'billing.feeBudgets': true, 'billing.costsDisclosure': flagOn },
+    });
+    w.docs.set(M, { ...w.doc(M), jurisdiction: 'VIC', costsDisclosure: disclosure });
+    return w;
+  };
+  const disclosure = (w: ReturnType<typeof world>) => w.doc(M)?.['costsDisclosure'] as Record<string, unknown>;
+  const audits = (w: ReturnType<typeof world>) =>
+    [...w.docs.entries()].filter(([path]) => path.startsWith(`orgs/${ORG}/audit/`)).map(([, d]) => d['action']);
+
+  it('makes a sent disclosure update-required on a significant rise, with a task and a notification', async () => {
+    const w = disclosed(sent);
+    await revise(w, 370000);
+    expect(disclosure(w)).toMatchObject({
+      status: 'update_required',
+      updateReasons: ['increase'],
+      requiredSince: '2026-10-09',
+      basisEstimateCents: 370000,
+      sentEstimateCents: 330000,
+      taskId: 'costs-disclosure-update-2026-10-09',
+    });
+    expect(w.doc(`${M}/tasks/costs-disclosure-update-2026-10-09`)).toMatchObject({
+      title: 'Send an updated costs disclosure',
+      assigneeUid: 'user-lawyer',
+      source: 'rule',
+    });
+    expect(w.notifications()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'costs_disclosure',
+          recipientUid: 'user-lawyer',
+          title: 'Updated costs disclosure needed: M-2026-0042',
+        }),
+      ]),
+    );
+    expect(audits(w)).toEqual(expect.arrayContaining(['matter.disclosure_update_required', 'matter.fee_revised']));
+  });
+
+  it('leaves it sent below the org’s percentage, and follows the org’s own', async () => {
+    const small = disclosed(sent);
+    await revise(small, 350000);
+    expect(disclosure(small)).toMatchObject({ status: 'sent', basisEstimateCents: 350000 });
+    expect(small.doc(`${M}/tasks/costs-disclosure-update-2026-10-09`)).toBeUndefined();
+    const strict = disclosed(sent, true, 5);
+    await revise(strict, 350000);
+    expect(disclosure(strict)).toMatchObject({ status: 'update_required', updateReasons: ['increase'] });
+  });
+
+  it('follows the estimate before one is given, and leaves the disclosure alone while the flag is off', async () => {
+    const w = disclosed({
+      ...sent,
+      status: 'required',
+      sentOn: undefined,
+      sentMethod: undefined,
+      requiredSince: '2026-10-01',
+    });
+    await revise(w, 50000);
+    expect(disclosure(w)).toMatchObject({ status: 'not_required', notRequiredReason: 'below_threshold' });
+    expect(disclosure(w)).not.toHaveProperty('requiredSince');
+    const off = disclosed(sent, false);
+    await revise(off, 900000);
+    expect(disclosure(off)).toEqual(sent);
+  });
+});
