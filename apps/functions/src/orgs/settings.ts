@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 import {
   DomainError,
+  INVOICE_COUNTER,
   MemberSecurityInput,
   PERMISSIONS,
   UpdateOrgSettingsInput,
@@ -14,6 +15,7 @@ import { syncClaims } from './claims';
 import { audit } from '../audit/audit';
 import { isDeleted } from '../contacts/shared';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
+import { counterPath } from '../matters/shared';
 import { remindable } from '../reminders/schedule';
 
 type Data = Record<string, unknown>;
@@ -120,11 +122,13 @@ export const updateSettingsDefinition = {
       });
     }
 
-    const counterRef = db.doc(`orgs/${orgId}/counters/invoices`);
+    // The counter `billing-issueInvoice` numbers from. Saved pre-bills (drafts) have no number yet,
+    // so only an issued (or since voided) invoice fixes the sequence.
+    const counterRef = db.doc(counterPath(orgId, INVOICE_COUNTER));
     if (input.nextInvoiceNumber !== undefined) {
       const counter = await counterRef.get();
       if (input.nextInvoiceNumber !== counter.get('next')) {
-        const issued = await db.collection(`orgs/${orgId}/invoices`).limit(1).get();
+        const issued = await db.collection(`orgs/${orgId}/invoices`).where('number', '>', '').limit(1).get();
         if (!issued.empty) {
           throw new DomainError('FAILED_PRECONDITION', 'Invoice numbers are gapless once the first invoice exists');
         }
