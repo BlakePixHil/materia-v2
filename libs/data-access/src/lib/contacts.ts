@@ -169,7 +169,10 @@ export function matterSummariesRepository(): Repository<MatterSummary> {
   return repo((orgId) => `orgs/${orgId}/matters`, { schema: MatterSummarySchema, version: Matter.version });
 }
 
-/** A matter in a referrer's "Referrals" section (CORE-18): what it is, where it is, and when it came in. */
+/**
+ * A matter in a referrer's "Referrals" section (CORE-18): what it is, where it is, when it came in,
+ * and its budget (BILL-05), whose `billedCents` the section totals for billing.view roles.
+ */
 export const ReferredMatterSchema = /* @__PURE__ */ z.object({
   number: matter.number,
   title: matter.title,
@@ -179,6 +182,7 @@ export const ReferredMatterSchema = /* @__PURE__ */ z.object({
   referrerContactId: matter.referrerContactId,
   createdAt: matter.createdAt.optional(),
   closedAt: matter.closedAt,
+  budget: matter.budget,
   deletedAt: SoftDeleteShape.deletedAt,
 });
 export type ReferredMatter = z.infer<typeof ReferredMatterSchema>;

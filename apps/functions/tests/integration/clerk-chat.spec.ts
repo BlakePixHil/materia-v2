@@ -240,6 +240,18 @@ describe('Clerk chat through the Functions emulator', () => {
       'NOT_FOUND',
     ]);
   });
+
+  it('refuses a question at once when the month’s spend limit is reached (AI-13)', async () => {
+    await db.doc(`orgs/${ORG}`).set({ settings: { clerk: { monthlyBudgetCents: 100 } } }, { merge: true });
+    const period = meteringPeriod(new Date());
+    await db.doc(`orgs/${ORG}/metrics/${period}`).set({ period, values: { tokens: 10, costMicros: 1_000_000 } });
+    await signInMember('clerk-chat-lawyer', ORG);
+    expect(await callError(send({ matterId: MATTER, text: 'Who is the executor?' }))).toEqual([
+      'functions/resource-exhausted',
+      'CLERK_BUDGET_EXCEEDED',
+    ]);
+    expect((await db.collection(`orgs/${ORG}/clerkThreads`).get()).empty).toBe(true);
+  });
 });
 
 describe('Clerk chat history on Firestore', () => {

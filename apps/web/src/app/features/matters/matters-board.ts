@@ -14,13 +14,21 @@ import {
   untracked,
 } from '@angular/core';
 
-import { MATTER_CALLABLES, mattersRepository } from '@materia/data-access/repository';
+import { OrgContext } from '@materia/data-access';
 import {
+  MATTER_CALLABLES,
+  mattersRepository,
+  orgBoardSettingsRepository,
+  withBoardWipLimitSetting,
+} from '@materia/data-access/repository';
+import {
+  boardWipState,
   MATTER_BOARD_COLUMN_PAGE,
   MATTER_STATUS_LABELS,
   planBoardMove,
   rebalanceBoardOrders,
   transitionRequirements,
+  type BoardWipState,
   type ChangeMatterStageResult,
   type ChangeMatterStatusResult,
   type MatterStatus,
@@ -43,12 +51,14 @@ import { MatterNameDialog, type MatterNameDialogData } from './matter-name-dialo
 import {
   buildLanes,
   cardSpots,
+  cellLabel,
   columnIndex,
   moveAnnouncement,
   movedCards,
   placeCards,
   sortCards,
   STATUS_KIND,
+  wipWarning,
   type BoardCard,
   type BoardCell,
   type BoardColumn,
@@ -57,6 +67,7 @@ import {
   type PendingPlacement,
 } from './matters-board-view';
 import { changeStatusErrorCopy, type MatterRow } from './matters-view';
+import { WipLimitDialog, type WipLimitDialogData } from './wip-limit-dialog';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { isEditable } from '../../core/shortcuts/shortcut.service';
@@ -83,6 +94,10 @@ const SETTLE_MS = 15_000;
  * `matters-changeStatus` or `matters-changeStage`, which validate it; a refusal puts the card back
  * with a toast saying why. The order within a column is the matter's `boardOrder` (a midpoint of
  * its neighbours; `matters-rebalanceBoard` when precision runs out). Moves are announced.
+ *
+ * WIP limits (CORE-04a): owners and admins set a column's limit from its menu (kept on the org).
+ * A column with one counts its matters against it ("7 / 5", in a warning tone once over); a move
+ * past the limit still goes ahead, with one warning per column while the board is open.
  */
 @Component({
   selector: 'mt-matters-board',
@@ -120,12 +135,43 @@ const SETTLE_MS = 15_000;
                 <div class="col-head">
                   <mt-status-icon [status]="headIcon(cell.column)" [label]="cell.column.title" />
                   <h3 class="col-title" [mtTooltip]="cell.column.description ?? ''">{{ cell.column.title }}</h3>
-                  <span class="mt-count">{{ cell.cards.length }}</span>
+                  @let limit = limitOf(cell.column);
+                  @if (!limit || swimlanes()) {
+                    <span class="mt-count">{{ cell.cards.length }}</span>
+                  }
+                  @if (limit) {
+                    <span
+                      class="mt-count wip"
+                      [attr.data-wip]="wipOf(cell.column)"
+                      [mtTooltip]="wipTip(cell.column, limit)"
+                      >{{ totalOf(cell.column) }} / {{ limit }}</span
+                    >
+                  }
+                  @if (canSetLimits() && cell.column.wipKey && orgLoaded()) {
+                    <button
+                      mtIconButton
+                      class="col-menu"
+                      icon="more"
+                      size="sm"
+                      [label]="cell.column.title + ' column options'"
+                      [mtMenuTrigger]="columnMenu"
+                    ></button>
+                    <ng-template #columnMenu>
+                      <mt-menu [attr.aria-label]="cell.column.title + ' column options'">
+                        <button mtMenuItem (click)="editLimit(cell.column)">
+                          {{ limit ? 'Change WIP limit…' : 'Set WIP limit…' }}
+                        </button>
+                        @if (limit) {
+                          <button mtMenuItem (click)="saveLimit(cell.column, null)">Remove WIP limit</button>
+                        }
+                      </mt-menu>
+                    </ng-template>
+                  }
                 </div>
                 <div
                   class="cards"
                   role="list"
-                  [attr.aria-label]="cellLabel(lane, cell)"
+                  [attr.aria-label]="listLabel(lane, cell)"
                   cdkDropList
                   [cdkDropListData]="cellRef(lane, cell)"
                   [cdkDropListEnterPredicate]="canEnter"
@@ -189,6 +235,7 @@ const SETTLE_MS = 15_000;
       }
     </div>
   `,
+  styleUrls: ['../../../../../../libs/ui/src/generated/components/count.css'],
   styles: `
     :host {
       flex: 1;
@@ -253,6 +300,19 @@ const SETTLE_MS = 15_000;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .col-head .mt-count {
+      flex: none;
+      white-space: nowrap;
+    }
+    /* Over its WIP limit (CORE-04a). */
+    .mt-count[data-wip='over'] {
+      background: var(--bg-warning-subtle);
+      color: var(--text-warning);
+    }
+    .col-menu {
+      margin-left: auto;
+      flex: none;
     }
     .cards {
       display: flex;
@@ -348,7 +408,9 @@ export class MattersBoard {
   private readonly callables = inject(CALLABLES);
   private readonly dialogs = inject(DialogService);
   private readonly toasts = inject(ToastService);
+  private readonly context = inject(OrgContext);
   private readonly mattersRepo = mattersRepository();
+  private readonly orgRepo = orgBoardSettingsRepository();
 
   /** The view's matters on the board (already filtered). */
   readonly rows = input.required<readonly MatterRow[]>();
@@ -364,6 +426,8 @@ export class MattersBoard {
   readonly templatesOn = input(false);
   /** Opens a card's matter (an input: the board is created through NgComponentOutlet). */
   readonly openMatter = input<(row: MatterRow) => void>(() => undefined);
+  /** `org.settings` (owners and admins): set the columns' WIP limits. */
+  readonly canSetLimits = input(false);
 
   /** Long-press to drag on touch, so a finger still scrolls the board. */
   protected readonly touchDelay = { touch: 400, mouse: 0 };
@@ -375,6 +439,8 @@ export class MattersBoard {
   private readonly limits = signal<Readonly<Record<string, number>>>({});
   /** Cards moved here lately: the server catching up with them isn't someone else's move. */
   private readonly recent = new Map<string, number>();
+  /** Columns already warned about going over their WIP limit while the board is open. */
+  private readonly warned = new Set<string>();
   private follow: { id: string; until: number } | null = null;
 
   private readonly cards = computed(() => placeCards(this.rows(), this.columns(), this.pending()));
@@ -391,6 +457,18 @@ export class MattersBoard {
   private readonly kind = computed(() => this.columns()[0]?.kind ?? 'status');
   /** Moving between columns: statuses need `matter.status`; stages need `matter.edit`. */
   protected readonly canMoveAcross = computed(() => (this.kind() === 'status' ? this.canStatus() : this.canEdit()));
+
+  /** The org's WIP limits (CORE-04a); none while the org loads or when it can't be read. */
+  private readonly org = this.orgRepo.watch(() => this.context.orgId());
+  private readonly wipLimits = computed(() => this.org.value()?.settings?.board?.wipLimits ?? {});
+  /** A limit is saved with the rest of the org's settings, so only once they've loaded. */
+  protected readonly orgLoaded = computed(() => !!this.org.value());
+  /** Every column's matters on the board, across lanes (what a WIP limit counts). */
+  private readonly totals = computed(() => {
+    const totals = new Map<string, number>();
+    for (const card of this.cards()) totals.set(card.column, (totals.get(card.column) ?? 0) + 1);
+    return totals;
+  });
 
   constructor() {
     // Moves the server has confirmed stop overriding it.
@@ -471,9 +549,65 @@ export class MattersBoard {
     return column.status ? STATUS_KIND[column.status] : column.droppable ? 'active' : 'draft';
   }
 
-  protected cellLabel(lane: BoardLane, cell: BoardCell): string {
-    const count = cell.cards.length === 1 ? '1 matter' : `${cell.cards.length} matters`;
-    return this.swimlanes() ? `${cell.column.title}, ${lane.label}: ${count}` : `${cell.column.title}: ${count}`;
+  protected listLabel(lane: BoardLane, cell: BoardCell): string {
+    return cellLabel({
+      column: cell.column.title,
+      ...(this.swimlanes() ? { lane: lane.label } : {}),
+      count: cell.cards.length,
+      total: this.totalOf(cell.column),
+      limit: this.limitOf(cell.column),
+    });
+  }
+
+  // ---------- WIP limits (CORE-04a) ----------
+
+  protected limitOf(column: BoardColumn): number | undefined {
+    return column.wipKey ? this.wipLimits()[column.wipKey] : undefined;
+  }
+
+  protected totalOf(column: BoardColumn): number {
+    return this.totals().get(column.id) ?? 0;
+  }
+
+  protected wipOf(column: BoardColumn): BoardWipState {
+    return boardWipState(this.totalOf(column), this.limitOf(column));
+  }
+
+  protected wipTip(column: BoardColumn, limit: number): string {
+    const total = this.totalOf(column);
+    return `${total} ${total === 1 ? 'matter' : 'matters'} in the column; WIP limit ${limit}`;
+  }
+
+  protected async editLimit(column: BoardColumn): Promise<void> {
+    const initial = this.limitOf(column);
+    const data: WipLimitDialogData = { column: column.title, ...(initial ? { initial } : {}) };
+    const limit = await this.dialogs.open<WipLimitDialogData, number | undefined>(WipLimitDialog, { data }).result;
+    if (limit !== undefined && limit !== initial) await this.saveLimit(column, limit);
+  }
+
+  /** Saves a column's limit on the org (`null` removes it), keeping the org's other settings. */
+  protected async saveLimit(column: BoardColumn, limit: number | null): Promise<void> {
+    const orgId = this.context.orgId();
+    if (!orgId || !column.wipKey || !this.orgLoaded()) return;
+    try {
+      await this.orgRepo.update(orgId, {
+        settings: withBoardWipLimitSetting(this.org.value()?.settings, column.wipKey, limit),
+      });
+      // A new limit gets its own warning.
+      this.warned.delete(column.id);
+      const title = limit === null ? `${column.title} has no WIP limit` : `${column.title}’s WIP limit is ${limit}`;
+      this.toasts.show({ title, tone: 'success' });
+    } catch (error) {
+      this.toasts.show({ title: 'The WIP limit didn’t save', description: errorCopy(error), tone: 'danger' });
+    }
+  }
+
+  /** The first move that takes a column past its limit warns; later ones don't, while the board is open. */
+  private warnIfOver(column: BoardColumn, total: number): void {
+    const limit = this.limitOf(column);
+    if (!limit || total <= limit || this.warned.has(column.id)) return;
+    this.warned.add(column.id);
+    this.toasts.show(wipWarning(column.title, total, limit));
   }
 
   /** The drop list's data, kept stable between renders so CDK doesn't see a new container. */
@@ -603,6 +737,7 @@ export class MattersBoard {
           this.refused(row, column, error);
           return;
         }
+        this.warnIfOver(column, total);
       }
       try {
         if (plan.kind === 'order') await this.mattersRepo.update(row.id, { boardOrder: plan.order });

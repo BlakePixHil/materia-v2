@@ -180,6 +180,15 @@ describe('Settings → Clerk and AI', () => {
     expect(page.text()).not.toContain('I’ve read this');
   });
 
+  it('folds the long reading away once acknowledged: the disclosure, data and retention, cost breakdown', async () => {
+    const page = await open('/settings/clerk', ADMIN, { ackVersion: CLERK_DISCLOSURE_VERSION });
+    expect(page.page().querySelector('[data-acknowledged]')?.textContent?.replace(/\s+/g, ' ').trim()).toMatch(
+      /^Acknowledged by .+\S\.$/,
+    );
+    for (const selector of ['details.disclosure', 'details[data-retention]', 'details[data-breakdown]'])
+      expect(page.page().querySelector(selector)?.hasAttribute('open'), selector).toBe(false);
+  });
+
   it('turns a feature and Clerk itself off at once', async () => {
     const page = await open('/settings/clerk', ADMIN, { ackVersion: CLERK_DISCLOSURE_VERSION });
     await page.flip('[data-feature="chat"]');

@@ -1,0 +1,162 @@
+[
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001/attachments/a77a0000-0000-4000-8000-000000000001",
+    "data": {
+      "id": "a77a0000-0000-4000-8000-000000000001",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-111111111111",
+      "cardId": "WillsCardAuto0000001",
+      "originalFileName": "fictional-file.pdf",
+      "storagePath": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001/attachments/a77a0000-0000-4000-8000-000000000001.pdf",
+      "fileExtension": ".pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 120000,
+      "uploadedBy": "AlexRiversLegacyUid000000001",
+      "uploadedAt": "2025-02-01T00:00:00.000Z",
+      "downloadUrl": "https://firebasestorage.googleapis.com/v0/b/fictional/o/x?alt=media&token=not-a-real-token",
+      "createdBy": "AlexRiversLegacyUid000000001",
+      "modifiedBy": "AlexRiversLegacyUid000000001",
+      "createdOn": "2025-02-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001/attachments/a77a0000-0000-4000-8000-000000000002",
+    "data": {
+      "id": "a77a0000-0000-4000-8000-000000000002",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-111111111111",
+      "cardId": "WillsCardAuto0000001",
+      "originalFileName": "fictional-file.jpg",
+      "storagePath": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001/attachments/a77a0000-0000-4000-8000-000000000002.jpg",
+      "fileExtension": ".jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 80000,
+      "uploadedBy": "JordanEllisLegacyUid00000002",
+      "uploadedAt": "2025-02-01T00:00:00.000Z",
+      "downloadUrl": "https://firebasestorage.googleapis.com/v0/b/fictional/o/x?alt=media&token=not-a-real-token",
+      "createdBy": "AlexRiversLegacyUid000000001",
+      "modifiedBy": "AlexRiversLegacyUid000000001",
+      "createdOn": "2025-02-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000003",
+    "data": {
+      "id": "a77a0000-0000-4000-8000-000000000003",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-111111111111",
+      "cardId": "WillsCardAuto0000002",
+      "originalFileName": "fictional-file.svg",
+      "storagePath": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000003.svg",
+      "fileExtension": ".svg",
+      "mimeType": "image/svg+xml",
+      "sizeBytes": 2000,
+      "uploadedBy": "AlexRiversLegacyUid000000001",
+      "uploadedAt": "2025-02-01T00:00:00.000Z",
+      "downloadUrl": "https://firebasestorage.googleapis.com/v0/b/fictional/o/x?alt=media&token=not-a-real-token",
+      "createdBy": "AlexRiversLegacyUid000000001",
+      "modifiedBy": "AlexRiversLegacyUid000000001",
+      "createdOn": "2025-02-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000004",
+    "data": {
+      "id": "a77a0000-0000-4000-8000-000000000004",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-111111111111",
+      "cardId": "WillsCardAuto0000002",
+      "originalFileName": "fictional-file.msg",
+      "storagePath": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000004.msg",
+      "fileExtension": ".msg",
+      "mimeType": "",
+      "sizeBytes": 40000,
+      "uploadedBy": "AlexRiversLegacyUid000000001",
+      "uploadedAt": "2025-02-01T00:00:00.000Z",
+      "downloadUrl": "https://firebasestorage.googleapis.com/v0/b/fictional/o/x?alt=media&token=not-a-real-token",
+      "createdBy": "AlexRiversLegacyUid000000001",
+      "modifiedBy": "AlexRiversLegacyUid000000001",
+      "createdOn": "2025-02-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000005",
+    "data": {
+      "id": "a77a0000-0000-4000-8000-000000000005",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-222222222222",
+      "cardId": "EstateCardAuto000001",
+      "originalFileName": "fictional-file.pdf",
+      "storagePath": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000005.pdf",
+      "fileExtension": ".pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 300000,
+      "uploadedBy": "AlexRiversLegacyUid000000001",
+      "uploadedAt": "2025-02-01T00:00:00.000Z",
+      "downloadUrl": "https://firebasestorage.googleapis.com/v0/b/fictional/o/x?alt=media&token=not-a-real-token",
+      "createdBy": "AlexRiversLegacyUid000000001",
+      "modifiedBy": "AlexRiversLegacyUid000000001",
+      "createdOn": "2025-02-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000006",
+    "data": {
+      "id": "a77a0000-0000-4000-8000-000000000006",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-222222222222",
+      "cardId": "EstateCardAuto000001",
+      "originalFileName": "fictional-file.pdf",
+      "storagePath": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000006.pdf",
+      "fileExtension": ".pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 27262976,
+      "uploadedBy": "AlexRiversLegacyUid000000001",
+      "uploadedAt": "2025-02-01T00:00:00.000Z",
+      "downloadUrl": "https://firebasestorage.googleapis.com/v0/b/fictional/o/x?alt=media&token=not-a-real-token",
+      "createdBy": "AlexRiversLegacyUid000000001",
+      "modifiedBy": "AlexRiversLegacyUid000000001",
+      "createdOn": "2025-02-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000002/attachments/a77a0000-0000-4000-8000-000000000007",
+    "data": {
+      "id": "a77a0000-0000-4000-8000-000000000007",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-222222222222",
+      "cardId": "EstateCardAuto000002",
+      "originalFileName": "fictional-file.docx",
+      "storagePath": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000002/attachments/a77a0000-0000-4000-8000-000000000007.docx",
+      "fileExtension": ".docx",
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "sizeBytes": 50000,
+      "uploadedBy": "AlexRiversLegacyUid000000001",
+      "uploadedAt": "2025-02-01T00:00:00.000Z",
+      "downloadUrl": "https://firebasestorage.googleapis.com/v0/b/fictional/o/x?alt=media&token=not-a-real-token",
+      "createdBy": "AlexRiversLegacyUid000000001",
+      "modifiedBy": "AlexRiversLegacyUid000000001",
+      "createdOn": "2025-02-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-444444444444/cards/SharedCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000008",
+    "data": {
+      "id": "a77a0000-0000-4000-8000-000000000008",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-444444444444",
+      "cardId": "SharedCardAuto000001",
+      "originalFileName": "fictional-file.pdf",
+      "storagePath": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-444444444444/cards/SharedCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000008.pdf",
+      "fileExtension": ".pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 10000,
+      "uploadedBy": "AlexRiversLegacyUid000000001",
+      "uploadedAt": "2025-02-01T00:00:00.000Z",
+      "downloadUrl": "https://firebasestorage.googleapis.com/v0/b/fictional/o/x?alt=media&token=not-a-real-token",
+      "createdBy": "AlexRiversLegacyUid000000001",
+      "modifiedBy": "AlexRiversLegacyUid000000001",
+      "createdOn": "2025-02-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  }
+]

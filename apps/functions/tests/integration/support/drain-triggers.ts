@@ -37,6 +37,8 @@ beforeAll(async () => {
         throw new Error(`Triggers still queued after ${DRAIN_TIMEOUT_MS / 1000} s`);
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
+    const waited = Date.now() - started;
+    if (waited > 2_000) process.stdout.write(`Waited ${(waited / 1000).toFixed(1)} s for earlier files' triggers\n`);
   } finally {
     await deleteApp(app);
   }

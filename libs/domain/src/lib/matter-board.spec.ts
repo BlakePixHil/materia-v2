@@ -1,11 +1,19 @@
 import {
+  BoardWipLimitsSchema,
+  boardWipStageKey,
+  boardWipState,
+  boardWipStatusKey,
   compareBoardOrder,
   MATTER_BOARD_REBALANCE_MAX,
+  MATTER_BOARD_WIP_LIMITS_MAX,
+  parseBoardWipLimit,
   planBoardMove,
   RebalanceBoardInput,
   rebalanceBoardOrders,
   type BoardOrdered,
+  withBoardWipLimit,
 } from './matter-board';
+import { Org } from './schemas/tenancy';
 import { ORDER_MIN_GAP, ORDER_STEP } from './tasks';
 
 const card = (id: string, boardOrder?: number, lastActivity?: number): BoardOrdered => ({
@@ -82,5 +90,57 @@ describe('RebalanceBoardInput', () => {
     expect(RebalanceBoardInput.safeParse({ requestId, matterIds: ['m1', 'm1'] }).success).toBe(false);
     const many = Array.from({ length: MATTER_BOARD_REBALANCE_MAX + 1 }, (_, i) => `m${i}`);
     expect(RebalanceBoardInput.safeParse({ requestId, matterIds: many }).success).toBe(false);
+  });
+});
+
+describe('WIP limits (CORE-04a)', () => {
+  it('keys status columns by status and stage columns by type and stage', () => {
+    expect(boardWipStatusKey('on_hold')).toBe('status:on_hold');
+    expect(boardWipStageKey('probate', 'grant_application')).toBe('stage:probate:grant_application');
+    expect(BoardWipLimitsSchema.safeParse({ 'status:open': 5, 'stage:probate:intake': 3 }).success).toBe(true);
+    // Not a column key, not a whole number from 1, or too many.
+    expect(BoardWipLimitsSchema.safeParse({ open: 5 }).success).toBe(false);
+    expect(BoardWipLimitsSchema.safeParse({ 'status:open': 0 }).success).toBe(false);
+    expect(BoardWipLimitsSchema.safeParse({ 'status:open': 2.5 }).success).toBe(false);
+    expect(BoardWipLimitsSchema.safeParse({ 'stage:probate:Intake': 2 }).success).toBe(false);
+    const many = Object.fromEntries(
+      Array.from({ length: MATTER_BOARD_WIP_LIMITS_MAX + 1 }, (_, i) => [`stage:probate:s${i}`, 1]),
+    );
+    expect(BoardWipLimitsSchema.safeParse(many).success).toBe(false);
+  });
+
+  it('is kept in the org’s settings beside Clerk’s and the referral settings', () => {
+    const settings = {
+      clerk: { enabled: true },
+      referrals: { thankYouTask: true },
+      board: { wipLimits: { 'status:open': 5 } },
+    };
+    expect(Org.update.parse({ settings }).settings).toEqual(settings);
+    expect(Org.update.safeParse({ settings: { board: { wipLimits: { 'status:open': -1 } } } }).success).toBe(false);
+  });
+
+  it('sets and clears one limit, leaving the others', () => {
+    expect(withBoardWipLimit(undefined, 'status:open', 5)).toEqual({ 'status:open': 5 });
+    const limits = { 'status:open': 5, 'status:lead': 2 };
+    expect(withBoardWipLimit(limits, 'status:open', 7)).toEqual({ 'status:open': 7, 'status:lead': 2 });
+    expect(withBoardWipLimit(limits, 'status:open', null)).toEqual({ 'status:lead': 2 });
+    expect(limits).toEqual({ 'status:open': 5, 'status:lead': 2 });
+  });
+
+  it('says where a column stands against its limit', () => {
+    expect(boardWipState(9, undefined)).toBe('none');
+    expect(boardWipState(4, 5)).toBe('under');
+    expect(boardWipState(5, 5)).toBe('full');
+    expect(boardWipState(6, 5)).toBe('over');
+  });
+
+  it('reads a typed limit: a whole number from 1 to 999', () => {
+    expect(parseBoardWipLimit(' 5 ')).toEqual({ limit: 5 });
+    expect(parseBoardWipLimit('999')).toEqual({ limit: 999 });
+    expect(parseBoardWipLimit('')).toEqual({ error: 'Enter a whole number, like 5.' });
+    expect(parseBoardWipLimit('2.5')).toEqual({ error: 'Enter a whole number, like 5.' });
+    expect(parseBoardWipLimit('-1')).toEqual({ error: 'Enter a whole number, like 5.' });
+    expect(parseBoardWipLimit('0')).toEqual({ error: 'Use 1 or more. To have no limit, remove it instead.' });
+    expect(parseBoardWipLimit('1000')).toEqual({ error: 'Use 999 or fewer.' });
   });
 });
