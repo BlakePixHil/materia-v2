@@ -56,16 +56,22 @@ async function totals(tx: Transaction, query: Query, field: string): Promise<{ l
   return { live: all - deleted, billed };
 }
 
-/** What the budget is built from: live time at its rate and live disbursements ex GST (BILL-04's schema). */
+/**
+ * What the budget is built from: live time at its rate and live disbursements ex GST (BILL-04's
+ * schema). Billed is what is billed, less the credit notes (ex GST) against the matter's invoices
+ * (BILL-07); a credit note on a voided invoice can't exist, since only uncredited invoices are voided.
+ */
 export async function budgetSums(tx: Transaction, db: Firestore, path: string): Promise<BudgetSums> {
-  const [time, disbursements] = await Promise.all([
+  const [orgPath, matterId] = path.split('/matters/') as [string, string];
+  const [time, disbursements, credited] = await Promise.all([
     totals(tx, db.collection(`${path}/timeEntries`), 'amountCents'),
     totals(tx, db.collection(`${path}/disbursements`), 'amountExGstCents'),
+    sumOf(tx, db.collection(`${orgPath}/creditNotes`).where('matterId', '==', matterId), 'subtotalCents'),
   ]);
   return {
     timeCents: time.live,
     disbursementsCents: disbursements.live,
-    billedCents: time.billed + disbursements.billed,
+    billedCents: Math.max(0, time.billed + disbursements.billed - credited),
   };
 }
 

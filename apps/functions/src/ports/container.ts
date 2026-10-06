@@ -70,9 +70,23 @@ let current: Ports | undefined;
 export function emulatorOutboxMail(db: () => Firestore): MailPort {
   return {
     async send(message) {
+      // Attachments are listed by name and size: the bytes stay out of Firestore.
+      const { attachments, ...rest } = message;
       const ref = await db()
         .collection('emulatorOutbox')
-        .add({ ...message, sentAt: new Date() });
+        .add({
+          ...rest,
+          ...(attachments?.length
+            ? {
+                attachments: attachments.map((file) => ({
+                  name: file.name,
+                  contentType: file.contentType,
+                  sizeBytes: file.content.byteLength,
+                })),
+              }
+            : {}),
+          sentAt: new Date(),
+        });
       return { id: ref.id };
     },
   };

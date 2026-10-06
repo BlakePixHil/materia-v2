@@ -107,3 +107,28 @@ describe('notification and digest templates (FND-20)', () => {
     ).toThrow('http(s)');
   });
 });
+
+describe('invoice template (BILL-07)', () => {
+  const model = {
+    documentTitle: 'Tax invoice',
+    number: 'INV-000042',
+    firmName: 'Harbour & Vine Legal',
+    firmAbn: '12 345 678 901',
+    total: '$973.36',
+    dueLabel: '20 Oct 2026',
+    message: 'Dear Lan,\nPlease see attached.',
+  };
+
+  it('names the document, number and firm, and carries the message', () => {
+    const mail = renderMail('invoice', model);
+    expect(mail.subject).toBe('Tax invoice INV-000042 from Harbour & Vine Legal');
+    expect(mail.html).toContain('Please find attached Tax invoice INV-000042 for $973.36, due 20 Oct 2026.');
+    expect(mail.html).toContain('Harbour &amp; Vine Legal · ABN 12 345 678 901');
+    expect(mail.text.startsWith('Dear Lan,\nPlease see attached.\n\nPlease find attached')).toBe(true);
+  });
+
+  it('leaves out an empty message and due date', () => {
+    const mail = renderMail('invoice', { ...model, message: '', dueLabel: '' });
+    expect(mail.text.startsWith('Please find attached Tax invoice INV-000042 for $973.36.')).toBe(true);
+  });
+});

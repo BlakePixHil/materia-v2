@@ -363,6 +363,15 @@ const sameLine = (a: InvoiceLine, b: InvoiceLine) =>
   a.gstCents === b.gstCents &&
   (a.date ?? '') === (b.date ?? '');
 
+/** A pre-bill's lines as saved, or as built now. */
+export interface DraftSnapshot {
+  lines: readonly InvoiceLine[];
+  itemisation?: readonly InvoiceItem[] | undefined;
+  totalCents: number;
+  timeEntryIds: readonly string[];
+  disbursementIds: readonly string[];
+}
+
 export interface DraftChanges {
   /** Items on the saved pre-bill that were edited, unapproved, billed elsewhere or deleted since. */
   changed: string[];
@@ -377,10 +386,7 @@ export interface DraftChanges {
  * draft shows "changed since added" on those items, and saving it again refreshes the lines.
  * Issuing refuses a pre-bill that is stale, so what was reviewed is what is issued.
  */
-export function draftChanges(
-  saved: Pick<InvoiceBuild, 'lines' | 'itemisation' | 'totalCents' | 'timeEntryIds' | 'disbursementIds'>,
-  now: Pick<InvoiceBuild, 'lines' | 'itemisation' | 'totalCents' | 'timeEntryIds' | 'disbursementIds'>,
-): DraftChanges {
+export function draftChanges(saved: DraftSnapshot, now: DraftSnapshot): DraftChanges {
   const savedIds = new Set([...saved.timeEntryIds, ...saved.disbursementIds]);
   const nowIds = new Set([...now.timeEntryIds, ...now.disbursementIds]);
   const changed = new Set([...savedIds].filter((id) => !nowIds.has(id)));
