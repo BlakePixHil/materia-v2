@@ -34,6 +34,9 @@ import {
   type ClerkContentBlock,
   type ClerkModelPort,
   type ClerkModelResult,
+  type ClerkToolDefinition,
+  type ClerkToolUse,
+  type ClerkTurn,
   type Clock,
 } from '../ports';
 import { verifyCitations } from './citations';
@@ -44,11 +47,12 @@ import {
   DEFAULT_MONTHLY_TOKEN_BUDGET,
   DEFAULT_USER_RATE_LIMIT,
   MAX_RETRIES,
+  MAX_TOOL_ROUNDS,
   meteringPeriod,
   type ClerkFeature,
 } from './features';
 import type { ClerkKeyring } from './keyring';
-import type { ClerkMessageStatus, ClerkStore, MessageSink } from './store';
+import type { ClerkMessageStatus, ClerkStore, ExchangeSources, MessageSink, ToolCallState } from './store';
 
 export interface GatewayContext {
   orgId: string;
@@ -65,6 +69,70 @@ export type GatewayDocument = CitedDocument & {
 };
 export type GatewayChunk = CitedChunk & { title: string; text: string; source: string };
 
+/** What a tool returns (AI-06): text (JSON for records), and passages the model can cite. */
+export interface ClerkToolOutput {
+  text?: string;
+  passages?: GatewayChunk[];
+  isError?: boolean;
+}
+
+/**
+ * The read-only tools a request offers (AI-06). The prompt's `tools` front-matter picks which of
+ * the definitions are sent; the model chooses whether to call them (never forced).
+ */
+export interface ClerkToolbox {
+  definitions: ClerkToolDefinition[];
+  run(use: ClerkToolUse): Promise<ClerkToolOutput>;
+}
+
+/** A conversation's earlier exchanges, replayed verbatim (AI-06), and the sources they carried. */
+export interface ClerkHistory {
+  turns: ClerkTurn[];
+  sources: ExchangeSources;
+}
+
+function searchFields(chunk: GatewayChunk): { source: string; title: string; text: string } {
+  return { source: chunk.source, title: chunk.title, text: chunk.text };
+}
+
+function searchBlock(chunk: GatewayChunk): ClerkContentBlock {
+  return { type: 'search_result', ...searchFields(chunk) };
+}
+
+function toolText(toolUseId: string, text: string, isError: boolean): ClerkContentBlock {
+  return { type: 'tool_result', toolUseId, content: [{ type: 'text', text }], ...(isError ? { isError } : {}) };
+}
+
+function addUsage(a: ClerkUsage, b: ClerkUsage): ClerkUsage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
+    cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
+  };
+}
+
+/**
+ * The steps of a tool loop as one answer: their text joined by blank lines, and their content with
+ * a blank text block between steps that both have text (so cited claims line up with the text).
+ */
+function joinSteps(contents: readonly (readonly unknown[])[]): { content: unknown[]; text: string } {
+  const textOf = (content: readonly unknown[]) =>
+    content
+      .filter((block) => (block as { type?: string }).type === 'text')
+      .map((block) => (block as { text?: string }).text ?? '')
+      .join('');
+  const content: unknown[] = [];
+  const texts: string[] = [];
+  for (const step of contents) {
+    const text = textOf(step);
+    if (text && texts.length) content.push({ type: 'text', text: '\n\n' });
+    if (text) texts.push(text);
+    content.push(...step);
+  }
+  return { content, text: texts.join('\n\n') };
+}
+
 export interface ClerkRunInput<TOutput = unknown> {
   ctx: GatewayContext;
   feature: ClerkFeature;
@@ -75,8 +143,17 @@ export interface ClerkRunInput<TOutput = unknown> {
   documents?: GatewayDocument[];
   /** Retrieved chunks, sent as `search_result` blocks. */
   searchResults?: GatewayChunk[];
-  /** Stream into `clerkThreads/{threadId}/messages/{messageId}`. */
-  stream?: { threadId: string; messageId: string };
+  /**
+   * Stream into `clerkThreads/{threadId}/messages/{messageId}`; `adopt` takes over the message
+   * `clerk-sendMessage` created (AI-06) instead of creating it.
+   */
+  stream?: { threadId: string; messageId: string; adopt?: boolean };
+  /** Earlier exchanges of the conversation, sent first and unchanged (AI-06). */
+  history?: ClerkHistory;
+  /** Blocks before the question in this turn (a continued thread's summary, AI-06). */
+  prelude?: ClerkContentBlock[];
+  /** Read-only tools the model may call (AI-06), filtered by the prompt's `tools`. */
+  tools?: ClerkToolbox;
   /** Overrides the prompt's `outputSchema`. */
   output?: z.ZodType<TOutput>;
   /**
@@ -159,8 +236,8 @@ function statusFor(stopReason: string): ClerkRunStatus {
 /**
  * ClerkGateway (AI-02, AI-02a): the only path from a Clerk feature to Claude. In order: kill
  * switches → the org's key and model → prompt → budget → rate limit → the call (retries, then
- * fallback models) → status from the stop reason → structured-output validation → citations →
- * metering → message → metadata-only log.
+ * fallback models; with tools, a loop of tool rounds, AI-06) → status from the stop reason →
+ * structured-output validation → citations → metering → message → metadata-only log.
  */
 export function createClerkGateway(deps: GatewayDeps) {
   const sleep = deps.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -216,7 +293,8 @@ export function createClerkGateway(deps: GatewayDeps) {
 
     // 4. The request: documents and chunks first (the stable, cached prefix), then the question.
     // A built context (AI-03) puts its matter facts first instead (the cached prefix) and its
-    // notices after the documents and chunks, which are then the volatile part.
+    // notices after the documents and chunks, which are then the volatile part. A conversation's
+    // earlier exchanges (AI-06) come before it, exactly as they were sent and answered.
     const context = input.context;
     const documents = context?.documents ?? input.documents ?? [];
     const searchResults = context?.searchResults ?? input.searchResults ?? [];
@@ -226,22 +304,28 @@ export function createClerkGateway(deps: GatewayDeps) {
         ...(doc.title ? { title: doc.title } : {}),
         source: doc.source,
       })),
-      ...searchResults.map((chunk): ClerkContentBlock => ({
-        type: 'search_result',
-        source: chunk.source,
-        title: chunk.title,
-        text: chunk.text,
-      })),
+      ...searchResults.map(searchBlock),
     ];
     if (context) {
       content.unshift(...context.contextBlocks.stable);
       content.push(...context.contextBlocks.volatile);
     } else if (content.length)
       content[content.length - 1] = { ...content[content.length - 1], cache: true } as ClerkContentBlock;
-    content.push({ type: 'text', text: prompt.user });
+    content.push(...(input.prelude ?? []), { type: 'text', text: prompt.user });
     const contextResult = context
       ? { manifest: context.manifest, truncated: context.truncated, privileged: context.manifest.privileged }
       : {};
+    const history = input.history?.turns ?? [];
+    // The API numbers documents and passages across the whole request, in order: earlier exchanges
+    // first, then this question's, then what tools return.
+    const sources = {
+      documents: [...(input.history?.sources.documents ?? []), ...documents],
+      searchResults: [...(input.history?.sources.searchResults ?? []), ...searchResults],
+    };
+    const exchangeSources = { documents: [...documents], searchResults: [...searchResults] };
+    const userTurn: ClerkTurn = { role: 'user', content };
+    const toolbox = input.tools;
+    const tools = toolbox?.definitions.filter((tool) => prompt.meta.tools.includes(tool.name)) ?? [];
 
     // 5. The message to stream into, and stop handling.
     const abort = new AbortController();
@@ -252,23 +336,28 @@ export function createClerkGateway(deps: GatewayDeps) {
         promptRef: prompt.ref,
         requestId: ctx.requestId,
         ...(context ? { manifest: context.manifest } : {}),
+        ...(input.stream.adopt ? { adopt: true } : {}),
       });
       sink.onStop(() => abort.abort());
     }
     let streamed = '';
+    /** Text from earlier steps of a tool loop is kept; the next step's text follows a blank line. */
+    let stepStart = true;
     const onEvent = (event: { text: string }) => {
+      if (stepStart && streamed && event.text) streamed += '\n\n';
+      if (event.text) stepStart = false;
       streamed += event.text;
       sink?.write(streamed);
     };
 
     const base = {
       system: context ? `${context.system}\n\n${prompt.system}` : prompt.system,
-      messages: [{ role: 'user' as const, content }],
       maxTokens: prompt.meta.maxTokens,
       effort: prompt.meta.effort,
       timeoutMs: feature.timeoutMs,
       signal: abort.signal,
       ...(schema ? { output: { name: schemaName ?? 'custom', schema } } : {}),
+      ...(tools.length ? { tools } : {}),
     };
 
     const logBase = { feature: input.feature, promptRef: prompt.ref, primary };
@@ -283,109 +372,179 @@ export function createClerkGateway(deps: GatewayDeps) {
         raw: [],
       });
     };
+    const ended = (status: 'stopped' | 'error', model: string, fallbackUsed: boolean): ClerkRunResult<TOutput> => ({
+      status,
+      text: streamed,
+      citations: [],
+      usage: ZERO_USAGE,
+      stopReason: status,
+      model,
+      promptRef: prompt.ref,
+      fallbackUsed,
+      costMicros: 0,
+      ...contextResult,
+    });
 
     // 6. The call: the primary with retries, then each fallback model once (a fresh branch: the
-    // request carries no earlier assistant turns, so no thinking blocks cross models).
+    // request carries no earlier assistant turns, so no thinking blocks cross models). With tools
+    // (AI-06), each tool round is another call on the same model, up to MAX_TOOL_ROUNDS.
     const models = [primary, ...fallbackModels];
-    let result: ClerkModelResult | undefined;
     let modelIndex = 0;
     let attempts = 0;
+    const steps: ClerkTurn[] = [];
+    const contents: (readonly unknown[])[] = [];
+    const calls: ToolCallState[] = [];
+    const rawCitations: unknown[] = [];
+    let usage: ClerkUsage = ZERO_USAGE;
+    let result: ClerkModelResult | undefined;
+    let rounds = 0;
     try {
-      outer: for (; modelIndex < models.length; modelIndex++) {
-        const model = models[modelIndex] as string;
-        const tries = modelIndex === 0 ? MAX_RETRIES + 1 : 1;
-        for (let attempt = 0; attempt < tries; attempt++) {
-          attempts++;
-          try {
-            result = await deps.model.run(
-              { ...base, model, credentials, serverFallbacks: (deps.serverFallbacks ?? true) && modelIndex === 0 },
-              onEvent,
-            );
-            break outer;
-          } catch (raw) {
-            const error =
-              raw instanceof ClerkModelError ? raw : new ClerkModelError('server', 'Unexpected provider failure');
-            if (error.kind === 'aborted' || abort.signal.aborted) {
-              ctx.log.info('clerk call stopped', { ...logBase, model, attempts, latencyMs: now() - started });
-              await finishFailed('stopped', model);
-              await meter(input, ctx, period, model, primary, ZERO_USAGE);
-              return {
-                status: 'stopped',
-                text: streamed,
-                citations: [],
-                usage: ZERO_USAGE,
-                stopReason: 'stopped',
-                model,
-                promptRef: prompt.ref,
-                fallbackUsed: modelIndex > 0,
-                costMicros: 0,
-                ...contextResult,
-              };
-            }
-            // Text already reached the user: a retry would repeat it. Keep the partial reply.
-            if (streamed) {
-              ctx.log.warn('clerk stream failed', {
-                ...logBase,
-                model,
-                kind: error.kind,
-                attempts,
-                latencyMs: now() - started,
-              });
-              await finishFailed('error', model);
-              return {
-                status: 'error',
-                text: streamed,
-                citations: [],
-                usage: ZERO_USAGE,
-                stopReason: 'error',
-                model,
-                promptRef: prompt.ref,
-                fallbackUsed: modelIndex > 0,
-                costMicros: 0,
-                ...contextResult,
-              };
-            }
-            // The org's key was rejected (revoked, or out of credit on a disabled account): mark it
-            // invalid, so no further call is made with it, and tell the user an admin must act.
-            if (error.kind === 'auth') {
-              ctx.log.error('clerk key rejected', { ...logBase, model, status: error.status });
-              await deps.keyring.markInvalid(ctx.orgId, key.version, ctx.clock.now());
-              await finishFailed('error', model);
-              throw keyInvalid();
-            }
-            if (!RETRYABLE.has(error.kind)) {
-              ctx.log.error('clerk provider rejected the call', {
+      for (;;) {
+        const first = !steps.length;
+        let stepResult: ClerkModelResult | undefined;
+        outer: for (; modelIndex < models.length; modelIndex++) {
+          const model = models[modelIndex] as string;
+          const tries = modelIndex === 0 || !first ? MAX_RETRIES + 1 : 1;
+          for (let attempt = 0; attempt < tries; attempt++) {
+            attempts++;
+            stepStart = true;
+            try {
+              stepResult = await deps.model.run(
+                {
+                  ...base,
+                  // A fallback model starts a fresh branch: this question only, never earlier turns.
+                  messages: modelIndex > 0 ? [userTurn, ...steps] : [...history, userTurn, ...steps],
+                  model,
+                  credentials,
+                  serverFallbacks: (deps.serverFallbacks ?? true) && modelIndex === 0,
+                },
+                onEvent,
+              );
+              break outer;
+            } catch (raw) {
+              const error =
+                raw instanceof ClerkModelError ? raw : new ClerkModelError('server', 'Unexpected provider failure');
+              if (error.kind === 'aborted' || abort.signal.aborted) {
+                ctx.log.info('clerk call stopped', { ...logBase, model, attempts, latencyMs: now() - started });
+                await finishFailed('stopped', model);
+                await meter(input, ctx, period, model, primary, ZERO_USAGE);
+                return ended('stopped', model, modelIndex > 0);
+              }
+              // Text already reached the user: a retry would repeat it. Keep the partial reply.
+              if (streamed) {
+                ctx.log.warn('clerk stream failed', {
+                  ...logBase,
+                  model,
+                  kind: error.kind,
+                  attempts,
+                  latencyMs: now() - started,
+                });
+                await finishFailed('error', model);
+                return ended('error', model, modelIndex > 0);
+              }
+              // The org's key was rejected (revoked, or out of credit on a disabled account): mark it
+              // invalid, so no further call is made with it, and tell the user an admin must act.
+              if (error.kind === 'auth') {
+                ctx.log.error('clerk key rejected', { ...logBase, model, status: error.status });
+                await deps.keyring.markInvalid(ctx.orgId, key.version, ctx.clock.now());
+                await finishFailed('error', model);
+                throw keyInvalid();
+              }
+              if (!RETRYABLE.has(error.kind)) {
+                ctx.log.error('clerk provider rejected the call', {
+                  ...logBase,
+                  model,
+                  kind: error.kind,
+                  status: error.status,
+                });
+                await finishFailed('error', model);
+                throw new DomainError('CLERK_UNAVAILABLE', 'Clerk is unavailable');
+              }
+              ctx.log.warn('clerk provider error', {
                 ...logBase,
                 model,
                 kind: error.kind,
                 status: error.status,
+                attempt,
               });
-              await finishFailed('error', model);
-              throw new DomainError('CLERK_UNAVAILABLE', 'Clerk is unavailable');
+              // A provider rate limit is not a reason to switch models: "Clerk is busy".
+              if (error.kind === 'rate_limited' && attempt === tries - 1) {
+                await finishFailed('error', model);
+                throw new DomainError('CLERK_BUSY', 'The model provider is rate-limiting');
+              }
+              if (attempt < tries - 1) await sleep(backoffMs(attempt, random, error.retryAfterMs));
             }
-            ctx.log.warn('clerk provider error', {
-              ...logBase,
-              model,
-              kind: error.kind,
-              status: error.status,
-              attempt,
-            });
-            // A provider rate limit is not a reason to switch models: "Clerk is busy".
-            if (error.kind === 'rate_limited' && attempt === tries - 1) {
-              await finishFailed('error', model);
-              throw new DomainError('CLERK_BUSY', 'The model provider is rate-limiting');
-            }
-            if (attempt < tries - 1) await sleep(backoffMs(attempt, random, error.retryAfterMs));
           }
+          // After a tool round the conversation is bound to this model: no fallback mid-answer.
+          if (!first) break;
         }
+        if (!stepResult) {
+          await finishFailed('error', models[Math.min(modelIndex, models.length - 1)] as string);
+          throw new DomainError('CLERK_UNAVAILABLE', 'Clerk is unavailable');
+        }
+        result = stepResult;
+        usage = addUsage(usage, stepResult.usage);
+        contents.push(stepResult.content);
+        rawCitations.push(...stepResult.citations);
+        steps.push({ role: 'assistant', content: stepResult.content });
+
+        // 6b. Tools the model chose (read-only, scoped by the toolbox). Past the limit, each call is
+        // answered "no more tools" and the model gets one last turn to answer with what it has.
+        const uses = stepResult.toolUses ?? [];
+        if (stepResult.stopReason !== 'tool_use' || !uses.length || !toolbox || rounds > MAX_TOOL_ROUNDS) break;
+        rounds++;
+        const answers: ClerkContentBlock[] = [];
+        for (const use of uses) {
+          if (abort.signal.aborted) break;
+          if (rounds > MAX_TOOL_ROUNDS) {
+            answers.push(toolText(use.id, 'Tool limit reached: answer with what you have.', true));
+            continue;
+          }
+          const call: ToolCallState = { id: use.id, name: use.name, status: 'running' };
+          calls.push(call);
+          sink?.tools(calls);
+          let output: ClerkToolOutput;
+          try {
+            output = await toolbox.run(use);
+          } catch {
+            output = { text: 'The tool failed.', isError: true };
+          }
+          call.status = output.isError ? 'error' : 'done';
+          sink?.tools(calls);
+          const passages = output.passages ?? [];
+          sources.searchResults.push(...passages);
+          exchangeSources.searchResults.push(...passages);
+          answers.push({
+            type: 'tool_result',
+            toolUseId: use.id,
+            content: [
+              ...(output.text !== undefined || !passages.length
+                ? [{ type: 'text' as const, text: output.text ?? '' }]
+                : []),
+              ...passages.map((chunk) => ({ type: 'search_result' as const, ...searchFields(chunk) })),
+            ],
+            ...(output.isError ? { isError: true } : {}),
+          });
+          ctx.log.info('clerk tool', {
+            ...logBase,
+            tool: use.name,
+            passages: passages.length,
+            error: !!output.isError,
+          });
+        }
+        if (abort.signal.aborted) {
+          ctx.log.info('clerk call stopped', { ...logBase, model: result.model, attempts, latencyMs: now() - started });
+          await finishFailed('stopped', result.model);
+          await meter(input, ctx, period, result.model, primary, usage);
+          return ended('stopped', result.model, modelIndex > 0);
+        }
+        steps.push({ role: 'user', content: answers });
       }
     } finally {
       sink?.close();
     }
-    if (!result) {
-      await finishFailed('error', models[models.length - 1] as string);
-      throw new DomainError('CLERK_UNAVAILABLE', 'Clerk is unavailable');
-    }
+    if (!result) throw new DomainError('CLERK_UNAVAILABLE', 'Clerk is unavailable');
+    const joined = joinSteps(contents);
 
     // 7. Status from the stop reason (refusal and max_tokens first), then structured output.
     let status = statusFor(result.stopReason);
@@ -410,8 +569,7 @@ export function createClerkGateway(deps: GatewayDeps) {
     // 8. Citations (mapped, then verified against the chunks for a matter-scoped reply, AI-05),
     // cost, metering. A citation whose quote isn't on its page is kept with `verified: false`:
     // never shown, counted as `citation_unverified`.
-    const sources = { documents, searchResults };
-    const mapped = mapCitations(result.citations as ModelCitation[], sources);
+    const mapped = mapCitations(rawCitations as ModelCitation[], sources);
     let citations = mapped.citations;
     const checked = { verified: 0, unverified: 0 };
     const scope = context?.manifest.scope;
@@ -431,22 +589,33 @@ export function createClerkGateway(deps: GatewayDeps) {
       period,
       result.model,
       primary,
-      result.usage,
+      usage,
       { used: usedTokens, limit: budget },
       checked,
     );
     const fallbackUsed = modelIndex > 0 || result.serverFallback;
 
-    // 9. The message, verbatim turn included. Each cited claim carries `[n]` markers for its
+    // 9. The message, verbatim turns included. Each cited claim carries `[n]` markers for its
     // citations (n = index + 1 in `citations`), so the UI can mark a claim that lost them all.
     await sink?.finish({
       status,
-      text: citations.length ? markClaims(citedClaims(result.content, result.text, citations, sources)) : result.text,
+      text: citations.length ? markClaims(citedClaims(joined.content, joined.text, citations, sources)) : joined.text,
       citations,
-      usage: result.usage,
+      usage,
       model: result.model,
       fallbackUsed,
       raw: result.content,
+      exchange: {
+        // Stored without cache markers: a later turn moves the breakpoint to its own question.
+        user: content.map((block) => {
+          const stored = { ...block };
+          delete stored.cache;
+          return stored;
+        }),
+        turns: steps,
+        sources: exchangeSources,
+        model: result.model,
+      },
     });
 
     // 10. Metadata only: never prompt or completion text.
@@ -456,23 +625,24 @@ export function createClerkGateway(deps: GatewayDeps) {
       model: result.model,
       status,
       stopReason: result.stopReason,
-      ...result.usage,
+      ...usage,
       costMicros: cost,
       latencyMs: now() - started,
       attempts,
       fallbackUsed,
       citations: citations.length,
       unmappedCitations: mapped.unmapped,
+      ...(calls.length ? { toolCalls: calls.length, toolRounds: rounds } : {}),
       ...(checked.unverified ? { unverifiedCitations: checked.unverified } : {}),
       ...(invalidIssues ? { invalidIssues } : {}),
     });
 
     return {
       status,
-      text: result.text,
+      text: joined.text,
       ...(parsed !== undefined ? { parsed } : {}),
       citations,
-      usage: result.usage,
+      usage,
       stopReason: result.stopReason,
       model: result.model,
       promptRef: prompt.ref,
