@@ -1,7 +1,7 @@
 import { mentionUids } from './html.ts';
 
 /**
- * One user's legacy data as the audit (MIG-01) reads it, and as the export (MIG-02) will write it:
+ * One user's legacy data as the audit (MIG-01) reads it, and as the export (MIG-02) writes it:
  * Firestore documents by path with their decoded data, plus the Storage objects under the user's
  * workflows. Legacy shapes vary by app version, so data stays loosely typed (`LegacyData`) and
  * every reader checks the shape it needs.
@@ -20,23 +20,34 @@ export interface StorageObject {
   name: string;
   size: number;
   contentType?: string;
+  /** Base64 checksums, the generation and the last update, as Storage reports them (the export keeps them). */
+  md5Hash?: string;
+  crc32c?: string;
+  generation?: string;
+  updated?: string;
 }
 
 /**
  * Firestore values with no JSON form, as the REST decoder and the fixtures write them. The legacy
- * app stores ISO strings, so a `$timestamp` is itself a finding.
+ * app stores ISO strings, so a `$timestamp` is itself a finding. Bytes are a size for the audit
+ * and base64 in the export; `$double` (NaN or an infinity) appears in the export only.
  */
 export type TaggedValue =
-  { $timestamp: string } | { $bytes: number } | { $reference: string } | { $geopoint: [number, number] };
+  | { $timestamp: string }
+  | { $bytes: number | string }
+  | { $reference: string }
+  | { $geopoint: [number, number] }
+  | { $double: string };
 
-const TAGS = ['$timestamp', '$bytes', '$reference', '$geopoint'] as const;
+const TAGS = ['$timestamp', '$bytes', '$reference', '$geopoint', '$double'] as const;
+type TagKind = 'timestamp' | 'bytes' | 'reference' | 'geopoint' | 'double';
 
-export function taggedKind(value: unknown): 'timestamp' | 'bytes' | 'reference' | 'geopoint' | undefined {
+export function taggedKind(value: unknown): TagKind | undefined {
   if (!isPlainObject(value)) return undefined;
   const keys = Object.keys(value);
   if (keys.length !== 1) return undefined;
   const tag = TAGS.find((t) => t === keys[0]);
-  return tag ? (tag.slice(1) as 'timestamp' | 'bytes' | 'reference' | 'geopoint') : undefined;
+  return tag ? (tag.slice(1) as TagKind) : undefined;
 }
 
 export function isPlainObject(value: unknown): value is LegacyData {

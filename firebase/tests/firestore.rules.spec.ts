@@ -587,6 +587,10 @@ describe('org settings (CORE-21)', () => {
     await assertSucceeds(updateDoc(ref, stamped(limits, owner)));
     await assertSucceeds(updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped(limits, uidFor('admin'))));
     await assertFails(updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped(limits, uidFor('lawyer'))));
+    // Who sees every member's Insights figures (INS-01's setting, set from Insights, INS-02): the same.
+    const insights = { settings: { ...limits.settings, insights: { memberVisibility: 'everyone' } } };
+    await assertSucceeds(updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped(insights, uidFor('admin'))));
+    await assertFails(updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped(insights, uidFor('lawyer'))));
     await assertFails(updateDoc(ref, stamped({ 'settings.clerk.ackVersion': 1 }, owner)));
     await assertFails(updateDoc(ref, stamped({ 'settings.clerk.features.chat': false }, owner)));
     await assertFails(
@@ -3769,6 +3773,14 @@ describe('practice metrics (INS-01)', () => {
     await assertFails(updateDoc(doc(owner, `${METRICS}/month-2026-10/shards/3`), figures));
     await assertFails(getDoc(doc(owner, `${MATTER}/metrics/time-entry-1`)));
     await assertFails(deleteDoc(doc(owner, `${MATTER}/metrics/time-entry-1`)));
+  });
+
+  it.each(EVERYONE)('Clerk’s kept Insights explanations are server-only (INS-04), as %s', async (who) => {
+    const { firestore, uid } = firestoreOf(who);
+    const path = `orgs/${ORG}/insightsNarratives/2026-09_2026-09__2026-08_2026-08`;
+    await assertFails(getDoc(doc(firestore, path)));
+    await assertFails(getDocs(collection(firestore, `orgs/${ORG}/insightsNarratives`)));
+    await assertFails(setDoc(doc(firestore, path), { paragraphs: [], generatedBy: uid }));
   });
 });
 

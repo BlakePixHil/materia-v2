@@ -14,9 +14,9 @@ import { InstantSchema } from './schemas/common';
 export { CLERK_DISCLOSURE_VERSION, CLERK_DISCLOSURES } from './clerk-disclosure.generated';
 
 /**
- * The features an org can turn off one by one. `chronology`, `ordersExtract`, `insightsNarrative`
- * and `voice` aren't built yet: their tickets add a row to ORG_CLERK_FEATURES (and a gateway
- * feature that names them) when they land.
+ * The features an org can turn off one by one. `chronology`, `ordersExtract` and `voice` aren't
+ * built yet: their tickets add a row to ORG_CLERK_FEATURES (and a gateway feature that names them)
+ * when they land.
  */
 export const ORG_CLERK_FEATURE_KEYS = [
   'chat',
@@ -65,6 +65,11 @@ export const ORG_CLERK_FEATURES: readonly OrgClerkFeatureInfo[] = [
   },
   { key: 'drafting', label: 'Draft documents', description: 'Drafts letters from templates for a person to review.' },
   { key: 'timeAssist', label: 'Capture time', description: 'Drafts time entries from notes and activity for review.' },
+  {
+    key: 'insightsNarrative',
+    label: 'Explain Insights',
+    description: 'Describes what changed between two periods on Insights, from the practice’s figures only.',
+  },
 ];
 
 /** Every limit a person can type, so a typo can't set a budget of millions. */

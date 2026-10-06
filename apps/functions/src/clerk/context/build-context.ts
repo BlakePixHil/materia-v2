@@ -4,10 +4,17 @@ import {
   DEFAULT_ORG_TIMEZONE,
   DocIdSchema,
   DomainError,
+  INSIGHTS_MAX_MONTHS,
+  isMonthId,
+  narrativeContextJson,
+  narrativeFigures,
   toDisplay,
   today,
   type ContextManifest,
   type ContextTruncation,
+  type MetricValues,
+  type NarrativeFigure,
+  type NarrativePeriodInfo,
   type Role,
 } from '@materia/domain';
 
@@ -26,8 +33,18 @@ import {
 } from './policy';
 import type { ChunkHit, ChunkSearchPort, ContextSource, DocumentTextPort, Row, TokenCounter } from './ports';
 
-/** One matter, or the practice's aggregated metrics (no client data; only features that opt in). */
-export type ContextScope = { matterId: string } | { org: 'metrics' };
+/**
+ * The practice's figures for a period and what it is compared with (INS-04): org totals from the
+ * month rollups, no client data. Only features whose policy lists `metrics` may ask for it.
+ */
+export interface MetricsScope {
+  org: 'metrics';
+  current: NarrativePeriodInfo;
+  comparison: NarrativePeriodInfo | null;
+}
+
+/** One matter, or the practice's aggregated metrics. */
+export type ContextScope = { matterId: string } | MetricsScope;
 
 export interface BuildContextInput {
   ctx: GatewayContext;
@@ -60,6 +77,8 @@ export interface ClerkContext {
   truncated: ContextTruncation | null;
   /** The matter facts block's JSON (`{matter, fee, parties, …}`), for features that check facts (AI-10). */
   facts?: Record<string, unknown>;
+  /** The metrics scope's figures, exactly as `<org_metrics>` gives them (for checking the reply). */
+  figures?: NarrativeFigure[];
 }
 
 export interface ContextDeps {
@@ -183,7 +202,7 @@ export function createContextBuilder(deps: ContextDeps) {
     if (scopeKind === 'metrics') {
       if (attachments.length)
         throw new DomainError('INVALID_ARGUMENT', 'The metrics scope takes no attachments', { scope: 'metrics' });
-      return metricsContext(input, role, system);
+      return metricsContext(input, input.scope as MetricsScope, role, system);
     }
 
     const matterId = (input.scope as { matterId: string }).matterId;
@@ -455,22 +474,43 @@ export function createContextBuilder(deps: ContextDeps) {
     };
   }
 
-  /** The metrics scope: practice rollups only (numbers by period), no client data and no retrieval. */
-  async function metricsContext(input: BuildContextInput, role: Role, system: string): Promise<ClerkContext> {
+  /**
+   * The metrics scope (INS-04): the figures for two periods, worked out from the month rollups with
+   * their shards (`narrativeFigures`): org totals only, never a member's figures, a referrer, a
+   * matter or a client, and no documents, notes or retrieval. Every member reads the rollups
+   * (INS-01's rules), so `clerk.use` (checked above for both roles) is the only gate.
+   */
+  async function metricsContext(
+    input: BuildContextInput,
+    scope: MetricsScope,
+    role: Role,
+    system: string,
+  ): Promise<ClerkContext> {
     const { ctx, feature } = input;
-    // The same gate as the rules on `metrics/{period}`.
-    if (!can(role, 'billing.view') || !can(ctx.role, 'billing.view'))
-      throw new DomainError('PERMISSION_DENIED', 'This role cannot read practice metrics');
-    const rows = (await deps.source.metrics(ctx.orgId, FACT_LIMITS.metrics * 2))
-      .filter((row) => /^(month-\d{4}-\d{2}|fy-\d{4})$/.test(String(row.data['period'] ?? '')))
-      .slice(0, FACT_LIMITS.metrics);
-    const periods = rows.map((row) => {
-      const values: Record<string, number> = {};
+    const periods = [scope.current, ...(scope.comparison ? [scope.comparison] : [])];
+    if (
+      !scope.current.months.length ||
+      periods.some((period) => period.months.length > INSIGHTS_MAX_MONTHS || !period.months.every(isMonthId))
+    )
+      throw new DomainError('INVALID_ARGUMENT', 'Invalid metrics periods', { scope: 'metrics' });
+    const months = [...new Set(periods.flatMap((period) => period.months))];
+    const rows = await deps.source.metricMonths(ctx.orgId, months);
+    const values = new Map<string, MetricValues>();
+    for (const row of rows) {
+      const numbers: MetricValues = {};
       for (const [key, value] of Object.entries((row.data['values'] as Data | undefined) ?? {}))
-        if (typeof value === 'number' && /^[A-Za-z0-9_.-]{1,100}$/.test(key)) values[key] = value;
-      return { period: String(row.data['period']), values };
+        if (typeof value === 'number' && Number.isFinite(value)) numbers[key] = value;
+      values.set(row.id.replace(/^month-/, ''), numbers);
+    }
+    const figures = narrativeFigures({
+      current: scope.current.months,
+      comparison: scope.comparison?.months ?? null,
+      values,
     });
-    const text = wrap('org_metrics', safeJson({ periods }));
+    const text = wrap(
+      'org_metrics',
+      safeJson(narrativeContextJson({ current: scope.current, comparison: scope.comparison, figures })),
+    );
     const [used = 0] = await deps.tokens.count([system + text + (input.query ?? '')]);
     const manifest: ContextManifest = {
       scope: { kind: 'metrics' },
@@ -485,7 +525,14 @@ export function createContextBuilder(deps: ContextDeps) {
       truncated: null,
       tokens: { used, budget: policies[feature].budgetTokens, exact: deps.tokens.exact },
     };
-    ctx.log.info('clerk context', { feature, scope: 'metrics', periods: rows.length, tokens: used });
+    ctx.log.info('clerk context', {
+      feature,
+      scope: 'metrics',
+      months: months.length,
+      periods: rows.length,
+      figures: figures.length,
+      tokens: used,
+    });
     return {
       system,
       contextBlocks: { stable: [{ type: 'text', text, cache: true }], volatile: [] },
@@ -493,6 +540,7 @@ export function createContextBuilder(deps: ContextDeps) {
       searchResults: [],
       manifest,
       truncated: null,
+      figures,
     };
   }
 

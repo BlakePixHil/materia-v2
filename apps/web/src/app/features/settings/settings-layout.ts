@@ -47,8 +47,11 @@ import { OrgService } from '../../core/orgs/org-service';
       min-width: 0;
     }
     @media (max-width: 899px) {
+      /* Stacked, the page takes the full width: a page measured as a container (Clerk and AI)
+         has no width of its own and would otherwise shrink to nothing. */
       :host {
         flex-direction: column;
+        align-items: stretch;
         gap: var(--space-16, 16px);
       }
       .settings-nav {

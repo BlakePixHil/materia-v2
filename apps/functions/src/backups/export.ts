@@ -120,7 +120,14 @@ export const exportFirestoreJob = onSchedule(
       const { documents } = await exportFirestore(deps, projectId, plan, log);
       log.info('ok', { kind: plan.kind, snapshotTime: plan.snapshotTime, documents });
     } catch (error) {
-      log.error('export failed', { kind: plan.kind, snapshotTime: plan.snapshotTime, ...errorReportFields(error) });
+      // The reason is the admin API's own error text (status and message), never document data.
+      const reason = (error instanceof Error ? error.message : String(error)).slice(0, 300);
+      log.error('export failed', {
+        kind: plan.kind,
+        snapshotTime: plan.snapshotTime,
+        reason,
+        ...errorReportFields(error),
+      });
       throw error;
     }
   },

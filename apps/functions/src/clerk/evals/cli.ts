@@ -21,7 +21,7 @@ import {
 import { createEvalExecutor } from './executor';
 import type { ClerkModelPort, ClerkModelRequest } from '../../ports';
 import { anthropicModel } from '../providers/anthropic';
-import { FakeClerkModel, type FakeStep } from '../providers/fake';
+import { FakeClerkModel, narrativeStep, type FakeStep } from '../providers/fake';
 
 /**
  * `nx run clerk:eval --feature=<suite>[,<suite>]|all [--subset] [--model=…] [--runs=N]
@@ -123,6 +123,8 @@ const FAKE_OUTPUT: Record<string, unknown> = {
 
 export function fakeModel(): ClerkModelPort {
   return new FakeClerkModel([], (request: ClerkModelRequest): FakeStep => {
+    // An Insights narrative (INS-04) built from the figures it was given, so the number check runs.
+    if (request.output?.name === 'insightsNarrative') return narrativeStep(request);
     const sample = request.output ? FAKE_OUTPUT[request.output.name] : undefined;
     return { chunks: [sample ? JSON.stringify(sample) : 'I don’t have that information in this conversation.'] };
   });

@@ -1,0 +1,43 @@
+[
+  {
+    "path": "notifications/n0000000-0000-4000-8000-000000000001",
+    "data": {
+      "id": "n0000000-0000-4000-8000-000000000001",
+      "recipientUids": ["AlexRiversLegacyUid000000001"],
+      "senderUid": "JordanEllisLegacyUid00000002",
+      "type": "invite",
+      "read": false,
+      "title": "You've been invited!",
+      "description": "A fictional invitation to a fictional board.",
+      "meta": { "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-444444444444", "role": "readWrite" },
+      "createdOn": "2025-03-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "notifications/n0000000-0000-4000-8000-000000000002",
+    "data": {
+      "id": "n0000000-0000-4000-8000-000000000002",
+      "recipientUids": ["JordanEllisLegacyUid00000002", "AlexRiversLegacyUid000000001"],
+      "senderUid": "JordanEllisLegacyUid00000002",
+      "type": "mention",
+      "read": true,
+      "title": "A fictional mention",
+      "description": "",
+      "createdOn": "2025-03-02T00:00:00.000Z",
+      "updatedOn": "2025-03-03T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "notifications/n0000000-0000-4000-8000-000000000003",
+    "data": {
+      "id": "n0000000-0000-4000-8000-000000000003",
+      "recipientUids": ["JordanEllisLegacyUid00000002"],
+      "senderUid": "AlexRiversLegacyUid000000001",
+      "type": "mention",
+      "read": false,
+      "title": "Someone else's notification",
+      "description": "",
+      "createdOn": "2025-03-04T00:00:00.000Z"
+    }
+  }
+]

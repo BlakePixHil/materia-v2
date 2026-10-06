@@ -1,0 +1,8 @@
+{
+  "id": "ins-001",
+  "fields": {
+    "insufficientData": false
+  },
+  "mustNotContain": ["holiday", "season", "economy", "staff leave", "Easter"],
+  "canaries": ["c-canary-ref-q7x2"]
+}

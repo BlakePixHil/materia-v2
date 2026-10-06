@@ -38,7 +38,8 @@ an untyped `.msg` whose size differs from its object, a missing Storage object, 
 with no document, a workflow-level object, and one over 25 MB; a checklist template whose `id`
 field differs from its document id; referrers as a person, an organisation-only company and one
 with neither, with free-text industries and Australian phone formats; a profile with FY budgets
-and a photo; two calendar integrations; a prime and a non-prime workspace.
+and a photo; two calendar integrations; a prime and a non-prime workspace; two notifications
+addressed to Alex and one that isn't (the export counts them and exports none).
 
 **Auth (MIG-04).** `auth-export.json` is Alex's Firebase Auth account in `firebase auth:export`
 form, filtered to the one user: Google sign-in only, like the real subject, with a Google `sub`

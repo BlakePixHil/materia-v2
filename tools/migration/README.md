@@ -1,6 +1,6 @@
 # Legacy migration CLI
 
-`pnpm materia-migrate <step>` moves one user's legacy materia data into Materia v2 ([plan](../../docs/08-legacy-migration-plan.md), [decision log](../../docs/migration/decisions.md)). Nothing in this tool writes to the legacy project. MIG-01 adds `audit` and `check-profile`, and MIG-04 adds `auth-import`. The other steps print a placeholder until their tickets land.
+`pnpm materia-migrate <step>` moves one user's legacy materia data into Materia v2 ([plan](../../docs/08-legacy-migration-plan.md), [decision log](../../docs/migration/decisions.md)). Nothing in this tool writes to the legacy project. MIG-01 adds `audit` and `check-profile`, MIG-02 adds `export`, MIG-04 adds `auth-import`, and MIG-05 adds `copy-files`. The other steps print a placeholder until their tickets land.
 
 ## `audit` (MIG-01)
 
@@ -46,6 +46,35 @@ pnpm materia-migrate check-profile --profile tools/migration/profiles/tristan-bu
 
 It exits 1 when the profile is invalid or incomplete.
 
+## `export` (MIG-02)
+
+Reads one user's legacy data read-only, as one Firestore snapshot, and writes it as JSONL with a manifest to `gs://materia-v2-<env>-migration/runs/<runId>/`. The [runbook](../../docs/runbooks/migration-export.md) has the file layout and the cutover steps, and [D-17](../../docs/migration/decisions.md#d-17-export-new) the choices.
+
+```sh
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate export --profile tools/migration/profiles/tristan-burke.json \
+  --dry-run --compare-audit /mnt/project-files/mig-01/audit/audit-report.json
+```
+
+- **Read-only:**
+  - It runs the same IAM check as the audit before it reads anything, and stops with exit code 3 on credentials that could write.
+  - The reader sends only GETs and read-only POSTs (`runQuery`, `runAggregationQuery`, `batchGet`, `accounts:lookup`). Anything else throws before it is sent.
+- **Scope:** the audit's, narrowed by the profile. The user's profile, dashboard items, integrations and workspaces. Every board they are on or own that the profile doesn't exclude, with all its cards (archived too), attachments and checklist templates. Their referrers. Other users' names, the Auth record without secrets, and the Storage objects' metadata. A board the profile doesn't name stops the export with exit code 4.
+- **One snapshot:** every Firestore read is at the `readTime` the server gave at the start. Queries page on a `__name__` cursor.
+- **Output:**
+  - One `{path, id, data, readTime}` per line, sorted, with sorted keys, so the same snapshot gives the same sha256.
+  - Files stream up in resumable 8 MiB chunks, and each upload is checked against the MD5 Storage computes.
+  - It writes only to a `materia-v2-(dev|prod)-migration` bucket.
+- **Logs:** counts only.
+- **Options:**
+
+  | Option                    | Meaning                                                                                                                     |
+  | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+  | `--env dev\|prod`         | Where the run goes. Prod is written by `migration-runner`, dev by your gcloud account                                       |
+  | `--dry-run`               | Read and count, write nothing. With `--compare-audit <report>`, compare the counts with the audit's                         |
+  | `--since <iso>`           | A delta: cards and attachments changed since then, plus `raw/paths.jsonl`                                                   |
+  | `--run-id`, `--resume`    | Name a run; finish an interrupted one within 55 minutes                                                                     |
+  | `--source-project demo-…` | Read the Firestore, Storage and Auth emulators instead (made-up data). `--env emulator` also writes to the Storage emulator |
+
 ## `auth-import` (MIG-04)
 
 Moves one legacy Firebase Auth account into a v2 project with the same uid. It keeps the Auth record's email, every sign-in identity with the provider's id for the person (so Google sign-in finds the same account), and the password hash with the legacy scrypt parameters when there is one. The [runbook](../../docs/runbooks/migration-auth-import.md) has the cutover steps.
@@ -71,6 +100,41 @@ NODE_USE_ENV_PROXY=1 pnpm materia-migrate auth-import --target materia-v2-dev \
 - **Hash parameters:** read from the target's Secret Manager (`LEGACY_SCRYPT_PARAMS`), or from the environment on the emulator. Never logged, and emails aren't either.
 - **`--rollback`:** deletes the imported account after a rehearsal. In prod, only if it never signed in.
 
+## `copy-files` (MIG-05)
+
+Copies every attachment the transform planned, and the profile photo, from the legacy bucket into the v2 files bucket, server to server. The [runbook](../../docs/runbooks/migration-copy-files.md) has the steps, and [D-18](../../docs/migration/decisions.md#d-18-attachment-copy-new) the choices.
+
+```sh
+NODE_USE_ENV_PROXY=1 pnpm materia-migrate copy-files --run <runId> --env dev
+```
+
+- **Reads** the run's `transformed/documents.jsonl` and `transformed/avatars.jsonl` (MIG-03), the transform's `report.json` for the orphans, and the export's `manifest.json` for the legacy bucket.
+- **For each file** (`src/files/copy.ts`):
+  1. A server-side copy (GCS `rewrite`) of exactly the generation the export listed, into `migration-quarantine/<runId>/` in the files bucket. No client can read that path.
+  2. A check against the export's size, MD5 and CRC32C. A copy that differs is deleted and reported.
+  3. A read back in memory (never to disk) for its sha256 and what its bytes are.
+  4. The malware scan, by the same ClamAV service that scans uploads (CORE-12a).
+  5. **Clean:** moved to `orgs/{O}/matters/{M}/documents/{D}/v1` (or `users/{uid}/avatar.png`), with `migrationRunId`, `legacyPath`, `sha256` and the scan in its metadata. **Infected:** stays in quarantine. **Scanner down:** stays in quarantine until a re-run.
+- **Never** writes to the legacy bucket, carries a legacy download token across, or deletes anything outside its quarantine prefix. A path already holding another file is reported, not overwritten.
+- **Writes** beside the transform's files:
+  - `files/documents.jsonl`: the transform's lines with version 1, the sha256 and `scan.status` filled in, plus each file's `result`. The load (MIG-06) reads this file.
+  - `files/avatars.jsonl`;
+  - `files/report.json`: counts, then the missing, infected, unscanned and failed files, type mismatches and orphans, by legacy path. No file names or content.
+- **Re-runs** skip every file already at its final path with the same content, scanned clean, so a re-run finishes an interrupted run.
+- **Logs:** counts only.
+- **Options:**
+
+  | Option                   | Meaning                                                                                                |
+  | ------------------------ | ------------------------------------------------------------------------------------------------------ |
+  | `--run <runId>`          | The run to copy for                                                                                    |
+  | `--env dev\|prod`        | The v2 environment. `--env emulator` uses the Storage emulator with a fake scanner (EICAR is infected) |
+  | `--concurrency <n>`      | Files at a time (default 8)                                                                            |
+  | `--source-bucket`        | The legacy bucket, when not the export manifest's                                                      |
+  | `--scanner-url`          | The ClamAV service, when not the `clamav` Cloud Run service in the environment's project               |
+  | `--impersonate`, `--adc` | Who copies: migration-runner in prod and your gcloud account in dev, by default                        |
+
+- **Exit codes:** 0 when every file was copied, skipped, missing in legacy or infected (both reported); 5 when some are unscanned or failed, so run it again; 1 on bad arguments or an error.
+
 ## Fixtures
 
 `fixtures/legacy/*.json` is a synthetic legacy dataset for the fictional Alex Rivers (no real data), holding every hazard the plan lists, plus his Auth account (`auth-export.json`). See [`fixtures/legacy/README.md`](fixtures/legacy/README.md). MIG-02 and MIG-03 reuse it. `loadLegacyFixtures()` in `src/legacy/fixtures.ts` loads it.
@@ -79,7 +143,11 @@ NODE_USE_ENV_PROXY=1 pnpm materia-migrate auth-import --target materia-v2-dev \
 
 ```sh
 pnpm nx test migration
-pnpm nx run migration:test-integration   # auth-import against the Auth emulator
+pnpm nx run migration:test-integration   # export, auth-import and copy-files against the emulators
 ```
 
-The emulator test imports a Google-only account and a scrypt password account, made up for each run. A Google credential for the imported identity then signs in to the same uid. The emulator stores hashes without checking them; the dev rehearsal proved a real password sign-in (see the runbook).
+The export test loads the fixtures into a `demo-legacy` Firestore, Storage and Auth, and exports them to the migration bucket on the Storage emulator. Each Firestore file must be byte for byte the export of the fixtures in memory, and match the manifest's count and sha256. It also checks that a change made after the snapshot's `readTime` stays out, and covers a delta, a dry run and a profile that misses a board.
+
+The copy-files test copies made-up attachments from a `demo-legacy` bucket on the Storage emulator. It checks the bytes, metadata and records of a clean file, keeps an EICAR file in quarantine, reports a missing one, fails a copy whose checksum differs from the export's, and finds nothing to do on a re-run.
+
+The auth-import test imports a Google-only account and a scrypt password account, made up for each run. A Google credential for the imported identity then signs in to the same uid. The emulator stores hashes without checking them; the dev rehearsal proved a real password sign-in (see the runbook).

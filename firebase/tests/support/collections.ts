@@ -378,6 +378,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
   },
   {
+    // Clerk's kept Insights explanations (INS-04): server-only, read through clerk-explainInsights.
+    collection: 'insightsNarratives',
+    docPath: `orgs/${ORG}/insightsNarratives/2026-09_2026-09__2026-08_2026-08`,
+    seed: { paragraphs: [], insufficientData: false, generatedBy: OWNER },
+    read: 'none',
+    update: 'none',
+  },
+  {
     collection: 'migrations',
     docPath: `orgs/${ORG}/migrations/run-1`,
     entity: 'MigrationRun',

@@ -13,7 +13,7 @@ let nextId = 0;
 /**
  * Radio group (`mt-radio-group`): pick exactly one of two to five visible options. Use a Select
  * for more than five. The `label` is the group's visible legend. Arrow keys move and select within
- * the group; Tab moves in and out of it.
+ * the group; Tab moves in and out of it. Horizontal options wrap when the row runs out of room (a phone).
  */
 @Component({
   selector: 'mt-radio-group',
@@ -36,6 +36,7 @@ let nextId = 0;
       ngpRadioGroup
       [class.mt-col]="orientation() === 'vertical'"
       [class.mt-row]="orientation() === 'horizontal'"
+      [style.flex-wrap]="orientation() === 'horizontal' ? 'wrap' : null"
       [ngpRadioGroupValue]="value()"
       [ngpRadioGroupOrientation]="orientation()"
       [ngpRadioGroupDisabled]="isDisabled()"

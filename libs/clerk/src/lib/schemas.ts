@@ -5,6 +5,7 @@ import {
   DocumentCategorySchema,
   EventProposalSchema,
   KeyFactProposalSchema,
+  NARRATIVE_PERIODS,
   NoteProposalSchema,
   TaskProposalSchema,
 } from '@materia/domain';
@@ -128,6 +129,38 @@ export const ChatProposalsOutput = z.object({
 });
 export type ChatProposalsOutput = z.infer<typeof ChatProposalsOutput>;
 
+/**
+ * An Insights narrative (INS-04, `insights-narrative@1`): a few short paragraphs about what changed
+ * between two periods, each citing the figures its numbers come from (`metric` and `dimension` as
+ * `<org_metrics>` lists them, `period` current or comparison). `checkNarrativeParagraph` then
+ * checks every number against those figures; a paragraph that fails is never shown. The caps are
+ * generous: the API doesn't enforce lengths or counts, so a long but sound answer (a paragraph
+ * citing six figures in both periods) must still parse. The prompt asks for 4 short paragraphs, and
+ * the callable shows at most 4.
+ */
+export const InsightsNarrativeOutput = z.object({
+  paragraphs: z
+    .array(
+      z.object({
+        text: z.string().min(1).max(2000),
+        citations: z
+          .array(
+            z.object({
+              metric: z.string(),
+              period: z.enum(NARRATIVE_PERIODS),
+              dimension: z.string().optional(),
+            }),
+          )
+          .max(32),
+      }),
+    )
+    .max(8),
+  insufficientData: z
+    .boolean()
+    .describe('True when the figures are too few to say what changed, and the paragraphs say so'),
+});
+export type InsightsNarrativeOutput = z.infer<typeof InsightsNarrativeOutput>;
+
 export const OUTPUT_SCHEMAS = {
   hello: HelloOutput,
   willExtraction: WillExtractionOutput,
@@ -135,6 +168,7 @@ export const OUTPUT_SCHEMAS = {
   ocrPage: OcrPageOutput,
   documentClassification: DocumentClassificationOutput,
   chatProposals: ChatProposalsOutput,
+  insightsNarrative: InsightsNarrativeOutput,
 } as const satisfies Record<string, z.ZodType>;
 
 export type OutputSchemaName = keyof typeof OUTPUT_SCHEMAS;

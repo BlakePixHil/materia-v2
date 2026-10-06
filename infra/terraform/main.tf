@@ -52,6 +52,7 @@ module "env" {
   backup_region                = var.backup_region
   restrict_deploys_to_releases = var.restrict_deploys_to_releases
   enable_migration_runner      = var.enable_migration_runner
+  container_scanning           = var.container_scanning
   deletion_protection          = var.deletion_protection
   budget_amount                = var.budget_amount
   budget_currency              = var.budget_currency

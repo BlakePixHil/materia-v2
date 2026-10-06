@@ -133,7 +133,42 @@ function draftStep(request: ClerkModelRequest): FakeStep | undefined {
   return { chunks: FAKE_DRAFT_PARAGRAPHS.map((paragraph, i) => (i ? `\n\n${paragraph}` : paragraph)) };
 }
 
+/**
+ * An Insights narrative (INS-04) the number check accepts: one paragraph per figure (at most two)
+ * that writes the current period's value as `<org_metrics>` gives it, citing it. With no figures,
+ * it says there isn't enough to explain.
+ */
+export function narrativeStep(request: ClerkModelRequest): FakeStep {
+  const text = request.messages.map(turnText).join('\n');
+  const json = /<org_metrics>\n([\s\S]*?)\n<\/org_metrics>/.exec(text)?.[1];
+  let metrics: { current?: { label?: string }; figures?: Record<string, string | null>[] } = {};
+  try {
+    metrics = json ? JSON.parse(json) : {};
+  } catch {
+    metrics = {};
+  }
+  const figures = (metrics.figures ?? []).filter((figure) => typeof figure['current'] === 'string').slice(0, 2);
+  const paragraphs = figures.map((figure) => ({
+    text: `${figure['label']}: ${figure['current']} in ${metrics.current?.label ?? 'this period'} (fake Clerk model).`,
+    citations: [
+      {
+        metric: String(figure['metric']),
+        period: 'current',
+        ...(figure['dimension'] ? { dimension: String(figure['dimension']) } : {}),
+      },
+    ],
+  }));
+  const output = paragraphs.length
+    ? { paragraphs, insufficientData: false }
+    : {
+        paragraphs: [{ text: 'There isn’t enough recorded yet to explain (fake Clerk model).', citations: [] }],
+        insufficientData: true,
+      };
+  return { chunks: [JSON.stringify(output)] };
+}
+
 function defaultStep(request: ClerkModelRequest): FakeStep {
+  if (request.output?.name === 'insightsNarrative') return narrativeStep(request);
   const draft = draftStep(request);
   if (draft) return draft;
   const chat = chatStep(request);

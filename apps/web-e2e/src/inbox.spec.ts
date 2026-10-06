@@ -190,7 +190,8 @@ test.describe('inbox', () => {
     ).toHaveCount(0, LIVE);
 
     // Archived ones stay archived after a reload.
-    await row(page, 'Read yesterday').click();
+    // Focused rather than clicked: on a phone a tap opens the notification.
+    await row(page, 'Read yesterday').focus();
     await page.keyboard.press('y');
     await expect(rows(page)).toHaveCount(3);
     // The row hides at once; "Archived" shows only once the write has gone through, so reloading
@@ -201,7 +202,8 @@ test.describe('inbox', () => {
     await expect(row(page, 'Read yesterday')).toHaveCount(0);
   });
 
-  test('the bell lists unread notifications and opens one', async ({ page, request }) => {
+  test('the bell lists unread notifications and opens one', async ({ page, request, isMobile }) => {
+    test.skip(isMobile, 'The bell is in the desktop top bar; phones reach the Inbox from the TabBar');
     test.setTimeout(60_000);
     await signIn(page, request);
     await page.goto('/today');

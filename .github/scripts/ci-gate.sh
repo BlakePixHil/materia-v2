@@ -4,7 +4,8 @@
 # $GITHUB_OUTPUT. The modes are described at the top of ci.yml.
 #
 # Env: GH_TOKEN, EVENT, PR (pull_request), BEFORE (push), MORNING (workflow_dispatch: "true" for
-# the morning run), plus the runner's GITHUB_* variables.
+# the morning run), CATCHUP (workflow_dispatch: "true" for a catch-up run), plus the runner's
+# GITHUB_* variables.
 set -euo pipefail
 
 repo="$GITHUB_REPOSITORY"
@@ -39,46 +40,43 @@ is_docs_only() {
   [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs_pattern" >/dev/null
 }
 
-# The newest commit that deploy-dev deployed successfully (its run name is "deploy-dev <sha>").
-# A green run whose deploy job was skipped (nothing to deploy) doesn't count.
-last_deployed() {
-  local id title
-  gh run list --repo "$repo" --workflow deploy-dev.yml --status success --limit 20 \
-    --json databaseId,displayTitle --jq '.[] | "\(.databaseId) \(.displayTitle)"' 2>/dev/null |
-    while read -r id title; do
-      if gh api "repos/$repo/actions/runs/$id/jobs?per_page=100" \
-        --jq '.jobs[] | select(.name | startswith("deploy /")) | .conclusion' 2>/dev/null | grep -x success >/dev/null; then
-        echo "${title##* }"
-        return 0
-      fi
-    done
-}
+# The newest successful dev deploy: "<sha> <minutes ago> <due|recent>" (last-dev-deploy.sh).
+last_deploy="$("$(dirname "${BASH_SOURCE[0]}")/last-dev-deploy.sh" 2>/dev/null || true)"
+read -r deployed deployed_mins deploy_state <<< "$last_deploy" || true
 
 # The morning run (the Claude routine's dispatch, or a cron that fired): test and deploy whatever
 # merged since the last dev deploy. Crons arrive hours late, so any time from 06:00 to 22:00 works.
-morning_run() {
-  local others deployed
-  # Another run that builds this commit (a morning run, or a daytime push) will deploy it.
+# A catch-up run (the routine's hourly daytime dispatch) deploys what the two-hour limit held back
+# (see last-dev-deploy.sh), with the fast checks only: everything else ran on the PRs.
+deploy_run() {
+  local kind="$1" others
+  # Another run that builds this commit (a morning run, or a daytime push) will deploy it. A
+  # catch-up ignores pushes: a push inside the two-hour limit builds but doesn't deploy.
   others="$(gh run list --repo "$repo" --workflow ci.yml --commit "$head" --limit 20 \
-    --json databaseId,event,status --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and .status != \"completed\" and (.event != \"push\" or $quiet == false))] | length" 2>/dev/null || echo 0)"
-  if [ "$now" -lt 600 ] || [ "$now" -ge 2200 ]; then
+    --json databaseId,event,status --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and .status != \"completed\" and (.event != \"push\" or ($quiet == false and \"$kind\" == \"morning\")))] | length" 2>/dev/null || echo 0)"
+  if [ "$kind" = morning ] && { [ "$now" -lt 600 ] || [ "$now" -ge 2200 ]; }; then
     mode=skip
     reason="night time ($hhmm in Melbourne): the morning run starts at 06:30"
+  elif [ "$kind" = catchup ] && [ "$quiet" = true ]; then
+    mode=skip
+    reason="quiet hours ($hhmm in Melbourne): the morning run deploys this"
   elif [ "${others:-0}" != 0 ]; then
     mode=skip
     reason="another run is already building this commit"
+  elif [ "${deployed:-}" = "$head" ]; then
+    mode=skip
+    reason="main is already deployed to dev"
+  elif [ -n "${deployed:-}" ] && is_docs_only "$(compare_files "$deployed" "$head")"; then
+    mode=skip
+    reason="only docs changed since the last dev deploy"
+  elif [ "$kind" = catchup ] && [ "${deploy_state:-}" = recent ]; then
+    mode=skip
+    reason="dev deployed ${deployed_mins} min ago; dev deploys at most once every two hours"
   else
-    deployed="$(last_deployed || true)"
-    if [ "$deployed" = "$head" ]; then
-      mode=skip
-      reason="main is already deployed to dev"
-    elif [ -n "$deployed" ] && is_docs_only "$(compare_files "$deployed" "$head")"; then
-      mode=skip
-      reason="only docs changed since the last dev deploy"
-    else
-      base="$deployed"
-      reason="morning run: everything merged since ${deployed:-the start} (last dev deploy)"
-    fi
+    local label="morning run"
+    if [ "$kind" = catchup ]; then mode=main; label="catch-up run"; fi
+    base="${deployed:-}"
+    reason="$label: everything merged since ${deployed:-the start} (last dev deploy)"
   fi
 }
 
@@ -103,13 +101,15 @@ case "$EVENT" in
     fi
     ;;
   schedule)
-    morning_run
+    deploy_run morning
     ;;
   workflow_dispatch)
     if [ "${MORNING:-}" = true ]; then
-      morning_run
+      deploy_run morning
+    elif [ "${CATCHUP:-}" = true ]; then
+      deploy_run catchup
     else
-      base="$(last_deployed || true)"
+      base="${deployed:-}"
       reason="manual run: everything since ${base:-the start} (last dev deploy)"
     fi
     ;;

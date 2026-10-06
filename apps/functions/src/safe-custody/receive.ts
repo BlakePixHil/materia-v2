@@ -1,24 +1,22 @@
 import {
-  formatPacketNo,
   PERMISSIONS,
   ReceivePacketInput,
   SAFE_CUSTODY_CALLABLES,
-  SAFE_CUSTODY_COUNTER,
-  SafeCustody,
   type ReceivePacketResult,
+  type SafeCustodyItem,
+  type SafeCustodyLocation,
 } from '@materia/domain';
 
 import {
   assertActiveMember,
   assertDocument,
   assertMatter,
-  derivedFields,
+  createPacket,
   packetsPath,
+  reservePacketNo,
   resolveTestator,
 } from './shared';
-import { compact } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
-import { counterPath } from '../matters/shared';
 
 /**
  * `safeCustody-receive` (CORE-17, `safeCustody.edit`, idempotent): a new packet. In one
@@ -43,46 +41,25 @@ export const receiveDefinition = {
 
     const now = clock.now();
     const ref = db.collection(packetsPath(orgId)).doc();
-    const counterRef = db.doc(counterPath(orgId, SAFE_CUSTODY_COUNTER));
     const packetNo = await db.runTransaction(async (tx) => {
-      const counter = await tx.get(counterRef);
-      const seq = typeof counter.get('next') === 'number' ? (counter.get('next') as number) : 1;
-      const packetNo = formatPacketNo(seq);
-      const meta = { updatedAt: now, updatedBy: uid };
-      tx.set(
-        counterRef,
-        counter.exists
-          ? { next: seq + 1, ...meta }
-          : { next: seq + 1, createdAt: now, createdBy: uid, ...meta, schemaVersion: 1 },
-        { merge: true },
-      );
-      const packet = SafeCustody.schema.parse(
-        compact({
-          packetNo,
-          testatorContactId: testator.id,
-          testatorName: testator.name,
+      const reserved = await reservePacketNo(tx, db, orgId, uid, now);
+      reserved.commit();
+      createPacket(
+        tx,
+        ref,
+        {
+          packetNo: reserved.packetNo,
+          testator,
           responsibleUid,
           matterId: input.matterId,
-          items: input.items,
-          location: input.location,
+          items: input.items as SafeCustodyItem[],
+          location: input.location as SafeCustodyLocation,
           receivedOn: input.receivedOn,
-          status: 'held',
-          movements: [
-            compact({ at: now, by: uid, kind: 'in', reason: 'Received into safe custody', location: input.location }),
-          ],
-          notes: input.notes || undefined,
-          pendingDestruction: null,
-          ...derivedFields(packetNo, testator.name, input.location),
-          createdAt: now,
-          createdBy: uid,
-          updatedAt: now,
-          updatedBy: uid,
-          schemaVersion: SafeCustody.version,
-          _requestId: requestId,
-        }),
+          notes: input.notes,
+        },
+        { uid, now, requestId },
       );
-      tx.create(ref, packet);
-      return packetNo;
+      return reserved.packetNo;
     });
     log.info('packet received', { packetId: ref.id, items: input.items.length });
     return { id: ref.id, packetNo };

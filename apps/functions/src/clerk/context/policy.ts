@@ -15,8 +15,8 @@ export interface ContextPolicy {
 
 /**
  * Per-feature context budgets and scopes (AI-03). Budgets follow ADR-011a's planning volumes (chat
- * about 30k input tokens a call) with headroom; will extraction reads a whole will. No feature reads
- * metrics yet: the Insights narrative (INS-04) adds one with `scopes: ['metrics']`.
+ * about 30k input tokens a call) with headroom; will extraction reads a whole will. Only the
+ * Insights narrative (INS-04) reads metrics, and nothing else.
  */
 export const CONTEXT_POLICIES = {
   hello: { budgetTokens: 8_000, scopes: ['matter'] },
@@ -31,6 +31,8 @@ export const CONTEXT_POLICIES = {
   drafting: { budgetTokens: 40_000, scopes: ['matter'] },
   draftingRewrite: { budgetTokens: 24_000, scopes: ['matter'] },
   timeAssist: { budgetTokens: 12_000, scopes: ['matter'] },
+  /** Two periods' figures: about 40 figures of a line each, far under the budget. */
+  insightsNarrative: { budgetTokens: 16_000, scopes: ['metrics'] },
   /** The eval harness's citation judge (AI-12): sent only test items, never a matter's context. */
   evalJudge: { budgetTokens: 16_000, scopes: ['matter'] },
   // OCR (AI-04) sends one page image and no assembled context; the entry only completes the map.
@@ -50,8 +52,6 @@ export const FACT_LIMITS = {
   notes: 10,
   /** A longer note is cut here, with a marker. */
   noteChars: 2_000,
-  /** Practice rollups in the metrics scope. */
-  metrics: 24,
 } as const;
 
 /** Retrieval: the excerpts kept after de-duplication by (document, page). */

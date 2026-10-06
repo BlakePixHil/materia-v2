@@ -13,6 +13,7 @@ import {
   EVALS_DIR,
   EvalOutageError,
   fixturePages,
+  insightsCase,
   readTextFixture,
   sourcePages,
   type CaseExecutor,
@@ -23,7 +24,15 @@ import {
   type EvalCase,
   type TextSpan,
 } from '@materia/clerk/evals';
-import { clerkDraftType, DomainError, can, missingDraftFacts, type ClerkDraftRecipient } from '@materia/domain';
+import {
+  clerkDraftType,
+  DomainError,
+  can,
+  missingDraftFacts,
+  narrativePeriodInfo,
+  narrativePromptVars,
+  type ClerkDraftRecipient,
+} from '@materia/domain';
 
 import { createLog } from '../../core/log';
 import { ClerkModelError, type ClerkModelPort, type ClerkModelResult } from '../../ports';
@@ -68,6 +77,7 @@ const FEATURES: Record<CaseRequest['feature'], ClerkFeature> = {
   willExtraction: 'willExtraction',
   drafting: 'drafting',
   timeAssist: 'timeAssist',
+  insightsNarrative: 'insightsNarrative',
 };
 
 export interface EvalExecutorOptions {
@@ -339,6 +349,49 @@ async function runDrafting(
   return gateway.run({ ctx, feature, promptId: promptRef, vars, context });
 }
 
+/**
+ * One Insights narrative case (INS-04) the way `clerk-explainInsights` asks: the case's months as
+ * the org's month rollups, production's metrics scope (`buildContext`) for the case's periods, and
+ * the callable's prompt variables. The graders check the reply against the same figures.
+ */
+async function runInsights(
+  gateway: ClerkGateway,
+  ctx: GatewayContext,
+  evalCase: EvalCase,
+  promptRef: string,
+  root: string,
+): Promise<ClerkRunResult> {
+  const insights = insightsCase(evalCase);
+  if (!insights) throw new Error(`${evalCase.id}: an Insights narrative case needs an insights selection`);
+  const metrics = Object.fromEntries(
+    Object.entries(evalCase.metrics).map(([month, values]) => [`month-${month}`, { period: `month-${month}`, values }]),
+  );
+  const source = new MemoryContextSource({
+    [ctx.orgId]: { members: { [ctx.uid]: { status: 'active', role: evalCase.role } }, matters: {}, metrics },
+  });
+  const context = await createContextBuilder({
+    source,
+    chunks: evalChunkSearch(evalCase, root),
+    documentText: evalDocumentText(evalCase, root),
+    tokens: charEstimateCounter,
+  }).buildContext({
+    ctx,
+    scope: {
+      org: 'metrics',
+      current: narrativePeriodInfo(insights.current),
+      comparison: insights.comparison ? narrativePeriodInfo(insights.comparison) : null,
+    },
+    feature: 'insightsNarrative',
+  });
+  return gateway.run({
+    ctx,
+    feature: 'insightsNarrative',
+    promptId: promptRef,
+    vars: narrativePromptVars(insights.current, insights.comparison),
+    context,
+  });
+}
+
 /** A draft as the graders read it: a note's text, or a task's title, due date and details. */
 function draftText(draft: ChatDraft): string {
   if (draft.kind === 'note') return draft.payload.bodyMd;
@@ -412,7 +465,15 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
     let result: ClerkRunResult;
     let drafts: DraftedItem[] | undefined;
     try {
-      if (chat)
+      if (request.feature === 'insightsNarrative')
+        result = await runInsights(
+          gateway,
+          { ...ctx, clock: { now: () => caseNow(evalCase) } },
+          evalCase,
+          promptRef,
+          root,
+        );
+      else if (chat)
         ({ result, drafts } = await runChat(
           gateway,
           { ...ctx, clock: { now: () => caseNow(evalCase) } },

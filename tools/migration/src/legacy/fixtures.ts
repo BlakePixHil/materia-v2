@@ -29,6 +29,7 @@ const COLLECTIONS = [
   'referrers',
   'dashboard-checklist-items',
   'integrations',
+  'notifications',
 ] as const;
 
 function read<T>(name: string, dir: string): T {

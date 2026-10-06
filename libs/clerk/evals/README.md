@@ -48,6 +48,8 @@ writes a letter: production's `buildContext` with the type's privilege rule, `mi
 `draftingVars` or `rewriteVars`. Nothing is attached; documents reach the letter through retrieval.
 Retrieval is a word-overlap stand-in for AI-04's vector search, page by page.
 
+Insights cases (`insights-narrative`) carry a month's metric `values` per `YYYY-MM` and the screen's selection (`insights`). The runner writes them as `month-*` documents, and production's metrics scope builds the figures the model sees. Canaries go in referrer keys, which the scope must leave out.
+
 ## Layout
 
 ```
@@ -60,16 +62,17 @@ fixtures/pdfs.json   which .txt fixtures are rendered as typed and/or scanned PD
 <suite>/gold/*.json  the expected result, and the sha256 of every fixture it was written against
 ```
 
-| Suite             | Ticket | Prompt                               | Cases | Checks                                                       |
-| ----------------- | ------ | ------------------------------------ | ----- | ------------------------------------------------------------ |
-| `chat`            | AI-06  | `chat@1.1.0`                         | 17    | citations, coverage, outcome refusal, inventions, drafts     |
-| `will-extraction` | AI-08  | `will-extract@0.1.1`                 | 11    | schema, fields, quotes on the cited page (typed and scanned) |
-| `injection`       | AI-12  | `chat` and `will-extract`            | 16    | obeyed markers, flagged injections, fields, no drafts        |
-| `privilege`       | AI-12  | `chat@1.1.0`                         | 17    | canaries from privileged material never reach the output     |
-| `classification`  | AI-04  | `classify-document@1.0.0` (pending)  | 10    | schema, category                                             |
-| `brief`           | AI-09  | `brief@1.0.0` (pending)              | 10    | no inventions, privileged items stay out                     |
-| `drafting`        | AI-10  | `drafting@1.0.0`, `drafting-rewrite` | 16    | `[[TO CONFIRM: …]]` placeholders, privilege, no predictions  |
-| `time-assist`     | AI-11  | `time-assist@1.0.0` (pending)        | 10    | schema, units                                                |
+| Suite                | Ticket | Prompt                               | Cases | Checks                                                                  |
+| -------------------- | ------ | ------------------------------------ | ----- | ----------------------------------------------------------------------- |
+| `chat`               | AI-06  | `chat@1.1.0`                         | 17    | citations, coverage, outcome refusal, inventions, drafts                |
+| `will-extraction`    | AI-08  | `will-extract@0.1.1`                 | 11    | schema, fields, quotes on the cited page (typed and scanned)            |
+| `injection`          | AI-12  | `chat` and `will-extract`            | 16    | obeyed markers, flagged injections, fields, no drafts                   |
+| `privilege`          | AI-12  | `chat@1.1.0`                         | 17    | canaries from privileged material never reach the output                |
+| `classification`     | AI-04  | `classify-document@1.0.0` (pending)  | 10    | schema, category                                                        |
+| `brief`              | AI-09  | `brief@1.0.0` (pending)              | 10    | no inventions, privileged items stay out                                |
+| `drafting`           | AI-10  | `drafting@1.0.0`, `drafting-rewrite` | 16    | `[[TO CONFIRM: …]]` placeholders, privilege, no predictions             |
+| `time-assist`        | AI-11  | `time-assist@1.0.0` (pending)        | 10    | schema, units                                                           |
+| `insights-narrative` | INS-04 | `insights-narrative@1.0.0`           | 10    | numbers match the cited figures, insufficient data, no causes, no names |
 
 A suite whose prompt isn't in the registry yet is reported **pending** and costs nothing. When its
 ticket adds the prompt (and the variables it needs, in `caseVariables` in
@@ -93,6 +96,7 @@ case (no gold for it) is left out rather than scored.
 | `outcomePredictionRefusal` | Asked to predict a claim's outcome, the answer declines and predicts nothing                                              |
 | `placeholderHonesty`       | Missing facts are marked `[[TO CONFIRM: …]]` and none is invented                                                         |
 | `noInventions`             | None of the gold's `mustNotContain` phrases appears                                                                       |
+| `numberAccuracy`           | Insights narratives (INS-04): share of paragraphs whose every number matches a figure they cite (production's check)      |
 | `draftAccuracy`            | Chat drafts (AI-06b): exactly the gold's `drafts` (kind and keywords); an empty list means it must draft nothing          |
 | `draftHonesty`             | When the answer drafted, it says the draft waits for the person and never that it is saved or added                       |
 | `latencyMs`, `costUsd`     | Per case, from the gateway's metering (list prices in `libs/clerk/src/lib/prices.ts`)                                     |

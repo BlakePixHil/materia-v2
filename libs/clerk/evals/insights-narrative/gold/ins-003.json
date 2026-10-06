@@ -1,0 +1,7 @@
+{
+  "id": "ins-003",
+  "fields": {
+    "insufficientData": false
+  },
+  "mustNotContain": ["staff", "holiday", "workload", "understaffed", "sick"]
+}

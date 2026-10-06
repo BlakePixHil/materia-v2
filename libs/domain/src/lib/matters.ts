@@ -276,11 +276,13 @@ export const DEFAULT_MATTER_VIEWS: readonly MatterViewDefinition[] = [
 export type MatterListFilter = 'status' | 'responsibleUid' | 'type' | 'labels' | 'jurisdiction' | 'search';
 /** Fields the Matters list orders by in Firestore. */
 export type MatterListOrderField = 'lastActivityAt' | 'number' | 'title';
+/** An indexed matters query's order: the list's, or `createdAt` for Insights' drill-down (INS-02). */
+export type MatterIndexOrderField = MatterListOrderField | 'createdAt';
 
 export interface MatterIndexedQuery {
   /** The filtered fields, in any order. */
   filters: readonly MatterListFilter[];
-  orderBy: MatterListOrderField;
+  orderBy: MatterIndexOrderField;
   dir: 'asc' | 'desc';
 }
 
@@ -335,12 +337,14 @@ export const MATTER_INDEXED_QUERIES: readonly MatterIndexedQuery[] = [
   byActivity('labels'),
   byActivity('jurisdiction'),
   byActivity('search'),
+  // Insights (INS-02): a type's matters opened in a period, oldest first.
+  { filters: ['type'], orderBy: 'createdAt', dir: 'asc' },
 ];
 
 /** Whether a Matters list query (its filtered fields, order field and direction) is indexed. */
 export function isIndexedMatterQuery(
   filters: readonly MatterListFilter[],
-  orderBy: MatterListOrderField,
+  orderBy: MatterIndexOrderField,
   dir: 'asc' | 'desc',
 ): boolean {
   const wanted = [...new Set(filters)].sort().join(',');

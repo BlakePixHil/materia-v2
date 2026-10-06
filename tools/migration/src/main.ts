@@ -1,5 +1,7 @@
 import { auditCommand, checkProfileCommand } from './audit.ts';
 import { authImportCommand } from './auth-import.ts';
+import { copyFilesCommand } from './copy-files.ts';
+import { exportCommand } from './export.ts';
 
 /**
  * `materia-migrate <step>`: the legacy materia to v2 migration CLI (Legacy migration plan).
@@ -11,6 +13,7 @@ const STEPS = {
   'check-profile': "MIG-01: validate a mapping profile against the audit's workflows and swimlanes",
   export: 'MIG-02: read-only export of the legacy user data',
   transform: 'MIG-03: pure legacy to v2 mapping',
+  'copy-files': 'MIG-05: copy the attachments into v2, verified and scanned',
   'auth-import': 'MIG-04: move one legacy Auth account into v2 with the same uid',
   load: 'MIG-06: idempotent load into a v2 org',
   verify: 'MIG-06: verification suite',
@@ -22,7 +25,9 @@ type Step = keyof typeof STEPS;
 const COMMANDS: Partial<Record<Step, (argv: string[]) => Promise<number>>> = {
   audit: (argv) => auditCommand(argv),
   'check-profile': (argv) => checkProfileCommand(argv),
+  export: (argv) => exportCommand(argv),
   'auth-import': (argv) => authImportCommand(argv),
+  'copy-files': (argv) => copyFilesCommand(argv),
 };
 
 export function usage(): string {

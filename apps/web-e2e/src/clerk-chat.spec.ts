@@ -58,6 +58,8 @@ async function ask(page: Page, text: string) {
 }
 
 test.describe('Clerk chat panel', () => {
+  test.skip(({ isMobile }) => isMobile, 'The Clerk panel is a desktop feature; phones have no way to open it yet');
+
   test('answers about the matter with tools, proposes a task, takes feedback and retries', async ({
     page,
     request,
