@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import {
   createInvite,
   createTestAccount,
   expectNoA11yViolations,
+  FIRST_CALL,
   latestOobCode,
   signInThroughUi,
   TEST_PASSWORD,
@@ -88,12 +89,25 @@ test('signing out in one tab signs out the other', async ({ context, page, reque
     .toEqual([]);
 });
 
+/**
+ * The Auth emulator's answer to a sign-up. It runs `auth-beforeCreate` in the Functions emulator
+ * first, and the first sign-up in a run starts that function's worker.
+ */
+function signUpAnswer(page: Page) {
+  return page.waitForResponse(
+    (res) => res.url().includes('/accounts:signUp') && res.request().method() === 'POST',
+    FIRST_CALL,
+  );
+}
+
 test('sign-up without an invite is refused', async ({ page }) => {
   await page.goto('/auth/sign-up');
   await page.getByLabel('Full name').fill('Stranger Person');
   await page.getByLabel('Work email').fill(uniqueEmail('stranger'));
   await page.getByLabel('Password').fill(TEST_PASSWORD);
+  const signedUp = signUpAnswer(page);
   await page.getByRole('button', { name: 'Create account' }).click();
+  await signedUp;
   await expect(page.getByRole('alert')).toContainText('Sign-up is by invitation only');
 });
 
@@ -103,7 +117,9 @@ test('sign up with an invite, confirm the email from the link, and land in onboa
   await page.goto(`/auth/sign-up?email=${encodeURIComponent(email)}`);
   await page.getByLabel('Full name').fill('Invited Person');
   await page.getByLabel('Password').fill(TEST_PASSWORD);
+  const signedUp = signUpAnswer(page);
   await page.getByRole('button', { name: 'Create account' }).click();
+  await signedUp;
   await expect(page).toHaveURL(/\/auth\/verify-email$/);
   await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
   // Not yet verified: the shell stays closed.
