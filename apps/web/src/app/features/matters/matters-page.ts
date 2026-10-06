@@ -667,6 +667,8 @@ export class MattersPage {
   protected readonly destructionOn = computed(() => this.canDestroy() && this.flags.isOn('matters.destruction'));
   protected readonly canEdit = can('matter.edit');
   protected readonly canStatus = can('matter.status');
+  /** Owners and admins set the board's WIP limits (CORE-04a). */
+  private readonly canSetLimits = can('org.settings');
   private readonly canRunConflicts = can('conflict.run');
   private readonly privilegedVisible = can('privileged.view');
 
@@ -750,6 +752,7 @@ export class MattersPage {
     canStatus: this.canStatus(),
     templatesOn: this.templatesOn(),
     openMatter: (row: MatterRow) => this.openMatter(row),
+    canSetLimits: this.canSetLimits(),
   }));
 
   // ---------- the list ----------

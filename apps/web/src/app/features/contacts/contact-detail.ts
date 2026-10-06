@@ -21,6 +21,7 @@ import {
   REFERRER_INDUSTRY_LABELS,
 } from '@materia/domain';
 import {
+  formatAud,
   formatDateOnly,
   MATTER_TYPE_LABELS,
   MtBadge,
@@ -290,6 +291,7 @@ export class ContactDetail {
   protected readonly parties = contactPartiesRepository().watchQuery(() => contactPartiesQuery(this.contactId()));
   private readonly matterRepo = matterSummariesRepository();
   private readonly canSeePrivileged = can('privileged.view');
+  private readonly canSeeBilling = can('billing.view');
   /** Matters this contact referred (CORE-18): live, and privileged ones only for privileged.view. */
   protected readonly referrals = referredMattersRepository().watchQuery(() =>
     referredMattersQuery(this.contactId(), this.canSeePrivileged()),
@@ -314,12 +316,16 @@ export class ContactDetail {
           .join(' · '),
       })),
   );
-  /** "3 matters referred · 2 active · last on 5 Oct 2026" (billed fees join with BILL-07). */
+  /**
+   * "3 matters referred · 2 active · $4,400.00 billed · last on 5 Oct 2026". What has been billed on
+   * them (BILL-07, `budget.billedCents`) shows only to billing.view roles.
+   */
   protected readonly totalsText = computed(() => {
-    const { count, active, lastReferredAt } = this.totals();
+    const { count, active, lastReferredAt, billedCents } = this.totals();
     return [
       count === 1 ? '1 matter referred' : `${count} matters referred`,
       `${active} active`,
+      this.canSeeBilling() ? `${formatAud(billedCents)} billed` : null,
       lastReferredAt ? `last on ${formatDateOnly(lastReferredAt)}` : null,
     ]
       .filter(Boolean)

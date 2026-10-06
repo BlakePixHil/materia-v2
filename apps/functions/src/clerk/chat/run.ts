@@ -2,12 +2,15 @@ import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import { clerkModelFor, type ChatProposalsOutput } from '@materia/clerk';
 import {
+  canAcceptSuggestion,
+  defaultDedupeKey,
   DomainError,
   parseClerkCommand,
   type ClerkChatCommand,
   type ContextManifest,
   type FlagKey,
   type Role,
+  type SuggestionPayload,
   type SuggestionProposal,
 } from '@materia/domain';
 
@@ -18,12 +21,12 @@ import type { ClerkContext, ContextBuilder } from '../context/build-context';
 import { escapeFraming, wrap } from '../context/framing';
 import type { ClerkGateway, ClerkRunResult, GatewayContext } from '../gateway';
 import { loadHistory, messageText, threadMessages, transcript, type ThreadMessage } from './history';
-import { createChatToolbox, type ChatToolDeps, type ToolUsage } from './tools';
+import { createChatToolbox, type ChatDrafter, type ChatToolDeps, type ToolUsage } from './tools';
 
 type Data = Record<string, unknown>;
 
 /** The chat prompt (AI-06) and its follow-on steps. */
-export const CHAT_PROMPT = 'chat@1.0.0';
+export const CHAT_PROMPT = 'chat@1.1.0';
 export const CHAT_PROPOSALS_PROMPT = 'chat-proposals@1.0.0';
 export const CHAT_SUMMARY_PROMPT = 'chat-summary@1.0.0';
 
@@ -59,17 +62,23 @@ export const CHAT_TASKS: Record<ClerkChatCommand | 'question', string> = {
 
 export type ChatRunOutcome = 'answered' | 'skipped' | 'failed';
 
+/** Why a drafted suggestion exists, shown on its card (AI-06b). */
+export const DRAFT_RATIONALE = 'You asked Clerk for this in the chat.';
+
 /**
  * Writes one Clerk answer (AI-06, ADR-044), server-side, so it carries on when the person
  * navigates away. The answer message already exists as `streaming`; this:
  * 1. builds the context for the question (AI-03: scope and privilege enforced in code);
  * 2. replays the conversation's earlier exchanges unchanged (or, in a continued thread's first
  *    question, a summary of the thread it continues);
- * 3. runs the gateway in stream mode with the read-only tools, into the existing message;
+ * 3. runs the gateway in stream mode with the read-only tools, into the existing message; with
+ *    suggestions on, also the drafting tools (AI-06b), which turn the person's "add a file note
+ *    saying …" into a suggestion as Clerk answers;
  * 4. records what the tools showed (manifest, privilege) and marks the thread privileged when the
  *    answer is (Clerk rule 6);
- * 5. asks for proposals (structured output) and turns them into suggestions (AI-07), linked from
- *    the message. A failure here never fails the answer.
+ * 5. links the drafts from the message or, when Clerk didn't draft, asks for proposals
+ *    (structured output) and turns them into suggestions (AI-07). A failure here never fails the
+ *    answer.
  * Expected failures (Clerk switched off, over budget, rate limited) end the message as `error`
  * with the code, so the panel can say why and offer the manual path. Never throws: a redelivered
  * task finds the message finished and does nothing.
@@ -103,6 +112,8 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
     log,
     clock: deps.clock,
   };
+  // What Clerk drafted before a failure stays linked from the answer, so its cards still show.
+  let drafted: readonly string[] = [];
   try {
     const matterId = thread['matterId'];
     if (typeof matterId !== 'string') throw new DomainError('NOT_FOUND', 'This thread has no matter');
@@ -126,6 +137,15 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
     // The answer is privileged when its context or a tool drew on privileged material; the thread
     // is privileged once any answer is (Clerk rule 6). Marked as soon as it is known.
     let privileged = context.manifest.privileged;
+    const draft = (await deps.flag(task.orgId, 'clerk.features.suggestions'))
+      ? drafter(
+          deps,
+          ctx,
+          matterId,
+          { questionId: question.id, model, role: context.manifest.role },
+          () => privileged || thread['privileged'] === true,
+        )
+      : undefined;
     const toolbox = createChatToolbox(
       deps.tools,
       { orgId: task.orgId, matterId, role: context.manifest.role },
@@ -135,8 +155,10 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
           privileged = true;
           await markPrivileged(threadRef, messageRef);
         },
+        ...(draft ? { draft } : {}),
       },
     );
+    drafted = toolbox.usage.drafted;
     if (privileged) await markPrivileged(threadRef, messageRef);
 
     const result = await deps.gateway.run({
@@ -162,21 +184,63 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
       privileged,
     });
 
-    if (result.status === 'done') {
-      const ids = await propose(
-        deps,
-        ctx,
-        matterId,
-        { question: parsed.question, answer: result, context, manifest },
-        privileged,
-      );
-      if (ids.length) await messageRef.update({ suggestionIds: ids });
-    }
+    // When the person asked Clerk to draft something, the drafts are the answer's suggestions;
+    // otherwise the proposals step looks for changes the answer points to.
+    const ids = toolbox.usage.drafting
+      ? toolbox.usage.drafted
+      : result.status === 'done'
+        ? await propose(
+            deps,
+            ctx,
+            matterId,
+            { question: parsed.question, answer: result, context, manifest },
+            privileged,
+          )
+        : [];
+    if (ids.length) await messageRef.update({ suggestionIds: ids });
     return 'answered';
   } catch (error) {
     await fail(deps, messageRef, error);
+    if (drafted.length) await messageRef.update({ suggestionIds: [...drafted] }).catch(() => undefined);
     return 'failed';
   }
+}
+
+/**
+ * The drafting tools' writer (AI-06b): one suggestion per draft, through `proposeSuggestions`
+ * (AI-07), so it is validated, de-duplicated and expires like any other. Its `dedupeKey` is scoped
+ * to the question, so a retry finds the draft it already made instead of drafting it again, and a
+ * person can ask again later for a note they dismissed before. A draft is privileged when anything
+ * Clerk had seen by then was: the context, an earlier answer in the thread, or a tool's result. A
+ * draft the asker's role couldn't accept isn't made.
+ */
+function drafter(
+  deps: ChatRunDeps,
+  ctx: GatewayContext,
+  matterId: string,
+  source: { questionId: string; model: string; role: Role },
+  privileged: () => boolean,
+): ChatDrafter {
+  const [promptId, promptVersion] = CHAT_PROMPT.split('@') as [string, string];
+  return async (draft) => {
+    // Never a card the person who asked couldn't accept.
+    if (!canAcceptSuggestion(source.role, draft.kind, privileged())) return { status: 'not_allowed' };
+    const result = await proposeSuggestions(
+      { db: deps.db, orgId: ctx.orgId, clock: deps.clock, log: ctx.log },
+      matterId,
+      [
+        {
+          ...draft,
+          rationale: DRAFT_RATIONALE,
+          dedupeKey: `ask:${source.questionId}:${defaultDedupeKey(draft as SuggestionPayload)}`.slice(0, 500),
+        },
+      ],
+      { privileged: privileged(), promptId, promptVersion, model: source.model },
+    );
+    const created = result.created[0];
+    if (created) return { status: 'drafted', suggestionId: created.id };
+    return { status: result.skipped[0]?.reason ?? 'invalid' };
+  };
 }
 
 /** Marks the answer and its thread privileged (Clerk rule 6). */

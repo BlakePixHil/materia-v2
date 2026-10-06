@@ -1,5 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, ViewEncapsulation } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import type { DeadlineItem, MatterEventItem, WithId } from '@materia/data-access/repository';
 import { formatDateOnly, MT_TODAY, MtDeadlineChip, MtIconButton } from '@materia/ui';
@@ -14,14 +15,15 @@ type Deadline = WithId<DeadlineItem>;
 /**
  * A matter's events as a timeline (Deadlines tab). `linked`: one line through the events (each with
  * the deadlines computed from it), today and the upcoming deadlines. `scale`: the events on an axis
- * drawn to scale, above the plain list. Either way each event row has `data-event` and its Edit and
- * Delete buttons.
+ * drawn to scale, above the plain list. Either way each event row has `data-event`, its time and a
+ * link to its source document when it has them (the document named in `sources`, which holds only
+ * those the reader may open), and its Edit and Delete buttons.
  */
 @Component({
   selector: 'mt-event-timeline',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [MtDeadlineChip, MtIconButton, NgTemplateOutlet],
+  imports: [MtDeadlineChip, MtIconButton, NgTemplateOutlet, RouterLink],
   host: { class: 'mt-event-timeline' },
   template: `
     <ng-template #eventActions let-event>
@@ -43,6 +45,28 @@ type Deadline = WithId<DeadlineItem>;
             [disabled]="isBusy()(event.id)"
             (click)="remove.emit(event)"
           ></button>
+        </span>
+      }
+    </ng-template>
+
+    <ng-template #eventDetails let-event>
+      @if (event.time || sourceName(event)) {
+        <span class="details caption t-2" data-event-details>
+          @if (event.time) {
+            <span>At {{ event.time }}</span>
+          }
+          @if (sourceName(event); as name) {
+            <span>
+              Source:
+              <a
+                class="source"
+                data-source-document
+                [routerLink]="['/matters', matterId(), 'documents', event.sourceDocumentId]"
+              >
+                {{ name }}
+              </a>
+            </span>
+          }
         </span>
       }
     </ng-template>
@@ -81,6 +105,7 @@ type Deadline = WithId<DeadlineItem>;
               @if (event.label && event.label !== eventLabel(event.kind)) {
                 <span class="caption t-3">· {{ event.label }}</span>
               }
+              <ng-container *ngTemplateOutlet="eventDetails; context: { $implicit: event }" />
             </span>
             <ng-container *ngTemplateOutlet="eventActions; context: { $implicit: event }" />
           </li>
@@ -100,6 +125,7 @@ type Deadline = WithId<DeadlineItem>;
                 @if (entry.event.label && entry.event.label !== eventLabel(entry.event.kind)) {
                   <span class="caption t-2">{{ entry.event.label }}</span>
                 }
+                <ng-container *ngTemplateOutlet="eventDetails; context: { $implicit: entry.event }" />
                 @if (entry.linked.length) {
                   <ul class="kids" [attr.aria-label]="'Deadlines from ' + eventLabel(entry.event.kind)">
                     @for (deadline of entry.linked; track deadline.id) {
@@ -282,6 +308,17 @@ type Deadline = WithId<DeadlineItem>;
       border-radius: var(--radius-sm);
       background: var(--bg-canvas);
     }
+    .mt-event-timeline .details {
+      display: inline-flex;
+      flex-wrap: wrap;
+      column-gap: var(--space-8);
+    }
+    .mt-event-timeline .flat .details {
+      margin-left: var(--space-8);
+    }
+    .mt-event-timeline .details .source {
+      color: var(--text-brand);
+    }
     .mt-event-timeline .state {
       font-size: 12px;
       color: var(--text-secondary);
@@ -454,6 +491,10 @@ export class EventTimeline {
   readonly view = input.required<EventsView>();
   readonly canEdit = input(false);
   readonly isBusy = input<(id: string) => boolean>(() => false);
+  /** The matter, for links to source documents. */
+  readonly matterId = input('');
+  /** Source documents' names by id: those the reader may open (live, and privileged ones only for privileged.view). */
+  readonly sources = input<ReadonlyMap<string, string>>(new Map());
   readonly edit = output<Event>();
   readonly remove = output<Event>();
 
@@ -475,6 +516,10 @@ export class EventTimeline {
 
   protected date(value: string): string {
     return formatDateOnly(value);
+  }
+
+  protected sourceName(event: Event): string | undefined {
+    return event.sourceDocumentId && this.matterId() ? this.sources().get(event.sourceDocumentId) : undefined;
   }
 
   protected statusLabel(status: Deadline['status']): string {

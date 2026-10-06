@@ -516,11 +516,16 @@ describe('contact detail', () => {
       deletedAt: null,
       ...extra,
     });
+    const budget = (billedCents: number) => ({ recordedCents: billedCents + 22000, billedCents });
     const seed = (fs: InMemoryFirestore) => {
       seedPeople(fs);
       fs.set(
         `orgs/${ORG}/matters/m-r1`,
-        referred('0101', { title: 'Will of Fictional Ash', createdAt: new Date('2026-03-02T00:00:00Z') }),
+        referred('0101', {
+          title: 'Will of Fictional Ash',
+          createdAt: new Date('2026-03-02T00:00:00Z'),
+          budget: budget(44000),
+        }),
       );
       fs.set(
         `orgs/${ORG}/matters/m-r2`,
@@ -529,16 +534,25 @@ describe('contact detail', () => {
           type: 'probate',
           status: 'closed',
           createdAt: new Date('2026-08-20T00:00:00Z'),
+          budget: budget(385000),
         }),
       );
-      fs.set(`orgs/${ORG}/matters/m-r3`, referred('0103', { title: 'Hidden privileged matter', privileged: true }));
-      fs.set(`orgs/${ORG}/matters/m-r4`, referred('0104', { title: 'Deleted referral', deletedAt: new Date() }));
+      fs.set(
+        `orgs/${ORG}/matters/m-r3`,
+        referred('0103', { title: 'Hidden privileged matter', privileged: true, budget: budget(110000) }),
+      );
+      fs.set(
+        `orgs/${ORG}/matters/m-r4`,
+        referred('0104', { title: 'Deleted referral', deletedAt: new Date(), budget: budget(99900) }),
+      );
       fs.set(`orgs/${ORG}/matters/m-x`, referred('0105', { title: 'Someone else’s', referrerContactId: 'c-bram' }));
     };
     const page = await open('/contacts?contact=c-coastal', READONLY, { configure: (_p, fs) => seed(fs) });
     const section = page.body.querySelector('[data-testid="contact-referrals"]')?.textContent?.replace(/\s+/g, ' ');
     expect(section).toContain('Referrals 2');
+    // Without billing.view, nothing about what was billed.
     expect(section).toContain('2 matters referred · 1 active · last on 20 Aug 2026');
+    expect(section).not.toContain('billed');
     expect(section).toContain('Will · Open · Opened 2 Mar 2026');
     expect(section).toContain('Probate · Closed · Opened 20 Aug 2026');
     expect(section).not.toContain('Hidden privileged matter');
@@ -550,9 +564,13 @@ describe('contact detail', () => {
     expect(titles).toEqual(['Estate of Fictional Birch', 'Will of Fictional Ash']);
     TestBed.resetTestingModule();
 
-    // A lawyer (privileged.view) sees the privileged one too; a contact who isn't a referrer has no section.
+    // A lawyer (privileged.view, billing.view) sees the privileged one too, and what was billed on all
+    // three; a contact who isn't a referrer has no section.
     const lawyer = await open('/contacts?contact=c-coastal', LAWYER, { configure: (_p, fs) => seed(fs) });
     expect(lawyer.detail()).toContain('Hidden privileged matter');
+    expect(lawyer.body.querySelector('[data-testid="referral-totals"]')?.textContent?.trim()).toBe(
+      '3 matters referred · 2 active · $5,390.00 billed · last on 20 Aug 2026',
+    );
     await lawyer.router.navigateByUrl('/contacts?contact=c-avery');
     await lawyer.stable();
     expect(lawyer.body.querySelector('[data-testid="contact-referrals"]')).toBeNull();

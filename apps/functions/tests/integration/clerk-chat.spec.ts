@@ -171,7 +171,7 @@ describe('Clerk chat through the Functions emulator', () => {
     expect((await read(`orgs/${ORG}/clerkThreads/${sent.threadId}`))['ownerUid']).toBe('clerk-chat-lawyer');
 
     const answer = await settled(messagePath(sent.threadId, sent.messageId));
-    expect(answer).toMatchObject({ status: 'done', replyTo: sent.userMessageId, promptId: 'chat@1.0.0' });
+    expect(answer).toMatchObject({ status: 'done', replyTo: sent.userMessageId, promptId: 'chat@1.1.0' });
     expect(text(answer)).toBe('Let me check the matter. \n\nFake Clerk reply after checking the matter.');
     expect(answer['toolCalls']).toEqual([
       expect.objectContaining({ name: 'search_documents', status: 'done' }),
@@ -239,6 +239,18 @@ describe('Clerk chat through the Functions emulator', () => {
       'functions/not-found',
       'NOT_FOUND',
     ]);
+  });
+
+  it('refuses a question at once when the month’s spend limit is reached (AI-13)', async () => {
+    await db.doc(`orgs/${ORG}`).set({ settings: { clerk: { monthlyBudgetCents: 100 } } }, { merge: true });
+    const period = meteringPeriod(new Date());
+    await db.doc(`orgs/${ORG}/metrics/${period}`).set({ period, values: { tokens: 10, costMicros: 1_000_000 } });
+    await signInMember('clerk-chat-lawyer', ORG);
+    expect(await callError(send({ matterId: MATTER, text: 'Who is the executor?' }))).toEqual([
+      'functions/resource-exhausted',
+      'CLERK_BUDGET_EXCEEDED',
+    ]);
+    expect((await db.collection(`orgs/${ORG}/clerkThreads`).get()).empty).toBe(true);
   });
 });
 

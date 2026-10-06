@@ -2,7 +2,7 @@ import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 import * as z from 'zod';
 
 import { chunkPages, normaliseText } from '@materia/clerk';
-import { DocIdSchema, type DocumentIngest, type IngestSkipReason } from '@materia/domain';
+import { DocIdSchema, type DocumentIngest, type DocumentVersion, type IngestSkipReason } from '@materia/domain';
 
 import { reserveOcrPages, refundOcrPages, nextBudgetDay, budgetDay } from './budget';
 import { deleteChunks, syncChunksPrivileged, writeChunks, type ChunkRecord } from './chunks';
@@ -268,7 +268,7 @@ export async function ingestDocument(task: IngestTask, deps: IngestDeps): Promis
     // Finished: classify, make sure the privileged flag held, record the result.
     if (!state.chunks) return await finishSkipped(state.ocrUnavailablePages ? 'ocr_unavailable' : 'empty');
     let language = state.language;
-    const classification = await classify(task, deps, ref, version.fileName, firstPages, state);
+    const classification = await classify(task, deps, ref, version, firstPages, state);
     if (classification) {
       const code = classification.output.language.toLowerCase();
       if (code && code !== 'en' && !language) language = code;
@@ -310,7 +310,7 @@ async function classify(
   task: IngestTask,
   deps: IngestDeps,
   ref: DocumentReference,
-  fileName: string,
+  version: Pick<DocumentVersion, 'fileName' | 'uploadedBy'>,
   firstPages: string,
   state: DocumentIngest,
 ) {
@@ -331,17 +331,18 @@ async function classify(
       orgId: task.orgId,
       docId: task.docId,
       version: task.version,
-      fileName,
+      fileName: version.fileName,
       text: text.slice(0, CLASSIFY_MAX_CHARS),
       pageCount: Math.min(CLASSIFY_PAGES, state.pages ?? CLASSIFY_PAGES),
     });
     if (!result) return null;
     await writeDocumentMetaSuggestion(
-      { db: deps.db, orgId: task.orgId, clock: deps.clock, log: deps.log },
+      { db: deps.db, orgId: task.orgId, clock: deps.clock, log: deps.log, ports: { tasks: deps.tasks } },
       {
         matterId: task.matterId,
         docId: task.docId,
         version: task.version,
+        uploaderUid: version.uploadedBy,
         output: result.output,
         model: result.model,
         promptRef: result.promptRef,

@@ -14,11 +14,14 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
  * The Clerk chat panel (AI-06) against the emulators and the fake model: ⌘J on a matter opens the
  * panel scoped to it; a question streams back an answer after Clerk searches the documents and
  * reads the deadlines (shown as it works), with a proposed task as a suggestion card; an answer is
- * rated down with a reason, retried, and a slow one stopped. Fictional data only; the markers in
- * the questions (`[fake:tools]`…) steer the emulator's fake model.
+ * rated down with a reason, retried, and a slow one stopped. Asked to add a file note, Clerk drafts
+ * it as a card that saves the note once accepted (AI-06b). Fictional data only; the markers in the
+ * questions (`[fake:tools]`…) steer the emulator's fake model.
  */
 
 const MATTER = 'm-chat';
+/** What `[fake:note]` drafts (the emulator's fake model, AI-06b). */
+const DRAFTED_NOTE = 'Called the executor about the house valuation (fictional).';
 const NUMBER = 'M-2026-0142';
 /** Callables, Cloud Tasks and the first reads cold-start the emulators. */
 const SERVER = { timeout: 30_000 };
@@ -87,6 +90,29 @@ test.describe('Clerk chat panel', () => {
       'Fake Clerk reply after checking the matter.',
       SERVER,
     );
+  });
+
+  test('drafts a file note when asked, and saves it only once accepted (AI-06b)', async ({ page, request }) => {
+    test.setTimeout(150_000);
+    await setUp(page, request);
+    await page.goto(`/matters/${MATTER}/overview`);
+    await expect(page.getByRole('heading', { name: 'Estate of Fictional Harrow' })).toBeVisible(SERVER);
+    await page.keyboard.press('Control+j');
+    await expect(panel(page).getByText(`Asking about ${NUMBER}`)).toBeVisible(SERVER);
+
+    await ask(page, '[fake:note] Add a file note saying I called the executor about the house valuation.');
+    const answer = panel(page).getByRole('article', { name: 'Clerk' }).last();
+    await expect(answer).toContainText('waiting below for you to confirm', SERVER);
+    await expect(panel(page).getByText(DRAFTED_NOTE).first()).toBeVisible(SERVER);
+    await expectNoA11yViolations(page);
+
+    await panel(page).getByRole('button', { name: 'Add note' }).click();
+    await expect(page.locator('.mt-toaster')).toContainText('Suggestion accepted', SERVER);
+    // The card leaves once accepted; the note is on the matter.
+    await expect(panel(page).getByRole('button', { name: 'Add note' })).toHaveCount(0, SERVER);
+    await page.goto(`/matters/${MATTER}/notes`);
+    await expect(page.getByRole('heading', { level: 2, name: 'Notes' })).toBeVisible(SERVER);
+    await expect(page.getByText(DRAFTED_NOTE).first()).toBeVisible(SERVER);
   });
 
   test('stops a slow answer and keeps what was written', async ({ page, request }) => {

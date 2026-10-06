@@ -3,7 +3,18 @@ import { TestBed } from '@angular/core/testing';
 import { DomainError, STATUTORY_DISABLED_MESSAGE } from '@materia/domain';
 
 import { deadlineErrorCopy, monthLabel, recomputeSummaryText, shiftMonth } from './deadline-view';
-import { cleanUpOverlays, MATTER, ME, meta, openMatter, PARALEGAL, PRIYA } from '../matter-detail/testing';
+import { parseEventTime } from './event-dialog';
+import { storedDocument } from '../documents/testing';
+import {
+  cleanUpOverlays,
+  deadlineServerCallables,
+  MATTER,
+  ME,
+  meta,
+  openMatter,
+  PARALEGAL,
+  PRIYA,
+} from '../matter-detail/testing';
 
 /** The Deadlines screen and the matter's Deadlines tab (CORE-10). Fictional data only. */
 
@@ -416,6 +427,158 @@ describe('matter deadlines tab', () => {
     expect(page.text(timeline().querySelector('.flat [data-event="date_of_death"]'))).toContain('Date of death');
     expect(page.buttons('Edit Date of death', timeline())).toHaveLength(1);
     expect(localStorage.getItem('materia.matter.eventsView')).toBe('scale');
+  });
+
+  describe('an event’s time and source document (CORE-10)', () => {
+    /** Two death certificates with the same name, a privileged memo and a removed document, newest first. */
+    const seedDocuments = (fs: Fs) => {
+      const doc = (id: string, name: string, day: string, extra: Seed = {}) =>
+        fs.set(`${MATTER}/documents/${id}`, storedDocument(id, name, { createdAt: new Date(day), ...extra }));
+      doc('doc-cert', 'Death certificate.pdf', '2026-09-03T00:00:00Z');
+      doc('doc-memo', 'Advice memo.pdf', '2026-09-02T00:00:00Z', { privileged: true });
+      doc('doc-cert-scan', 'Death certificate.pdf', '2026-09-01T00:00:00Z');
+      doc('doc-gone', 'Old draft.pdf', '2026-08-30T00:00:00Z', { deletedAt: new Date('2026-09-05T00:00:00Z') });
+    };
+    const select = (page: Page, label: string) => {
+      const host = [...(page.dialog()?.querySelectorAll('mt-select') ?? [])].find((field) =>
+        field.querySelector('.mt-label')?.textContent?.trim().startsWith(label),
+      );
+      const found = host?.querySelector('select');
+      if (!found) throw new Error(`No select "${label}"`);
+      return found;
+    };
+    const options = (page: Page, label: string) => [...select(page, label).options].slice(1).map((o) => page.text(o));
+    const chosen = (page: Page, label: string) => {
+      const field = select(page, label);
+      return page.text(field.options[field.selectedIndex]);
+    };
+    const choose = async (page: Page, label: string, text: string) => {
+      const field = select(page, label);
+      const option = [...field.options].find((o) => page.text(o) === text);
+      if (!option) throw new Error(`No option "${text}"`);
+      await page.fill(label, option.value, page.dialog() ?? page.body);
+    };
+    const linkedDeath = (data: Seed) => (fs: Fs) => {
+      seedDeadlines(fs);
+      seedDocuments(fs);
+      fs.set(`${MATTER}/events/ev-death`, { ...(fs.get(`${MATTER}/events/ev-death`) as Seed), ...data });
+    };
+    const details = (page: Page, root = 'mt-event-timeline') =>
+      page.body.querySelector(`${root} [data-event="date_of_death"] [data-event-details]`);
+
+    it('records a time and a source from the matter’s live documents', async () => {
+      const page = await openMatter(TAB, {
+        configure: (fs) => {
+          seedDeadlines(fs);
+          seedDocuments(fs);
+        },
+        flags: RULES_ON,
+        callables: {
+          // The fake server keeps the time and source too, so the timeline can show them.
+          'deadlines-upsertEvent': (data, fs) => {
+            const result = deadlineServerCallables()['deadlines-upsertEvent']?.(data, fs) as { eventId: string };
+            const path = `${MATTER}/events/${result.eventId}`;
+            fs.set(path, { ...(fs.get(path) as Seed), time: data['time'], sourceDocumentId: data['sourceDocumentId'] });
+            return result;
+          },
+        },
+      });
+      await page.click('Record event');
+      const dialog = page.dialog();
+      // Newest first; a repeated name is numbered, and removed documents aren't offered.
+      expect(options(page, 'Source document')).toEqual([
+        'None',
+        'Death certificate.pdf',
+        'Advice memo.pdf',
+        'Death certificate.pdf (2)',
+      ]);
+      expect(chosen(page, 'Source document')).toBe('None');
+      await page.fill('Event', '4', dialog ?? page.body);
+      await page.fill('Date', '30/09/2026', dialog ?? page.body);
+      await page.fill('Time', '9.30am', dialog ?? page.body);
+      await page.submit(dialog);
+      expect(page.text(page.dialog())).toContain('Enter a time like 14:30.');
+      expect(page.calls('deadlines-upsertEvent')).toHaveLength(0);
+
+      await page.fill('Time', '9:30', dialog ?? page.body);
+      await choose(page, 'Source document', 'Death certificate.pdf (2)');
+      await page.submit(dialog);
+      await page.stable(20);
+      expect(page.calls('deadlines-upsertEvent')).toEqual([
+        expect.objectContaining({
+          kind: 'grant_issued',
+          date: '2026-09-30',
+          time: '09:30',
+          sourceDocumentId: 'doc-cert-scan',
+        }),
+      ]);
+      const grant = page.body.querySelector('[data-event="grant_issued"] [data-event-details]');
+      expect(page.text(grant)).toBe('At 09:30 Source: Death certificate.pdf');
+      expect(grant?.querySelector('a')?.getAttribute('href')).toBe('/matters/m-whitfield/documents/doc-cert-scan');
+    });
+
+    it('shows the time and source on both views, and clears them when emptied', async () => {
+      const page = await openMatter(TAB, {
+        configure: linkedDeath({ time: '14:30', sourceDocumentId: 'doc-cert' }),
+        flags: RULES_ON,
+      });
+      expect(page.text(details(page))).toBe('At 14:30 Source: Death certificate.pdf');
+      expect(details(page)?.querySelector('a')?.getAttribute('href')).toBe('/matters/m-whitfield/documents/doc-cert');
+      await page.click('To scale');
+      await page.stable(5);
+      expect(page.text(details(page, 'mt-event-timeline .flat'))).toBe('At 14:30 Source: Death certificate.pdf');
+
+      await page.click('Edit Date of death');
+      const dialog = page.dialog();
+      expect((dialog?.querySelector('mt-text-field[name="time"] input') as HTMLInputElement | null)?.value).toBe(
+        '14:30',
+      );
+      expect(chosen(page, 'Source document')).toBe('Death certificate.pdf');
+      await page.fill('Time', '', dialog ?? page.body);
+      await choose(page, 'Source document', 'None');
+      await page.submit(dialog);
+      await page.stable(20);
+      const call = page.calls('deadlines-upsertEvent').at(-1);
+      expect(call).toMatchObject({ eventId: 'ev-death', kind: 'date_of_death', date: '2026-07-22' });
+      expect(call).not.toHaveProperty('time');
+      expect(call).not.toHaveProperty('sourceDocumentId');
+    });
+
+    it('offers privileged documents only with privileged.view, and keeps a source the reader can’t see', async () => {
+      const page = await openMatter(TAB, {
+        configure: linkedDeath({ time: '14:30', sourceDocumentId: 'doc-memo' }),
+        flags: RULES_ON,
+        session: PARALEGAL,
+      });
+      // No link to a privileged document for a paralegal; the time still shows.
+      expect(page.text(details(page))).toBe('At 14:30');
+      expect(details(page)?.querySelector('a')).toBeNull();
+
+      await page.click('Edit Date of death');
+      expect(options(page, 'Source document')).toEqual([
+        'None',
+        'Death certificate.pdf',
+        'Death certificate.pdf (2)',
+        'The document already linked',
+      ]);
+      expect(chosen(page, 'Source document')).toBe('The document already linked');
+      await page.submit(page.dialog());
+      await page.stable(20);
+      expect(page.calls('deadlines-upsertEvent').at(-1)).toMatchObject({
+        eventId: 'ev-death',
+        time: '14:30',
+        sourceDocumentId: 'doc-memo',
+      });
+    });
+
+    it('reads a time as 24-hour HH:MM', () => {
+      expect(parseEventTime('9:05')).toBe('09:05');
+      expect(parseEventTime(' 14:30 ')).toBe('14:30');
+      expect(parseEventTime('00:00')).toBe('00:00');
+      expect(parseEventTime('24:00')).toBeNull();
+      expect(parseEventTime('9.30am')).toBeNull();
+      expect(parseEventTime('12:60')).toBeNull();
+    });
   });
 
   it('shows paralegals Mark done but not the lawyer’s decisions', async () => {

@@ -1249,6 +1249,24 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "computed.ruleSetId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "computed.ruleSetVersion",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "deadlines",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "escalatedTo",
           "arrayConfig": "CONTAINS"
         },

@@ -65,9 +65,15 @@ export function parsePrompt(name: string, source: string): PromptTemplate {
   const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(source.replace(/\r\n/g, '\n'));
   if (!match) throw new PromptError(`${name}: missing front-matter`);
   const [, head = '', body = ''] = match;
-  const fields: Record<string, unknown> = {};
+  // An indented line continues the field above it (Prettier wraps a long `tools` list that way).
+  const lines: string[] = [];
   for (const line of head.split('\n')) {
     if (!line.trim()) continue;
+    if (/^\s/.test(line) && lines.length) lines[lines.length - 1] += ` ${line.trim()}`;
+    else lines.push(line);
+  }
+  const fields: Record<string, unknown> = {};
+  for (const line of lines) {
     const colon = line.indexOf(':');
     if (colon < 1) throw new PromptError(`${name}: bad front-matter line "${line}"`);
     fields[line.slice(0, colon).trim()] = parseScalar(line.slice(colon + 1));

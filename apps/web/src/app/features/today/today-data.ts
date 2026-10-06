@@ -28,9 +28,11 @@ import {
   myTasksThisWeekQuery,
   myTodayChangesQuery,
   orgTimeZoneRepository,
+  personTimeQuery,
   recentMattersQuery,
   recentMattersRepository,
   taskGroupRepository,
+  timeGroupRepository,
   todayMatterRepository,
   type QueryResource,
 } from '@materia/data-access/repository';
@@ -42,12 +44,14 @@ import {
   greeting,
   hourIn,
   longDayLabel,
+  monthWindow,
   needsAttention,
   onboardingSteps,
   TODAY_TASKS_SHOWN,
   timeZoneHint,
   todayItemKey,
   todayWindow,
+  wipThisMonth,
   type TodayEscalationLike,
 } from '@materia/domain';
 import { ToastService } from '@materia/ui';
@@ -85,6 +89,8 @@ const REFRESH_GAP_MS = 10_000;
 const TICK_MS = 60_000;
 /** The longest the sections wait to be drawn together (see `TodayData.settled`). */
 const SETTLE_MS = 2500;
+/** My time entries this month read at most, for WIP this month (a bounded query until INS-01's rollups). */
+export const MONTH_ENTRY_LIMIT = 500;
 
 /** Today's numbers: null while unknown (loading, offline or refused). */
 export interface TodayCounts {
@@ -112,7 +118,8 @@ const NO_COUNTS: TodayCounts = {
  *   minute and when the window regains focus, so the day turns over at the org's midnight.
  * - Needs attention listens live (overdue deadlines and changes waiting on me). Everything else is
  *   read once, showing this device's cache first, and read again on focus and after a task changes.
- * - Counts use count aggregation, and aren't asked for while offline.
+ * - Counts use count aggregation, and aren't asked for while offline. WIP this month (roles that
+ *   record time) adds up my own entries dated this month, read once like the lists.
  * - Rows on matters the person can't read (or that were deleted) are left out silently.
  */
 @Injectable()
@@ -129,6 +136,7 @@ export class TodayData {
   private readonly privilegedVisible = can('privileged.view');
   private readonly canCreateMatter = can('matter.create');
   private readonly canInvite = can('members.manage');
+  readonly canRecordTime = can('time.record');
 
   // ---------- the day ----------
 
@@ -138,6 +146,7 @@ export class TodayData {
   readonly now = signal(this.clock());
   readonly today = computed(() => dateOnlyAt(new Date(this.now()), this.timeZone()));
   readonly window = computed(() => todayWindow(this.today()));
+  readonly month = computed(() => monthWindow(this.today()));
   readonly dateLabel = computed(() => longDayLabel(this.today()));
   readonly greeting = computed(() =>
     greeting(hourIn(new Date(this.now()), this.timeZone()), this.auth.session()?.displayName),
@@ -195,6 +204,15 @@ export class TodayData {
     },
     { live: false, cacheFirst: true },
   );
+  /** My time entries dated this month (roles that record time), for WIP this month. */
+  private readonly monthTime = timeGroupRepository().watchQuery(
+    () => {
+      const uid = this.context.uid();
+      const { start, end } = this.month();
+      return uid && this.canRecordTime() ? personTimeQuery(uid, start, end, MONTH_ENTRY_LIMIT) : null;
+    },
+    { live: false, cacheFirst: true },
+  );
   private readonly oneShot: readonly QueryResource<unknown>[] = [
     this.dueDeadlines,
     this.dueTasks,
@@ -235,6 +253,7 @@ export class TodayData {
   /** Every source has its first answer: the rows, their matters, and (online) the counts. */
   private readonly answered = computed(() => {
     if ([this.overdue, this.changes, ...this.oneShot].some((source) => source.status() === 'loading')) return false;
+    if (this.canRecordTime() && this.monthTime.status() === 'loading') return false;
     const lookup = this.lookup();
     if (this.matterIds().some((id) => !lookup.has(id))) return false;
     return this.countsAnswered() || !this.online();
@@ -329,6 +348,21 @@ export class TodayData {
   });
   readonly recentStatus = this.recents.status;
 
+  /**
+   * WIP this month: the value of my billable time dated this month that isn't billed yet, in cents
+   * (`wipThisMonth`); null for roles that don't record time. Its cents are null while unknown
+   * (loading, refused, or offline, when this device may hold only some of the entries), like the
+   * counts. `truncated` when I have more entries this month than were read.
+   */
+  readonly wip = computed(() => {
+    if (!this.canRecordTime()) return null;
+    const ready = this.online() && this.monthTime.status() === 'ready';
+    return {
+      cents: ready ? wipThisMonth(this.monthTime.value(), this.today()) : null,
+      truncated: ready && this.monthTime.hasMore(),
+    };
+  });
+
   /** The checklist for a practice without matters; null once it has one (or while unknown). */
   readonly onboarding = computed(() => {
     const { orgMatters, activeMembers } = this.counts();
@@ -420,6 +454,7 @@ export class TodayData {
     if (!this.online() || (!force && now - this.lastRefresh < REFRESH_GAP_MS)) return;
     this.lastRefresh = now;
     for (const resource of this.oneShot) resource.refresh();
+    this.monthTime.refresh();
     const uid = this.context.uid();
     if (uid) void this.loadCounts(uid);
     const ids = [...this.requested];

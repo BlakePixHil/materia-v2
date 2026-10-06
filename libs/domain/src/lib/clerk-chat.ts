@@ -63,14 +63,24 @@ export const CLERK_CHAT_TOOLS = [
 ] as const;
 export type ClerkChatTool = (typeof CLERK_CHAT_TOOLS)[number];
 
+/**
+ * The tools Clerk uses when the person asks it to record something on the matter (AI-06b): each
+ * drafts an AI-07 suggestion the person confirms under the answer. Nothing is written to the
+ * matter's records until they accept it (rule 3). Offered only with `clerk.features.suggestions`.
+ */
+export const CLERK_CHAT_DRAFT_TOOLS = ['draft_note', 'draft_task'] as const;
+export type ClerkChatDraftTool = (typeof CLERK_CHAT_DRAFT_TOOLS)[number];
+
 /** The "working" line while a tool runs. */
-export const CLERK_TOOL_LABELS: Readonly<Record<ClerkChatTool, string>> = {
+export const CLERK_TOOL_LABELS: Readonly<Record<ClerkChatTool | ClerkChatDraftTool, string>> = {
   search_documents: 'Searching documents…',
   get_deadlines: 'Checking deadlines…',
   get_tasks: 'Checking tasks…',
   get_parties: 'Looking up parties…',
   get_time_summary: 'Totalling recorded time…',
   get_document_text: 'Reading a document…',
+  draft_note: 'Drafting a note…',
+  draft_task: 'Drafting a task…',
 };
 
 export function clerkToolLabel(name: string): string {

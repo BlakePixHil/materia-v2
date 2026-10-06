@@ -23,8 +23,8 @@ export function exportFileName(name: unknown, extension: 'pdf' | 'zip' = 'pdf'):
 
 /**
  * `jobs-getExportUrl` (FND-24, CORE-17, CORE-12b; any member): a signed URL for an export job's
- * file (`orgs/{orgId}/exports/{jobId}.pdf`, or `.zip` for `documents.zip`; 7-day TTL), valid for
- * 5 minutes and served as an attachment.
+ * file (`orgs/{orgId}/exports/{jobId}.pdf`, or `.zip` for `documents.zip`; `jobs-sweepExports`
+ * deletes the file and the job after 7 days), valid for 5 minutes and served as an attachment.
  * Only the member who started the job may fetch it, and only once it succeeded: anyone else's job,
  * or one that isn't an export, is NOT_FOUND; one still running FAILED_PRECONDITION `not_ready`.
  */

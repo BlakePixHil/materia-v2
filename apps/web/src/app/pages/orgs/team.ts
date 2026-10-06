@@ -9,6 +9,7 @@ import {
   fyStartYear,
   PERMISSIONS,
   ROLES,
+  SENSITIVE_REAUTH_MINUTES,
   today,
   withRateChange,
   type Action,
@@ -38,6 +39,7 @@ import {
   type MemberSettingsDialogResult,
 } from './member-settings-dialog';
 import { AuthState } from '../../core/auth/auth-state';
+import { injectRecentLogin } from '../../core/auth/reauth-dialog';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService } from '../../core/orgs/org-service';
 import { SettingsApi } from '../../features/settings/settings-api';
@@ -72,7 +74,9 @@ const ROLE_LABELS: Record<Role, string> = {
  * Settings → Team and roles (`/settings/team`, FND-17, CORE-21): members and pending invites.
  * Everyone sees who is in the practice. Owners and admins also see each member's MFA status and last
  * activity (from Auth, `orgs-memberSecurity`), rate and this year's budget; they invite, change
- * roles, set rates, budgets and supervisors, and remove people. Only owners grant the owner role.
+ * roles, set rates, budgets and supervisors, suspend, reinstate and remove people. Only owners grant
+ * the owner role or transfer ownership (FND-17); suspending, reinstating and transferring ask the
+ * person to confirm it's them when their sign-in is more than a few minutes old.
  * The role explainer is generated from the permission matrix in `libs/domain`.
  *
  * The members list is the data layer's worked example (FND-19): a live, paged query resource from
@@ -165,7 +169,7 @@ const ROLE_LABELS: Record<Role, string> = {
           [description]="describe(member)"
           [attr.data-member]="member.email ?? member.uid"
         >
-          <div class="mt-row" style="gap: 8px; align-items: center">
+          <div class="mt-row" style="gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end">
             <mt-avatar [name]="member.displayName" [colorKey]="member.uid" size="sm" />
             @if (manage()) {
               <button
@@ -185,6 +189,35 @@ const ROLE_LABELS: Record<Role, string> = {
                 [ngModel]="member.role"
                 (ngModelChange)="changeRole(member, $event)"
               />
+              @if (member.status === 'suspended') {
+                <button
+                  mtButton
+                  size="sm"
+                  (click)="reinstate(member)"
+                  [attr.aria-label]="'Reinstate ' + member.displayName"
+                >
+                  Reinstate
+                </button>
+              } @else {
+                <button
+                  mtButton
+                  size="sm"
+                  (click)="suspend(member)"
+                  [attr.aria-label]="'Suspend ' + member.displayName"
+                >
+                  Suspend…
+                </button>
+              }
+              @if (canTransferTo(member)) {
+                <button
+                  mtButton
+                  size="sm"
+                  (click)="transfer(member)"
+                  [attr.aria-label]="'Transfer ownership to ' + member.displayName"
+                >
+                  Transfer ownership…
+                </button>
+              }
               @if (confirming() === member.uid) {
                 <button mtButton variant="danger" size="sm" (click)="remove(member)">Confirm removal</button>
               } @else {
@@ -240,6 +273,7 @@ export class TeamPage {
   private readonly toasts = inject(ToastService);
   private readonly dialogs = inject(DialogService);
   private readonly api = inject(SettingsApi);
+  private readonly recentLogin = injectRecentLogin(SENSITIVE_REAUTH_MINUTES);
   private readonly repo = membersRepository();
   private readonly timeZone = signal(inject(MT_ORG_TIMEZONE));
   /** Every practice's financial year starts in July (`org.fy.startMonth`, not editable yet). */
@@ -390,6 +424,13 @@ export class TeamPage {
     return member.role !== 'owner' || this.orgs.role() === 'owner';
   }
 
+  /** Owners hand the practice to another active member who isn't an owner already. */
+  protected canTransferTo(member: TeamMember): boolean {
+    return (
+      this.orgs.role() === 'owner' && member.uid !== this.me() && member.status === 'active' && member.role !== 'owner'
+    );
+  }
+
   /** Re-reads the pending invites (members are live). */
   async reload(): Promise<void> {
     try {
@@ -410,6 +451,22 @@ export class TeamPage {
       this.error.set(errorCopy(error));
       return false;
     }
+  }
+
+  /**
+   * A change that needs a recent sign-in (`SENSITIVE_REAUTH_MINUTES`): asks the person to confirm
+   * it's them first when it's older, and shows the toast only once the change is made.
+   */
+  private async runSensitive(reason: string, action: () => Promise<unknown>, success: string): Promise<void> {
+    let done = false;
+    await this.run(async () => {
+      const result = await this.recentLogin(reason, async () => {
+        await action();
+        return true;
+      });
+      done = result === true;
+    });
+    if (done) this.toasts.show({ title: success, tone: 'success' });
   }
 
   protected async invite(): Promise<void> {
@@ -439,6 +496,48 @@ export class TeamPage {
   protected remove(member: TeamMember): void {
     this.confirming.set(null);
     void this.run(() => this.orgs.removeMember(member.uid), `${member.displayName} removed`);
+  }
+
+  protected async suspend(member: TeamMember): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: `Suspend ${member.displayName}?`,
+      body:
+        `${member.displayName} loses access to the practice straight away, and is signed out if they’re using it. ` +
+        'Their matters, time and history stay as they are, and you can reinstate them at any time.',
+      confirmLabel: 'Suspend member',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+    await this.runSensitive(
+      'Suspending someone needs a fresh sign-in.',
+      () => this.orgs.suspendMember(member.uid, true),
+      `${member.displayName} suspended`,
+    );
+  }
+
+  protected reinstate(member: TeamMember): Promise<void> {
+    return this.runSensitive(
+      'Reinstating someone needs a fresh sign-in.',
+      () => this.orgs.suspendMember(member.uid, false),
+      `${member.displayName} reinstated`,
+    );
+  }
+
+  protected async transfer(member: TeamMember): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: `Make ${member.displayName} the owner?`,
+      body:
+        `${member.displayName} becomes an owner, so they can grant the owner role and delete the practice. ` +
+        'You become an admin: you can still manage the team and settings, but only an owner can make you an owner again.',
+      confirmLabel: 'Transfer ownership',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+    await this.runSensitive(
+      'Transferring ownership needs a fresh sign-in.',
+      () => this.orgs.transferOwnership(member.uid),
+      `${member.displayName} is now the owner`,
+    );
   }
 
   protected resend(invite: PendingInvite): void {

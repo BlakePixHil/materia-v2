@@ -108,6 +108,12 @@ export const DocumentsZipInputSchema = z
   .strict();
 export type DocumentsZipInput = z.infer<typeof DocumentsZipInputSchema>;
 
+/** How long an export file is kept: `jobs-sweepExports` deletes it, and its job, after this. */
+export const EXPORT_TTL_DAYS = 7;
+
+/** An export file's path: `[, orgId, jobId, extension]`. */
+export const EXPORT_FILE_PATH = /^orgs\/([^/]+)\/exports\/([^/.]+)\.(pdf|zip)$/;
+
 /** An export file, `orgs/{orgId}/exports/{jobId}.{pdf|zip}`, downloaded through `jobs-getExportUrl`. */
 export const ExportTargetSchema = z.object({ kind: z.literal('export'), name: NonEmptyString.max(250) }).strict();
 
