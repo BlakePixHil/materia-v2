@@ -2,7 +2,17 @@ import { run, usage } from './main.ts';
 
 describe('materia-migrate', () => {
   it('lists every migration step', () => {
-    for (const step of ['audit', 'check-profile', 'export', 'transform', 'auth-import', 'load', 'verify', 'rollback']) {
+    for (const step of [
+      'audit',
+      'check-profile',
+      'export',
+      'transform',
+      'auth-import',
+      'copy-files',
+      'load',
+      'verify',
+      'rollback',
+    ]) {
       expect(usage()).toContain(step);
     }
   });
@@ -17,6 +27,7 @@ describe('materia-migrate', () => {
     expect(await run(['audit', '--help'])).toBe(0);
     expect(await run(['check-profile', '--help'])).toBe(0);
     expect(await run(['auth-import', '--help'])).toBe(0);
+    expect(await run(['copy-files', '--help'])).toBe(0);
     vi.restoreAllMocks();
   });
 });
