@@ -35,7 +35,9 @@ export const PERMISSIONS = {
   'time.record': ['owner', 'admin', 'lawyer', 'paralegal'],
   'time.approve': ['owner', 'admin', 'lawyer'],
   'billing.view': ['owner', 'admin', 'lawyer'],
-  'billing.issue': ['owner', 'admin'],
+  /** Build pre-bills, issue and send invoices (BILL-07: lawyers and above). */
+  'billing.issue': ['owner', 'admin', 'lawyer'],
+  /** Void invoices and issue credit notes (BILL-07). */
   'billing.void': ['owner', 'admin'],
   /** Record a matter's trust balance, copied from the firm's trust records (BILL-11); needs `billing.view` too. */
   'trust.record': ['owner', 'admin', 'lawyer'],

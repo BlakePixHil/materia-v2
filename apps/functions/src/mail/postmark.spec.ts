@@ -65,6 +65,19 @@ describe('postmarkMail', () => {
     expect(sent.TextBody).toContain('Open in Materia: https://materia.example/matters/m1/tasks');
   });
 
+  it('attaches files base64-encoded (BILL-07 invoices)', async () => {
+    const { fetch, calls } = fakeFetch(200, { ErrorCode: 0, MessageID: 'pm-2' });
+    const mail = postmarkMail({ token: () => 'fake-server-token', from: () => 'n@materia.example', fetch });
+    await mail.send({
+      ...message,
+      attachments: [
+        { name: 'INV-000001.pdf', contentType: 'application/pdf', content: new TextEncoder().encode('%PDF') },
+      ],
+    });
+    const sent = JSON.parse(String((calls[0] as { init: RequestInit }).init.body));
+    expect(sent.Attachments).toEqual([{ Name: 'INV-000001.pdf', Content: 'JVBERg==', ContentType: 'application/pdf' }]);
+  });
+
   it('is not configured without a token, and calls nobody', async () => {
     const { fetch, calls } = fakeFetch(200, {});
     const mail = postmarkMail({ token: () => '', from: mailFrom, fetch });

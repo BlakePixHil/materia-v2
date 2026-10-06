@@ -98,6 +98,25 @@ Open Today: {{link}}
 
 You get this summary each morning. Change your notification settings: {{settingsLink}}`,
   },
+
+  // An invoice to a client (BILL-07), sent only when someone sends it; the PDF is attached. The
+  // subject carries the document's title, number and the firm, never matter content.
+  invoice: {
+    subject: '{{documentTitle}} {{number}} from {{firmName}}',
+    html: `<!doctype html>
+<html lang="en-AU">
+  <body style="${BODY}">
+    {{#message}}<p style="white-space: pre-line">{{message}}</p>{{/message}}
+    <p>Please find attached {{documentTitle}} {{number}} for {{total}}{{#dueLabel}}, due {{dueLabel}}{{/dueLabel}}.</p>
+    <p style="${FOOTER}">{{firmName}}{{#firmAbn}} · ABN {{firmAbn}}{{/firmAbn}}. Please contact us if you have a question about this invoice.</p>
+  </body>
+</html>`,
+    text: `{{#message}}{{message}}
+
+{{/message}}Please find attached {{documentTitle}} {{number}} for {{total}}{{#dueLabel}}, due {{dueLabel}}{{/dueLabel}}.
+
+{{firmName}}{{#firmAbn}} · ABN {{firmAbn}}{{/firmAbn}}. Please contact us if you have a question about this invoice.`,
+  },
 };
 
 const escapeHtml = (value: string) =>

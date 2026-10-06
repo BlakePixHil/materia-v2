@@ -204,7 +204,7 @@ export const COLLECTIONS: CollectionSpec[] = [
     entity: 'Invoice',
     seed: { status: 'draft' },
     read: 'billing.view',
-    update: 'billing.issue',
+    update: 'none',
   },
   // Trust balance snapshots (BILL-11): billing roles read; written by trust-recordSnapshot only.
   {

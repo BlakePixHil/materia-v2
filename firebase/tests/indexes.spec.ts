@@ -41,6 +41,8 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   // A union of kinds (AI-07): every kind shares the suggestion fields.
   suggestions: { schema: { shape: { ...domain.SuggestionMetaShape, ...domain.MetaShape } } },
   safeCustody: domain.SafeCustody,
+  invoices: domain.Invoice,
+  creditNotes: domain.CreditNote,
   // A union of kinds: every kind shares these fields (FND-20).
   notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
 } as never;
@@ -93,6 +95,15 @@ describe('firestore.indexes.json', () => {
     const parties = file.indexes.find((i) => i.collectionGroup === 'parties');
     expect(parties?.queryScope).toBe('COLLECTION_GROUP');
     expect(parties?.fields.map((f) => f.fieldPath)).toEqual(['orgId', 'contactId']);
+  });
+
+  it('a matter’s invoices list newest first, and an invoice’s credit notes in order (BILL-07)', () => {
+    const key = (group: string) =>
+      file.indexes
+        .filter((i) => i.collectionGroup === group)
+        .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`);
+    expect(key('invoices')).toEqual(['COLLECTION:matterId:ASCENDING,createdAt:DESCENDING']);
+    expect(key('creditNotes')).toEqual(['COLLECTION:invoiceId:ASCENDING,createdAt:ASCENDING']);
   });
 
   it('a matter’s conflict checks are listed newest first (CORE-02)', () => {

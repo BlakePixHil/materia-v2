@@ -8,7 +8,7 @@ import {
   untracked,
   ViewEncapsulation,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { billableShare, fyBudgetSummary, timeTotals } from '@materia/domain';
 import { formatAud, MtButton, MtMeter, MtProgress, MtStat, MtTab, MtTabList, MtTabPanel, MtTabset } from '@materia/ui';
@@ -19,6 +19,7 @@ import { hoursText, monthLabel } from './billing-view';
 import { MyTime } from './my-time';
 import { WipTab } from './wip-tab';
 import { CommandRegistry } from '../../core/commands/command-registry';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { MtPageActions } from '../../shell/page-header';
 
 type Tab = 'mine' | 'wip' | 'approvals';
@@ -27,7 +28,8 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
 /**
  * Time and billing (`/billing`, BILL-03): the stats row (work in progress, recorded this week,
  * billable share), my FY budget card, then My time, WIP (billing.view) and Approvals
- * (time.approve). `?tab=wip` or `?tab=approvals` opens a tab. Record time opens quick entry (`t`).
+ * (time.approve). `?tab=wip` or `?tab=approvals` opens a tab. Record time opens quick entry (`t`);
+ * Invoices opens the invoices list (BILL-07).
  */
 @Component({
   selector: 'mt-billing-page',
@@ -45,12 +47,16 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
     MtTabPanel,
     MtTabset,
     MyTime,
+    RouterLink,
     WipTab,
   ],
   providers: [BillingScreen],
   host: { class: 'mt-col mt-billing' },
   template: `
     <ng-template mtPageActions>
+      @if (invoicesOn()) {
+        <a mtButton variant="secondary" size="sm" iconStart="billing" routerLink="/billing/invoices">Invoices</a>
+      }
       @if (screen.canRecord()) {
         <button mtButton variant="primary" size="sm" iconStart="timer" kbd="t" (click)="record()">Record time</button>
       }
@@ -213,7 +219,10 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
 export class BillingPage {
   protected readonly screen = inject(BillingScreen);
   private readonly commands = inject(CommandRegistry);
+  private readonly flags = inject(FeatureFlagService);
   protected readonly fyLimit = BillingScreen.FY_ENTRY_LIMIT;
+  /** Invoices (BILL-07) for billing.view roles while `billing.invoicing` is on. */
+  protected readonly invoicesOn = computed(() => this.flags.isOn('billing.invoicing') && this.screen.canViewBilling());
 
   protected readonly tab = signal<Tab>(initialTab(inject(ActivatedRoute).snapshot.queryParamMap.get('tab')));
   /** The chosen tab, or My time while (or if) I may not see it. */

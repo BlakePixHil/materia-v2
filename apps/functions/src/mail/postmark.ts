@@ -59,6 +59,15 @@ export function postmarkMail(options: PostmarkOptions): MailPort {
             Tag: message.template,
             TrackOpens: false,
             TrackLinks: 'None',
+            ...(message.attachments?.length
+              ? {
+                  Attachments: message.attachments.map((file) => ({
+                    Name: file.name,
+                    Content: Buffer.from(file.content).toString('base64'),
+                    ContentType: file.contentType,
+                  })),
+                }
+              : {}),
           }),
           signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
         });

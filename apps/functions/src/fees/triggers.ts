@@ -28,5 +28,22 @@ export const budgetOnDisbursementDefinition: TriggerDefinition = {
   handler: async (_change, ctx) => void (await budgetForEvent(ctx)),
 };
 
+/**
+ * `fees-budgetOnCreditNote` (BILL-07): a credit note lowers what its matter has billed, so the
+ * budget is recomputed for the credit note's matter.
+ */
+export const budgetOnCreditNoteDefinition: TriggerDefinition = {
+  name: 'fees-budgetOnCreditNote',
+  document: 'orgs/{orgId}/creditNotes/{creditNoteId}',
+  on: 'written',
+  handler: async (change, ctx) => {
+    const matterId = (change.after?.get('matterId') ?? change.before?.get('matterId')) as unknown;
+    if (typeof matterId !== 'string' || !matterId) return;
+    const orgId = ctx.params['orgId'] as string;
+    await recomputeBudget({ db: ctx.db, orgId, clock: ctx.clock, log: ctx.log, ports: ctx.ports }, matterId);
+  },
+};
+
 export const budgetOnTime = defineTrigger(budgetOnTimeDefinition);
 export const budgetOnDisbursement = defineTrigger(budgetOnDisbursementDefinition);
+export const budgetOnCreditNote = defineTrigger(budgetOnCreditNoteDefinition);

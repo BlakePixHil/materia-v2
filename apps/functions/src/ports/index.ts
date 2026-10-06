@@ -9,11 +9,18 @@ export interface Clock {
   now(): Date;
 }
 
+/** A file sent with an email (BILL-07: the invoice PDF). */
+export interface MailAttachment {
+  name: string;
+  contentType: string;
+  content: Uint8Array;
+}
 export interface MailMessage {
   to: string;
   template: string;
   model: Record<string, unknown>;
   idempotencyKey?: string;
+  attachments?: readonly MailAttachment[];
 }
 export interface MailPort {
   /** Sends one email, or throws a `MailError` saying why not. */

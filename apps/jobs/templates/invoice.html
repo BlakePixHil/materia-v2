@@ -1,0 +1,221 @@
+<!doctype html>
+<!-- A tax invoice, invoice or credit (adjustment) note (BILL-07), filled from `invoicePdfData` in
+     libs/domain. It carries every ATO tax invoice element: the words "Tax invoice", the supplier's
+     name and ABN, the issue date, the buyer's identity, each line's description, quantity, price and
+     GST (GST-free lines marked) and the totals. A firm not registered for GST issues an "Invoice"
+     without GST. -->
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{title}} {{number}}</title>
+    {{> styles}}
+    <style>
+      .inv-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 24pt;
+        margin: 0 0 18pt;
+      }
+      .inv-supplier {
+        font-weight: 600;
+        font-size: 12pt;
+      }
+      .inv-muted {
+        color: #6e6e73;
+      }
+      .inv-title {
+        text-align: right;
+      }
+      .inv-title h1 {
+        margin: 0 0 4pt;
+      }
+      .inv-facts {
+        width: auto;
+        margin: 0 0 16pt;
+      }
+      .inv-facts th {
+        padding-left: 0;
+        font-weight: 500;
+        color: #6e6e73;
+        border: none;
+      }
+      .inv-facts td {
+        border: none;
+      }
+      .inv-lines th {
+        font-weight: 500;
+        color: #6e6e73;
+        font-size: 9pt;
+      }
+      .inv-num {
+        text-align: right;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .inv-sub {
+        display: block;
+        font-size: 8.5pt;
+        color: #6e6e73;
+      }
+      .inv-totals {
+        width: auto;
+        margin: 10pt 0 0 auto;
+      }
+      .inv-totals th {
+        font-weight: 500;
+        text-align: right;
+        border: none;
+        padding-right: 18pt;
+      }
+      .inv-totals td {
+        border: none;
+      }
+      .inv-totals .inv-grand th,
+      .inv-totals .inv-grand td {
+        font-weight: 600;
+        font-size: 12pt;
+        border-top: 0.5pt solid #1d1d1f;
+      }
+      .inv-note {
+        margin-top: 16pt;
+      }
+      .inv-notes {
+        white-space: pre-line;
+      }
+      h2 {
+        font-size: 11pt;
+        font-weight: 600;
+        margin: 0 0 8pt;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="inv-head">
+      <div>
+        <div class="inv-supplier">{{supplierName}}</div>
+        {{#if supplierAbn}}
+        <div>ABN {{supplierAbn}}</div>
+        {{/if}}
+      </div>
+      <div class="inv-title">
+        <h1>{{title}}</h1>
+        <div>{{number}}</div>
+      </div>
+    </div>
+
+    <table class="inv-facts">
+      <tbody>
+        <tr>
+          <th scope="row">To</th>
+          <td>
+            {{buyerName}}{{#if buyerAbn}} · ABN {{buyerAbn}}{{/if}}{{#if buyerAddress}}<br />{{buyerAddress}}{{/if}}
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">Issued</th>
+          <td>{{issueDate}}</td>
+        </tr>
+        {{#if dueDate}}
+        <tr>
+          <th scope="row">Due</th>
+          <td>{{dueDate}}</td>
+        </tr>
+        {{/if}} {{#if reference}}
+        <tr>
+          <th scope="row">Matter</th>
+          <td>{{reference}}</td>
+        </tr>
+        {{/if}} {{#if creditOf}}
+        <tr>
+          <th scope="row">Credits invoice</th>
+          <td>{{creditOf}}</td>
+        </tr>
+        <tr>
+          <th scope="row">Reason</th>
+          <td>{{reason}}</td>
+        </tr>
+        {{/if}}
+      </tbody>
+    </table>
+
+    <table class="inv-lines">
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">Description</th>
+          <th scope="col" class="inv-num">Qty</th>
+          <th scope="col" class="inv-num">Price</th>
+          <th scope="col" class="inv-num">Amount{{#if gst}} ex GST{{/if}}</th>
+          {{#if gst}}
+          <th scope="col" class="inv-num">GST</th>
+          {{/if}}
+        </tr>
+      </thead>
+      <tbody>
+        {{#each lines}}
+        <tr>
+          <td class="inv-num">{{date}}</td>
+          <td>{{description}}{{#if gstFree}} *{{/if}}{{#if by}}<span class="inv-sub">{{by}}</span>{{/if}}</td>
+          <td class="inv-num">{{quantity}}</td>
+          <td class="inv-num">{{unitPrice}}</td>
+          <td class="inv-num">{{amount}}</td>
+          {{#if ../gst}}
+          <td class="inv-num">{{gst}}</td>
+          {{/if}}
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <table class="inv-totals">
+      <tbody>
+        {{#if gst}}
+        <tr>
+          <th scope="row">Subtotal ex GST</th>
+          <td class="inv-num">{{subtotal}}</td>
+        </tr>
+        <tr>
+          <th scope="row">GST</th>
+          <td class="inv-num">{{gstTotal}}</td>
+        </tr>
+        {{/if}}
+        <tr class="inv-grand">
+          <th scope="row">{{#if creditOf}}Total credited{{else}}Total{{#if gst}} inc GST{{/if}}{{/if}}</th>
+          <td class="inv-num">{{total}}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    {{#if gstStatement}}
+    <p class="inv-note">{{gstStatement}}{{#if anyGstFree}} * GST-free.{{/if}}</p>
+    {{/if}} {{#if terms}}
+    <p class="inv-note">{{terms}} Please quote {{number}} with your payment.</p>
+    {{/if}} {{#if notes}}
+    <p class="inv-note inv-notes">{{notes}}</p>
+    {{/if}} {{#if itemisation}}
+    <section class="page-break">
+      <h2>Schedule of professional fees · {{number}}</h2>
+      <table class="inv-lines">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Work</th>
+            <th scope="col" class="inv-num">Hours</th>
+            <th scope="col" class="inv-num">Amount{{#if gst}} ex GST{{/if}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each itemisation}}
+          <tr>
+            <td class="inv-num">{{date}}</td>
+            <td>{{description}}{{#if by}}<span class="inv-sub">{{by}}</span>{{/if}}</td>
+            <td class="inv-num">{{hours}}</td>
+            <td class="inv-num">{{amount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </section>
+    {{/if}}
+  </body>
+</html>
