@@ -468,7 +468,8 @@ export const ChecklistTemplate = withMeta(
     priority: PrioritySchema.optional(),
     dueInDays: z.number().int().min(0).max(CHECKLIST_TEMPLATE_DUE_MAX_DAYS).optional(),
   },
-  { path: `${ORG}/checklistTemplates`, softDelete: true, migratable: false },
+  // Migratable: the legacy board checklist templates load here (MIG-03).
+  { path: `${ORG}/checklistTemplates`, softDelete: true },
 );
 
 /** Limits on task group templates (CORE-08f); the name becomes a task's group (≤ 120). */
