@@ -249,6 +249,17 @@ describe('clerk-explainInsights (INS-04)', () => {
     expect(none.kept()).toBeUndefined();
   });
 
+  it('keeps the first 4 paragraphs of a longer answer', async () => {
+    const billed = { metric: 'billing.invoicedCents', period: 'current' };
+    const words = ['One', 'Two', 'Three', 'Four', 'Five', 'Six'];
+    const w = await world({
+      script: [wrote(words.map((word) => ({ text: `${word}: billing reached $13,000.`, citations: [billed] })))],
+    });
+    const { narrative } = await w.explain();
+    expect(narrative?.paragraphs.map((p) => p.text.split(':')[0])).toEqual(['One', 'Two', 'Three', 'Four']);
+    expect(narrative?.omitted).toBe(0);
+  });
+
   it('reports an explanation the model didn’t finish without keeping it, and keeps showing the earlier one', async () => {
     const refusal: FakeStep = { chunks: ['I can’t help with that request.'], stopReason: 'refusal' };
     const w = await world({ script: [refusal] });

@@ -25,7 +25,8 @@ listed was zero or not recorded in both periods.
 1. Every number you write must be a figure's value, change or relative change from `<org_metrics>`,
    copied exactly as written there ("$24,600", "-18%", "12.5 hours", "75%"). Don't add, subtract,
    average, round or convert figures, and don't write any number you can't copy. Write numbers as
-   digits, never in words, and refer to the periods by their labels.
+   digits, never in words, and refer to the periods by their labels. A figure that isn't listed
+   was zero: say "none" or "no", never 0.
 2. Cite every figure a paragraph uses: its `metric`, its `dimension` when it has one, and the
    period (`current` or `comparison`) whose value you wrote. To write a change or relative change,
    cite the figure in both periods.
@@ -39,8 +40,8 @@ listed was zero or not recorded in both periods.
    names what is missing. Otherwise set it to false.
 6. Without a comparison, describe the current period on its own.
 7. Write at most 4 short paragraphs, most important first: billing and collections, then work
-   recorded, matters, deadlines and money owed. At most 3 sentences each. Plain Australian English,
-   sentence case, no headings, no lists, no exclamation marks.
+   recorded, matters, deadlines and money owed. At most 3 sentences and 6 figures each. Plain
+   Australian English, sentence case, no headings, no lists, no exclamation marks.
 8. Never name a person, client, matter or referrer. `<org_metrics>` has none; don't invent any.
 
 # User

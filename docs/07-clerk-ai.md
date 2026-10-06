@@ -214,7 +214,7 @@ See [ADR-054](adr/054-insights-narratives.md). Code: `libs/domain/src/lib/insigh
 
   It returns `{narrative, problem?}`. `narrative` is `{periodLabel, comparisonLabel, paragraphs[{text, citations[{metric, dimension?, period, label, value}]}], insufficientData, omitted, generatedAt, refreshAfter, expiresAt, stale, promptRef}`. `problem` is `failed` (the model didn't finish) or `unverified` (no paragraph passed the number check).
 - **Switches:** `gateway.assertOn(ctx, 'insightsNarrative')` runs before a kept explanation is read: role `clerk.use`, `clerk.enabled`, `clerk.features.insightsNarrative`, the practice's Clerk switch and its "Explain Insights" toggle (`settings.clerk.features.insightsNarrative`), and the acknowledgement.
-- **Prompt:** `insights-narrative@1.0.0` (low effort), output `insightsNarrative`: `{paragraphs (≤ 4) [{text, citations (≤ 8) [{metric, period: 'current'|'comparison', dimension?}]}], insufficientData}`.
+- **Prompt:** `insights-narrative@1.0.0` (low effort), output `insightsNarrative`: `{paragraphs [{text, citations [{metric, period: 'current'|'comparison', dimension?}]}], insufficientData}`. The prompt asks for at most 4 paragraphs of 3 sentences and 6 figures. The schema's caps are looser, since the API doesn't enforce lengths, and the callable keeps the first 4 paragraphs.
 - **Number check:** `checkNarrativeParagraph` accepts a paragraph only when each of its numbers is one of these:
   - a cited figure's value in a cited period;
   - that figure's change or relative change, when both periods are cited;

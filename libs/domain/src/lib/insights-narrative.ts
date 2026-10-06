@@ -28,9 +28,8 @@ export const INSIGHTS_NARRATIVE_PROMPT = 'insights-narrative@1.0.0';
 export const INSIGHTS_NARRATIVE_TTL_HOURS = 24;
 /** The soonest a fresh explanation of the same period and comparison can be asked for. */
 export const INSIGHTS_NARRATIVE_REFRESH_MINUTES = 10;
+/** Paragraphs Clerk is asked for and shown; any more are left out. */
 export const INSIGHTS_NARRATIVE_MAX_PARAGRAPHS = 4;
-/** Figures one paragraph may cite. */
-export const INSIGHTS_NARRATIVE_MAX_CITATIONS = 8;
 
 export const NARRATIVE_PERIODS = ['current', 'comparison'] as const;
 export type NarrativePeriod = (typeof NARRATIVE_PERIODS)[number];
@@ -173,6 +172,12 @@ const FIGURES: readonly FigureDefinition[] = [
   { metric: 'deadlines.metLate', label: 'Deadlines met late', unit: 'count', of: flow('deadlines.metLate') },
   { metric: 'deadlines.missed', label: 'Deadlines missed', unit: 'count', of: flow('deadlines.missed') },
   { metric: 'deadlines.waived', label: 'Deadlines waived', unit: 'count', of: flow('deadlines.waived') },
+  {
+    metric: 'deadlines.critical.due',
+    label: 'Critical deadlines due',
+    unit: 'count',
+    of: flow('deadlines.critical.due'),
+  },
   {
     metric: 'deadlines.critical.missed',
     label: 'Critical deadlines missed',

@@ -9,6 +9,7 @@ import {
   DEFAULT_ORG_TIMEZONE,
   ExplainInsightsInputSchema,
   INSIGHTS_NARRATIVE_CALLABLES,
+  INSIGHTS_NARRATIVE_MAX_PARAGRAPHS,
   INSIGHTS_NARRATIVE_PROMPT,
   INSIGHTS_NARRATIVE_REFRESH_MINUTES,
   INSIGHTS_NARRATIVE_TTL_HOURS,
@@ -162,12 +163,14 @@ export async function explainInsightsFor(
     ctx.log.warn('insights narrative not written', { status: result.status, promptRef: result.promptRef });
     return { narrative: keptView, problem: 'failed' };
   }
-  const checked = verifiedNarrative(result.parsed.paragraphs, figures, labels);
+  // Clerk is asked for at most 4 paragraphs, most important first; any more are left out.
+  const written = result.parsed.paragraphs.slice(0, INSIGHTS_NARRATIVE_MAX_PARAGRAPHS);
+  const checked = verifiedNarrative(written, figures, labels);
   // Metadata only: how many paragraphs failed the number check, never their text.
   if (checked.omitted)
     ctx.log.warn('insights narrative paragraphs failed the number check', {
       omitted: checked.omitted,
-      paragraphs: result.parsed.paragraphs.length,
+      paragraphs: written.length,
       promptRef: result.promptRef,
     });
   if (!checked.paragraphs.length && !result.parsed.insufficientData)
