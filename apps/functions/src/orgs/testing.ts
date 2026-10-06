@@ -6,7 +6,8 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
  * code uses (doc and collection refs, `==`, `in`, `array-contains` and range filters on dotted paths,
  * paging by document id,
  * field masks, collection groups, getAll, batches and serial transactions, `FieldValue.increment`,
- * `FieldValue.delete` and `FieldValue.vector` with `findNearest`, listing a document's subcollections),
+ * `FieldValue.delete` and `FieldValue.vector` with `findNearest`, listing a document's subcollections
+ * and document listeners),
  * and an Admin Auth with users and custom claims.
  */
 
@@ -51,6 +52,11 @@ function distance(a: number[], b: number[], measure: 'COSINE' | 'EUCLIDEAN' | 'D
 export function memoryFirestore(initial: Record<string, Data> = {}) {
   const docs = new Map<string, Data>();
   let autoId = 0;
+  /** Document listeners (`onSnapshot`), called with the current snapshot and after each write. */
+  const listeners = new Map<string, Set<(snap: unknown) => void>>();
+  const notify = (path: string) => {
+    for (const listener of listeners.get(path) ?? []) listener(snapshot(path));
+  };
 
   const snapshot = (path: string) => {
     const data = docs.get(path);
@@ -91,6 +97,12 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
         );
         return [...names].sort().map((name) => collectionRef(`${path}/${name}`));
       },
+      onSnapshot: (next: (snap: unknown) => void) => {
+        const set = listeners.get(path) ?? new Set();
+        listeners.set(path, set.add(next));
+        queueMicrotask(() => set.has(next) && next(snapshot(path)));
+        return () => void set.delete(next);
+      },
     };
     return ref;
   }
@@ -98,6 +110,7 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
   const write = {
     set(path: string, data: Data, options?: { merge?: boolean }) {
       docs.set(path, apply(options?.merge ? docs.get(path) : undefined, data));
+      notify(path);
     },
     update(path: string, data: Data) {
       if (!docs.has(path)) throw Object.assign(new Error(`No document to update: ${path}`), { code: 5 });
@@ -111,10 +124,12 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       let next: Data = previous;
       for (const [key, value] of Object.entries(data)) next = setPath(next, key.split('.'), value);
       docs.set(path, next);
+      notify(path);
     },
     create(path: string, data: Data) {
       if (docs.has(path)) throw Object.assign(new Error(`Already exists: ${path}`), { code: 6 });
       docs.set(path, apply(undefined, data));
+      notify(path);
     },
   };
 
@@ -154,6 +169,24 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       },
       /** A count aggregation (`query.count().get()`). */
       count: () => ({ get: async () => ({ data: () => ({ count: select().length }) }) }),
+      /** `count` and `sum` aggregations (`query.aggregate({ total: AggregateField.sum('amountCents') })`). */
+      aggregate: (spec: Record<string, { aggregateType: string; _field?: string }>) => ({
+        get: async () => {
+          const found = select();
+          const result: Record<string, number> = {};
+          for (const [name, field] of Object.entries(spec)) {
+            if (field.aggregateType === 'count') result[name] = found.length;
+            else {
+              const values = found
+                .map((path) => valueAt(docs.get(path), String(field._field)))
+                .filter((value): value is number => typeof value === 'number');
+              const total = values.reduce((sum, value) => sum + value, 0);
+              result[name] = field.aggregateType === 'avg' ? (values.length ? total / values.length : NaN) : total;
+            }
+          }
+          return { data: () => result };
+        },
+      }),
       /** Vector search (`findNearest`), COSINE or EUCLIDEAN, with the distance in `distanceResultField`. */
       findNearest: (options: {
         vectorField: string;

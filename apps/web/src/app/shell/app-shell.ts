@@ -57,6 +57,7 @@ import { OfflineError, OrgService } from '../core/orgs/org-service';
 import { UserPrefsService } from '../core/profile/user-prefs';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterRefs, routeCrumbs } from '../core/title-strategy';
+import { ClerkChatPanel } from '../features/clerk/clerk-chat-panel';
 
 /** Where the collapsed-sidebar choice is kept, per user. */
 export const SIDEBAR_STORAGE_PREFIX = 'materia.shell.sidebar-collapsed.';
@@ -66,7 +67,8 @@ export const MOBILE_QUERY = '(max-width: 767px)';
 
 /**
  * The app shell (FND-12): sidebar, inset main panel with the header (breadcrumbs, page actions and
- * the loading bar), and the Clerk panel slot. Under 768px the TabBar replaces the sidebar.
+ * the loading bar), and the Clerk panel (its chat, AI-06, loads the first time it opens). Under 768px
+ * the TabBar replaces the sidebar.
  *
  * Registers the global shortcuts (⌘K, [, ⌘J, ?, `g` + key) and the built-in commands.
  */
@@ -110,6 +112,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtTabBar,
     NgpPopover,
     NgpPopoverTrigger,
+    ClerkChatPanel,
   ],
   // The unread count on Inbox and urgent toasts (FND-20) follow the shell's lifetime.
   providers: [NotificationsStore],
@@ -298,11 +301,16 @@ export const MOBILE_QUERY = '(max-width: 767px)';
               (click)="toggleClerk()"
             ></button>
           </header>
-          <div class="body">
-            <p style="margin: 0; text-align: center; color: var(--text-tertiary); font-size: 13px">
-              Clerk arrives in AI-06.
-            </p>
-          </div>
+          <!-- The chat (AI-06) is a lazy chunk, loaded the first time the panel opens. -->
+          @defer (on immediate) {
+            <mt-clerk-chat />
+          } @loading (minimum 0ms) {
+            <div class="body"><p class="caption t-3" role="status">Opening Clerk…</p></div>
+          } @error {
+            <div class="body">
+              <p class="caption t-2" role="alert">Clerk didn’t load. Reload the page to try again.</p>
+            </div>
+          }
         </aside>
       }
     </div>

@@ -19,6 +19,8 @@ export const PERMISSIONS = {
   'matter.destroy': ['owner', 'admin'],
   /** Change a matter's number (CORE-21a). */
   'matter.renumber': ['owner', 'admin', 'lawyer'],
+  /** Revise a matter's fee arrangement and estimate (BILL-05). */
+  'matter.fee': ['owner', 'admin', 'lawyer'],
   'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
   'contact.delete': ['owner', 'admin', 'lawyer'],
   'contact.merge': ['owner', 'admin'],

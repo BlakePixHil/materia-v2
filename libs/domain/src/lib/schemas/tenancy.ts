@@ -67,6 +67,8 @@ export const Org = withMeta(
       defaultRateCents: CentsSchema,
       invoicePrefix: z.string().max(10),
       paymentTermsDays: z.number().int().min(0).max(365),
+      /** Budget alert thresholds, percent of the fee basis (BILL-05); 80 and 100 when unset. */
+      budgetAlertPcts: z.array(z.number().int().min(1).max(200)).max(5).optional(),
       /** The daily time target on the Time and billing screen (BILL-03); 6 hours when unset. */
       dailyTargetMinutes: z
         .number()

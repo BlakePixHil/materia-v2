@@ -41,6 +41,7 @@ Each entity `X` exports `{ schema, create, update, version, path }` built by `wi
 | `matter.legalHold` | ✓ | ✓ |  |  |  |
 | `matter.destroy` | ✓ | ✓ |  |  |  |
 | `matter.renumber` | ✓ | ✓ | ✓ |  |  |
+| `matter.fee` | ✓ | ✓ | ✓ |  |  |
 | `contact.edit` | ✓ | ✓ | ✓ | ✓ |  |
 | `contact.delete` | ✓ | ✓ | ✓ |  |  |
 | `contact.merge` | ✓ | ✓ |  |  |  |

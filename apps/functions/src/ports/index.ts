@@ -76,7 +76,32 @@ export type ClerkContentBlock =
       source: { kind: 'text'; text: string } | { kind: 'pdf'; base64: string };
       cache?: boolean;
     }
-  | { type: 'search_result'; source: string; title: string; text: string; cache?: boolean };
+  | { type: 'search_result'; source: string; title: string; text: string; cache?: boolean }
+  /** A tool's answer (AI-06): text, or retrieved passages the model can cite. */
+  | {
+      type: 'tool_result';
+      toolUseId: string;
+      content: (
+        { type: 'text'; text: string } | { type: 'search_result'; source: string; title: string; text: string }
+      )[];
+      isError?: boolean;
+      cache?: boolean;
+    };
+
+/** A read-only tool the model may choose to call (AI-06; never forced). */
+export interface ClerkToolDefinition {
+  name: string;
+  description: string;
+  /** JSON Schema of the tool's input. */
+  inputSchema: Record<string, unknown>;
+}
+
+/** One tool call the model asked for. */
+export interface ClerkToolUse {
+  id: string;
+  name: string;
+  input: unknown;
+}
 
 export interface ClerkTurn {
   role: 'user' | 'assistant';
@@ -100,6 +125,8 @@ export interface ClerkModelRequest {
   effort: ClerkEffort;
   /** Structured output: the reply is JSON matching this schema (`output_config.format`). */
   output?: { name: string; schema: import('zod').ZodType };
+  /** Read-only tools the model may call (`tool_choice` is never forced). */
+  tools?: ClerkToolDefinition[];
   timeoutMs: number;
   signal?: AbortSignal;
   /** Let the API reroute refusals to another model itself (first-party API only, ADR-011a). */
@@ -119,6 +146,8 @@ export interface ClerkModelResult {
   /** The assistant turn verbatim, for replay (never edited; preserved thinking). */
   content: readonly unknown[];
   serverFallback: boolean;
+  /** The tools the model asked to call (`stopReason: tool_use`). */
+  toolUses?: ClerkToolUse[];
 }
 
 export type ClerkModelErrorKind =

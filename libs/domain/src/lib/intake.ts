@@ -265,17 +265,29 @@ export function feeProblems(fee: {
   amountCents?: number | undefined;
   capCents?: number | undefined;
   estimateCents?: number | undefined;
+  estimateLowCents?: number | undefined;
+  estimateHighCents?: number | undefined;
   rateOverrideCents?: number | undefined;
   conditional?: unknown;
 }): IntakeProblem[] {
   const problems: IntakeProblem[] = [];
+  const low = fee.estimateLowCents;
+  const high = fee.estimateHighCents;
+  if (low !== undefined && high !== undefined && low > high) {
+    problems.push({ path: ['estimateLowCents'], message: 'The low estimate cannot be more than the high estimate' });
+  }
   if (fee.arrangement === 'fixed' && fee.amountCents === undefined) {
     problems.push({ path: ['amountCents'], message: 'Enter the fixed fee' });
   }
   if (fee.arrangement === 'capped') {
     if (fee.capCents === undefined) problems.push({ path: ['capCents'], message: 'Enter the cap' });
-    else if (fee.estimateCents !== undefined && fee.estimateCents > fee.capCents) {
-      problems.push({ path: ['estimateCents'], message: 'The estimate cannot be more than the cap' });
+    else {
+      if (fee.estimateCents !== undefined && fee.estimateCents > fee.capCents) {
+        problems.push({ path: ['estimateCents'], message: 'The estimate cannot be more than the cap' });
+      }
+      if (high !== undefined && high > fee.capCents) {
+        problems.push({ path: ['estimateHighCents'], message: 'The estimate cannot be more than the cap' });
+      }
     }
   }
   if (fee.arrangement === 'conditional' && !fee.conditional) {
@@ -285,7 +297,14 @@ export function feeProblems(fee: {
     problems.push({ path: ['conditional'], message: 'Only a conditional arrangement has an uplift' });
   }
   if (fee.arrangement === 'pro_bono') {
-    for (const key of ['amountCents', 'capCents', 'estimateCents', 'rateOverrideCents'] as const) {
+    for (const key of [
+      'amountCents',
+      'capCents',
+      'estimateCents',
+      'estimateLowCents',
+      'estimateHighCents',
+      'rateOverrideCents',
+    ] as const) {
       if (fee[key] !== undefined) problems.push({ path: [key], message: 'A pro bono matter has no fees' });
     }
   }
@@ -293,9 +312,10 @@ export function feeProblems(fee: {
 }
 
 /**
- * The fee arrangement as entered at intake (`matter.fee` without its server-kept `history`).
- * `rateOverrideCents` replaces the responsible person's hourly rate; `conditional.upliftPct` is the
- * uplift on a conditional arrangement (at most 25%).
+ * The fee arrangement as entered at intake or revised (BILL-05): `matter.fee` without its
+ * server-kept `revision` and `history`. `rateOverrideCents` replaces the responsible person's
+ * hourly rate; `conditional.upliftPct` is the uplift on a conditional arrangement (at most 25%);
+ * `estimateLowCents` to `estimateHighCents` is the estimate's range.
  */
 export const FeeInput = z
   .object({
@@ -303,6 +323,8 @@ export const FeeInput = z
     amountCents: AmountCents.optional(),
     capCents: AmountCents.optional(),
     estimateCents: AmountCents.optional(),
+    estimateLowCents: AmountCents.optional(),
+    estimateHighCents: AmountCents.optional(),
     rateOverrideCents: AmountCents.optional(),
     conditional: z
       .object({ upliftPct: z.number().min(0).max(25), condition: NonEmptyString.max(500) })
