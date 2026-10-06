@@ -59,3 +59,4 @@ export * from './lib/disbursements';
 export * from './lib/invoices';
 export * from './lib/payments';
 export * from './lib/integrations';
+export * from './lib/xero';

@@ -1036,6 +1036,10 @@ service cloud.firestore {
       match /integrationStates/{stateId} {
         allow read, write: if false;
       }
+      // Which Xero contact a matter's clients are invoiced as (BILL-09). Server-only.
+      match /xeroContacts/{linkId} {
+        allow read, write: if false;
+      }
       // Daily digest records (FND-20), `digest-{uid}-{date}`: written by notifications-digest so a
       // person gets one a day; Firestore TTL deletes them after 30 days.
       match /digests/{digestId} {
@@ -1200,7 +1204,7 @@ service cloud.firestore {
     function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt', 'hiddenAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'settings', 'xero', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
@@ -1217,6 +1221,7 @@ service cloud.firestore {
     function fieldsTimer() { return ['taskId', 'startedAt', 'accumulatedMs', 'running', 'narrativeDraft', 'lastHeartbeatAt', 'clientStarted', 'needsReview', 'forgottenSeenAt']; }
     function fieldsTrustSnapshot() { return []; }
     function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl']; }
+    function fieldsXeroContactLink() { return []; }
     // </generated:rules-sync>
 
     // Everything else is denied.

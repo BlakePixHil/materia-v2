@@ -330,6 +330,15 @@ const shellRoutes: Route[] = [
         canDeactivate: [unsavedChangesGuard],
         loadComponent: () => import('./features/trust/trust-settings-page').then((m) => m.TrustSettingsPage),
       },
+      // Integrations (BILL-09): the practice's Xero connection; owners and admins, while `integrations.xero` is on.
+      {
+        path: 'integrations',
+        title: 'Integrations',
+        data: { crumb: 'Integrations' },
+        canActivate: [flagGuard('integrations.xero'), roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/integrations/integrations-page').then((m) => m.IntegrationsPage),
+      },
       // Matter numbering (CORE-21a): owners and admins (`org.settings`).
       {
         path: 'numbering',
@@ -391,7 +400,7 @@ const shellRoutes: Route[] = [
         data: { crumb: 'Security' },
         loadComponent: () => import('./features/security/security-page').then((m) => m.SecurityPage),
       },
-      // Settings pages still to come (integrations INT-03) land on the team page.
+      // Settings pages still to come land on the team page.
       { path: '**', redirectTo: 'team' },
     ],
   },

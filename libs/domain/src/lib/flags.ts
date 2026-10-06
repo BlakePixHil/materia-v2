@@ -202,6 +202,14 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'integrations.xero': defineFlag({
+    key: 'integrations.xero',
+    description: 'Xero: connect the practice, send invoices and credit notes, bring payments back.',
+    owner: 'BILL-09',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'mobile.voice': defineFlag({
     key: 'mobile.voice',
     description: 'Record by voice on mobile.',

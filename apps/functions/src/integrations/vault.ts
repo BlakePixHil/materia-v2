@@ -256,7 +256,7 @@ export async function removeMemberConnections(ctx: VaultContext, uid: string): P
 }
 
 /** Who hears that a connection stopped working: the person, or the practice's owners and admins. */
-async function reconnectRecipients(ctx: VaultContext, owner: string | null): Promise<string[]> {
+export async function reconnectRecipients(ctx: VaultContext, owner: string | null): Promise<string[]> {
   if (owner) return [owner];
   const admins = PERMISSIONS['org.settings'] as readonly Role[];
   const members = await ctx.db.collection(`orgs/${ctx.orgId}/members`).where('status', '==', 'active').get();
