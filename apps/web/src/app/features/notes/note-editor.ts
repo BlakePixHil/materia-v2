@@ -146,7 +146,7 @@ let nextId = 0;
         (keyup)="onCaret(field, $event)"
         (click)="onCaret(field)"
         (paste)="onPaste($event, field)"
-        (blur)="closeList()"
+        (blur)="onBlur(field)"
       ></textarea>
     </div>
     @if (listOpen()) {
@@ -466,6 +466,11 @@ export class NoteEditor {
     const next = insertMention(this.value(), at, item.token);
     this.apply({ text: next.text, selectionStart: next.caret, selectionEnd: next.caret });
     this.closeList();
+  }
+
+  /** Leaving the field closes the list; switching to another window doesn't, so it's still there on return. */
+  protected onBlur(field: HTMLTextAreaElement): void {
+    if (field.ownerDocument.hasFocus()) this.closeList();
   }
 
   protected closeList(): void {

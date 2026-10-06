@@ -29,12 +29,16 @@ export function suggestionVm(item: SuggestionRecord): SuggestionVm {
     kind: SUGGESTION_KIND_LABELS[item.kind],
     title: suggestionSummary(item) || SUGGESTION_KIND_LABELS[item.kind],
     rationale: item.rationale,
+    // Labelled with the documents' names where the screen resolves them (`CitationSources`, AI-05).
     citations: item.citations.map((citation, i) => ({
       n: i + 1,
-      documentId: citation.documentId,
+      documentId: citation.documentId ?? citation.recordRef?.id ?? '',
       label: citation.page ? `p. ${citation.page}` : 'Source',
+      version: citation.docVersion,
       page: citation.page,
       quote: citation.quote,
+      ...(citation.kind === 'record' ? { kind: 'record' as const } : {}),
+      ...(citation.verified === false ? { verified: false } : {}),
     })),
     acceptLabel: SUGGESTION_ACCEPT_LABELS[item.kind],
   };

@@ -30,13 +30,25 @@ function meterValues(entry: MeterEntry): Record<string, FieldValue> {
       values[`user.${entry.uid}.${name}`] = FieldValue.increment(value);
     }
   }
+  // Citation verification (AI-05): quotes found on their page, and those dropped from the UI.
+  if (entry.citations) {
+    for (const [name, value] of [
+      ['citation_verified', entry.citations.verified],
+      ['citation_unverified', entry.citations.unverified],
+    ] as const) {
+      if (!value) continue;
+      values[name] = FieldValue.increment(value);
+      values[`feature.${entry.feature}.${name}`] = FieldValue.increment(value);
+    }
+  }
   return values;
 }
 
 /**
  * The gateway's Firestore persistence (AI-02):
  * - the per-user window and daily count in `orgs/{orgId}/counters/clerk-rate-{uid}` (server-only);
- * - metering in `orgs/{orgId}/metrics/clerk-{YYYY-MM}` (totals, `feature.<f>.*`, `user.<uid>.*`);
+ * - metering in `orgs/{orgId}/metrics/clerk-{YYYY-MM}` (totals, `feature.<f>.*`, `user.<uid>.*`,
+ *   and `citation_verified`/`citation_unverified` from AI-05's verification);
  * - streamed replies in `clerkThreads/{t}/messages/{m}`, with the verbatim assistant turn in the
  *   server-only `messages/{m}/private/raw` for replay.
  */

@@ -102,14 +102,99 @@ export function withMeta<
   return { schema, create, update, version: options.version ?? 1, path: options.path };
 }
 
-/** A [documentId, page, quote] citation (Clerk rule 2). */
-export const CitationSchema = z.object({
-  documentId: DocIdSchema,
-  /** The document version the quote was taken from (AI-02). */
-  version: z.number().int().min(1).optional(),
-  page: z.number().int().min(1).optional(),
-  quote: z.string().max(2000),
-});
+/** The longest quote a citation keeps (the API's `cited_text` is cut to this). */
+export const CITATION_QUOTE_MAX = 2000;
+
+/** The matter records a `record` citation can point at (briefs and insights cite these, AI-05). */
+export const CITATION_RECORD_COLLECTIONS = [
+  'matter',
+  'deadlines',
+  'events',
+  'tasks',
+  'timeEntries',
+  'notes',
+  'parties',
+  'metrics',
+] as const;
+export const CitationRecordCollectionSchema = z.enum(CITATION_RECORD_COLLECTIONS);
+
+interface CitationFields {
+  kind: 'document' | 'record';
+  documentId?: string | undefined;
+  page?: number | undefined;
+  pageEnd?: number | undefined;
+  charStart?: number | undefined;
+  charEnd?: number | undefined;
+  recordRef?: unknown;
+}
+
+/** The checks across a citation's fields: what it cites must be named, and ranges run forwards. */
+function citationIssues<T extends CitationFields>(citation: T, issue: z.core.$RefinementCtx<T>): void {
+  if (citation.kind === 'document' && !citation.documentId)
+    issue.addIssue({ code: 'custom', path: ['documentId'], message: 'A document citation needs its document' });
+  if (citation.kind === 'record' && !citation.recordRef)
+    issue.addIssue({ code: 'custom', path: ['recordRef'], message: 'A record citation needs its record' });
+  if (citation.charStart !== undefined && citation.charEnd !== undefined && citation.charEnd < citation.charStart)
+    issue.addIssue({ code: 'custom', path: ['charEnd'], message: 'charEnd comes before charStart' });
+  if (citation.pageEnd !== undefined && (citation.page === undefined || citation.pageEnd < citation.page))
+    issue.addIssue({ code: 'custom', path: ['pageEnd'], message: 'pageEnd comes before page' });
+}
+
+/**
+ * A citation's fields (AI-05, ADR-043), without the legacy-name migration: use it where a plain
+ * object schema is needed (a structured-output JSON schema); stored data goes through
+ * `CitationSchema`.
+ *
+ * - `kind: 'document'` (the default) cites `documentId` at `docVersion`, `page` (to `pageEnd` when
+ *   the quote runs over a page break) and optionally `charStart`/`charEnd`, offsets into the cited
+ *   page's extracted text (a hint: the quote is what the viewer and verification search for).
+ * - `kind: 'record'` cites a matter record (`recordRef`: a deadline, event, time entry…) for briefs
+ *   and insights; `quote` is the fact it relies on.
+ * - `verified: false` marks a citation whose quote wasn't found on the cited page (AI-05
+ *   verification): kept for audit, never shown. Absent means verified or never checked.
+ */
+export const CitationObjectSchema = z
+  .object({
+    kind: z.enum(['document', 'record']).default('document'),
+    documentId: DocIdSchema.optional(),
+    /** The document version the quote was taken from (citations pin it; ADR-038). */
+    docVersion: z.number().int().min(1).optional(),
+    page: z.number().int().min(1).optional(),
+    /** The last page of a quote that spans pages (only when after `page`). */
+    pageEnd: z.number().int().min(1).optional(),
+    quote: z.string().max(CITATION_QUOTE_MAX),
+    charStart: z.number().int().min(0).optional(),
+    charEnd: z.number().int().min(0).optional(),
+    recordRef: z.object({ collection: CitationRecordCollectionSchema, id: DocIdSchema }).optional(),
+    verified: z.boolean().optional(),
+  })
+  .superRefine(citationIssues);
+
+/**
+ * A citation (Clerk rule 2; AI-05, ADR-043). Older stored shapes (`{documentId, version?, page?,
+ * quote}` from AI-02, AI-04 and AI-07) still parse: `version` is read as `docVersion` and `kind`
+ * defaults to `document`, so the parsed value always has the current field names.
+ */
+export const CitationSchema = z
+  .object({
+    ...CitationObjectSchema.shape,
+    /** @deprecated AI-02's name for `docVersion`; accepted on read, never written. */
+    version: z.number().int().min(1).optional(),
+  })
+  .superRefine(citationIssues)
+  .transform(({ version, ...citation }) => {
+    const docVersion = citation.docVersion ?? version;
+    return docVersion === undefined ? citation : { ...citation, docVersion };
+  });
+export type Citation = z.output<typeof CitationSchema>;
+/** A citation as written (old field names allowed). */
+export type CitationInput = z.input<typeof CitationSchema>;
+/** A citation of a document (`kind: 'document'`), with its id. */
+export type DocumentCitation = Citation & { kind: 'document'; documentId: string };
+
+/** Whether a citation cites a document (as opposed to a matter record). */
+export const isDocumentCitation = (citation: Citation): citation is DocumentCitation =>
+  citation.kind === 'document' && typeof citation.documentId === 'string';
 
 export const AddressSchema = z.object({
   type: z.enum(['residential', 'postal', 'business', 'other']),

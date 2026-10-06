@@ -45,6 +45,8 @@ export interface MeterEntry {
   usage: ClerkUsage;
   costMicros: number;
   costEstimated: boolean;
+  /** Citations checked against the chunks (AI-05): counted as `citation_verified`/`citation_unverified`. */
+  citations?: { verified: number; unverified: number };
 }
 
 /** The gateway's persistence (Firestore in production, in memory in unit tests). */

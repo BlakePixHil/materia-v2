@@ -137,8 +137,9 @@ describe('ClerkGateway', () => {
     expect(message?.writes).toEqual(['The will ', 'The will names ', 'The will names an executor.']);
     expect(message?.final).toMatchObject({
       status: 'invalid_output',
-      text: 'The will names an executor.',
-      citations: [{ documentId: 'doc-will', version: 3, page: 2, quote: 'I appoint' }],
+      // The cited claim carries its marker (AI-05); no matter context, so the citation is unchecked.
+      text: 'The will names an executor.[1]',
+      citations: [{ kind: 'document', documentId: 'doc-will', docVersion: 3, page: 2, quote: 'I appoint' }],
       model: CLERK_MODEL,
       raw: [{ type: 'text', text: 'The will names an executor.' }],
     });
