@@ -22,7 +22,7 @@
 - **Secrets:** Secret Manager, accessed with `defineSecret()` in functions. Examples:
   - `POSTMARK_TOKEN` and `POSTMARK_WEBHOOK_SECRET` (FND-20, infra/MANUAL.md);
   - `ANTHROPIC_API_KEY`: unused since AI-02a (each firm brings its own key, KMS-encrypted; ADR-011b), kept as an empty container;
-  - `XERO_CLIENT_SECRET`, `MS_CLIENT_SECRET`, `GOOGLE_CLIENT_SECRET`.
+  - `XERO_CLIENT_ID` and `XERO_CLIENT_SECRET` (INT-01, BILL-09; docs/runbooks/integrations.md), later `MS_CLIENT_*` (INT-01b) and `GOOGLE_CLIENT_*` (INT-04).
 - **Client config** (the Firebase web config) is not secret. It is generated per env into `apps/web/src/environments/` by `tools/scripts/env.ts` from Terraform outputs.
 
 ## CI (GitHub Actions, `.github/workflows/ci.yml`)

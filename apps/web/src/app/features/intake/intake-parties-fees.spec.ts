@@ -45,17 +45,21 @@ describe('fees step', () => {
   const disclosure = (page: Awaited<ReturnType<typeof resumeAt>>) =>
     page.text(page.page()?.querySelector('[data-testid="costs-disclosure"]'));
 
-  it('shows the provisional costs disclosure computed from the estimate', async () => {
+  it('shows the costs disclosure the estimate needs under the illustrative VIC rules', async () => {
     const page = await resumeAt(probateState(), 'fees');
-    expect(disclosure(page)).toContain('Provisional');
-    expect(disclosure(page)).toContain('Required (estimate $4,500.00)');
-    expect(disclosure(page)).toContain('BILL-06');
+    expect(disclosure(page)).toContain('Illustrative');
+    expect(disclosure(page)).toContain('Full disclosure required (estimate $4,500.00)');
+    expect(disclosure(page)).toContain('not legal advice');
     await page.choose('Hourly');
-    expect(disclosure(page)).toContain('Required (no estimate yet)');
+    expect(disclosure(page)).toContain('Required: estimate needed');
     await page.fill('Estimate of total costs', '500');
     expect(disclosure(page)).toContain('Not required (estimate $500.00)');
-    await page.choose('The client waived costs disclosure');
-    expect(disclosure(page)).toContain('Waived by the client');
+    await page.fill('Estimate of total costs', '2,500');
+    expect(disclosure(page)).toContain('Short-form disclosure required (estimate $2,500.00)');
+    await page.choose('No disclosure is needed');
+    expect(disclosure(page)).toContain('No disclosure needed');
+    await page.click('Next');
+    expect(page.errors()).toContain('Choose why no disclosure is needed');
   });
 
   it('needs the fixed fee, a cap at least the estimate, and amounts it can read', async () => {

@@ -116,13 +116,14 @@ test.describe('new matter intake', () => {
     await expectNoA11yViolations(page);
     await next(page);
 
-    // 5. Fees: a fixed fee, with the provisional costs disclosure. Enter moves on from a field.
+    // 5. Fees: a fixed fee, with the costs disclosure it needs under the (illustrative) VIC rules.
+    // Enter moves on from a field.
     await expect(stepHeading(page)).toContainText('Fees');
     await page.getByRole('radio', { name: 'Fixed fee', exact: true }).click();
     await page.getByRole('textbox', { name: 'Fixed fee' }).fill('4,500');
     const disclosure = page.getByTestId('costs-disclosure');
-    await expect(disclosure).toContainText('Provisional');
-    await expect(disclosure).toContainText('Required (estimate $4,500.00)');
+    await expect(disclosure).toContainText('Illustrative');
+    await expect(disclosure).toContainText('Full disclosure required (estimate $4,500.00)');
     await expectNoA11yViolations(page);
     await page.getByRole('textbox', { name: 'Fixed fee' }).press('Enter');
 

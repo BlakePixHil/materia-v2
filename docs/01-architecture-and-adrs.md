@@ -160,8 +160,10 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 
 **ADR-019: Integrations.**
 - OAuth runs server-side.
-- Refresh tokens are encrypted with Cloud KMS and stored in `orgs/{orgId}/integrations/{uid}_{provider}`, which clients cannot read.
+- Refresh tokens are encrypted with Cloud KMS and stored in `orgs/{orgId}/integrations/{uid}_{provider}` (or `{provider}` for a practice-wide connection such as Xero), which clients cannot read.
 - Unlike legacy, nothing is stored in `localStorage`.
+- [ADR-051](adr/051-oauth-token-vault.md) (INT-01): the provider redirects to an app route, which finishes the connect through `integrations-complete` as the signed-in person who started it. Each attempt (PKCE verifier, who, where to return) is a single-use, 10-minute record under the hash of a random `state`. Clients read only the `integrationStatus` mirror. A refused refresh token marks the connection `reconnect_required` and notifies once, with no retries.
+- [ADR-053](adr/053-xero-sync.md) (BILL-09): issued invoices, credit notes and voids go to Xero through the rate-limited `xero-push` queue, never from a callable. Creates carry an idempotency key, and a number Xero already holds is adopted only when it is the same document, else reported and never overwritten. Contacts are matched by a stored link, then a unique email, never by name. Payments made in Xero come back hourly as BILL-08 payments, once each by Xero's payment id. Behind `integrations.xero`.
 
 **ADR-020: Offline and PWA.**
 - Firestore `persistentLocalCache` with a multi-tab manager, plus the Angular service worker for the shell.

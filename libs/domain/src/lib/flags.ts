@@ -167,6 +167,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'billing.costsDisclosure': defineFlag({
+    key: 'billing.costsDisclosure',
+    description:
+      'Costs disclosure tracking on the matter Overview: generating the disclosure, recording it as sent, update-required on a significant estimate change, the 7-day reminder and the report (off until a practitioner signs off the rules and template, BILL-06a).',
+    owner: 'BILL-06',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'billing.disbursements': defineFlag({
     key: 'billing.disbursements',
     description:
@@ -198,6 +207,14 @@ export const FLAGS = {
     key: 'integrations.microsoft',
     description: 'Microsoft 365 connection and calendar push.',
     owner: 'INT-01',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
+  'integrations.xero': defineFlag({
+    key: 'integrations.xero',
+    description: 'Xero: connect the practice, send invoices and credit notes, bring payments back.',
+    owner: 'BILL-09',
     type: 'boolean',
     default: false,
     serverEnforced: true,

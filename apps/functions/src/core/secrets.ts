@@ -9,6 +9,9 @@ import { defineSecret } from 'firebase-functions/params';
 export const POSTMARK_TOKEN = defineSecret('POSTMARK_TOKEN');
 /** The password Postmark's bounce and spam webhook sends with basic auth (FND-20). */
 export const POSTMARK_WEBHOOK_SECRET = defineSecret('POSTMARK_WEBHOOK_SECRET');
+/** The Xero app's OAuth client (INT-01, BILL-09). Until set, connecting Xero answers not configured. */
+export const XERO_CLIENT_ID = defineSecret('XERO_CLIENT_ID');
+export const XERO_CLIENT_SECRET = defineSecret('XERO_CLIENT_SECRET');
 
 /** Values a secret holds before the owner sets the real one (a deploy needs some version). */
 const PLACEHOLDERS = new Set(['', 'unset', 'placeholder', 'none', 'changeme', '-']);

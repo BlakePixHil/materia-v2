@@ -48,11 +48,13 @@ variable "scheduled_jobs" {
     "documents-sweepPending"    = 3600
     "suggestions-expire"        = 3600
     "deadlines-upgradeRuleSets" = 3600
+    "xero-pullPayments"         = 3600
     "deadlines-flagMissed"      = 86400
     "backups-exportFirestore"   = 86400
     "matters-archiveClosed"     = 86400
     "jobs-sweepExports"         = 86400
     "billing-debtorsNightly"    = 86400
+    "costs-disclosureNightly"   = 86400
     "matters-queueDestruction"  = 2678400 # monthly: alerts when a run fails, not when one is missed
   }
 }

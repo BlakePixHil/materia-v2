@@ -22,6 +22,11 @@ export const EXCLUDED_COLLECTIONS = new Set([
   'matterNumbers',
   // The documents hash index (CORE-12): written with the document version, which is audited.
   'documentHashes',
+  // Integrations (INT-01): connect attempts, and the status mirror of `integrations` (which is audited).
+  'integrationStates',
+  'integrationStatus',
+  // Xero (BILL-09): which Xero contact a matter's clients are; the invoices it's used on are audited.
+  'xeroContacts',
 ]);
 
 /**
@@ -52,6 +57,13 @@ export const NOISE_FIELDS = new Set([
   'matterRoles',
   // Documents (AI-04): Clerk ingestion progress, written by documents-ingest.
   'ingest',
+  // Integrations (INT-01): a refresh token the provider rotated (Xero does on every refresh).
+  'encryptedRefreshToken',
+  'kmsKeyVersion',
+  'refreshedAt',
+  // Invoices and credit notes (BILL-09): their copy in Xero, written by the Xero sync. Sending on
+  // demand (`xero-push`) is audited itself; payments brought back change `payments`, which isn't noise.
+  'xero',
 ]);
 
 /** Bookkeeping fields: never listed as changes. */
@@ -74,6 +86,8 @@ export const HASHED_FIELDS = new Set([
 /** Secrets: dropped from the audit entirely. */
 export const DROPPED_FIELDS = new Set([
   'encryptedRefreshToken',
+  // An OAuth connect attempt's PKCE verifier (INT-01).
+  'codeVerifier',
   // Clerk BYOK (AI-02a).
   'encryptedApiKey',
   'apiKey',

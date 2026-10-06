@@ -68,6 +68,7 @@ export const InvoiceItemSchema = /* @__PURE__ */ z.object({
   payments: invoice.payments,
   paidFromTrust: invoice.paidFromTrust,
   trustNotice: invoice.trustNotice,
+  xero: invoice.xero,
   createdAt: invoice.createdAt.optional(),
   createdBy: invoice.createdBy.optional(),
   updatedAt: invoice.updatedAt.optional(),
@@ -108,6 +109,7 @@ export const CreditNoteItemSchema = /* @__PURE__ */ z.object({
   gstRegistered: credit.gstRegistered,
   pdfStatus: credit.pdfStatus,
   pdfDocumentId: credit.pdfDocumentId,
+  xero: credit.xero,
   createdAt: credit.createdAt.optional(),
 });
 export type CreditNoteItem = z.infer<typeof CreditNoteItemSchema>;

@@ -133,7 +133,7 @@ export function matterFacts(input: FactsInput): Facts {
     costsDisclosure: disclosure && {
       status: str(disclosure['status']),
       sentOn: str(disclosure['sentOn']),
-      estimate: money(disclosure['estimateCents']),
+      estimate: money(disclosure['basisEstimateCents'] ?? disclosure['estimateCents']),
     },
     nextDeadline: nextDeadline && { title: str(nextDeadline['title']), dueDate: str(nextDeadline['dueDate']) },
     openTaskCount: num(m['openTaskCount']),

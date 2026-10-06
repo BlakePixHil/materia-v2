@@ -367,6 +367,41 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'none',
     update: 'none',
   },
+  // OAuth connections' non-secret mirror (INT-01, ADR-051): a person's own is read only by them…
+  {
+    collection: 'integrationStatus',
+    docPath: `orgs/${ORG}/integrationStatus/${OWNER}_microsoft`,
+    entity: 'IntegrationStatus',
+    seed: { uid: OWNER },
+    read: 'owner',
+    update: 'none',
+  },
+  // …and the practice's by every member.
+  {
+    collection: 'integrationStatus (practice)',
+    docPath: `orgs/${ORG}/integrationStatus/xero`,
+    entity: 'IntegrationStatus',
+    seed: { provider: 'xero', level: 'org', uid: null },
+    read: 'members',
+    update: 'none',
+  },
+  // OAuth connect attempts (INT-01): the PKCE verifier is server-only.
+  {
+    collection: 'integrationStates',
+    docPath: `orgs/${ORG}/integrationStates/${'a'.repeat(64)}`,
+    entity: 'IntegrationState',
+    seed: { uid: OWNER },
+    read: 'none',
+    update: 'none',
+  },
+  // Which Xero contact a matter's clients are invoiced as (BILL-09): server-only.
+  {
+    collection: 'xeroContacts',
+    docPath: `orgs/${ORG}/xeroContacts/xero-link-1`,
+    entity: 'XeroContactLink',
+    read: 'none',
+    update: 'none',
+  },
   {
     collection: 'counters',
     docPath: `orgs/${ORG}/counters/matter-2026`,

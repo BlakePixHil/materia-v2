@@ -26,6 +26,9 @@ import {
 import { IntakeStore } from './intake-store';
 import { CONFLICT_STATUS_LABELS, roleName } from '../conflicts/conflict-view';
 
+/** "Full disclosure required" as it reads mid-sentence. */
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
 const PRIORITY_LABELS: Record<Priority, string> = {
   none: 'No priority',
   urgent: 'Urgent',
@@ -240,9 +243,7 @@ export class IntakeReviewStep {
     const arrangement = FEE_ARRANGEMENT_OPTIONS.find((o) => o.value === fee.arrangement)?.label ?? fee.arrangement;
     const amount = parseDollars(fee.arrangement === 'fixed' ? fee.amount : fee.arrangement === 'capped' ? fee.cap : '');
     const disclosure = costsDisclosureFor(fee);
-    const disclosureText = disclosure
-      ? `costs disclosure ${disclosure.status === 'not_required' ? 'not required' : disclosure.status} (provisional)`
-      : '';
+    const disclosureText = disclosure ? `costs disclosure: ${lowerFirst(disclosure.text)}` : '';
     rows.push({
       step: 'fees',
       label: 'Fees',

@@ -1,11 +1,8 @@
 import {
-  COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS,
-  costsDisclosureRequirement,
   CostsDisclosureInput,
   dateOfDeathProblem,
   decodeIntakeDraftState,
   encodeIntakeDraftState,
-  feeEstimateCents,
   FeeInput,
   INTAKE_DRAFT_MAX_STATE_CHARS,
   INTAKE_STEP_SCHEMAS,
@@ -299,37 +296,59 @@ describe('step 5: fees and costs disclosure', () => {
     expect(FeeInput.safeParse({ arrangement: 'fixed', amountCents: 10.5 }).success).toBe(false);
   });
 
-  it('judges the estimate: given, else the fixed fee or the cap, zero for pro bono', () => {
-    expect(feeEstimateCents({ arrangement: 'hourly', estimateCents: 5 as never })).toBe(5);
-    expect(feeEstimateCents({ arrangement: 'hourly' })).toBeUndefined();
-    expect(feeEstimateCents({ arrangement: 'fixed', amountCents: 7 as never })).toBe(7);
-    expect(feeEstimateCents({ arrangement: 'capped', capCents: 9 as never })).toBe(9);
-    expect(feeEstimateCents({ arrangement: 'conditional' })).toBeUndefined();
-    expect(feeEstimateCents({ arrangement: 'pro_bono' })).toBe(0);
-  });
-
-  it('computes the costs disclosure requirement from the placeholder threshold', () => {
-    expect(costsDisclosureRequirement(undefined)).toBe('required');
-    expect(costsDisclosureRequirement(0)).toBe('not_required');
-    expect(costsDisclosureRequirement(COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS - 1)).toBe('not_required');
-    expect(costsDisclosureRequirement(COSTS_DISCLOSURE_PLACEHOLDER_THRESHOLD_CENTS)).toBe('required');
-  });
-
-  it('the fees step records a waiver or the computed requirement', () => {
+  it('the fees step records a waiver with its reason, or what the estimate needs under the rules', () => {
     const hourly = IntakeFeesStep.parse({ fee: { arrangement: 'hourly', estimateCents: 450000 } });
     expect(hourly.costsDisclosureWaived).toBe(false);
-    expect(intakeCostsDisclosure(hourly)).toEqual({ status: 'required', estimateCents: 450000 });
-    expect(intakeCostsDisclosure(IntakeFeesStep.parse({ fee: { arrangement: 'hourly' } }))).toEqual({
+    expect(intakeCostsDisclosure(hourly, 'VIC')).toEqual({ status: 'required', estimateCents: 450000 });
+    expect(intakeCostsDisclosure(IntakeFeesStep.parse({ fee: { arrangement: 'hourly' } }), 'VIC')).toEqual({
       status: 'required',
     });
-    expect(intakeCostsDisclosure(IntakeFeesStep.parse({ fee: { arrangement: 'fixed', amountCents: 50000 } }))).toEqual({
-      status: 'not_required',
-      estimateCents: 50000,
-    });
     expect(
-      intakeCostsDisclosure(IntakeFeesStep.parse({ fee: { arrangement: 'pro_bono' }, costsDisclosureWaived: true })),
-    ).toEqual({ status: 'waived', estimateCents: 0 });
+      intakeCostsDisclosure(IntakeFeesStep.parse({ fee: { arrangement: 'fixed', amountCents: 50000 } }), 'VIC'),
+    ).toEqual({ status: 'not_required', estimateCents: 50000 });
+    // A range is judged on its top end.
+    expect(
+      intakeCostsDisclosure(
+        IntakeFeesStep.parse({ fee: { arrangement: 'hourly', estimateCents: 50000, estimateHighCents: 90000 } }),
+        'VIC',
+      ),
+    ).toEqual({ status: 'required', estimateCents: 90000 });
+    // Without rules for the jurisdiction, a disclosure stays required.
+    expect(
+      intakeCostsDisclosure(IntakeFeesStep.parse({ fee: { arrangement: 'fixed', amountCents: 50000 } }), 'NSW'),
+    ).toEqual({ status: 'required', estimateCents: 50000 });
+    expect(intakeCostsDisclosure(IntakeFeesStep.parse({ fee: { arrangement: 'pro_bono' } }), 'NSW')).toEqual({
+      status: 'not_required',
+      estimateCents: 0,
+    });
+    const waived = IntakeFeesStep.parse({
+      fee: { arrangement: 'hourly', estimateCents: 450000 },
+      costsDisclosureWaived: true,
+      waiver: { reason: 'sophisticated_client' },
+    });
+    expect(intakeCostsDisclosure(waived, 'VIC')).toEqual({
+      status: 'waived',
+      estimateCents: 450000,
+      waiver: { reason: 'sophisticated_client' },
+    });
     expect(CostsDisclosureInput.safeParse({ status: 'sent' }).success).toBe(false);
+  });
+
+  it('a waiver needs its reason, and "other" needs a note', () => {
+    expect(messages(IntakeFeesStep.safeParse({ fee: { arrangement: 'hourly' }, costsDisclosureWaived: true }))).toEqual(
+      ['waiver.reason: Choose why no disclosure is needed'],
+    );
+    expect(CostsDisclosureInput.safeParse({ status: 'waived' }).success).toBe(false);
+    expect(
+      CostsDisclosureInput.safeParse({ status: 'required', waiver: { reason: 'sophisticated_client' } }).success,
+    ).toBe(false);
+    expect(
+      IntakeFeesStep.safeParse({
+        fee: { arrangement: 'hourly' },
+        costsDisclosureWaived: true,
+        waiver: { reason: 'other' },
+      }).success,
+    ).toBe(false);
   });
 });
 

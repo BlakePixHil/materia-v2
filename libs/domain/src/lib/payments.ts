@@ -85,7 +85,15 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cheque: 'Cheque',
   trust_transfer: 'From trust',
   other: 'Other',
+  xero: 'Xero',
 };
+
+/** A method someone records by hand: Xero's payments only come from Xero (BILL-09). */
+export type ManualPaymentMethod = Exclude<PaymentMethod, 'xero'>;
+
+export const MANUAL_PAYMENT_METHODS: readonly ManualPaymentMethod[] = PaymentMethodSchema.options.filter(
+  (method): method is ManualPaymentMethod => method !== 'xero',
+);
 
 /** The largest single payment or refund: $10,000,000. */
 export const PAYMENT_MAX_CENTS = 1_000_000_000;
@@ -433,7 +441,8 @@ export const RecordPaymentInput = /* @__PURE__ */ z
       .int({ message: 'Enter the amount in dollars and cents' })
       .min(1, { message: 'Enter an amount' })
       .max(PAYMENT_MAX_CENTS, { message: 'Up to $10,000,000 at a time' }),
-    method: PaymentMethodSchema,
+    /** Not `xero`: those come only from Xero (BILL-09). */
+    method: PaymentMethodSchema.exclude(['xero']),
     reference: z.string().trim().max(100).optional(),
     payer: z.string().trim().max(200).optional(),
     credit: z.boolean().default(false),
