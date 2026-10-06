@@ -220,6 +220,17 @@ export const EVENT_KEY_FACTS: Partial<Record<EventKind, KeyFactId>> = {
 };
 
 /**
+ * The events whose key fact a matter write set or changed to a date (CORE-07b): `date_of_death`
+ * for `deceased.dateOfDeath`, `grant_issued` for `estate.grantDate`. Removing a fact sets nothing.
+ */
+export function keyFactEventsSet(before: FactMatter | undefined, after: FactMatter): EventKind[] {
+  return (Object.entries(EVENT_KEY_FACTS) as [EventKind, KeyFactId][]).flatMap(([kind, fact]) => {
+    const value = keyFactValue(after, fact);
+    return isDateOnly(value) && value !== (before ? keyFactValue(before, fact) : undefined) ? [kind] : [];
+  });
+}
+
+/**
  * The date of a matter event: the earliest live event of that kind, else the key fact standing
  * for it (date of death, grant date). Undefined while unknown.
  */
@@ -249,6 +260,35 @@ export function templateTaskDue(
   if ('fromStageEntry' in due) return { dueDate: addDays(stageEnteredOn, due.fromStageEntry) };
   const anchor = knownEventDate(due.fromEvent, ctx);
   return anchor ? { dueDate: addDays(anchor, due.offsetDays) } : { duePending: due.fromEvent };
+}
+
+/** The stored fields of a matter task that decide whether its pending due date can be filled. */
+export interface PendingTaskLike {
+  status?: unknown;
+  dueDate?: unknown;
+  duePending?: unknown;
+  deletedAt?: unknown;
+}
+
+/**
+ * The due date to fill on a template task waiting on `kind` now that the event is known
+ * (CORE-07b), from its template task's due rule; undefined to leave the task alone. Only a live,
+ * open task (not done or cancelled) still `duePending` on `kind` and without a `dueDate` is
+ * filled: a filled task loses `duePending`, and a date set by hand is a `dueDate` (clients can't
+ * clear the server-owned `duePending`), so neither ever changes again.
+ */
+export function pendingTaskDue(
+  task: PendingTaskLike,
+  definition: Pick<TemplateTask, 'due'> | undefined,
+  kind: EventKind,
+  ctx: AnchorContext,
+  stageEnteredOn: DateOnly,
+): DateOnly | undefined {
+  if (task.duePending !== kind || (task.deletedAt !== undefined && task.deletedAt !== null)) return undefined;
+  if (task.status === 'done' || task.status === 'cancelled') return undefined;
+  if (typeof task.dueDate === 'string' && task.dueDate) return undefined;
+  if (!definition) return undefined;
+  return templateTaskDue(definition, ctx, stageEnteredOn).dueDate;
 }
 
 // ---------- task generation ----------
@@ -339,8 +379,16 @@ export function templateTaskFields(
 // ---------- stage requirements ----------
 
 export interface StageEntryContext extends AnchorContext {
-  /** Template task keys whose task is done. */
+  /** Template task keys whose task is done (or cancelled: `meetsTasksDone`). */
   doneTaskKeys: ReadonlySet<string>;
+}
+
+/**
+ * Whether a task's status meets a stage's `tasksDone` requirement: done, or cancelled (CORE-07b),
+ * since a task the practice decided not to do shouldn't hold the matter back.
+ */
+export function meetsTasksDone(status: unknown): boolean {
+  return status === 'done' || status === 'cancelled';
 }
 
 /** What a forward move is missing: key facts (CORE-06 `requirements`), events and template tasks. */

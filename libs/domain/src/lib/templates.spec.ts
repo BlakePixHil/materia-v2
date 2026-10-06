@@ -12,8 +12,11 @@ import {
   ApplyTemplateInput,
   hasUnmetStageEntry,
   isSystemTemplateId,
+  keyFactEventsSet,
   knownEventDate,
   mapStageAcrossVersions,
+  meetsTasksDone,
+  pendingTaskDue,
   PublishTemplateInput,
   removedStageIds,
   SaveTemplateInput,
@@ -294,6 +297,48 @@ describe('anchors and due dates', () => {
     expect(templateTaskDue({}, { matter: {}, events: [] }, entered)).toEqual({});
   });
 
+  it('fills a pending due date only on a live, open task still waiting on the event (CORE-07b)', () => {
+    const entered = dateOnly('2026-10-04');
+    const definition = { due: { fromEvent: 'date_of_death' as const, offsetDays: 28 } };
+    const known = { matter: { deceased: { ...deceased, dateOfDeath: '2026-08-01' } }, events: [] };
+    const waiting = { status: 'todo', duePending: 'date_of_death', deletedAt: null };
+    expect(pendingTaskDue(waiting, definition, 'date_of_death', known, entered)).toBe('2026-08-29');
+    // From the earliest recorded event over the key fact, as at creation.
+    expect(
+      pendingTaskDue(
+        waiting,
+        definition,
+        'date_of_death',
+        { ...known, events: [{ kind: 'date_of_death', date: '2026-07-31' }] },
+        entered,
+      ),
+    ).toBe('2026-08-28');
+    for (const task of [
+      { ...waiting, status: 'done' },
+      { ...waiting, status: 'cancelled' },
+      { ...waiting, deletedAt: new Date() },
+      { ...waiting, dueDate: '2026-12-01' },
+      { ...waiting, duePending: undefined },
+      { ...waiting, duePending: 'grant_issued' },
+    ]) {
+      expect(pendingTaskDue(task, definition, 'date_of_death', known, entered)).toBeUndefined();
+    }
+    expect(pendingTaskDue(waiting, undefined, 'date_of_death', known, entered)).toBeUndefined();
+    expect(pendingTaskDue(waiting, definition, 'date_of_death', { matter: {}, events: [] }, entered)).toBeUndefined();
+  });
+
+  it('names the events whose key fact a matter write set or changed', () => {
+    const alive = { deceased: { ...deceased, dateOfDeath: undefined } };
+    const dead = { deceased: { ...deceased, dateOfDeath: '2026-08-01' } };
+    expect(keyFactEventsSet(undefined, dead)).toEqual(['date_of_death']);
+    expect(keyFactEventsSet(alive, dead)).toEqual(['date_of_death']);
+    expect(keyFactEventsSet(dead, { deceased: { ...deceased, dateOfDeath: '2026-07-31' } })).toEqual(['date_of_death']);
+    expect(keyFactEventsSet(dead, dead)).toEqual([]);
+    expect(keyFactEventsSet(dead, alive)).toEqual([]);
+    expect(keyFactEventsSet(dead, { ...dead, estate: { grantDate: '2026-09-01' } })).toEqual(['grant_issued']);
+    expect(keyFactEventsSet({}, { estate: { grantDate: 'soon' } })).toEqual([]);
+  });
+
   it('assigns to the responsible person, the paralegal (else responsible) or nobody', () => {
     expect(templateAssignee('responsible', { responsibleUid: 'r', paralegalUid: 'p' })).toBe('r');
     expect(templateAssignee('role:paralegal', { responsibleUid: 'r', paralegalUid: 'p' })).toBe('p');
@@ -389,6 +434,9 @@ describe('stage requirements', () => {
   });
 
   it('has nothing to check going back or staying', () => {
+    // A cancelled task meets tasksDone as a done one does (CORE-07b).
+    expect(['done', 'cancelled'].map(meetsTasksDone)).toEqual([true, true]);
+    expect(['todo', 'in_progress', 'blocked', undefined].map(meetsTasksDone)).toEqual([false, false, false, false]);
     expect(hasUnmetStageEntry(unmetStageEntry(stages, 'end', 'start', ctx()))).toBe(false);
     expect(hasUnmetStageEntry(unmetStageEntry(stages, 'middle', 'middle', ctx()))).toBe(false);
   });

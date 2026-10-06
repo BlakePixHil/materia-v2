@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { contactNames, matterPath, matterSearch, searchContactIds } from './shared';
 import { changedFields } from '../audit/entry';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
+import { fillFromKeyFacts } from '../templates/fill-pending';
 
 type Data = Record<string, unknown>;
 
@@ -115,7 +116,11 @@ export const denormaliseDefinition: TriggerDefinition = {
   name: 'matters-denormalise',
   document: 'orgs/{orgId}/matters/{matterId}',
   on: 'written',
-  handler: async (change, ctx) => void (await denormalise(change, ctx)),
+  handler: async (change, ctx) => {
+    await denormalise(change, ctx);
+    // A key fact standing for an event fills the template due dates waiting on it (CORE-07b).
+    await fillFromKeyFacts(change, ctx);
+  },
 };
 
 /** `matters-denormalise`. */

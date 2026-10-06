@@ -22,7 +22,8 @@ import {
  * CORE-07 through the emulators: matters-createMatter applying the system template, templates-apply,
  * matters-changeStage with template requirements (forward skips, moving back), templates-clone,
  * -save and -publish (versions, existing matters unaffected, the stage-mapping block) and
- * matters-upgradeTemplate, with idempotent retries. All people, practices and matters are fictional.
+ * matters-upgradeTemplate, with idempotent retries, and (CORE-07b) pending due dates filled from the
+ * key fact or the event. All people, practices and matters are fictional.
  */
 const PROJECT_ID = 'demo-materia';
 const ORG = 'org-templates';
@@ -358,5 +359,59 @@ describe('org templates: clone, save, publish and upgrade', () => {
         })
       ).createdTaskIds,
     ).toEqual([]);
+  });
+});
+
+describe('pending template due dates (CORE-07b)', () => {
+  const task = (matterId: string, key: string) => `${M}/${matterId}/tasks/tpl-${key}`;
+  const undated = { contactId: 'c-bertram', domicile: 'VIC', lastAddress: 'Geelong VIC' };
+
+  it('fills them when the date of death is set on the matter, leaving hand-dated and cancelled tasks alone', async () => {
+    await signInAs('lawyer');
+    const { matterId } = await create('Estate of Fictional Latedate', { deceased: undated });
+    const pending = await data(task(matterId, 'notify_centrelink'));
+    expect(pending['duePending']).toBe('date_of_death');
+    // Copies of the pending task: one dated by hand, one cancelled.
+    await db.doc(task(matterId, 'hand_dated')).set({ ...pending, dueDate: '2026-12-01', updatedBy: uidOf('lawyer') });
+    await db.doc(task(matterId, 'cancelled')).set({ ...pending, status: 'cancelled' });
+    // tasks-onWrite may still be syncing the copies' counts, so compare only what a fill would change.
+    const dates = async () =>
+      Promise.all(
+        ['hand_dated', 'cancelled'].map(async (key) => {
+          const { dueDate, duePending, updatedBy } = await data(task(matterId, key));
+          return { dueDate, duePending, updatedBy };
+        }),
+      );
+    const untouched = await dates();
+
+    // As a client edit of the key fact would: matters-denormalise reacts.
+    await db.doc(`${M}/${matterId}`).update({ 'deceased.dateOfDeath': '2026-07-01', updatedBy: uidOf('lawyer') });
+    await expect
+      .poll(async () => (await data(task(matterId, 'notify_centrelink')))['dueDate'], { timeout: 40_000 })
+      .toBe('2026-07-29');
+    const filled = await data(task(matterId, 'notify_centrelink'));
+    expect(filled['duePending']).toBeUndefined();
+    expect(filled['updatedBy']).toBe('system');
+    expect(await dates()).toEqual(untouched);
+    expect(untouched).toEqual([
+      { dueDate: '2026-12-01', duePending: 'date_of_death', updatedBy: uidOf('lawyer') },
+      { dueDate: undefined, duePending: 'date_of_death', updatedBy: expect.any(String) },
+    ]);
+  }, 60_000);
+
+  it('fills them when the event is recorded through deadlines-upsertEvent', async () => {
+    await signInAs('lawyer');
+    const { matterId } = await create('Estate of Fictional Eventdate', { deceased: undated });
+    const result = await call<{ filledTaskIds: string[] }>('deadlines-upsertEvent', {
+      requestId: randomUUID(),
+      matterId,
+      kind: 'date_of_death',
+      date: '2026-08-01',
+    });
+    expect(result.filledTaskIds).toEqual(['tpl-notify_centrelink']);
+    const filled = await data(task(matterId, 'notify_centrelink'));
+    expect(filled).toMatchObject({ dueDate: '2026-08-29', updatedBy: uidOf('lawyer') });
+    expect(filled['duePending']).toBeUndefined();
+    expect((await data(`${M}/${matterId}`))['deceased']).toMatchObject({ dateOfDeath: '2026-08-01' });
   });
 });
