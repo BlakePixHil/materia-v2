@@ -948,6 +948,7 @@ service cloud.firestore {
     function fieldsDeadlineChange() { return []; }
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
+    function fieldsDisbursementPresetsDoc() { return ['presets']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'status', 'paidOn']; }
     function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
     function fieldsDocumentHash() { return []; }
