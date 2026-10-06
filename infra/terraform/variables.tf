@@ -55,6 +55,12 @@ variable "enable_migration_runner" {
   default     = false
 }
 
+variable "container_scanning" {
+  description = "Automatic vulnerability scanning of pushed images (billed per image, function images included)."
+  type        = bool
+  default     = true
+}
+
 variable "deletion_protection" {
   description = "Protect the project and Firestore from deletion."
   type        = bool

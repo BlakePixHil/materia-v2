@@ -67,6 +67,12 @@ variable "enable_migration_runner" {
   default     = false
 }
 
+variable "container_scanning" {
+  description = "Automatic vulnerability scanning of every image pushed to Artifact Registry (billed per image)."
+  type        = bool
+  default     = true
+}
+
 variable "budget_amount" {
   description = "Monthly budget in budget_currency whole units."
   type        = number
