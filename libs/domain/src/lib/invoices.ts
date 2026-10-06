@@ -4,6 +4,7 @@ import { BILLING_UNIT_MINUTES } from './constants';
 import { contactDisplayName } from './contacts';
 import { disbursementInvoiceLine } from './disbursements';
 import { formatAbn } from './org-settings';
+import { owingCents, type InvoiceMoneyLike } from './payments';
 import { DocIdSchema } from './schemas/common';
 import { InvoiceExtraLineSchema, type InvoiceItem, type InvoiceLine, type InvoiceParty } from './schemas/org-records';
 import { addDays, DateOnlySchema, toDisplay, type DateOnly } from './values/date-only';
@@ -556,14 +557,9 @@ export function creditNoteLines(
   return { lines, problem: null };
 }
 
-/** What is still owed on an invoice: its total less credits and payments. */
-export function invoiceBalanceCents(invoice: {
-  totalCents: number;
-  creditedCents?: number | undefined;
-  payments?: readonly { amountCents: number }[] | undefined;
-}): Cents {
-  const paid = (invoice.payments ?? []).reduce((sum, payment) => sum + payment.amountCents, 0);
-  return cents(invoice.totalCents - (invoice.creditedCents ?? 0) - paid);
+/** What is still owed on an invoice: its total less credits and payments (`owingCents`, BILL-08). */
+export function invoiceBalanceCents(invoice: InvoiceMoneyLike): Cents {
+  return owingCents(invoice);
 }
 
 // ---------- the PDF ----------

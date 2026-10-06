@@ -12,6 +12,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
+import { can } from '@materia/data-access';
 import { contactsRepository } from '@materia/data-access/repository';
 import {
   conflictAllowsOpening,
@@ -39,6 +40,7 @@ import {
   MtSwitch,
   MtTextField,
   MtTooltip,
+  formatAud,
   ToastService,
 } from '@materia/ui';
 
@@ -47,6 +49,7 @@ import { MatterScreen } from './matter-screen';
 import { LONG_TITLE, matterErrorCopy, statusChoices, statusLabel, type StatusChoice } from './matter-view';
 import type { ReferralChoice, ReferralDialogData } from './referral-dialog';
 import { errorCodeOf, errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { TimerStore } from '../../core/timer/timer-store';
 import { CONFLICT_STATUS_TONES, conflictBadgeText } from '../conflicts/conflict-view';
 import { MatterNameDialog, type MatterNameDialogData } from '../matters/matter-name-dialog';
@@ -54,8 +57,9 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
 
 /**
  * The matter screen's header (CORE-06): number, type, conflict status (CORE-02), the title (edited
- * inline), status, responsible lawyer, team, labels, the privileged flag and the "…" menu. Edit
- * controls show only to roles that may use them, and never on a deleted matter.
+ * inline), status, the amount its invoices still owe (BILL-08), responsible lawyer, team, labels,
+ * the privileged flag and the "…" menu. Edit controls show only to roles that may use them, and
+ * never on a deleted matter.
  */
 @Component({
   selector: 'mt-matter-header',
@@ -98,6 +102,15 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
         <mt-badge [tone]="conflictTone()">{{ conflictText() }}</mt-badge>
         @if (m.privileged) {
           <mt-badge tone="warning"><mt-icon name="shield" />Privileged</mt-badge>
+        }
+        @if (outstanding(); as owing) {
+          <a
+            class="mt-chip outstanding"
+            routerLink="time"
+            data-testid="matter-outstanding"
+            mtTooltip="Unpaid on the matter’s issued invoices"
+            >Outstanding {{ owing }}</a
+          >
         }
         @if (m.status === 'lead' && screen.canRunConflicts()) {
           <a mtButton variant="secondary" size="sm" iconStart="search" routerLink="conflicts">Conflict check</a>
@@ -394,6 +407,13 @@ export class MatterHeader {
   private readonly timer = inject(TimerStore);
   /** The timer (BILL-02) can start here: a live matter and a role that records time. */
   protected readonly canTime = computed(() => this.timer.canRecord() && !this.screen.deleted());
+  private readonly flags = inject(FeatureFlagService);
+  private readonly canBilling = can('billing.view');
+  /** What the matter's invoices still owe (BILL-08), for billing roles while invoicing is on; hidden at zero. */
+  protected readonly outstanding = computed(() => {
+    const cents = this.screen.value()?.outstandingCents ?? 0;
+    return cents > 0 && this.canBilling() && this.flags.isOn('billing.invoicing') ? formatAud(cents) : null;
+  });
   protected readonly timerLabel = computed(() => {
     if (this.timer.timer()?.matterId !== this.screen.value()?.id) return 'Start timer';
     return this.timer.running() ? 'Pause timer' : 'Resume timer';

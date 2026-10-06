@@ -186,14 +186,16 @@ export function adminStore(db: Firestore): BackfillStore {
   };
 }
 
-export function parseArgs(argv: string[]): { project: string; dryRun: boolean; pageSize: number } {
+export function parseArgs(
+  argv: string[],
+  command = 'backfill-search-tokens',
+): { project: string; dryRun: boolean; pageSize: number } {
   const value = (name: string) => {
     const index = argv.indexOf(`--${name}`);
     return index >= 0 ? argv[index + 1] : undefined;
   };
   const project = value('project') ?? process.env['GCLOUD_PROJECT'];
-  if (!project)
-    throw new Error('Usage: materia-scripts backfill-search-tokens --project <id> [--dry-run] [--page-size <n>]');
+  if (!project) throw new Error(`Usage: materia-scripts ${command} --project <id> [--dry-run] [--page-size <n>]`);
   const pageSize = Number(value('page-size') ?? 300);
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 500) throw new Error('--page-size is 1 to 500');
   return { project, dryRun: argv.includes('--dry-run'), pageSize };

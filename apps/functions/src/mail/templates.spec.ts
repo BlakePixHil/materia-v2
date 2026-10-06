@@ -132,3 +132,28 @@ describe('invoice template (BILL-07)', () => {
     expect(mail.text.startsWith('Please find attached Tax invoice INV-000042 for $973.36.')).toBe(true);
   });
 });
+
+describe('invoice_reminder template (BILL-08)', () => {
+  const model = {
+    documentTitle: 'Tax invoice',
+    number: 'INV-000042',
+    firmName: 'Harbour & Vine Legal',
+    firmAbn: '12 345 678 901',
+    total: '$973.36',
+    owing: '$473.36',
+    dueLabel: '20 Oct 2026',
+    message: 'Dear Lan,\n\nA gentle reminder <b>.',
+    attached: true,
+  };
+
+  it('carries the lawyer’s message and what is still owing, never matter content in the subject', () => {
+    const mail = renderMail('invoice_reminder', model);
+    expect(mail.subject).toBe('Payment reminder: Tax invoice INV-000042 from Harbour & Vine Legal');
+    expect(mail.html).toContain('A gentle reminder &lt;b&gt;.');
+    expect(mail.html).toContain(
+      'Tax invoice INV-000042 for $973.36 was due 20 Oct 2026. $473.36 is still owing. A copy is attached.',
+    );
+    expect(mail.text.startsWith('Dear Lan,\n\nA gentle reminder <b>.')).toBe(true);
+    expect(renderMail('invoice_reminder', { ...model, attached: false }).text).not.toContain('A copy is attached');
+  });
+});
