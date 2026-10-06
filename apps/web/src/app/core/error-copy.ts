@@ -55,6 +55,10 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   SUGGESTION_STALE: 'The matter changed since Clerk suggested this. Review the changes, then accept again.',
   ALREADY_RESOLVED: 'Someone has already dealt with this suggestion.',
   SUGGESTION_UNSUPPORTED: 'This kind of suggestion can’t be accepted yet. Make the change by hand instead.',
+  INTEGRATION_STATE_INVALID: 'That connection link has expired or was already used. Start connecting again.',
+  INTEGRATION_NOT_CONFIGURED: 'This integration isn’t set up for Materia yet. Ask your practice admin.',
+  INTEGRATION_REJECTED: 'The connection wasn’t allowed. Try again, or ask your IT administrator to approve Materia.',
+  INTEGRATION_RECONNECT_REQUIRED: 'This connection has stopped working. Connect it again from Settings.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 

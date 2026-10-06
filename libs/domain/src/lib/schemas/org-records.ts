@@ -17,6 +17,14 @@ import {
   MatterTypeSchema,
   PrioritySchema,
 } from './enums';
+import {
+  AppReturnPathSchema,
+  IntegrationAccountSchema,
+  IntegrationConnectionStatusSchema,
+  IntegrationLevelSchema,
+  IntegrationStatusReasonSchema,
+  OAuthProviderSchema,
+} from '../integrations';
 import { TemplateBasedOnSchema, templateContentShape } from '../templates';
 
 const ORG = 'orgs/{orgId}';
@@ -729,20 +737,33 @@ export const Notification = {
 export type Notification = z.infer<typeof Notification.schema>;
 
 /**
- * `integrations/{uid_provider}`: server-only; secrets are KMS-encrypted (ADR-019). OAuth providers
- * store a refresh token; `integrations/anthropic` holds the org's own Anthropic API key (AI-02a,
- * ADR-011b), with only its last four characters in clear.
+ * `integrations/{id}`: server-only; secrets are KMS-encrypted (ADR-019). OAuth connections (INT-01,
+ * ADR-051) are `{uid}_{provider}` per person or `{provider}` per practice and store a refresh token
+ * bound to the document path; `integrations/anthropic` holds the org's own Anthropic API key
+ * (AI-02a, ADR-011b), with only its last four characters in clear.
  */
 export const Integration = withMeta(
   {
     provider: z.enum(['microsoft', 'google', 'xero', 'anthropic']),
     uid: DocIdSchema.nullable(),
-    /** `valid` and `invalid` are the Anthropic key's states (invalid: Anthropic rejected it). */
-    status: z.enum(['connected', 'error', 'revoked', 'valid', 'invalid']),
+    /**
+     * OAuth: `connected`, or `reconnect_required` once the provider refuses the refresh token.
+     * `valid` and `invalid` are the Anthropic key's states (invalid: Anthropic rejected it).
+     */
+    status: z.enum(['connected', 'reconnect_required', 'error', 'revoked', 'valid', 'invalid']),
+    level: IntegrationLevelSchema.optional(),
+    /** A new id for each connect, so a refresh never overwrites a newer connection's token. */
+    connectionId: z.string().optional(),
     scopes: z.array(z.string()).default([]),
+    account: IntegrationAccountSchema.optional(),
     encryptedRefreshToken: z.string().optional(),
     encryptedApiKey: z.string().optional(),
     kmsKeyVersion: z.string(),
+    connectedAt: InstantSchema.optional(),
+    connectedBy: DocIdSchema.optional(),
+    /** When the refresh token was last rotated by the provider. */
+    refreshedAt: InstantSchema.optional(),
+    reconnectRequiredAt: InstantSchema.optional(),
     last4: z.string().max(4).optional(),
     setBy: DocIdSchema.optional(),
     setAt: InstantSchema.optional(),
@@ -754,6 +775,51 @@ export const Integration = withMeta(
     error: z.string().optional(),
   },
   { path: `${ORG}/integrations`, migratable: false, updatable: [] },
+);
+
+/**
+ * `integrationStatus/{id}` (INT-01, ADR-051): the client-readable mirror of an OAuth connection,
+ * with the same id as its `integrations` document and nothing secret. A practice connection is
+ * read by every member, a person's own only by them. Written only by the vault.
+ */
+export const IntegrationStatus = withMeta(
+  {
+    provider: OAuthProviderSchema,
+    level: IntegrationLevelSchema,
+    /** The person whose connection it is; null for the practice's. */
+    uid: DocIdSchema.nullable(),
+    status: IntegrationConnectionStatusSchema,
+    scopes: z.array(z.string()).default([]),
+    account: IntegrationAccountSchema.optional(),
+    connectedAt: InstantSchema.optional(),
+    connectedBy: DocIdSchema.optional(),
+    reconnectRequiredAt: InstantSchema.optional(),
+    disconnectedAt: InstantSchema.optional(),
+    /** A uid, or `system` (the member was removed). */
+    disconnectedBy: z.string().min(1).optional(),
+    reason: IntegrationStatusReasonSchema.optional(),
+  },
+  { path: `${ORG}/integrationStatus`, migratable: false, updatable: [] },
+);
+
+/**
+ * `integrationStates/{sha256(state)}` (INT-01, ADR-051): one connect attempt, server-only. The
+ * OAuth `state` is a random nonce the browser carries; only its hash is the id, so reading the
+ * collection gives no usable state. Used once by `integrations-complete`, which checks it belongs
+ * to the caller; Firestore TTL deletes abandoned ones after `expireAt`.
+ */
+export const IntegrationState = withMeta(
+  {
+    provider: OAuthProviderSchema,
+    level: IntegrationLevelSchema,
+    uid: DocIdSchema,
+    /** The PKCE verifier (RFC 7636); only the token exchange uses it. */
+    codeVerifier: z.string().min(43).max(128),
+    redirectUri: z.string().url(),
+    returnTo: AppReturnPathSchema,
+    expireAt: InstantSchema,
+  },
+  { path: `${ORG}/integrationStates`, migratable: false, updatable: [] },
 );
 
 /** A stored matter document: originals' scans and release authorities (CORE-17). */
@@ -952,6 +1018,8 @@ export type TaskGroupTemplate = z.infer<typeof TaskGroupTemplate.schema>;
 export type Metrics = z.infer<typeof Metrics.schema>;
 export type AuditEntry = z.infer<typeof AuditEntry.schema>;
 export type Integration = z.infer<typeof Integration.schema>;
+export type IntegrationStatus = z.infer<typeof IntegrationStatus.schema>;
+export type IntegrationState = z.infer<typeof IntegrationState.schema>;
 export type SafeCustody = z.infer<typeof SafeCustody.schema>;
 export type TrustSnapshot = z.infer<typeof TrustSnapshot.schema>;
 export type MigrationRun = z.infer<typeof MigrationRun.schema>;

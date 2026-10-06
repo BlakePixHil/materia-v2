@@ -3684,6 +3684,44 @@ describe('document templates and the letterhead (INT-06)', () => {
   });
 });
 
+describe('integrations (INT-01)', () => {
+  const STATUS = `orgs/${ORG}/integrationStatus`;
+
+  it('lets each person read only their own connections and the practice’s, never a token', async () => {
+    await seedAdmin(env, async (f) => {
+      await setDoc(
+        doc(f, `${STATUS}/${uidFor('paralegal')}_microsoft`),
+        seedData({ ...specFor('integrationStatus'), seed: { uid: uidFor('paralegal') } }),
+      );
+    });
+    const lawyer = db(env, 'lawyer');
+    await assertSucceeds(getDoc(doc(lawyer, `${STATUS}/${OWNER_UID}_microsoft`)));
+    await assertSucceeds(getDoc(doc(lawyer, `${STATUS}/xero`)));
+    // Another person's connection, owners and admins included.
+    await assertFails(getDoc(doc(lawyer, `${STATUS}/${uidFor('paralegal')}_microsoft`)));
+    await assertFails(getDoc(doc(db(env, 'owner'), `${STATUS}/${uidFor('paralegal')}_microsoft`)));
+    // A list must prove it reads only the caller's own and the practice's.
+    await assertSucceeds(getDocs(query(collection(lawyer, STATUS), where('uid', '==', OWNER_UID))));
+    await assertSucceeds(getDocs(query(collection(lawyer, STATUS), where('uid', '==', null))));
+    await assertFails(getDocs(collection(lawyer, STATUS)));
+    // The tokens themselves stay closed to everyone, as do connect attempts.
+    for (const role of ROLES) {
+      await assertFails(getDoc(doc(db(env, role), `orgs/${ORG}/integrations/${OWNER_UID}_microsoft`)));
+      await assertFails(getDocs(collection(db(env, role), `orgs/${ORG}/integrations`)));
+      await assertFails(getDocs(collection(db(env, role), `orgs/${ORG}/integrationStates`)));
+    }
+    // Nobody writes the mirror but the vault.
+    await assertFails(
+      setDoc(doc(lawyer, `${STATUS}/${OWNER_UID}_google`), {
+        ...seedData(specFor('integrationStatus')),
+        provider: 'google',
+        uid: OWNER_UID,
+      }),
+    );
+    await assertFails(deleteDoc(doc(lawyer, `${STATUS}/${OWNER_UID}_microsoft`)));
+  });
+});
+
 // Last in this file, before another suite reloads the rules (which resets the emulator's report).
 describe('rules coverage', () => {
   it('evaluates at least 90% of the rule expressions', async () => {
