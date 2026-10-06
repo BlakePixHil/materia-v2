@@ -14,6 +14,8 @@ export interface FirestoreHandle {
 /** Anything that hands out the Firestore instance (the client, or a test double). */
 export interface FirestoreSource {
   get(): Promise<FirestoreHandle>;
+  /** Counts a write until the server acknowledges it (or it fails), for "You have unsynced changes". */
+  track?<T>(write: Promise<T>): Promise<T>;
 }
 
 /**
@@ -60,7 +62,7 @@ export function firestoreCacheMode(): FirestoreCacheMode {
 /** How long sign-out waits for the Firestore cache to be deleted before moving on. */
 export const CLEAR_CACHE_WAIT_MS = 2000;
 
-/** How long `hasPendingWrites` waits for the write queue to drain before saying it hasn't. */
+/** How long `hasPendingWrites` waits for the write queue to drain, offline, before saying it hasn't. */
 const PENDING_WRITES_PROBE_MS = 300;
 
 /**
@@ -76,6 +78,8 @@ export class FirestoreClient implements FirestoreSource {
   private current: Promise<FirestoreHandle> | null = null;
   /** The last shutdown; a new instance waits for it so it can't block the cache being deleted. */
   private closing: Promise<unknown> = Promise.resolve();
+  /** Writes made through `track` that the server hasn't acknowledged yet. */
+  private unacknowledged = new Set<Promise<unknown>>();
 
   get(): Promise<FirestoreHandle> {
     return (this.current ??= this.start());
@@ -110,9 +114,23 @@ export class FirestoreClient implements FirestoreSource {
     return { sdk, db };
   }
 
-  /** True when local writes are still waiting for the server (offline edits). */
+  track<T>(write: Promise<T>): Promise<T> {
+    const writes = this.unacknowledged;
+    writes.add(write);
+    const settle = () => writes.delete(write);
+    write.then(settle, settle);
+    return write;
+  }
+
+  /**
+   * True when local writes are still waiting for the server (offline edits): this page's writes
+   * the server hasn't acknowledged, or, while the browser is offline, anything left in Firestore's
+   * write queue (say, from before a reload). Online, the queue isn't probed: draining it waits
+   * behind everything else Firestore is doing, so a busy page read as "unsynced" with no writes.
+   */
   async hasPendingWrites(probeMs = PENDING_WRITES_PROBE_MS): Promise<boolean> {
-    if (!this.current) return false;
+    if (this.unacknowledged.size > 0) return true;
+    if (!this.current || globalThis.navigator?.onLine !== false) return false;
     const { sdk, db } = await this.current;
     let drained = false;
     const wait = sdk.waitForPendingWrites(db).then(
@@ -139,6 +157,8 @@ export class FirestoreClient implements FirestoreSource {
   shutdown(options: { clearCache: boolean }): Promise<boolean> {
     const current = this.current;
     this.current = null;
+    // A terminated instance never settles its writes; they're discarded with it.
+    this.unacknowledged = new Set();
     if (!current) return Promise.resolve(false);
     const done = this.close(current, options);
     this.closing = done.catch(() => undefined);

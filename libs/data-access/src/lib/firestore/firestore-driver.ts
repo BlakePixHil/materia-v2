@@ -60,6 +60,7 @@ function attach(
  */
 export function firestoreDriver(source: FirestoreSource, path: string, options: DriverOptions = {}): CollectionDriver {
   const group = !!options.group;
+  const tracked = (write: Promise<void>) => source.track?.(write) ?? write;
   const ref = async (id: string) => {
     if (group) throw new Error(`Collection group "${path}" is read-only`);
     const handle = await source.get();
@@ -117,36 +118,42 @@ export function firestoreDriver(source: FirestoreSource, path: string, options: 
       const collection = handle.sdk.collection(handle.db, path);
       const docRef = id ? handle.sdk.doc(collection, id) : handle.sdk.doc(collection);
       const now = handle.sdk.serverTimestamp();
-      await handle.sdk.setDoc(docRef, {
-        ...data,
-        createdAt: now,
-        createdBy: meta.uid,
-        updatedAt: now,
-        updatedBy: meta.uid,
-        schemaVersion: meta.schemaVersion,
-      });
+      await tracked(
+        handle.sdk.setDoc(docRef, {
+          ...data,
+          createdAt: now,
+          createdBy: meta.uid,
+          updatedAt: now,
+          updatedBy: meta.uid,
+          schemaVersion: meta.schemaVersion,
+        }),
+      );
       return docRef.id;
     },
     async update(id, patch, meta, remove = [], stamp = []) {
       const { handle, ref: docRef } = await ref(id);
       const removed = Object.fromEntries(remove.map((field) => [field, handle.sdk.deleteField()]));
       const stamped = Object.fromEntries(stamp.map((field) => [field, handle.sdk.serverTimestamp()]));
-      await handle.sdk.updateDoc(docRef, {
-        ...patch,
-        ...removed,
-        ...stamped,
-        updatedAt: handle.sdk.serverTimestamp(),
-        updatedBy: meta.uid,
-      });
+      await tracked(
+        handle.sdk.updateDoc(docRef, {
+          ...patch,
+          ...removed,
+          ...stamped,
+          updatedAt: handle.sdk.serverTimestamp(),
+          updatedBy: meta.uid,
+        }),
+      );
     },
     async softDelete(id, meta) {
       const { handle, ref: docRef } = await ref(id);
       const now = handle.sdk.serverTimestamp();
-      await handle.sdk.updateDoc(docRef, { deletedAt: now, deletedBy: meta.uid, updatedAt: now, updatedBy: meta.uid });
+      await tracked(
+        handle.sdk.updateDoc(docRef, { deletedAt: now, deletedBy: meta.uid, updatedAt: now, updatedBy: meta.uid }),
+      );
     },
     async hardDelete(id) {
       const { handle, ref: docRef } = await ref(id);
-      await handle.sdk.deleteDoc(docRef);
+      await tracked(handle.sdk.deleteDoc(docRef));
     },
   };
 }
