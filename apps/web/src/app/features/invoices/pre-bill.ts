@@ -624,8 +624,15 @@ export class PreBill {
     return matter ? `${matter.number} · ${matter.title}` : 'Matter';
   });
 
+  /**
+   * The form starts again only for another pre-bill. A linkedSignal re-runs its computation whenever
+   * anything its source reads changes, so the source is this computed id, not the invoice: every
+   * snapshot of the same pre-bill (the server confirming it, a metadata change) is a new object, and
+   * reading it directly threw away whatever had been changed and not yet saved.
+   */
+  private readonly invoiceId = computed(() => this.invoice().id);
   protected readonly form = linkedSignal<string, PreBillForm>({
-    source: () => this.invoice().id,
+    source: this.invoiceId,
     computation: () => formOf(untracked(this.invoice)),
   });
   protected readonly saving = signal(false);
