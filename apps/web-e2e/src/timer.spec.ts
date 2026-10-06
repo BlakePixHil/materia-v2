@@ -164,12 +164,36 @@ test.describe('global timer', () => {
     const ask = page.getByRole('dialog', { name: 'Stop and save M-2026-0510 (0.4)?' });
     await expect(ask).toBeVisible();
     await expectNoA11yViolations(page);
+    const calls: string[] = [];
+    const t0 = Date.now();
+    const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
+    page.on('request', (r) => {
+      if (/stopTimer/.test(r.url())) calls.push(`${at()} ${r.method()} ${r.url().split('/').pop()}`);
+    });
+    page.on('requestfinished', async (r) => {
+      if (/stopTimer/.test(r.url())) calls.push(`${at()} done ${(await r.response())?.status()}`);
+    });
+    page.on('requestfailed', (r) => {
+      if (/stopTimer/.test(r.url())) calls.push(`${at()} failed ${r.failure()?.errorText}`);
+    });
+    page.on('console', (m) => {
+      if (m.type() === 'error' || m.type() === 'warning') calls.push(`${at()} console ${m.text().slice(0, 300)}`);
+    });
     await ask.getByRole('button', { name: 'Stop and save' }).click();
     // The first time-stopTimer call spins up its emulator worker, which can take a while on a busy CI
     // runner. Wait for the save to report (success or the error toast in the trace), then the restart.
-    await expect(page.locator('.mt-toaster')).toContainText(/Saved the time on M-2026-0510|didn’t save/, {
-      timeout: 60_000,
-    });
+    try {
+      await expect(page.locator('.mt-toaster')).toContainText(/Saved the time on M-2026-0510|didn’t save/, {
+        timeout: 60_000,
+      });
+    } catch (error) {
+      const dialogs = await page.getByRole('dialog').allInnerTexts();
+      throw new Error(
+        `No save toast. Dialogs: ${JSON.stringify(dialogs)}. Calls: ${JSON.stringify(calls)}. ` +
+          `Timer: ${JSON.stringify(await storedTimer(request, uid))}`,
+        { cause: error },
+      );
+    }
     await expect(page.locator('.mt-toaster')).not.toContainText('didn’t save');
     await expect(widget(page).getByTestId('timer-matter')).toHaveText('M-2026-0511', { timeout: 20_000 });
     await expect(widget(other).getByTestId('timer-matter')).toHaveText('M-2026-0511', { timeout: 20_000 });
