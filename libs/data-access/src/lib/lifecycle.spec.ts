@@ -73,16 +73,37 @@ describe('FirestoreClient', () => {
     await expect(TestBed.inject(FirestoreClient).get()).rejects.toThrow('FIREBASE_SETUP');
   });
 
-  it('reports pending writes when the queue does not drain quickly', async () => {
+  it('reports writes the server hasn’t acknowledged, and probes the write queue only offline', async () => {
     const synced = setup();
     expect(await synced.client.hasPendingWrites()).toBe(false);
     await synced.client.get();
     expect(await synced.client.hasPendingWrites(5)).toBe(false);
     await synced.client.waitForPendingWrites();
+
+    // A write counts until the server acknowledges it.
+    let acknowledge: () => void = () => undefined;
+    const write = synced.client.track(new Promise<void>((resolve) => (acknowledge = resolve)));
+    expect(await synced.client.hasPendingWrites(5)).toBe(true);
+    acknowledge();
+    await write;
+    expect(await synced.client.hasPendingWrites(5)).toBe(false);
+    // Signing out discards it with the instance.
+    synced.client.track(new Promise<void>(() => undefined));
+    await synced.client.shutdown({ clearCache: false });
+    expect(await synced.client.hasPendingWrites(5)).toBe(false);
     TestBed.resetTestingModule();
+
+    // A slow write queue isn't a pending write while online (a busy page)…
     const pending = setup(fakeSdk({ pendingWrites: true }));
     await pending.client.get();
-    expect(await pending.client.hasPendingWrites(5)).toBe(true);
+    expect(await pending.client.hasPendingWrites(5)).toBe(false);
+    // …but offline it may hold edits from before a reload.
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    try {
+      expect(await pending.client.hasPendingWrites(5)).toBe(true);
+    } finally {
+      onLine.mockRestore();
+    }
   });
 });
 
