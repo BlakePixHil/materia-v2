@@ -12,7 +12,9 @@ let nextId = 0;
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrl: '../../generated/components/settings.css',
-  host: { class: 'mt-settings-section', role: 'group', '[attr.aria-labelledby]': 'id' },
+  // `title` is also a native attribute: drop it from the host so the browser doesn't show it as a
+  // tooltip over everything in the section.
+  host: { class: 'mt-settings-section', role: 'group', '[attr.aria-labelledby]': 'id', '[attr.title]': 'null' },
   template: `
     <h3
       [id]="id"
@@ -46,7 +48,7 @@ export class MtSettingsSection {
   encapsulation: ViewEncapsulation.None,
   styleUrl: '../../generated/components/setting.css',
   imports: [MtIcon],
-  host: { class: 'mt-setting', '[attr.data-locked]': 'locked() ? "" : null' },
+  host: { class: 'mt-setting', '[attr.data-locked]': 'locked() ? "" : null', '[attr.title]': 'null' },
   template: `
     <div class="tx">
       <div class="tt">
