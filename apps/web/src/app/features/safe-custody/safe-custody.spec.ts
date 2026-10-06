@@ -444,8 +444,9 @@ describe('the contact screen', () => {
     });
     expect(page.text(section)).toContain('Geelong · Safe A · 1');
     await page.click('Receive a will', section);
-    await page.stable(10);
-    const dialog = page.dialog() as HTMLElement;
-    expect(page.text(dialog.querySelector('[data-testid="chosen-contact"]'))).toBe('Bram Ostler');
+    // The contact screen loads the packet dialog lazily, so it can open after the click has settled.
+    await vi.waitFor(() =>
+      expect(page.text(page.dialog()?.querySelector('[data-testid="chosen-contact"]'))).toBe('Bram Ostler'),
+    );
   });
 });
