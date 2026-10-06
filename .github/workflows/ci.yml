@@ -355,6 +355,10 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:5000
           CI: 'true'
+          # Seconds the Functions emulator waits for a function's worker to load (default 30). On a
+          # busy runner a late first call has taken longer, failing with "Failed to load function";
+          # test-integration sets the same.
+          FUNCTIONS_DISCOVERY_TIMEOUT: '120'
           # PRs test Chromium only; the morning run and dispatches add WebKit (iPhone Safari).
           E2E_CHROMIUM_ONLY: ${{ github.event_name == 'pull_request' && '1' || '' }}
         run: >-

@@ -80,8 +80,8 @@ test.describe('matter templates', () => {
     await expectNoA11yViolations(page);
     await page.getByRole('button', { name: 'Publish v1' }).click();
     // Publishing saves first, so this cold-starts two callables (save, then publish) in turn; on a
-    // busy CI runner the pair has taken over 20s.
-    await expect(page.getByText('Published v1', { exact: true }).first()).toBeVisible({ timeout: 45_000 });
+    // busy CI runner loading their workers has taken over 30s.
+    await expect(page.getByText('Published v1', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('button', { name: 'Publish v2' })).toBeVisible();
 
     // Edit again: a new task in the first stage, published as v2.
