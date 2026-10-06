@@ -38,6 +38,8 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   documents: domain.MatterDocument,
   notes: domain.Note,
   revisions: domain.NoteRevision,
+  // A union of kinds (AI-07): every kind shares the suggestion fields.
+  suggestions: { schema: { shape: { ...domain.SuggestionMetaShape, ...domain.MetaShape } } },
   safeCustody: domain.SafeCustody,
   // A union of kinds: every kind shares these fields (FND-20).
   notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
@@ -188,6 +190,13 @@ describe('firestore.indexes.json', () => {
   it('intake drafts expire through TTL on expireAt (CORE-05)', () => {
     const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
       (o) => o.collectionGroup === 'drafts' && o.ttl,
+    );
+    expect(ttl?.fieldPath).toBe('expireAt');
+  });
+
+  it('the sign-in log expires through TTL on expireAt (SEC-04)', () => {
+    const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
+      (o) => o.collectionGroup === 'signIns' && o.ttl,
     );
     expect(ttl?.fieldPath).toBe('expireAt');
   });

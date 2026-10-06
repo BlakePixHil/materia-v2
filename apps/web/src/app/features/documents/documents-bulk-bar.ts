@@ -5,9 +5,9 @@ import { MT_MENU, MtButton, MtIconButton } from '@materia/ui';
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from './documents-view';
 
 /**
- * The floating bar for the selected documents (CORE-12): move them to a category (document.upload)
- * and remove or restore them (document.delete), through `documents-bulkUpdate`. Zip downloads of a
- * selection aren't built yet (ADR-028), so there is no download here: open a document to download it.
+ * The floating bar for the selected documents (CORE-12): download them as one zip (any role that
+ * can view the matter, CORE-12b, through `documents-startZip`), move them to a category
+ * (document.upload) and remove or restore them (document.delete), through `documents-bulkUpdate`.
  */
 @Component({
   selector: 'mt-documents-bulk-bar',
@@ -16,6 +16,19 @@ import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } 
   host: { role: 'region', 'aria-label': 'Bulk actions' },
   template: `
     <span class="label" role="status">{{ count() }} selected</span>
+    @if (canDownload() && liveSelected()) {
+      <button
+        mtButton
+        variant="ghost"
+        size="sm"
+        iconStart="arrow-down"
+        [loading]="zipping()"
+        [disabled]="zipping()"
+        (click)="download.emit()"
+      >
+        {{ zipping() ? 'Preparing zip…' : 'Download' }}
+      </button>
+    }
     @if (canMove()) {
       <button mtButton variant="ghost" size="sm" iconStart="list" [mtMenuTrigger]="categoryMenu" [disabled]="busy()">
         Move to category
@@ -73,6 +86,7 @@ import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } 
 })
 export class DocumentsBulkBar {
   readonly count = input.required<number>();
+  readonly canDownload = input(false);
   readonly canMove = input(false);
   readonly canDelete = input(false);
   /** Some selected documents are live (they can be removed). */
@@ -80,7 +94,11 @@ export class DocumentsBulkBar {
   /** Some selected documents are removed (they can be restored). */
   readonly removedSelected = input(false);
   readonly busy = input(false);
+  /** A zip of a selection is being prepared. */
+  readonly zipping = input(false);
 
+  /** Download the live selected documents as one zip. */
+  readonly download = output();
   readonly move = output<DocumentCategory>();
   readonly remove = output();
   readonly restore = output();

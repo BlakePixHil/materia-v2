@@ -414,9 +414,8 @@ describe('members', () => {
   it('transfers ownership after a recent sign-in', async () => {
     const w = world();
     const recent = { auth_time: Math.floor(w.clock.now().getTime() / 1000) };
-    await expect(
-      transferOwnershipDefinition.handler(w.orgCtx('owner', 'owner', { toUid: 'lawyer' })),
-    ).rejects.toMatchObject({ code: 'REAUTH_REQUIRED' });
+    // The wrapper refuses a stale sign-in before the handler runs (core/sensitive.spec.ts).
+    expect(transferOwnershipDefinition.recentLoginMinutes).toBe(5);
     await expect(
       transferOwnershipDefinition.handler(w.orgCtx('owner', 'owner', { toUid: 'owner' }, recent)),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });

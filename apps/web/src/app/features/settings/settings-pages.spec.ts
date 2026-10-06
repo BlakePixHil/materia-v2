@@ -275,7 +275,11 @@ describe('Settings → Team and roles', () => {
     expect(sam['defaultRateCents']).toBe(20000);
     expect(sam['supervisorUid']).toBe('user-jordan');
     expect(Object.values(sam['budgets'] as Record<string, number>)).toEqual([15000000]);
-    expect((sam['rates'] as { rateCents: number }[]).map((r) => r.rateCents)).toEqual([20000]);
+    // The first change keeps the rate it replaces (BILL-01), so earlier time keeps its rate.
+    expect(sam['rates']).toEqual([
+      { effectiveFrom: '2000-01-01', rateCents: 18000 },
+      { effectiveFrom: expect.any(String), rateCents: 20000 },
+    ]);
   });
 
   it('explains each role’s permissions from the domain matrix', async () => {
@@ -318,7 +322,9 @@ describe('Settings → Audit log', () => {
     const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined);
     try {
       await page.click('Export CSV');
-      expect(page.text(page.dialog())).toContain('Confirm it’s you');
+      // The callable client asks (SEC-04); its dialog loads lazily.
+      await vi.waitFor(() => expect(page.text(page.dialog())).toContain('Confirm it’s you'));
+      await page.stable();
       await page.type('Password', 'password');
       await page.click('Confirm', page.dialog() ?? undefined);
       await page.stable();

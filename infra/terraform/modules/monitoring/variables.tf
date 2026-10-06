@@ -43,8 +43,9 @@ variable "scheduled_jobs" {
   description = "Scheduled functions (name => period in seconds) that alert when they haven't logged \"ok\" for twice their period. reminders-dispatch has its own alert (firebase_env/monitoring.tf)."
   type        = map(number)
   default = {
-    "notifications-digest"   = 900
-    "documents-sweepPending" = 3600
-    "deadlines-flagMissed"   = 86400
+    "notifications-digest"    = 900
+    "documents-sweepPending"  = 3600
+    "deadlines-flagMissed"    = 86400
+    "backups-exportFirestore" = 86400
   }
 }

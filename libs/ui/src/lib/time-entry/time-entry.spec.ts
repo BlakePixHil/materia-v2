@@ -53,4 +53,13 @@ describe('MtTimeEntry', () => {
     const { container } = await render(MtTimeEntry, { inputs: { entry: { ...MANUAL, amountCents: null } } });
     expect(container).toHaveTextContent('—');
   });
+
+  it('shows recorded units and a value label as given (BILL-01)', async () => {
+    const { container } = await render(MtTimeEntry, {
+      inputs: { entry: { ...MANUAL, minutes: 20, units: 3, valueLabel: 'Non-billable' } },
+    });
+    expect(container).toHaveTextContent('0.3 h');
+    expect(container).toHaveTextContent('Non-billable');
+    expect(container).not.toHaveTextContent('$792.00');
+  });
 });

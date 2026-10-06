@@ -26,6 +26,12 @@ export class UserPrefsService {
   private readonly density = inject(DensityService);
   private readonly document = inject(DOCUMENT);
   private readonly users = userProfileRepository();
+  /**
+   * Changes saved here that the listener may not have delivered yet. The next save builds on them,
+   * so two quick changes (the theme, then quiet hours) don't save the first one's old value back.
+   */
+  private unconfirmed: Partial<UserPrefs> = {};
+  private saves = 0;
 
   /** `users/{uid}`, live. */
   readonly profile = this.users.watch(() => this.context.uid());
@@ -52,15 +58,23 @@ export class UserPrefsService {
    */
   save(patch: Partial<UserPrefs>, zone?: { timezone: string } | { clearTimezone: true }): Promise<void> {
     const uid = this.context.uid();
-    const next: UserPrefs = { ...this.prefs(), ...patch };
-    // The time zone is optional (the org's when absent), so clearing it removes the key.
-    if (zone && 'timezone' in zone) next.timezone = zone.timezone;
-    else if (zone) delete next.timezone;
+    const changes: Partial<UserPrefs> = { ...patch };
+    // The time zone is optional (the org's when absent): clearing it saves '', which `stored` drops.
+    if (zone) changes.timezone = 'timezone' in zone ? zone.timezone : '';
     if (patch.theme) this.theme.setTheme(patch.theme);
     if (patch.density) this.density.setDensity(patch.density);
     if (patch.startPage) this.remember(patch.startPage);
     if (!uid) return Promise.resolve();
-    return this.users.update(uid, { prefs: stored(next) });
+    this.unconfirmed = { ...this.unconfirmed, ...changes };
+    const next: UserPrefs = { ...this.prefs(), ...this.unconfirmed };
+    const save = ++this.saves;
+    const write = this.users.update(uid, { prefs: stored(next) });
+    // Once the latest save settles, the listener has it (or has rolled it back), so start afresh.
+    const settled = () => {
+      if (save === this.saves) this.unconfirmed = {};
+    };
+    write.then(settled, settled);
+    return write;
   }
 
   /** Changes the person's names or photo URL on `users/{uid}`; `remove` deletes fields (the photo). */

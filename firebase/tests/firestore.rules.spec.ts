@@ -22,7 +22,14 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 
-import { ManualDeadlineCreateInput, MatterTaskCreateInput, PERMISSIONS, ROLES, type Role } from '@materia/domain';
+import {
+  ManualDeadlineCreateInput,
+  MatterTaskCreateInput,
+  PERMISSIONS,
+  ROLES,
+  TimeEntryCreateInput,
+  type Role,
+} from '@materia/domain';
 import { ENTITY_FACTORIES } from '@materia/test-utils';
 
 import { changeFor, COLLECTIONS, rolesFor, seedData, specFor, type CollectionSpec } from './support/collections';
@@ -281,13 +288,30 @@ describe('field-level rules', () => {
     await assertFails(updateDoc(doc(db(env, 'owner'), TIME), stamped({ narrative: 'x' }, uidFor('owner'))));
   });
 
-  it('clerk suggestions: only proposed → dismissed', async () => {
-    const ref = doc(db(env, 'lawyer'), `${MATTER}/suggestions/suggestion-1`);
+  it('clerk suggestions: no client writes; privileged ones need privileged.view (AI-07)', async () => {
+    const ref = (role: Role) => doc(db(env, role), `${MATTER}/suggestions/suggestion-1`);
     await reseed('suggestions');
-    await assertFails(updateDoc(ref, stamped({ status: 'accepted' }, uidFor('lawyer'))));
-    await assertSucceeds(updateDoc(ref, stamped({ status: 'dismissed' }, uidFor('lawyer'))));
-    // Once dismissed, no further client transition.
-    await assertFails(updateDoc(ref, stamped({ status: 'proposed' }, uidFor('lawyer'))));
+    await assertFails(updateDoc(ref('lawyer'), stamped({ status: 'dismissed' }, uidFor('lawyer'))));
+    await assertFails(updateDoc(ref('owner'), stamped({ status: 'accepted' }, uidFor('owner'))));
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, `${MATTER}/suggestions/suggestion-priv`), {
+        ...seedData(specFor('suggestions')),
+        privileged: true,
+      }),
+    );
+    for (const role of ROLES) {
+      const read = getDoc(doc(db(env, role), `${MATTER}/suggestions/suggestion-priv`));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(read);
+    }
+    // A list without privileged.view must prove `privileged == false`.
+    const list = (role: Role, ...filters: ReturnType<typeof where>[]) =>
+      getDocs(query(collection(db(env, role), `${MATTER}/suggestions`), ...filters));
+    await assertFails(list('paralegal', where('status', 'in', ['proposed', 'stale'])));
+    await assertSucceeds(
+      list('paralegal', where('status', 'in', ['proposed', 'stale']), where('privileged', '==', false)),
+    );
+    await assertSucceeds(list('readonly', where('privileged', '==', false)));
+    await assertSucceeds(list('lawyer', where('status', 'in', ['proposed', 'stale'])));
   });
 
   it('issued invoices are read-only for clients', async () => {
@@ -437,6 +461,94 @@ describe('org settings (CORE-21)', () => {
   });
 });
 
+describe('session policy (SEC-04)', () => {
+  const LAWYER = uidFor('lawyer');
+  const nowSeconds = () => Math.floor(Date.now() / 1000);
+  /** The lawyer's Firestore with a chosen sign-in time and second factor. */
+  const signedIn = (options: { authTime?: number; secondFactor?: boolean } = {}) =>
+    env
+      .authenticatedContext(LAWYER, {
+        orgId: ORG,
+        role: 'lawyer',
+        iat: nowSeconds(),
+        auth_time: options.authTime ?? nowSeconds(),
+        firebase: {
+          sign_in_provider: 'password',
+          ...(options.secondFactor ? { sign_in_second_factor: 'totp' } : {}),
+        },
+      })
+      .firestore() as unknown as Firestore;
+  const setSecurity = (security: Record<string, unknown>) =>
+    seedAdmin(env, (firestore) => updateDoc(doc(firestore, `orgs/${ORG}`), { security }));
+  const setValidAfter = (at: Date | null) =>
+    seedAdmin(env, (firestore) =>
+      updateDoc(doc(firestore, `orgs/${ORG}/members/${LAWYER}`), {
+        sessionsValidAfter: at ? Timestamp.fromDate(at) : deleteField(),
+      }),
+    );
+
+  beforeAll(() => seed(specFor('matters')));
+  afterEach(async () => {
+    await setSecurity({ mfaRequired: false, sessionIdleMinutes: 60 });
+    await setValidAfter(null);
+  });
+
+  it('once the org requires MFA, only sign-ins with a second factor read org data', async () => {
+    await setSecurity({ mfaRequired: true, sessionIdleMinutes: 60 });
+    await assertFails(getDoc(doc(signedIn(), MATTER)));
+    await assertSucceeds(getDoc(doc(signedIn({ secondFactor: true }), MATTER)));
+    // The org and their own membership stay readable, so the app can say why and offer MFA set-up.
+    await assertSucceeds(getDoc(doc(signedIn(), `orgs/${ORG}`)));
+    await assertSucceeds(getDoc(doc(signedIn(), `orgs/${ORG}/members/${LAWYER}`)));
+    await assertFails(getDoc(doc(signedIn(), `orgs/${ORG}/members/${uidFor('owner')}`)));
+  });
+
+  it('lets sign-ins without MFA in until the grace period ends', async () => {
+    const tomorrow = Timestamp.fromMillis(Date.now() + 86_400_000);
+    await setSecurity({ mfaRequired: true, sessionIdleMinutes: 60, mfaEnforceAfter: tomorrow });
+    await assertSucceeds(getDoc(doc(signedIn(), MATTER)));
+    await setSecurity({ mfaRequired: true, sessionIdleMinutes: 60, mfaEnforceAfter: Timestamp.fromMillis(0) });
+    await assertFails(getDoc(doc(signedIn(), MATTER)));
+  });
+
+  it('refuses sign-ins from before "sign out everywhere"', async () => {
+    const at = nowSeconds() - 60;
+    await setValidAfter(new Date((at + 1) * 1000));
+    await assertFails(getDoc(doc(signedIn({ authTime: at }), MATTER)));
+    await assertSucceeds(getDoc(doc(signedIn({ authTime: at + 1 }), MATTER)));
+  });
+
+  it('refuses sign-ins older than the org allows (14 days unless set)', async () => {
+    const fifteenDaysAgo = nowSeconds() - 15 * 86_400;
+    await assertFails(getDoc(doc(signedIn({ authTime: fifteenDaysAgo }), MATTER)));
+    await setSecurity({ mfaRequired: false, sessionIdleMinutes: 60, maxSessionDays: 30 });
+    await assertSucceeds(getDoc(doc(signedIn({ authTime: fifteenDaysAgo }), MATTER)));
+  });
+
+  it('keeps the policy and revocation server-owned', async () => {
+    const owner = uidFor('owner');
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'owner'), `orgs/${ORG}`),
+        stamped({ security: { mfaRequired: false, sessionIdleMinutes: 480 } }, owner),
+      ),
+    );
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'owner'), `orgs/${ORG}/members/${LAWYER}`),
+        stamped({ sessionsValidAfter: Timestamp.now() }, owner),
+      ),
+    );
+  });
+
+  it('shows a person their own sign-in log only', async () => {
+    const path = `users/${LAWYER}/signIns/event-1`;
+    await assertSucceeds(getDoc(doc(db(env, 'lawyer'), path)));
+    await assertFails(getDoc(doc(db(env, 'owner'), path)));
+    await assertFails(setDoc(doc(db(env, 'lawyer'), `users/${LAWYER}/signIns/forged`), { provider: 'password' }));
+  });
+});
+
 describe('profile (CORE-20)', () => {
   it('a member edits their own name, title, admission number, initials and colour, and nothing else', async () => {
     const uid = uidFor('paralegal');
@@ -530,7 +642,21 @@ describe('collection groups', () => {
   it('a member queries their org across matters', async () => {
     const firestore = db(env, 'paralegal');
     await assertSucceeds(getDocs(query(collectionGroup(firestore, 'deadlines'), where('orgId', '==', ORG))));
-    await assertSucceeds(getDocs(query(collectionGroup(firestore, 'timeEntries'), where('orgId', '==', ORG))));
+  });
+
+  // BILL-01: time entries through the group follow tasks (ADR-026).
+  it('every matter’s time entries through the group need privileged.view; my own are always mine', async () => {
+    await assertSucceeds(getDocs(query(collectionGroup(db(env, 'lawyer'), 'timeEntries'), where('orgId', '==', ORG))));
+    await assertFails(getDocs(query(collectionGroup(db(env, 'paralegal'), 'timeEntries'), where('orgId', '==', ORG))));
+    await assertSucceeds(
+      getDocs(
+        query(
+          collectionGroup(db(env, 'paralegal'), 'timeEntries'),
+          where('orgId', '==', ORG),
+          where('uid', '==', uidFor('paralegal')),
+        ),
+      ),
+    );
   });
 
   // CORE-08 (ADR-026): tasks follow matter access, which a group query can't check per matter.
@@ -2550,6 +2676,143 @@ describe('notes (CORE-13)', () => {
     await assertFails(updateDoc(ref, stamped({ bodyMd: 'Rewritten history' }, uidFor('owner'))));
     await assertFails(setDoc(doc(db(env, 'owner'), `${NOTE}/revisions/r-new`), revision(false)));
     await assertFails(deleteDoc(ref));
+  });
+});
+
+describe('time entries (BILL-01)', () => {
+  const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-time-privileged`;
+  const DELETED_MATTER = `orgs/${ORG}/matters/matter-time-deleted`;
+  const newEntry = (uid: string, matterId = 'matter-1', extra: Record<string, unknown> = {}) => ({
+    orgId: ORG,
+    matterId,
+    uid,
+    date: '2026-10-01',
+    minutes: 18,
+    units: 3,
+    rateCents: 44000,
+    amountCents: 13200,
+    narrative: 'Perusing and considering the will',
+    billable: true,
+    status: 'draft',
+    source: 'manual',
+    wipCountedCents: 0,
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+
+  beforeAll(async () => {
+    await seedAdmin(env, async (f) => {
+      const matter = seedData(specFor('matters'));
+      await setDoc(doc(f, PRIVILEGED_MATTER), { ...matter, privileged: true });
+      // Someone else's entry: my own stay readable to me through the group query (my time).
+      await setDoc(doc(f, `${PRIVILEGED_MATTER}/timeEntries/te-1`), {
+        ...seedData(specFor('timeEntries')),
+        uid: uidFor('lawyer'),
+        matterId: 'matter-time-privileged',
+      });
+      await setDoc(doc(f, DELETED_MATTER), { ...matter, deletedAt: Timestamp.fromMillis(1), deletedBy: 'x' });
+    });
+  });
+
+  it('the create whitelist matches TimeEntryCreateInput in libs/domain', () => {
+    const rules = readFileSync(path.resolve(import.meta.dirname, '../firestore.rules'), 'utf8');
+    const listed = /function timeEntryCreateFields\(\) \{\s*return \[([^\]]*)\]/.exec(rules)?.[1] ?? '';
+    const fields = [...listed.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]);
+    expect(fields.sort()).toEqual(Object.keys(TimeEntryCreateInput.shape).sort());
+  });
+
+  it.each(ROLES)('creating my own draft as %s follows time.record', async (role) => {
+    const uid = uidFor(role);
+    const create = setDoc(doc(db(env, role), `${MATTER}/timeEntries/new-${role}`), newEntry(uid));
+    await (allows(role, 'time.record') ? assertSucceeds(create) : assertFails(create));
+  });
+
+  it('a create is my own draft on this matter, not yet counted, with valid values', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const attempt = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${MATTER}/timeEntries/${id}`), newEntry(uid, 'matter-1', extra)));
+    await attempt('bad-org', { orgId: OTHER_ORG });
+    await attempt('bad-matter', { matterId: 'matter-2' });
+    await attempt('someone-else', { uid: uidFor('lawyer') });
+    await attempt('final', { status: 'final' });
+    await attempt('billed', { status: 'billed' });
+    await attempt('timer', { source: 'timer' });
+    await attempt('counted', { wipCountedCents: 13200 });
+    await attempt('invoice', { invoiceId: 'invoice-1' });
+    await attempt('zero', { minutes: 0 });
+    await attempt('negative', { minutes: -6 });
+    await attempt('fraction', { minutes: 1.5 });
+    await attempt('huge', { minutes: 6001 });
+    await attempt('date', { date: '01/10/2026' });
+    await attempt('narrative', { narrative: 'x'.repeat(2001) });
+    await attempt('billable', { billable: 'yes' });
+    await attempt('units', { units: -1 });
+    await attempt('rate', { rateCents: '440' });
+    await attempt('amount', { amountCents: 1.5 });
+    await attempt('task', { taskId: '' });
+    await attempt('creator', { createdBy: uidFor('lawyer') });
+    const unmarked = newEntry(uid) as Record<string, unknown>;
+    delete unmarked['wipCountedCents'];
+    await assertFails(setDoc(doc(firestore, `${MATTER}/timeEntries/unmarked`), unmarked));
+    await assertSucceeds(
+      setDoc(doc(firestore, `${MATTER}/timeEntries/with-task`), newEntry(uid, 'matter-1', { taskId: 't-1' })),
+    );
+  });
+
+  it('privileged and deleted matters: no reads or writes for those who can’t see or edit them', async () => {
+    const paralegal = uidFor('paralegal');
+    await assertFails(getDoc(doc(db(env, 'paralegal'), `${PRIVILEGED_MATTER}/timeEntries/te-1`)));
+    await assertSucceeds(getDoc(doc(db(env, 'lawyer'), `${PRIVILEGED_MATTER}/timeEntries/te-1`)));
+    await assertFails(
+      setDoc(
+        doc(db(env, 'paralegal'), `${PRIVILEGED_MATTER}/timeEntries/new`),
+        newEntry(paralegal, 'matter-time-privileged'),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(db(env, 'lawyer'), `${DELETED_MATTER}/timeEntries/new`),
+        newEntry(uidFor('lawyer'), 'matter-time-deleted'),
+      ),
+    );
+  });
+
+  it('drafts take whitelisted edits with valid values; final entries and status go through callables', async () => {
+    const TIME = `${MATTER}/timeEntries/entry-edit`;
+    const paralegal = uidFor('paralegal');
+    const reset = (extra: Record<string, unknown> = {}) =>
+      seedAdmin(env, (f) =>
+        setDoc(doc(f, TIME), { ...seedData(specFor('timeEntries')), uid: paralegal, status: 'draft', ...extra }),
+      );
+    await reset();
+    const ref = doc(db(env, 'paralegal'), TIME);
+    await assertSucceeds(
+      updateDoc(ref, stamped({ minutes: 30, units: 5, amountCents: 22000, billable: false }, paralegal)),
+    );
+    await assertFails(updateDoc(ref, stamped({ minutes: 0 }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ status: 'final' }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ wipCountedCents: 500 }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ invoiceId: 'invoice-1' }, paralegal)));
+    await assertSucceeds(
+      updateDoc(ref, { ...stamped({}, paralegal), deletedAt: serverTimestamp(), deletedBy: paralegal }),
+    );
+    // A lawyer (time.approve) edits anyone's draft.
+    await reset();
+    await assertSucceeds(
+      updateDoc(doc(db(env, 'lawyer'), TIME), stamped({ narrative: 'Corrected' }, uidFor('lawyer'))),
+    );
+    // Final entries are frozen for clients, even for approvers.
+    await reset({ status: 'final' });
+    await assertFails(updateDoc(ref, stamped({ narrative: 'x' }, paralegal)));
+    await assertFails(updateDoc(doc(db(env, 'owner'), TIME), stamped({ narrative: 'x' }, uidFor('owner'))));
+    await assertFails(
+      updateDoc(ref, { ...stamped({}, paralegal), deletedAt: serverTimestamp(), deletedBy: paralegal }),
+    );
   });
 });
 

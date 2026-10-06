@@ -215,6 +215,27 @@ describe('Settings → Preferences', () => {
     expect(page.user().prefs['notifications']).toEqual(DEFAULT_NOTIFICATION_PREFS);
   });
 
+  it('keeps both of two quick changes, made before the first one has saved', async () => {
+    const page = await open('/settings/preferences');
+    // The real SDK tells listeners about a local write a moment later; this store does it at once.
+    const store = page.firestore as unknown as { notify(path: string): void };
+    const notify = store.notify.bind(store);
+    vi.spyOn(store, 'notify').mockImplementation((path) => setTimeout(() => notify(path)));
+    // No settling in between: the second change comes before the profile listener has the first.
+    [...page.el.querySelectorAll<HTMLElement>('.settings-page button')]
+      .find((b) => b.textContent?.trim() === 'Dark')
+      ?.click();
+    const quiet = page.field('Quiet from') as HTMLSelectElement;
+    quiet.value = [...quiet.options].find((o) => o.textContent?.trim() === '9:30 pm')?.value ?? '';
+    quiet.dispatchEvent(new Event('change'));
+    await page.stable();
+    expect(page.user().prefs['theme']).toBe('dark');
+    expect((page.user().prefs['notifications'] as NotificationPrefs).quietHours).toEqual({
+      start: '21:30',
+      end: '07:00',
+    });
+  });
+
   it('applies a change made in another tab', async () => {
     const page = await open('/settings/preferences');
     page.firestore.set(`users/${UID}`, userDoc({ theme: 'dark', density: 'compact' }));

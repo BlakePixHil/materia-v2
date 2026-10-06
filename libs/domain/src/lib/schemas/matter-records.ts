@@ -655,7 +655,16 @@ export const Activity = withMeta(
   { path: `${MATTER}/activity`, migratable: false },
 );
 
-/** `matters/{matterId}/timeEntries/{id}`. */
+/** Limits the rules enforce on client-written time entries (BILL-01). */
+export const TIME_NARRATIVE_MAX = 2000;
+/** One entry's sanity cap: 100 hours. Over 24 hours on a day only warns (BILL-01). */
+export const TIME_ENTRY_MAX_MINUTES = 6000;
+
+/**
+ * `matters/{matterId}/timeEntries/{id}` (BILL-01). Drafts are written client-direct; `time-onWrite`
+ * recomputes `units`, `rateCents` and `amountCents` from the rate in force on `date` (never trusting
+ * the client's values) and keeps the matter's `wipCents`. Status changes go through `time-setStatus`.
+ */
 export const TimeEntry = withMeta(
   {
     ...GroupKeys,
@@ -665,7 +674,7 @@ export const TimeEntry = withMeta(
     units: z.number().int().min(0),
     rateCents: CentsSchema,
     amountCents: CentsSchema,
-    narrative: z.string(),
+    narrative: z.string().max(TIME_NARRATIVE_MAX),
     billable: z.boolean(),
     status: TimeEntryStatusSchema,
     invoiceId: DocIdSchema.optional(),
@@ -679,11 +688,16 @@ export const TimeEntry = withMeta(
         reason: z.string(),
       })
       .optional(),
+    /** What this entry adds to the matter's `wipCents` right now; kept by `time-onWrite`. */
+    wipCountedCents: CentsSchema.default(0 as never),
   },
   {
     path: `${MATTER}/timeEntries`,
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'units', 'amountCents', 'invoiceId', 'writeDown'],
+    serverOwned: ['orgId', 'matterId', 'invoiceId', 'writeDown', 'wipCountedCents'],
+    // `units`, `rateCents` and `amountCents` are the client's preview, recomputed by the trigger.
+    // The author (`uid`) is fixed, and the status moves only through `time-setStatus` (and invoicing).
+    updatable: ['date', 'minutes', 'units', 'rateCents', 'amountCents', 'narrative', 'billable', 'taskId'],
   },
 );
 

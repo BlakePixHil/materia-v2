@@ -24,7 +24,6 @@ import {
   matterStages,
   stageIndex,
   Task,
-  templateTaskDue,
   today,
   type DateOnly,
   type DeadlineChangeCause,
@@ -53,9 +52,11 @@ import {
 import { compact, isDeleted } from '../contacts/shared';
 import { isEnabled } from '../core/flags';
 import type { Log } from '../core/log';
+import type { TxJoin } from '../core/tx-join';
 import { liveMatter, matterPath } from '../matters/shared';
 import { notify, type NotifyResult } from '../notifications/notify';
 import type { Clock, Ports } from '../ports';
+import { planPendingFills } from '../templates/fill-pending';
 import { readMatterTemplateStages, readTemplate, readWith } from '../templates/shared';
 
 type Data = Record<string, unknown>;
@@ -91,6 +92,11 @@ export interface RecomputeRequest {
   clock: Clock;
   log: Log;
   event?: EventChange | undefined;
+  /**
+   * Joins the caller's reads and writes to the recompute's transaction (AI-07: accepting a Clerk
+   * event suggestion); `write` gets the event's path.
+   */
+  join?: TxJoin | undefined;
 }
 
 export interface RecomputeOutcome extends RecomputeSummary {
@@ -233,6 +239,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
   const outcome = await db.runTransaction(async (tx: Transaction) => {
     notified = [];
     const matter = liveMatter(await tx.get(matterRef), role, matterId);
+    await request.join?.read(tx);
     const version = typeof matter['recomputeVersion'] === 'number' ? matter['recomputeVersion'] : 0;
 
     // ---- reads ----
@@ -345,9 +352,16 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
 
     // Template tasks waiting on this event's date (CORE-07b): filled when it is recorded.
     const fillKind = event?.fields ? event.fields.kind : undefined;
-    const waiting = fillKind
-      ? (await tx.get(db.collection(tasksPath(orgId, matterId)).where('duePending', '==', fillKind))).docs
-      : [];
+    const fills = fillKind
+      ? await planPendingFills(db, tx, {
+          orgId,
+          matterId,
+          kinds: [fillKind],
+          template,
+          ctx: { matter: current as FactMatter, events: engineEvents(current, events) },
+          stageEnteredOn: (matter['stageEnteredOn'] as DateOnly | undefined) ?? todayDate,
+        })
+      : undefined;
 
     const proposals = plan?.proposals ?? [];
     const conflicts = plan?.overrideConflicts ?? [];
@@ -369,24 +383,15 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
       calendarMissing: [...new Set((plan?.calendarMissing ?? []).map((m) => m.deadlineId))],
     };
     const calendarMissing = plan?.calendarMissing ?? [];
+    if (request.join) request.join.write(tx, eventId ? `${eventsPath(orgId, matterId)}/${eventId}` : matterRef.path);
     if (!writes) return { summary, calendarMissing };
 
     if (event && eventId && eventData) tx.set(db.doc(`${eventsPath(orgId, matterId)}/${eventId}`), eventData);
 
     // Filled template due dates.
-    if (fillKind) {
-      const context = { matter: current as FactMatter, events: engineEvents(current, events) };
-      for (const doc of waiting) {
-        const task = doc.data();
-        if (isDeleted(task)) continue;
-        const key = task['templateTaskKey'];
-        const definition = template?.tasks.find((t) => t.key === key);
-        const stageEnteredOn = (matter['stageEnteredOn'] as DateOnly | undefined) ?? todayDate;
-        const due = definition ? templateTaskDue(definition, context, stageEnteredOn) : {};
-        if (!due.dueDate) continue;
-        tx.update(doc.ref, { dueDate: due.dueDate, duePending: del(), ...stamp });
-        summary.filledTaskIds.push(doc.id);
-      }
+    if (fills) {
+      fills.write(stamp);
+      summary.filledTaskIds.push(...fills.fills.map((fill) => fill.taskId));
     }
 
     const taskFor = new Map<string, string>();

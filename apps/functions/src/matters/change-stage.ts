@@ -5,6 +5,7 @@ import {
   hasUnmetStageEntry,
   MatterTypeSchema,
   matterStages,
+  meetsTasksDone,
   PERMISSIONS,
   stageIndex,
   templateTaskDocId,
@@ -133,7 +134,7 @@ export const changeStageDefinition = {
       const doneTaskKeys = new Set(
         required.filter((_, i) => {
           const task = taskSnaps[i]?.data();
-          return !!task && !isDeleted(task) && task['status'] === 'done';
+          return !!task && !isDeleted(task) && meetsTasksDone(task['status']);
         }),
       );
       const unmet = unmetStageEntry(stages, current, input.stageId, { ...anchors, doneTaskKeys });

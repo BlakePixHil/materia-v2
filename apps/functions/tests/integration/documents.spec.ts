@@ -16,6 +16,7 @@ import {
   uploadSettings,
   type GetDownloadUrlResult,
   type Role,
+  type StartZipResult,
 } from '@materia/domain';
 
 import { sampleEml, samplePdf } from '../../src/documents/testing';
@@ -123,6 +124,7 @@ function callable<T>(name: string) {
 const getDownloadUrl = callable<GetDownloadUrlResult>(DOCUMENT_CALLABLES.getDownloadUrl);
 const restoreVersion = callable<{ version: number; restoredFrom: number }>(DOCUMENT_CALLABLES.restoreVersion);
 const resolveDuplicate = callable<Data>(DOCUMENT_CALLABLES.resolveDuplicate);
+const startZip = callable<StartZipResult>(DOCUMENT_CALLABLES.startZip);
 const saveAttachment = callable<{ uploadId: string; docId: string; fileName: string }>(
   DOCUMENT_CALLABLES.saveAttachment,
 );
@@ -323,6 +325,35 @@ describe('versions and downloads', () => {
     });
     await signInAs('lawyer');
     await expect(getDownloadUrl({ matterId: MATTER_ID, docId })).resolves.toMatchObject({ version: 1 });
+  });
+});
+
+describe('zip downloads', () => {
+  it('starts a zip export job, leaving out privileged documents the role can’t see', async () => {
+    const will = await upload('lawyer', pdf('zip will'), { fileName: 'Will.pdf' });
+    const advice = await upload('lawyer', pdf('zip advice'), { fileName: 'Advice.pdf' });
+    await settled(will, will);
+    await settled(advice, advice);
+    await db.doc(`${DOCS}/${advice}`).update({ privileged: true });
+
+    await signInAs('readonly');
+    const partial = await startZip({ requestId: randomUUID(), matterId: MATTER_ID, docIds: [will, advice] });
+    expect(partial).toMatchObject({ included: 1, skipped: 1 });
+    expect(await data(`orgs/${ORG}/jobs/${partial.jobId}`)).toMatchObject({
+      type: 'documents.zip',
+      status: 'queued',
+      createdBy: uidOf('readonly'),
+      target: { kind: 'export', name: 'Documents DC-2026-0001' },
+      input: { inputs: [{ storagePath: `${DOCS}/${will}/v1`, fileName: 'Will.pdf' }] },
+    });
+    expect(await failure(startZip({ requestId: randomUUID(), matterId: MATTER_ID, docIds: [advice] }))).toMatchObject({
+      code: 'functions/failed-precondition',
+      details: { reason: 'nothing_to_zip' },
+    });
+
+    await signInAs('lawyer');
+    const full = await startZip({ requestId: randomUUID(), matterId: MATTER_ID, docIds: [will, advice] });
+    expect(full).toMatchObject({ included: 2, skipped: 0 });
   });
 });
 

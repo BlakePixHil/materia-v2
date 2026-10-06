@@ -111,7 +111,14 @@ function blockingDeps(invites: { email: string; status: string; expiresAt?: Time
       };
       return query;
     },
-    doc: (path: string) => ({ set: async (data: Record<string, unknown>) => void writes.push({ path, data }) }),
+    doc: (path: string) => ({ path, set: async (data: Record<string, unknown>) => void writes.push({ path, data }) }),
+    batch: () => {
+      const pending: { path: string; data: Record<string, unknown> }[] = [];
+      return {
+        set: (ref: { path: string }, data: Record<string, unknown>) => void pending.push({ path: ref.path, data }),
+        commit: async () => void writes.push(...pending),
+      };
+    },
   };
   const deps: BlockingDeps = { db: () => db as never, openSignup: () => open, now: () => NOW, sink: () => undefined };
   return { deps, writes };
@@ -168,10 +175,40 @@ describe('blocking functions', () => {
     );
     await stampSignIn({ eventId: 'e2', data: { uid: 'u2' } as never }, deps);
     await stampSignIn({ eventId: 'e3' }, deps);
-    expect(writes.map((w) => [w.path, w.data['lastSignInProvider']])).toEqual([
+    expect(
+      writes.filter((w) => w.path.endsWith('/session')).map((w) => [w.path, w.data['lastSignInProvider']]),
+    ).toEqual([
       ['users/u1/private/session', 'password'],
       ['users/u2/private/session', 'unknown'],
     ]);
+  });
+
+  it('logs each sign-in for "Your sessions", without the IP address or user agent (SEC-04)', async () => {
+    const { deps, writes } = blockingDeps([]);
+    await stampSignIn(
+      {
+        eventId: 'e1',
+        data: { uid: 'u1', multiFactor: { enrolledFactors: [{ uid: 'f1' }] } } as never,
+        additionalUserInfo: { providerId: 'google.com' } as never,
+        userAgent:
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36',
+        ipAddress: '203.0.113.24',
+      } as never,
+      deps,
+    );
+    const entry = writes.find((w) => w.path === 'users/u1/signIns/e1')?.data;
+    expect(entry).toMatchObject({
+      at: NOW,
+      authTime: nowSeconds,
+      provider: 'google.com',
+      device: 'Mac',
+      browser: 'Chrome',
+      secondFactor: true,
+      expireAt: new Date(NOW.getTime() + 90 * 86_400_000),
+      createdBy: 'u1',
+    });
+    expect(JSON.stringify(entry)).not.toContain('203.0.113.24');
+    expect(JSON.stringify(entry)).not.toContain('Mozilla');
   });
 });
 

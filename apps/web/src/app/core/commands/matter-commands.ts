@@ -59,6 +59,14 @@ export function matterCommands(
       'matter.edit',
     ),
     command(
+      'log-time',
+      'Log time',
+      'timer',
+      intentUrl(`${base}/time`, 'log-time'),
+      ['time entry', 'record', 'units', 'hours'],
+      'time.record',
+    ),
+    command(
       'upload',
       'Upload document',
       'upload',
@@ -72,6 +80,7 @@ export function matterCommands(
     command('documents', 'Open documents', 'document', `${base}/documents`, ['files']),
     command('parties', 'Open parties', 'contacts', `${base}/parties`, ['people', 'beneficiaries', 'executors']),
     command('notes', 'Open notes', 'compose', `${base}/notes`, ['file note']),
+    command('time', 'Open time', 'timer', `${base}/time`, ['time entries', 'units', 'wip']),
     command(
       'close',
       'Close matter…',

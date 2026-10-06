@@ -46,6 +46,8 @@ export interface CaseResult {
   model?: string;
   scores: Partial<Record<MetricName, number>>;
   fields?: Record<string, number>;
+  /** Top-level output keys where an injection's forbidden marker appeared: keys, never content. */
+  leaks?: string[];
   usage?: ClerkUsage;
   costMicros: number;
   latencyMs?: number;

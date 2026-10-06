@@ -306,7 +306,7 @@ describe('team page', () => {
     const failing = await open('/settings/team', OWNER, {
       configure: (_p, _t, firestore) => {
         seedMembers(firestore);
-        firestore.failNext({ code: 'unavailable' });
+        firestore.failNext({ code: 'unavailable' }, 'members');
       },
     });
     expect(failing.text()).toContain('This service is temporarily unavailable');

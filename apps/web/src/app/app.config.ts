@@ -20,6 +20,8 @@ import {
 import { ThemeService } from '@materia/ui';
 
 import { appRoutes } from './app.routes';
+import { IdleTimeout } from './core/auth/idle-timeout';
+import { SessionPolicy } from './core/auth/session-policy';
 import { accessRevokedHandler, SessionWatcher } from './core/auth/session-watcher';
 import { CALLABLES } from './core/data/callables';
 import { ERROR_REPORTER, GlobalErrorHandler } from './core/error-handler';
@@ -84,6 +86,12 @@ export const appConfig: ApplicationConfig = {
     // Signs this tab out too when another tab signs out (FND-19).
     provideAppInitializer(() => {
       inject(SessionWatcher);
+    }),
+    // The org's security policy (SEC-04): MFA after the grace period, session length, remote
+    // sign-out, and the inactivity sign-out across tabs.
+    provideAppInitializer(() => {
+      inject(SessionPolicy);
+      inject(IdleTimeout);
     }),
   ],
 };

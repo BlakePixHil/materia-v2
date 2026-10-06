@@ -13,8 +13,9 @@ import {
 
 import { recomputeMatter, type RecomputeOutcome } from './recompute';
 import { audit } from '../audit/audit';
-import { defineCallable, type CallableDefinition } from '../core/callable';
+import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
 import { orgClock } from '../core/emulator-clock';
+import type { TxJoin } from '../core/tx-join';
 import { matterPath } from '../matters/shared';
 import { orgTimeZone } from '../templates/shared';
 
@@ -38,57 +39,64 @@ export const upsertEventDefinition = {
   input: UpsertEventInput,
   roles: PERMISSIONS['matter.edit'],
   idempotent: true,
-  handler: async (ctx): Promise<UpsertEventResult> => {
-    const { input, orgId, uid, role, db, requestId, log } = ctx;
-    const clock = await orgClock(db, orgId, ctx.clock);
-    if (input.kind === 'date_of_death') {
-      const now = today(await orgTimeZone(db, orgId), clock.now());
-      if (compareDates(input.date, now) > 0) {
-        throw new DomainError('INVALID_ARGUMENT', 'A date of death can’t be in the future', {
-          fields: { date: ['A date of death can’t be after today'] },
-        });
-      }
-    }
-    const outcome = await recomputeMatter(db, {
-      orgId,
-      matterId: input.matterId,
-      uid,
-      role,
-      requestId,
-      cause: 'event',
-      clock,
-      ports: ctx.ports,
-      log,
-      event: {
-        eventId: input.eventId,
-        fields: {
-          kind: input.kind,
-          date: input.date,
-          time: input.time,
-          label: input.label,
-          meta: input.meta,
-          sourceDocumentId: input.sourceDocumentId,
-        },
-      },
-    });
-    const eventId = outcome.eventId as string;
-    await audit(
-      { uid, orgId, requestId, db, clock },
-      {
-        action: 'matter.event_recorded',
-        entity: { path: `${matterPath(orgId, input.matterId)}/events/${eventId}` },
-        summary: `Event ${input.kind} ${input.eventId ? 'edited' : 'recorded'} on matter ${input.matterId}`,
-        data: {
-          kind: input.kind,
-          date: input.date,
-          proposed: outcome.proposed.length,
-          created: outcome.created.length,
-        },
-      },
-    );
-    return { eventId, recompute: summary(outcome), filledTaskIds: outcome.filledTaskIds };
-  },
+  handler: (ctx): Promise<UpsertEventResult> => recordEvent(ctx),
 } satisfies CallableDefinition<typeof UpsertEventInput, UpsertEventResult>;
+
+/**
+ * The `deadlines-upsertEvent` logic, shared with accepting a Clerk event or key-fact suggestion
+ * (AI-07), which joins its own reads and writes to the recompute's transaction (`join`).
+ */
+export async function recordEvent(ctx: CallableContext<UpsertEventInput>, join?: TxJoin): Promise<UpsertEventResult> {
+  const { input, orgId, uid, role, db, requestId, log } = ctx;
+  const clock = await orgClock(db, orgId, ctx.clock);
+  if (input.kind === 'date_of_death') {
+    const now = today(await orgTimeZone(db, orgId), clock.now());
+    if (compareDates(input.date, now) > 0) {
+      throw new DomainError('INVALID_ARGUMENT', 'A date of death can’t be in the future', {
+        fields: { date: ['A date of death can’t be after today'] },
+      });
+    }
+  }
+  const outcome = await recomputeMatter(db, {
+    orgId,
+    matterId: input.matterId,
+    uid,
+    role,
+    requestId,
+    cause: 'event',
+    clock,
+    ports: ctx.ports,
+    log,
+    join,
+    event: {
+      eventId: input.eventId,
+      fields: {
+        kind: input.kind,
+        date: input.date,
+        time: input.time,
+        label: input.label,
+        meta: input.meta,
+        sourceDocumentId: input.sourceDocumentId,
+      },
+    },
+  });
+  const eventId = outcome.eventId as string;
+  await audit(
+    { uid, orgId, requestId, db, clock },
+    {
+      action: 'matter.event_recorded',
+      entity: { path: `${matterPath(orgId, input.matterId)}/events/${eventId}` },
+      summary: `Event ${input.kind} ${input.eventId ? 'edited' : 'recorded'} on matter ${input.matterId}`,
+      data: {
+        kind: input.kind,
+        date: input.date,
+        proposed: outcome.proposed.length,
+        created: outcome.created.length,
+      },
+    },
+  );
+  return { eventId, recompute: summary(outcome), filledTaskIds: outcome.filledTaskIds };
+}
 
 /**
  * `deadlines-deleteEvent` (CORE-10; matter.edit, idempotent): soft-deletes a live event and

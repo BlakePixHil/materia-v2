@@ -7,6 +7,9 @@ import { DomainError, isErrorCode, type ErrorCode } from '@materia/domain';
 export const ERROR_COPY: Record<ErrorCode, string> = {
   UNAUTHENTICATED: 'Your session has ended. Sign in again to continue.',
   REAUTH_REQUIRED: 'For your security, confirm it’s you by signing in again.',
+  MFA_REQUIRED: 'Your practice requires two-step sign-in. Set it up, then sign in again.',
+  SESSION_EXPIRED: 'Your sign-in has expired. Sign in again to continue.',
+  SESSION_REVOKED: 'You were signed out of this device. Sign in again to continue.',
   ORG_CLAIM_MISSING: 'Your account isn’t linked to a practice yet. Ask your practice admin for an invite.',
   ORG_CLAIM_MISMATCH: 'You switched practices in another tab. Refreshing your access…',
   MEMBER_INACTIVE: 'Your access to this practice has been paused. Contact your practice admin.',
@@ -47,6 +50,10 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   ALREADY_MEMBER: 'This person is already a member of the practice.',
   LAST_OWNER: 'A practice needs at least one owner. Make someone else an owner first.',
   EMAIL_NOT_VERIFIED: 'Confirm your email first, then try again.',
+  MATTER_CLOSED: 'This matter is closed, so it can’t be changed. Reopen it first.',
+  SUGGESTION_STALE: 'The matter changed since Clerk suggested this. Review the changes, then accept again.',
+  ALREADY_RESOLVED: 'Someone has already dealt with this suggestion.',
+  SUGGESTION_UNSUPPORTED: 'This kind of suggestion can’t be accepted yet. Make the change by hand instead.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 
