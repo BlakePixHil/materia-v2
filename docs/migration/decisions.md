@@ -1,0 +1,193 @@
+# Migration decision log (MIG-01)
+
+The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `fen5jJdhNHTkGBpgAdsLSKQRvXx2`) into Materia v2. The transform (MIG-03) reads them from the mapping profile [`tools/migration/profiles/tristan-burke.json`](../../tools/migration/profiles/tristan-burke.json). Each decision below names its profile field. The [Legacy migration plan](../08-legacy-migration-plan.md) has the full field map; this log records only the choices someone had to make.
+
+**Evidence:**
+
+- the read-only profile of the prod data taken on 2026-10-04 (counts and names only, kept in project files at `mig-01/tristan-data-profile.md`);
+- the legacy code (`BlakePixHil/materia-web-app`);
+- the audit report, which `materia-migrate audit` writes and nobody commits (see [`tools/migration/README.md`](../../tools/migration/README.md)).
+
+**Status key:**
+
+- **Decided:** Blake made the call, with the date given.
+- **Default:** a drafted choice that stands unless the sign-off changes it.
+- **Open:** needs an answer before the transform runs.
+
+## Sign-off
+
+| Role | Name | Date | Note |
+| --- | --- | --- | --- |
+| User | Tristan Burke | | Also confirms his consent to migrate, which Blake recorded on 2026-10-04 |
+| Product owner | Blake Linnell | | |
+
+Signing records the same names and dates in the profile's `signOff`. Changing any decision after sign-off needs both signatures again.
+
+## Decisions
+
+### D-01 Who migrates, and their consent
+
+- **Status:** Decided by Blake on 2026-10-04.
+- **Decision:** only Tristan Burke's data migrates.
+  - Nothing that belongs to other legacy users is read beyond the profile names of the people his cards mention.
+  - He signs in with Google only, so his account moves with the same uid and no password hashes (MIG-04).
+  - Blake confirmed Tristan's consent to migrate on 2026-10-04. Tristan's sign-off above records it in his own name.
+- **Profile:** `subject`.
+
+### D-02 Which boards migrate
+
+- **Status:** Decided by Blake on 2026-10-04.
+- **Decision:** the three boards Tristan owns migrate as matters:
+  - Estate planning;
+  - Estate admin;
+  - Disputes.
+
+  Two more of his boards become personal tasks grouped by their column, because they hold practice development work rather than matters:
+  - FY BD & Non-Billable - Track for Promotion;
+  - Non-billable.
+
+  Test Workflow is a shared board he doesn't own, so it is excluded.
+- **Profile:** `workflows[].mode`.
+- **Ticket default this replaces:** include the boards where the user is owner or admin, and list the others.
+
+### D-03 Matter type per board
+
+- **Status:** Default.
+- **Decision:**
+  - Estate planning → `will`.
+  - Estate admin → `probate`, except the "ASP only or probate not needed" column → `admin` (D-04).
+  - Disputes → `contest`, except "Part IV" → `fp` (family provision).
+- **Why:** the columns of Disputes are kinds of dispute, not steps, so the profile allows a type per column.
+- **Profile:** `workflows[].matterType`, `swimlanes[].matterType`.
+
+### D-04 Column → status and stage
+
+- **Status:** Default, with two columns **Open**.
+- **Rules:**
+  - Columns about prospective work become leads.
+  - The last column becomes closed.
+  - Everything else is open at the stage of the type's system template that matches best.
+  - A column that says nothing about progress leaves the stage unset.
+
+| Board | Column (cards on 2026-10-04) | Status | Stage |
+| --- | --- | --- | --- |
+| Estate planning | Upcoming initial appt / prospective clients (6) | lead | |
+| | New files / waiting for quote approved (9) | open | instructions |
+| | To draft (9) | open | draft |
+| | Drafts sent to clients (37) | open | client_review |
+| | **Waiting on SOAs (102)** | open | safe_custody |
+| | Close file (42) | closed | closed |
+| Estate admin | Waiting for client to approve quote / open file (2) | lead | |
+| | General estate advice (non-dispute) (2) | open | instructions |
+| | **ASP only or probate not needed (3)** | open (type `admin`) | assets_collected |
+| | Stage 1 (pre-filing) (4) | open | documents |
+| | Stage 2 (filed) (1) | open | application_filed |
+| | Stage 3 & 4 (admin and property) (28) | open | assets_collected |
+| | File to be closed (13) | open | closed |
+| Disputes | Part IV (3) | open (type `fp`) | |
+| | VCAT (3) | open | |
+| | Superannuation (1) | open | |
+| | Other (5) | open | |
+| | Caveat (2) | open | caveat_lodged |
+| | Close file (17) | closed | closed |
+
+- **Open questions:**
+  - **Waiting on SOAs** holds 102 of the 205 estate planning cards. The draft reads SOA as statement of account: the will is signed and the file waits on the bill, so the stage is `safe_custody`. If SOA means something else, such as a statement of advice still to be sent, this column moves to `client_review`.
+  - **ASP only or probate not needed:** the draft reads this as an estate wound up without a grant (assets released on a statutory declaration), so the type is `admin` at `assets_collected`. If ASP means something that needs a grant, the type returns to `probate`.
+- **Also:**
+  - "File to be closed" stays **open** at the closed stage. Tristan closes those matters in v2, where closing runs the CORE-19 checks.
+  - Cards in a column the board no longer has import as open, and are flagged for review.
+- **Profile:** `workflows[].swimlanes[]`.
+
+### D-05 Labels
+
+- **Status:** Default.
+- **Decision:** every label keeps its name, and its colour maps to the nearest v2 tag tone.
+- Label ids a card holds that the board no longer defines are dropped and reported.
+- **Profile:** `labels` (default `keep`, no renames).
+
+### D-06 Fees
+
+- **Status:** Default.
+- **Decision:**
+  - Legacy amounts are **dollars**: the legacy fee form accepts dollars with up to 2 decimal places and shows "$" + value. They convert with cents = round(value × 100). The audit report's money section checks that the real values fit this reading before the transform runs.
+  - The billing type maps as follows:
+    - fixed → fixed;
+    - hourly → hourly;
+    - nowin → conditional;
+    - **folio → hourly**, with a note keeping "folio";
+    - an empty type leaves the fee unset, flagged for review.
+  - Legacy billing (`billable.*`) stays read-only history on the matter. It is never turned into v2 invoices, which would break gapless numbering. `applyTrust` is kept only as history: Materia is never a trust ledger (ADR-035).
+- **Profile:** `fees`.
+
+### D-07 Cards assigned to someone else
+
+- **Status:** Default.
+- **Decision:** Tristan becomes responsible for the matter. A note names the original assignee, from their legacy profile name, or "a former colleague" when that profile no longer exists.
+- Other people the cards mention become contacts tagged `legacy-collaborator`. They are never invited.
+- **Profile:** `foreignAssignees: reassign_with_note`.
+
+### D-08 Matter numbers
+
+- **Status:** Default.
+- **Decision:** v2 allocates new matter numbers. The legacy `matterReference` becomes the matter's **external reference**, which search finds, so an old file number still leads to the matter.
+- **Why:** references are free text, and some may repeat, so adopting them would need a review of the data first.
+- **Profile:** `matterNumbers: allocate`.
+
+### D-09 Org name, time zone and jurisdiction
+
+- **Status:** Default.
+- **Decision:**
+  - The org takes the legacy profile's company name. Tristan confirms it at cutover (MIG-07).
+  - Dates use Australia/Melbourne: due dates stored as UTC instants convert to the Melbourne day.
+  - Matters are Victorian.
+- **Profile:** `org` (no `name` set, so the company name is used).
+
+### D-10 Client contact (new)
+
+- **Status:** Default.
+- **Decision:** a v2 matter needs at least one client contact, and legacy cards have only a title. Each matter gets a client contact named from the card title, flagged for review so Tristan can merge or rename it.
+- **Alternative:** one "Client (imported)" placeholder per matter (`placeholder`).
+- **Profile:** `matterDefaults.clientContact: from_title`.
+
+### D-11 Conflict check and costs disclosure (new)
+
+- **Status:** Default.
+- **Decision:**
+  - **Conflict check:** open and closed matters were opened before Materia, so they import as `clear` with the reason "Opened before Materia (imported)". Leads import as `pending`, so the check still runs before they open.
+  - **Costs disclosure:** leads and open matters import as `required`, so Tristan confirms whether disclosure was given. Closed matters import as `not_required`.
+- **Profile:** `matterDefaults.conflictCheck`, `matterDefaults.costsDisclosure`.
+
+### D-12 Closed matters and retention (new)
+
+- **Status:** Default.
+- **Decision:** closed matters import without a CORE-19 closing record, so no destruction date is set. Tristan reviews them in the review queue (MIG-08) before any retention date applies.
+
+### D-13 Attachments (new)
+
+- **Status:** Default.
+- **Decision:**
+  - Every attachment migrates, including types v2 uploads don't accept: the one SVG (also GIF and BMP, if the audit finds them).
+  - Those files are served as downloads only, never shown inline, since an SVG can carry script.
+  - The 7 attachments with no content type take their type from the file extension.
+  - The audit also lists files stored at board level (`workflows/{wf}/attachments/`) with no card. These are reported for Tristan to decide on, not migrated by default.
+
+### D-14 What doesn't migrate
+
+- **Status:** Decided in the plan; confirmed here.
+- **Decision:** none of the following migrate:
+  - calendar connections (Tristan reconnects, and legacy events stay in his calendar);
+  - AI suggestion dismissals;
+  - notifications, invites and feedback;
+  - links to cards on boards that don't migrate (dropped and reported);
+  - `hoursEstimate`, `actualHours` and the card-level `dueDate`, which legacy never used.
+
+### D-15 Where and when it loads
+
+- **Status:** Decided by Blake on 2026-10-05 (prod after launch). The rehearsal rule is a default.
+- **Decision:** the migration loads into **prod after prod launches**. There is no staging, so rehearsals run on dev. Each rehearsal is rolled back afterwards, so real client data doesn't stay on dev.
+
+## Descoped
+
+- **No staging rehearsals.** The plan's staging rehearsals move to dev (D-15).
+- **Shared boards.** Only Test Workflow is shared, and it is excluded (D-02).

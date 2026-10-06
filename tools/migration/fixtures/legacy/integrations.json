@@ -1,0 +1,37 @@
+[
+  {
+    "path": "profiles/AlexRiversLegacyUid000000001/integrations/i0000000-0000-4000-8000-000000000001",
+    "data": {
+      "id": "i0000000-0000-4000-8000-000000000001",
+      "profileId": "AlexRiversLegacyUid000000001",
+      "type": "calendar",
+      "provider": "google",
+      "isEnabled": true,
+      "isAuthenticated": true,
+      "settings": {
+        "enableCalendarSync": true,
+        "defaultReminderMinutes": 30
+      },
+      "lastSyncDate": "2025-03-01T00:00:00.000Z",
+      "error": null,
+      "createdOn": "2024-01-01T00:00:00.000Z",
+      "updatedOn": "2025-03-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "profiles/AlexRiversLegacyUid000000001/integrations/i0000000-0000-4000-8000-000000000002",
+    "data": {
+      "id": "i0000000-0000-4000-8000-000000000002",
+      "profileId": "AlexRiversLegacyUid000000001",
+      "type": "calendar",
+      "provider": "microsoft",
+      "isEnabled": false,
+      "isAuthenticated": false,
+      "settings": {},
+      "lastSyncDate": null,
+      "error": null,
+      "createdOn": "2024-01-01T00:00:00.000Z",
+      "updatedOn": "2024-01-01T00:00:00.000Z"
+    }
+  }
+]
