@@ -794,10 +794,10 @@ describe('to be paid from trust (BILL-12)', () => {
     expect(page.text(page.dialog())).toContain('$84,210.00, as at 2 Oct 2026 · from Smokeball');
     expect(page.calls('trust-recordSnapshot')).toEqual([]);
     await page.click('Update trust balance', page.dialog() as HTMLElement);
-    // The balance dialog is lazy-loaded: wait for it rather than a fixed number of ticks.
+    // The trust balance dialog loads lazily: wait for it, not for a fixed number of ticks.
     await vi.waitFor(async () => {
       await page.stable(5);
-      expect(page.text(page.dialog())).toContain('Smokeball');
+      expect(page.text(page.dialog())).toContain('Copy the balance from Smokeball');
     });
     expect(page.calls('trust-recordSnapshot')).toEqual([]);
   });
