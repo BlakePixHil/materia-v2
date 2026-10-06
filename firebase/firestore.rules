@@ -824,6 +824,11 @@ service cloud.firestore {
       match /audit/{entryId} {
         allow read, write: if false;
       }
+      // Trust balance snapshots (BILL-11, ADR-035): copied from the firm's trust records, never a
+      // ledger. Only billing roles read them; `trust-recordSnapshot` writes and audits each change.
+      match /trustSnapshots/{matterId} {
+        allow read: if can(orgId, 'billing.view');
+      }
       match /metrics/{metricId} {
         allow read: if can(orgId, 'billing.view');
       }
@@ -923,6 +928,7 @@ service cloud.firestore {
         'billing.view': ['owner', 'admin', 'lawyer'],
         'billing.issue': ['owner', 'admin'],
         'billing.void': ['owner', 'admin'],
+        'trust.record': ['owner', 'admin', 'lawyer'],
         'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
         'clerk.configure': ['owner', 'admin'],
         'members.manage': ['owner', 'admin'],
@@ -995,6 +1001,7 @@ service cloud.firestore {
     function fieldsTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsTaskGroupTemplate() { return ['name', 'tasks']; }
     function fieldsTimeEntry() { return ['date', 'minutes', 'units', 'rateCents', 'amountCents', 'narrative', 'billable', 'taskId']; }
+    function fieldsTrustSnapshot() { return []; }
     function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl']; }
     // </generated:rules-sync>
 

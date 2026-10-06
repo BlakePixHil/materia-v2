@@ -305,6 +305,7 @@ describe('seed dataset', () => {
       'clerk.features.suggestions': true,
       'billing.feeBudgets': true,
       'billing.disbursements': true,
+      'billing.trustDisplay': true,
     });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
       expect(docsUnder('contacts').some((d) => d.path.endsWith(`/${id}`))).toBe(true);
@@ -376,6 +377,19 @@ describe('seed dataset', () => {
     }
     expect(citations.filter((c) => c.verified === false)).toHaveLength(1);
     expect(citations.some((c) => c.kind === 'record')).toBe(true);
+  });
+
+  it('seeds two copied trust balances, one out of date, with the switch on (BILL-11)', () => {
+    const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
+    expect(org?.['trust']).toMatchObject({ showOnMatters: true, staleAfterDays: 30 });
+    const snapshots = docsUnder('trustSnapshots').map((d) => d.data as D.TrustSnapshot);
+    expect(snapshots.map((s) => s.matterId)).toEqual(['m-doyle-estate', 'm-feather-admin']);
+    const matterIds = new Set(docsUnder('matters').map((d) => d.path.split('/').at(-1)));
+    expect(snapshots.every((s) => matterIds.has(s.matterId))).toBe(true);
+    expect(snapshots.map((s) => D.trustSnapshotOutOfDate(s.asAt, anchor as D.DateOnly, 30))).toEqual([false, true]);
+    expect(
+      buildDataset({ anchor, fixtures, scenario: 'empty' }).docs.some((d) => d.path.includes('trustSnapshots')),
+    ).toBe(false);
   });
 
   it('is deterministic for the same anchor', () => {

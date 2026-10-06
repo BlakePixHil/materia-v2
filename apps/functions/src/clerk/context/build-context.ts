@@ -190,7 +190,9 @@ export function createContextBuilder(deps: ContextDeps) {
     const matterPrivileged = matterRow.data['privileged'] === true;
 
     const query = input.query?.trim() ?? '';
-    const [parties, events, deadlines, tasks, notes, attached, hits] = await Promise.all([
+    // Trust balances (BILL-11) only for billing roles, in the request's role and the current one.
+    const trustVisible = can(ctx.role, 'billing.view') && can(role, 'billing.view');
+    const [parties, events, deadlines, tasks, notes, attached, hits, trust] = await Promise.all([
       deps.source.parties(ctx.orgId, matterId),
       deps.source.events(ctx.orgId, matterId),
       deps.source.openDeadlines(ctx.orgId, matterId),
@@ -200,6 +202,7 @@ export function createContextBuilder(deps: ContextDeps) {
       query
         ? deps.chunks.searchChunks({ orgId: ctx.orgId, matterId, query, k: RETRIEVAL_FETCH_K, allowPrivileged })
         : Promise.resolve([] as ChunkHit[]),
+      trustVisible ? deps.source.trustSnapshot(ctx.orgId, matterId) : Promise.resolve(null),
     ]);
 
     // 3. Attachments: each must be a live document of this matter that the role may see.
@@ -286,7 +289,15 @@ export function createContextBuilder(deps: ContextDeps) {
       if (typeof id === 'string') contactIds.add(id);
     }
     const names = await deps.source.contactNames(ctx.orgId, [...contactIds]);
-    const facts = matterFacts({ matter: matterRow, parties, contactNames: names, events, deadlines, tasks });
+    const facts = matterFacts({
+      matter: matterRow,
+      parties,
+      contactNames: names,
+      events,
+      deadlines,
+      tasks,
+      trust: trust ? { ...trust, today: todayIso } : null,
+    });
     const factsText = wrap('matter_facts', safeJson(facts.json), { matter: matterId });
 
     const documents: GatewayDocument[] = docs.map(({ row, version, pages }) => {

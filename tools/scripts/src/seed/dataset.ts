@@ -38,6 +38,7 @@ const {
   makePersonalTask,
   makeTask,
   makeTimeEntry,
+  makeTrustSnapshot,
   makeUser,
 } = F;
 
@@ -906,17 +907,20 @@ export function buildDataset(options: {
       // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02), and
       // matters follow their templates' stages and tasks (CORE-07), and the illustrative Victorian
       // statutory deadline rules apply (CORE-10), Clerk's suggestions show on the Overview (AI-07)
-      // and so does the fee panel (BILL-05).
+      // and so does the fee panel (BILL-05). Trust balances copied from the firm's trust records
+      // show on matters (BILL-11, ADR-035).
       flags: {
         'conflicts.enforced': true,
         'templates.system': true,
         'deadlines.ruleset.vic.v1': true,
         'clerk.features.suggestions': true,
+        'billing.trustDisplay': true,
         // Fee arrangements, budgets and budget alerts on the Overview (BILL-05).
         'billing.feeBudgets': true,
         // Disbursements and their presets (BILL-04), awaiting practitioner review (BILL-04a).
         'billing.disbursements': true,
       },
+      trust: { showOnMatters: true, system: 'other', otherName: 'In-house trust records', staleAfterDays: 30 },
     }),
   );
 
@@ -1025,6 +1029,27 @@ export function buildDataset(options: {
     matters.flatMap((m) => [...m.clients, ...m.parties.map(([id]) => id), ...(m.deceased ? [m.deceased] : [])]),
   );
   const contacts = scenario === 'minimal' ? CONTACTS.filter((c) => contactIds.has(c.id)) : CONTACTS;
+  // Two matters' trust balances, as copied from those records: one current, one out of date.
+  for (const [matterId, amountCents, daysAgo] of [
+    ['m-doyle-estate', 8_421_000, 3],
+    ['m-feather-admin', 500_000, 38],
+  ] as const) {
+    if (!matters.some((m) => m.id === matterId)) continue;
+    add(
+      `orgs/${org}/trustSnapshots/${matterId}`,
+      makeTrustSnapshot({
+        ...meta,
+        matterId,
+        amountCents: amountCents as D.Cents,
+        asAt: rel(-daysAgo),
+        source: 'manual',
+        sourceSystemName: 'In-house trust records',
+        recordedBy: PRIYA,
+        recordedAt: now,
+      }),
+    );
+  }
+
   const contactById = new Map(CONTACTS.map((c) => [c.id, c]));
   const nameOf = (id: string) => {
     const c = contactById.get(id);

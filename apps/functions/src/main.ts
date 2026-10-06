@@ -27,6 +27,7 @@ export * as fees from './fees/index';
 export * as billing from './billing/index';
 export * as disbursements from './disbursements/index';
 export * as backups from './backups/index';
+export * as trust from './trust/index';
 export * as security from './security/index';
 // Emulator-only tools (the dev mail preview): undefined, so never deployed, anywhere else.
 export * as dev from './dev/index';

@@ -260,6 +260,15 @@ const shellRoutes: Route[] = [
         canDeactivate: [unsavedChangesGuard],
         loadComponent: () => import('./features/settings/billing-page').then((m) => m.BillingSettingsPage),
       },
+      // Trust account (BILL-11, ADR-035): owners and admins, while `billing.trustDisplay` is on.
+      {
+        path: 'trust',
+        title: 'Trust account',
+        data: { crumb: 'Trust account' },
+        canActivate: [flagGuard('billing.trustDisplay'), roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/trust/trust-settings-page').then((m) => m.TrustSettingsPage),
+      },
       // Matter numbering (CORE-21a): owners and admins (`org.settings`).
       {
         path: 'numbering',
