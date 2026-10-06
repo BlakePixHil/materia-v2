@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 
 import { FieldValue, type CollectionReference, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import * as z from 'zod';
 
 import {
@@ -286,6 +285,8 @@ export interface CertificateFacts {
 
 /** The destruction certificate: one A4 page, deterministic for the same facts. */
 export async function certificatePdf(facts: CertificateFacts): Promise<Uint8Array> {
+  // Loaded here, not at module load, so it doesn't slow every function's cold start.
+  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
   const pdf = await PDFDocument.create();
   const at = facts.destroyedAt;
   pdf.setTitle(`Certificate of destruction ${facts.number}`);
