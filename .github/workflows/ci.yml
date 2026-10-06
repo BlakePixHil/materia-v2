@@ -35,10 +35,12 @@ on:
     - cron: '40 21 * * *'
   workflow_dispatch:
 
-# Per event, so a quiet-hours push never cancels the morning run on main.
+# Per event, so a quiet-hours push never cancels the morning run on main. A new PR push cancels
+# the PR's running CI. A push to main doesn't: the running main CI finishes (and deploys) and only
+# the newest waiting push runs next, so back-to-back merges can't keep dev from ever deploying.
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 permissions:
   contents: read

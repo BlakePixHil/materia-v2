@@ -19,6 +19,7 @@ import { REGION } from '../config';
 import { adminDb } from '../core/admin';
 import { createLog, type Log } from '../core/log';
 import { defineQueue, enqueue } from '../core/tasks';
+import { eventGuardPath } from '../core/trigger';
 import type { Clock, Ports } from '../ports';
 import { ports, systemClock } from '../ports/container';
 
@@ -54,10 +55,10 @@ export function pipelineDeps(
   };
 }
 
-/** Runs once per event id (`eventGuards/{id}`), as the Firestore triggers do. */
+/** Runs once per event id (`eventGuards/{fn}-{id}`), as the Firestore triggers do. */
 async function firstDelivery(db: Firestore, eventId: string, now: Date): Promise<boolean> {
   try {
-    await db.doc(`eventGuards/${eventId}`).create({
+    await db.doc(eventGuardPath('documents-onUpload', eventId)).create({
       fn: 'documents-onUpload',
       expiresAt: Timestamp.fromMillis(now.getTime() + GUARD_TTL_MS),
     });

@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-import { CreateOrgInput, Org } from '@materia/domain';
+import { CreateOrgInput, newOrgSecurity, Org } from '@materia/domain';
 
 import { activeOrgPatch, syncClaims } from './claims';
 import { memberPath, newMember, verifiedUser } from './shared';
@@ -11,7 +11,10 @@ export interface CreateOrgResult {
   orgId: string;
 }
 
-/** Defaults for a new practice (FND-17): GST-registered, 6-minute units, FY from July, 7-year retention. */
+/**
+ * Defaults for a new practice (FND-17): GST-registered, 6-minute units, FY from July, 7-year
+ * retention, and MFA required after a 24-hour grace (SEC-04).
+ */
 export function newOrgDoc(input: z.output<typeof CreateOrgInput>, uid: string, now: Date) {
   return Org.schema.parse({
     name: input.name,
@@ -33,7 +36,7 @@ export function newOrgDoc(input: z.output<typeof CreateOrgInput>, uid: string, n
     fy: { startMonth: 7 },
     retentionYears: 7,
     plan: 'trial',
-    security: { mfaRequired: false, sessionIdleMinutes: 60 },
+    security: newOrgSecurity(now),
     createdAt: now,
     createdBy: uid,
     updatedAt: now,

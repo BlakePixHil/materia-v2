@@ -58,6 +58,29 @@ describe('CallableClient', () => {
     expect(t.calls).toEqual([{ name: 'x', data: { a: 1 } }]);
   });
 
+  it('asks the person to confirm it’s them once on REAUTH_REQUIRED, then retries with the same requestId', async () => {
+    const reauth = { code: 'functions/unauthenticated', details: { code: 'REAUTH_REQUIRED' } };
+    const t = transport(reauth);
+    const prompts: boolean[] = [];
+    const port = { ...t.port, reauthenticate: async () => (prompts.push(true), true) };
+    await new CallableClient(port, options).call('orgs-changeRole', { uid: 'u1' }, { idempotent: true });
+    expect(prompts).toHaveLength(1);
+    expect(t.calls.map((c) => c.data['requestId'])).toEqual(['req-1', 'req-1']);
+
+    const cancelled = transport(reauth);
+    const cancelPort = { ...cancelled.port, reauthenticate: async () => false };
+    await expect(new CallableClient(cancelPort, options).call('x', {})).rejects.toMatchObject({
+      code: 'REAUTH_REQUIRED',
+    });
+    expect(cancelled.calls).toHaveLength(1);
+
+    const twice = transport(reauth, reauth);
+    const twicePort = { ...twice.port, reauthenticate: async () => true };
+    await expect(new CallableClient(twicePort, options).call('x', {})).rejects.toMatchObject({
+      code: 'REAUTH_REQUIRED',
+    });
+  });
+
   it('refreshes the claims once on ORG_CLAIM_MISMATCH and retries with the same requestId', async () => {
     const t = transport(mismatch);
     const client = new CallableClient(t.port, options);

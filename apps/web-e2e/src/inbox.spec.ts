@@ -1,12 +1,13 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-import { expectNoA11yViolations, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import { suggestionBasis, suggestionBasisParts } from '@materia/domain';
+import { expectNoA11yViolations, setEmulatorDocuments, setOrgFlags, signInAsTestUser } from '@materia/test-utils/e2e';
 
-import { uniqueOrg } from './support/matters';
+import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
 /**
- * The Inbox (CORE-22) against the emulators: filters, keyboard triage, archive and the bell.
- * Fictional data only.
+ * The Inbox (CORE-22) against the emulators: filters, keyboard triage, archive, the bell, and
+ * reviewing a Clerk suggestion in place (CORE-22a). Fictional data only.
  */
 
 const LIVE = { timeout: 20_000 };
@@ -65,6 +66,69 @@ async function signIn(page: Page, request: APIRequestContext) {
   return { orgId, uid: account.uid };
 }
 
+/** A matter with a Clerk suggestion on it (as `proposeSuggestions` stores it) and its notification. */
+async function signInWithSuggestion(page: Page, request: APIRequestContext) {
+  const orgId = uniqueOrg();
+  await setOrgFlags(request, orgId, { 'clerk.features.suggestions': true });
+  const { uid } = await signInAsTestUser(page, request, {
+    claims: { orgId, role: 'lawyer', orgName: 'Fictional Inbox Practice' },
+    displayName: 'Jordan Fictional',
+  });
+  await seedClient(request, orgId, uid);
+  const seeded = matterDoc(orgId, uid, {
+    id: 'm-marlow',
+    number: 'M-2026-0412',
+    title: 'Estate of Edwin Marlow',
+    responsibleUid: uid,
+    daysAgo: 1,
+  });
+  const matter = { ...seeded.data, stageId: 'intake' };
+  const now = new Date();
+  const payload = { title: 'Order a valuation of 9 Fictional Lane', priority: 'medium' };
+  const { basis, parts } = suggestionBasis(
+    suggestionBasisParts({ kind: 'task', payload, citations: [] }, { matter, documents: {} }),
+  );
+  await setEmulatorDocuments(request, [
+    { path: seeded.path, data: matter },
+    {
+      path: `${seeded.path}/suggestions/s-valuation`,
+      data: {
+        kind: 'task',
+        payload,
+        citations: [],
+        rationale: 'The will leaves the house to the residuary beneficiaries.',
+        status: 'proposed',
+        promptId: 'suggest-matter',
+        promptVersion: '1.0.0',
+        model: 'test-model',
+        privileged: false,
+        basis,
+        basisParts: parts,
+        dedupeKey: `task:${JSON.stringify(payload)}`,
+        expiresAt: new Date(Date.now() + 14 * 86_400_000),
+        orgId,
+        matterId: 'm-marlow',
+        createdAt: now,
+        createdBy: 'clerk',
+        updatedAt: now,
+        updatedBy: 'clerk',
+        schemaVersion: 1,
+      },
+    },
+    {
+      path: `orgs/${orgId}/notifications/n-suggest`,
+      data: notification(uid, 5, {
+        kind: 'suggestion',
+        taskId: undefined,
+        matterId: 'm-marlow',
+        suggestionId: 's-valuation',
+        title: 'Clerk suggests a task on M-2026-0412',
+        link: '/matters/m-marlow/overview',
+      }),
+    },
+  ]);
+}
+
 const rows = (page: Page) => page.locator('.mt-inbox mt-notification-row');
 const row = (page: Page, title: string) => rows(page).filter({ hasText: title });
 
@@ -115,6 +179,9 @@ test.describe('inbox', () => {
     await row(page, 'Read yesterday').click();
     await page.keyboard.press('y');
     await expect(rows(page)).toHaveCount(3);
+    // The row hides at once; "Archived" shows only once the write has gone through, so reloading
+    // before it can bring the row back.
+    await expect(page.locator('.mt-toaster')).toContainText('Archived', LIVE);
     await page.reload();
     await expect(rows(page)).toHaveCount(3, LIVE);
     await expect(row(page, 'Read yesterday')).toHaveCount(0);
@@ -135,6 +202,24 @@ test.describe('inbox', () => {
     await expect(bell).toHaveAttribute('aria-label', 'Notifications, 2 unread', LIVE);
     await bell.click();
     await popover.getByRole('link', { name: 'Open Inbox' }).click();
+    await expect(page).toHaveURL(/\/inbox$/);
+  });
+
+  test('reviews a Clerk suggestion without leaving the Inbox (CORE-22a)', async ({ page, request }) => {
+    test.setTimeout(120_000);
+    await signInWithSuggestion(page, request);
+    await page.goto('/inbox');
+    const notice = row(page, 'Clerk suggests a task');
+    await expect(notice).toBeVisible(LIVE);
+    // Wide: the suggestion shows beside the list. Narrow: in a dialog.
+    await notice.getByRole('button', { name: 'Review' }).click();
+    const card = page.locator('mt-inbox-suggestion mt-suggestion-card');
+    await expect(card).toContainText('Order a valuation of 9 Fictional Lane', LIVE);
+    await expectNoA11yViolations(page);
+    await card.getByRole('button', { name: 'Add task' }).click();
+    await expect(page.locator('.mt-toaster')).toContainText('Suggestion accepted', { timeout: 30_000 });
+    await expect(notice).toContainText('You accepted it', LIVE);
+    await expect(notice).not.toHaveAttribute('data-unread', '');
     await expect(page).toHaveURL(/\/inbox$/);
   });
 });

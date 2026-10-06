@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 
 import { fileSha256, injectDocumentUpload } from '@materia/data-access/repository';
 import { findVersion } from '@materia/domain';
@@ -13,6 +13,7 @@ import {
   type DocumentStatus,
 } from './documents-view';
 import { UPLOAD_PORT, UploadCancelled, type UploadHandle } from './upload-port';
+import { ActivityHolds } from '../../core/auth/idle-timeout';
 
 /** Where one file is on this side: queued, hashing, sending, sent (the server takes over), or stopped. */
 export type UploadPhase = 'waiting' | 'hashing' | 'uploading' | 'sent' | 'failed' | 'cancelled' | 'invalid';
@@ -66,6 +67,20 @@ export class DocumentUploads {
   private readonly active = computed(
     () => this.list().filter((item) => item.phase === 'hashing' || item.phase === 'uploading').length,
   );
+
+  constructor() {
+    // Uploads under way (or queued) defer the inactivity sign-out (SEC-04).
+    const holds = inject(ActivityHolds);
+    let release: (() => void) | null = null;
+    effect(() => {
+      const busy = this.list().some((item) => ['waiting', 'hashing', 'uploading'].includes(item.phase));
+      if (busy && !release) release = holds.hold();
+      else if (!busy && release) {
+        release();
+        release = null;
+      }
+    });
+  }
 
   /** The uploads for one matter, oldest first. */
   forMatter(matterId: string): UploadItem[] {

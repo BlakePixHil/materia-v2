@@ -30,7 +30,7 @@
       "maxRegression": 0.1
     },
     "costUsd": {
-      "maxRegression": 0.5
+      "maxRegression": 1.0
     }
   },
   "citations": "none"

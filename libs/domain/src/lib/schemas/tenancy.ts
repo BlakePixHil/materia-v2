@@ -3,6 +3,7 @@ import * as z from 'zod';
 import { OrgClerkSettingsSchema } from '../clerk-settings';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
 import { NotificationPrefsSchema } from '../notifications';
+import { OrgSecuritySchema } from '../security';
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
 import {
   InviteStatusSchema,
@@ -75,7 +76,8 @@ export const Org = withMeta(
     fy: z.object({ startMonth: z.number().int().min(1).max(12) }),
     retentionYears: z.number().int().min(1).default(7),
     plan: z.enum(['trial', 'standard', 'enterprise']),
-    security: z.object({ mfaRequired: z.boolean(), sessionIdleMinutes: z.number().int().positive() }),
+    /** Security policies (SEC-04), written only by `security-updatePolicy`. */
+    security: OrgSecuritySchema,
     settings: z
       .object({
         /** Clerk's switches, limits and disclosure acknowledgement (AI-02a, AI-13); see clerk-settings.ts. */
@@ -99,6 +101,7 @@ export const Org = withMeta(
     // The practice details and billing settings change only through `orgs-updateSettings` (CORE-21),
     // which refuses removing a jurisdiction open matters use and keeps the claims' org name current.
     serverOwned: [
+      'security',
       'legalHold',
       'deletionScheduledAt',
       'flags',
@@ -133,12 +136,17 @@ export const Member = withMeta(
     colour: z.string(),
     budgets: z.record(z.string().regex(/^\d{4}$/), CentsSchema).default({}),
     supervisorUid: DocIdSchema.optional(),
+    /**
+     * Sign-ins before this no longer reach the org's data (SEC-04 "sign out everywhere"): the rules
+     * compare the token's `auth_time`. Set by `security-revokeSessions`.
+     */
+    sessionsValidAfter: InstantSchema.optional(),
   },
   {
     path: 'orgs/{orgId}/members',
     // Role and status change only through the orgs-* callables, which keep the last-owner invariant
     // and the custom claims in step (FND-17).
-    serverOwned: ['role', 'status', 'email'],
+    serverOwned: ['role', 'status', 'email', 'sessionsValidAfter'],
   },
 );
 

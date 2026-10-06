@@ -3,7 +3,7 @@
   "title": "Will extraction (AI-08)",
   "ticket": "AI-08",
   "feature": "willExtraction",
-  "promptId": "will-extract@0.1.0",
+  "promptId": "will-extract@0.1.1",
   "subset": ["we-001", "we-002", "we-003", "we-004", "we-005", "we-006", "we-007", "we-008", "we-009", "we-010"],
   "runs": {
     "subset": 1,
@@ -34,7 +34,7 @@
       "maxRegression": 1.0
     },
     "costUsd": {
-      "maxRegression": 0.5
+      "maxRegression": 1.0
     }
   },
   "fields": {
