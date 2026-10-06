@@ -1,4 +1,4 @@
-# Migration decision log (MIG-01, MIG-02, MIG-04)
+# Migration decision log (MIG-01, MIG-02, MIG-04, MIG-05)
 
 The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `fen5jJdhNHTkGBpgAdsLSKQRvXx2`) into Materia v2. The transform (MIG-03) reads them from the mapping profile [`tools/migration/profiles/tristan-burke.json`](../../tools/migration/profiles/tristan-burke.json). Each decision below names its profile field. The [Legacy migration plan](../08-legacy-migration-plan.md) has the full field map; this log records only the choices someone had to make.
 
@@ -228,9 +228,25 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
     - The prod dry run on 2026-10-06 with the read-only account wrote nothing. Every in-scope count matched the audit: 5 boards, 313 cards, 71 attachments, 4 checklist templates, 30 referrers, 3 integrations, 1 workspace and no dashboard items. It also found 71 download tokens to take out.
     - A dev rehearsal with made-up data was deleted the same day.
 
+### D-18 Attachment copy (new)
+
+- **Status:** Default, from MIG-05 on 2026-10-06. It follows from D-13, D-15 and D-17 and changes nothing they decided, so the sign-off above stands.
+- **Decision:**
+  - **How:** `materia-migrate copy-files` copies each attachment server to server (GCS `rewrite`), exactly the generation the export listed, so a file changed since the export is reported rather than copied. The [runbook](../runbooks/migration-copy-files.md) has the steps.
+  - **Quarantine first:** every copy lands in `migration-quarantine/{runId}/` in the files bucket, which no client can read. It is checked against the export's size, MD5 and CRC32C, read back for its sha256, and scanned. Only a clean copy moves to its document path (`documents/{D}/v1`) or `users/{uid}/avatar.png`.
+  - **Scanning:** the tool calls the ClamAV service that scans uploads (CORE-12a) directly, the ticket's second option. The upload pipeline's `pending/` path would create the documents itself, but the load (MIG-06) owns them with deterministic ids. The results are the same: clean files load with `scan.status: 'clean'`; infected ones stay in quarantine and load with `scan.status: 'infected'` and no version, so nobody can read them, as CORE-12 records an infected upload.
+  - **sha256:** computed by reading each copy back in the tool's memory, never on disk, rather than in a Cloud Run job. 71 attachments of at most 25 MB don't need a job. It runs in Cloud Shell, so the bytes stay in Google Cloud.
+  - **Types:** a file keeps the type the export or its extension gave it (D-13). A file whose bytes aren't what its extension says is kept and flagged in the report, since it is the client's record. svg, gif and bmp copies are stored as attachments, and v2 never previews them.
+  - **Profile photo:** copied only when it really is a PNG, JPEG or WebP. Any signed-in member can read avatars, so it reaches its path only after a clean scan.
+  - **Orphans:** legacy objects no document names, board-level files included, are listed in the report for Tristan to decide on (D-13). They aren't imported as "Unlinked legacy file" documents unless the profile is changed to say so; the transform would then plan them like any other attachment.
+  - **Who copies:** prod's `migration-runner` account, which gets object admin on the files bucket from Terraform and, for the cutover only, read on the legacy bucket, granted in `matt-r-1fe15` and removed afterwards. On dev, the operator's own account, as for the export (D-17).
+  - **Re-runs:** a file already at its document path with the same legacy content, scanned clean, is skipped, so a re-run finishes an interrupted one. The tool deletes nothing outside its quarantine.
+  - **Evidence:** the emulator test copies, verifies, scans and reports made-up files, keeps an EICAR file in quarantine and copies nothing on a re-run. The ticket's staging rehearsal becomes the dev rehearsal in MIG-07 (D-15), which needs the transform (MIG-03) first.
+
 ## Descoped
 
 - **No staging rehearsals.** The plan's staging rehearsals move to dev (D-15).
 - **Shared boards.** Only Test Workflow is shared, and it is excluded (D-02).
 - **Password hash import for Tristan.** He has no password, so no hash parameters or export are needed (D-16).
 - **A staging export.** `--env` takes dev or prod (D-17).
+- **A Cloud Run job for attachment hashes.** The copy reads each file back itself (D-18).
