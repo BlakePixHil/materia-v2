@@ -624,8 +624,14 @@ export class PreBill {
     return matter ? `${matter.number} · ${matter.title}` : 'Matter';
   });
 
+  /**
+   * The form resets only when the pre-bill itself changes. A memoised id, because linkedSignal
+   * recomputes whenever its source's dependencies change: with `() => this.invoice().id` every
+   * snapshot of the same pre-bill threw away what was being edited.
+   */
+  private readonly invoiceId = computed(() => this.invoice().id);
   protected readonly form = linkedSignal<string, PreBillForm>({
-    source: () => this.invoice().id,
+    source: this.invoiceId,
     computation: () => formOf(untracked(this.invoice)),
   });
   protected readonly saving = signal(false);
