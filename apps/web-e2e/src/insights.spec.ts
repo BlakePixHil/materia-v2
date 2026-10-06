@@ -147,7 +147,8 @@ test.describe('insights', () => {
     const late = page.getByRole('dialog', { name: 'Deadlines met late' });
     await expect(late.getByRole('link', { name: /Serve the notice on the beneficiaries/ })).toBeVisible(FIRST_LOAD);
     await expect(late.getByRole('link', { name: /File the probate application/ })).toHaveCount(0);
-    await late.getByRole('button', { name: 'Close' }).click();
+    // The footer's Close (the header has its own close icon).
+    await late.getByRole('button', { name: 'Close' }).last().click();
     await expect(late).toBeHidden();
 
     // Last month: its own figures, and the choice is in the URL.
