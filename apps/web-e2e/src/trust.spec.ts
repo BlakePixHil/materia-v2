@@ -65,6 +65,23 @@ async function setUp(page: Page, request: APIRequestContext, trust?: TrustSettin
 
 const card = (page: Page) => page.getByTestId('matter-trust');
 
+/**
+ * Starts the Functions emulator's worker for a callable while the page loads. On a busy runner a
+ * cold worker can take longer to start than the save waits (or fail to start in time), so the
+ * test pays for it up front. The unauthenticated call is refused once the worker is up.
+ */
+function warmCallable(request: APIRequestContext, name: string): Promise<unknown> {
+  return request
+    .post(`http://127.0.0.1:5001/${EMULATOR_PROJECT}/australia-southeast1/${name}`, {
+      data: { data: {} },
+      timeout: 90_000,
+    })
+    .catch(() => undefined);
+}
+
+/** A save through a callable that may still be starting on a busy runner. */
+const SAVED = { timeout: 45_000 };
+
 async function storedTrustSettings(request: APIRequestContext, orgId: string) {
   const response = await request.get(
     `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/orgs/${orgId}`,
@@ -86,9 +103,9 @@ async function storedSnapshot(request: APIRequestContext, orgId: string) {
 }
 
 test.describe('trust balance snapshots', () => {
-  // Callables can cold-start on a busy runner, so their results get the longer wait other specs use.
   test('turns trust balances on and names the records, by keyboard', async ({ page, request }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
+    const warm = warmCallable(request, 'trust-updateSettings');
     const { orgId } = await setUp(page, request);
 
     // Settings → Trust account: the fixed explanation, the switch, the records.
@@ -103,9 +120,10 @@ test.describe('trust balance snapshots', () => {
     await expect(toggle).toHaveAttribute('aria-checked', 'true');
     await page.getByLabel('Your trust records are kept in').selectOption({ label: 'Smokeball' });
     await expect(page.getByLabel('Name of your trust records')).toHaveCount(0);
+    await warm;
     await page.getByRole('button', { name: 'Save', exact: true }).focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByText('Trust settings saved').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Trust settings saved').first()).toBeVisible(SAVED);
     for (const word of ['Deposit', 'Withdraw', 'Transfer']) {
       await expect(page.getByRole('button', { name: word })).toHaveCount(0);
     }
@@ -119,7 +137,8 @@ test.describe('trust balance snapshots', () => {
   });
 
   test('records and updates a matter’s balance by keyboard, shown out of date once old', async ({ page, request }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
+    const warm = warmCallable(request, 'trust-recordSnapshot');
     const { orgId } = await setUp(page, request, { showOnMatters: true, system: 'smokeball', staleAfterDays: 30 });
 
     // The empty state, never $0.00.
@@ -139,8 +158,9 @@ test.describe('trust balance snapshots', () => {
     await expectNoA11yViolations(page);
     await dialog.getByRole('textbox', { name: 'Amount' }).fill('84,210.00');
     await dialog.getByRole('textbox', { name: 'Note' }).fill('Trust ledger report');
+    await warm;
     await page.keyboard.press('Enter');
-    await expect(dialog).toHaveCount(0, { timeout: 20_000 });
+    await expect(dialog).toHaveCount(0, SAVED);
     await expect(card(page)).toContainText('$84,210.00');
     await expect(card(page)).toContainText('· from Smokeball');
     await expect(card(page)).not.toContainText('Out of date');
@@ -152,7 +172,7 @@ test.describe('trust balance snapshots', () => {
     await dialog.getByRole('textbox', { name: 'Amount' }).fill('79,000');
     await dialog.getByRole('textbox', { name: 'As at' }).fill(entryDate(45));
     await page.keyboard.press('Enter');
-    await expect(dialog).toHaveCount(0, { timeout: 20_000 });
+    await expect(dialog).toHaveCount(0, SAVED);
     await expect(card(page)).toContainText('$79,000.00');
     await expect(card(page)).toContainText('Out of date');
 
