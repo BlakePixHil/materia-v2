@@ -9,10 +9,12 @@ import {
   formatCreditNoteNumber,
   INVOICE_CALLABLES,
   invoiceTotals,
+  paymentStatus,
   PERMISSIONS,
   today,
   type CreateCreditNoteResult,
   type InvoiceLine,
+  type InvoicePayment,
 } from '@materia/domain';
 
 import { startDocumentPdf } from './invoice-pdf';
@@ -112,6 +114,12 @@ export const createCreditNoteDefinition = {
         tx.update(invoiceRef, {
           creditNoteIds: FieldValue.arrayUnion(ref.id),
           creditedCents: FieldValue.increment(totals.totalCents),
+          // A credit can settle a part-paid invoice (BILL-08).
+          status: paymentStatus({
+            totalCents: Number(invoice['totalCents'] ?? 0),
+            creditedCents: Number(invoice['creditedCents'] ?? 0) + totals.totalCents,
+            payments: (invoice['payments'] ?? []) as InvoicePayment[],
+          }),
           ...meta,
         });
         return {

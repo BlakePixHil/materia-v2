@@ -39,3 +39,8 @@ with no document, a workflow-level object, and one over 25 MB; a checklist templ
 field differs from its document id; referrers as a person, an organisation-only company and one
 with neither, with free-text industries and Australian phone formats; a profile with FY budgets
 and a photo; two calendar integrations; a prime and a non-prime workspace.
+
+**Auth (MIG-04).** `auth-export.json` is Alex's Firebase Auth account in `firebase auth:export`
+form, filtered to the one user: Google sign-in only, like the real subject, with a Google `sub`
+that can't be a real one (real ones are numbers). Tests that need a password build their own
+account with a made-up scrypt key.

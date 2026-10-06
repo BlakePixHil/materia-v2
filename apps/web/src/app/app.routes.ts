@@ -242,6 +242,14 @@ const shellRoutes: Route[] = [
           },
         ],
       },
+      // Aged debtors and payment reminders (BILL-08): billing.view roles, behind invoicing's flag.
+      {
+        path: 'debtors',
+        title: 'Aged debtors',
+        data: { crumb: 'Aged debtors' },
+        canActivate: [flagGuard('billing.invoicing'), roleGuard(BILLING_VIEW_ROLES)],
+        loadComponent: () => import('./features/invoices/debtors-page').then((m) => m.DebtorsPage),
+      },
     ],
   },
   planned('insights', 'Insights', {

@@ -74,7 +74,7 @@ export class NotReadOnlyError extends Error {
       check.missingReads.length ? `they can't read (${check.missingReads.join(', ')})` : '',
     ].filter(Boolean);
     super(
-      `Refusing to audit: ${reasons.join(' and ')}. Use the read-only migration account ` +
+      `Refusing to read the legacy project: ${reasons.join(' and ')}. Use the read-only migration account ` +
         `(roles/datastore.viewer, roles/storage.objectViewer, roles/firebaseauth.viewer) and nothing else.`,
     );
     this.name = 'NotReadOnlyError';
@@ -101,5 +101,13 @@ export async function checkReadOnly(iam: IamTester): Promise<ReadOnlyCheck> {
 export async function assertReadOnly(iam: IamTester): Promise<ReadOnlyCheck> {
   const check = await checkReadOnly(iam);
   if (check.writes.length || check.missingReads.length) throw new NotReadOnlyError(check);
+  return check;
+}
+
+/** The auth import's guard (MIG-04): no writes, and the Auth read it needs (not the data reads). */
+export async function assertAuthReadable(iam: IamTester): Promise<ReadOnlyCheck> {
+  const check = await checkReadOnly(iam);
+  const missingReads = check.authReadable ? [] : [...OPTIONAL_READS];
+  if (check.writes.length || missingReads.length) throw new NotReadOnlyError({ ...check, missingReads });
   return check;
 }

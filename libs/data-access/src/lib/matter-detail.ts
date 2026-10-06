@@ -75,6 +75,8 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   fee: matter.fee.optional(),
   /** The budget against the fee (BILL-05), kept by the fees triggers. */
   budget: matter.budget,
+  /** What its issued invoices still owe (BILL-08), kept by `billing-outstandingOnInvoice`. */
+  outstandingCents: matter.outstandingCents,
   priority: matter.priority,
   labels: matter.labels,
   externalRef: matter.externalRef,

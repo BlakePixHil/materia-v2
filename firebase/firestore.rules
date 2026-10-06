@@ -880,6 +880,11 @@ service cloud.firestore {
       match /creditNotes/{creditNoteId} {
         allow read: if can(orgId, 'billing.view');
       }
+      // Payment reminders (BILL-08): queued by the nightly job, sent or dismissed through
+      // billing-sendReminder and -dismissReminder; billing.view reads them.
+      match /invoiceReminders/{reminderId} {
+        allow read: if can(orgId, 'billing.view');
+      }
 
       // Matter templates (CORE-07): every member reads drafts and published versions (the stepper
       // reads a matter's version); writes go through the templates-* callables only.
@@ -1155,6 +1160,7 @@ service cloud.firestore {
     function fieldsIntegration() { return []; }
     function fieldsInvite() { return ['role']; }
     function fieldsInvoice() { return []; }
+    function fieldsInvoiceReminder() { return []; }
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
     function fieldsLetterheadDoc() { return []; }
@@ -1166,7 +1172,7 @@ service cloud.firestore {
     function fieldsMatterTemplate() { return []; }
     function fieldsMatterTemplateVersion() { return []; }
     function fieldsMember() { return ['displayName', 'initials', 'title', 'admissionNo', 'defaultRateCents', 'rates', 'colour', 'budgets', 'supervisorUid']; }
-    function fieldsMetrics() { return ['period', 'values']; }
+    function fieldsMetrics() { return ['period', 'values', 'debtors']; }
     function fieldsMigrationRun() { return []; }
     function fieldsNote() { return ['pinned']; }
     function fieldsNoteRevision() { return []; }

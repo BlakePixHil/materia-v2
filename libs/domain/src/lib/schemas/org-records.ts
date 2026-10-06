@@ -72,13 +72,32 @@ export const InvoiceExtraLineSchema = z.object({
 });
 export type InvoiceExtraLine = z.infer<typeof InvoiceExtraLineSchema>;
 
-const PaymentSchema = z.object({
+export const PaymentMethodSchema = z.enum(['eft', 'card', 'cheque', 'trust_transfer', 'other']);
+export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
+
+/**
+ * One payment against an invoice, or a refund of money received (BILL-08, ADR-046), recorded by
+ * `billing-recordPayment`. Amounts are positive cents inc GST; a refund counts against what was
+ * paid. A reversed one (a bounced cheque, a mistake) stays on the invoice with who, when and why
+ * and no longer counts. `credit` marks a payment allowed to exceed what was owing (the excess is
+ * held as the client's credit). `payer` is free text: an estate's executor often pays.
+ */
+export const InvoicePaymentSchema = z.object({
   id: z.string(),
+  kind: z.enum(['payment', 'refund']).default('payment'),
   date: DateOnlySchema,
   amountCents: CentsSchema,
-  method: z.enum(['eft', 'card', 'cheque', 'trust_transfer', 'other']),
+  method: PaymentMethodSchema,
   reference: z.string().optional(),
+  payer: z.string().optional(),
+  credit: z.boolean().optional(),
+  recordedAt: InstantSchema.optional(),
+  recordedBy: DocIdSchema.optional(),
+  reversedAt: InstantSchema.optional(),
+  reversedBy: DocIdSchema.optional(),
+  reversalReason: z.string().optional(),
 });
+export type InvoicePayment = z.infer<typeof InvoicePaymentSchema>;
 
 /** Who issued the document and who it is for, frozen at issue (the ATO's identity requirements). */
 export const InvoicePartySchema = z.object({
@@ -161,7 +180,7 @@ export const Invoice = withMeta(
     creditNoteIds: z.array(DocIdSchema).default([]),
     creditedCents: CentsSchema.default(0 as never),
     xero: z.object({ invoiceId: z.string(), syncedAt: InstantSchema, error: z.string().optional() }).optional(),
-    payments: z.array(PaymentSchema).default([]),
+    payments: z.array(InvoicePaymentSchema).default([]),
   },
   {
     path: `${ORG}/invoices`,
@@ -230,6 +249,70 @@ export const CreditNote = withMeta(
     updatable: [],
   },
 );
+
+/** The overdue thresholds, in days past the due date, at which a payment reminder is queued (BILL-08). */
+export const REMINDER_THRESHOLDS = [7, 30, 60] as const;
+export type ReminderThreshold = (typeof REMINDER_THRESHOLDS)[number];
+
+/**
+ * `invoiceReminders/{invoiceId}-{threshold}` (BILL-08, ADR-046): a payment reminder the nightly job
+ * queued for an overdue invoice, for the matter's responsible lawyer to review, edit and send
+ * (`billing-sendReminder`) or dismiss. Nothing is ever sent without a person. `cancelled` is set
+ * by the job when the invoice no longer owes anything, is voided, or reaches a later threshold.
+ * Read-only to clients (`billing.view`).
+ */
+export const InvoiceReminder = withMeta(
+  {
+    invoiceId: DocIdSchema,
+    invoiceNumber: z.string(),
+    matterId: DocIdSchema,
+    matterNumber: z.string().optional(),
+    matterTitle: z.string().optional(),
+    clientName: z.string().optional(),
+    /** Days past due that queued it: 7, 30 or 60. */
+    threshold: z.number().int().min(1),
+    dueDate: DateOnlySchema,
+    /** What was owing when it was queued (inc GST). */
+    balanceCents: CentsSchema,
+    /** Who reviews and sends it: the matter's responsible lawyer when queued. */
+    lawyerUid: DocIdSchema.optional(),
+    /** The clients' email addresses when queued (the default "To"). */
+    to: z.array(z.string()).default([]),
+    status: z.enum(['pending', 'sent', 'dismissed', 'cancelled']),
+    sentAt: InstantSchema.optional(),
+    sentBy: DocIdSchema.optional(),
+    sentTo: z.array(z.string()).optional(),
+    closedAt: InstantSchema.optional(),
+    closedBy: z.string().optional(),
+    closeReason: z.string().optional(),
+  },
+  {
+    path: `${ORG}/invoiceReminders`,
+    migratable: false,
+    serverOwned: [
+      'invoiceId',
+      'invoiceNumber',
+      'matterId',
+      'matterNumber',
+      'matterTitle',
+      'clientName',
+      'threshold',
+      'dueDate',
+      'balanceCents',
+      'lawyerUid',
+      'to',
+      'status',
+      'sentAt',
+      'sentBy',
+      'sentTo',
+      'closedAt',
+      'closedBy',
+      'closeReason',
+    ],
+    updatable: [],
+  },
+);
+export type InvoiceReminder = z.infer<typeof InvoiceReminder.schema>;
 
 /**
  * `templates/{id}`: an org's matter template (CORE-07): the editable draft, plus where it stands.
@@ -380,14 +463,55 @@ export const TaskGroupTemplate = withMeta(
   { path: `${ORG}/taskGroupTemplates`, softDelete: true, migratable: false },
 );
 
+/** Aged-debt buckets, by whole days past the due date (BILL-08): not yet due, 1–30, 31–60, 61–90, over 90. */
+export const AGED_BUCKETS = ['current', 'd1_30', 'd31_60', 'd61_90', 'd90_plus'] as const;
+export type AgedBucket = (typeof AGED_BUCKETS)[number];
+export const AgedAmountsSchema = z.object({
+  current: CentsSchema,
+  d1_30: CentsSchema,
+  d31_60: CentsSchema,
+  d61_90: CentsSchema,
+  d90_plus: CentsSchema,
+});
+export type AgedAmounts = z.infer<typeof AgedAmountsSchema>;
+
+/** One matter's outstanding invoices in the aged-debtors report (BILL-08). */
+export const DebtorRowSchema = z.object({
+  matterId: DocIdSchema,
+  matterNumber: z.string(),
+  matterTitle: z.string(),
+  /** The invoice's buyer as issued (the clients' names). */
+  clientName: z.string(),
+  lawyerUid: DocIdSchema.optional(),
+  invoices: z.number().int().min(0),
+  buckets: AgedAmountsSchema,
+  totalCents: CentsSchema,
+  oldestDueDate: DateOnlySchema.optional(),
+});
+export type DebtorRow = z.infer<typeof DebtorRowSchema>;
+
+/** `metrics/debtors-{date}`: the aged-debtors report as of a day (BILL-08). */
+export const DebtorsSnapshotSchema = z.object({
+  asOf: DateOnlySchema,
+  rows: z.array(DebtorRowSchema),
+  /** More matters owed than one document holds; the totals still count them all. */
+  truncated: z.boolean().default(false),
+});
+export type DebtorsSnapshot = z.infer<typeof DebtorsSnapshotSchema>;
+
 /**
  * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY`, or
- * `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per feature and per user).
+ * `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per feature and per user), or
+ * `debtors-YYYY-MM-DD` for the aged-debtors report (BILL-08: bucket totals in `values`, the matters
+ * in `debtors`; Clerk's metrics scope reads only month and year rollups).
  */
 export const Metrics = withMeta(
   {
-    period: z.string().regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4}|clerk-\d{4}-\d{2})$/),
+    period: z
+      .string()
+      .regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4}|clerk-\d{4}-\d{2}|debtors-\d{4}-\d{2}-\d{2})$/),
     values: z.record(z.string(), z.number()),
+    debtors: DebtorsSnapshotSchema.optional(),
   },
   { path: `${ORG}/metrics`, migratable: false },
 );

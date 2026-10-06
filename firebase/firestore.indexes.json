@@ -903,6 +903,20 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "matterRoles",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "sortName",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "contacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "search",
           "arrayConfig": "CONTAINS"
         },
@@ -1618,6 +1632,34 @@
       "fields": [
         {
           "fieldPath": "entity.path",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "audit",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "data.contactId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "audit",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "after.contactId",
           "order": "ASCENDING"
         },
         {

@@ -1,6 +1,14 @@
 import { FieldValue } from 'firebase-admin/firestore';
 
-import { DomainError, INVOICE_CALLABLES, PERMISSIONS, VoidInvoiceInput, type VoidInvoiceResult } from '@materia/domain';
+import {
+  DomainError,
+  hasLivePayments,
+  INVOICE_CALLABLES,
+  PERMISSIONS,
+  VoidInvoiceInput,
+  type InvoicePayment,
+  type VoidInvoiceResult,
+} from '@materia/domain';
 
 import { existing, invoicePath, invoicesPath, LIVE_INVOICE_STATUSES } from './invoice-shared';
 import { audit } from '../audit/audit';
@@ -11,7 +19,8 @@ import { liveMatter, matterPath } from '../matters/shared';
 
 /**
  * `billing-voidInvoice` (BILL-07; `billing.void`: owners and admins; flag `billing.invoicing`;
- * idempotent): voids an issued invoice that has no payments and no credit notes. In one
+ * idempotent): voids an issued invoice that has no payments (reversed ones aside, BILL-08) and no
+ * credit notes. In one
  * transaction the invoice keeps its number (numbers are never reused) and becomes `void` with
  * who, when and why; its time entries go back to `final` and its disbursements to `unbilled`
  * without the `invoiceId` (their triggers return them to WIP); and the matter's `lastInvoicedOn`
@@ -35,9 +44,11 @@ export const voidDefinition = {
       if (invoice['status'] === 'draft') {
         throw new DomainError('FAILED_PRECONDITION', 'A pre-bill isn’t issued; delete it instead');
       }
-      const payments = (invoice['payments'] ?? []) as unknown[];
-      if (invoice['status'] !== 'issued' || payments.length) {
-        throw new DomainError('FAILED_PRECONDITION', 'A paid invoice can’t be voided; issue a credit note instead');
+      if (invoice['status'] !== 'issued' || hasLivePayments((invoice['payments'] ?? []) as InvoicePayment[])) {
+        throw new DomainError(
+          'FAILED_PRECONDITION',
+          'A paid invoice can’t be voided; issue a credit note, and record a refund if money goes back',
+        );
       }
       if (Number(invoice['creditedCents'] ?? 0) > 0) {
         throw new DomainError('FAILED_PRECONDITION', 'This invoice has a credit note; credit the rest instead');

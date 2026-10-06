@@ -43,6 +43,7 @@ describe('entity schemas', () => {
       'Integration',
       'Invite',
       'Invoice',
+      'InvoiceReminder',
       'Issue',
       'Job',
       'Liability',

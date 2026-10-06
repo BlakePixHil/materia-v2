@@ -90,7 +90,12 @@ test.describe('org settings', () => {
       .getByRole('link', { name: 'Team and roles' })
       .click();
     await expect(page).toHaveURL(/\/settings\/team$/);
+    const roleChanged = page.waitForResponse(
+      (res) => res.url().endsWith('/orgs-changeRole') && res.request().method() === 'POST',
+      FIRST_CALL,
+    );
     await page.getByLabel('Role for Casey Fictional').selectOption({ label: 'Paralegal' });
+    await roleChanged;
     await expect(page.getByText('Casey Fictional is now Paralegal').first()).toBeVisible();
     await page.getByRole('button', { name: 'Rate and budget for Casey Fictional' }).click();
     const dialog = page.getByRole('dialog');

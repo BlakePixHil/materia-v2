@@ -7,11 +7,18 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type 
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
 
-import { contactDerivedFields, type ContactReference, type FindDuplicatesResult, type Role } from '@materia/domain';
+import {
+  contactDerivedFields,
+  type ContactActivityResult,
+  type ContactReference,
+  type FindDuplicatesResult,
+  type Role,
+} from '@materia/domain';
 
 /**
  * CORE-01 through the emulators: the contacts callables with real claims, the contacts-onWrite
- * trigger, and a large merge finishing through the contacts-continueMerge Cloud Tasks queue.
+ * trigger, a large merge finishing through the contacts-continueMerge Cloud Tasks queue, and (CORE-01a)
+ * roles in matters and the contact Activity.
  * All people, practices and matters are fictional.
  */
 const PROJECT_ID = 'demo-materia';
@@ -216,6 +223,124 @@ describe('contacts-findDuplicates', () => {
     expect(byEmail.matches[0]?.contactId).toBe('dup-john');
     expect(byEmail.matches[0]?.reasons).toContain('email');
   });
+});
+
+describe('CORE-01a: roles in matters and contact activity', () => {
+  const roles = async (contactId: string) => (await data(`${C}/${contactId}`))['matterRoles'];
+  const settled = (contactId: string, expected: string[]) =>
+    poll(
+      () => roles(contactId),
+      (value) => JSON.stringify(value) === JSON.stringify(expected),
+    );
+
+  it('contacts-onPartyWrite keeps matterRoles as parties come and go, and as their matter is deleted', async () => {
+    const batch = db.batch();
+    batch.set(db.doc(`${C}/r-ada`), person('Ada', 'Rolesby'));
+    batch.set(db.doc(`${M}/rm-1`), matter('Estate of Fictional Rolesby'));
+    batch.set(db.doc(`${M}/rm-2`), matter('Will of Fictional Rolesby'));
+    await batch.commit();
+
+    await db.doc(`${M}/rm-1/parties/executor-r-ada`).set(party('rm-1', 'r-ada', 'executor'));
+    expect(await settled('r-ada', ['executor'])).toEqual(['executor']);
+    await db.doc(`${M}/rm-2/parties/beneficiary-r-ada`).set(party('rm-2', 'r-ada', 'beneficiary'));
+    expect(await settled('r-ada', ['executor', 'beneficiary'])).toEqual(['executor', 'beneficiary']);
+    await db.doc(`${M}/rm-1/parties/executor-r-ada`).update({ deletedAt: new Date() });
+    expect(await settled('r-ada', ['beneficiary'])).toEqual(['beneficiary']);
+    // Deleting the matter takes its roles away; restoring it brings them back (matters-denormalise).
+    await db.doc(`${M}/rm-2`).update({ deletedAt: new Date() });
+    expect(await settled('r-ada', [])).toEqual([]);
+    await db.doc(`${M}/rm-2`).update({ deletedAt: null });
+    expect(await settled('r-ada', ['beneficiary'])).toEqual(['beneficiary']);
+
+    // Keeping the field current is invisible in the contact's history.
+    const history = await db.collection(`orgs/${ORG}/audit`).where('entity.path', '==', `${C}/r-ada`).get();
+    expect(history.docs.map((d) => d.data()['action'])).toEqual(['create']);
+  }, 90_000);
+
+  it('contacts-activity lists edits, matter links and merges newest first, hiding privileged matters from readonly', async () => {
+    const batch = db.batch();
+    batch.set(db.doc(`${M}/am-open`), matter('Estate of Fictional Greenaway'));
+    batch.set(db.doc(`${M}/am-secret`), matter('Fictional Greenaway family trust review', { privileged: true }));
+    batch.set(
+      db.doc(`${C}/act-old`),
+      person('Rosalind', 'Greenway', { emails: [{ type: 'personal', address: 'ros.greenway@example.test' }] }),
+    );
+    await batch.commit();
+    const audited = (path: string, count: number) =>
+      poll(
+        () => db.collection(`orgs/${ORG}/audit`).where('entity.path', '==', path).get(),
+        (snap) => snap.size >= count,
+      );
+
+    await signInAs('lawyer');
+    const { contactId } = await call<{ contactId: string }>('contacts-create', {
+      requestId: randomUUID(),
+      contact: { kind: 'person', givenNames: 'Rosalind', familyName: 'Greenaway' },
+    });
+    await audited(`${C}/${contactId}`, 1);
+    // The emulator's event times are whole seconds; a second apart keeps the order certain.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await db.doc(`${C}/${contactId}`).update({
+      phones: [{ type: 'mobile', number: '+61400000202' }],
+      updatedBy: 'contacts-lawyer',
+    });
+    await audited(`${C}/${contactId}`, 2);
+    for (const [matterId, role] of [
+      ['am-open', 'executor'],
+      ['am-secret', 'beneficiary'],
+    ] as const) {
+      await call('matters-upsertParty', { requestId: randomUUID(), matterId, contactId, role });
+    }
+    await signInAs('owner');
+    await call('contacts-merge', { requestId: randomUUID(), keepId: contactId, mergeId: 'act-old' });
+    // The merge's own edit of the kept contact (the email it brought) is part of the merge line.
+    await audited(`${C}/${contactId}`, 4);
+
+    type Lines = ContactActivityResult['lines'];
+    const summary = (lines: Lines) => lines.map((line) => [line.kind, line.matter?.id ?? line.other?.id ?? null]);
+    const owner = await call<ContactActivityResult>('contacts-activity', { contactId });
+    expect(summary(owner.lines)).toEqual([
+      ['merged_in', 'act-old'],
+      ['party_added', 'am-secret'],
+      ['party_added', 'am-open'],
+      ['updated', null],
+      ['created', null],
+    ]);
+    expect(owner.lines[0]?.other).toEqual({ id: 'act-old', name: 'Rosalind Greenway' });
+    expect(owner.lines[2]).toMatchObject({
+      actorUid: 'contacts-lawyer',
+      role: 'executor',
+      matter: { id: 'am-open', title: 'Estate of Fictional Greenaway' },
+    });
+    expect(owner.lines[3]?.fields).toEqual(['phones']);
+    expect(owner.nextCursor).toBeNull();
+
+    await signInAs('readonly');
+    const readonly = await call<ContactActivityResult>('contacts-activity', { contactId });
+    expect(summary(readonly.lines)).toEqual([
+      ['merged_in', 'act-old'],
+      ['party_added', 'am-open'],
+      ['updated', null],
+      ['created', null],
+    ]);
+    // Paging: two lines, then the rest from the cursor.
+    const first = await call<ContactActivityResult>('contacts-activity', { contactId, limit: 2 });
+    expect(first.lines.map((line) => line.kind)).toEqual(['merged_in', 'party_added']);
+    const rest = await call<ContactActivityResult>('contacts-activity', {
+      contactId,
+      limit: 2,
+      cursor: first.nextCursor,
+    });
+    expect(rest.lines.map((line) => line.kind)).toEqual(['updated', 'created']);
+    // The merged contact's tombstone says where it went.
+    const gone = await call<ContactActivityResult>('contacts-activity', { contactId: 'act-old' });
+    expect(gone.lines[0]).toMatchObject({ kind: 'merged_away', other: { id: contactId, name: 'Rosalind Greenaway' } });
+    const missing = await failure(call('contacts-activity', { contactId: 'no-such-contact' }));
+    expect(detailsOf(missing)['code']).toBe('NOT_FOUND');
+
+    // The roles follow the party rows, except on the privileged matter (every member reads contacts).
+    expect(await settled(contactId, ['executor'])).toEqual(['executor']);
+  }, 90_000);
 });
 
 describe('contacts-merge', () => {
