@@ -39,9 +39,24 @@ export function ctx(env: RulesTestEnvironment, role: Role, orgId: string = ORG, 
   return env.authenticatedContext(uid, { orgId, role, iat: Math.floor(Date.now() / 1000) });
 }
 
+/**
+ * One Firestore per identity: each context is a new Firebase app with its own connection, and the
+ * thousands of checks in the rules suite otherwise run the worker out of heap. A reused context
+ * keeps its first sign-in time, well inside the session length; session tests build their own.
+ */
+const firestores = new WeakMap<RulesTestEnvironment, Map<string, Firestore>>();
+
 // rules-unit-testing types its contexts with the compat SDK; the instances work with the modular API.
 export function db(env: RulesTestEnvironment, role: Role, orgId: string = ORG, uid?: string): Firestore {
-  return ctx(env, role, orgId, uid).firestore() as unknown as Firestore;
+  const cache = firestores.get(env) ?? new Map<string, Firestore>();
+  firestores.set(env, cache);
+  const key = `${role}|${orgId}|${uid ?? ''}`;
+  let firestore = cache.get(key);
+  if (!firestore) {
+    firestore = ctx(env, role, orgId, uid).firestore() as unknown as Firestore;
+    cache.set(key, firestore);
+  }
+  return firestore;
 }
 
 /** Runs `fn` with security rules disabled (seeding). */
