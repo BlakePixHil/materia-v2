@@ -544,7 +544,7 @@ button.mt-ws:hover { background: var(--bg-hover); }
 .mt-app[data-collapsed] .mt-nav { width: 36px; justify-content: center; padding: 0; }
 .mt-app[data-collapsed] .mt-nav-section { height: 1px; padding: 0; width: 24px; margin: var(--space-8) 0; background: var(--border-default); overflow: hidden; color: transparent; }
 .mt-app[data-clerk] { grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--clerk-panel, 360px); }
-.mt-clerk-panel { margin: var(--space-8) var(--space-8) var(--space-8) 0; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.mt-clerk-panel { margin: var(--space-8) var(--space-8) var(--space-8) 0; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
 .mt-clerk-panel > header { display: flex; align-items: center; gap: var(--space-8); height: var(--topbar); padding: 0 var(--space-12) 0 var(--space-16); border-bottom: 1px solid var(--border-default); flex: none; font: 600 13px/18px var(--font-sans); }
 .mt-clerk-panel > .body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-16); display: flex; flex-direction: column; justify-content: center; }
 button.mt-search { cursor: pointer; text-align: left; width: 100%; }
