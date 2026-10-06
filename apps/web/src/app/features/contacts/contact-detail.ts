@@ -33,6 +33,7 @@ import {
   type PersonRoleVm,
 } from '@materia/ui';
 
+import { ContactActivity } from './contact-activity';
 import { partyRoleLabel } from './contact-form';
 import { errorCopy } from '../../core/error-copy';
 import { ContactPackets } from '../safe-custody/contact-packets';
@@ -51,13 +52,23 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
 /**
  * The contact detail pane (CORE-01): PersonHeader with roles across matters, the deceased banner,
  * details, the "Matters" list (a collection-group query on `parties`), the original wills held in
- * safe custody (CORE-17) and activity. Edit, merge and delete are offered by permission; the page
- * opens the dialogs.
+ * safe custody (CORE-17) and the contact's Activity from the audit log (CORE-01a). Edit, merge and
+ * delete are offered by permission; the page opens the dialogs.
  */
 @Component({
   selector: 'mt-contact-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, ContactPackets, MtBadge, MtButton, MtEmptyState, MtKeyFacts, MtNote, MtPersonHeader],
+  imports: [
+    RouterLink,
+    ContactActivity,
+    ContactPackets,
+    MtBadge,
+    MtButton,
+    MtEmptyState,
+    MtKeyFacts,
+    MtNote,
+    MtPersonHeader,
+  ],
   host: { class: 'mt-col mt-contact-detail' },
   template: `
     @switch (state()) {
@@ -197,15 +208,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
 
             <section class="mt-contact-card" aria-labelledby="contact-activity-h">
               <h2 id="contact-activity-h">Activity</h2>
-              <ul class="mt-contact-activity">
-                @if (c.updatedAt && c.createdAt && c.updatedAt.getTime() !== c.createdAt.getTime()) {
-                  <li>Details updated {{ date(c.updatedAt) }}</li>
-                }
-                @if (c.createdAt) {
-                  <li>Added {{ date(c.createdAt) }}</li>
-                }
-              </ul>
-              <p class="caption mt-contact-muted">Calls, emails and file notes will show here as they’re recorded.</p>
+              <mt-contact-activity [contactId]="c.id" [version]="activityVersion()" />
             </section>
           </div>
         }
@@ -249,8 +252,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
       font: 400 12px/16px var(--font-mono);
       color: var(--text-tertiary);
     }
-    .mt-contact-matters,
-    .mt-contact-activity {
+    .mt-contact-matters {
       margin: 0;
       padding: 0;
       list-style: none;
@@ -269,11 +271,6 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
     }
     .mt-contact-matters a {
       color: var(--text-primary);
-    }
-    .mt-contact-activity li {
-      padding: var(--space-4) 0;
-      font: 400 13px/18px var(--font-sans);
-      color: var(--text-secondary);
     }
   `,
 })
@@ -339,6 +336,16 @@ export class ContactDetail {
     return this.contact() ? 'ready' : 'loading';
   });
   protected readonly errorText = computed(() => errorCopy(this.doc.error()));
+  /** The Activity reloads when the contact is edited or merged, or its matters change. */
+  protected readonly activityVersion = computed(() => {
+    const c = this.contact();
+    const parties = this.parties
+      .value()
+      .map((party) => `${party.matterId}/${party.role}/${party.deletedAt ? 'x' : ''}`)
+      .sort()
+      .join(',');
+    return `${c?.updatedAt?.getTime() ?? ''}|${c?.mergedInto ?? ''}|${parties}`;
+  });
   protected readonly partiesError = computed(() => errorCopy(this.parties.error()));
   protected readonly name = computed(() => {
     const contact = this.contact();

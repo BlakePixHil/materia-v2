@@ -17,6 +17,8 @@ const COMMANDS = {
   'platform-admin': 'Grant or revoke the platformAdmin claim (FND-23; humans only)',
   'backfill-search-tokens': 'Rewrite search tokens and stamp recent entries (CORE-15; idempotent)',
   'backfill-ingest': 'Have Clerk ingest documents from before AI-04 or that failed, and report ingest status (AI-04)',
+  'backfill-matter-roles':
+    'Give every contact its roles in live matters for the contacts filter (CORE-01a; idempotent)',
   'search-load': 'Time the ⌘K search against the emulator with 5,000 matters (CORE-15)',
   'decode-stack': 'Deobfuscate a web stack trace with the private sourcemaps (FND-21)',
   'restore-matter': 'Restore one matter from a PITR time or a restored database (SEC-03; dry run unless --apply)',
@@ -59,6 +61,7 @@ export async function run(argv: string[]): Promise<number> {
       'platform-admin': () => import('./platform-admin.ts'),
       'backfill-search-tokens': () => import('./backfills/search-tokens.ts'),
       'backfill-ingest': () => import('./backfills/ingest.ts'),
+      'backfill-matter-roles': () => import('./backfills/matter-roles.ts'),
       'search-load': () => import('./search-load.ts'),
       'decode-stack': () => import('./decode-stack.ts'),
       'restore-matter': () => import('./backups/restore-matter.ts'),

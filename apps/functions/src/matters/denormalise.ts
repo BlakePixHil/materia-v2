@@ -2,6 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 
 import { contactNames, matterPath, matterSearch, searchContactIds } from './shared';
 import { changedFields } from '../audit/entry';
+import { refreshMatterRoles } from '../contacts/matter-roles';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
 import { fillFromKeyFacts } from '../templates/fill-pending';
 
@@ -121,6 +122,15 @@ export const denormaliseDefinition: TriggerDefinition = {
     await denormalise(change, ctx);
     // A key fact standing for an event fills the template due dates waiting on it (CORE-07b).
     await fillFromKeyFacts(change, ctx);
+    // Deleting, restoring, destroying or (un)marking the matter privileged changes its parties'
+    // roles in matters (CORE-01a).
+    await refreshMatterRoles(
+      ctx.db,
+      ctx.params['orgId'] as string,
+      ctx.params['matterId'] as string,
+      change.before?.data() as Data | undefined,
+      change.after?.data() as Data | undefined,
+    );
   },
 };
 

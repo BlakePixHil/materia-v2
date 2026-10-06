@@ -32,6 +32,7 @@ const person = (overrides: Partial<ContactListItem> = {}): ContactListItem => ({
   addresses: [],
   tags: [],
   isReferrer: false,
+  matterRoles: [],
   ...overrides,
 });
 
@@ -48,6 +49,15 @@ describe('contactListQuery', () => {
       orderBy: [['sortName', 'asc']],
       pageSize: 10,
     });
+  });
+
+  it('filters by role in matters ahead of kind, referrer and tag, after the search token (CORE-01a)', () => {
+    expect(contactListQuery({ role: 'executor', kind: 'person', tag: 'vip' }).where).toEqual([
+      ['matterRoles', 'array-contains', 'executor'],
+    ]);
+    expect(contactListQuery({ query: 'quill', role: 'executor' }).where).toEqual([
+      ['search', 'array-contains', 'quill'],
+    ]);
   });
 });
 
@@ -76,6 +86,14 @@ describe('contactMatchesFilters', () => {
     expect(
       contactMatchesFilters(person({ referrerMeta: { industry: 'accountant' } }), { industry: 'accountant' }),
     ).toBe(false);
+  });
+
+  it('keeps contacts holding the role in matters (CORE-01a)', () => {
+    const executor = person({ matterRoles: ['client', 'executor'] });
+    expect(contactMatchesFilters(executor, { role: 'executor' })).toBe(true);
+    expect(contactMatchesFilters(executor, { query: 'quill', role: 'executor' })).toBe(true);
+    expect(contactMatchesFilters(executor, { role: 'beneficiary' })).toBe(false);
+    expect(contactMatchesFilters(person(), { role: 'client' })).toBe(false);
   });
 
   it('hides tombstones and soft-deleted contacts', () => {

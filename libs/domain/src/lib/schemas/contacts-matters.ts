@@ -17,6 +17,7 @@ import {
   MatterStatusSchema,
   MatterTypeSchema,
   OriginalsOutcomeSchema,
+  PartyRoleSchema,
   PrioritySchema,
   ReferralSourceSchema,
   ReferrerIndustrySchema,
@@ -74,11 +75,18 @@ export const Contact = withMeta(
     sortName: z.string(),
     /** Set by `contacts-merge`: this contact is a tombstone, merged into that one. */
     mergedInto: DocIdSchema.optional(),
+    /**
+     * The roles the contact holds on live, unprivileged matters (CORE-01a, `matterCountsForRoles`),
+     * each once in `PARTY_ROLE_ORDER`, for the "Role in matters" filter. Kept by
+     * `contacts-onPartyWrite` (and `matters-denormalise` when a matter is deleted, restored or its
+     * privileged flag changes); `materia-scripts backfill-matter-roles` fills older contacts.
+     */
+    matterRoles: z.array(PartyRoleSchema).default([]),
   },
   {
     path: 'orgs/{orgId}/contacts',
     softDelete: true,
-    serverOwned: ['search', 'dedupeKey', 'sortName', 'mergedInto'],
+    serverOwned: ['search', 'dedupeKey', 'sortName', 'mergedInto', 'matterRoles'],
   },
 );
 

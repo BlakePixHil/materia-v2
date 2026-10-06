@@ -3,6 +3,7 @@ import * as z from 'zod';
 
 import { DocIdSchema } from './schemas/common';
 import { Contact } from './schemas/contacts-matters';
+import { PartyRoleSchema, type PartyRole } from './schemas/enums';
 import { normaliseText, searchTokens, searchWords } from './search';
 
 /**
@@ -365,4 +366,128 @@ export interface ContactReference {
   matterTitle: string;
   role: string;
   safeCustodyId?: string;
+}
+
+// ---------- roles in matters (CORE-01a) ----------
+
+/** A party row as `contactMatterRoles` reads it. */
+export interface PartyRoleRow {
+  role: unknown;
+  matterId: string;
+  deletedAt?: unknown;
+}
+
+const deletedAt = (data: { deletedAt?: unknown } | undefined) =>
+  data?.deletedAt !== undefined && data?.deletedAt !== null;
+
+/** Whether a matter is live (CORE-01a): it exists, isn't soft-deleted and isn't destroyed (CORE-19). */
+export function matterIsLive(matter: { deletedAt?: unknown; destroyedAt?: unknown } | undefined): boolean {
+  return !!matter && !deletedAt(matter) && !matter.destroyedAt;
+}
+
+/**
+ * Whether a matter's roles count towards its contacts' `matterRoles` (CORE-01a): it is live and
+ * not privileged. Every member can read a contact, so a role from a privileged matter would tell a
+ * reader without `privileged.view` that the contact is, say, a beneficiary on a matter they can't see.
+ */
+export function matterCountsForRoles(
+  matter: { deletedAt?: unknown; destroyedAt?: unknown; privileged?: unknown } | undefined,
+): boolean {
+  return matterIsLive(matter) && matter?.privileged !== true;
+}
+
+/**
+ * A contact's `matterRoles` (CORE-01a): the roles of its live party rows on matters `liveMatter`
+ * accepts, each once, in the Parties tab's order (`PARTY_ROLE_ORDER`). Unknown roles are dropped.
+ */
+export function contactMatterRoles(
+  rows: readonly PartyRoleRow[],
+  liveMatter: (matterId: string) => boolean,
+): PartyRole[] {
+  const held = new Set<string>();
+  for (const row of rows) {
+    if (!deletedAt(row) && typeof row.role === 'string' && liveMatter(row.matterId)) held.add(row.role);
+  }
+  return PartyRoleSchema.options.filter((role) => held.has(role));
+}
+
+// ---------- activity (CORE-01a) ----------
+
+/**
+ * The contact details an edit lists, grouped as the Activity reads them ("updated the phone and
+ * email"). Other fields (server-owned, soft-delete stamps) never make an edit line.
+ */
+export const CONTACT_ACTIVITY_FIELDS = {
+  name: ['kind', 'givenNames', 'familyName', 'preferredName', 'orgName'],
+  dateOfBirth: ['dateOfBirth'],
+  dateOfDeath: ['dateOfDeath'],
+  abn: ['abn'],
+  phones: ['phones'],
+  emails: ['emails'],
+  addresses: ['addresses'],
+  tags: ['tags'],
+  referrer: ['isReferrer', 'referrerMeta'],
+  notes: ['notes'],
+} as const satisfies Record<string, readonly (keyof Contact)[]>;
+export type ContactActivityField = keyof typeof CONTACT_ACTIVITY_FIELDS;
+
+/** The detail groups a set of changed fields touches, in `CONTACT_ACTIVITY_FIELDS` order. */
+export function contactActivityFields(changed: readonly string[]): ContactActivityField[] {
+  const set = new Set(changed);
+  return (Object.keys(CONTACT_ACTIVITY_FIELDS) as ContactActivityField[]).filter((group) =>
+    (CONTACT_ACTIVITY_FIELDS[group] as readonly string[]).some((field) => set.has(field)),
+  );
+}
+
+/**
+ * `contacts-activity` (every role): a contact's history from the audit log (FND-18), newest
+ * first, `limit` lines at a time. Lines about a matter the caller can't see are left out.
+ */
+export const ContactActivityInput = z.object({
+  contactId: DocIdSchema,
+  cursor: z.string().min(1).max(2000).optional(),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+export type ContactActivityInput = z.input<typeof ContactActivityInput>;
+
+/**
+ * What a line says happened: the contact was added, edited, deleted or restored; another contact
+ * was merged into it (`merged_in`) or it was merged into another (`merged_away`); or it was added
+ * to a matter, its role or details there changed, or it was removed from one.
+ */
+export type ContactActivityKind =
+  | 'created'
+  | 'updated'
+  | 'deleted'
+  | 'restored'
+  | 'merged_in'
+  | 'merged_away'
+  | 'party_added'
+  | 'party_updated'
+  | 'party_role_changed'
+  | 'party_removed';
+
+export interface ContactActivityLine {
+  /** Unique per event: a change recorded both as a write and as a semantic event has one id. */
+  id: string;
+  /** ISO instant. */
+  at: string;
+  /** The member who did it, or `system` / `clerk`. */
+  actorUid: string;
+  kind: ContactActivityKind;
+  /** `updated`: the details that changed. */
+  fields?: ContactActivityField[];
+  /** Matter lines: the role (the new one for `party_role_changed`). */
+  role?: PartyRole;
+  previousRole?: PartyRole;
+  /** Matter lines: the matter, which the caller can see. */
+  matter?: { id: string; number: string | null; title: string };
+  /** `merged_in`: the contact merged in. `merged_away`: the contact kept. */
+  other?: { id: string; name: string };
+}
+
+export interface ContactActivityResult {
+  lines: ContactActivityLine[];
+  /** Pass back as `cursor` for older lines; null at the end. */
+  nextCursor: string | null;
 }

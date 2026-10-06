@@ -1887,7 +1887,35 @@ export function buildDataset(options: {
   }
   add(`orgs/${org}/counters/${domain.matterCounterId(year)}`, makeCounter({ ...meta, next: nextSeq }));
 
-  return { accounts: [...SEED_ACCOUNTS], docs, files };
+  return { accounts: [...SEED_ACCOUNTS], docs: withMatterRoles(docs), files };
+}
+
+/**
+ * Gives each contact the `matterRoles` `contacts-onPartyWrite` would (CORE-01a): the roles of its
+ * live party rows on live matters in the dataset, so the "Role in matters" filter works without
+ * the functions emulator too.
+ */
+export function withMatterRoles(docs: SeedDoc[]): SeedDoc[] {
+  const byPath = new Map(docs.map((doc) => [doc.path, doc.data as Record<string, unknown>]));
+  const rows = new Map<string, D.PartyRoleRow[]>();
+  for (const { path, data } of docs) {
+    const [, orgId, matters, matterId, parties] = path.split('/');
+    if (matters !== 'matters' || parties !== 'parties' || path.split('/').length !== 6) continue;
+    const party = data as Record<string, unknown>;
+    const key = `orgs/${orgId}/contacts/${String(party['contactId'])}`;
+    rows.set(key, [
+      ...(rows.get(key) ?? []),
+      { role: party['role'], matterId: matterId as string, deletedAt: party['deletedAt'] },
+    ]);
+  }
+  return docs.map((doc) => {
+    const [, orgId, contacts] = doc.path.split('/');
+    if (contacts !== 'contacts' || doc.path.split('/').length !== 4) return doc;
+    const matterRoles = domain.contactMatterRoles(rows.get(doc.path) ?? [], (matterId) =>
+      domain.matterCountsForRoles(byPath.get(`orgs/${orgId}/matters/${matterId}`)),
+    );
+    return { ...doc, data: { ...doc.data, matterRoles } };
+  });
 }
 
 /** Removes `undefined` values (optional fields the factories leave unset) before writing. */
