@@ -1,0 +1,44 @@
+diff --git a/lib/emulator/functionsRuntimeWorker.js b/lib/emulator/functionsRuntimeWorker.js
+--- a/lib/emulator/functionsRuntimeWorker.js
++++ b/lib/emulator/functionsRuntimeWorker.js
+@@ -159,6 +159,7 @@
+     }
+     set state(state) {
+         if (state === RuntimeWorkerState.IDLE) {
++            this.idleSince = Date.now();
+             for (const l of this.logListeners) {
+                 this.runtime.events.removeListener("log", l);
+             }
+@@ -304,8 +305,32 @@
+         keyWorkers.push(worker);
+         this.setTriggerWorkers(trigger?.id, keyWorkers, runtimeType);
+         this.log(`Adding worker with key ${worker.triggerKey}, total=${keyWorkers.length}`);
++        this.shutDownLeastRecentlyUsed();
+         return worker;
+     }
++    shutDownLeastRecentlyUsed() {
++        // Materia patch: AUTO mode keeps a worker process (the whole functions bundle, ~150 MB) for
++        // every function ever called and never stops an idle one, which outgrows a CI runner's memory.
++        // FUNCTIONS_EMULATOR_MAX_WORKERS caps the live workers by shutting down the ones idle longest;
++        // a worker idle under 5 s is kept, as its request may not have reached it yet.
++        const max = Number.parseInt(process.env.FUNCTIONS_EMULATOR_MAX_WORKERS || "", 10);
++        if (!(max > 0)) {
++            return;
++        }
++        const live = [...this.workers.values()]
++            .flat()
++            .filter((w) => w.state !== RuntimeWorkerState.FINISHING && w.state !== RuntimeWorkerState.FINISHED);
++        const now = Date.now();
++        const idle = live
++            .filter((w) => w.state === RuntimeWorkerState.IDLE && now - w.idleSince >= 5000)
++            .sort((a, b) => a.idleSince - b.idleSince);
++        for (let excess = live.length - max; excess > 0 && idle.length; excess--) {
++            const w = idle.shift();
++            this.log(`Shutting down IDLE worker (${w.triggerKey}): over FUNCTIONS_EMULATOR_MAX_WORKERS=${max}`);
++            w.state = RuntimeWorkerState.FINISHING;
++            w.runtime.process.kill();
++        }
++    }
+     getTriggerWorkers(triggerId, runtime) {
+         return this.workers.get(this.getKey(triggerId, runtime)) || [];
+     }
