@@ -1,3 +1,5 @@
+import { planWriteDown, type WriteDownChange } from '@materia/domain';
+
 import { cleanUpOverlays, MATTER, meta, ME, openMatter, PARALEGAL, PRIYA, READONLY } from '../matter-detail/testing';
 
 /** The matter's Time tab (BILL-01). Fictional data only. */
@@ -83,8 +85,29 @@ const setStatus = (data: Seed, fs: Page['firestore']) => {
   return { updated, skipped: [] };
 };
 
+/** The time-writeDown callable as the server runs it (fewer units, or written off). */
+const writeDown = (data: Seed, fs: Page['firestore']) => {
+  const updated: string[] = [];
+  for (const id of data['entryIds'] as string[]) {
+    const path = `${MATTER}/timeEntries/${id}`;
+    const entry = fs.get(path) as (Seed & Parameters<typeof planWriteDown>[0]) | undefined;
+    const change = (data['writeOff'] ? { writeOff: true } : { newUnits: data['newUnits'] }) as WriteDownChange;
+    const { plan } = entry
+      ? planWriteDown(entry, change, { by: ME, reason: String(data['reason']), unitMinutes: 6 })
+      : {};
+    if (!plan) continue;
+    fs.set(path, { ...entry, ...plan });
+    updated.push(id);
+  }
+  return { updated, skipped: [], conflicts: [] };
+};
+
 const open = (options: Parameters<typeof openMatter>[1] = {}) =>
-  openMatter(URL, { configure: practice, callables: { 'time-setStatus': setStatus }, ...options });
+  openMatter(URL, {
+    configure: practice,
+    callables: { 'time-setStatus': setStatus, 'time-writeDown': writeDown },
+    ...options,
+  });
 
 const days = (page: Page) =>
   [...page.body.querySelectorAll('mt-matter-time .day')].map((day) => ({
@@ -236,6 +259,30 @@ describe('matter time tab', () => {
       expect.objectContaining({ matterId: 'm-whitfield', entryIds: ['te-2'], status: 'final' }),
     ]);
     expect(page.firestore.get(`${MATTER}/timeEntries/te-2`)?.['status']).toBe('final');
+  });
+
+  it('writes an approved entry off from its row menu (approvers only, BILL-07b)', async () => {
+    const page = await open();
+    await page.click('More actions for Perusing and considering the will');
+    // Drafts aren't written down here; they're approved or edited first.
+    expect(page.buttons('Write down or off…')).toHaveLength(0);
+    await page.press('Escape');
+
+    await page.click('More actions for Email to bank');
+    await page.click('Write down or off…');
+    expect(page.text(page.dialog())).toContain('Write down this entry');
+    await page.click('Write off', page.dialog() ?? page.body);
+    await page.fill('Reason', 'Administrative work', page.dialog() ?? page.body);
+    await page.submit(page.dialog());
+    expect(page.calls('time-writeDown')).toEqual([
+      expect.objectContaining({
+        matterId: 'm-whitfield',
+        entryIds: ['te-3'],
+        writeOff: true,
+        reason: 'Administrative work',
+      }),
+    ]);
+    expect(page.firestore.get(`${MATTER}/timeEntries/te-3`)?.['status']).toBe('written_off');
   });
 
   it('a paralegal edits only their own drafts and can’t approve', async () => {

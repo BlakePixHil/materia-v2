@@ -313,6 +313,16 @@ describe('seed dataset', () => {
     expect(presets?.data['presets']).toEqual(D.DEFAULT_DISBURSEMENT_PRESETS);
   });
 
+  it('seeds the letterhead details with a Geelong address (INT-06)', () => {
+    const letterhead = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}/settings/letterhead`);
+    expect(letterhead?.data).toMatchObject({
+      address: 'Level 2, 10 Example Street\nGeelong VIC 3220',
+      phone: '(03) 5200 0000',
+    });
+    const entity = registry.find((e) => e.pattern.test(letterhead?.path ?? ''));
+    expect(entity?.name).toBe('LetterheadDoc');
+  });
+
   it('seeds the conflict scenarios with conflicts.enforced on, but not in the minimal scenario (CORE-02)', () => {
     const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
     expect(org?.['flags']).toEqual({

@@ -3612,6 +3612,36 @@ describe('estate register (CORE-16)', () => {
   });
 });
 
+describe('document templates and the letterhead (INT-06)', () => {
+  const LETTERHEAD = `orgs/${ORG}/settings/letterhead`;
+  const TEMPLATE = `orgs/${ORG}/docTemplates/doctemplate-1`;
+
+  it('lets members read the letterhead details and templates, and nobody write them directly', async () => {
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, LETTERHEAD), {
+        phone: '(03) 5200 0000',
+        createdAt: new Date(),
+        createdBy: uidFor('owner'),
+        updatedAt: new Date(),
+        updatedBy: uidFor('owner'),
+        schemaVersion: 1,
+      });
+      await setDoc(doc(f, TEMPLATE), seedData(specFor('docTemplates')));
+    });
+    for (const role of ROLES) {
+      await assertSucceeds(getDoc(doc(db(env, role), LETTERHEAD)));
+      await assertSucceeds(getDoc(doc(db(env, role), TEMPLATE)));
+    }
+    await assertFails(getDoc(doc(db(env, 'owner', OTHER_ORG), LETTERHEAD)));
+    await assertFails(
+      updateDoc(doc(db(env, 'owner'), LETTERHEAD), stamped({ phone: '(03) 5200 0001' }, uidFor('owner'))),
+    );
+    await assertFails(setDoc(doc(db(env, 'owner'), `orgs/${ORG}/settings/letterhead2`), { phone: 'x' }));
+    await assertFails(updateDoc(doc(db(env, 'owner'), TEMPLATE), stamped({ published: true }, uidFor('owner'))));
+    await assertFails(setDoc(doc(db(env, 'owner'), `orgs/${ORG}/docTemplates/new`), seedData(specFor('docTemplates'))));
+  });
+});
+
 // Last in this file, before another suite reloads the rules (which resets the emulator's report).
 describe('rules coverage', () => {
   it('evaluates at least 90% of the rule expressions', async () => {
