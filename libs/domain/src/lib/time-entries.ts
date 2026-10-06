@@ -377,26 +377,39 @@ export type TimeEntryCreateInput = z.input<typeof TimeEntryCreateInput>;
 
 export const TIME_CALLABLES = {
   setStatus: 'time-setStatus',
+  writeDown: 'time-writeDown',
+  reject: 'time-reject',
+  exportCsv: 'time-exportCsv',
 } as const;
 
 /** Entries one `time-setStatus` call changes at most. */
 export const TIME_STATUS_BATCH_MAX = 100;
 
 /**
+ * Each entry's `updatedAt` (ms since the epoch) as the caller last saw it (BILL-03): an entry
+ * changed since then is left alone and reported as a conflict (optimistic concurrency).
+ */
+export const TimeExpectedUpdatedAtSchema = /* @__PURE__ */ z.record(DocIdSchema, z.number().int().min(0)).optional();
+
+/**
  * `time-setStatus` (`time.approve`, idempotent): marks a matter's draft entries final (approval,
  * which snapshots the rate in force on each entry's date one last time) or returns final entries to
  * draft. Billed and written-off entries are never changed; entries already in the target status are
- * skipped.
+ * skipped, and entries changed since `expectedUpdatedAt` are conflicts. Audited as
+ * `time.finalised` or `time.returned_to_draft` (BILL-03).
  */
 export const SetTimeEntryStatusInput = /* @__PURE__ */ z.object({
   requestId: z.uuid(),
   matterId: DocIdSchema,
   entryIds: z.array(DocIdSchema).min(1).max(TIME_STATUS_BATCH_MAX),
   status: z.enum(['draft', 'final']),
+  expectedUpdatedAt: TimeExpectedUpdatedAtSchema,
 });
-export type SetTimeEntryStatusInput = z.infer<typeof SetTimeEntryStatusInput>;
+export type SetTimeEntryStatusInput = z.input<typeof SetTimeEntryStatusInput>;
 
 export interface SetTimeEntryStatusResult {
   updated: string[];
   skipped: string[];
+  /** Entries changed since the caller saw them (`expectedUpdatedAt`): reload and review again. */
+  conflicts: string[];
 }

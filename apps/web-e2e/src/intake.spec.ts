@@ -1,7 +1,13 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { contactSearchTokens } from '@materia/domain';
-import { expectNoA11yViolations, setEmulatorDocuments, setOrgFlags, signInAsTestUser } from '@materia/test-utils/e2e';
+import {
+  expectNoA11yViolations,
+  FIRST_LOAD,
+  setEmulatorDocuments,
+  setOrgFlags,
+  signInAsTestUser,
+} from '@materia/test-utils/e2e';
 
 import { seedClient, uniqueOrg } from './support/matters';
 
@@ -216,7 +222,7 @@ test.describe('new matter intake', () => {
 
     await page.reload();
     const offer = page.getByTestId('intake-resume');
-    await expect(offer).toContainText('You started a will matter');
+    await expect(offer).toContainText('You started a will matter', FIRST_LOAD);
     await expect(offer).toContainText('It was at “Clients”.');
     await expectNoA11yViolations(page);
     await offer.getByRole('button', { name: 'Resume draft' }).click();

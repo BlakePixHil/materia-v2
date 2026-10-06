@@ -14,6 +14,8 @@ export type Score = number | null;
 export interface CitedQuote {
   documentId: string;
   page?: number;
+  /** The last page of a quote that runs over a page break (ADR-043). */
+  pageEnd?: number;
   quote: string;
 }
 

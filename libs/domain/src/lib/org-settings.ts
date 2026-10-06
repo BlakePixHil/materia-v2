@@ -137,6 +137,13 @@ export const BillingSettingsInput = z.object({
   paymentTermsDays: z.number().int().min(0).max(365),
   /** Budget alert thresholds (BILL-05); absent means the defaults, 80% and 100%. */
   budgetAlertPcts: BudgetAlertPctsSchema.optional(),
+  /** The daily time target (BILL-03), in minutes; 6 hours when unset. */
+  dailyTargetMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 60)
+    .optional(),
 });
 
 /**

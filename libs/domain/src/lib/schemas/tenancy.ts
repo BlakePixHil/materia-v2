@@ -69,6 +69,13 @@ export const Org = withMeta(
       paymentTermsDays: z.number().int().min(0).max(365),
       /** Budget alert thresholds, percent of the fee basis (BILL-05); 80 and 100 when unset. */
       budgetAlertPcts: z.array(z.number().int().min(1).max(200)).max(5).optional(),
+      /** The daily time target on the Time and billing screen (BILL-03); 6 hours when unset. */
+      dailyTargetMinutes: z
+        .number()
+        .int()
+        .min(0)
+        .max(24 * 60)
+        .optional(),
     }),
     matterNumberFormat: z.string().min(1).default('M-{YYYY}-{seq:4}'),
     /** `{TYPE}` codes that replace DEFAULT_MATTER_TYPE_CODES in matter numbers (CORE-21a). */

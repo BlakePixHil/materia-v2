@@ -7,6 +7,7 @@ import {
   BILLING_UNIT_OPTIONS,
   BillingSettingsInput,
   budgetAlertPcts,
+  DEFAULT_DAILY_TARGET_MINUTES,
   feeProblems,
   MatterTypeSchema,
   type FeeDefault,
@@ -49,6 +50,7 @@ interface BillingForm {
   gstRegistered: boolean;
   invoicePrefix: string;
   paymentTermsDays: string;
+  dailyTargetHours: string;
   nextInvoiceNumber: string;
   /** Budget alert thresholds (BILL-05), "80, 100". */
   alertPcts: string;
@@ -84,10 +86,18 @@ function formOf(org: OrgSettings | undefined): BillingForm {
     gstRegistered: billing.gstRegistered ?? true,
     invoicePrefix: billing.invoicePrefix ?? 'INV-',
     paymentTermsDays: String(billing.paymentTermsDays ?? 14),
+    dailyTargetHours: String((billing.dailyTargetMinutes ?? DEFAULT_DAILY_TARGET_MINUTES) / 60),
     nextInvoiceNumber: '',
     alertPcts: budgetAlertPcts(org).join(', '),
     fees,
   };
+}
+
+/** Hours as whole minutes (0 to 24 hours, 6.5 is 390), or `null` when it isn't one. */
+function targetMinutes(text: string): number | null {
+  const hours = Number(text.trim());
+  if (!text.trim() || !Number.isFinite(hours) || hours < 0 || hours > 24) return null;
+  return Math.round(hours * 60);
 }
 
 /** The fee defaults the rows describe, or the first problem. */
@@ -227,6 +237,16 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
             (ngModelChange)="set({ paymentTermsDays: $event ?? '' })"
           />
         </div>
+        <mt-text-field
+          name="dailyTargetHours"
+          label="Daily time target"
+          description="Each person’s weekday target on Time and billing."
+          suffix="hours"
+          inputmode="decimal"
+          [error]="targetProblem() ?? undefined"
+          [ngModel]="form().dailyTargetHours"
+          (ngModelChange)="set({ dailyTargetHours: $event ?? '' })"
+        />
         <mt-text-field
           name="nextInvoiceNumber"
           label="Start invoice numbers at"
@@ -401,6 +421,9 @@ export class BillingSettingsPage implements HasUnsavedChanges {
     const days = Number(this.form().paymentTermsDays);
     return Number.isInteger(days) && days >= 0 && days <= 365 ? null : 'Enter 0 to 365 days.';
   });
+  protected readonly targetProblem = computed(() =>
+    targetMinutes(this.form().dailyTargetHours) === null ? 'Enter 0 to 24 hours.' : null,
+  );
   protected readonly nextNumberProblem = computed(() => {
     const text = this.form().nextInvoiceNumber.trim();
     if (!text) return null;
@@ -427,6 +450,7 @@ export class BillingSettingsPage implements HasUnsavedChanges {
       invoicePrefix: f.invoicePrefix,
       paymentTermsDays: Number(f.paymentTermsDays),
       budgetAlertPcts: this.alertPcts(),
+      dailyTargetMinutes: targetMinutes(f.dailyTargetHours) ?? -1,
     });
   });
   protected readonly ready = computed(

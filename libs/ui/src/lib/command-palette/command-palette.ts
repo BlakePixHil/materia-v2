@@ -89,6 +89,9 @@ let nextId = 0;
       color: var(--text-secondary);
       font: 500 12px/16px var(--font-sans);
     }
+    .mt-cmdk .mt-menu:empty {
+      padding: 0;
+    }
     .mt-cmdk .mt-cmdk-status {
       display: flex;
       align-items: center;
@@ -121,13 +124,24 @@ let nextId = 0;
       />
       <mt-kbd keys="esc" />
     </div>
-    <div class="mt-menu" role="listbox" [id]="listId" [attr.aria-label]="label()">
+    <!--
+      A listbox may only hold options and groups of options (axe: aria-required-children). So a group
+      still searching with no rows yet is a plain block, its "Searching…" line has no role (one status
+      line outside the list announces it), the list is aria-busy while anything searches, and the
+      empty state sits after the list.
+    -->
+    <div
+      class="mt-menu"
+      role="listbox"
+      [id]="listId"
+      [attr.aria-label]="label()"
+      [attr.aria-busy]="searching() ? 'true' : null"
+    >
       @for (group of groups(); track group.label) {
         @if (group.items.length || group.busy || group.note) {
           <div
-            role="group"
-            [attr.aria-labelledby]="listId + '-' + $index"
-            [attr.aria-busy]="group.busy ? 'true' : null"
+            [attr.role]="group.items.length ? 'group' : null"
+            [attr.aria-labelledby]="group.items.length ? listId + '-' + $index : null"
           >
             <div class="mt-menu-label" [id]="listId + '-' + $index">{{ group.label }}</div>
             @for (item of group.items; track item.id) {
@@ -162,17 +176,18 @@ let nextId = 0;
               </div>
             }
             @if (group.busy) {
-              <div class="mt-cmdk-status" role="status">Searching {{ group.label.toLowerCase() }}…</div>
+              <div class="mt-cmdk-status">{{ searchingLine(group) }}</div>
             } @else if (group.note; as note) {
               <div class="mt-cmdk-status">{{ note }}</div>
             }
           </div>
         }
       }
-      @if (!flat().length && !searching()) {
-        <div class="mt-cmdk-empty">{{ emptyText() }}</div>
-      }
     </div>
+    @if (!flat().length && !searching()) {
+      <div class="mt-cmdk-empty">{{ emptyText() }}</div>
+    }
+    <div class="mt-sr" role="status">{{ searchingText() }}</div>
     <div class="mt-cmdk-foot" aria-hidden="true">
       <span><mt-kbd keys="up" /><mt-kbd keys="down" />Move</span>
       <span><mt-kbd keys="enter" />Open</span>
@@ -205,6 +220,13 @@ export class MtCommandPalette {
   protected readonly flat = computed(() => this.groups().flatMap((g) => g.items));
   /** A group is still searching (the empty state waits for it). */
   protected readonly searching = computed(() => this.groups().some((g) => g.busy));
+  /** What the status line announces: the groups still searching. */
+  protected readonly searchingText = computed(() =>
+    this.groups()
+      .filter((g) => g.busy)
+      .map((g) => this.searchingLine(g))
+      .join(' '),
+  );
   private readonly activeIndex = signal(0);
   protected readonly activeItem = computed(() => this.flat()[this.activeIndex()] ?? null);
   protected readonly activeId = computed(() => {
@@ -224,6 +246,10 @@ export class MtCommandPalette {
   /** Focuses the search input (call after opening). */
   focus(): void {
     this.input().nativeElement.focus();
+  }
+
+  protected searchingLine(group: MtCommandGroup): string {
+    return `Searching ${group.label.toLowerCase()}…`;
   }
 
   protected optionId(item: MtCommandItem): string {

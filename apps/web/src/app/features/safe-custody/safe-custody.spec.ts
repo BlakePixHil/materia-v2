@@ -254,7 +254,12 @@ describe('a packet', () => {
     await page.submit(dialog);
     await page.stable(10);
 
-    const reauth = page.body.querySelector<HTMLElement>('mt-reauth-dialog') as HTMLElement;
+    // "Confirm it's you" loads lazily (SEC-04).
+    const reauth = await vi.waitFor(() => {
+      const found = page.body.querySelector<HTMLElement>('mt-reauth-dialog');
+      if (!found) throw new Error('No reauth dialog yet');
+      return found;
+    });
     expect(page.text(reauth)).toContain('Releasing an original will needs a fresh sign-in.');
     expect(page.calls(SAFE_CUSTODY_CALLABLES.recordMovement)).toHaveLength(0);
     await page.fill('Password', 'wrong', reauth);
@@ -287,7 +292,12 @@ describe('a packet', () => {
     await choose(page, 'Document', 'Signed authority.pdf', dialog);
     await page.submit(dialog);
     await page.stable(10);
-    const reauth = page.body.querySelector<HTMLElement>('mt-reauth-dialog') as HTMLElement;
+    // "Confirm it's you" loads lazily (SEC-04).
+    const reauth = await vi.waitFor(() => {
+      const found = page.body.querySelector<HTMLElement>('mt-reauth-dialog');
+      if (!found) throw new Error('No reauth dialog yet');
+      return found;
+    });
     await page.fill('Password', 'password', reauth);
     await page.submit(reauth);
     await page.stable(10);
