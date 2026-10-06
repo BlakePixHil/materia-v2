@@ -62,7 +62,7 @@ Materia v2: a practice tool for Australian Wills & Estates lawyers (launching in
 | `pnpm materia-scripts <command>`                    | Ops scripts (`clerk-bench`, …)                                                                                                                                                                                          |
 | `pnpm materia-scripts restore-matter …`             | Restore one matter from a PITR time or a restored database (dry run unless `--apply`); `backup-drill` restores a backup into a scratch database and checks counts (SEC-03; [restore runbook](docs/runbooks/restore.md)) |
 | `pnpm materia-scripts decode-stack --maps <dir>`    | Deobfuscate a minified web stack from Error Reporting with a release's private sourcemaps (FND-21; [incident response](docs/runbooks/incident-response.md))                                                             |
-| `pnpm materia-migrate <step>`                       | Legacy migration CLI: `audit` (read-only, refuses write-capable credentials) and `check-profile` (MIG-01), `auth-import` (MIG-04); export onwards from MIG-02. See `tools/migration/README.md`                          |
+| `pnpm materia-migrate <step>`                       | Legacy migration CLI: `audit` (read-only, refuses write-capable credentials) and `check-profile` (MIG-01), `export` (MIG-02), `auth-import` (MIG-04); transform onwards from MIG-03. See `tools/migration/README.md`    |
 | `python3 design/system/build.py`                    | Regenerate the design system output. `git status` must stay clean afterwards                                                                                                                                            |
 
 ### CI jobs locally

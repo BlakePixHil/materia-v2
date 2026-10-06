@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
-// The auth import (MIG-04) against the Auth emulator. Run with `pnpm nx run
-// migration:test-integration`. (Named so the Nx Vitest plugin doesn't infer an emulator-less
-// target from it.)
+// The auth import (MIG-04) and the export (MIG-02) against the Auth, Firestore and Storage
+// emulators. Run with `pnpm nx run migration:test-integration`. (Named so the Nx Vitest plugin
+// doesn't infer an emulator-less target from it.)
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/tools/migration-integration',

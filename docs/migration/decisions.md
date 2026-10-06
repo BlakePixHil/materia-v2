@@ -1,4 +1,4 @@
-# Migration decision log (MIG-01, MIG-04)
+# Migration decision log (MIG-01, MIG-02, MIG-04)
 
 The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `fen5jJdhNHTkGBpgAdsLSKQRvXx2`) into Materia v2. The transform (MIG-03) reads them from the mapping profile [`tools/migration/profiles/tristan-burke.json`](../../tools/migration/profiles/tristan-burke.json). Each decision below names its profile field. The [Legacy migration plan](../08-legacy-migration-plan.md) has the full field map; this log records only the choices someone had to make.
 
@@ -205,8 +205,32 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
     - The ticket's "signs in on staging, then prod" check becomes his first Google sign-in in prod at cutover (MIG-07). The emulator test proves that a Google credential for the imported identity signs in to the same uid.
   - **When:** at cutover, before the load, which keys everything on the uid.
 
+### D-17 Export (new)
+
+- **Status:** Default, from MIG-02 on 2026-10-06. It follows from D-13 to D-15 and changes nothing they decided, so the sign-off above stands.
+- **Decision:**
+  - **Where:** `gs://materia-v2-<env>-migration/runs/{runId}/`, on dev for rehearsals and on prod at cutover. The ticket's `--env staging|prod` becomes `dev|prod`, since there is no staging (D-15). The [runbook](../runbooks/migration-export.md) has the steps.
+  - **Who writes:** prod's `migration-runner` account, impersonated. Dev has no runner account, so a rehearsal is written by the operator's own gcloud account.
+  - **What:** the ticket's scope, narrowed by the mapping profile.
+    - Boards the profile excludes (Test Workflow) are left out with their cards.
+    - Other users keep their names only (`displayName`, `firstName`, `lastName`), in `people.jsonl`, apart from Tristan's own profile.
+    - Notifications are counted, not exported (D-14).
+    - **Auth:** providers, email, whether it is verified, and the account's dates. Never a password hash, salt or provider id: the auth import reads those itself (D-16).
+    - **Storage:** objects are listed, not copied (MIG-05 copies them). The list covers everything under the exported boards, board-level files included (D-13 decides those), plus his profile photo. Each object keeps its size, type, MD5, CRC32C and generation.
+  - **Download tokens:** Firebase download URLs carry a token that lets anyone holding the link read the file. Every attachment's `downloadUrl` has one, and descriptions can embed them. The export takes the token out and keeps the rest of the URL. Nothing downstream needs it, since MIG-05 copies objects by name.
+  - **One snapshot:** every Firestore read is at one `readTime`, taken from the server at the start. Storage and Auth have no snapshot, so they are read just after it.
+  - **Delta (`--since`):**
+    - Only cards and attachments are filtered. A record goes in when its `updatedOn` or `createdOn` is after `--since`, or when neither date can be read. Every attachment of a changed card goes in too.
+    - Everything else goes in full, because it is small, and editing a board's columns may not change its `updatedOn`.
+    - `paths.jsonl` lists every card and attachment in scope, changed or not, so the load can see what was deleted.
+  - **Resume:** possible within 55 minutes, because Firestore can't read further back than an hour. It reads again at the same `readTime`, checks that each finished Firestore file reads back with the same sha256, and writes the rest.
+  - **Evidence:**
+    - The prod dry run on 2026-10-06 with the read-only account wrote nothing. Every in-scope count matched the audit: 5 boards, 313 cards, 71 attachments, 4 checklist templates, 30 referrers, 3 integrations, 1 workspace and no dashboard items. It also found 71 download tokens to take out.
+    - A dev rehearsal with made-up data was deleted the same day.
+
 ## Descoped
 
 - **No staging rehearsals.** The plan's staging rehearsals move to dev (D-15).
 - **Shared boards.** Only Test Workflow is shared, and it is excluded (D-02).
 - **Password hash import for Tristan.** He has no password, so no hash parameters or export are needed (D-16).
+- **A staging export.** `--env` takes dev or prod (D-17).
