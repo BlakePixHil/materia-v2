@@ -32,6 +32,7 @@ type Facts = {
   deceased?: string;
   dateOfDeath?: string;
   executors?: string[];
+  responsibleLawyer?: string;
   probate?: { applicationFiled?: string | null; granted?: string | null };
   upcomingDeadlines?: { title: string; due: string }[];
   openTasks?: string[];
@@ -42,7 +43,10 @@ export function caseNow(evalCase: EvalCase): Date {
   return new Date(`${evalCase.today}T01:00:00Z`);
 }
 
-/** The case's org: one active member with the case's role, and one matter. */
+/** The responsible lawyer's member id, when the case names one. */
+const RESPONSIBLE_UID = 'u-responsible';
+
+/** The case's org: one active member with the case's role, the responsible lawyer, and one matter. */
 export function evalOrg(evalCase: EvalCase, orgId: string, uid: string): Record<string, MemoryOrg> {
   const facts = evalCase.matter as Facts;
   const contacts: Record<string, string> = {};
@@ -98,6 +102,7 @@ export function evalOrg(evalCase: EvalCase, orgId: string, uid: string): Record<
       type: facts.type,
       status: facts.status,
       privileged: false,
+      ...(facts.responsibleLawyer ? { responsibleUid: RESPONSIBLE_UID } : {}),
       ...(deceased ? { deceased: { contactId: deceased, dateOfDeath: facts.dateOfDeath } } : {}),
       ...(facts.probate?.granted ? { estate: { grantDate: facts.probate.granted } } : {}),
     },
@@ -111,7 +116,12 @@ export function evalOrg(evalCase: EvalCase, orgId: string, uid: string): Record<
   return {
     [orgId]: {
       timezone: EVAL_TIME_ZONE,
-      members: { [uid]: { status: 'active', role: evalCase.role } },
+      members: {
+        ...(facts.responsibleLawyer
+          ? { [RESPONSIBLE_UID]: { status: 'active', role: 'lawyer', displayName: facts.responsibleLawyer } }
+          : {}),
+        [uid]: { status: 'active', role: evalCase.role },
+      },
       contacts,
       matters: { [EVAL_MATTER]: matter },
     },

@@ -76,6 +76,8 @@ export interface FactsInput {
   tasks: readonly Row[];
   /** The trust balance snapshot, only for roles with `billing.view` while the display is on (BILL-11). */
   trust?: { snapshot: Row; staleAfterDays: number; today: DateOnly } | null;
+  /** The matter's responsible lawyer (`responsibleUid`), when they are an active member. */
+  responsible?: { name: string; title?: string | undefined } | null;
 }
 
 export interface Facts {
@@ -104,6 +106,7 @@ export function matterFacts(input: FactsInput): Facts {
     jurisdiction: str(m['jurisdiction']),
     priority: m['priority'] === 'none' ? undefined : str(m['priority']),
     privileged: m['privileged'] === true ? true : undefined,
+    responsibleLawyer: input.responsible ? { name: input.responsible.name, title: input.responsible.title } : undefined,
     labels: Array.isArray(m['labels']) ? m['labels'].filter((label) => typeof label === 'string') : undefined,
     clients: Array.isArray(m['clientContactIds']) ? m['clientContactIds'].map(name).filter(Boolean) : undefined,
     deceased: deceased && {

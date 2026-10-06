@@ -207,8 +207,12 @@ export const Matter = withMeta(
     conflictAlert: ConflictAlertSchema.optional(),
     estate: z
       .object({
+        /** Kept by `estate-onWrite` from the estate register once it has records (CORE-16). */
         grossValueCents: CentsSchema.optional(),
+        /** Gross less liabilities; negative for an insolvent estate. */
         netValueCents: CentsSchema.optional(),
+        /** Held back from distribution (tax, costs, contingencies): the residue is shown after it (CORE-16). */
+        reservedCents: z.number().int().min(0).optional(),
         grantType: z.enum(['probate', 'loa', 'loa_with_will', 'reseal']).optional(),
         grantDate: DateOnlySchema.optional(),
         grantNo: z.string().optional(),
@@ -270,6 +274,19 @@ export const Matter = withMeta(
     disbursementWipCents: CentsSchema.optional(),
     lastActivityAt: InstantSchema.optional(),
     litigationSummary: z.record(z.string(), z.unknown()).optional(),
+    /** The estate register's totals (CORE-16), kept by `estate-onWrite` so they never need every row. */
+    estateRegister: z
+      .object({
+        grossCents: CentsSchema,
+        liabilitiesCents: CentsSchema,
+        netCents: CentsSchema,
+        outsideCents: CentsSchema,
+        realisedCents: CentsSchema,
+        assetCount: z.number().int().min(0),
+        liabilityCount: z.number().int().min(0),
+        updatedAt: InstantSchema,
+      })
+      .optional(),
     recomputeVersion: z.number().int().min(0).default(0),
     emailToken: z.string().optional(),
     legacyBilling: z.record(z.string(), z.unknown()).optional(),
@@ -307,6 +324,7 @@ export const Matter = withMeta(
       'disbursementWipCents',
       'lastActivityAt',
       'litigationSummary',
+      'estateRegister',
       'recomputeVersion',
       'emailToken',
       'legacyBilling',

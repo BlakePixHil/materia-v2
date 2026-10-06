@@ -81,6 +81,8 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   conflictCheck: matter.conflictCheck.optional(),
   conflictAlert: ConflictAlertSchema.nullable().optional(),
   openTaskCount: matter.openTaskCount,
+  /** The estate register's totals (CORE-16), kept by `estate-onWrite`. */
+  estateRegister: matter.estateRegister,
   closedAt: matter.closedAt,
   closeReason: matter.closeReason,
   /** Retention (CORE-19): the earliest destruction date, the closing record, archiving and holds. */

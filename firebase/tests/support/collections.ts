@@ -456,9 +456,10 @@ export const COLLECTIONS: CollectionSpec[] = [
     seed: { orgId: ORG, matterId: 'matter-1' },
     change: { description: 'Title search (corrected)' },
   },
-  matterRecord('assets', 'Asset'),
-  matterRecord('liabilities', 'Liability'),
-  matterRecord('distributions', 'Distribution'),
+  // The estate register (CORE-16): client-created too, field by field in the rules suite.
+  { ...matterRecord('assets', 'Asset'), change: { description: 'Changed by the rules test' } },
+  { ...matterRecord('liabilities', 'Liability'), change: { creditor: 'Changed by the rules test' } },
+  { ...matterRecord('distributions', 'Distribution'), change: { notes: 'Changed by the rules test' } },
   matterRecord('proceedings', 'Proceeding'),
   matterRecord('courtEvents', 'CourtEvent'),
   matterRecord('orders', 'CourtOrder'),

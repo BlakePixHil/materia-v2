@@ -40,6 +40,7 @@ export * from './lib/notifications';
 export * from './lib/documents';
 export * from './lib/org-settings';
 export * from './lib/notes';
+export * from './lib/estate';
 export * from './lib/suggestions';
 export * from './lib/citations';
 export * from './lib/client-errors';

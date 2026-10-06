@@ -1,0 +1,186 @@
+<!doctype html>
+<!-- The estate register's inventory schedule (CORE-16), filled by estate-exportInventory with
+     `inventorySchedule` from libs/domain: every value arrives as text. Not a court form. -->
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{title}}</title>
+    {{> styles}}
+    <style>
+      .meta {
+        margin: 0 0 14pt;
+        color: #48484a;
+      }
+      .meta p {
+        margin: 0;
+      }
+      h2 {
+        font-size: 12pt;
+        font-weight: 600;
+        margin: 16pt 0 6pt;
+      }
+      h3 {
+        font-size: 10.5pt;
+        font-weight: 600;
+        margin: 10pt 0 2pt;
+      }
+      td.value,
+      th.value {
+        text-align: right;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      td.detail {
+        color: #48484a;
+        font-size: 9pt;
+      }
+      tr.total td {
+        font-weight: 600;
+        border-bottom: none;
+      }
+      .summary {
+        width: 60%;
+        margin-top: 4pt;
+      }
+      .note {
+        font-size: 9pt;
+        color: #48484a;
+      }
+      .warning {
+        border: 1pt solid #b3261e;
+        padding: 6pt 8pt;
+        margin: 8pt 0;
+      }
+      tr {
+        break-inside: avoid;
+      }
+      footer {
+        position: fixed;
+        bottom: -14mm;
+        left: 0;
+        right: 0;
+        font-size: 8pt;
+        color: #6e6e73;
+      }
+    </style>
+  </head>
+  <body>
+    <footer>{{footer}}</footer>
+    <h1>{{title}}</h1>
+    <div class="meta">
+      <p>{{matterTitle}} · {{matterNumber}}</p>
+      {{#if deceasedName}}
+      <p>Deceased: {{deceasedName}}{{#if dateOfDeath}}, died {{dateOfDeath}}{{/if}}</p>
+      {{/if}}
+      <p>Prepared {{preparedOn}}</p>
+    </div>
+    {{#if insolvent}}
+    <p class="warning">{{insolventNote}}</p>
+    {{/if}}
+
+    <h2>Assets</h2>
+    {{#each assetGroups}}
+    <h3>{{label}}</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Description</th>
+          <th scope="col">Institution or reference</th>
+          <th scope="col">Details</th>
+          <th scope="col" class="value">Value at date of death</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each lines}}
+        <tr>
+          <td>{{description}}</td>
+          <td>{{reference}}</td>
+          <td class="detail">{{detail}}</td>
+          <td class="value">{{value}}</td>
+        </tr>
+        {{/each}}
+        <tr class="total">
+          <td colspan="3">Total {{label}}</td>
+          <td class="value">{{total}}</td>
+        </tr>
+      </tbody>
+    </table>
+    {{else}}
+    <p class="note">No assets recorded.</p>
+    {{/each}}
+
+    <h2>Liabilities</h2>
+    {{#each liabilityGroups}}
+    <h3>{{label}}</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Creditor</th>
+          <th scope="col">Reference</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="value">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each lines}}
+        <tr>
+          <td>{{description}}</td>
+          <td>{{reference}}</td>
+          <td class="detail">{{detail}}</td>
+          <td class="value">{{value}}</td>
+        </tr>
+        {{/each}}
+        <tr class="total">
+          <td colspan="3">Total {{label}}</td>
+          <td class="value">{{total}}</td>
+        </tr>
+      </tbody>
+    </table>
+    {{else}}
+    <p class="note">No liabilities recorded.</p>
+    {{/each}}
+
+    <h2>Summary</h2>
+    <table class="summary">
+      <tbody>
+        {{#each summary}}
+        <tr>
+          <th scope="row">{{label}}</th>
+          <td class="value">{{value}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    {{#if outsideGroups.length}}
+    <h2>Assets passing outside the estate</h2>
+    <p class="note">{{outsideNote}}</p>
+    {{#each outsideGroups}}
+    <h3>{{label}}</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Description</th>
+          <th scope="col">Institution or reference</th>
+          <th scope="col">Details</th>
+          <th scope="col" class="value">Value at date of death</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each lines}}
+        <tr>
+          <td>{{description}}</td>
+          <td>{{reference}}</td>
+          <td class="detail">{{detail}}</td>
+          <td class="value">{{value}}</td>
+        </tr>
+        {{/each}}
+        <tr class="total">
+          <td colspan="3">Total {{label}}</td>
+          <td class="value">{{total}}</td>
+        </tr>
+      </tbody>
+    </table>
+    {{/each}} {{/if}}
+  </body>
+</html>

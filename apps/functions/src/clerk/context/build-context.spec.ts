@@ -233,6 +233,7 @@ describe('buildContext: content', () => {
       clients: ['Morgan Ashdown'],
       deceased: { name: 'Rowan Ashdown', dateOfDeath: '2026-05-02' },
     });
+    expect(json.matter.responsibleLawyer).toEqual({ name: 'Jordan Price', title: 'Senior Associate' });
     expect(json.fee).toEqual({ arrangement: 'fixed', amount: '$4,500.00', workInProgress: '$1,234.50' });
     expect(json.parties).toContainEqual({
       id: 'p-beneficiary',
@@ -251,6 +252,14 @@ describe('buildContext: content', () => {
     expect(json.openTasks.map((task: { title: string }) => task.title)).not.toContain('Finished task');
     expect(text).not.toContain('secret-search-token');
     expect(text).not.toContain('email-token-never-shown');
+  });
+
+  it('leaves out a responsible lawyer who is no longer an active member', async () => {
+    const env = setup();
+    orgOf(env.source).members[USERS.lawyer] = { status: 'suspended', role: 'lawyer', displayName: 'Jordan Price' };
+    const result = await env.build('paralegal');
+    const facts = result.contextBlocks.stable[0];
+    expect(facts?.type === 'text' ? facts.text : '').not.toContain('responsibleLawyer');
   });
 
   it('gives billing roles the trust balance with its as-at date, source and label, and no one else (BILL-11)', async () => {

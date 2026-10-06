@@ -30,7 +30,7 @@ async function choose(page: Page, label: string): Promise<void> {
 
 describe('matter header', () => {
   it('shows the number, type, conflict status, title, status, people, labels, stages and tabs', async () => {
-    const page = await openMatter();
+    const page = await openMatter(undefined, { flags: { 'estate.register': true } });
     const header = page.text(page.header());
     expect(header).toContain('M-2026-0142');
     expect(header).toContain('Probate');
