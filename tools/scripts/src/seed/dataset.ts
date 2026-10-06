@@ -214,6 +214,35 @@ interface MatterSpec {
   computeDeadlines?: boolean;
 }
 
+/**
+ * Each type's seeded fee (BILL-05). Estimates are fictional, in the range a Geelong firm might give
+ * in a Victorian costs disclosure. The Doyle estate's was revised once, so its history shows.
+ */
+function seedFee(type: D.MatterType, revised?: { at: Date; by: string }): D.Matter['fee'] {
+  const cents = (dollars: number) => (dollars * 100) as D.Cents;
+  if (revised) {
+    const from = { arrangement: 'hourly' as const, estimateCents: cents(4500) };
+    const to = { arrangement: 'hourly' as const, estimateLowCents: cents(4500), estimateHighCents: cents(6500) };
+    return {
+      ...to,
+      revision: 1,
+      history: [{ ...revised, from, to, reason: 'Second executor joined; estimate given as a range' }],
+    };
+  }
+  switch (type) {
+    case 'will':
+    case 'poa':
+      return { arrangement: 'fixed', amountCents: cents(1650), history: [] };
+    case 'trust':
+      return { arrangement: 'capped', capCents: cents(5000), estimateCents: cents(4000), history: [] };
+    case 'fp':
+    case 'contest':
+      return { arrangement: 'hourly', estimateLowCents: cents(25000), estimateHighCents: cents(40000), history: [] };
+    default:
+      return { arrangement: 'hourly', estimateLowCents: cents(4500), estimateHighCents: cents(6500), history: [] };
+  }
+}
+
 /** Twelve matters: every type and every status. Offsets are days from the anchor. */
 const MATTERS: MatterSpec[] = [
   {
@@ -721,7 +750,7 @@ const doyleWill = (page: number, quote: string): D.CitationInput => ({
 /**
  * Clerk threads on the Doyle estate (fictional). The citations quote the will fixture; the last
  * one is a quote verification rejected (stored with `verified: false`), so its claim reads
- * "unverified". Shown by the Clerk panel (AI-06) once it lands.
+ * "unverified". Listed in the Clerk panel (AI-06) on the matter, for its owner.
  */
 const CLERK_THREADS: Readonly<Record<string, readonly ClerkThreadSpec[]>> = {
   'm-doyle-estate': [
@@ -1035,14 +1064,16 @@ export function buildDataset(options: {
       settings: { clerk: { enabled: true, model: 'claude-sonnet-5-5' } },
       // Conflict checks mark adverse roles here, so the conflict scenarios show them (CORE-02), and
       // matters follow their templates' stages and tasks (CORE-07), and the illustrative Victorian
-      // statutory deadline rules apply (CORE-10), the Doyle probate has an estate register (CORE-16),
-      // and Clerk's suggestions show on the Overview (AI-07).
+      // statutory deadline rules apply (CORE-10), the Doyle probate has an estate register (CORE-16)
+      // and Clerk's suggestions show on the Overview (AI-07), as does the fee panel (BILL-05).
       flags: {
         'conflicts.enforced': true,
         'templates.system': true,
         'deadlines.ruleset.vic.v1': true,
         'estate.register': true,
         'clerk.features.suggestions': true,
+        // Fee arrangements, budgets and budget alerts on the Overview (BILL-05).
+        'billing.feeBudgets': true,
         // Disbursements and their presets (BILL-04), awaiting practitioner review (BILL-04a).
         'billing.disbursements': true,
       },
@@ -1231,6 +1262,20 @@ export function buildDataset(options: {
           const units = Math.ceil(minutes / 6);
           return sum + domain.timeAmountCents(units, MEMBERS[uid]?.rate ?? 0);
         }, 0);
+    // The fee (BILL-05): fixed for wills and powers of attorney, a cap on the trust, hourly with a
+    // Victorian-style estimate range elsewhere. The budget is what the fees triggers would compute.
+    const fee = seedFee(spec.type, spec.id === 'm-doyle-estate' ? { at: now, by: JORDAN } : undefined);
+    const recorded = spec.time.reduce((sum, [, minutes, uid]) => {
+      const units = Math.ceil(minutes / 6);
+      return sum + domain.timeAmountCents(units, MEMBERS[uid]?.rate ?? 0);
+    }, 0);
+    const budget = domain.planBudget({
+      fee,
+      previous: null,
+      sums: { timeCents: recorded, disbursementsCents: 0, billedCents: closed ? recorded : 0 },
+      pcts: domain.DEFAULT_BUDGET_ALERT_PCTS,
+      alertsOn: false,
+    }).budget;
     const detail = MATTER_DETAILS[spec.id];
     const registerSpec = ESTATE_REGISTERS[spec.id];
     const register = registerSpec ? seedEstateRegister(spec.id, registerSpec, meta) : null;
@@ -1345,10 +1390,8 @@ export function buildDataset(options: {
         referrerContactId: spec.referrer,
         referralSource: spec.referralSource,
         dispute: spec.dispute ? { kind: spec.dispute, proceedingIds: [] } : undefined,
-        fee:
-          spec.type === 'will' || spec.type === 'poa'
-            ? { arrangement: 'fixed', amountCents: 165_000 as D.Cents, history: [] }
-            : { arrangement: 'hourly', history: [] },
+        fee,
+        budget,
         costsDisclosure: {
           status: spec.type === 'will' ? 'not_required' : 'sent',
           ...(spec.type === 'will' ? {} : { sentOn: rel(-30) }),
@@ -1657,6 +1700,7 @@ export function buildDataset(options: {
           updatedBy: 'clerk',
           role: 'assistant',
           content: [{ type: 'text', text: thread.answer }],
+          replyTo: `${thread.id}-m-1`,
           citations: thread.citations,
           status: 'done',
           promptId: 'chat-answer@1.0.0',

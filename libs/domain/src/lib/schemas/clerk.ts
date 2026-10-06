@@ -218,15 +218,31 @@ export const Suggestion = {
 };
 export type Suggestion = z.infer<typeof Suggestion.schema>;
 
+/**
+ * `orgs/{orgId}/clerkThreads/{threadId}` (AI-06, ADR-044): one Clerk conversation about one matter.
+ * Private to its owner until they share it with the matter team (`shared`). Created by
+ * `clerk-sendMessage`; the owner may rename it, share it or delete it. `privileged` is set once any
+ * reply drew on privileged material (Clerk rule 6), and hides the thread from roles without
+ * `privileged.view`. `continuedFrom` names the thread this one continues, when that one outgrew
+ * the context budget.
+ */
 export const ClerkThread = withMeta(
   {
-    title: z.string(),
+    title: z.string().max(200),
     ownerUid: DocIdSchema,
     matterId: DocIdSchema.nullable(),
     lastMessageAt: InstantSchema.optional(),
     shared: z.boolean().default(false),
+    privileged: z.boolean().default(false),
+    continuedFrom: DocIdSchema.optional(),
   },
-  { path: 'orgs/{orgId}/clerkThreads', softDelete: true, serverOwned: ['lastMessageAt'], migratable: false },
+  {
+    path: 'orgs/{orgId}/clerkThreads',
+    softDelete: true,
+    serverOwned: ['lastMessageAt', 'privileged', 'continuedFrom'],
+    updatable: ['title', 'shared'],
+    migratable: false,
+  },
 );
 
 /**
@@ -280,14 +296,37 @@ const ContentBlockSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('suggestion_ref'), suggestionId: DocIdSchema }),
 ]);
 
+/** Why a person marked a Clerk answer down (AI-06). */
+export const CLERK_FEEDBACK_REASONS = ['inaccurate', 'missing_sources', 'not_helpful', 'unsafe', 'other'] as const;
+export const ClerkFeedbackReasonSchema = z.enum(CLERK_FEEDBACK_REASONS);
+export type ClerkFeedbackReason = z.infer<typeof ClerkFeedbackReasonSchema>;
+
+/** A person's thumbs up or down on one answer (`clerk-setFeedback`), counted for the evals (AI-12). */
+export const ClerkFeedbackSchema = z.object({
+  rating: z.enum(['up', 'down']),
+  reason: ClerkFeedbackReasonSchema.optional(),
+  comment: z.string().max(500).optional(),
+  by: DocIdSchema,
+  at: InstantSchema,
+});
+export type ClerkFeedback = z.infer<typeof ClerkFeedbackSchema>;
+
+/** A read-only tool Clerk ran while answering (AI-06): shown as "Searching documents…". */
+export const ClerkToolCallSchema = z.object({
+  id: z.string().max(100).optional(),
+  name: z.string(),
+  status: z.enum(['running', 'done', 'error']),
+});
+
 export const ClerkMessage = withMeta(
   {
     role: z.enum(['user', 'assistant']),
     content: z.array(ContentBlockSchema),
     citations: z.array(CitationSchema).default([]),
     /**
-     * `refused` (shown honestly), `truncated` (hit max tokens; disclosed), `invalid_output` (a
-     * structured reply failed validation; never retried blindly), `error` keeps any partial text.
+     * `streaming` until the run finishes. `refused` (shown honestly), `truncated` (hit max tokens;
+     * disclosed), `invalid_output` (a structured reply failed validation; never retried blindly),
+     * `error` keeps any partial text and says why in `error`.
      */
     status: z.enum(['streaming', 'done', 'error', 'stopped', 'refused', 'truncated', 'invalid_output']),
     stopRequested: z.boolean().default(false),
@@ -299,7 +338,7 @@ export const ClerkMessage = withMeta(
         cacheWriteTokens: z.number().int().min(0).default(0),
       })
       .optional(),
-    toolCalls: z.array(z.object({ name: z.string(), status: z.enum(['running', 'done', 'error']) })).default([]),
+    toolCalls: z.array(ClerkToolCallSchema).default([]),
     /** `id@version` of the prompt template (AI-02). */
     promptId: z.string().optional(),
     /** The model that produced the reply (a fallback model when `fallbackUsed`). */
@@ -307,8 +346,17 @@ export const ClerkMessage = withMeta(
     fallbackUsed: z.boolean().optional(),
     /** The sources Clerk was given for this reply (AI-03), for audit. */
     manifest: ContextManifestSchema.optional(),
-    /** The reply drew on privileged material (AI-03, Clerk rule 6). */
-    privileged: z.boolean().optional(),
+    /** The reply drew on privileged material (AI-03, Clerk rule 6). Always stored, so the rules can test it. */
+    privileged: z.boolean().default(false),
+    /** An assistant message: the user message it answers (a retry answers the same one again, AI-06). */
+    replyTo: DocIdSchema.optional(),
+    /** A user message: the documents attached to the question (AI-06). */
+    attachments: z.array(DocIdSchema).max(10).optional(),
+    /** Suggestions (AI-07) proposed with this answer. */
+    suggestionIds: z.array(DocIdSchema).default([]),
+    feedback: ClerkFeedbackSchema.optional(),
+    /** Why an answer failed (`status: error`): an error code, and the switch for CLERK_DISABLED. */
+    error: z.object({ code: z.string().max(60), switch: z.string().max(100).optional() }).optional(),
   },
   {
     path: 'orgs/{orgId}/clerkThreads/{threadId}/messages',
@@ -323,6 +371,10 @@ export const ClerkMessage = withMeta(
       'fallbackUsed',
       'manifest',
       'privileged',
+      'replyTo',
+      'suggestionIds',
+      'feedback',
+      'error',
     ],
     updatable: ['stopRequested'],
   },

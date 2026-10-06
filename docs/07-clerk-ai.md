@@ -117,6 +117,31 @@ See [ADR-043](adr/043-citations.md).
   - the citation viewer uses it for DOCX, email and text sources, and for scanned PDF pages.
 - **Seed:** the Doyle estate has a fictional Clerk thread (`m-doyle-estate-ct-1`) with markers, a record citation and one `verified: false`. Its suggestions quote the will fixture.
 
+### As built (AI-06): the chat panel
+
+See [ADR-044](adr/044-clerk-chat-panel.md). Code: `apps/functions/src/clerk/chat/`, `libs/domain/src/lib/clerk-chat.ts`, `libs/data-access/src/lib/clerk-chat.ts`, `apps/web/src/app/features/clerk/`.
+
+- **Callables** (`CLERK_CHAT_CALLABLES`, all `clerk.use`, idempotent):
+  - `clerk-sendMessage({threadId?, matterId, text, attachments?, requestId})` → `{threadId, userMessageId, messageId, continuedFrom?}`. It returns before the answer is written: the client listens to `messageId`. It says at once when Clerk is off (`CLERK_DISABLED` with the switch), has no usable key or is over budget.
+  - `clerk-retryMessage({threadId, messageId})` adds a new answer to the same question. Only the newest answer can be retried.
+  - `clerk-setFeedback({threadId, messageId, rating, reason?, comment?})` stores `feedback` on an answer and counts `feature.chat.feedback_up`/`_down` in `metrics/clerk-{YYYY-MM}`.
+- **The answer** is written by the `clerk-runMessage` queue (Cloud Tasks, one task per answer):
+  - `buildContext` (feature `chat`, the question's attachments, the question as the retrieval query);
+  - the earlier exchanges from `private/raw.exchangeJson`, byte for byte (cache markers stripped);
+  - or, in a continued thread, a `chat-summary@1.0.0` summary of the thread it continues;
+  - then `chat@1.0.0` in stream mode into the existing message (`stream.adopt`), with the read-only tools.
+  - Failures end the message as `error` with `error.code` (and `error.switch`).
+- **Tools** (`chat/tools.ts`, `CLERK_CHAT_TOOLS`): `search_documents`, `get_deadlines`, `get_tasks`, `get_parties`, `get_time_summary` and `get_document_text`. They are scoped to the thread's matter, with privilege checked in code, and at most 6 rounds (`MAX_TOOL_ROUNDS`). `toolCalls` shows each while it runs.
+- **Proposals:** after a finished answer, `chat-proposals@1.0.0` (structured output, `chatProposals`) proposes up to five suggestions. They are created by `proposeSuggestions` and linked in `suggestionIds`. Off with `clerk.features.suggestions`. The `chatProposals` and `chatSummary` features are `background`, so they take no per-user rate slot.
+- **Continuing:** when the newest answer used 150k tokens or more (`CHAT_HISTORY_BUDGET_TOKENS`), the next question goes to a new thread with `continuedFrom`. Nothing is trimmed.
+- **Privilege (rule 6):** an answer whose context or tools drew on privileged material is `privileged`, and so is its thread. Both need `privileged.view` to read, shared or not.
+- **Panel** (`mt-clerk-chat`, a lazy chunk loaded the first time ⌘J opens the shell's panel):
+  - threads per matter (the person's own and the shared ones), "New thread" and "Share with matter team";
+  - the scope chip and attachments, and the `/` commands (`/summarise`; `/chronology`, `/draft` and `/timeline` coming soon);
+  - streamed answers with the working line, Stop, Retry, Copy and Helpful / Not helpful with a reason;
+  - suggestion cards and the citation viewer.
+- **Emulator:** the fake model's chat script follows markers in the question: `[fake:tools]` (search, then deadlines), `[fake:slow]` (a slow stream), `[fake:refuse]` and `[fake:propose]` (a task suggestion).
+
 ## Context assembly (AI-03)
 
 - **The scope is resolved server-side** from the request (`orgId`, `matterId`, `uid`). Role checks run before any retrieval.

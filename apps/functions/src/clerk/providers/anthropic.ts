@@ -55,6 +55,15 @@ function toApiBlock(block: ClerkContentBlock, citable: boolean): ApiBlock {
         ...citations,
         ...cache,
       };
+    case 'tool_result':
+      // Retrieved passages stay citable inside a tool result (AI-06).
+      return {
+        type: 'tool_result',
+        tool_use_id: block.toolUseId,
+        content: block.content.map((part) => toApiBlock(part, citable)),
+        ...(block.isError ? { is_error: true } : {}),
+        ...cache,
+      };
   }
 }
 
@@ -94,6 +103,13 @@ export async function buildParams(request: ClerkModelRequest): Promise<MessageSt
       ...(request.output ? { format: await outputFormat(request.output.schema) } : {}),
     },
   };
+  // Model-chosen tools only: no `tool_choice`, so the model decides (a forced choice is a 400).
+  if (request.tools?.length)
+    params['tools'] = request.tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.inputSchema,
+    }));
   if (request.serverFallbacks) {
     params['fallbacks'] = 'default';
     params['betas'] = [SERVER_FALLBACK_BETA];
@@ -104,7 +120,7 @@ export async function buildParams(request: ClerkModelRequest): Promise<MessageSt
 interface ApiMessage {
   model: string;
   stop_reason: string | null;
-  content: { type: string; text?: string; citations?: unknown[] | null }[];
+  content: { type: string; text?: string; citations?: unknown[] | null; id?: string; name?: string; input?: unknown }[];
   usage: {
     input_tokens: number;
     output_tokens: number;
@@ -129,6 +145,9 @@ export function toResult(message: ApiMessage, requestedModel: string): ClerkMode
     },
     content: message.content,
     serverFallback: message.model !== requestedModel || message.content.some((block) => block.type === 'fallback'),
+    toolUses: message.content
+      .filter((block) => block.type === 'tool_use')
+      .map((block) => ({ id: String(block.id ?? ''), name: String(block.name ?? ''), input: block.input ?? {} })),
   };
 }
 

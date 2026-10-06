@@ -21,6 +21,9 @@ export interface ContextPolicy {
 export const CONTEXT_POLICIES = {
   hello: { budgetTokens: 8_000, scopes: ['matter'] },
   chat: { budgetTokens: 40_000, scopes: ['matter'] },
+  // The chat panel's follow-on calls (AI-06) reuse the chat question's context; they build none.
+  chatProposals: { budgetTokens: 40_000, scopes: ['matter'] },
+  chatSummary: { budgetTokens: 40_000, scopes: ['matter'] },
   suggestions: { budgetTokens: 24_000, scopes: ['matter'] },
   classification: { budgetTokens: 16_000, scopes: ['matter'] },
   brief: { budgetTokens: 24_000, scopes: ['matter'] },
