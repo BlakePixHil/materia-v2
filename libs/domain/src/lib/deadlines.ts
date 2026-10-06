@@ -254,8 +254,9 @@ export type ManualDeadlineKind = z.infer<typeof ManualDeadlineKindSchema>;
 
 /**
  * What a client writes to create a manual deadline (CORE-10), besides the meta fields the repository
- * stamps: `orgId` and `matterId` matching the path, `status: 'upcoming'`, a manual kind and no
- * computed provenance (the rules check each). Manual deadlines are edited directly afterwards.
+ * stamps: `orgId` and `matterId` matching the path, `status: 'upcoming'`, the matter's
+ * `privileged` flag (CORE-10b), a manual kind and no computed provenance (the rules check each).
+ * Manual deadlines are edited directly afterwards.
  */
 export const ManualDeadlineCreateInput = /* @__PURE__ */ z
   .object({
@@ -272,6 +273,7 @@ export const ManualDeadlineCreateInput = /* @__PURE__ */ z
       .array(z.object({ offsetDays: z.number().int().min(0).max(365) }).strict())
       .max(DEADLINE_REMINDERS_MAX)
       .default([]),
+    privileged: z.boolean(),
   })
   .strict();
 export type ManualDeadlineCreateInput = z.input<typeof ManualDeadlineCreateInput>;

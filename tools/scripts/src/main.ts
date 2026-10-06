@@ -19,6 +19,7 @@ const COMMANDS = {
   'backfill-ingest': 'Have Clerk ingest documents from before AI-04 or that failed, and report ingest status (AI-04)',
   'backfill-matter-roles':
     'Give every contact its roles in live matters for the contacts filter (CORE-01a; idempotent)',
+  'backfill-deadline-privilege': 'Copy each matter’s privileged flag to its events, deadlines and proposals (CORE-10b)',
   'search-load': 'Time the ⌘K search against the emulator with 5,000 matters (CORE-15)',
   'decode-stack': 'Deobfuscate a web stack trace with the private sourcemaps (FND-21)',
   'restore-matter': 'Restore one matter from a PITR time or a restored database (SEC-03; dry run unless --apply)',
@@ -62,6 +63,7 @@ export async function run(argv: string[]): Promise<number> {
       'backfill-search-tokens': () => import('./backfills/search-tokens.ts'),
       'backfill-ingest': () => import('./backfills/ingest.ts'),
       'backfill-matter-roles': () => import('./backfills/matter-roles.ts'),
+      'backfill-deadline-privilege': () => import('./backfills/deadline-privilege.ts'),
       'search-load': () => import('./search-load.ts'),
       'decode-stack': () => import('./decode-stack.ts'),
       'restore-matter': () => import('./backups/restore-matter.ts'),

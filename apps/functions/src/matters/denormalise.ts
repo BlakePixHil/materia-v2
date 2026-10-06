@@ -4,6 +4,7 @@ import { contactNames, matterPath, matterSearch, searchContactIds } from './shar
 import { changedFields } from '../audit/entry';
 import { refreshMatterRoles } from '../contacts/matter-roles';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
+import { privilegeChanged, syncMatterPrivilege } from '../deadlines/privilege';
 import { fillFromKeyFacts } from '../templates/fill-pending';
 
 type Data = Record<string, unknown>;
@@ -131,6 +132,12 @@ export const denormaliseDefinition: TriggerDefinition = {
       change.before?.data() as Data | undefined,
       change.after?.data() as Data | undefined,
     );
+    // The matter's events, deadlines and proposals carry a copy of its privileged flag (CORE-10b).
+    if (privilegeChanged(change.before?.data(), change.after?.data())) {
+      const matterId = ctx.params['matterId'] as string;
+      const written = await syncMatterPrivilege(ctx.db, ctx.params['orgId'] as string, matterId);
+      ctx.log.info('privileged flag copied', { matterId, written });
+    }
   },
 };
 

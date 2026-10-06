@@ -9,13 +9,25 @@
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", "^default"],
-      "options": { "command": "tsc --noEmit -p tools/migration/tsconfig.json" }
+      "options": {
+        "command": "tsc --noEmit -p tools/migration/tsconfig.json"
+      }
     },
     "build": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", "^default"],
-      "options": { "command": "node tools/migration/bin/materia-migrate.mjs --help" }
+      "options": {
+        "command": "node tools/migration/bin/materia-migrate.mjs --help"
+      }
+    },
+    "test-integration": {
+      "executor": "nx:run-commands",
+      "parallelism": false,
+      "options": {
+        "command": "firebase emulators:exec --only auth --project demo-materia --config firebase.json \"vitest run --config tools/migration/vitest.integration.config.mts\"",
+        "cwd": "{workspaceRoot}"
+      }
     }
   }
 }

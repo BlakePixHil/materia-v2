@@ -338,7 +338,11 @@ export class MatterDeadlines {
 
   private manualContext() {
     const matter = this.screen.value();
-    return { people: this.screen.assignees(), assigneeUid: matter?.responsibleUid ?? this.screen.me() ?? '' };
+    return {
+      people: this.screen.assignees(),
+      assigneeUid: matter?.responsibleUid ?? this.screen.me() ?? '',
+      privileged: matter?.privileged === true,
+    };
   }
 
   protected addDeadline(): void {

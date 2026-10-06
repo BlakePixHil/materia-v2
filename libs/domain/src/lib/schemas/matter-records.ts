@@ -158,8 +158,10 @@ export const MatterEvent = withMeta(
     label: z.string().max(200).optional(),
     meta: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).default({}),
     sourceDocumentId: DocIdSchema.optional(),
+    /** The matter's privileged flag, copied (CORE-10b): see `Deadline.privileged`. */
+    privileged: z.boolean(),
   },
-  { path: `${MATTER}/events`, softDelete: true, updatable: [] },
+  { path: `${MATTER}/events`, softDelete: true, serverOwned: ['privileged'], updatable: [] },
 );
 
 /** Why a deadline has no date yet (CORE-10): its anchor event, calendar data, or a bad input. */
@@ -265,6 +267,13 @@ export const Deadline = withMeta(
     escalatedTo: z.array(DocIdSchema).max(DEADLINE_ESCALATION_RECIPIENTS_MAX).optional(),
     /** Already past when computed: in the review queue, never marked missed automatically. */
     pastOnCreation: z.boolean().default(false),
+    /**
+     * The matter's privileged flag, copied (CORE-10b) so the rules can hide a privileged matter's
+     * deadlines from roles without `privileged.view` in cross-matter queries, which can't read each
+     * matter. Every writer copies it from the matter, and `matters-denormalise` rewrites it when the
+     * matter's flag changes. No default: a writer that forgets it fails rather than leaks.
+     */
+    privileged: z.boolean(),
   },
   {
     path: `${MATTER}/deadlines`,
@@ -272,6 +281,7 @@ export const Deadline = withMeta(
     serverOwned: [
       'orgId',
       'matterId',
+      'privileged',
       'status',
       'blockedReason',
       'blockedCode',
@@ -332,6 +342,8 @@ export const DeadlineChange = withMeta(
     recomputeVersion: z.number().int().min(0),
     resolvedBy: DocIdSchema.optional(),
     resolvedAt: InstantSchema.optional(),
+    /** The matter's privileged flag, copied (CORE-10b): see `Deadline.privileged`. */
+    privileged: z.boolean(),
   },
   {
     path: `${MATTER}/deadlineChanges`,
@@ -339,6 +351,7 @@ export const DeadlineChange = withMeta(
     serverOwned: [
       'orgId',
       'matterId',
+      'privileged',
       'deadlineId',
       'ruleId',
       'title',
