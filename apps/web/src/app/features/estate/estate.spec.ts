@@ -1,4 +1,5 @@
-import type { JobSource, JobView } from '@materia/data-access';
+import type { DriverFactory, JobSource, JobView } from '@materia/data-access';
+import { FIRESTORE_DRIVER, type InMemoryFirestore } from '@materia/data-access/repository';
 
 import { parseMoneyInput, parseShareInput } from './estate-view';
 import { JOB_SOURCE } from '../../core/jobs/job-progress';
@@ -176,6 +177,73 @@ describe('estate tab', () => {
     expect(written(page, 'assets')).toEqual([]);
     expect(page.text(page.body.querySelector('[aria-labelledby="mt-estate-assets"]'))).toContain(
       'Enter an amount like 1,250,000.00.',
+    );
+  });
+
+  it('is ready for the next entry at once, and leaves the focus alone when the server answers later', async () => {
+    // Firestore shows a new row at once and answers the write later: hold that answer.
+    let firestore!: InMemoryFirestore;
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    const held: DriverFactory = (path, options) => {
+      const driver = firestore.driver(path, options);
+      return {
+        ...driver,
+        create: async (...args) => {
+          const id = await driver.create(...args);
+          await answered;
+          return id;
+        },
+      };
+    };
+    const page = await open({
+      configure: (fs) => (firestore = fs),
+      providers: [{ provide: FIRESTORE_DRIVER, useFactory: () => held }],
+    });
+    const assets = quick(page, 'Add an asset');
+    type(assets, 'New asset description', 'Fictional Mining Ltd shares');
+    type(assets, 'New asset value at date of death', '12,000.50');
+    await page.stable(); // As in a browser, the typing is rendered before Enter.
+    await page.submit(page.body.querySelector('[aria-labelledby="mt-estate-assets"]'));
+    const description = assets?.querySelector<HTMLInputElement>('[aria-label="New asset description"]');
+    expect(document.activeElement).toBe(description);
+    expect(description?.value).toBe('');
+
+    // Someone moves on to a liability before the answer arrives: it leaves them there.
+    const liabilities = quick(page, 'Add a liability');
+    const creditor = liabilities?.querySelector<HTMLInputElement>('[aria-label="New liability creditor"]');
+    creditor?.focus();
+    type(liabilities, 'New liability creditor', 'Fictional Funerals');
+    answer();
+    await page.stable();
+    expect(document.activeElement).toBe(creditor);
+    expect(creditor?.value).toBe('Fictional Funerals');
+    expect(summary(page)).toContain('Gross estate $12,000.50');
+  });
+
+  it('puts back what was entered when the save fails', async () => {
+    let firestore!: InMemoryFirestore;
+    const refused: DriverFactory = (path, options) => ({
+      ...firestore.driver(path, options),
+      create: () => Promise.reject({ code: 'permission-denied', message: 'Missing or insufficient permissions.' }),
+    });
+    const page = await open({
+      configure: (fs) => (firestore = fs),
+      providers: [{ provide: FIRESTORE_DRIVER, useFactory: () => refused }],
+    });
+    const assets = quick(page, 'Add an asset');
+    type(assets, 'New asset description', 'Fictional Mining Ltd shares');
+    type(assets, 'New asset value at date of death', '12,000.50');
+    await page.submit(page.body.querySelector('[aria-labelledby="mt-estate-assets"]'));
+    await page.stable();
+    expect(assets?.querySelector<HTMLInputElement>('[aria-label="New asset description"]')?.value).toBe(
+      'Fictional Mining Ltd shares',
+    );
+    expect(assets?.querySelector<HTMLInputElement>('[aria-label="New asset value at date of death"]')?.value).toBe(
+      '12,000.50',
+    );
+    expect(page.text(page.body.querySelector('[aria-labelledby="mt-estate-assets"]'))).toContain(
+      'The estate register didn’t save',
     );
   });
 
