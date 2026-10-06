@@ -50,6 +50,22 @@ describe('gcsStore', () => {
     expect(calls[0]).toMatchObject({ method: 'GET', url: `${STORAGE}/b/b/o/a%2Fb%20c`, auth: 'Bearer t0k' });
   });
 
+  it('lists objects under a prefix, page by page', async () => {
+    const { store, calls } = scripted(
+      json({ items: [OBJECT], nextPageToken: 'p2' }),
+      json({ items: [{ ...OBJECT, name: 'n2' }] }),
+      json({}),
+      new Response('no', { status: 403 }),
+    );
+    expect((await store.list('b', 'orgs/o/')).map((object) => object.name)).toEqual(['n', 'n2']);
+    expect(calls.map((call) => call.url)).toEqual([
+      `${STORAGE}/b/b/o?prefix=orgs%2Fo%2F`,
+      `${STORAGE}/b/b/o?prefix=orgs%2Fo%2F&pageToken=p2`,
+    ]);
+    expect(await store.list('b', 'empty/')).toEqual([]);
+    await expect(store.list('b', 'refused/')).rejects.toThrow(/Listing gs:\/\/b\/refused\//);
+  });
+
   it('rewrites on the server until done, pinned to the source generation, with the new metadata', async () => {
     const { store, calls } = scripted(
       json({ done: false, rewriteToken: 'tok-1' }),

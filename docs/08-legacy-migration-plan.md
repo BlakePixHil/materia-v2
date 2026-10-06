@@ -4,7 +4,7 @@
 
 - **Legacy:** repo `BlakePixHil/materia-web-app`. Firebase prod project `matt-r-1fe15`; dev project `materia-dev-26bf0`. Domains `app.materia.au` and `app.mattr.com.au`.
 - **Target:** the Materia v2 prod org created for the user, after prod launches. There is no staging, so rehearsals run on dev and are rolled back afterwards ([decision log](migration/decisions.md) D-15).
-- **Tooling:** `tools/migration`, a Node CLI. Commands: `audit` and `check-profile` (MIG-01), `export` (MIG-02) and `auth-import` (MIG-04) are built; `transform`, `load`, `verify`, `delta`, `rollback` and `report` follow.
+- **Tooling:** `tools/migration`, a Node CLI. Commands: `audit` and `check-profile` (MIG-01), `export` (MIG-02), `auth-import` (MIG-04), `copy-files` (MIG-05), and `load`, `verify`, `delta` and `rollback` (MIG-06) are built; `transform` and `report` follow.
 - **Decisions:** the user's mapping choices are in [`docs/migration/decisions.md`](migration/decisions.md) and the mapping profile `tools/migration/profiles/<user>.json`.
 
 ## Legacy model (source facts)
@@ -130,14 +130,16 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
    - BulkWriter with upserts by deterministic id.
    - A document is skipped and reported if the v2 doc's `updatedAt` is later than its `migration.loadedAt` (the user edited it after load).
    - `--dry-run` writes nothing and prints the plan.
+   - **Built in MIG-06:** `materia-migrate load` writes the run in dependency order, syncs the member's claims and records the run once in the audit log; the triggers skip notifications and ingestion for its writes. The [runbook](runbooks/migration-load.md) and decision D-20 have the details.
 5. **Verify:**
    - counts per entity, legacy versus v2;
    - attachment hashes;
    - 20 random cards diffed field by field;
    - a rules check that the user can read everything as themselves;
    - deadline recompute proposals generated into a review queue (MIG-09).
-6. **Delta:** re-export items with `updatedOn > lastRunAt`, then transform and load. The run is idempotent. `export --since <last run's readTime>` filters cards and attachments, writes everything else in full, and lists every path in scope so the load can see deletions (D-17).
-7. **Rollback:** `rollback --run {runId}` deletes every v2 document with `migration.runId == runId`, plus the Storage prefix. It refuses on prod without `--confirm-prod`, and writes an audit entry.
+   - **Built in MIG-06:** `materia-migrate verify` compares every loaded record, not 20 random cards, and writes `verify-report.md` (D-20).
+6. **Delta:** re-export items with `updatedOn > lastRunAt`, then transform and load. The run is idempotent. `export --since <last run's readTime>` filters cards and attachments, writes everything else in full, and lists every path in scope so the load can see deletions (D-17). `materia-migrate delta` loads the delta run and deletes what legacy deleted only with `--apply-deletes` (D-20).
+7. **Rollback:** `rollback --run {runId}` deletes every v2 document with `migration.runId == runId`, plus the Storage prefix. It refuses on prod without `--confirm-prod`, and writes an audit entry. Built in MIG-06 (D-20).
 
 ## Rehearsal & cutover
 

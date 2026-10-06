@@ -12,6 +12,7 @@ describe('materia-migrate', () => {
       'load',
       'verify',
       'rollback',
+      'delta',
     ]) {
       expect(usage()).toContain(step);
     }
@@ -28,6 +29,7 @@ describe('materia-migrate', () => {
     expect(await run(['check-profile', '--help'])).toBe(0);
     expect(await run(['auth-import', '--help'])).toBe(0);
     expect(await run(['copy-files', '--help'])).toBe(0);
+    for (const step of ['load', 'verify', 'rollback', 'delta']) expect(await run([step, '--help'])).toBe(0);
     vi.restoreAllMocks();
   });
 });

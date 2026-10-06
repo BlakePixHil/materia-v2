@@ -2,6 +2,7 @@ import { auditCommand, checkProfileCommand } from './audit.ts';
 import { authImportCommand } from './auth-import.ts';
 import { copyFilesCommand } from './copy-files.ts';
 import { exportCommand } from './export.ts';
+import { deltaCommand, loadCommand, rollbackCommand, verifyCommand } from './load-commands.ts';
 
 /**
  * `materia-migrate <step>`: the legacy materia to v2 migration CLI (Legacy migration plan).
@@ -15,9 +16,10 @@ const STEPS = {
   transform: 'MIG-03: pure legacy to v2 mapping',
   'copy-files': 'MIG-05: copy the attachments into v2, verified and scanned',
   'auth-import': 'MIG-04: move one legacy Auth account into v2 with the same uid',
-  load: 'MIG-06: idempotent load into a v2 org',
-  verify: 'MIG-06: verification suite',
-  rollback: 'MIG-06: one-command rollback',
+  load: 'MIG-06: idempotent load of a transformed run into its v2 org',
+  verify: 'MIG-06: compare what was loaded with the run, field by field (verify-report.md)',
+  rollback: 'MIG-06: delete everything one run loaded',
+  delta: 'MIG-06: apply a delta run, and what legacy deleted since',
 } as const;
 
 type Step = keyof typeof STEPS;
@@ -28,6 +30,10 @@ const COMMANDS: Partial<Record<Step, (argv: string[]) => Promise<number>>> = {
   export: (argv) => exportCommand(argv),
   'auth-import': (argv) => authImportCommand(argv),
   'copy-files': (argv) => copyFilesCommand(argv),
+  load: (argv) => loadCommand(argv),
+  verify: (argv) => verifyCommand(argv),
+  rollback: (argv) => rollbackCommand(argv),
+  delta: (argv) => deltaCommand(argv),
 };
 
 export function usage(): string {

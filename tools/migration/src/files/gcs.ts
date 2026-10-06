@@ -37,6 +37,8 @@ export interface ObjectResource {
 export interface ObjectStore {
   /** The object's metadata, or null when it doesn't exist. */
   stat(bucket: string, name: string): Promise<StoredObject | null>;
+  /** Every object whose name starts with `prefix`, metadata included (the rollback's, MIG-06). */
+  list(bucket: string, prefix: string): Promise<StoredObject[]>;
   /** Copies `from` to `to` on the server; null when the source (or its generation) is gone. */
   rewrite(from: ObjectRef, to: Omit<ObjectRef, 'generation'>, resource: ObjectResource): Promise<StoredObject | null>;
   /** The object's bytes; throws if it holds more than `maxBytes`. */
@@ -134,6 +136,22 @@ export function gcsStore(deps: RestDeps, options: GcsStoreOptions): ObjectStore 
         if (!res.ok) throw await failed(`Reading the metadata of gs://${bucket}/${name}`, res);
         return toStored((await res.json()) as GcsObjectJson, { bucket, name });
       });
+    },
+
+    async list(bucket, prefix) {
+      const found: StoredObject[] = [];
+      let pageToken: string | undefined;
+      do {
+        const query = new URLSearchParams({ prefix, ...(pageToken ? { pageToken } : {}) });
+        const body = await retrying(async () => {
+          const res = await send(`${storage}/b/${encodeURIComponent(bucket)}/o?${query}`, { method: 'GET' });
+          if (!res.ok) throw await failed(`Listing gs://${bucket}/${prefix}`, res);
+          return (await res.json()) as { items?: GcsObjectJson[]; nextPageToken?: string };
+        });
+        found.push(...(body.items ?? []).map((item) => toStored(item, { bucket, name: item.name ?? '' })));
+        pageToken = body.nextPageToken;
+      } while (pageToken);
+      return found;
     },
 
     async rewrite(from, to, resource) {

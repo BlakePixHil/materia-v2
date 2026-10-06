@@ -225,7 +225,7 @@ describe('buildWriteEntry', () => {
     expect(hardNoDeleter['actor']).toEqual({ uid: 'user-1' });
   });
 
-  it('marks callable, system and migration writes', () => {
+  it('marks callable and system writes, and leaves the migration load to its one entry per run', () => {
     const callable = entryOf(
       build(`${ORG}/invoices/i1`, undefined, meta('user-1', { status: 'issued', _requestId: 'req-1' })),
     );
@@ -237,8 +237,18 @@ describe('buildWriteEntry', () => {
     const clerk = entryOf(build(`${ORG}/matters/m1/tasks/t2`, undefined, meta('clerk', { title: 'Suggested' })));
     expect(clerk).toMatchObject({ source: 'trigger', actor: 'clerk' });
     const migration = { runId: 'run-7', legacyPath: 'legacy/x', loadedAt: Timestamp.fromDate(AT) };
-    const loaded = entryOf(build(`${ORG}/contacts/c9`, undefined, meta('system', { kind: 'person', migration })));
-    expect(loaded).toMatchObject({ source: 'migration', runId: 'run-7' });
+    expect(build(`${ORG}/contacts/c9`, undefined, meta('system', { kind: 'person', migration }))).toEqual({
+      skip: 'migration load',
+    });
+    // A re-load restamps `loadedAt`: still the load.
+    const reloaded = { ...migration, loadedAt: Timestamp.fromDate(new Date(AT.getTime() + 60_000)) };
+    expect(
+      build(
+        `${ORG}/contacts/c9`,
+        meta('system', { kind: 'person', migration }),
+        meta('system', { kind: 'org', migration: reloaded }),
+      ),
+    ).toEqual({ skip: 'migration load' });
     // A later edit of a migrated document is an ordinary write.
     const edited = entryOf(
       build(
@@ -254,6 +264,7 @@ describe('buildWriteEntry', () => {
   it('skips excluded collections, meta-only and denormalised-only updates', () => {
     expect(build(`${ORG}/audit/a1`, undefined, { x: 1 })).toEqual({ skip: 'excluded collection' });
     expect(build(`${ORG}/metrics/day-2026-10-04`, undefined, { x: 1 })).toEqual({ skip: 'excluded collection' });
+    expect(build(`${ORG}/migrations/run-1`, undefined, { status: 'running' })).toEqual({ skip: 'excluded collection' });
     expect(build(`${ORG}/matters/m1/activity/a1`, undefined, { x: 1 })).toEqual({ skip: 'excluded collection' });
     expect(build(`${ORG}/matters/m1`, undefined, undefined)).toEqual({ skip: 'no data' });
     expect(build(`${ORG}/matters/m1`, meta('u1', { a: 1 }), meta('u2', { a: 1 }))).toEqual({ skip: 'meta only' });

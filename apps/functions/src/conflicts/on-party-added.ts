@@ -9,6 +9,7 @@ import {
 import { findConflictHits, storeConflictCheck } from './shared';
 import { contactPath, isDeleted } from '../contacts/shared';
 import { isEnabled } from '../core/flags';
+import { isMigrationWrite } from '../core/migration';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
 import { matterPath } from '../matters/shared';
 import { notify } from '../notifications/notify';
@@ -23,6 +24,7 @@ const millis = (value: unknown): number | undefined => {
 
 export type PartyRecheckOutcome =
   | 'skipped_deleted'
+  | 'skipped_migration'
   | 'skipped_not_added'
   | 'skipped_matter'
   | 'skipped_with_matter'
@@ -44,6 +46,8 @@ export async function recheckParty(change: TriggerChange, ctx: TriggerContext): 
   const party = change.after?.data() as Data | undefined;
   if (!party || isDeleted(party)) return 'skipped_deleted';
   const before = change.before?.data() as Data | undefined;
+  // Parties the migration loads (MIG-06) came with their matter: no re-check, alert or notification.
+  if (isMigrationWrite(before, party)) return 'skipped_migration';
   const revived = !!before && isDeleted(before);
   if (before && !revived) return 'skipped_not_added';
   const orgId = ctx.params['orgId'] as string;
