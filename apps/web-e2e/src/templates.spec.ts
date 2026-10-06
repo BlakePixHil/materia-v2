@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 import {
   expectNoA11yViolations,
+  FIRST_CALL,
   FIRST_LOAD,
   setEmulatorDocuments,
   setOrgFlags,
@@ -109,8 +110,14 @@ test.describe('matter templates', () => {
     await page.getByRole('menuitem', { name: 'Upgrade matter to v2…' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('Only tasks it doesn’t have yet are added');
+    // The first upgrade starts its function in the emulator: wait for the server's answer, then the toast.
+    const upgraded = page.waitForResponse(
+      (res) => res.url().endsWith('/matters-upgradeTemplate') && res.request().method() === 'POST',
+      FIRST_CALL,
+    );
     await dialog.getByRole('button', { name: 'Upgrade to v2' }).click();
-    await expect(page.getByText('Upgraded to v2').first()).toBeVisible({ timeout: 20_000 });
+    await upgraded;
+    await expect(page.getByText('Upgraded to v2').first()).toBeVisible();
     await expect(page.getByText(/\d+ tasks? added\./).first()).toBeVisible();
     await expect(page.locator('mt-matter-overview')).toContainText('Check the client’s identity documents');
     await page.getByRole('button', { name: 'More matter actions' }).click();
