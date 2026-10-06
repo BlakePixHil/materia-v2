@@ -17,6 +17,8 @@ import {
 import { clearFlagCaches, setRemoteFlagLoader } from '../../src/core/flags';
 import { createLog } from '../../src/core/log';
 import { systemClock } from '../../src/ports/container';
+import { FakeTaskQueue } from '../../src/ports/fakes';
+import { notifyNewSuggestions } from '../../src/suggestions/notify';
 import { proposeSuggestions, type ProposeOptions } from '../../src/suggestions/propose';
 
 /**
@@ -25,7 +27,8 @@ import { proposeSuggestions, type ProposeOptions } from '../../src/suggestions/p
  * `suggestions-*` callables with real claims. One test per kind with a handler (each through its
  * domain logic: the triggers, recompute and audit run for real), the kinds without one refused,
  * stale detection, dedupe across runs, the audit's human actor with `via: 'clerk'`, two people
- * accepting at once, a closed matter, permissions and privilege. Everything is fictional.
+ * accepting at once, a closed matter, permissions and privilege, and the `suggestion`
+ * notification a background batch sends (CORE-22a). Everything is fictional.
  */
 const PROJECT_ID = 'demo-materia';
 const ORG = 'org-suggest';
@@ -496,6 +499,41 @@ describe('dedupe and concurrency', () => {
     expect(detailsOf(failed[0]?.reason as FunctionsError)['code']).toBe('ALREADY_RESOLVED');
     const tasks = await db.collection(`${MATTER}/tasks`).where('title', '==', 'Notify the State Revenue Office').get();
     expect(tasks.size).toBe(1);
+  });
+});
+
+describe('notifications (CORE-22a)', () => {
+  it('a background batch tells the responsible lawyer once, and their Review accepts what it points at', async () => {
+    const { created } = await propose([task('Order the valuation report'), task('Ask the bank for balances')]);
+    const notice = () =>
+      notifyNewSuggestions(
+        { db, orgId: ORG, clock: systemClock, log, ports: { tasks: new FakeTaskQueue() } },
+        MATTER_ID,
+        created,
+      );
+    const ids = await notice();
+    expect(ids).toEqual([`suggest-${MATTER_ID}-${created[0]?.id}`]);
+    expect(await data(`orgs/${ORG}/notifications/${ids[0]}`)).toMatchObject({
+      kind: 'suggestion',
+      recipientUid: uidOf('lawyer'),
+      suggestionId: created[0]?.id,
+      matterId: MATTER_ID,
+      title: 'Clerk has 2 suggestions on SG-2026-0001',
+      link: `/matters/${MATTER_ID}/overview`,
+      channels: ['inapp'],
+      readAt: null,
+    });
+    await notice();
+    const sent = await db
+      .collection(`orgs/${ORG}/notifications`)
+      .where('kind', '==', 'suggestion')
+      .where('suggestionId', '==', created[0]?.id)
+      .get();
+    expect(sent.size).toBe(1);
+
+    await signInAs('lawyer');
+    await accept({ suggestionId: created[0]?.id });
+    expect(await suggestionDoc(created[0]?.id as string)).toMatchObject({ status: 'accepted' });
   });
 });
 
