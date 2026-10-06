@@ -1,8 +1,15 @@
 import { readFileSync } from 'node:fs';
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
 
-import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocument, signInAsTestUser } from '@materia/test-utils/e2e';
+import {
+  EMULATOR_PROJECT,
+  expectNoA11yViolations,
+  FIRESTORE_EMULATOR,
+  FIRST_LOAD,
+  setEmulatorDocument,
+  signInAsTestUser,
+} from '@materia/test-utils/e2e';
 
 /**
  * List exports and the weekly report opt-in (INS-03) against the emulators: an owner exports the
@@ -13,6 +20,24 @@ import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocument, signInAsTestUs
 
 function uniqueOrg(): string {
   return `org-exports-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/** The saved `prefs.notifications.weeklyReport` (read with the emulator's admin access). */
+async function storedWeeklyReport(request: APIRequestContext, uid: string): Promise<boolean | undefined> {
+  const response = await request.get(
+    `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/users/${uid}`,
+    { headers: { Authorization: 'Bearer owner' } },
+  );
+  const body = (await response.json()) as {
+    fields?: {
+      prefs?: {
+        mapValue?: {
+          fields?: { notifications?: { mapValue?: { fields?: Record<string, { booleanValue?: boolean }> } } };
+        };
+      };
+    };
+  };
+  return body.fields?.prefs?.mapValue?.fields?.notifications?.mapValue?.fields?.['weeklyReport']?.booleanValue;
 }
 
 const contact = (uid: string, givenNames: string, familyName: string, extra: Record<string, unknown> = {}) => ({
@@ -86,6 +111,8 @@ test.describe('exports', () => {
     await expect(weekly).toHaveAttribute('aria-checked', 'false', FIRST_LOAD);
     await weekly.click();
     await expect(weekly).toHaveAttribute('aria-checked', 'true');
+    // Saved on the server before the page reloads (a reload can drop a write still in flight).
+    await expect.poll(() => storedWeeklyReport(request, account.uid), FIRST_LOAD).toBe(true);
     await page.reload();
     await expect(page.getByRole('switch', { name: 'Weekly practice report' })).toHaveAttribute(
       'aria-checked',
