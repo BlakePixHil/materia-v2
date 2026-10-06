@@ -58,6 +58,7 @@ locals {
     "roles/run.invoker",                  # starts Cloud Run job executions with overrides (FND-24)
     "roles/firebasecloudmessaging.admin", # sends push notifications (FND-20)
     "roles/datastore.importExportAdmin",  # the nightly Firestore export, backups-exportFirestore (SEC-03)
+    "roles/cloudconfig.viewer",           # reads the Remote Config server template for flags (FND-23)
   ]
 
   jobs_runtime_roles = [
