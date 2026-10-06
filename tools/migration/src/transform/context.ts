@@ -65,7 +65,8 @@ export const WARNINGS = {
   MIG_W_BUDGET_ROLLED_OVER:
     "The profile's budget year is before the current one, so this year has no budget (legacy rollover)",
   MIG_W_BUDGET_MISSING: 'The profile has no financial year budgets (older profiles)',
-  MIG_W_BUDGET_YEAR_MISSING: 'A budget has no financial year, so it is read as the current one',
+  MIG_W_BUDGET_YEAR_MISSING:
+    'A budget has no financial year, so it is read as the current one (the year before, for the previous budget)',
   MIG_W_ORG_NAME_UNCONFIRMED: 'The org name comes from the legacy company name; the user confirms it at cutover (D-09)',
   MIG_W_MATTER_REFERENCE_DUPLICATE:
     'A matter reference repeats, so a new number is allocated (it stays the external reference)',

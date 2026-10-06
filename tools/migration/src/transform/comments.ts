@@ -1,5 +1,13 @@
 import { domain } from '../domain.ts';
-import { fit, MIGRATION_ACTOR, migratedMeta, migId, type TransformContext, type TransformedRecord } from './context.ts';
+import {
+  cutAt,
+  fit,
+  MIGRATION_ACTOR,
+  migratedMeta,
+  migId,
+  type TransformContext,
+  type TransformedRecord,
+} from './context.ts';
 import { instantOr, optionalInstant } from './dates.ts';
 import { escapeText, htmlToMarkdown, type HtmlOptions, type InlineImage } from './html.ts';
 import { arr, obj, str } from '../legacy/snapshot.ts';
@@ -40,7 +48,10 @@ export function buildNote(ctx: TransformContext, matter: MatterRef, input: NoteI
   let bodyMd = input.bodyMd;
   if (bodyMd.length > NOTE_BODY_MAX) {
     ctx.warnings.add('MIG_W_NOTE_TRUNCATED', input.legacyPath);
-    bodyMd = bodyMd.slice(0, NOTE_BODY_MAX);
+    bodyMd = cutAt(bodyMd, NOTE_BODY_MAX);
+    // Never half a mention: a cut `@[uid` would read as text, and a cut uid as someone else.
+    const open = /[@#]\[[^\]\s]*$/.exec(bodyMd);
+    if (open) bodyMd = bodyMd.slice(0, open.index);
   }
   const by = input.authorUid ?? MIGRATION_ACTOR;
   return {

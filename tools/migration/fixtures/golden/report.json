@@ -222,7 +222,7 @@
     },
     "MIG_W_BUDGET_YEAR_MISSING": {
       "count": 0,
-      "meaning": "A budget has no financial year, so it is read as the current one",
+      "meaning": "A budget has no financial year, so it is read as the current one (the year before, for the previous budget)",
       "paths": []
     },
     "MIG_W_CALENDAR_EVENTS_EXIST": {

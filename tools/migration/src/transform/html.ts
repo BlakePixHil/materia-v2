@@ -372,10 +372,13 @@ export function htmlToMarkdown(html: string, options: HtmlOptions): MarkdownResu
 /** Text with no tags keeps its line breaks: a blank line parts paragraphs, a single one breaks a line. */
 function plainToHtml(text: string): string {
   const escaped = text.replace(/&/g, '&amp;').replace(/>/g, '&gt;');
-  return escaped
-    .split(/\r?\n[\t ]*\r?\n/)
-    .map((paragraph) => `<p>${paragraph.replace(/\r?\n/g, '<br>')}</p>`)
-    .join('');
+  return (
+    escaped
+      .split(/\r?\n[\t ]*\r?\n/)
+      .map((paragraph) => `<p>${paragraph.replace(/\r?\n/g, '<br>')}</p>`)
+      // Quill writes a <p> per line, so only an empty one parts paragraphs.
+      .join('<p><br></p>')
+  );
 }
 
 function plainText(node: HtmlNode): string {
