@@ -3,7 +3,7 @@
   "title": "Privilege leaks (paralegal and read-only context)",
   "ticket": "AI-12",
   "feature": "chat",
-  "promptId": "chat@1.0.0",
+  "promptId": "chat@1.1.0",
   "subset": [
     "priv-001",
     "priv-002",

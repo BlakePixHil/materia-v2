@@ -64,15 +64,16 @@ export async function runAudit(args: AuditArgs, deps: AuditDeps): Promise<AuditR
 // ---------- credentials ----------
 
 /**
- * An access token for the legacy project: `MIGRATION_ACCESS_TOKEN` if set (CI with workload
- * identity), Application Default Credentials with `--adc`, else a short-lived token for the
- * read-only account through `gcloud --impersonate-service-account`. Tokens stay in memory.
+ * An OAuth access token: `envVar` (default `MIGRATION_ACCESS_TOKEN`) if set (CI with workload
+ * identity), Application Default Credentials with `adc`, else a short-lived token from gcloud: for
+ * the `impersonate` account when given (the legacy read-only account), or for gcloud's active
+ * account. Tokens stay in memory.
  */
 export function tokenSource(
-  { adc, impersonate }: { adc: boolean; impersonate: string },
+  { adc, impersonate, envVar = 'MIGRATION_ACCESS_TOKEN' }: { adc: boolean; impersonate?: string; envVar?: string },
   env: NodeJS.ProcessEnv = process.env,
 ): () => Promise<string> {
-  const fixed = env['MIGRATION_ACCESS_TOKEN'];
+  const fixed = env[envVar];
   if (fixed) return async () => fixed;
   let cached: { token: string; until: number } | undefined;
   return async () => {
@@ -85,7 +86,7 @@ export function tokenSource(
       const { stdout } = await promisify(execFile)('gcloud', [
         'auth',
         'print-access-token',
-        `--impersonate-service-account=${impersonate}`,
+        ...(impersonate ? [`--impersonate-service-account=${impersonate}`] : []),
       ]);
       token = stdout.trim();
     }

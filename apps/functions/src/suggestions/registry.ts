@@ -11,8 +11,7 @@ import type { Clock, Ports } from '../ports';
  * The accept-handler registry (AI-07, ADR-037). Each suggestion kind that can be accepted has one
  * handler, which applies the payload through the same domain logic as the manual path (never a
  * raw write) and joins the suggestion's re-check and resolution to that logic's transaction.
- * Kinds without a handler (`time_entry` until BILL-01, the litigation kinds until their LIT
- * tickets) are refused with SUGGESTION_UNSUPPORTED. A feature ticket registers its handler with
+ * Kinds without a handler (the litigation kinds until their LIT tickets) are refused with SUGGESTION_UNSUPPORTED. A feature ticket registers its handler with
  * `registerSuggestionHandler` from its module, imported by `suggestions/handlers.ts`.
  */
 

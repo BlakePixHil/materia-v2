@@ -6,6 +6,7 @@ import { runCallable, type CallableDefinition, type CallableDeps } from './calla
 import { assertSessionAllowed, cachedSessionLookup, type SessionPolicy } from './sessions';
 import { auditExportDefinition } from '../audit/query';
 import { setApiKeyDefinition } from '../clerk/keys';
+import { exportInventoryDefinition } from '../estate/export';
 import {
   changeRoleDefinition,
   removeMemberDefinition,
@@ -18,6 +19,7 @@ import { confirmDestructionDefinition } from '../safe-custody/confirm-destructio
 import { recordMovementDefinition } from '../safe-custody/record-movement';
 import { updatePolicyDefinition } from '../security/policy';
 import { revokeSessionsDefinition } from '../security/revoke';
+import { exportCsvDefinition as timeExportDefinition } from '../time/export';
 
 const REQUEST_ID = '6f1c1c2e-8a43-4b8e-9d0e-0a3f5b1d2c4e';
 const clock = new FakeClock();
@@ -59,6 +61,8 @@ const call = (
  */
 const SENSITIVE: [string, CallableDefinition<never, unknown>, Record<string, unknown>][] = [
   ['export: audit log CSV', auditExportDefinition as never, {}],
+  ['export: time entries CSV', timeExportDefinition as never, { from: '2026-10-01', to: '2026-10-31' }],
+  ['export: estate inventory PDF', exportInventoryDefinition as never, { matterId: 'm1' }],
   ['role change', changeRoleDefinition as never, { uid: 'lawyer-1', role: 'admin' }],
   ['suspension', suspendMemberDefinition as never, { uid: 'lawyer-1', suspended: true }],
   ['removal', removeMemberDefinition as never, { uid: 'lawyer-1' }],

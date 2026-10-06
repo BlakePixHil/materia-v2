@@ -276,11 +276,19 @@ export class MatterKeyFacts {
       this.report(matterId, `${label} cleared`, recomputeSummaryText(result.recompute), result.recompute.proposed);
       return true;
     }
+    // The server replaces the event whole, so a new date keeps its time, label and source document.
     const result = await this.deadlines.upsertEvent({
       matterId,
       kind,
       date,
-      ...(existing ? { eventId: existing.id } : {}),
+      ...(existing
+        ? {
+            eventId: existing.id,
+            ...(existing.time ? { time: existing.time } : {}),
+            ...(existing.label ? { label: existing.label } : {}),
+            ...(existing.sourceDocumentId ? { sourceDocumentId: existing.sourceDocumentId } : {}),
+          }
+        : {}),
     });
     this.report(matterId, `${label} saved`, recomputeSummaryText(result.recompute), result.recompute.proposed);
     return true;

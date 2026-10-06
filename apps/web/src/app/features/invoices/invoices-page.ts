@@ -37,8 +37,8 @@ const FILTERS: MtOption<Filter>[] = [
     <div class="mt-row head">
       <h1 class="title-l">Invoices</h1>
       <span class="caption t-3" data-testid="invoices-summary">{{ summary() }}</span>
+      <a mtButton variant="ghost" size="sm" class="mt-ml" routerLink="/billing/debtors">Aged debtors</a>
       <mt-segmented-control
-        class="mt-ml"
         label="Show"
         name="filter"
         [options]="filters"

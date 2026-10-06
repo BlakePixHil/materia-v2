@@ -103,14 +103,21 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
 - **Upload types:** v2 uploads don't accept svg, gif or bmp, which legacy did. Those files migrate as download-only documents, since an SVG can carry script (D-13).
 - **Untyped attachments:** some attachment documents have no content type, so the type comes from the extension.
 - **Dates:** V8 parses impossible days (`2025-02-30`) as real dates, so the transform must check the day exists, as the audit does.
-- **Sign-in:** the user signs in with Google only, so MIG-04 needs no password-hash parameters for them.
+- **Sign-in:** the user signs in with Google only, so MIG-04 needs no password-hash parameters for them. `materia-migrate auth-import` moves the account with the same uid and Google identity at cutover, before the load ([runbook](runbooks/migration-auth-import.md), D-16).
+- **Prod audit (2026-10-06):**
+  - The profile's `companyName` holds the app's name ("Materia Technologies"), not the practice's, so the org name must come from the user at cutover (D-09).
+  - Legacy marks "File to be closed" and "Close file" as done lanes. The profile keeps "File to be closed" open at the closed stage (D-04).
+  - 2 descriptions carry inline base64 images (152 KB) and 46 carry inline styles, so the transform extracts or drops the images and strips the styles.
+  - Only `fixed` and empty billing types occur. Amounts are dollars, and 8 have cents.
+  - Due dates are all Melbourne midnight stored as UTC, so every one would land a day early with a naive UTC slice.
+  - 7 attachments have no content type, and 7 are Outlook `.msg` files (probably the same ones), so the type comes from the extension.
 
 ## Process
 
 1. **Access (human):**
    - Create a read-only service account in `matt-r-1fe15` with `roles/datastore.viewer`, `roles/storage.objectViewer` and `roles/firebaseauth.viewer`.
    - Grant it to the migration runner identity through WIF or short-lived impersonation. No keys on laptops.
-   - Fetch the password-hash parameters (not needed for a Google-only user).
+   - Fetch the password-hash parameters (not needed for a Google-only user, such as this one: D-16).
    - **Done for MIG-01:** `legacy-migration-reader@matt-r-1fe15.iam.gserviceaccount.com`, impersonated with short-lived tokens. `materia-migrate audit` refuses any credentials that can write.
 2. **Export:** query by uid, then write JSONL to `gs://<v2-env>-migration/runs/{runId}/raw/` (australia-southeast1, CMEK, uniform access, 90-day lifecycle after cutover), with a `manifest.json` of counts and sha256s.
 3. **Transform:**

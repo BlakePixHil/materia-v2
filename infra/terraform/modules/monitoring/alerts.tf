@@ -192,6 +192,67 @@ resource "google_monitoring_alert_policy" "clerk_budget" {
   user_labels = var.labels
 }
 
+# A Firestore trigger gave up and dead-lettered its event (defineTrigger logs "dead-letter"); the
+# audit triggers among them (fn "audit-…") mean a mutation is missing from the audit log (FND-18).
+resource "google_monitoring_alert_policy" "trigger_failures" {
+  project      = var.project_id
+  display_name = "Trigger dead-lettered an event (${var.env})"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "A Firestore trigger logged dead-letter"
+    condition_matched_log {
+      filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.message=\"dead-letter\""
+      label_extractors = {
+        fn = "EXTRACT(jsonPayload.fn)"
+      }
+    }
+  }
+
+  alert_strategy {
+    notification_rate_limit {
+      period = "3600s"
+    }
+    auto_close = "86400s"
+  }
+
+  notification_channels = var.notification_channels
+  documentation {
+    mime_type = "text/markdown"
+    content   = "A Firestore trigger failed after its retries and dead-lettered the event; the `fn` label says which. For `audit-…` the change is missing from the audit log: find the dead-letter entry (it carries the document path and stack) and replay or record it. Error Reporting has the stack. ${local.runbook}"
+  }
+  user_labels = var.labels
+}
+
+# The deadline engine needed a calendar year that isn't loaded (CORE-10), so that matter's
+# deadlines are blocked until the calendar data ships.
+resource "google_monitoring_alert_policy" "deadline_calendar_missing" {
+  project      = var.project_id
+  display_name = "Deadline calendar data missing (${var.env})"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Recompute logged deadline_calendar_missing"
+    condition_matched_log {
+      filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.alert=\"deadline_calendar_missing\""
+    }
+  }
+
+  alert_strategy {
+    notification_rate_limit {
+      period = "86400s"
+    }
+    auto_close = "604800s"
+  }
+
+  notification_channels = var.notification_channels
+  documentation {
+    mime_type = "text/markdown"
+    content   = "A deadline recompute needed a court or locality calendar year that `libs/deadlines` doesn't have (the log lists `calendars` and `ruleIds`), so those deadlines show as blocked. Add the year's calendar data (docs/06-deadline-engine.md) and redeploy; the next recompute clears them. ${local.runbook}"
+  }
+  user_labels = var.labels
+}
+
 # A scheduled job that hasn't logged "ok" for twice its period, capped at 24.5 hours: a PromQL query
 # that reads a log-based metric can't look back more than 1d1h anywhere in it (and condition_absent
 # stops at 23.5 hours), so a daily job alerts after one missed run plus half an hour.

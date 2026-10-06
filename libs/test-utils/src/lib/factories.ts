@@ -208,7 +208,7 @@ export const makePersonalTask = (o: Partial<D.PersonalTask> = {}) =>
   );
 
 export const makeMatterEvent = (o: Partial<D.MatterEvent> = {}) =>
-  build(D.MatterEvent, { kind: 'date_of_death', date: d('2026-07-14') }, o);
+  build(D.MatterEvent, { kind: 'date_of_death', date: d('2026-07-14'), privileged: false }, o);
 
 export const makeDeadline = (o: Partial<D.Deadline> = {}) =>
   build(
@@ -230,6 +230,7 @@ export const makeDeadline = (o: Partial<D.Deadline> = {}) =>
         inputs: { months: 6 },
         trace: ['anchor 2026-07-14', '+6 months'],
       },
+      privileged: false,
     },
     o,
   );
@@ -254,6 +255,7 @@ export const makeDeadlineChange = (o: Partial<D.DeadlineChange> = {}) =>
       intoPast: false,
       assigneeUid: TEST_UID,
       recomputeVersion: 2,
+      privileged: false,
     },
     o,
   );
@@ -576,6 +578,23 @@ export const makeCreditNote = (o: Partial<D.CreditNote> = {}) =>
       subtotalCents: 1000,
       gstCents: 100,
       totalCents: 1100,
+    },
+    o,
+  );
+
+export const makeInvoiceReminder = (o: Partial<D.InvoiceReminder> = {}) =>
+  build(
+    D.InvoiceReminder,
+    {
+      invoiceId: 'invoice-test-1',
+      invoiceNumber: 'INV-000001',
+      matterId: TEST_MATTER_ID,
+      threshold: 7,
+      dueDate: d('2026-10-15'),
+      balanceCents: 14850,
+      lawyerUid: TEST_UID,
+      to: ['client@example.com'],
+      status: 'pending',
     },
     o,
   );
@@ -931,6 +950,7 @@ export const ENTITY_FACTORIES = {
   CourtBook: [D.CourtBook, makeCourtBook],
   Invoice: [D.Invoice, makeInvoice],
   CreditNote: [D.CreditNote, makeCreditNote],
+  InvoiceReminder: [D.InvoiceReminder, makeInvoiceReminder],
   MatterTemplate: [D.MatterTemplate, makeMatterTemplate],
   MatterTemplateVersion: [D.MatterTemplateVersion, makeMatterTemplateVersion],
   DocTemplate: [D.DocTemplate, makeDocTemplate],

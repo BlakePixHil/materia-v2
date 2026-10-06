@@ -55,7 +55,14 @@ import {
   type ClerkFeature,
 } from './features';
 import type { ClerkKeyring } from './keyring';
-import type { ClerkMessageStatus, ClerkStore, ExchangeSources, MessageSink, ToolCallState } from './store';
+import type {
+  ClerkMessageStatus,
+  ClerkStore,
+  ExchangeSources,
+  MessageSink,
+  OrgClerkSettings,
+  ToolCallState,
+} from './store';
 
 export interface GatewayContext {
   orgId: string;
@@ -224,6 +231,25 @@ function keyInvalid(): DomainError {
   return new DomainError('CLERK_KEY_INVALID', 'Anthropic rejected the org’s API key; an admin must replace it');
 }
 
+/**
+ * The month's limits (AI-13): the token budget, and the spend limit an admin sets in US cents
+ * (`used` from `ClerkStore.periodUsage`). A limit lowered below this month's spend blocks Clerk for
+ * the rest of the month. CLERK_BUDGET_EXCEEDED, with `spend: true` for the spend limit. The gateway
+ * checks it before every call, and `clerk-sendMessage` before it accepts a question.
+ */
+export function assertWithinBudget(
+  settings: Pick<OrgClerkSettings, 'monthlyTokenBudget' | 'monthlyBudgetCents'>,
+  used: { tokens: number; costMicros: number },
+  period: string,
+): void {
+  if (used.tokens >= (settings.monthlyTokenBudget ?? DEFAULT_MONTHLY_TOKEN_BUDGET)) {
+    throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk budget used', { period });
+  }
+  if (settings.monthlyBudgetCents !== undefined && used.costMicros >= settings.monthlyBudgetCents * 10_000) {
+    throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk spend limit reached', { period, spend: true });
+  }
+}
+
 /** Jittered exponential backoff: 0.5 s, 1 s, … times 0.5–1.5, or the provider's retry-after. */
 export function backoffMs(attempt: number, random: () => number, retryAfterMs?: number): number {
   if (retryAfterMs !== undefined) return Math.min(retryAfterMs, 30_000);
@@ -286,16 +312,9 @@ export function createClerkGateway(deps: GatewayDeps) {
     // 3. Limits, checked before the call. Budget first, so a blocked call takes no rate slot.
     const at = ctx.clock.now();
     const period = meteringPeriod(at);
-    // The token budget, and the spend limit an admin sets in US cents (AI-13). A limit lowered
-    // below this month's spend blocks Clerk for the rest of the month.
     const budget = settings.monthlyTokenBudget ?? DEFAULT_MONTHLY_TOKEN_BUDGET;
     const used = await deps.store.periodUsage(ctx.orgId, period);
-    if (used.tokens >= budget) {
-      throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk budget used', { period });
-    }
-    if (settings.monthlyBudgetCents !== undefined && used.costMicros >= settings.monthlyBudgetCents * 10_000) {
-      throw new DomainError('CLERK_BUDGET_EXCEEDED', 'Monthly Clerk spend limit reached', { period, spend: true });
-    }
+    assertWithinBudget(settings, used, period);
     const window = settings.userRateLimit ?? DEFAULT_USER_RATE_LIMIT;
     const background = 'background' in feature && feature.background;
     const slot = background

@@ -60,6 +60,8 @@ export class MatterScreen {
   readonly canEdit = can('matter.edit');
   readonly canStatus = can('matter.status');
   readonly canDelete = can('matter.delete');
+  /** Owners and admins bring a deleted matter back (CORE-03), within MATTER_RESTORE_WINDOW_DAYS. */
+  readonly canRestore = can('matter.restore');
   readonly canPrivileged = can('privileged.view');
   readonly canRunConflicts = can('conflict.run');
   readonly canRenumber = can('matter.renumber');

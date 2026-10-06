@@ -46,9 +46,10 @@ export const NOISE_FIELDS = new Set([
   'order',
   // The Matters board's card order (CORE-04).
   'boardOrder',
-  // Contacts (CORE-01): recomputed by contacts-onWrite.
+  // Contacts (CORE-01): recomputed by contacts-onWrite; roles in matters by contacts-onPartyWrite (CORE-01a).
   'dedupeKey',
   'sortName',
+  'matterRoles',
   // Documents (AI-04): Clerk ingestion progress, written by documents-ingest.
   'ingest',
 ]);

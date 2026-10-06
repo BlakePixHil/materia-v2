@@ -40,12 +40,19 @@ variable "sourcemap_retention_days" {
 }
 
 variable "scheduled_jobs" {
-  description = "Scheduled functions (name => period in seconds) that alert when they haven't logged \"ok\" for twice their period. reminders-dispatch has its own alert (firebase_env/monitoring.tf)."
+  description = "Scheduled functions (name => period in seconds) that alert when they haven't logged \"ok\" for twice their period. reminders-dispatch has its own alert (firebase_env/monitoring.tf). tools/scripts/src/scheduled-jobs.spec.ts checks every scheduled function is listed."
   type        = map(number)
   default = {
-    "notifications-digest"    = 900
-    "documents-sweepPending"  = 3600
-    "deadlines-flagMissed"    = 86400
-    "backups-exportFirestore" = 86400
+    "notifications-digest"      = 900
+    "time-flagForgottenTimers"  = 1800
+    "documents-sweepPending"    = 3600
+    "suggestions-expire"        = 3600
+    "deadlines-upgradeRuleSets" = 3600
+    "deadlines-flagMissed"      = 86400
+    "backups-exportFirestore"   = 86400
+    "matters-archiveClosed"     = 86400
+    "jobs-sweepExports"         = 86400
+    "billing-debtorsNightly"    = 86400
+    "matters-queueDestruction"  = 2678400 # monthly: alerts when a run fails, not when one is missed
   }
 }

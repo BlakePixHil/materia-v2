@@ -1,6 +1,6 @@
 import * as z from 'zod';
 
-import { Org, OrgClerkSettingsSchema } from '@materia/domain';
+import { Org, OrgClerkSettingsSchema, withBoardWipLimit } from '@materia/domain';
 
 import { repo, type Repository } from './repository';
 
@@ -69,6 +69,26 @@ export function withThankYouTask(
   thankYouTask: boolean,
 ): NonNullable<OrgReferralSettings['settings']> {
   return { ...(settings ?? {}), referrals: { ...(settings?.referrals ?? {}), thankYouTask } } as NonNullable<
+    OrgReferralSettings['settings']
+  >;
+}
+
+/**
+ * The Matters board's WIP limits (CORE-04a) sit in the same `settings` map, read and written whole
+ * the same way, so a change keeps the Clerk and referral settings. Every member reads them.
+ */
+export function orgBoardSettingsRepository(): Repository<OrgReferralSettings> {
+  return orgReferralSettingsRepository();
+}
+
+/** The `settings` an update writes to set one column's WIP limit, or (`null`) clear it. */
+export function withBoardWipLimitSetting(
+  settings: OrgReferralSettings['settings'],
+  key: string,
+  limit: number | null,
+): NonNullable<OrgReferralSettings['settings']> {
+  const wipLimits = withBoardWipLimit(settings?.board?.wipLimits, key, limit);
+  return { ...(settings ?? {}), board: { ...(settings?.board ?? {}), wipLimits } } as NonNullable<
     OrgReferralSettings['settings']
   >;
 }

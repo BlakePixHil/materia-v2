@@ -1,4 +1,4 @@
-# Migration decision log (MIG-01)
+# Migration decision log (MIG-01, MIG-04)
 
 The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `fen5jJdhNHTkGBpgAdsLSKQRvXx2`) into Materia v2. The transform (MIG-03) reads them from the mapping profile [`tools/migration/profiles/tristan-burke.json`](../../tools/migration/profiles/tristan-burke.json). Each decision below names its profile field. The [Legacy migration plan](../08-legacy-migration-plan.md) has the full field map; this log records only the choices someone had to make.
 
@@ -6,7 +6,7 @@ The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `f
 
 - the read-only profile of the prod data taken on 2026-10-04 (counts and names only, kept in project files at `mig-01/tristan-data-profile.md`);
 - the legacy code (`BlakePixHil/materia-web-app`);
-- the audit report, which `materia-migrate audit` writes and nobody commits (see [`tools/migration/README.md`](../../tools/migration/README.md)).
+- the prod audit run on 2026-10-06 with the read-only account (`materia-migrate audit`; the report is in project files at `mig-01/audit/`, never committed). It found 313 cards on the 5 boards in scope, and `check-profile` confirmed the profile maps every board and column.
 
 **Status key:**
 
@@ -18,8 +18,8 @@ The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `f
 
 | Role | Name | Date | Note |
 | --- | --- | --- | --- |
-| User | Tristan Burke | | Also confirms his consent to migrate, which Blake recorded on 2026-10-04 |
-| Product owner | Blake Linnell | | |
+| User | Tristan Burke | 2026-10-06 | Signed off through Blake in the project thread ("We agree and sign off"). Confirms his consent to migrate, which Blake recorded on 2026-10-04 |
+| Product owner | Blake Linnell | 2026-10-06 | Signed off in the project thread |
 
 Signing records the same names and dates in the profile's `signOff`. Changing any decision after sign-off needs both signatures again.
 
@@ -62,7 +62,7 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 
 ### D-04 Column → status and stage
 
-- **Status:** Default, with two columns **Open**.
+- **Status:** Default. The two columns that were open are decided by Blake on 2026-10-06.
 - **Rules:**
   - Columns about prospective work become leads.
   - The last column becomes closed.
@@ -91,9 +91,9 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 | | Caveat (2) | open | caveat_lodged |
 | | Close file (17) | closed | closed |
 
-- **Open questions:**
-  - **Waiting on SOAs** holds 102 of the 205 estate planning cards. The draft reads SOA as statement of account: the will is signed and the file waits on the bill, so the stage is `safe_custody`. If SOA means something else, such as a statement of advice still to be sent, this column moves to `client_review`.
-  - **ASP only or probate not needed:** the draft reads this as an estate wound up without a grant (assets released on a statutory declaration), so the type is `admin` at `assets_collected`. If ASP means something that needs a grant, the type returns to `probate`.
+- **Decided by Blake on 2026-10-06:**
+  - **Waiting on SOAs** holds 102 of the 205 estate planning cards. SOA reads as statement of account: the will is signed and the file waits on the bill, so the stage is `safe_custody`.
+  - **ASP only or probate not needed:** an estate wound up without a grant (assets released on a statutory declaration), so the type is `admin` at `assets_collected`.
 - **Also:**
   - "File to be closed" stays **open** at the closed stage. Tristan closes those matters in v2, where closing runs the CORE-19 checks.
   - Cards in a column the board no longer has import as open, and are flagged for review.
@@ -139,6 +139,7 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 - **Status:** Default.
 - **Decision:**
   - The org takes the legacy profile's company name. Tristan confirms it at cutover (MIG-07).
+  - **Prod audit (2026-10-06):** the company name is "Materia Technologies", which is the app's name rather than his practice's. MIG-07 must ask Tristan for the real name rather than offer this one.
   - Dates use Australia/Melbourne: due dates stored as UTC instants convert to the Melbourne day.
   - Matters are Victorian.
 - **Profile:** `org` (no `name` set, so the company name is used).
@@ -187,7 +188,25 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 - **Status:** Decided by Blake on 2026-10-05 (prod after launch). The rehearsal rule is a default.
 - **Decision:** the migration loads into **prod after prod launches**. There is no staging, so rehearsals run on dev. Each rehearsal is rolled back afterwards, so real client data doesn't stay on dev.
 
+### D-16 Auth import (new)
+
+- **Status:** Default, from MIG-04 on 2026-10-06. It follows from D-01 and D-15 and changes nothing they decided, so the sign-off above stands.
+- **Decision:**
+  - Tristan's account moves with the same uid and his Google identity, keeping Google's id for him, so his first Google sign-in in prod lands on the imported account. The [runbook](../runbooks/migration-auth-import.md) has the steps.
+  - He has no password, so the ticket's human steps are descoped for him: no hash parameters in Secret Manager and no `auth:export`. The tool still supports both for a user with a password.
+  - **Microsoft:** deferred (FND-16, MVP mode). Tristan doesn't use it, so there is no tenant to verify. The import stops on any provider the target project hasn't turned on.
+  - **Not imported:**
+    - legacy custom claims, since v2 sets its own at the load (MIG-06);
+    - the legacy last sign-in time, so v2's starts empty;
+    - second factors. The import stops on these instead, and Tristan has none.
+  - **Rehearsal:**
+    - On dev, with made-up accounts (D-15): a Google one, and a password one with a made-up scrypt key whose real password sign-in on dev returned the same uid.
+    - His real account was only dry-run against dev, which read it and planned a clean import.
+    - The ticket's "signs in on staging, then prod" check becomes his first Google sign-in in prod at cutover (MIG-07). The emulator test proves that a Google credential for the imported identity signs in to the same uid.
+  - **When:** at cutover, before the load, which keys everything on the uid.
+
 ## Descoped
 
 - **No staging rehearsals.** The plan's staging rehearsals move to dev (D-15).
 - **Shared boards.** Only Test Workflow is shared, and it is excluded (D-02).
+- **Password hash import for Tristan.** He has no password, so no hash parameters or export are needed (D-16).

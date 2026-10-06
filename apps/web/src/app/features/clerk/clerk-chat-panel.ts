@@ -164,7 +164,10 @@ import { CitationViewer } from '../citations/citation-viewer';
     .mt-clerk-chat .threads button[aria-current='true'] {
       background: var(--bg-hover);
     }
+    /* Positioned, so the screen-reader-only text in citations scrolls with the log instead of
+       sitting where it would be unscrolled and stretching the page below the panel. */
     .mt-clerk-chat .log {
+      position: relative;
       flex: 1;
       min-height: 0;
       overflow-y: auto;
@@ -357,8 +360,8 @@ import { CitationViewer } from '../citations/citation-viewer';
             <div class="empty">
               <h2>Ask Clerk about {{ scope()?.label }}</h2>
               <p>
-                Clerk answers from this matter’s facts, notes and documents, and cites its sources. It can’t change
-                anything: anything it suggests waits for you to accept it.
+                Clerk answers from this matter’s facts, notes and documents, and cites its sources. Ask it to add a file
+                note or a task and it drafts one; nothing changes until you accept it.
               </p>
             </div>
           }
