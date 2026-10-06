@@ -19,11 +19,22 @@ import {
   invoiceCallables,
   invoiceCreditNotesQuery,
   matterDetailRepository,
+  paymentCallables,
   type CreditNoteItem,
   type InvoiceItem,
   type WithId,
 } from '@materia/data-access/repository';
-import { creditableLines, invoiceBalanceCents, invoiceClientEmails, type InvoiceClientLike } from '@materia/domain';
+import {
+  creditableLines,
+  hasLivePayments,
+  invoiceBalanceCents,
+  invoiceClientEmails,
+  paidCents,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_WARNING_COPY,
+  type InvoiceClientLike,
+  type InvoicePayment,
+} from '@materia/domain';
 import { DialogService, formatAud, MtBadge, MtButton, MtNote, ToastService } from '@materia/ui';
 
 import {
@@ -37,6 +48,13 @@ import {
   type VoidInvoiceDialogData,
 } from './invoice-dialogs';
 import { dateText, INVOICE_STATUS_TONES, invoiceStatusLabel, LIVE_INVOICE_STATUSES } from './invoices-view';
+import {
+  PaymentDialog,
+  ReversePaymentDialog,
+  type PaymentDialogData,
+  type PaymentDialogResult,
+  type ReversePaymentDialogData,
+} from './payment-dialogs';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { DOWNLOAD_NAVIGATOR } from '../documents/document-actions';
@@ -46,10 +64,11 @@ type CreditNote = WithId<CreditNoteItem>;
 
 /**
  * An issued (or void) invoice (BILL-07): its PDF, the facts (to, dates, total, what's owed, when it
- * was emailed) and its credit notes. Lawyers and above download and email it (`billing-sendInvoice`:
- * to the clients by default; never automatic) and render a failed PDF again; owners and admins void
- * an unpaid one or credit it. When no client has an email address, sending is off and the PDF is
- * offered to print.
+ * was emailed), its payments (BILL-08) and its credit notes. Lawyers and above download and email
+ * it (`billing-sendInvoice`: to the clients by default; never automatic), record payments and
+ * render a failed PDF again; owners and admins void an unpaid one, credit it, reverse a payment and
+ * refund credit held. When no client has an email address, sending is off and the PDF is offered
+ * to print.
  */
 @Component({
   selector: 'mt-invoice-detail',
@@ -84,6 +103,14 @@ type CreditNote = WithId<CreditNoteItem>;
           >
             Email invoice
           </button>
+        }
+        @if (canIssue() && live() && balance() > 0) {
+          <button mtButton variant="secondary" size="sm" iconStart="plus" (click)="pay('payment')">
+            Record payment
+          </button>
+        }
+        @if (canVoid() && live() && balance() < 0) {
+          <button mtButton variant="secondary" size="sm" (click)="pay('refund')">Record refund</button>
         }
         @if (canVoid() && live()) {
           <button mtButton variant="secondary" size="sm" [disabled]="!creditable()" (click)="credit()">
@@ -167,10 +194,16 @@ type CreditNote = WithId<CreditNoteItem>;
               <dd>{{ money(inv.creditedCents) }}</dd>
             </div>
           }
+          @if (paid()) {
+            <div>
+              <dt>Paid</dt>
+              <dd data-testid="invoice-paid">{{ money(paid()) }}</dd>
+            </div>
+          }
           @if (live()) {
             <div class="owing">
-              <dt>Owing</dt>
-              <dd data-testid="invoice-owing">{{ money(balance()) }}</dd>
+              <dt>{{ balance() < 0 ? 'Credit held' : 'Owing' }}</dt>
+              <dd data-testid="invoice-owing">{{ money(balance() < 0 ? -balance() : balance()) }}</dd>
             </div>
           }
           <div>
@@ -178,6 +211,38 @@ type CreditNote = WithId<CreditNoteItem>;
             <dd data-testid="invoice-sent">{{ sentText() }}</dd>
           </div>
         </dl>
+
+        @if (inv.payments.length) {
+          <section class="mt-col" aria-labelledby="payments-title">
+            <h2 class="title-s" id="payments-title">Payments</h2>
+            <ul class="notes" data-testid="payments">
+              @for (payment of inv.payments; track payment.id) {
+                <li class="mt-card mt-col note" [class.reversed]="!!payment.reversedAt" [attr.data-kind]="payment.kind">
+                  <div class="mt-row">
+                    <span class="label-m">{{ payment.kind === 'refund' ? 'Refund' : methodLabel(payment) }}</span>
+                    <span class="caption t-3">{{ date(payment.date) }}</span>
+                    <span class="num mt-ml"
+                      >{{ payment.kind === 'refund' ? '−' : '' }}{{ money(payment.amountCents) }}</span
+                    >
+                  </div>
+                  @if (paymentDetail(payment); as detail) {
+                    <span class="caption t-3">{{ detail }}</span>
+                  }
+                  @if (payment.reversedAt) {
+                    <span class="caption" data-testid="payment-reversed">Reversed: {{ payment.reversalReason }}</span>
+                  } @else {
+                    @if (inv.issueDate && payment.date < inv.issueDate) {
+                      <span class="caption t-3">{{ beforeIssue }}</span>
+                    }
+                    @if (canVoid() && live()) {
+                      <button mtButton variant="ghost" size="sm" (click)="reverse(payment)">Reverse</button>
+                    }
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+        }
 
         <section class="mt-col" aria-labelledby="credit-notes-title">
           <h2 class="title-s" id="credit-notes-title">Credit notes</h2>
@@ -293,6 +358,10 @@ type CreditNote = WithId<CreditNoteItem>;
     .mt-invoice-detail .num {
       font-variant-numeric: tabular-nums;
     }
+    .mt-invoice-detail .note.reversed .num {
+      text-decoration: line-through;
+      color: var(--text-tertiary);
+    }
     @media (max-width: 960px) {
       .mt-invoice-detail .grid {
         grid-template-columns: minmax(0, 1fr);
@@ -307,6 +376,7 @@ export class InvoiceDetail {
   private readonly toasts = inject(ToastService);
   private readonly navigate = inject(DOWNLOAD_NAVIGATOR);
   private readonly api = invoiceCallables(inject(CALLABLES));
+  private readonly payments = paymentCallables(inject(CALLABLES));
   private readonly documents = documentCallables(inject(CALLABLES));
   private readonly contacts = contactsRepository();
   protected readonly canIssue = can('billing.issue');
@@ -322,12 +392,14 @@ export class InvoiceDetail {
   protected readonly live = computed(() => LIVE_INVOICE_STATUSES.has(this.invoice().status));
   protected readonly voidable = computed(() => {
     const invoice = this.invoice();
-    return invoice.status === 'issued' && !invoice.payments.length && !invoice.creditedCents;
+    return invoice.status === 'issued' && !hasLivePayments(invoice.payments) && !invoice.creditedCents;
   });
   protected readonly creditable = computed(() =>
     creditableLines(this.invoice(), this.creditNotes.value()).some((line) => line.amountExGstCents > 0),
   );
   protected readonly balance = computed(() => invoiceBalanceCents(this.invoice()));
+  protected readonly paid = computed(() => paidCents(this.invoice().payments));
+  protected readonly beforeIssue = PAYMENT_WARNING_COPY.before_issue;
   protected readonly matterLabel = computed(() => {
     const invoice = this.invoice();
     const matter = this.matter.value();
@@ -450,6 +522,60 @@ export class InvoiceDetail {
       this.toasts.show({ title: `Credit note ${result.number} issued`, description: formatAud(result.totalCents) });
     } catch (error) {
       this.toasts.show({ title: 'The credit note wasn’t issued', description: errorCopy(error), tone: 'danger' });
+    }
+  }
+
+  protected methodLabel(payment: InvoicePayment): string {
+    return PAYMENT_METHOD_LABELS[payment.method] ?? payment.method;
+  }
+
+  protected paymentDetail(payment: InvoicePayment): string {
+    const parts = [
+      payment.kind === 'refund' ? PAYMENT_METHOD_LABELS[payment.method] : '',
+      payment.reference ? `Ref ${payment.reference}` : '',
+      payment.payer ? `Paid by ${payment.payer}` : '',
+      payment.credit ? 'Extra kept as credit' : '',
+    ];
+    return parts.filter(Boolean).join(' · ');
+  }
+
+  protected async pay(kind: 'payment' | 'refund'): Promise<void> {
+    const invoice = this.invoice();
+    const request = await this.dialogs.open<PaymentDialogData, PaymentDialogResult | undefined>(PaymentDialog, {
+      data: { kind, number: invoice.number, invoice },
+    }).result;
+    if (!request) return;
+    try {
+      const result = await this.payments.record({ invoiceId: invoice.id, ...request });
+      const left =
+        result.owingCents > 0
+          ? `${formatAud(result.owingCents)} still owing.`
+          : result.owingCents < 0
+            ? `${formatAud(-result.owingCents)} held in credit.`
+            : 'Nothing left owing.';
+      this.toasts.show({ title: kind === 'refund' ? 'Refund recorded' : 'Payment recorded', description: left });
+      this.announcement.set(kind === 'refund' ? 'Refund recorded.' : 'Payment recorded.');
+    } catch (error) {
+      this.toasts.show({
+        title: kind === 'refund' ? 'The refund wasn’t recorded' : 'The payment wasn’t recorded',
+        description: errorCopy(error),
+        tone: 'danger',
+      });
+    }
+  }
+
+  protected async reverse(payment: InvoicePayment): Promise<void> {
+    const invoice = this.invoice();
+    const what = `${payment.kind === 'refund' ? 'the refund' : 'the payment'} of ${formatAud(payment.amountCents)}`;
+    const reason = await this.dialogs.open<ReversePaymentDialogData, string | undefined>(ReversePaymentDialog, {
+      data: { number: invoice.number, what },
+    }).result;
+    if (!reason) return;
+    try {
+      await this.payments.reverse({ invoiceId: invoice.id, paymentId: payment.id, reason });
+      this.toasts.show({ title: payment.kind === 'refund' ? 'Refund reversed' : 'Payment reversed' });
+    } catch (error) {
+      this.toasts.show({ title: 'It wasn’t reversed', description: errorCopy(error), tone: 'danger' });
     }
   }
 

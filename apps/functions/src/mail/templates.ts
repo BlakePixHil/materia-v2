@@ -117,6 +117,25 @@ You get this summary each morning. Change your notification settings: {{settings
 
 {{firmName}}{{#firmAbn}} · ABN {{firmAbn}}{{/firmAbn}}. Please contact us if you have a question about this invoice.`,
   },
+
+  // A payment reminder (BILL-08): queued by the nightly job, reviewed, edited and sent by the
+  // responsible lawyer; never automatic. The message is theirs; the invoice PDF is attached when ready.
+  invoice_reminder: {
+    subject: 'Payment reminder: {{documentTitle}} {{number}} from {{firmName}}',
+    html: `<!doctype html>
+<html lang="en-AU">
+  <body style="${BODY}">
+    <p style="white-space: pre-line">{{message}}</p>
+    <p>{{documentTitle}} {{number}} for {{total}}{{#dueLabel}} was due {{dueLabel}}{{/dueLabel}}. {{owing}} is still owing.{{#attached}} A copy is attached.{{/attached}}</p>
+    <p style="${FOOTER}">{{firmName}}{{#firmAbn}} · ABN {{firmAbn}}{{/firmAbn}}. If you've already paid, thank you, and please disregard this reminder.</p>
+  </body>
+</html>`,
+    text: `{{message}}
+
+{{documentTitle}} {{number}} for {{total}}{{#dueLabel}} was due {{dueLabel}}{{/dueLabel}}. {{owing}} is still owing.{{#attached}} A copy is attached.{{/attached}}
+
+{{firmName}}{{#firmAbn}} · ABN {{firmAbn}}{{/firmAbn}}. If you've already paid, thank you, and please disregard this reminder.`,
+  },
 };
 
 const escapeHtml = (value: string) =>

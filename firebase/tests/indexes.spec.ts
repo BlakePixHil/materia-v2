@@ -88,6 +88,8 @@ describe('firestore.indexes.json', () => {
       'kind:ASCENDING,sortName:ASCENDING',
       'isReferrer:ASCENDING,sortName:ASCENDING',
       'tags:CONTAINS,sortName:ASCENDING',
+      // The "Role in matters" filter (CORE-01a).
+      'matterRoles:CONTAINS,sortName:ASCENDING',
       'search:CONTAINS,sortName:ASCENDING',
       // ⌘K's contacts, most recently updated first (CORE-15).
       'search:CONTAINS,updatedAt:DESCENDING',
@@ -235,6 +237,9 @@ describe('firestore.indexes.json', () => {
     expect(audit).toEqual([
       'entity.matterId:ASCENDING,at:DESCENDING',
       'entity.path:ASCENDING,at:DESCENDING',
+      // A contact's Activity (CORE-01a): its matter links, beside the entity.path entries.
+      'data.contactId:ASCENDING,at:DESCENDING',
+      'after.contactId:ASCENDING,at:DESCENDING',
       'actor.uid:ASCENDING,at:DESCENDING',
       'entity.matterId:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
       'entity.path:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
