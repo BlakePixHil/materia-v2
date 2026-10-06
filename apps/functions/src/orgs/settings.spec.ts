@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Role } from '@materia/domain';
+import { INVOICE_COUNTER, type Role } from '@materia/domain';
 
 import { memberSecurityDefinition, updateSettingsDefinition } from './settings';
 import { memoryAuth, memoryFirestore } from './testing';
@@ -45,7 +45,6 @@ function world(extra: Record<string, Record<string, unknown>> = {}) {
       retentionYears: 7,
       billing,
     },
-    [`orgs/${ORG}/counters/invoices`]: { next: 1 },
     [`orgs/${ORG}/members/owner`]: { role: 'owner', status: 'active', displayName: 'Olive Fictional' },
     [`orgs/${ORG}/members/lawyer`]: { role: 'lawyer', status: 'active', displayName: 'Lena Fictional' },
     'users/owner': { orgIds: [ORG], activeOrgId: ORG },
@@ -186,12 +185,22 @@ describe('orgs-updateSettings', () => {
     });
   });
 
-  it('sets the next invoice number only before the first invoice', async () => {
-    const w = world();
+  it('sets the next invoice number on the counter invoices are numbered from, until one is issued', async () => {
+    const counter = `orgs/${ORG}/counters/${INVOICE_COUNTER}`;
+    const w = world({ [`orgs/${ORG}/invoices/draft`]: { status: 'draft', number: '' } });
+    // A saved pre-bill has no number yet, so the sequence can still move.
     await run(w, { nextInvoiceNumber: 1001 });
-    expect(w.docs.get(`orgs/${ORG}/counters/invoices`)).toEqual({ next: 1001 });
-    w.docs.set(`orgs/${ORG}/invoices/i-1`, { number: 'INV-1001' });
+    expect(w.docs.get(counter)).toEqual({ next: 1001 });
+    await run(w, { nextInvoiceNumber: 2001 });
+    expect(w.docs.get(counter)).toEqual({ next: 2001 });
+
+    // Once billing-issueInvoice has taken a number (and moved the counter on), it is gapless.
+    w.docs.set(`orgs/${ORG}/invoices/i-1`, { status: 'issued', number: 'INV-002001' });
+    w.docs.set(counter, { next: 2002 });
     await expect(run(w, { nextInvoiceNumber: 5 })).rejects.toMatchObject({ code: 'FAILED_PRECONDITION' });
+    expect(w.docs.get(counter)).toEqual({ next: 2002 });
+    // Saving the form again with the number it shows is not a change.
+    await expect(run(w, { nextInvoiceNumber: 2002 })).resolves.toMatchObject({ saved: false });
   });
 
   it('is for owners and admins', () => {
