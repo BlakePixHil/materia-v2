@@ -5,6 +5,7 @@ import {
   EMULATOR_PROJECT,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
+  FIRST_LOAD,
   setEmulatorDocuments,
   signInAsTestUser,
 } from '@materia/test-utils/e2e';
@@ -75,7 +76,7 @@ test.describe('notes', () => {
     const { orgId, colleague } = await setUp(page, request);
 
     await page.goto(NOTES);
-    await expect(page.getByRole('heading', { level: 2, name: 'Notes' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Notes' })).toBeVisible(FIRST_LOAD);
     await expect(page.getByText('No notes yet')).toBeVisible();
     await expectNoA11yViolations(page);
 
@@ -180,7 +181,7 @@ test.describe('notes', () => {
     ]);
     await page.goto(`${NOTES}#note-n-fixture`);
     const target = page.locator('#note-n-fixture');
-    await expect(target).toContainText('Spoke to the executor about the house.');
+    await expect(target).toContainText('Spoke to the executor about the house.', FIRST_LOAD);
     await expect(target).toHaveAttribute('data-highlight', '');
     await expect(target).toBeFocused();
   });

@@ -96,7 +96,7 @@ async function setUp(page: Page, request: APIRequestContext) {
   });
   await seed(request, orgId, account.uid, colleague.uid);
   await page.goto(URL);
-  await expect(page.getByRole('heading', { level: 2, name: 'Time' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Time' })).toBeVisible(FIRST_LOAD);
   await expect(rows(page)).toHaveCount(1);
   return { orgId, uid: account.uid };
 }
@@ -165,7 +165,7 @@ test.describe('time entries', () => {
 
     // 2. Quick entry with `t` from another tab of the matter: the matter is picked already.
     await page.goto('/matters/m-quill/overview');
-    await expect(page.getByRole('heading', { name: 'Estate of Harriet Quill' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Estate of Harriet Quill' })).toBeVisible(FIRST_LOAD);
     await page.keyboard.press('t');
     const dialog = page.getByRole('dialog', { name: 'Log time' });
     await expect(dialog).toBeVisible();
