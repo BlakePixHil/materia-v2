@@ -133,7 +133,7 @@ function parseCount(text: string): number | null | undefined {
                 <span class="mt-grow">Read the disclosure</span>
                 <span class="chev"><mt-icon name="chevron-down" /></span>
               </summary>
-              <div class="disclosure-text">
+              <div class="disclosure-text" tabindex="0" role="region" aria-label="Clerk data-use disclosure">
                 <mt-markdown [content]="disclosure" [breaks]="false" />
               </div>
             </details>
@@ -475,6 +475,11 @@ function parseCount(text: string): number | null | undefined {
       border: 1px solid var(--border-default);
       border-radius: var(--radius-md);
       background: var(--bg-sunken);
+    }
+    /* Focusable so keyboard users can scroll it. */
+    .disclosure-text:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
     }
     .disclosure-text ::ng-deep p:has(> b:only-child):not(:first-child) {
       margin-top: 8px;
