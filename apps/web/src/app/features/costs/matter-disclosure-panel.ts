@@ -5,7 +5,6 @@ import { can } from '@materia/data-access';
 import { costsCallables } from '@materia/data-access/repository';
 import {
   DISCLOSURE_REQUIREMENT_LABELS,
-  DISCLOSURE_SENT_METHOD_LABELS,
   DISCLOSURE_STATUS_LABELS,
   DISCLOSURE_UPDATE_REASON_LABELS,
   DISCLOSURE_WAIVER_REASON_LABELS,
@@ -16,6 +15,7 @@ import {
   type CostsDisclosureStatus,
   type DisclosureEvent,
   type DisclosureResult,
+  type DisclosureSentMethod,
 } from '@materia/domain';
 import {
   DialogService,
@@ -43,6 +43,9 @@ const TONES: Record<CostsDisclosureStatus, MtBadgeTone> = {
   not_required: 'neutral',
   waived: 'neutral',
 };
+
+// How it was given, after "by": "by email", "by post", "by hand".
+const SENT_BY: Record<DisclosureSentMethod, string> = { email: 'email', post: 'post', hand: 'hand' };
 
 const EVENT_LABELS: Record<DisclosureEvent['action'], string> = {
   assessed: 'Assessed at intake',
@@ -241,8 +244,8 @@ export class MatterDisclosurePanel {
     return DISCLOSURE_WAIVER_REASON_LABELS[reason];
   }
 
-  protected sentMethod(method: keyof typeof DISCLOSURE_SENT_METHOD_LABELS): string {
-    return DISCLOSURE_SENT_METHOD_LABELS[method].toLowerCase();
+  protected sentMethod(method: DisclosureSentMethod): string {
+    return SENT_BY[method];
   }
 
   protected eventLine(event: DisclosureEvent): string {

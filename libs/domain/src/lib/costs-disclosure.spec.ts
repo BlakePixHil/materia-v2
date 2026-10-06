@@ -19,9 +19,8 @@ import {
   significantDisclosureChange,
   withDisclosureEvent,
   DISCLOSURE_HISTORY_MAX,
-  type DisclosureEvent,
 } from './costs-disclosure';
-import type { CostsDisclosure } from './schemas/contacts-matters';
+import type { CostsDisclosure, DisclosureEvent } from './schemas/contacts-matters';
 import type { DateOnly } from './values/date-only';
 
 /** BILL-06: costs disclosure rules, assessment, revision and reminders. Everyone here is fictional. */

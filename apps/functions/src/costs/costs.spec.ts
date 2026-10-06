@@ -127,7 +127,9 @@ function world(initial: Record<string, Data> = {}, flags: Data = FLAG) {
   const doc = (path: string) => store.docs.get(path) as Data | undefined;
   const disclosure = (path = M1) => doc(path)?.['costsDisclosure'] as Data;
   const under = (prefix: string) =>
-    [...store.docs.entries()].filter(([path]) => path.startsWith(prefix)).map(([path, data]) => ({ path, ...data }));
+    [...store.docs.entries()]
+      .filter(([path]) => path.startsWith(prefix))
+      .map(([path, data]): Data => ({ path, ...(data as Data) }));
   const audits = () => under(`orgs/${ORG}/audit/`);
   const notifications = () => under(`orgs/${ORG}/notifications/`);
   return { ...store, files, clock, tasks, ports, log, call, doc, disclosure, under, audits, notifications };
