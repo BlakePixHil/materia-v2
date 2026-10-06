@@ -6,7 +6,7 @@ The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `f
 
 - the read-only profile of the prod data taken on 2026-10-04 (counts and names only, kept in project files at `mig-01/tristan-data-profile.md`);
 - the legacy code (`BlakePixHil/materia-web-app`);
-- the audit report, which `materia-migrate audit` writes and nobody commits (see [`tools/migration/README.md`](../../tools/migration/README.md)).
+- the prod audit run on 2026-10-06 with the read-only account (`materia-migrate audit`; the report is in project files at `mig-01/audit/`, never committed). It found 313 cards on the 5 boards in scope, and `check-profile` confirmed the profile maps every board and column.
 
 **Status key:**
 
@@ -18,8 +18,8 @@ The mapping choices for migrating **Tristan Burke**'s legacy data (legacy uid `f
 
 | Role | Name | Date | Note |
 | --- | --- | --- | --- |
-| User | Tristan Burke | | Also confirms his consent to migrate, which Blake recorded on 2026-10-04 |
-| Product owner | Blake Linnell | | |
+| User | Tristan Burke | 2026-10-06 | Signed off through Blake in the project thread ("We agree and sign off"). Confirms his consent to migrate, which Blake recorded on 2026-10-04 |
+| Product owner | Blake Linnell | 2026-10-06 | Signed off in the project thread |
 
 Signing records the same names and dates in the profile's `signOff`. Changing any decision after sign-off needs both signatures again.
 
@@ -139,6 +139,7 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 - **Status:** Default.
 - **Decision:**
   - The org takes the legacy profile's company name. Tristan confirms it at cutover (MIG-07).
+  - **Prod audit (2026-10-06):** the company name is "Materia Technologies", which is the app's name rather than his practice's. MIG-07 must ask Tristan for the real name rather than offer this one.
   - Dates use Australia/Melbourne: due dates stored as UTC instants convert to the Melbourne day.
   - Matters are Victorian.
 - **Profile:** `org` (no `name` set, so the company name is used).
