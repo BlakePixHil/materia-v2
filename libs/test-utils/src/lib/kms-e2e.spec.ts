@@ -1,4 +1,4 @@
-import { fakeKmsSeal } from '../../e2e/clerk';
+import { fakeKmsSeal } from '../../e2e/kms';
 
 /** The e2e key helper (AI-06) must seal exactly as the emulator's fake KMS opens. */
 describe('fakeKmsSeal', () => {
