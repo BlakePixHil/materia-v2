@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  input,
+  signal,
+  ViewEncapsulation,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ArrowLeftRight, Pause, Play, Square, Volume2 } from 'lucide';
 
@@ -19,6 +29,9 @@ export const TIMER_ANNOUNCE_EVERY_MS = 15 * 60_000;
 @Component({
   selector: 'mt-timer-widget',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Unencapsulated: the rules hang off the host's own `mt-timer` class, which emulated encapsulation
+  // never matched (the readout ran into the matter number and the buttons wrapped below it).
+  encapsulation: ViewEncapsulation.None,
   imports: [MtIconButton, RouterLink],
   host: { class: 'mt-timer', '[attr.data-running]': 'store.running() ? "" : null' },
   styles: `
@@ -26,12 +39,15 @@ export const TIMER_ANNOUNCE_EVERY_MS = 15 * 60_000;
       display: inline-flex;
       align-items: center;
       gap: 2px;
+      flex-wrap: nowrap;
+      white-space: nowrap;
     }
     .mt-timer .readout {
       display: inline-flex;
       align-items: baseline;
-      gap: var(--space-6, 6px);
-      padding: 0 var(--space-6, 6px);
+      gap: 8px;
+      padding: 0 10px;
+      margin-right: 2px;
       border-radius: var(--radius-md);
       background: var(--bg-subtle);
       height: 28px;
@@ -46,6 +62,7 @@ export const TIMER_ANNOUNCE_EVERY_MS = 15 * 60_000;
     .mt-timer .matter {
       color: var(--text-secondary);
       font-size: 12px;
+      font-variant-numeric: tabular-nums;
       text-decoration: none;
       white-space: nowrap;
     }
