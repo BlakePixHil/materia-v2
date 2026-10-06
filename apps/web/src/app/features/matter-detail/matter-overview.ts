@@ -22,6 +22,8 @@ import { MatterKeyFacts } from './matter-key-facts';
 import { MatterScreen } from './matter-screen';
 import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { CitationScope, CitationSources } from '../citations/citation-sources';
+import { CitationViewer } from '../citations/citation-viewer';
 import { statutoryDisabled } from '../deadlines/statutory-flag';
 import { MatterFeePanel } from '../fees/matter-fee-panel';
 import { matterResolver, memberResolver } from '../notes/note-mentions';
@@ -36,8 +38,10 @@ const TASKS_SHOWN = 5;
 /**
  * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the trust
  * balance for billing roles (BILL-11, flagged), the next five deadlines, open tasks, the three latest
- * activity lines, "Clerk suggests…" (AI-07) and the Clerk brief (AI-06 fills it).
- * Listens to the matter's pinned notes, deadlines, tasks and activity only while this tab is shown.
+ * activity lines, "Clerk suggests…" (AI-07) and the Clerk brief (AI-06 fills it). Sources Clerk cited
+ * (on key facts and suggestions) open in one citation viewer (AI-05), a lazy chunk.
+ * Listens to the matter's pinned notes, deadlines, tasks, activity and key fact citations only
+ * while this tab is shown.
  */
 @Component({
   selector: 'mt-matter-overview',
@@ -46,6 +50,7 @@ const TASKS_SHOWN = 5;
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
   imports: [
     RouterLink,
+    CitationViewer,
     MatterFeePanel,
     MatterKeyFacts,
     MatterSuggestions,
@@ -55,6 +60,8 @@ const TASKS_SHOWN = 5;
     MtEmptyState,
     MtMarkdown,
   ],
+  // One citation viewer for the tab's sources: key facts (CORE-06a) and Clerk's suggestions (AI-07).
+  providers: [CitationSources, { provide: CitationScope, useExisting: MatterScreen }],
   host: { class: 'mt-matter-overview' },
   template: `
     @if (pinned().length) {
@@ -181,6 +188,20 @@ const TASKS_SHOWN = 5;
         }
       </section>
     </div>
+    <!-- The citation viewer (AI-05) loads the first time a source is opened. -->
+    @if (sources.viewing(); as viewing) {
+      @defer (on immediate) {
+        <mt-citation-viewer
+          [matterId]="screen.id() ?? ''"
+          [citations]="viewing.citations"
+          [index]="viewing.index"
+          (indexChange)="sources.viewing.set({ citations: viewing.citations, index: $event })"
+          (closed)="sources.close()"
+        />
+      } @loading (minimum 0ms) {
+        <p class="caption t-3 mt-sr" role="status">Opening the source…</p>
+      }
+    }
   `,
   styles: `
     .mt-matter-overview {
@@ -241,6 +262,7 @@ const TASKS_SHOWN = 5;
 })
 export class MatterOverview {
   protected readonly screen = inject(MatterScreen);
+  protected readonly sources = inject(CitationSources);
   private readonly today = inject(MT_TODAY);
   private readonly flags = inject(FeatureFlagService);
   private readonly canClerk = can('clerk.use');

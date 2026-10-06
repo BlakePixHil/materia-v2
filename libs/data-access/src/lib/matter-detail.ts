@@ -4,6 +4,7 @@ import * as z from 'zod';
 import {
   Activity,
   Deadline,
+  FactCitation,
   Matter,
   MatterTemplate,
   MatterTemplateVersion,
@@ -236,6 +237,37 @@ export const MATTER_ACTIVITY_QUERY: QuerySpec<MatterActivity> = { orderBy: [['at
 
 export function matterActivityRepository(matterId: () => string | null): Repository<MatterActivity> {
   return matterRecords(matterId, 'activity', MatterActivitySchema, Activity.version);
+}
+
+// ---------- key fact citations ----------
+
+const factCitation = FactCitation.schema.shape;
+
+/**
+ * Where Clerk found a key fact's value (CORE-06a, ADR-049): the citations kept when its suggestion
+ * was accepted, with the value they support (`keyFactCitations` shows them only while the fact
+ * still has it). The document id is the fact's id.
+ */
+export const MatterFactCitationSchema = /* @__PURE__ */ z.object({
+  factId: factCitation.factId,
+  value: factCitation.value,
+  citations: factCitation.citations,
+  suggestionId: factCitation.suggestionId,
+  privileged: factCitation.privileged,
+});
+export type MatterFactCitation = z.infer<typeof MatterFactCitationSchema>;
+
+/** A matter's key fact citations, read-only: functions write and delete them. */
+export function matterFactCitationsRepository(matterId: () => string | null): Repository<MatterFactCitation> {
+  return matterRecords(matterId, 'factCitations', MatterFactCitationSchema, FactCitation.version);
+}
+
+/**
+ * Every key fact citation of a matter the reader may see (one per fact, so a handful). Without
+ * `privileged.view` the rules need `privileged == false`.
+ */
+export function factCitationsQuery(options: { privilegedVisible: boolean }): QuerySpec<MatterFactCitation> {
+  return { where: options.privilegedVisible ? [] : [['privileged', '==', false]], pageSize: 20 };
 }
 
 // ---------- templates ----------

@@ -134,7 +134,7 @@ These are pure: inputs in, outputs out, no data access. Each takes a view-model 
 | `<mt-table>` | See below |
 | `<mt-task-row [task] editable (done) (titleChange) (open)>` | A task: the checkbox emits `done`; with `editable` the title edits in place (Enter saves, Escape cancels) |
 | `<mt-matter-card [matter] (open)>` | Board card. Drag behaviour is added by the board (CORE-04) |
-| `<mt-key-facts [facts] (copied)>` + `<ng-template mtFactCitation let-fact>` | Facts with copy buttons; Clerk-sourced facts render the citation template (FND-11's Citation) |
+| `<mt-key-facts [facts] (copied)>` + `<ng-template mtFactCitation let-fact>` | Facts with copy buttons; Clerk-sourced facts render the citation template (the matter Overview puts an `mt-citation` chip per source there, CORE-06a) |
 | `<mt-estate-stepper [stages] current completed interactive (stageSelect)>` | The matter's stages from its template |
 | `<mt-timeline [items] grouped hasMore loading (loadMore)>` | History or deadlines, grouped by day in the org timezone; kinds note, activity, document, email, clerk, deadline |
 | `<mt-time-entry [entry] (accept)>` | A recorded entry (actions projected) or a captured one (Accept) |

@@ -459,6 +459,15 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'members',
     update: 'none',
   },
+  // Where Clerk found a key fact's value (CORE-06a): written when its suggestion is accepted and
+  // deleted by matters-denormalise once the fact changes; clients only read.
+  {
+    collection: 'factCitations',
+    docPath: `${MATTER}/factCitations/willDate`,
+    entity: 'FactCitation',
+    read: 'members',
+    update: 'none',
+  },
   { ...matterRecord('parties', 'Party'), seed: { orgId: ORG, matterId: 'matter-1' } },
   // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent.
   { ...matterRecord('events', 'MatterEvent'), update: 'none' },

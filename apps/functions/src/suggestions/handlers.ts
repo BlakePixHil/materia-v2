@@ -25,6 +25,7 @@ import { compact, stamp } from '../contacts/shared';
 import type { CallableContext } from '../core/callable';
 import { recordEvent } from '../deadlines/events';
 import { deadlinesPath, eventsPath, tasksPath } from '../deadlines/shared';
+import { keepFactCitations } from '../matters/fact-citations';
 import { upsertPartyChange } from '../matters/parties';
 import { matterPath } from '../matters/shared';
 import { createNote } from '../notes/create';
@@ -34,9 +35,10 @@ import { createNote } from '../notes/create';
  * the manual path: tasks and manual deadlines as the client creates them (validated by the same
  * schemas; the triggers count, remind and log them), events through the `deadlines-upsertEvent`
  * logic (which recomputes the deadlines), parties through `matters-upsertParty`'s, notes through
- * `notes-create`'s, key facts through `keyFactPatch` (or their event), and a document's category
- * and title as the documents screen edits them. `time_entry` (BILL-01) and the litigation kinds
- * (`chronology`, `order`, `evidence`; LIT tickets) have none yet.
+ * `notes-create`'s, key facts through `keyFactPatch` (or their event) with what Clerk cited kept
+ * beside them (CORE-06a), and a document's category and title as the documents screen edits them.
+ * `time_entry` (BILL-01) and the litigation kinds (`chronology`, `order`, `evidence`; LIT tickets)
+ * have none yet.
  */
 
 /** What the shared helpers use of a handler's context (everything but the typed payload). */
@@ -245,11 +247,13 @@ const keyFact: SuggestionHandler<'key_fact'> = {
   kind: 'key_fact',
   exists: async (ctx) => keyFactValue(ctx.matter as FactMatter, ctx.payload.field) === ctx.payload.value,
   async apply(ctx) {
-    const { db, orgId, matterId, uid, requestId, payload, join } = ctx;
+    const { db, orgId, matterId, uid, requestId, payload } = ctx;
+    // What Clerk cited is kept with the fact, in the same transaction (CORE-06a).
+    const join = keepFactCitations(ctx.join, { ...ctx, field: payload.field, value: payload.value });
     const eventKind = keyFactEventKind(payload.field);
     if (eventKind) {
       // The date of death and the grant date are events (CORE-10): recording them recomputes.
-      return { resultRef: await applyEvent(ctx, { kind: eventKind, date: String(payload.value) }) };
+      return { resultRef: await applyEvent({ ...ctx, join }, { kind: eventKind, date: String(payload.value) }) };
     }
     const matterRef = db.doc(matterPath(orgId, matterId));
     const now = ctx.clock.now();

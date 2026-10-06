@@ -23,6 +23,8 @@ import {
 import { runCallable, type CallableDefinition, type CallableDeps } from '../core/callable';
 import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
+import type { TriggerChange, TriggerContext } from '../core/trigger';
+import { clearStaleFactCitations } from '../matters/fact-citations';
 import { memoryFirestore } from '../orgs/testing';
 import { FakeClock, fakePorts } from '../ports/fakes';
 
@@ -455,6 +457,168 @@ describe('suggestions-accept', () => {
   it('is refused while the flag is off', async () => {
     const w = world({}, {});
     expect((await failure(w.accept({ suggestionId: 'x' }))).details['code']).toBe('FEATURE_DISABLED');
+  });
+});
+
+describe('key fact citations (CORE-06a)', () => {
+  const WILL_LINE = 'Signed by the will-maker on 3 May 2019.';
+  const cite = (documentId = 'd1', extra: Data = {}) => ({
+    documentId,
+    version: 1,
+    page: 2,
+    quote: WILL_LINE,
+    ...extra,
+  });
+  const fact = (field: string, value: string | number, citations: unknown[] = [cite()]) => ({
+    kind: 'key_fact',
+    payload: { field, value },
+    citations,
+    rationale: 'The will’s attestation clause dates it',
+  });
+  const record = (w: ReturnType<typeof world>, factId: string) => w.doc(`${M}/m1/factCitations/${factId}`);
+
+  async function accepted(
+    w: ReturnType<typeof world>,
+    proposal: unknown,
+    data: Data = {},
+    options: Partial<ProposeOptions> = {},
+  ) {
+    const created = await w.propose([proposal], options);
+    const id = created.created[0]?.id;
+    if (!id) throw new Error(`not created: ${JSON.stringify(created.skipped)}`);
+    await w.accept({ suggestionId: id, ...data });
+    return id;
+  }
+
+  /** `matters-denormalise`'s clean-up for a write from `before` to the stored matter. */
+  function cleanUp(w: ReturnType<typeof world>, before: Data) {
+    const path = `${M}/m1`;
+    const after = w.doc(path);
+    const change = {
+      before: { ref: { path }, data: () => before },
+      after: after ? { ref: { path }, data: () => after } : undefined,
+    } as unknown as TriggerChange;
+    const ctx = {
+      eventId: 'e1',
+      time: NOW,
+      params: { orgId: ORG, matterId: 'm1' },
+      log: w.log,
+      clock: w.clock,
+      db: w.store.db,
+      ports: fakePorts(),
+    } as unknown as TriggerContext;
+    return clearStaleFactCitations(change, ctx);
+  }
+
+  it('keeps what Clerk cited with the fact, in the accept’s transaction', async () => {
+    const w = world();
+    const id = await accepted(w, fact('willDate', '2019-05-03'));
+    expect((w.doc(`${M}/m1`)?.['facts'] as Data)['willDate']).toBe('2019-05-03');
+    expect(record(w, 'willDate')).toMatchObject({
+      factId: 'willDate',
+      value: '2019-05-03',
+      // Stored with the current field names (`version` read as `docVersion`).
+      citations: [{ kind: 'document', documentId: 'd1', docVersion: 1, page: 2, quote: WILL_LINE }],
+      suggestionId: id,
+      privileged: false,
+      createdBy: 'user-lawyer',
+      schemaVersion: 1,
+    });
+    expect(record(w, 'willDate')?.['citations']).toEqual([expect.not.objectContaining({ version: 1 })]);
+  });
+
+  it('keeps the citations of a date of death recorded as its event (CORE-10)', async () => {
+    const w = world({
+      [`${M}/m1`]: matter({ deceased: { contactId: 'c-client', domicile: 'VIC', lastAddress: '1 Example St' } }),
+    });
+    await accepted(w, fact('dateOfDeath', '2026-07-01'));
+    expect((w.doc(`${M}/m1`)?.['deceased'] as Data)['dateOfDeath']).toBe('2026-07-01');
+    expect(w.under(`${M}/m1/events`)).toEqual([expect.objectContaining({ kind: 'date_of_death', date: '2026-07-01' })]);
+    expect(record(w, 'dateOfDeath')).toMatchObject({ value: '2026-07-01', citations: [{ page: 2 }] });
+  });
+
+  it('keeps none when the person changed the value first, or Clerk cited nothing', async () => {
+    const w = world();
+    await accepted(w, fact('grantNo', 'G-2026-77'), { editedPayload: { field: 'grantNo', value: 'G-2026-78' } });
+    expect((w.doc(`${M}/m1`)?.['estate'] as Data)['grantNo']).toBe('G-2026-78');
+    expect(record(w, 'grantNo')).toBeUndefined();
+    await accepted(w, fact('willDate', '2019-05-03', []));
+    expect(record(w, 'willDate')).toBeUndefined();
+    // An edit that leaves the value as proposed keeps them.
+    await accepted(w, fact('grossValue', 125_000_00), { editedPayload: { field: 'grossValue', value: 125_000_00 } });
+    expect(record(w, 'grossValue')).toMatchObject({ value: 125_000_00 });
+  });
+
+  it('is privileged when the suggestion is, or a cited document is', async () => {
+    const w = world({
+      [`${M}/m1/documents/d-advice`]: { ...meta, name: 'Advice', category: 'other', privileged: true, version: 1 },
+    });
+    await accepted(w, fact('willDate', '2019-05-03'));
+    expect(record(w, 'willDate')?.['privileged']).toBe(false);
+    await accepted(w, fact('grantNo', 'G-2026-77', [cite('d1'), cite('d-advice')]));
+    expect(record(w, 'grantNo')?.['privileged']).toBe(true);
+    await accepted(w, fact('grossValue', 125_000_00), {}, { privileged: true });
+    expect(record(w, 'grossValue')?.['privileged']).toBe(true);
+  });
+
+  it('is privileged when a cited document became privileged after Clerk proposed it', async () => {
+    const w = world();
+    const created = await w.propose([fact('willDate', '2019-05-03')]);
+    const id = created.created[0]?.id ?? 'missing';
+    w.store.docs.set(`${M}/m1/documents/d1`, { ...w.doc(`${M}/m1/documents/d1`), privileged: true });
+    // The sources changed: reviewed, then accepted against the new basis.
+    const stale = await failure(w.accept({ suggestionId: id }));
+    expect(stale.details['code']).toBe('SUGGESTION_STALE');
+    expect(record(w, 'willDate')).toBeUndefined();
+    await w.accept({ suggestionId: id, expectedBasis: stale.details['basis'] });
+    expect(record(w, 'willDate')).toMatchObject({ value: '2019-05-03', privileged: true });
+  });
+
+  it('writes nothing when the fact is refused', async () => {
+    const w = world({ [`${M}/m1`]: matter({ type: 'will' }) });
+    const created = await w.propose([fact('grantNo', 'G-2026-77')]);
+    const id = created.created[0]?.id ?? 'missing';
+    expect((await failure(w.accept({ suggestionId: id }))).details['code']).toBe('INVALID_ARGUMENT');
+    expect(record(w, 'grantNo')).toBeUndefined();
+    expect(w.suggestion(id)['status']).toBe('proposed');
+  });
+
+  it('a person’s edit of the fact clears its citations; other facts keep theirs', async () => {
+    const w = world();
+    await accepted(w, fact('grantNo', 'G-2026-77'));
+    await accepted(w, fact('willDate', '2019-05-03'));
+    const before = { ...w.doc(`${M}/m1`) } as Data;
+    // As the Key facts card writes it: the whole estate object, with the new grant number.
+    await w.store.db.doc(`${M}/m1`).update({ estate: { grantNo: 'G-2026-99' }, updatedBy: 'user-paralegal' });
+    expect(await cleanUp(w, before)).toEqual(['grantNo']);
+    expect(record(w, 'grantNo')).toBeUndefined();
+    expect(record(w, 'willDate')).toBeDefined();
+    // Clearing the fact clears them too.
+    const again = { ...w.doc(`${M}/m1`) } as Data;
+    await w.store.db.doc(`${M}/m1`).update({ facts: {} });
+    expect(await cleanUp(w, again)).toEqual(['willDate']);
+    expect(record(w, 'willDate')).toBeUndefined();
+  });
+
+  it('keeps citations whose value the fact has again, and ignores writes that change no fact', async () => {
+    const w = world();
+    await accepted(w, fact('grantNo', 'G-2026-77'));
+    const stored = { ...w.doc(`${M}/m1`) } as Data;
+    // An out-of-date event: the fact read differently before, but the matter has the cited value now.
+    expect(await cleanUp(w, { ...stored, estate: { grantNo: 'G-1' } })).toEqual([]);
+    expect(record(w, 'grantNo')).toBeDefined();
+    await w.store.db.doc(`${M}/m1`).update({ title: 'Estate of Fictional Marlowe' });
+    expect(await cleanUp(w, stored)).toEqual([]);
+    expect(record(w, 'grantNo')).toBeDefined();
+  });
+
+  it('leaves a destroyed matter’s tombstone alone (CORE-19)', async () => {
+    const w = world();
+    await accepted(w, fact('grantNo', 'G-2026-77'));
+    const before = { ...w.doc(`${M}/m1`) } as Data;
+    w.store.docs.set(`${M}/m1`, { ...before, estate: {}, destroyedAt: NOW });
+    expect(await cleanUp(w, before)).toEqual([]);
+    expect(record(w, 'grantNo')).toBeDefined();
   });
 });
 

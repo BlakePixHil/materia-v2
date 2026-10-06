@@ -1,5 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
 
+import { clearStaleFactCitations } from './fact-citations';
 import { contactNames, matterPath, matterSearch, searchContactIds } from './shared';
 import { changedFields } from '../audit/entry';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
@@ -121,6 +122,8 @@ export const denormaliseDefinition: TriggerDefinition = {
     await denormalise(change, ctx);
     // A key fact standing for an event fills the template due dates waiting on it (CORE-07b).
     await fillFromKeyFacts(change, ctx);
+    // A changed key fact loses the citations of its old value (CORE-06a).
+    await clearStaleFactCitations(change, ctx);
   },
 };
 
