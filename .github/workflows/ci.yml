@@ -219,7 +219,9 @@ jobs:
   integration:
     name: integration
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A full run (most projects affected) takes 14-19 minutes; at 20 the INS-01 merge timed out,
+    # which cancelled its main run and so its dev deploy.
+    timeout-minutes: 30
     needs: gate
     if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
