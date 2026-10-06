@@ -27,9 +27,28 @@ service cloud.firestore {
     // The claim names the org, and the member document must still be active: a suspended or removed
     // member loses access on their next request, without waiting for their token to refresh (FND-17,
     // ADR-021). Rules cache the get() within a request, so it costs one read per request.
-    function inOrg(orgId) {
+    function memberOf(orgId) {
       return isSignedIn() && claimOrg() == orgId
         && get(/databases/$(database)/documents/orgs/$(orgId)/members/$(uid())).data.status == 'active';
+    }
+    // The org's security policy accepts this sign-in (SEC-04), as the callables check it
+    // (apps/functions/src/core/sessions.ts):
+    // - not from before a "sign out everywhere" (the member's `sessionsValidAfter`);
+    // - no older than the org's session length (`security.maxSessionDays`, 14 by default);
+    // - with a second factor once the org requires MFA and the grace period is over.
+    // One more cached get() (the org document) per request.
+    function sessionOk(orgId) {
+      let member = get(/databases/$(database)/documents/orgs/$(orgId)/members/$(uid())).data;
+      let security = get(/databases/$(database)/documents/orgs/$(orgId)).data.get('security', {});
+      let signedInAt = request.auth.token.get('auth_time', 0) * 1000;
+      return signedInAt >= member.get('sessionsValidAfter', timestamp.value(0)).toMillis()
+        && request.time.toMillis() - signedInAt <= security.get('maxSessionDays', 14) * 86400000
+        && (security.get('mfaRequired', false) == false
+          || request.auth.token.get('firebase', {}).get('sign_in_second_factor', null) != null
+          || request.time < security.get('mfaEnforceAfter', timestamp.value(0)));
+    }
+    function inOrg(orgId) {
+      return memberOf(orgId) && sessionOk(orgId);
     }
     function hasRole(orgId, roles) {
       return inOrg(orgId) && claimRole() in roles;
@@ -37,12 +56,14 @@ service cloud.firestore {
     function can(orgId, action) {
       return hasRole(orgId, perm(action));
     }
-    // Kept at sensitive paths for clarity; inOrg() already checks the member document.
+    // Kept at sensitive paths for clarity; can() and inOrg() already check the member document and
+    // the session. Not inOrg() again: rules evaluate at most 1000 expressions per request, and
+    // sessionOk() isn't cached like get() is.
     function isActiveMember(orgId) {
-      return inOrg(orgId);
+      return memberOf(orgId);
     }
     function canViewPrivileged(orgId) {
-      return can(orgId, 'privileged.view') && isActiveMember(orgId);
+      return can(orgId, 'privileged.view');
     }
     // Privileged documents are readable only by roles with privileged.view (never readonly).
     // No get() default here: in a list query, `data.get(field, default)` on a field the query does
@@ -79,9 +100,11 @@ service cloud.firestore {
           || (request.resource.data.get('deletedAt', null) == null && request.resource.data.get('deletedBy', null) == null)
         );
     }
-    // Changing the privileged flag needs privileged.view.
-    function privilegedFlagOk(orgId) {
-      return unchanged(['privileged']) || canViewPrivileged(orgId);
+    // An update to records with these privileged flags (the record's, and its matter's): it sees
+    // them all (visible()), and changing the flag needs privileged.view. One canViewPrivileged()
+    // rather than one per record: rules evaluate at most 1000 expressions per request.
+    function visibleAndFlagOk(orgId, flags) {
+      return flags.toSet().hasOnly([false]) && unchanged(['privileged']) || canViewPrivileged(orgId);
     }
     // Soft delete only (no client restore): the document is live and the caller stamps the delete.
     function softDeleteOnly() {
@@ -245,6 +268,12 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // The sign-in log (SEC-04): written by auth-beforeSignIn, read by its owner ("Your sessions").
+      // Firestore TTL deletes an entry at `expireAt`.
+      match /signIns/{signInId} {
+        allow read: if isSignedIn() && uid() == userId;
+      }
+
       // Saved Matters list views (CORE-03): private to their user, created, edited and deleted by the
       // client. Each names the org it was saved in, which must be the caller's current org.
       match /views/{viewId} {
@@ -346,11 +375,14 @@ service cloud.firestore {
 
     // ---------- organisations ----------
     match /orgs/{orgId} {
-      allow read: if inOrg(orgId);
+      // Readable whatever the security policy says (memberOf, not inOrg), so the app can tell a
+      // member why their session isn't accepted (MFA required, session expired, signed out).
+      allow read: if memberOf(orgId);
       allow update: if can(orgId, 'org.settings') && isActiveMember(orgId) && clientUpdate(fieldsOrg());
 
       match /members/{memberUid} {
-        allow read: if inOrg(orgId);
+        // Their own member document likewise (its `sessionsValidAfter`); everyone else's needs inOrg.
+        allow read: if inOrg(orgId) || memberOf(orgId) && uid() == memberUid;
         // Owners and admins edit any member; everyone edits their own profile fields (CORE-20).
         allow update: if can(orgId, 'members.manage') && isActiveMember(orgId) && clientUpdate(fieldsMember())
           || inOrg(orgId) && uid() == memberUid && resource.data.status == 'active'
@@ -393,7 +425,7 @@ service cloud.firestore {
       // a deleted matter is frozen until an owner or admin restores it (matters-restore, 30 days).
       match /matters/{matterId} {
         allow read: if inOrg(orgId) && visible(orgId, resource.data);
-        allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
+        allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
           && resource.data.get('deletedAt', null) == null
           && (can(orgId, 'matter.edit') && clientUpdate(fieldsMatter()) || can(orgId, 'matter.delete') && softDeleteOnly());
 
@@ -495,7 +527,7 @@ service cloud.firestore {
               && (!('notes' in data) || data.notes is string && data.notes.size() <= 5000);
           }
           allow read: if inOrg(orgId) && visible(orgId, resource.data) && visible(orgId, documentMatter());
-          allow update: if visible(orgId, resource.data) && visible(orgId, documentMatter()) && privilegedFlagOk(orgId)
+          allow update: if visibleAndFlagOk(orgId, [resource.data.privileged, documentMatter().privileged])
             && (can(orgId, 'document.upload') && clientUpdate(fieldsMatterDocument()) && validDocumentMeta(request.resource.data)
               || can(orgId, 'document.delete') && softDelete());
 
@@ -512,10 +544,10 @@ service cloud.firestore {
 
         // Notes (CORE-13): created and their text edited only through notes-create and notes-update
         // (mentions, revisions, notifications). note.write roles pin, soft delete and restore
-        // directly; the privileged flag isn't client-writable (privilegedFlagOk stays as a guard).
+        // directly; the privileged flag isn't client-writable (visibleAndFlagOk stays as a guard).
         match /notes/{noteId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
-          allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
+          allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
             && editable(orgId, 'note.write', fieldsNote());
 
           // Earlier versions, appended by notes-update. Readable by whoever can read the note, and
@@ -529,7 +561,7 @@ service cloud.firestore {
 
         match /offers/{offerId} {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
-          allow update: if visible(orgId, resource.data) && privilegedFlagOk(orgId)
+          allow update: if visibleAndFlagOk(orgId, [resource.data.privileged])
             && editable(orgId, 'matter.edit', fieldsOffer());
         }
 
@@ -868,7 +900,7 @@ service cloud.firestore {
     function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt', 'hiddenAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'plan', 'security', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'plan', 'settings', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
@@ -876,6 +908,7 @@ service cloud.firestore {
     function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'flag', 'disclaimer', 'rules']; }
     function fieldsSafeCustody() { return []; }
     function fieldsSavedView() { return ['orgId', 'list', 'name', 'filters', 'sort', 'groupBy']; }
+    function fieldsSignIn() { return []; }
     function fieldsSubpoena() { return ['issuedTo', 'direction', 'issuedOn', 'returnDate', 'status', 'accessOrderMade', 'materialDocumentIds']; }
     function fieldsSuggestion() { return []; }
     function fieldsTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }

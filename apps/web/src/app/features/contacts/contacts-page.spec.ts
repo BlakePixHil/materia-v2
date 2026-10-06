@@ -666,7 +666,8 @@ describe('edit, delete and merge', () => {
     const confirm = [...page.body.querySelectorAll('.mt-dialog')].at(-1);
     expect(confirm?.textContent).toContain('Record Bram Ostler as deceased?');
     await page.click('Cancel', confirm);
-    expect(page.firestore.writes).toEqual([]);
+    // Nothing saved to the contact (opening it may record it in recents).
+    expect(page.firestore.writes.filter((w) => w.path.startsWith(CONTACTS))).toEqual([]);
 
     await page.submit();
     const again = [...page.body.querySelectorAll('.mt-dialog')].at(-1);

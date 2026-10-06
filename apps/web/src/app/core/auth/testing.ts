@@ -77,7 +77,7 @@ export class FakeAuthPort implements AuthPort {
   async completeMfa(code: string): Promise<void> {
     this.fail();
     if (code !== '123456') throw new AuthFlowError('invalid-code');
-    this.emit(testSession({ mfaEnrolled: true }));
+    this.emit(testSession({ mfaEnrolled: true, secondFactor: true }));
   }
 
   async signUp(email: string, _password: string, displayName: string): Promise<void> {

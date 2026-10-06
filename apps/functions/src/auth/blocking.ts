@@ -6,6 +6,8 @@ import {
   type AuthBlockingEvent,
 } from 'firebase-functions/v2/identity';
 
+import { describeUserAgent, SIGN_IN_LOG_DAYS, SignIn } from '@materia/domain';
+
 import { REGION } from '../config';
 import { adminDb } from '../core/admin';
 import { flagValue } from '../core/flags';
@@ -61,24 +63,45 @@ export async function checkSignUp(
   throw new HttpsError('permission-denied', SIGNUP_CLOSED_MESSAGE);
 }
 
-/** `beforeUserSignedIn`: stamps the sign-in time in the server-only `users/{uid}/private/session`. */
+/**
+ * `beforeUserSignedIn`: stamps the sign-in time in the server-only `users/{uid}/private/session`,
+ * and logs the sign-in in `users/{uid}/signIns/{eventId}` for "Your sessions" (SEC-04): when, how,
+ * and a coarse device and browser. Never the IP address or the raw user agent.
+ */
 export async function stampSignIn(
-  event: Pick<AuthBlockingEvent, 'data' | 'eventId' | 'additionalUserInfo'>,
+  event: Pick<AuthBlockingEvent, 'data' | 'eventId' | 'additionalUserInfo'> & { userAgent?: string },
   deps: BlockingDeps,
 ): Promise<void> {
   const uid = event.data?.uid;
   if (!uid) return;
-  await deps
-    .db()
-    .doc(`users/${uid}/private/session`)
-    .set(
-      {
-        lastSignInAt: FieldValue.serverTimestamp(),
-        lastSignInProvider: event.additionalUserInfo?.providerId ?? 'unknown',
-        signInCount: FieldValue.increment(1),
-      },
-      { merge: true },
-    );
+  const db = deps.db();
+  const now = deps.now();
+  const provider = event.additionalUserInfo?.providerId ?? 'unknown';
+  const entry = SignIn.schema.parse({
+    at: now,
+    authTime: Math.floor(now.getTime() / 1000),
+    provider: provider.slice(0, 64),
+    ...describeUserAgent(event.userAgent),
+    secondFactor: (event.data?.multiFactor?.enrolledFactors?.length ?? 0) > 0,
+    expireAt: new Date(now.getTime() + SIGN_IN_LOG_DAYS * 86_400_000),
+    createdAt: now,
+    createdBy: uid,
+    updatedAt: now,
+    updatedBy: uid,
+    schemaVersion: SignIn.version,
+  });
+  const batch = db.batch();
+  batch.set(
+    db.doc(`users/${uid}/private/session`),
+    {
+      lastSignInAt: FieldValue.serverTimestamp(),
+      lastSignInProvider: provider,
+      signInCount: FieldValue.increment(1),
+    },
+    { merge: true },
+  );
+  batch.set(db.doc(`users/${uid}/signIns/${event.eventId}`), entry);
+  await batch.commit();
 }
 
 const deps = (): BlockingDeps => ({
