@@ -161,6 +161,21 @@ describe('matter notes tab', () => {
     expect(page.body.querySelector('[role="listbox"]')).toBeNull();
   });
 
+  it('keeps the list while another window has focus, and closes it when the field loses focus', async () => {
+    const page = await open();
+    const field = composer(page);
+    await type(page, field, '@pri');
+    // Switching windows blurs the field while the document has no focus.
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    field.dispatchEvent(new FocusEvent('blur'));
+    await page.stable();
+    expect(options(page)).toEqual(['Jordan PriceLawyer', 'Priya ShahOwner']);
+    hasFocus.mockReturnValue(true);
+    field.dispatchEvent(new FocusEvent('blur'));
+    await page.stable();
+    expect(page.body.querySelector('[role="listbox"]')).toBeNull();
+  });
+
   it('pastes plain text only, and formats the selection from the toolbar', async () => {
     const page = await open();
     const field = composer(page);

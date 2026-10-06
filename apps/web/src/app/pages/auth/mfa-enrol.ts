@@ -27,21 +27,38 @@ export function groupSecret(secret: string): string {
       @case ('reauth') {
         <header class="mt-auth-head">
           <h1 class="title-m">Confirm it’s you</h1>
-          <p>Enter your password to set up two-step sign-in.</p>
+          <p>{{ google() ? 'Sign in with Google again' : 'Enter your password' }} to set up two-step sign-in.</p>
         </header>
-        <form class="mt-auth-form" [formGroup]="reauthForm" (ngSubmit)="reauth()">
-          <mt-text-field
-            label="Password"
-            type="password"
-            autocomplete="current-password"
-            formControlName="password"
-            required
-          />
-          @if (error(); as message) {
-            <mt-note tone="danger">{{ message }}</mt-note>
-          }
-          <button mtButton variant="primary" type="submit" class="mt-auth-wide" [loading]="busy()">Continue</button>
-        </form>
+        @if (google()) {
+          <button
+            mtButton
+            variant="secondary"
+            type="button"
+            class="mt-auth-wide"
+            [loading]="busy()"
+            (click)="reauthGoogle()"
+          >
+            Continue with Google
+          </button>
+        }
+        @if (error() && google() && !hasPassword()) {
+          <mt-note tone="danger">{{ error() }}</mt-note>
+        }
+        @if (hasPassword()) {
+          <form class="mt-auth-form" [formGroup]="reauthForm" (ngSubmit)="reauth()">
+            <mt-text-field
+              label="Password"
+              type="password"
+              autocomplete="current-password"
+              formControlName="password"
+              required
+            />
+            @if (error(); as message) {
+              <mt-note tone="danger">{{ message }}</mt-note>
+            }
+            <button mtButton variant="primary" type="submit" class="mt-auth-wide" [loading]="busy()">Continue</button>
+          </form>
+        }
       }
       @case ('scan') {
         <header class="mt-auth-head">
@@ -138,6 +155,10 @@ export class MfaEnrolPage implements OnInit {
   });
   protected readonly saved = new FormControl(false, { nonNullable: true });
   protected readonly reauthForm = new FormGroup({ password: this.password });
+  private readonly providers = computed(() => this.auth.session()?.providerIds ?? []);
+  /** Google accounts confirm through the Google popup (SEC-04); password accounts by password. */
+  protected readonly google = computed(() => this.providers().includes('google.com'));
+  protected readonly hasPassword = computed(() => this.providers().includes('password') || !this.google());
   protected readonly codeForm = new FormGroup({ code: this.code });
 
   async ngOnInit(): Promise<void> {
@@ -151,6 +172,13 @@ export class MfaEnrolPage implements OnInit {
     if (this.password.invalid) return;
     await this.attempt(async () => {
       await this.auth.api.reauthenticateWithPassword(this.password.value);
+      await this.start();
+    });
+  }
+
+  protected async reauthGoogle(): Promise<void> {
+    await this.attempt(async () => {
+      await this.auth.api.reauthenticate({ kind: 'google' });
       await this.start();
     });
   }

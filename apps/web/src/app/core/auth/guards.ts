@@ -4,6 +4,7 @@ import { Router, type CanActivateFn, type CanMatchFn, type UrlTree } from '@angu
 import type { Role } from '@materia/domain';
 
 import { AuthState, type AuthStatus } from './auth-state';
+import { SessionPolicy } from './session-policy';
 
 /** Where each unfinished status sends the person. */
 export const STATUS_ROUTES: Record<Exclude<AuthStatus, 'loading' | 'ready'>, string> = {
@@ -23,7 +24,10 @@ function requireSteps(steps: readonly Step[]) {
   return async (): Promise<true | UrlTree> => {
     const auth = inject(AuthState);
     const router = inject(Router);
+    const policy = inject(SessionPolicy);
     await auth.whenReady();
+    // The org's MFA policy (SEC-04) decides `needsMfa`, so wait for it when it matters.
+    if (steps.includes('needsMfa')) await policy.whenLoaded();
     const status = auth.status();
     const missing = steps.find((step) => step === status);
     if (!missing) return true;
@@ -37,7 +41,7 @@ function requireSteps(steps: readonly Step[]) {
 /** Signed in with a verified email (or a federated account). */
 export const authGuard: CanActivateFn & CanMatchFn = requireSteps(['signedOut', 'needsVerification']);
 
-/** MFA enrolled when the org requires it (policy from SEC-04). */
+/** MFA enrolled when the org requires it (SEC-04: `SessionPolicy`, after the grace period). */
 export const mfaGuard: CanActivateFn & CanMatchFn = requireSteps(['signedOut', 'needsVerification', 'needsMfa']);
 
 /** Has an active org; otherwise onboarding (FND-17). */

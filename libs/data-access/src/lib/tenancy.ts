@@ -1,6 +1,6 @@
 import { InjectionToken } from '@angular/core';
 
-import type { Role } from '@materia/domain';
+import { resolveSecurity, type OrgSecurity, type ResolvedSecurity, type Role } from '@materia/domain';
 
 import type { FirestoreSource } from './firestore/firestore-client';
 import type { ListenerRegistry } from './listener-registry';
@@ -40,6 +40,36 @@ export interface TenancyPort {
   /** Calls back with the user's tenancy now and on every change; returns the unsubscribe. */
   watchUser(uid: string, callback: (tenancy: UserTenancy | null) => void): () => void;
   invites(orgId: string): Promise<PendingInvite[]>;
+  /**
+   * The org's security policy and this member's `sessionsValidAfter` (SEC-04), now and on every
+   * change; null when they can't be read. Both documents stay readable whatever the policy says.
+   */
+  watchSecurity?(orgId: string, uid: string, callback: (security: SessionSecurity | null) => void): () => void;
+}
+
+/** What the app enforces on this sign-in (SEC-04). */
+export interface SessionSecurity {
+  policy: ResolvedSecurity;
+  /** Sign-ins before this were signed out everywhere. */
+  validAfter: Date | null;
+}
+
+const asDate = (value: unknown): Date | undefined =>
+  value instanceof Date
+    ? value
+    : value && typeof value === 'object' && 'toDate' in value
+      ? (value as { toDate(): Date }).toDate()
+      : undefined;
+
+/** The org document's `security`, with Timestamps as Dates and defaults filled. */
+export function toResolvedSecurity(raw: unknown): ResolvedSecurity {
+  if (!raw || typeof raw !== 'object') return resolveSecurity(undefined);
+  const security = raw as Record<string, unknown>;
+  return resolveSecurity({
+    ...(security as Partial<OrgSecurity>),
+    mfaRequiredSince: asDate(security['mfaRequiredSince']),
+    mfaEnforceAfter: asDate(security['mfaEnforceAfter']),
+  });
 }
 
 export const TENANCY_PORT = new InjectionToken<TenancyPort>('TENANCY_PORT');
@@ -115,6 +145,51 @@ export function firestoreTenancyPort(source: FirestoreSource, registry: Listener
           };
         })
         .sort((a, b) => a.email.localeCompare(b.email));
+    },
+    watchSecurity(orgId, uid, callback) {
+      let stopped = false;
+      const stops: (() => void)[] = [];
+      let policy: ResolvedSecurity | undefined;
+      let validAfter: Date | null | undefined;
+      let last: string | undefined;
+      const emit = () => {
+        if (stopped || policy === undefined || validAfter === undefined) return;
+        const key = JSON.stringify([policy, validAfter]);
+        if (key === last) return;
+        last = key;
+        callback({ policy, validAfter });
+      };
+      source.get().then(
+        ({ sdk, db }) => {
+          if (stopped) return;
+          stops.push(
+            sdk.onSnapshot(
+              sdk.doc(db, 'orgs', orgId),
+              (snap) => {
+                policy = toResolvedSecurity(snap.data()?.['security']);
+                emit();
+              },
+              () => !stopped && callback(null),
+            ),
+            sdk.onSnapshot(
+              sdk.doc(db, 'orgs', orgId, 'members', uid),
+              (snap) => {
+                validAfter = asDate(snap.data()?.['sessionsValidAfter']) ?? null;
+                emit();
+              },
+              () => !stopped && callback(null),
+            ),
+          );
+        },
+        () => undefined,
+      );
+      return registry.add(
+        () => {
+          stopped = true;
+          for (const stop of stops) stop();
+        },
+        { label: `orgs/${orgId}#security` },
+      );
     },
   };
 }

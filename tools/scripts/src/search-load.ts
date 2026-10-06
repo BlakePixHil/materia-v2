@@ -117,6 +117,8 @@ const meta = (at: Date, uid = UID) => ({ createdAt: at, createdBy: uid, updatedA
 export function loadDocs(count: number, now = new Date()): { path: string; data: Record<string, unknown> }[] {
   const docs: { path: string; data: Record<string, unknown> }[] = [];
   const add = (path: string, data: Record<string, unknown>) => docs.push({ path, data: stripUndefined(data) });
+  // The rules' session check (SEC-04) reads the org's security policy.
+  add(`orgs/${ORG}`, F.makeOrg({ ...meta(now), name: 'Load Legal (Fictional)' }));
   for (const [uid, role] of [
     [UID, 'lawyer'],
     [OTHER, 'paralegal'],
@@ -302,7 +304,14 @@ export async function main(argv: string[] = []): Promise<void> {
     console.log(`Seeded ${written} documents (${options.matters} matters) in ${Date.now() - started} ms.`);
 
     const uid = options.role === 'lawyer' ? UID : OTHER;
-    const db = env.authenticatedContext(uid, { orgId: ORG, role: options.role }).firestore() as unknown as Firestore;
+    const db = env
+      .authenticatedContext(uid, {
+        orgId: ORG,
+        role: options.role,
+        // A fresh sign-in; the default (1970) fails the rules' session check (SEC-04).
+        iat: Math.floor(Date.now() / 1000),
+      })
+      .firestore() as unknown as Firestore;
     const privileged = options.role === 'lawyer';
     // Warm up (the emulator compiles the rules on the first request).
     for (const typed of LOAD_QUERIES.slice(0, 3)) await paletteSearch(db, typed, uid, privileged);

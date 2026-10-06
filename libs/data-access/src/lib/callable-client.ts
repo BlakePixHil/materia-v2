@@ -9,6 +9,11 @@ export interface CallableTransport {
   call<T>(name: string, data: unknown): Promise<T>;
   /** Forces an ID token refresh so new custom claims apply. */
   refreshClaims(): Promise<void>;
+  /**
+   * Asks the person to confirm it's them (SEC-04) after a sensitive action was refused for an old
+   * sign-in (`REAUTH_REQUIRED`); resolves true once they have, false when they cancel.
+   */
+  reauthenticate?(): Promise<boolean>;
 }
 
 export interface CallOptions {
@@ -48,6 +53,8 @@ const BACKOFF_MS = [250, 1000, 3000];
  * - Errors become `DomainError`s, using `HttpsError.details.code`.
  * - `ORG_CLAIM_MISMATCH` (the token's org is stale, e.g. just after an org switch) refreshes the
  *   claims and retries once.
+ * - `REAUTH_REQUIRED` (a sensitive action needs a recent sign-in, SEC-04) asks the person to
+ *   confirm it's them, then retries once; cancelling rejects with the error.
  * - Transient failures (`UNAVAILABLE`, `REQUEST_IN_PROGRESS`) retry with backoff, idempotent only.
  * Callables need a connection (ADR-020): offline they fail with `UNAVAILABLE`.
  */
@@ -73,6 +80,7 @@ export class CallableClient {
     const requestId = options.idempotent ? (options.requestId ?? this.newId()) : undefined;
     const payload = requestId ? { ...input, requestId } : input;
     let refreshed = false;
+    let reauthenticated = false;
     let attempt = 0;
     this.inFlight.update((n) => n + 1);
     try {
@@ -86,6 +94,11 @@ export class CallableClient {
             refreshed = true;
             await this.transport.refreshClaims();
             continue;
+          }
+          // Also rejected before the handler ran: retrying after a fresh sign-in is safe.
+          if (error.code === 'REAUTH_REQUIRED' && !reauthenticated && this.transport.reauthenticate) {
+            reauthenticated = true;
+            if (await this.transport.reauthenticate()) continue;
           }
           if (requestId && isTransient(error) && attempt < this.retries) {
             await this.delay(BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)] ?? 1000);

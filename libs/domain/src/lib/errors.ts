@@ -7,6 +7,12 @@ export const ERROR_CODES = {
   UNAUTHENTICATED: 'unauthenticated',
   /** A sensitive action needs a sign-in within the last few minutes: re-authenticate and retry. */
   REAUTH_REQUIRED: 'unauthenticated',
+  /** The org requires MFA (SEC-04) and this sign-in didn't use a second factor: set one up and sign in again. */
+  MFA_REQUIRED: 'permission-denied',
+  /** The sign-in is older than the org's session length (SEC-04): sign in again. */
+  SESSION_EXPIRED: 'unauthenticated',
+  /** The person was signed out everywhere (SEC-04) after this sign-in: sign in again. */
+  SESSION_REVOKED: 'unauthenticated',
   ORG_CLAIM_MISSING: 'permission-denied',
   /** The token's org claim is stale (for example just after an org switch): refresh the token and retry once. */
   ORG_CLAIM_MISMATCH: 'failed-precondition',
