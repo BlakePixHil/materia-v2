@@ -177,6 +177,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'billing.view',
     update: 'billing.issue',
   },
+  // Trust balance snapshots (BILL-11): billing roles read; written by trust-recordSnapshot only.
+  {
+    collection: 'trustSnapshots',
+    docPath: `orgs/${ORG}/trustSnapshots/matter-1`,
+    entity: 'TrustSnapshot',
+    read: 'billing.view',
+    update: 'none',
+  },
   {
     collection: 'creditNotes',
     docPath: `orgs/${ORG}/creditNotes/credit-1`,

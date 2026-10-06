@@ -27,14 +27,15 @@ import { matterResolver, memberResolver } from '../notes/note-mentions';
 import { noteTime } from '../notes/note-time';
 import { activityTitle, mentionsAcross, noteAuthor, type NoteRecord } from '../notes/note-view';
 import { MatterSuggestions } from '../suggestions/matter-suggestions';
+import { MatterTrust } from '../trust/matter-trust';
 
 /** How many open tasks the overview lists (the count shows them all). */
 const TASKS_SHOWN = 5;
 
 /**
- * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the next
- * five deadlines, open tasks, the three latest activity lines, "Clerk suggests…" (AI-07) and the
- * Clerk brief (AI-06 fills it).
+ * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the trust
+ * balance for billing roles (BILL-11, flagged), the next five deadlines, open tasks, the three latest
+ * activity lines, "Clerk suggests…" (AI-07) and the Clerk brief (AI-06 fills it).
  * Listens to the matter's pinned notes, deadlines, tasks and activity only while this tab is shown.
  */
 @Component({
@@ -42,7 +43,16 @@ const TASKS_SHOWN = 5;
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
-  imports: [RouterLink, MatterKeyFacts, MatterSuggestions, MtClerkMark, MtDeadlineChip, MtEmptyState, MtMarkdown],
+  imports: [
+    RouterLink,
+    MatterKeyFacts,
+    MatterSuggestions,
+    MatterTrust,
+    MtClerkMark,
+    MtDeadlineChip,
+    MtEmptyState,
+    MtMarkdown,
+  ],
   host: { class: 'mt-matter-overview' },
   template: `
     @if (pinned().length) {
@@ -86,6 +96,7 @@ const TASKS_SHOWN = 5;
       </section>
     </div>
     <div class="mt-col col">
+      <mt-matter-trust />
       <section class="mt-card" data-pad aria-labelledby="mt-ov-deadlines">
         <div class="mt-card-h">
           <h2 class="mt-card-title" id="mt-ov-deadlines">Next deadlines</h2>

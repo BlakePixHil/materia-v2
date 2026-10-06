@@ -140,6 +140,15 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'billing.trustDisplay': defineFlag({
+    key: 'billing.trustDisplay',
+    description:
+      'Trust balances copied from the firm’s trust records on matters, and Settings → Trust account (off until a practitioner checks the labels, BILL-10a).',
+    owner: 'BILL-11',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'integrations.microsoft': defineFlag({
     key: 'integrations.microsoft',
     description: 'Microsoft 365 connection and calendar push.',

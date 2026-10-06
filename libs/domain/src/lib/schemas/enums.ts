@@ -119,3 +119,5 @@ export const SuggestionStatusSchema = z.enum(['proposed', 'accepted', 'edited', 
 export const InvoiceStatusSchema = z.enum(['draft', 'issued', 'part_paid', 'paid', 'void']);
 export const ThemeSchema = z.enum(['system', 'light', 'dark']);
 export const RoundingSchema = z.enum(['up', 'nearest']);
+/** Where the firm keeps its trust records (BILL-11, ADR-035): named on every trust balance snapshot. */
+export const TrustRecordsSystemSchema = z.enum(['leap', 'smokeball', 'actionstep', 'other']);

@@ -31,6 +31,8 @@ export const PERMISSIONS = {
   'billing.view': ['owner', 'admin', 'lawyer'],
   'billing.issue': ['owner', 'admin'],
   'billing.void': ['owner', 'admin'],
+  /** Record a matter's trust balance, copied from the firm's trust records (BILL-11); needs `billing.view` too. */
+  'trust.record': ['owner', 'admin', 'lawyer'],
   'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
   'clerk.configure': ['owner', 'admin'],
   'members.manage': ['owner', 'admin'],

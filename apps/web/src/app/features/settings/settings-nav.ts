@@ -18,7 +18,7 @@ export const SETTINGS_ADMIN_ROLES: readonly Role[] = ['owner', 'admin'];
 
 /**
  * The Settings pages, in sidebar order. A new settings page adds its route under `settings` in
- * app.routes.ts and an entry here (Clerk settings, AI-13; integrations, INT-03; security, SEC-04).
+ * app.routes.ts and an entry here (Clerk settings, AI-13; integrations, INT-03; security, SEC-04; trust account, BILL-11).
  */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   // The person's own (CORE-20).
@@ -27,6 +27,15 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { path: 'practice', label: 'Practice', icon: 'matters', group: 'Firm', roles: SETTINGS_ADMIN_ROLES },
   { path: 'team', label: 'Team and roles', icon: 'contacts', group: 'Firm' },
   { path: 'billing', label: 'Billing and rates', icon: 'billing', group: 'Firm', roles: SETTINGS_ADMIN_ROLES },
+  // Trust balances copied from the firm's trust records (BILL-11, ADR-035): display only.
+  {
+    path: 'trust',
+    label: 'Trust account',
+    icon: 'lock',
+    group: 'Firm',
+    roles: SETTINGS_ADMIN_ROLES,
+    flag: 'billing.trustDisplay',
+  },
   { path: 'numbering', label: 'Matter numbering', icon: 'list', group: 'Practice', roles: SETTINGS_ADMIN_ROLES },
   {
     path: 'templates',

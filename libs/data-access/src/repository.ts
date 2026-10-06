@@ -26,4 +26,5 @@ export * from './lib/suggestions';
 export * from './lib/search';
 export * from './lib/safe-custody';
 export * from './lib/time-entries';
+export * from './lib/trust';
 export * from './lib/testing/in-memory-firestore';
