@@ -1,16 +1,14 @@
 import type { Firestore } from 'firebase-admin/firestore';
 
-import { addDays, dateOnlyAt, DEFAULT_ORG_TIMEZONE, type DateOnly } from '@materia/domain';
+import { addDays, dateOnlyAt, DEFAULT_OCR_DAILY_PAGES, DEFAULT_ORG_TIMEZONE, type DateOnly } from '@materia/domain';
 
 /**
  * The per-org daily OCR page budget (AI-04 cost guard). OCR is a Claude call per scanned page, so
- * an org may OCR at most `settings.clerk.ocrDailyPages` pages a day (Melbourne days; the default
- * below when unset). Pages are reserved in a transaction on `orgs/{orgId}/counters/ocr-pages-{day}`
+ * an org may OCR at most `settings.clerk.ocrDailyPages` pages a day (Melbourne days;
+ * DEFAULT_OCR_DAILY_PAGES when unset; owners and admins set it in Settings → Clerk and AI). Pages are reserved in a transaction on `orgs/{orgId}/counters/ocr-pages-{day}`
  * before the calls; pages a run couldn't use are given back. Past the budget, ingestion is queued
  * until the next day ("Queued").
  */
-export const DEFAULT_OCR_DAILY_PAGES = 200;
-
 const counterPath = (orgId: string, day: DateOnly) => `orgs/${orgId}/counters/ocr-pages-${day}`;
 
 export const budgetDay = (at: Date): DateOnly => dateOnlyAt(at, DEFAULT_ORG_TIMEZONE);

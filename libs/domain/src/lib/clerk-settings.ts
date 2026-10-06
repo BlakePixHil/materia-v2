@@ -70,6 +70,9 @@ export const ORG_CLERK_FEATURES: readonly OrgClerkFeatureInfo[] = [
 /** Every limit a person can type, so a typo can't set a budget of millions. */
 export const MAX_MONTHLY_BUDGET_CENTS = 100_000_00;
 export const MAX_DAILY_REQUESTS = 10_000;
+export const MAX_OCR_DAILY_PAGES = 10_000;
+/** Scanned pages Clerk may OCR for an org a day (AI-04) when the org hasn't set its own limit. */
+export const DEFAULT_OCR_DAILY_PAGES = 200;
 
 /** `orgs/{orgId}.settings.clerk`. */
 export const OrgClerkSettingsSchema = z.object({
@@ -89,8 +92,8 @@ export const OrgClerkSettingsSchema = z.object({
   userRateLimit: z
     .object({ requests: z.number().int().positive(), windowMinutes: z.number().int().positive() })
     .optional(),
-  /** Pages per day Clerk may OCR for the org (AI-04); the ingestion default applies when unset. */
-  ocrDailyPages: z.number().int().min(0).optional(),
+  /** Pages per day Clerk may OCR for the org (AI-04); DEFAULT_OCR_DAILY_PAGES when unset, 0 stops OCR. */
+  ocrDailyPages: z.number().int().min(0).max(MAX_OCR_DAILY_PAGES).optional(),
   /** Who acknowledged the data-use disclosure, when, and which version of it. */
   acknowledgedAt: InstantSchema.optional(),
   acknowledgedBy: z.string().optional(),
@@ -108,7 +111,7 @@ export function orgClerkFeatureOn(settings: Pick<OrgClerkSettings, 'features'> |
   return settings?.features?.[key] !== false;
 }
 
-/** `clerk-updateSettings`: only the fields sent change; `null` clears a limit. */
+/** `clerk-updateSettings`: only the fields sent change; `null` clears a limit (OCR pages: back to the default). */
 export const UpdateClerkSettingsInput = z
   .object({
     requestId: z.uuid(),
@@ -116,6 +119,8 @@ export const UpdateClerkSettingsInput = z
     features: z.partialRecord(OrgClerkFeatureSchema, z.boolean()).optional(),
     monthlyBudgetCents: z.number().int().min(0).max(MAX_MONTHLY_BUDGET_CENTS).nullable().optional(),
     perUserDailyRequests: z.number().int().min(1).max(MAX_DAILY_REQUESTS).nullable().optional(),
+    /** `null` goes back to the default (DEFAULT_OCR_DAILY_PAGES). */
+    ocrDailyPages: z.number().int().min(0).max(MAX_OCR_DAILY_PAGES).nullable().optional(),
     /** Acknowledges this version of the disclosure; it must be the current one. */
     acknowledgeVersion: z.number().int().min(1).optional(),
   })

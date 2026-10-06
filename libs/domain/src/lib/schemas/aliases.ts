@@ -2,6 +2,7 @@ import { Suggestion, FactCitation, ClerkThread, ClerkMessage } from './clerk';
 import { Contact, Matter, MatterNumber } from './contacts-matters';
 import { Job } from './jobs';
 import { DisbursementPresetsDoc } from '../disbursements';
+import { LetterheadDoc } from '../doc-templates';
 import { SignIn } from '../security';
 import {
   Proceeding,
@@ -260,3 +261,6 @@ export const RecentMatterUpdateSchema = RecentMatter.update;
 export const DisbursementPresetsDocSchema = DisbursementPresetsDoc.schema;
 export const DisbursementPresetsDocCreateSchema = DisbursementPresetsDoc.create;
 export const DisbursementPresetsDocUpdateSchema = DisbursementPresetsDoc.update;
+export const LetterheadDocSchema = LetterheadDoc.schema;
+export const LetterheadDocCreateSchema = LetterheadDoc.create;
+export const LetterheadDocUpdateSchema = LetterheadDoc.update;

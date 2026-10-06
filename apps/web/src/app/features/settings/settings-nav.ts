@@ -18,7 +18,7 @@ export const SETTINGS_ADMIN_ROLES: readonly Role[] = ['owner', 'admin'];
 
 /**
  * The Settings pages, in sidebar order. A new settings page adds its route under `settings` in
- * app.routes.ts and an entry here (Clerk settings, AI-13; integrations, INT-03; security, SEC-04; trust account, BILL-11).
+ * app.routes.ts and an entry here (Clerk settings, AI-13; integrations, INT-03; security, SEC-04; trust account, BILL-11; document templates, INT-06).
  */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   // The person's own (CORE-20).
@@ -46,6 +46,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     group: 'Practice',
     roles: SETTINGS_ADMIN_ROLES,
     flag: 'templates.system',
+  },
+  // Letterhead and .docx templates (INT-06).
+  {
+    path: 'document-templates',
+    label: 'Document templates',
+    icon: 'document',
+    group: 'Practice',
+    roles: SETTINGS_ADMIN_ROLES,
   },
   // Clerk and AI (AI-02a, AI-13): everyone; read-only below owners and admins.
   { path: 'clerk', label: 'Clerk and AI', icon: 'sparkle', group: 'Clerk' },

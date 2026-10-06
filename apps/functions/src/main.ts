@@ -15,6 +15,7 @@ export * as conflicts from './conflicts/index';
 export * as templates from './templates/index';
 export * as tasks from './tasks/index';
 export * as deadlines from './deadlines/index';
+export * as docs from './docs/index';
 export * as documents from './documents/index';
 export * as notifications from './notifications/index';
 export * as notes from './notes/index';
