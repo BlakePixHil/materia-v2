@@ -66,21 +66,32 @@ describe('destruction queue', () => {
     open.mockRestore();
   });
 
-  it('asks for a fresh sign-in when the last one is too old', async () => {
+  it('signs in again and retries when the last sign-in is too old', async () => {
+    let refused = false;
     const page = await openMatter('/matters/destruction', {
       session: ADMIN,
       flags: FLAGS,
       configure: seedQueue,
       callables: {
-        'matters-approveDestruction': () => {
-          throw { code: 'functions/unauthenticated', details: { code: 'REAUTH_REQUIRED' } };
+        'matters-approveDestruction': (data) => {
+          if (!refused) {
+            refused = true;
+            throw Object.assign(new Error('reauth'), { code: 'unauthenticated', details: { code: 'REAUTH_REQUIRED' } });
+          }
+          return { matterId: data['matterId'], status: 'approved' };
         },
       },
     });
     await page.click('Approve…');
     await page.fill('Type M-2018-0007 to confirm', 'M-2018-0007', page.dialog() ?? page.body);
     await page.submit(page.dialog());
-    expect(page.text(page.dialog())).toContain('sign out and sign in again');
+    // The callable client asks "Confirm it's you" (SEC-04), then retries.
+    await vi.waitFor(() => expect(page.body.querySelector('mt-reauth-dialog')).not.toBeNull());
+    const reauth = page.body.querySelector<HTMLElement>('mt-reauth-dialog') as HTMLElement;
+    await page.fill('Password', 'password', reauth);
+    await page.submit(reauth);
+    await page.stable(10);
+    expect(page.calls('matters-approveDestruction')).toHaveLength(2);
   });
 
   it('is for owners and admins only', async () => {

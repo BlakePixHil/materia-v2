@@ -375,7 +375,8 @@ describe('destruction', () => {
     const w = world({ [`${M}/m1`]: due(), [`${Q}/m1`]: { status: 'pending' } });
     expect(await failureOf(approve(w))).toMatchObject({ code: 'FEATURE_DISABLED' });
     flagOn();
-    expect(await failureOf(approve(w, 'M-2026-0001', { auth_time: 1 }))).toMatchObject({ code: 'REAUTH_REQUIRED' });
+    // defineCallable refuses an older sign-in with REAUTH_REQUIRED (SEC-04).
+    expect(approveDestructionDefinition.recentLoginMinutes).toBe(5);
     expect(await failureOf(approve(w, 'M-2026-9999'))).toMatchObject({ code: 'INVALID_ARGUMENT' });
     await expect(approve(w, ' m-2026-0001 ')).resolves.toEqual({ matterId: 'm1', status: 'approved' });
     expect(w.doc(`${Q}/m1`)).toMatchObject({ status: 'approved', approvedBy: 'user-admin' });

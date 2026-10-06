@@ -41,7 +41,9 @@ function signIn(uid: string, orgId: string, role: Role) {
           app: async () => app,
           useEmulators: true,
           firestoreEmulator: process.env['FIRESTORE_EMULATOR_HOST'] ?? '127.0.0.1:8080',
-          emulatorUserToken: { sub: uid, orgId, role },
+          // A fresh sign-in: the mock token's `iat` (and so `auth_time`) defaults to 1970, which the
+          // rules' session check (SEC-04) treats as expired.
+          emulatorUserToken: { sub: uid, orgId, role, iat: Math.floor(Date.now() / 1000) },
           cacheMode: () => 'memory',
         },
       },
@@ -63,6 +65,7 @@ async function until(check: () => void, timeout = 10_000) {
 beforeEach(async () => {
   revoked.length = 0;
   await clearFirestore();
+  for (const orgId of [ORG_A, ORG_B]) await setDoc(`orgs/${orgId}`, { name: 'Fictional Legal' });
   await setDoc(`orgs/${ORG_A}/members/${OWNER}`, member('Ada Fictional', 'owner'));
   for (const [i, name] of NAMES.entries()) await setDoc(`orgs/${ORG_A}/members/u${i}`, member(name, 'lawyer'));
   await setDoc(`orgs/${ORG_A}/members/u-removed`, member('Ann Removed', 'lawyer', 'removed'));

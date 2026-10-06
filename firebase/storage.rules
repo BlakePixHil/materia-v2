@@ -16,10 +16,15 @@ service firebase.storage {
     function can(orgId, action) {
       return inOrg(orgId) && request.auth.token.role in perm(action);
     }
-    // Cross-service reads (each counts towards the Firestore get() limits).
+    // Cross-service reads (each counts towards the Firestore get() limits). The member document
+    // also carries `sessionsValidAfter` (SEC-04): a sign-in from before a "sign out everywhere" is
+    // refused here too. The org's MFA and session-length policy is checked by the Firestore rules
+    // every file path comes from; repeating it here would cost another cross-service read.
     function isActiveMember(orgId) {
+      let member = firestore.get(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data;
       return inOrg(orgId)
-        && firestore.get(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.status == 'active';
+        && member.status == 'active'
+        && request.auth.token.get('auth_time', 0) * 1000 >= member.get('sessionsValidAfter', timestamp.value(0)).toMillis();
     }
     // Archived matters (CORE-19) take no new files; a missing matter fails the get() and denies.
     function matterOpenForUploads(orgId, matterId) {

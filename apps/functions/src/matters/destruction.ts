@@ -37,7 +37,6 @@ import { orgClock } from '../core/emulator-clock';
 import { isEnabled, requireFlag } from '../core/flags';
 import { createLog, functionsSink, type Log } from '../core/log';
 import { defineQueue } from '../core/tasks';
-import { requireRecentLogin } from '../core/user-callable';
 import { filesBucket, storageFiles, type FileStore } from '../documents/files';
 import type { Clock } from '../ports';
 import { systemClock } from '../ports/container';
@@ -174,10 +173,10 @@ export const approveDestructionDefinition = {
   roles: PERMISSIONS['matter.destroy'],
   idempotent: true,
   consumeAppCheckToken: true,
+  recentLoginMinutes: DESTRUCTION_REAUTH_MINUTES,
   handler: async (ctx): Promise<ApproveDestructionResult> => {
-    const { input, orgId, uid, db, token, ports, log } = ctx;
+    const { input, orgId, uid, db, ports, log } = ctx;
     const clock = await orgClock(db, orgId, ctx.clock);
-    requireRecentLogin(token, ctx.clock.now().getTime(), DESTRUCTION_REAUTH_MINUTES);
     await requireFlag({ db, orgId, clock }, 'matters.destruction');
     const now = clock.now();
     const settings = await readRetentionSettings(db, orgId);

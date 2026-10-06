@@ -24,5 +24,6 @@ export * as suggestions from './suggestions/index';
 export * as safeCustody from './safe-custody/index';
 export * as time from './time/index';
 export * as backups from './backups/index';
+export * as security from './security/index';
 // Emulator-only tools (the dev mail preview): undefined, so never deployed, anywhere else.
 export * as dev from './dev/index';

@@ -30,7 +30,7 @@ import {
 import { MatterNameDialog, type MatterNameDialogData } from './matter-name-dialog';
 import { retentionErrorCopy } from './matters-view';
 import { CALLABLES } from '../../core/data/callables';
-import { errorCodeOf, errorCopy } from '../../core/error-copy';
+import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
 
 type Entry = WithId<DestructionQueueItem>;
@@ -187,9 +187,6 @@ export class DestructionQueuePage {
             this.toasts.show({ title: `${entry.number} is being destroyed`, tone: 'success' });
             return undefined;
           } catch (error) {
-            if (errorCodeOf(error) === 'REAUTH_REQUIRED') {
-              return 'For your security, sign out and sign in again, then approve within 5 minutes.';
-            }
             const details = (error as { details?: { reason?: unknown } } | null)?.details;
             return retentionErrorCopy(details?.reason) ?? errorCopy(error);
           } finally {
