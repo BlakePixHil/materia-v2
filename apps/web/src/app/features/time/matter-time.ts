@@ -53,6 +53,7 @@ import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
+import { writeDownTime } from '../billing/write-down';
 import { MatterDisbursements } from '../disbursements/matter-disbursements';
 import { MatterBills } from '../invoices/matter-bills';
 import { MatterScreen } from '../matter-detail/matter-screen';
@@ -176,6 +177,7 @@ const EVERYONE = '';
                               <button mtMenuItem icon="refresh" (click)="setStatus(entry, 'draft')">
                                 Back to draft
                               </button>
+                              <button mtMenuItem icon="minus" (click)="writeDown(entry)">Write down or off…</button>
                             }
                             @if (actions.edit) {
                               <button mtMenuItem icon="trash" tone="danger" (click)="remove(entry)">Delete</button>
@@ -467,6 +469,19 @@ export class MatterTime {
       else this.toasts.show({ title: 'Nothing changed', description: 'That entry has been billed or written off.' });
     } catch (error) {
       this.toasts.show({ title: 'The status didn’t change', description: errorCopy(error), tone: 'danger' });
+    }
+  }
+
+  /** Writes approved time down or off here, as on the pre-bill (BILL-07b). */
+  protected async writeDown(entry: Entry): Promise<void> {
+    const matterId = this.screen.id();
+    if (!matterId) return;
+    try {
+      const ui = { dialogs: this.dialogs, toasts: this.toasts };
+      const summary = await writeDownTime(ui, this.api, matterId, [entry], this.pricing.unitMinutes());
+      if (summary) this.announcement.set(summary);
+    } catch (error) {
+      this.toasts.show({ title: 'The time wasn’t written down', description: errorCopy(error), tone: 'danger' });
     }
   }
 

@@ -27,6 +27,7 @@ import {
   MEMBER_LIST_QUERY,
   membersRepository,
   orgSettingsReadRepository,
+  timeCallables,
   type InvoiceItem,
   type OrgSettings,
   type WithId,
@@ -62,6 +63,7 @@ import {
 import { dateText, extraLineForm, extraLinesFrom, invoiceSourcesFrom, type ExtraLineForm } from './invoices-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { writeDownTime } from '../billing/write-down';
 import { formatEntryDate, parseEntryDate } from '../time/time-view';
 
 /** What the pre-bill form holds: the choices, as typed. */
@@ -233,6 +235,16 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
                   <mt-badge tone="info">New</mt-badge>
                 }
                 <span class="num mt-ml">{{ money(entry.amountCents) }}</span>
+                @if (canWriteDown()) {
+                  <button
+                    mtIconButton
+                    icon="minus"
+                    size="sm"
+                    [label]="'Write down or off: ' + (entry.narrative || 'this entry')"
+                    [disabled]="writingDown()"
+                    (click)="writeDown(entry.id)"
+                  ></button>
+                }
               </li>
             } @empty {
               <li class="caption t-3">No approved, unbilled time in these dates.</li>
@@ -596,6 +608,10 @@ export class PreBill {
   private readonly toasts = inject(ToastService);
   private readonly today = inject(MT_TODAY);
   private readonly api = invoiceCallables(inject(CALLABLES));
+  private readonly timeApi = timeCallables(inject(CALLABLES));
+  /** Approvers write time down or off from the pre-bill (BILL-07b); the preview follows the entry. */
+  protected readonly canWriteDown = can('time.approve');
+  protected readonly writingDown = signal(false);
   protected readonly canIssue = can('billing.issue');
   protected readonly groupings = GROUPINGS;
   protected readonly warningCopy = INVOICE_WARNING_COPY;
@@ -747,6 +763,22 @@ export class PreBill {
 
   protected patch(change: Partial<PreBillForm>): void {
     this.form.update((form) => ({ ...form, ...change }));
+  }
+
+  protected async writeDown(entryId: string): Promise<void> {
+    const entry = this.entries.value().find((item) => item.id === entryId);
+    const matterId = this.matterId();
+    if (!entry || !matterId || this.writingDown()) return;
+    this.writingDown.set(true);
+    try {
+      const ui = { dialogs: this.dialogs, toasts: this.toasts };
+      const summary = await writeDownTime(ui, this.timeApi, matterId, [entry], this.sources().unitMinutes);
+      if (summary) this.announcement.set(summary);
+    } catch (error) {
+      this.toasts.show({ title: 'The time wasn’t written down', description: errorCopy(error), tone: 'danger' });
+    } finally {
+      this.writingDown.set(false);
+    }
   }
 
   protected toggle(key: 'excludedTimeEntryIds' | 'excludedDisbursementIds', id: string, included: boolean): void {

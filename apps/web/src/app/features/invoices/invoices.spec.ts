@@ -1,4 +1,4 @@
-import { buildInvoice, type InvoiceLine } from '@materia/domain';
+import { buildInvoice, type InvoiceLine, planWriteDown, type WriteDownChange } from '@materia/domain';
 
 import { extraLinesFrom, invoiceSourcesFrom } from './invoices-view';
 import { DOWNLOAD_NAVIGATOR } from '../documents/document-actions';
@@ -214,6 +214,21 @@ function billingCallables(): Record<string, (data: Seed, fs: Page['firestore']) 
       return { asOf: '2026-10-04', invoices: 2, totalCents: 78_400 };
     },
     'billing-sendReminder': (data) => ({ sent: (data['to'] as string[]).length }),
+    'time-writeDown': (data, fs) => {
+      const updated: string[] = [];
+      for (const id of data['entryIds'] as string[]) {
+        const path = `${MATTER}/timeEntries/${id}`;
+        const entry = fs.get(path) as (Seed & Parameters<typeof planWriteDown>[0]) | undefined;
+        const change = (data['writeOff'] ? { writeOff: true } : { newUnits: data['newUnits'] }) as WriteDownChange;
+        const { plan } = entry
+          ? planWriteDown(entry, change, { by: ME, reason: String(data['reason']), unitMinutes: 6 })
+          : {};
+        if (!plan) continue;
+        fs.set(path, { ...entry, ...plan, updatedAt: new Date('2026-10-04T01:00:00Z') });
+        updated.push(id);
+      }
+      return { updated, skipped: [], conflicts: [] };
+    },
     'billing-dismissReminder': () => ({ dismissed: true }),
     'documents-getDownloadUrl': (data) => ({
       url: `https://files.example.test/${String(data['docId'])}.pdf`,
@@ -409,6 +424,41 @@ describe('a pre-bill', () => {
     expect(callsOf(page, 'billing-issueInvoice')).toEqual([{ invoiceId: 'inv-draft' }]);
     expect(page.text(document.body)).toContain('Tax invoice INV-000001');
     expect(byTestId('invoice-pdf-pending')).not.toBeNull();
+  });
+
+  it('writes a time entry down from its row, and the total follows (BILL-07b)', async () => {
+    const page = await openDraft();
+    await page.click('Write down or off: Letter to the executor');
+    const dialog = () => page.dialog() ?? page.body;
+    expect(page.text(page.dialog())).toContain('Write down this entry');
+    await page.fill('New units', '2', dialog());
+    await page.fill('Reason', 'Shorter letter than recorded', dialog());
+    await page.submit(page.dialog());
+    for (let i = 0; i < 4; i++) await page.stable(5);
+    expect(callsOf(page, 'time-writeDown')).toEqual([
+      expect.objectContaining({
+        matterId: 'm-whitfield',
+        entryIds: ['te-b'],
+        newUnits: 2,
+        reason: 'Shorter letter than recorded',
+      }),
+    ]);
+    // ($440 + $88 + $30) + 10% GST.
+    expect(page.text(byTestId('pre-bill-total'))).toBe('$613.80');
+  });
+
+  it('writes a time entry off the pre-bill (BILL-07b)', async () => {
+    const page = await openDraft();
+    await page.click('Write down or off: Letter to the executor');
+    await page.click('Write off', page.dialog() ?? page.body);
+    await page.fill('Reason', 'Covered by the fixed fee', page.dialog() ?? page.body);
+    await page.submit(page.dialog());
+    for (let i = 0; i < 4; i++) await page.stable(5);
+    expect(callsOf(page, 'time-writeDown')).toEqual([
+      expect.objectContaining({ entryIds: ['te-b'], writeOff: true, reason: 'Covered by the fixed fee' }),
+    ]);
+    expect(byTestId('pre-bill-time')?.textContent).not.toContain('Letter to the executor');
+    expect(page.text(byTestId('pre-bill-total'))).toBe('$517.00');
   });
 
   it('reads only for roles that can’t issue (none below lawyer reach it)', async () => {
