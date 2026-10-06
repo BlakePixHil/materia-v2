@@ -73,6 +73,26 @@ describe('MtBarChart', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
+  it('opens a bar on click, Enter or Space when its points drill down, and not otherwise', async () => {
+    const opened: ChartDatum[] = [];
+    const { container, rerender } = await render(MtBarChart, {
+      inputs: { data: BILLED, label: 'Billed', format: money, drill: true },
+      on: { pointSelect: (datum: ChartDatum) => opened.push(datum) },
+    });
+    expect(points(container).every((bar) => bar.getAttribute('role') === 'button')).toBe(true);
+    await userEvent.click(points(container)[2] as Element);
+    expect(opened.map((d) => d.meta)).toEqual(['Dec 2025']);
+    (points(container)[0] as SVGElement).focus();
+    await userEvent.keyboard('{ArrowRight}{Enter}');
+    await userEvent.keyboard(' ');
+    expect(opened.map((d) => d.meta)).toEqual(['Dec 2025', 'Nov 2025', 'Nov 2025']);
+
+    await rerender({ inputs: { data: BILLED, label: 'Billed', format: money, drill: false } });
+    expect(points(container)[0]).toHaveAttribute('role', 'img');
+    await userEvent.click(points(container)[4] as Element);
+    expect(opened).toHaveLength(3);
+  });
+
   it('switches to horizontal bars past 24, with values at the tips and truncated labels', async () => {
     const many = Array.from({ length: 30 }, (_, i) => ({ label: `Matter with a very long name ${i}`, value: i - 5 }));
     const { container } = await render(MtBarChart, {

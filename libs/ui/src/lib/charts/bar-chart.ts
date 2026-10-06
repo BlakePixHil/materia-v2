@@ -85,7 +85,8 @@ const H_MARGIN = { l: 120, r: 64, t: 4, b: 22 };
         @for (bar of geometry().bars; track $index) {
           <svg:rect
             class="hit"
-            role="img"
+            [attr.role]="drill() ? 'button' : 'img'"
+            [style.cursor]="drill() ? 'pointer' : null"
             [attr.data-point]="$index"
             [attr.x]="bar.hit.x"
             [attr.y]="bar.hit.y"
@@ -98,6 +99,7 @@ const H_MARGIN = { l: 120, r: 64, t: 4, b: 22 };
             (focus)="onPointFocus($index, $event)"
             (blur)="hideTip()"
             (keydown)="onPointKeydown($event)"
+            (click)="selectPoint($index)"
           />
           @if (bar.d) {
             <svg:path class="bar" [class.muted]="bar.muted" [attr.d]="bar.d" pointer-events="none" />

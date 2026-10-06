@@ -57,7 +57,8 @@ const MARGIN = { l: 40, r: 64, t: 14, b: 26 };
         @for (point of geometry().points; track $index) {
           <svg:rect
             class="hit"
-            role="img"
+            [attr.role]="drill() ? 'button' : 'img'"
+            [style.cursor]="drill() ? 'pointer' : null"
             [attr.data-point]="$index"
             [attr.x]="point.hit.x"
             [attr.y]="geometry().top"
@@ -70,6 +71,7 @@ const MARGIN = { l: 40, r: 64, t: 14, b: 26 };
             (focus)="onPointFocus($index, $event)"
             (blur)="hideTip()"
             (keydown)="onPointKeydown($event)"
+            (click)="selectPoint($index)"
           />
         }
         <svg:path class="area" [attr.d]="geometry().area" pointer-events="none" />

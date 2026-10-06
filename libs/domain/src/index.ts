@@ -59,4 +59,5 @@ export * from './lib/billing';
 export * from './lib/disbursements';
 export * from './lib/invoices';
 export * from './lib/metrics';
+export * from './lib/insights';
 export * from './lib/payments';

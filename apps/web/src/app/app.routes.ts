@@ -252,11 +252,12 @@ const shellRoutes: Route[] = [
       },
     ],
   },
-  planned('insights', 'Insights', {
-    ticket: 'INS-02',
-    icon: 'insights',
-    description: 'Workload, realisation and deadline health.',
-  }),
+  // Insights (INS-02): practice figures from the INS-01 metrics rollups, for every member.
+  {
+    path: 'insights',
+    title: 'Insights',
+    loadComponent: () => import('./features/insights/insights-page').then((m) => m.InsightsPage),
+  },
   // How Clerk works (AI-13): the seven Clerk rules in plain words, linked from the Clerk panel.
   {
     path: 'help/clerk',
