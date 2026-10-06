@@ -57,7 +57,7 @@ describe('materia-migrate transform on the Storage emulator', () => {
     };
     expect(report.rejects).toEqual([]);
     expect(report.profileChanged).toBe(false);
-    expect(Object.keys(report.files)).toHaveLength(15);
+    expect(Object.keys(report.files)).toHaveLength(16);
     for (const [name, entry] of Object.entries(report.files)) {
       const text = await get(name);
       expect(sha256(text)).toBe(entry.sha256);

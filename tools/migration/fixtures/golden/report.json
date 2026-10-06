@@ -27,6 +27,7 @@
       "members": 1,
       "notes": 7,
       "orgs": 1,
+      "parties": 8,
       "personal-tasks": 4,
       "tasks": 4,
       "users": 1
@@ -34,8 +35,8 @@
   },
   "files": {
     "idmap.jsonl": {
-      "count": 60,
-      "sha256": "a59e891658d03ea605376ed8be2fcf133b31235aed93980893827520a4c2af7b"
+      "count": 68,
+      "sha256": "4e15023157ec43c866c38b3dc48313f50e2abed6341e4060e0866e176bc84265"
     },
     "transformed/activity.jsonl": {
       "count": 2,
@@ -80,6 +81,10 @@
     "transformed/orgs.jsonl": {
       "count": 1,
       "sha256": "8ab1a6e435625145167c18ccb40e9abf101f157ee18001a63435cbc1fb481678"
+    },
+    "transformed/parties.jsonl": {
+      "count": 8,
+      "sha256": "dbfddabb647e6938f143831f136d8a88cbd6f51ecb167caac1d6c666294b75b8"
     },
     "transformed/personal-tasks.jsonl": {
       "count": 4,

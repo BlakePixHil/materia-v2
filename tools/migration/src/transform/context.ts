@@ -238,6 +238,7 @@ export const ENTITIES = [
   'counters',
   'contacts',
   'matters',
+  'parties',
   'matter-numbers',
   'tasks',
   'personal-tasks',

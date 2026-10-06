@@ -101,7 +101,7 @@ describe('materia-migrate transform', () => {
     const first = await run(local(FIXTURE_RUN_ID));
     expect(first.err).toBe('');
     expect(first.code).toBe(0);
-    expect(first.out).toMatch(/Wrote 14 entity files, idmap.jsonl and report.json/);
+    expect(first.out).toMatch(/Wrote 15 entity files, idmap.jsonl and report.json/);
     // Counts and codes only.
     expect(first.out).not.toMatch(/Alex|Rivers|Wills|@example/);
 
@@ -110,7 +110,7 @@ describe('materia-migrate transform', () => {
       files: Record<string, { sha256: string }>;
     };
     expect(report.profileChanged).toBe(false);
-    expect(Object.keys(report.files)).toHaveLength(15);
+    expect(Object.keys(report.files)).toHaveLength(16);
     for (const [name, { sha256: hash }] of Object.entries(report.files)) {
       const text = await read(FIXTURE_RUN_ID, name);
       expect(sha256(text)).toBe(hash);

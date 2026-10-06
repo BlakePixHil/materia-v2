@@ -16,7 +16,7 @@ gs://materia-v2-<env>-migration/runs/<runId>/
   report.json                  written last: counts, warnings, review totals, rejects, files to copy
 ```
 
-- **Entities:** orgs, users, members, counters, contacts, matters, matter-numbers, tasks, personal-tasks, notes, activity, documents, checklist-templates and avatars. Every file is written, empty ones too.
+- **Entities:** orgs, users, members, counters, contacts, matters, parties, matter-numbers, tasks, personal-tasks, notes, activity, documents, checklist-templates and avatars. Every file is written, empty ones too.
 - **Dates:** each Timestamp is written as `{"$timestamp": "<ISO>"}`.
 - **Copies:** documents and avatars carry a `copy` plan that `copy-files` carries out.
 - **Report:** it names records by legacy path only, never a name, title or value. It is still the user's data, so it stays in the bucket. Copy it to project files for review, never the repo.

@@ -16,7 +16,7 @@ const { matterSearchTokens, systemTemplate } = domain;
 
 /**
  * A card on a matters board → a matter (Legacy migration plan, "Card → matter") with everything
- * that hangs off it: its client contact (D-10), its notes (the description, the original
+ * that hangs off it: its client contact (D-10) and party row, its notes (the description, the original
  * assignee, fee notes, the comments), tasks from its checklists, activity from its history, and
  * documents from its attachments and any images its description embedded. Linked cards resolve
  * to `relatedMatterIds` in a second pass, once every matter has its id.
@@ -38,7 +38,7 @@ export interface CardDeps {
 
 export interface CardResult {
   matter: TransformedRecord;
-  /** The client contact, notes, tasks, activity and documents. */
+  /** The client contact and party row, notes, tasks, activity and documents. */
   records: TransformedRecord[];
   /** Linked cards as `{workflowId}/{cardId}`, for the second pass. */
   links: string[];
@@ -76,7 +76,7 @@ export function mapCard(ctx: TransformContext, card: ExportRecord, deps: CardDep
   // The client (D-10): v2 matters need one, and a card has only its title.
   const { client, placeholder } = clientContact(ctx, path, title, createdAt, updatedAt);
   review.push(placeholder ? 'client_placeholder' : 'client_from_title');
-  records.push(client);
+  records.push(client, clientParty(ctx, ref, docId(client.path)));
 
   // Who is responsible (D-07): always the user; someone else's card gets a note naming them.
   const assignee = str(data['assignee'])?.trim() ?? '';
@@ -211,6 +211,32 @@ export function mapCard(ctx: TransformContext, card: ExportRecord, deps: CardDep
     },
   };
   return { matter, records, links: linkedCardKeys({ path, data }) };
+}
+
+/**
+ * The client's party row (CORE-06): `matters-upsertParty` keeps `clientContactIds` following these
+ * rows, and the party list and the contact's matter roles read them.
+ */
+function clientParty(ctx: TransformContext, ref: MatterRef, contactId: string): TransformedRecord {
+  return {
+    entity: 'parties',
+    path: `orgs/${ref.orgId}/matters/${ref.matterId}/parties/${domain.partyDocId('client', contactId)}`,
+    legacyPath: `${ref.cardPath}#client-party`,
+    data: {
+      contactId,
+      role: 'client',
+      addedFrom: 'migration',
+      orgId: ref.orgId,
+      matterId: ref.matterId,
+      deletedAt: null,
+      ...migratedMeta(ctx, {
+        legacyPath: `${ref.cardPath}#client-party`,
+        createdAt: ref.createdAt,
+        updatedAt: ref.updatedAt,
+        by: ctx.uid,
+      }),
+    },
+  };
 }
 
 /**

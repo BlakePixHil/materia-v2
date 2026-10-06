@@ -142,6 +142,7 @@ const SCHEMAS: Record<Exclude<EntityName, 'avatars'>, z.ZodType> = {
   counters: domain.CounterSchema,
   contacts: domain.ContactSchema,
   matters: domain.MatterSchema,
+  parties: domain.PartySchema,
   'matter-numbers': domain.MatterNumberSchema,
   tasks: domain.TaskSchema,
   'personal-tasks': domain.PersonalTaskSchema,
