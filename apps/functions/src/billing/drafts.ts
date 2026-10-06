@@ -37,6 +37,7 @@ export function draftFields(draft: Data | undefined, paymentTermsDays: number): 
     extraLines: (draft?.['extraLines'] as InvoiceDraftFieldsInput['extraLines']) ?? [],
     notes: (draft?.['notes'] as string | undefined) ?? '',
     paymentTermsDays: typeof draft?.['paymentTermsDays'] === 'number' ? draft['paymentTermsDays'] : paymentTermsDays,
+    paidFromTrust: draft?.['paidFromTrust'] === true ? true : undefined,
   }) as InvoiceDraftFieldsInput;
 }
 

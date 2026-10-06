@@ -82,6 +82,10 @@
       .inv-notes {
         white-space: pre-line;
       }
+      .inv-trust {
+        padding: 8pt;
+        border: 0.5pt solid #1d1d1f;
+      }
       h2 {
         font-size: 11pt;
         font-weight: 600;
@@ -192,6 +196,8 @@
     <p class="inv-note">{{terms}} Please quote {{number}} with your payment.</p>
     {{/if}} {{#if notes}}
     <p class="inv-note inv-notes">{{notes}}</p>
+    {{/if}} {{#if trustNotice}}
+    <p class="inv-note inv-trust" data-notice="trust">{{trustNotice}}</p>
     {{/if}} {{#if itemisation}}
     <section class="page-break">
       <h2>Schedule of professional fees · {{number}}</h2>

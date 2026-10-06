@@ -10,6 +10,8 @@ import {
   TrustSettingsInput,
   trustSnapshotLine,
   trustSnapshotOutOfDate,
+  TRUST_NOTICE_TEMPLATE,
+  trustNoticeFor,
 } from './trust';
 import { dateOnly } from './values/date-only';
 
@@ -103,5 +105,26 @@ describe('trust snapshots (BILL-11)', () => {
   it('only billing roles record a balance', () => {
     for (const role of PERMISSIONS['trust.record']) expect(PERMISSIONS['billing.view']).toContain(role);
     expect(PERMISSIONS['trust.record']).not.toContain('paralegal');
+  });
+});
+
+describe('the r 42(3) notice (BILL-12)', () => {
+  const values = { firm: 'Harbour & Vine Legal', amount: '$1,936.00', matter: 'M-2026-0142', number: 'INV-000042' };
+
+  it('fills the versioned template', () => {
+    const notice = trustNoticeFor(values);
+    expect(notice.version).toBe(TRUST_NOTICE_TEMPLATE.version);
+    expect(notice.text).toBe(
+      'Notice of intended withdrawal from trust. Harbour & Vine Legal intends to withdraw $1,936.00 from money ' +
+        'held in trust for you on M-2026-0142 to pay this invoice (INV-000042). If you object to the withdrawal, ' +
+        'please tell us within 7 business days of receiving this invoice.',
+    );
+  });
+
+  it('keeps a later wording’s version, and leaves unknown placeholders alone', () => {
+    expect(trustNoticeFor(values, { version: 2, body: '{firm} · {number} · {available}' })).toEqual({
+      version: 2,
+      text: 'Harbour & Vine Legal · INV-000042 · {available}',
+    });
   });
 });

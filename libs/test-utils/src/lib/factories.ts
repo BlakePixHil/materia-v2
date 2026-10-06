@@ -402,6 +402,22 @@ export const makeSuggestion = (o: Partial<D.Suggestion> = {}) =>
     o,
   );
 
+/** Where Clerk found a key fact's value, kept when its suggestion was accepted (CORE-06a). */
+export const makeFactCitation = (o: Partial<D.FactCitation> = {}) =>
+  build(
+    D.FactCitation,
+    {
+      factId: 'willDate',
+      value: d('2019-05-03'),
+      citations: [
+        { kind: 'document', documentId: 'doc-test-1', docVersion: 1, page: 2, quote: 'Signed on 3 May 2019' },
+      ],
+      suggestionId: 'suggestion-test-1',
+      privileged: false,
+    },
+    o,
+  );
+
 export const makeClerkThread = (o: Partial<D.ClerkThread> = {}) =>
   build(D.ClerkThread, { title: 'Grant timeline', ownerUid: TEST_UID, matterId: TEST_MATTER_ID }, o);
 
@@ -958,6 +974,7 @@ export const ENTITY_FACTORIES = {
   Liability: [D.Liability, makeLiability],
   Distribution: [D.Distribution, makeDistribution],
   Suggestion: [D.Suggestion, makeSuggestion],
+  FactCitation: [D.FactCitation, makeFactCitation],
   ClerkThread: [D.ClerkThread, makeClerkThread],
   ClerkMessage: [D.ClerkMessage, makeClerkMessage],
   Proceeding: [D.Proceeding, makeProceeding],

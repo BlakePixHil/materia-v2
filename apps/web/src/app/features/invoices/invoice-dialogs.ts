@@ -113,16 +113,26 @@ export class SendInvoiceDialog {
 export interface VoidInvoiceDialogData {
   number: string;
   total: string;
+  /** BILL-12: a payment from trust was recorded on it, so the trust records need their own correction. */
+  trustWarning?: string | undefined;
 }
 
 /** Voids an unpaid invoice (BILL-07) with a reason. Closes with the reason, or `undefined`. */
 @Component({
   selector: 'mt-void-invoice-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtDialog, MtTextarea],
+  imports: [FormsModule, MtButton, MtDialog, MtNote, MtTextarea],
   template: `
     <mt-dialog size="sm" role="alertdialog" [title]="'Void invoice ' + data.number + '?'" [description]="description">
-      <form id="mt-void-invoice-form" (submit)="$event.preventDefault(); save()">
+      <form
+        id="mt-void-invoice-form"
+        class="mt-col"
+        style="gap: var(--space-12)"
+        (submit)="$event.preventDefault(); save()"
+      >
+        @if (data.trustWarning; as warning) {
+          <mt-note tone="warning" data-testid="void-trust-warning">{{ warning }}</mt-note>
+        }
         <mt-textarea
           name="reason"
           label="Reason"

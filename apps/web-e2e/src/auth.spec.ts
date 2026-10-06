@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import {
   createInvite,
   createTestAccount,
   expectNoA11yViolations,
+  FIRST_CALL,
   latestOobCode,
   signInThroughUi,
   TEST_PASSWORD,
@@ -39,7 +40,8 @@ test('sign-out leaves no cached Firestore data', async ({ page, request, isMobil
   test.skip(isMobile, 'Sign-out lives in the desktop user menu');
   const account = await createTestAccount(request);
   await signInThroughUi(page, account);
-  await expect(page).toHaveURL(/\/today$/);
+  // Signing in waits on the emulators (token, org and MFA policy), which other workers keep busy.
+  await expect(page).toHaveURL(/\/today$/, { timeout: 20_000 });
   // The data layer (FND-19) keeps Firestore's persistent cache in IndexedDB once a listener starts.
   const firestoreDbs = () =>
     page.evaluate(async () =>
@@ -59,7 +61,8 @@ test('signing out in one tab signs out the other', async ({ context, page, reque
   test.skip(isMobile, 'Sign-out lives in the desktop user menu');
   const account = await createTestAccount(request, { displayName: 'Tab Fictional' });
   await signInThroughUi(page, account);
-  await expect(page).toHaveURL(/\/today$/);
+  // Signing in waits on the emulators (token, org and MFA policy), which other workers keep busy.
+  await expect(page).toHaveURL(/\/today$/, { timeout: 20_000 });
 
   // A second tab shares the sign-in and follows live data (the members list).
   const other = await context.newPage();
@@ -86,12 +89,25 @@ test('signing out in one tab signs out the other', async ({ context, page, reque
     .toEqual([]);
 });
 
+/**
+ * The Auth emulator's answer to a sign-up. It runs `auth-beforeCreate` in the Functions emulator
+ * first, and the first sign-up in a run starts that function's worker.
+ */
+function signUpAnswer(page: Page) {
+  return page.waitForResponse(
+    (res) => res.url().includes('/accounts:signUp') && res.request().method() === 'POST',
+    FIRST_CALL,
+  );
+}
+
 test('sign-up without an invite is refused', async ({ page }) => {
   await page.goto('/auth/sign-up');
   await page.getByLabel('Full name').fill('Stranger Person');
   await page.getByLabel('Work email').fill(uniqueEmail('stranger'));
   await page.getByLabel('Password').fill(TEST_PASSWORD);
+  const signedUp = signUpAnswer(page);
   await page.getByRole('button', { name: 'Create account' }).click();
+  await signedUp;
   await expect(page.getByRole('alert')).toContainText('Sign-up is by invitation only');
 });
 
@@ -101,7 +117,9 @@ test('sign up with an invite, confirm the email from the link, and land in onboa
   await page.goto(`/auth/sign-up?email=${encodeURIComponent(email)}`);
   await page.getByLabel('Full name').fill('Invited Person');
   await page.getByLabel('Password').fill(TEST_PASSWORD);
+  const signedUp = signUpAnswer(page);
   await page.getByRole('button', { name: 'Create account' }).click();
+  await signedUp;
   await expect(page).toHaveURL(/\/auth\/verify-email$/);
   await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
   // Not yet verified: the shell stays closed.
@@ -127,7 +145,8 @@ test('reset a forgotten password from the emailed link', async ({ page, request 
   await page.getByRole('button', { name: 'Save password' }).click();
   await expect(page.getByRole('heading', { name: 'Password changed' })).toBeVisible();
   await signInThroughUi(page, { email: account.email, password: 'a brand new passphrase' });
-  await expect(page).toHaveURL(/\/today$/);
+  // Signing in waits on the emulators (token, org and MFA policy), which other workers keep busy.
+  await expect(page).toHaveURL(/\/today$/, { timeout: 20_000 });
 });
 
 for (const theme of ['light', 'dark'] as const) {

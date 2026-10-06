@@ -15,6 +15,7 @@ import {
   type AcceptManyItemResult,
   type AcceptManySuggestionsResult,
   type AcceptSuggestionResult,
+  type CitationInput,
   type Role,
   type SuggestionKind,
   type SuggestionStaleDetails,
@@ -142,7 +143,7 @@ export async function acceptSuggestion(
     payload = parsed.data as Record<string, unknown>;
   }
   const status = edited ? 'edited' : 'accepted';
-  const citations = (stored['citations'] ?? []) as { documentId: string }[];
+  const citations = (stored['citations'] ?? []) as CitationInput[];
   const expected = one.expectedBasis ?? String(stored['basis'] ?? '');
   const storedParts = (stored['basisParts'] ?? {}) as Record<string, string>;
   const matterRef = db.doc(matterPath(orgId, matterId));
@@ -191,7 +192,12 @@ export async function acceptSuggestion(
       log,
       ports: ctx.ports,
       payload: payload as never,
-      suggestion: { id: suggestionId, privileged: stored['privileged'] === true },
+      suggestion: {
+        id: suggestionId,
+        privileged: stored['privileged'] === true,
+        citations,
+        proposed: (stored['payload'] ?? {}) as Record<string, unknown>,
+      },
       join,
     }));
   } catch (error) {

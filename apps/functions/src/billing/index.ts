@@ -2,7 +2,8 @@
 // billing-saveDraft, -deleteDraft, -issueInvoice, -sendInvoice, -voidInvoice, -createCreditNote,
 // -retryPdf and the billing-onPdfJob trigger; payments, aged debtors and reminders (BILL-08):
 // billing-recordPayment, -reversePayment, -refreshDebtors, -sendReminder, -dismissReminder, the
-// billing-outstandingOnInvoice trigger and the nightly billing-debtorsNightly.
+// billing-outstandingOnInvoice trigger and the nightly billing-debtorsNightly; "To be paid from
+// trust" (BILL-12): billing-setPaidFromTrust.
 export { wip } from './wip';
 export { saveDraft, deleteDraft } from './drafts';
 export { issue as issueInvoice } from './issue';
@@ -13,3 +14,4 @@ export { retryPdf, onPdfJob } from './invoice-pdf';
 export { recordPayment, reversePayment } from './payments';
 export { debtorsNightly, outstandingOnInvoice, refreshDebtors } from './debtors';
 export { dismissReminder, sendReminder } from './reminders';
+export { setPaidFromTrust } from './paid-from-trust';

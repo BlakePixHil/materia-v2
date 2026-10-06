@@ -30,8 +30,6 @@ import { bulkLabel, isExpired, type SuggestionRecord } from './suggestion-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
-import { CitationScope, CitationSources } from '../citations/citation-sources';
-import { CitationViewer } from '../citations/citation-viewer';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
 /** A kind's open suggestions, with the bulk accept when there are several the person may accept. */
@@ -52,15 +50,14 @@ const ORDER: Record<string, number> = { proposed: 0, stale: 1, expired: 2 };
  * are hidden unless "Show expired" is on. Privileged suggestions are only listed for roles with
  * `privileged.view` (the rules refuse the rest). Shown when `clerk.features.suggestions` is on and
  * the role may use Clerk; listens only while the Overview is shown. A citation opens in the
- * citation viewer side panel (AI-05), a lazy chunk.
+ * Overview's citation viewer side panel (AI-05), through its `CitationSources`.
  */
 @Component({
   selector: 'mt-matter-suggestions',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
-  imports: [CitationViewer, FormsModule, MtButton, MtClerkMark, MtSwitch, SuggestionCard],
-  providers: [CitationSources, { provide: CitationScope, useExisting: MatterScreen }],
+  imports: [FormsModule, MtButton, MtClerkMark, MtSwitch, SuggestionCard],
   host: { class: 'mt-matter-suggestions' },
   template: `
     @if (visible()) {
@@ -123,20 +120,6 @@ const ORDER: Record<string, number> = { proposed: 0, stale: 1, expired: 2 };
         }
         <p class="mt-sr" aria-live="polite">{{ announcement() }}</p>
       </section>
-      <!-- The citation viewer (AI-05) loads the first time a source is opened. -->
-      @if (sources.viewing(); as viewing) {
-        @defer (on immediate) {
-          <mt-citation-viewer
-            [matterId]="matterId()"
-            [citations]="viewing.citations"
-            [index]="viewing.index"
-            (indexChange)="sources.viewing.set({ citations: viewing.citations, index: $event })"
-            (closed)="sources.close()"
-          />
-        } @loading (minimum 0ms) {
-          <p class="caption t-3 mt-sr" role="status">Opening the source…</p>
-        }
-      }
     }
   `,
   styles: `
@@ -162,7 +145,6 @@ export class MatterSuggestions {
   private readonly context = inject(OrgContext);
   private readonly toasts = inject(ToastService);
   private readonly api = suggestionCallables(inject(CALLABLES));
-  protected readonly sources = inject(CitationSources);
 
   protected readonly canUse = can('clerk.use');
   protected readonly visible = computed(() => this.flags.isOn('clerk.features.suggestions') && this.canUse());
