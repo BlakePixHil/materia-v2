@@ -17,6 +17,7 @@ const COMMANDS = {
   'platform-admin': 'Grant or revoke the platformAdmin claim (FND-23; humans only)',
   'backfill-search-tokens': 'Rewrite search tokens and stamp recent entries (CORE-15; idempotent)',
   'backfill-ingest': 'Have Clerk ingest documents from before AI-04 or that failed, and report ingest status (AI-04)',
+  'backfill-metrics': 'Restate the practice metrics rollups from an FY start, from the records (INS-01; idempotent)',
   'backfill-matter-roles':
     'Give every contact its roles in live matters for the contacts filter (CORE-01a; idempotent)',
   'backfill-deadline-privilege': 'Copy each matter’s privileged flag to its events, deadlines and proposals (CORE-10b)',
@@ -62,6 +63,7 @@ export async function run(argv: string[]): Promise<number> {
       'platform-admin': () => import('./platform-admin.ts'),
       'backfill-search-tokens': () => import('./backfills/search-tokens.ts'),
       'backfill-ingest': () => import('./backfills/ingest.ts'),
+      'backfill-metrics': () => import('./backfills/metrics.ts'),
       'backfill-matter-roles': () => import('./backfills/matter-roles.ts'),
       'backfill-deadline-privilege': () => import('./backfills/deadline-privilege.ts'),
       'search-load': () => import('./search-load.ts'),

@@ -536,10 +536,12 @@ export const DebtorsSnapshotSchema = z.object({
 export type DebtorsSnapshot = z.infer<typeof DebtorsSnapshotSchema>;
 
 /**
- * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY`, or
- * `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per feature and per user), or
- * `debtors-YYYY-MM-DD` for the aged-debtors report (BILL-08: bucket totals in `values`, the matters
- * in `debtors`; Clerk's metrics scope reads only month and year rollups).
+ * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY` (INS-01,
+ * ADR-048: org-wide counters in `values`, members' in `byMember/{uid}`, a large org's in
+ * `shards/{n}` too), or `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per
+ * feature and per user), or `debtors-YYYY-MM-DD` for the aged-debtors report (BILL-08: bucket
+ * totals in `values`, the matters in `debtors`; Clerk's metrics scope reads only month and year
+ * rollups).
  */
 export const Metrics = withMeta(
   {
@@ -547,6 +549,8 @@ export const Metrics = withMeta(
       .string()
       .regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4}|clerk-\d{4}-\d{2}|debtors-\d{4}-\d{2}-\d{2})$/),
     values: z.record(z.string(), z.number()),
+    /** The day the snapshot figures (`wip.`, `active.`, `overdue.`, `debtors.`) were taken (INS-01). */
+    snapshotOn: DateOnlySchema.optional(),
     debtors: DebtorsSnapshotSchema.optional(),
   },
   { path: `${ORG}/metrics`, migratable: false },

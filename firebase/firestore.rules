@@ -65,6 +65,17 @@ service cloud.firestore {
     function canViewPrivileged(orgId) {
       return can(orgId, 'privileged.view');
     }
+    // Who sees every member's figures in the practice metrics (INS-01): the org's
+    // `settings.insights.memberVisibility`, lawyers and above by default (MEMBER_METRICS_READERS in
+    // libs/domain). Role lists, not can(): every action in perm() costs each can() call, and
+    // Clerk's message lists are at the 1000-expression limit. The caller checks inOrg().
+    function seesEveryMember(orgId) {
+      let visibility = get(/databases/$(database)/documents/orgs/$(orgId)).data
+        .get('settings', {}).get('insights', {}).get('memberVisibility', 'lawyers');
+      return visibility == 'everyone'
+        || visibility == 'admins' && claimRole() in ['owner', 'admin']
+        || visibility != 'everyone' && visibility != 'admins' && claimRole() in ['owner', 'admin', 'lawyer'];
+    }
     // Privileged documents are readable only by roles with privileged.view (never readonly).
     // No get() default here: in a list query, `data.get(field, default)` on a field the query does
     // not constrain evaluates to the default, which would let any query through. Comparing the
@@ -856,6 +867,10 @@ service cloud.firestore {
           allow read: if inOrg(orgId);
           allow update: if editable(orgId, 'matter.edit', fieldsCourtBook()) && matterWritable();
         }
+        // What each record has added to the practice metrics (INS-01, ADR-048): functions only.
+        match /metrics/{ledgerId} {
+          allow read, write: if false;
+        }
       }
 
       // Clerk threads (AI-06, ADR-044): private to their owner until shared with the matter team.
@@ -1017,8 +1032,22 @@ service cloud.firestore {
       match /trustSnapshots/{matterId} {
         allow read: if can(orgId, 'billing.view');
       }
+      // Practice metrics (INS-01, ADR-048), written by the metrics-* functions. Every member reads
+      // the day, month and FY rollups (by path: a list can't prove the id's prefix) and their shards;
+      // Clerk's metering (`clerk-…`) and the aged-debtors report (`debtors-…`, which names clients)
+      // need billing.view. A member reads their own figures; everyone's follow the org's
+      // `settings.insights.memberVisibility` (lawyers and above by default).
       match /metrics/{metricId} {
-        allow read: if can(orgId, 'billing.view');
+        function rollupReader() {
+          return can(orgId, 'billing.view') || metricId.matches('^(day|month|fy)-.*') && inOrg(orgId);
+        }
+        allow read: if rollupReader();
+        match /shards/{shardId} {
+          allow read: if rollupReader();
+        }
+        match /byMember/{memberUid} {
+          allow read: if inOrg(orgId) && (uid() == memberUid || seesEveryMember(orgId));
+        }
       }
       match /migrations/{runId} {
         allow read: if can(orgId, 'org.settings') && isActiveMember(orgId);
@@ -1198,7 +1227,10 @@ service cloud.firestore {
     function fieldsMatterTemplate() { return []; }
     function fieldsMatterTemplateVersion() { return []; }
     function fieldsMember() { return ['displayName', 'initials', 'title', 'admissionNo', 'defaultRateCents', 'rates', 'colour', 'budgets', 'supervisorUid']; }
-    function fieldsMetrics() { return ['period', 'values', 'debtors']; }
+    function fieldsMemberMetrics() { return []; }
+    function fieldsMetrics() { return ['period', 'values', 'snapshotOn', 'debtors']; }
+    function fieldsMetricsLedger() { return []; }
+    function fieldsMetricsShard() { return []; }
     function fieldsMigrationRun() { return []; }
     function fieldsNote() { return ['pinned']; }
     function fieldsNoteRevision() { return []; }

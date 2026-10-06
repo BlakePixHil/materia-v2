@@ -1567,6 +1567,20 @@
       ]
     },
     {
+      "collectionGroup": "disbursements",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "chunks",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -2335,6 +2349,31 @@
           "queryScope": "COLLECTION_GROUP"
         }
       ]
+    },
+    {
+      "collectionGroup": "metrics",
+      "fieldPath": "values",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "metrics",
+      "fieldPath": "counted",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "metrics",
+      "fieldPath": "stages",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "byMember",
+      "fieldPath": "values",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "shards",
+      "fieldPath": "values",
+      "indexes": []
     }
   ]
 }

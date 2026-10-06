@@ -689,7 +689,26 @@ export const makeTaskGroupTemplate = (o: Partial<D.TaskGroupTemplate> = {}) =>
   );
 
 export const makeMetrics = (o: Partial<D.Metrics> = {}) =>
-  build(D.Metrics, { period: 'month-2026-10', values: { mattersOpened: 3, wipCents: 125000 } }, o);
+  build(D.Metrics, { period: 'month-2026-10', values: { 'matters.opened': 3, 'wip.timeCents': 125000 } }, o);
+
+export const makeMemberMetrics = (o: Partial<D.MemberMetrics> = {}) =>
+  build(D.MemberMetrics, { period: 'month-2026-10', uid: TEST_UID, values: { 'time.minutes': 360 } }, o);
+
+export const makeMetricsShard = (o: Partial<D.MetricsShard> = {}) =>
+  build(D.MetricsShard, { period: 'month-2026-10', shard: 3, values: { 'time.minutes': 60 } }, o);
+
+export const makeMetricsLedger = (o: Partial<D.MetricsLedger> = {}) =>
+  build(
+    D.MetricsLedger,
+    {
+      orgId: TEST_ORG_ID,
+      matterId: TEST_MATTER_ID,
+      kind: 'time',
+      sourceId: 'time-entry-1',
+      counted: { '2026-10-06': { 'time.minutes': 60 }, [`2026-10-06|${TEST_UID}`]: { 'time.minutes': 60 } },
+    },
+    o,
+  );
 
 export const makeAuditEntry = (o: Partial<D.AuditEntry> = {}) =>
   build(
@@ -1019,6 +1038,9 @@ export const ENTITY_FACTORIES = {
   ChecklistTemplate: [D.ChecklistTemplate, makeChecklistTemplate],
   TaskGroupTemplate: [D.TaskGroupTemplate, makeTaskGroupTemplate],
   Metrics: [D.Metrics, makeMetrics],
+  MemberMetrics: [D.MemberMetrics, makeMemberMetrics],
+  MetricsShard: [D.MetricsShard, makeMetricsShard],
+  MetricsLedger: [D.MetricsLedger, makeMetricsLedger],
   AuditEntry: [D.AuditEntry, makeAuditEntry],
   Notification: [D.Notification, makeNotification],
   Integration: [D.Integration, makeIntegration],

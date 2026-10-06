@@ -11,6 +11,7 @@ import {
   InviteStatusSchema,
   JurisdictionSchema,
   MatterTypeSchema,
+  MemberMetricsVisibilitySchema,
   MemberStatusSchema,
   RoleSchema,
   RoundingSchema,
@@ -106,6 +107,12 @@ export const Org = withMeta(
           .optional(),
         /** The Matters board's WIP limits per column (CORE-04a), set by owners and admins from the board. */
         board: z.object({ wipLimits: BoardWipLimitsSchema.optional() }).optional(),
+        insights: z
+          .object({
+            /** Who sees every member's figures (INS-01); lawyers and above when unset. */
+            memberVisibility: MemberMetricsVisibilitySchema.optional(),
+          })
+          .optional(),
       })
       .optional(),
     /**
