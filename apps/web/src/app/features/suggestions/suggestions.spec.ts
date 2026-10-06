@@ -14,6 +14,7 @@ import {
   suggestionVm,
   type SuggestionRecord,
 } from './suggestion-view';
+import { storedDocument } from '../documents/testing';
 import {
   cleanUpOverlays,
   MATTER,
@@ -61,6 +62,7 @@ function suggestionDoc(kind: string, payload: Seed, data: Seed = {}): Seed {
 const path = (id: string) => `${MATTER}/suggestions/${id}`;
 
 function seedSuggestions(fs: InMemoryFirestore): void {
+  fs.set(`${MATTER}/documents/doc-will`, storedDocument('doc-will', 'Will of Fictional Whitfield.pdf'));
   fs.set(
     path('s-task'),
     suggestionDoc(
@@ -141,14 +143,18 @@ describe('suggestion view', () => {
         { title: 'Call the executor', priority: 'none' },
         {
           citations: [
-            { documentId: 'd-1', page: 3, quote: 'the residue' },
-            { documentId: 'd-2', quote: 'the house' },
+            { kind: 'document', documentId: 'd-1', docVersion: 2, page: 3, quote: 'the residue' },
+            { kind: 'document', documentId: 'd-2', quote: 'the house', verified: false },
+            { kind: 'record', recordRef: { collection: 'deadlines', id: 'dl-1' }, quote: 'Notice expires' },
           ],
         },
       ),
     );
     expect(vm).toMatchObject({ kind: 'Task', title: 'Call the executor', acceptLabel: 'Add task' });
-    expect(vm.citations?.map((c) => c.label)).toEqual(['p. 3', 'Source']);
+    expect(vm.citations?.map((c) => c.label)).toEqual(['p. 3', 'Source', 'Source']);
+    expect(vm.citations?.[0]).toMatchObject({ n: 1, version: 2 });
+    expect(vm.citations?.[1]).toMatchObject({ verified: false });
+    expect(vm.citations?.[2]).toMatchObject({ documentId: 'dl-1', kind: 'record' });
   });
 
   it('edits a key fact by its kind: dates as DD/MM/YYYY, money in dollars', () => {
@@ -202,7 +208,8 @@ describe('Clerk suggests… on the Overview', () => {
       'Request the date-of-death valuation',
       'Write to the bank',
     ]);
-    expect(page.text(card(page, 's-task'))).toContain('p. 2');
+    // The citation chip names the cited document (AI-05).
+    expect(page.text(card(page, 's-task'))).toContain('Will of Fictional Whitfield.pdf p 2');
 
     const toggle = section(page)?.querySelector<HTMLElement>('mt-switch button, mt-switch [role="switch"]');
     toggle?.click();

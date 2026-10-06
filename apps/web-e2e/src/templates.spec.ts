@@ -1,6 +1,13 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-import { expectNoA11yViolations, setEmulatorDocuments, setOrgFlags, signInAsTestUser } from '@materia/test-utils/e2e';
+import {
+  expectNoA11yViolations,
+  FIRST_CALL,
+  FIRST_LOAD,
+  setEmulatorDocuments,
+  setOrgFlags,
+  signInAsTestUser,
+} from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
@@ -55,7 +62,7 @@ function willMatter(
 
 test.describe('matter templates', () => {
   test('customise a system template, publish two versions and upgrade a matter', async ({ page, request }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     const { orgId, uid } = await signInAs(page, request, 'admin');
 
     // Settings → Templates lists the system templates.
@@ -79,7 +86,9 @@ test.describe('matter templates', () => {
     await expect(page.getByText('Unsaved changes')).toBeVisible();
     await expectNoA11yViolations(page);
     await page.getByRole('button', { name: 'Publish v1' }).click();
-    await expect(page.getByText('Published v1', { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    // Publishing saves first, so this cold-starts two callables (save, then publish) in turn; on a
+    // busy CI runner loading their workers has taken over 30s.
+    await expect(page.getByText('Published v1', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('button', { name: 'Publish v2' })).toBeVisible();
 
     // Edit again: a new task in the first stage, published as v2.
@@ -98,13 +107,19 @@ test.describe('matter templates', () => {
       willMatter(orgId, uid, 'm-upgrade', { id: templateId, version: 1, stageId: 'instructions' }),
     ]);
     await page.goto('/matters/m-upgrade');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Will of Odette Fictional');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Will of Odette Fictional', FIRST_LOAD);
     await page.getByRole('button', { name: 'More matter actions' }).click();
     await page.getByRole('menuitem', { name: 'Upgrade matter to v2…' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('Only tasks it doesn’t have yet are added');
+    // The first upgrade starts its function in the emulator: wait for the server's answer, then the toast.
+    const upgraded = page.waitForResponse(
+      (res) => res.url().endsWith('/matters-upgradeTemplate') && res.request().method() === 'POST',
+      FIRST_CALL,
+    );
     await dialog.getByRole('button', { name: 'Upgrade to v2' }).click();
-    await expect(page.getByText('Upgraded to v2').first()).toBeVisible({ timeout: 20_000 });
+    await upgraded;
+    await expect(page.getByText('Upgraded to v2').first()).toBeVisible();
     await expect(page.getByText(/\d+ tasks? added\./).first()).toBeVisible();
     await expect(page.locator('mt-matter-overview')).toContainText('Check the client’s identity documents');
     await page.getByRole('button', { name: 'More matter actions' }).click();
@@ -137,7 +152,7 @@ test.describe('matter templates', () => {
     ]);
     await page.goto('/matters/m-stage');
     const stepper = page.locator('mt-estate-stepper');
-    await expect(stepper.getByRole('button', { name: /^Execution\s*, current$/ })).toBeVisible();
+    await expect(stepper.getByRole('button', { name: /^Execution\s*, current$/ })).toBeVisible(FIRST_LOAD);
 
     await stepper.getByRole('button', { name: 'Safe custody', exact: true }).click();
     const note = page.locator('mt-matter-stages mt-note');

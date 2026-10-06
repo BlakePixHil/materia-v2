@@ -219,8 +219,25 @@ describe('citations and the judge', () => {
 
   it('builds judge items only for citations it can place', () => {
     expect(judgeItems(content, [], new Map())).toEqual([]);
-    const items = judgeItems(content, [{ documentId: 'd', version: 1, quote }], new Map([['d', ['the page']]]));
+    const items = judgeItems(
+      content,
+      [{ kind: 'document', documentId: 'd', docVersion: 1, quote }],
+      new Map([['d', ['the page']]]),
+    );
     expect(items[0]).toContain('Page text: the page');
+  });
+
+  it('gives the judge every page of a quote that runs over a page break', () => {
+    const padded = [
+      { type: 'text', text: 'The gift lapses.', citations: [{ type: 'page_location', cited_text: ` ${quote}\n` }] },
+    ];
+    const items = judgeItems(
+      padded,
+      [{ kind: 'document', documentId: 'd', docVersion: 1, page: 2, pageEnd: 3, quote }],
+      new Map([['d', ['one', 'two', 'three', 'four']]]),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toContain('Page text: two\nthree');
   });
 });
 

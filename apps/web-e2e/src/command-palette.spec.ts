@@ -163,7 +163,7 @@ test.describe('command palette (CORE-15)', () => {
     test.setTimeout(90_000);
     await setup(page, request);
     await page.goto('/matters/m-vale/overview');
-    await expect(page.getByRole('heading', { level: 1, name: 'Estate of Rupert Vale' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Estate of Rupert Vale' })).toBeVisible(FIRST_LOAD);
     await openPalette(page);
     await expect(groupLabels(page)).toContainText(['This matter']);
     await palette(page).fill('upload');

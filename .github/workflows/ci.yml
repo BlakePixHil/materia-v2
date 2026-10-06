@@ -355,12 +355,21 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:5000
           CI: 'true'
+          # Seconds the Functions emulator waits for a function's worker to load (default 30). On a
+          # busy runner a late first call has taken longer, failing with "Failed to load function";
+          # test-integration sets the same.
+          FUNCTIONS_DISCOVERY_TIMEOUT: '120'
           # PRs test Chromium only; the morning run and dispatches add WebKit (iPhone Safari).
           E2E_CHROMIUM_ONLY: ${{ github.event_name == 'pull_request' && '1' || '' }}
+          E2E_PROJECTS: ${{ github.event_name == 'pull_request' && '--project=chromium' || '--project=chromium --project=webkit-mobile' }}
+        # The browser projects are named so they shard on their own: with no --project, chromium-load's
+        # dependency on them put every test in shard 1 and none in shard 2. The load test then runs
+        # after its shard's browser tests (--no-deps; a shard without it exits at once).
         run: >-
           pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting
           --project demo-materia --config firebase.e2e.json
-          "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --shard=${{ matrix.shard }}/2"
+          "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts $E2E_PROJECTS --shard=${{ matrix.shard }}/2
+          && pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=chromium-load --no-deps --shard=${{ matrix.shard }}/2"
       - name: Upload the Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
