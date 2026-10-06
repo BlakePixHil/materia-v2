@@ -1,4 +1,13 @@
-import { buildInvoice, type InvoiceLine, planWriteDown, type WriteDownChange } from '@materia/domain';
+import { TestBed } from '@angular/core/testing';
+
+import {
+  buildInvoice,
+  type InvoiceLine,
+  planWriteDown,
+  type WriteDownChange,
+  XERO_SYNC_ERROR_COPY,
+  xeroDocumentUrl,
+} from '@materia/domain';
 
 import { extraLinesFrom, invoiceSourcesFrom } from './invoices-view';
 import { DOWNLOAD_NAVIGATOR } from '../documents/document-actions';
@@ -6,7 +15,10 @@ import { PDFJS_LOADER } from '../documents/pdf-viewer';
 import { fakePdfJs } from '../documents/testing';
 import { ADMIN, cleanUpOverlays, MATTER, ME, meta, openMatter, PARALEGAL, PRIYA } from '../matter-detail/testing';
 
-/** BILL-07 and BILL-08: pre-bills, invoices, credit notes, a matter's bills, payments and aged debtors. Fictional data only. */
+/**
+ * BILL-07 and BILL-08: pre-bills, invoices, credit notes, a matter's bills, payments and aged debtors;
+ * BILL-09: where an invoice stands in Xero. Fictional data only.
+ */
 
 afterEach(cleanUpOverlays);
 
@@ -951,5 +963,191 @@ describe('aged debtors (BILL-08)', () => {
 
   it('is off for paralegals', async () => {
     expect((await open('/billing/debtors', { session: PARALEGAL })).router.url).not.toBe('/billing/debtors');
+  });
+});
+
+describe('Xero on an invoice (BILL-09)', () => {
+  const XERO_ON = { ...ON, 'integrations.xero': true };
+  const TENANT = '11111111-1111-4111-8111-111111111111';
+  const XERO_ID = 'aaaaaaaa-0000-4000-8000-000000000007';
+  const settings = {
+    tenantId: TENANT,
+    tenantName: 'Harbour & Vine Legal (demo)',
+    feesAccountCode: '200',
+    disbursementsAccountCode: '260',
+    autoPush: true,
+    sendFrom: '2026-10-01',
+  };
+  const synced = (data: Seed = {}): Seed => ({
+    status: 'synced',
+    tenantId: TENANT,
+    id: XERO_ID,
+    contactId: 'cccccccc-0000-4000-8000-000000000001',
+    syncedAt: new Date('2026-10-02T01:00:00Z'),
+    ...data,
+  });
+
+  /** An issued invoice in a practice that has (or hasn't) chosen its Xero organisation. */
+  const openIssued = (data: Seed = {}, options: Parameters<typeof open>[1] & { xero?: Seed | null } = {}) => {
+    const { xero = settings, configure, ...rest } = options;
+    return open('/billing/invoices/inv-1', {
+      flags: XERO_ON,
+      callables: { ...billingCallables(), 'xero-send': () => ({ queued: 1 }) },
+      ...rest,
+      configure: (fs, port) => {
+        if (xero) fs.set(`orgs/${ORG}`, { ...fs.get(`orgs/${ORG}`), xero });
+        fs.set(`${INVOICES}/inv-1`, issued(data));
+        configure?.(fs, port);
+      },
+    });
+  };
+  const chip = () => byTestId('invoice-xero');
+
+  it('shows nothing about Xero while the flag is off, or until the practice has chosen its organisation', async () => {
+    const off = await openIssued({ xero: synced() }, { flags: ON });
+    expect(chip()).toBeNull();
+    expect(off.text(document.body)).not.toContain('Xero');
+    cleanUpOverlays();
+    TestBed.resetTestingModule();
+    const unset = await openIssued({}, { xero: null });
+    expect(chip()).toBeNull();
+    expect(unset.buttons('Send to Xero')).toHaveLength(0);
+  });
+
+  it('links an invoice that’s in Xero to it there, in a new tab', async () => {
+    await openIssued({ xero: synced() });
+    expect(chip()?.querySelector('mt-badge')?.textContent?.trim()).toBe('In Xero');
+    const link = chip()?.querySelector<HTMLAnchorElement>('a');
+    expect(link?.getAttribute('href')).toBe(xeroDocumentUrl('invoice', XERO_ID));
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toContain('noopener');
+    expect(byTestId('invoice-xero-error')).toBeNull();
+  });
+
+  it('labels an invoice on its way, and one sent to another Xero organisation as not sent', async () => {
+    await openIssued({ xero: { status: 'queued', queuedAt: new Date('2026-10-04T00:00:00Z') } });
+    expect(chip()?.textContent?.trim()).toBe('Sending to Xero');
+    cleanUpOverlays();
+    TestBed.resetTestingModule();
+    await openIssued({ xero: synced({ tenantId: '22222222-2222-4222-8222-222222222222' }) });
+    expect(chip()?.textContent?.trim()).toBe('Not sent to Xero');
+    expect(chip()?.querySelector('a')).toBeNull();
+  });
+
+  it('offers Send to Xero for an issued invoice never sent', async () => {
+    const page = await openIssued();
+    expect(chip()?.textContent?.trim()).toBe('Not sent to Xero');
+    expect(page.text(byTestId('invoice-xero-unsent'))).toContain('This invoice isn’t in Xero.');
+    await page.click('Send to Xero');
+    expect(callsOf(page, 'xero-send')).toEqual([{ invoiceId: 'inv-1' }]);
+    expect(page.text(document.body)).toContain('Sending invoice INV-000007 to Xero');
+  });
+
+  it('doesn’t offer Send to Xero for a void invoice', async () => {
+    const page = await openIssued({ status: 'void', voidReason: 'Billed to the wrong matter' });
+    expect(page.buttons('Send to Xero')).toHaveLength(0);
+  });
+
+  it('says why it isn’t in Xero, and tries again', async () => {
+    const error = {
+      code: 'rejected',
+      message: `${XERO_SYNC_ERROR_COPY.rejected} Account code 999 is not valid.`,
+      at: new Date('2026-10-03T00:00:00Z'),
+    };
+    const page = await openIssued({ xero: { status: 'failed', tenantId: TENANT, error } });
+    expect(chip()?.textContent?.trim()).toBe('Not in Xero');
+    const alert = byTestId('invoice-xero-error');
+    expect(alert?.getAttribute('role')).toBe('alert');
+    expect(page.text(alert)).toContain('Not in Xero. Xero didn’t accept it. Account code 999 is not valid.');
+    expect(page.text(alert)).not.toContain('accept it. Xero didn’t');
+    await page.click('Try again', alert as HTMLElement);
+    expect(callsOf(page, 'xero-send')).toEqual([{ invoiceId: 'inv-1' }]);
+  });
+
+  it('explains a number Xero already uses', async () => {
+    const error = { code: 'number_taken', message: '', at: new Date('2026-10-03T00:00:00Z') };
+    const page = await openIssued({ xero: { status: 'conflict', tenantId: TENANT, error } });
+    expect(page.text(byTestId('invoice-xero-error'))).toContain(XERO_SYNC_ERROR_COPY.number_taken);
+  });
+
+  it('lists payments in Xero that couldn’t be recorded here', async () => {
+    const unrecordedPayments = [
+      { id: 'xp-1', date: '2026-10-03', amountCents: 60_000, reason: 'It would pay more than is owing.' },
+    ];
+    const page = await openIssued({ xero: synced({ unrecordedPayments }) });
+    const warning = byTestId('invoice-xero-unrecorded');
+    expect(page.text(warning)).toContain('Payments in Xero not recorded here');
+    expect(page.text(warning)).toContain('3 Oct 2026 · $600.00 · It would pay more than is owing.');
+  });
+
+  it('names payments from Xero, and marks a possible duplicate while both count', async () => {
+    const payments = [
+      { id: 'p1', kind: 'payment', date: '2026-10-02', amountCents: 20_000, method: 'eft' },
+      {
+        id: 'xero-pay-1',
+        kind: 'payment',
+        date: '2026-10-03',
+        amountCents: 20_000,
+        method: 'xero',
+        possibleDuplicateOf: 'p1',
+      },
+    ];
+    const page = await openIssued({ status: 'part_paid', payments, xero: synced() });
+    const rows = [...(byTestId('payments')?.querySelectorAll('li') ?? [])];
+    const fromXero = rows.find((row) => row.textContent?.includes('3 Oct 2026'));
+    expect(fromXero?.querySelector('.label-m')?.textContent?.trim()).toBe('Xero');
+    const badge = fromXero?.querySelector('[data-testid="payment-duplicate"]');
+    expect(badge?.textContent?.trim()).toBe('Possible duplicate');
+    expect(badge?.getAttribute('title')).toBe(
+      'A payment of the same amount was recorded here within a week. Check it isn’t counted twice.',
+    );
+    expect(page.body.querySelectorAll('[data-testid="payment-duplicate"]')).toHaveLength(1);
+
+    cleanUpOverlays();
+    TestBed.resetTestingModule();
+    const reversed = [{ ...payments[0], reversedAt: new Date('2026-10-04T00:00:00Z'), reversalReason: 'Twice' }];
+    await openIssued({ status: 'part_paid', payments: [...reversed, payments[1]], xero: synced() });
+    expect(byTestId('payment-duplicate')).toBeNull();
+  });
+
+  it('shows where each credit note stands in Xero', async () => {
+    await openIssued(
+      { creditedCents: 10_000, creditNoteIds: ['cn-1'], xero: synced() },
+      {
+        configure: (fs) =>
+          fs.set(`orgs/${ORG}/creditNotes/cn-1`, {
+            number: 'CN-000001',
+            invoiceId: 'inv-1',
+            invoiceNumber: 'INV-000007',
+            matterId: 'm-whitfield',
+            issueDate: '2026-10-03',
+            reason: 'Fee waived',
+            full: false,
+            lines: [],
+            subtotalCents: 9_091,
+            gstCents: 909,
+            totalCents: 10_000,
+            gstRegistered: true,
+            pdfStatus: 'ready',
+            pdfDocumentId: 'job-cn-1',
+            xero: synced({ id: 'bbbbbbbb-0000-4000-8000-000000000001' }),
+            ...meta,
+          }),
+      },
+    );
+    const noteChip = byTestId('credit-note-xero');
+    expect(noteChip?.querySelector('mt-badge')?.textContent?.trim()).toBe('In Xero');
+    expect(noteChip?.querySelector('a')?.getAttribute('href')).toBe(
+      xeroDocumentUrl('creditNote', 'bbbbbbbb-0000-4000-8000-000000000001'),
+    );
+  });
+
+  it('never offers Xero as a method when a payment is recorded by hand', async () => {
+    const page = await openIssued();
+    await page.click('Record payment');
+    const options = [...(page.dialog()?.querySelectorAll<HTMLOptionElement>('mt-select option') ?? [])].map((o) =>
+      o.text.trim(),
+    );
+    expect(options).toEqual(['Choose…', 'Bank transfer', 'Card', 'Cheque', 'From trust', 'Other']);
   });
 });

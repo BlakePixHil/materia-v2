@@ -3,12 +3,13 @@ import { FormsModule } from '@angular/forms';
 
 import {
   checkPayment,
+  MANUAL_PAYMENT_METHODS,
   owingCents,
   PAYMENT_METHOD_LABELS,
   PAYMENT_WARNING_COPY,
   TRUST_PAYMENT_COPY,
   type InvoiceMoneyLike,
-  type PaymentMethod,
+  type ManualPaymentMethod,
 } from '@materia/domain';
 import {
   formatAud,
@@ -37,15 +38,16 @@ export interface PaymentDialogResult {
   kind: 'payment' | 'refund';
   date: string;
   amountCents: number;
-  method: PaymentMethod;
+  method: ManualPaymentMethod;
   reference?: string;
   payer?: string;
   credit: boolean;
 }
 
-const METHOD_OPTIONS: MtOption<PaymentMethod>[] = (
-  Object.entries(PAYMENT_METHOD_LABELS) as [PaymentMethod, string][]
-).map(([value, label]) => ({ value, label }));
+const METHOD_OPTIONS: MtOption<ManualPaymentMethod>[] = MANUAL_PAYMENT_METHODS.map((value) => ({
+  value,
+  label: PAYMENT_METHOD_LABELS[value],
+}));
 
 /**
  * Records a payment received against an invoice, or a refund of credit held (BILL-08). Defaults
@@ -163,7 +165,7 @@ export class PaymentDialog {
 
   protected readonly dateText = signal(formatEntryDate(this.today()));
   protected readonly amountText = signal(dollarsText(this.refund ? Math.max(0, -this.owing) : Math.max(0, this.owing)));
-  protected readonly method = signal<PaymentMethod>('eft');
+  protected readonly method = signal<ManualPaymentMethod>('eft');
   protected readonly reference = signal('');
   protected readonly payer = signal('');
   protected readonly credit = signal(false);

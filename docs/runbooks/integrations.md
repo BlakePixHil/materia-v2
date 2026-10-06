@@ -28,6 +28,20 @@ How the OAuth token vault connects Materia to other services (INT-01, [ADR-051](
 
 Logs (`integration connect refused`, `integration needs reconnecting`, `integration token revoke failed`) carry the provider and a reason, never a token or code.
 
+## Xero (BILL-09)
+
+How invoices reach Xero and payments come back: [ADR-053](../adr/053-xero-sync.md). Behind `integrations.xero` (Remote Config `integrations_xero`, client and server).
+
+- **Set up:** an owner or admin connects Xero in Settings → Integrations, then chooses the organisation, the accounts for fees and disbursements, whether to send each invoice when it's issued, and the first issue date to send. Saving says how many invoices and credit notes since then aren't in Xero; "Send them to Xero" queues them.
+- **An invoice shows "Not sent to Xero":** its `xero.error` says why.
+  - `rejected`: Xero refused it, with Xero's message (a deleted account code, a contact Xero archived). Fix it in Xero or Settings, then press "Try again" on the invoice.
+  - `number_taken`: Xero has a different invoice with the number. Check Xero; renumber or delete the one typed in by hand there, then "Try again". Materia never overwrites it.
+  - `not_connected`: Xero needs reconnecting, or no organisation is chosen. Reconnect in Settings, then "Send unsent to Xero".
+  - `unavailable`: Xero didn't answer after 5 tries over a few hours. "Try again" once Xero is up ([status.xero.com](https://status.xero.com)).
+- **"Payments in Xero not recorded here":** a payment made in Xero would overpay the invoice in Materia, or the invoice is void here. Usually the same money was recorded in both places. Reverse whichever is wrong; the next hourly run records the Xero payment if it now fits.
+- **Payments aren't coming across:** check the `xero-pullPayments` logs and `integrationStatus/xero.sync.paymentsCheckedAt` (shown in Settings as "Payments last checked"). The job skips an org quietly while its connection needs reconnecting.
+- **Logs:** `xero push failed` (with `kind`, `code`, `retry`), `xero rate limited; rescheduled`, `xero payments skipped`, `xero payments failed`. None carries a token, an amount or a client's name.
+
 ## Key rotation
 
 The `oauth-tokens` KMS key rotates every 90 days. Cloud KMS finds the key version from the ciphertext, so stored tokens keep decrypting. `kmsKeyVersion` records which version encrypted each one. A token re-encrypts with the newest version whenever the provider rotates it.

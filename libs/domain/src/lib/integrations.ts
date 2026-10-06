@@ -34,7 +34,13 @@ export const OAUTH_PROVIDER_INFO: Record<OAuthProvider, OAuthProviderInfo> = {
     settingsPath: '/settings',
   },
   google: { label: 'Google Workspace', level: 'user', ticket: 'INT-04', settingsPath: '/settings' },
-  xero: { label: 'Xero', level: 'org', ticket: 'BILL-09', settingsPath: '/settings' },
+  xero: {
+    label: 'Xero',
+    level: 'org',
+    flag: 'integrations.xero',
+    ticket: 'BILL-09',
+    settingsPath: '/settings/integrations',
+  },
 };
 
 /**

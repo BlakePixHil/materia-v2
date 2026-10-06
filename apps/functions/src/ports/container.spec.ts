@@ -37,7 +37,11 @@ describe('ports container', () => {
     await expect(p.mail.send({ to: 'x', template: 't', model: {} })).rejects.toMatchObject({
       failure: 'not_configured',
     });
-    await expect(p.xero.pushInvoice('o', 'i')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    // Xero (BILL-09) is real: it calls whatever authorised send it is given.
+    const unreachable = async (): Promise<Response> => {
+      throw new TypeError('fetch failed');
+    };
+    await expect(p.xero.client(unreachable).tenants()).rejects.toMatchObject({ failure: 'unavailable' });
     // No scanner URL configured: fail closed, so uploads stay quarantined ('Scanning delayed').
     await expect(
       p.malwareScan.scan({ bucket: 'b', path: 'orgs/o/matters/m/pending/upload-1', data: new Uint8Array([1]) }),
