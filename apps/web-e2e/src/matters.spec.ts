@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   createTestAccount,
   expectNoA11yViolations,
+  FIRST_LOAD,
   setEmulatorDocuments,
   signInAsTestUser,
 } from '@materia/test-utils/e2e';
@@ -107,7 +108,7 @@ test.describe('matters', () => {
     await expect(toasts(page).getByText('View saved')).toBeVisible();
     await expect(page).toHaveURL(/\/matters\?view=/);
     await page.reload();
-    await expect(bar(page).getByRole('button', { name: 'Open probate', exact: true })).toBeVisible();
+    await expect(bar(page).getByRole('button', { name: 'Open probate', exact: true })).toBeVisible(FIRST_LOAD);
     await expect(table(page)).toContainText('Estate of Rupert Vale');
     await expect(table(page)).toContainText('Estate of Ada Quillfeather');
     await expect(table(page)).not.toContainText('Will for Ottilie Marsh');

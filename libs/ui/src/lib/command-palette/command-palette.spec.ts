@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/angular';
+import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
 import { type MtCommandGroup, MtCommandPalette } from './command-palette';
@@ -109,6 +109,33 @@ describe('MtCommandPalette', () => {
       },
     });
     expect(screen.getByText('Type more to narrow these.')).toBeInTheDocument();
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it('keeps only options and groups of options in the listbox while groups search (axe: aria-required-children)', async () => {
+    const { rerender } = await render(`<mt-command-palette [groups]="groups" />`, {
+      imports: [MtCommandPalette],
+      componentProperties: {
+        groups: [
+          { label: 'Matters', items: [{ id: 'm1', label: 'Estate of Margaret Wren' }] },
+          { label: 'Documents', items: [], busy: true },
+        ] as MtCommandGroup[],
+      },
+    });
+    const list = screen.getByRole('listbox');
+    expect(list).toHaveAttribute('aria-busy', 'true');
+    expect(
+      within(list)
+        .getAllByRole('group')
+        .map((g) => g.textContent),
+    ).toEqual([expect.stringContaining('Estate of Margaret Wren')]);
+    expect(within(list).getByText('Searching documents…')).toBeInTheDocument();
+    expect(within(list).queryByRole('status')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('Searching documents…');
+
+    await rerender({ componentProperties: { groups: [] } });
+    expect(list).not.toHaveAttribute('aria-busy');
+    expect(list).toBeEmptyDOMElement();
+    expect(list).not.toContainElement(screen.getByText(/No matches/));
   });
 });

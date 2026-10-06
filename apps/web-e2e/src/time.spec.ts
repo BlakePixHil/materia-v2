@@ -5,6 +5,7 @@ import {
   EMULATOR_PROJECT,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
+  FIRST_LOAD,
   setEmulatorDocument,
   setEmulatorDocuments,
   signInAsTestUser,
@@ -95,7 +96,7 @@ async function setUp(page: Page, request: APIRequestContext) {
   });
   await seed(request, orgId, account.uid, colleague.uid);
   await page.goto(URL);
-  await expect(page.getByRole('heading', { level: 2, name: 'Time' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Time' })).toBeVisible(FIRST_LOAD);
   await expect(rows(page)).toHaveCount(1);
   return { orgId, uid: account.uid };
 }
@@ -164,7 +165,7 @@ test.describe('time entries', () => {
 
     // 2. Quick entry with `t` from another tab of the matter: the matter is picked already.
     await page.goto('/matters/m-quill/overview');
-    await expect(page.getByRole('heading', { name: 'Estate of Harriet Quill' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Estate of Harriet Quill' })).toBeVisible(FIRST_LOAD);
     await page.keyboard.press('t');
     const dialog = page.getByRole('dialog', { name: 'Log time' });
     await expect(dialog).toBeVisible();
@@ -180,7 +181,8 @@ test.describe('time entries', () => {
 
     // 3. ⌘K "Log time" from the Matters list: pick the matter (recent first), then the time.
     await page.goto('/matters');
-    await expect(page.getByRole('table', { name: 'Matters' })).toBeVisible();
+    // The table renders once the list's first query answers, after the app boots on this load.
+    await expect(page.getByRole('table', { name: 'Matters' })).toBeVisible(FIRST_LOAD);
     await page.keyboard.press('ControlOrMeta+k');
     await expect(page.getByRole('combobox')).toBeFocused();
     await page.keyboard.type('log time');

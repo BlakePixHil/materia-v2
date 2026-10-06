@@ -27,6 +27,7 @@ import {
   MatterTaskCreateInput,
   PERMISSIONS,
   ROLES,
+  DisbursementCreateInput,
   TimeEntryCreateInput,
   type Role,
 } from '@materia/domain';
@@ -2816,6 +2817,184 @@ describe('time entries (BILL-01)', () => {
   });
 });
 
+describe('disbursements (BILL-04)', () => {
+  const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-disb-privileged`;
+  const DELETED_MATTER = `orgs/${ORG}/matters/matter-disb-deleted`;
+  const PRESETS = `orgs/${ORG}/settings/disbursementPresets`;
+  const newItem = (uid: string, matterId = 'matter-1', extra: Record<string, unknown> = {}) => ({
+    orgId: ORG,
+    matterId,
+    date: '2026-10-01',
+    description: 'Death certificate',
+    payee: 'Fictional Registry',
+    category: 'certificate',
+    amountExGstCents: 3_420,
+    gstCents: 0,
+    amountIncGstCents: null,
+    gstTreatment: 'gst_free',
+    receiptDocumentId: null,
+    status: 'unbilled',
+    wipCountedCents: 0,
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+
+  beforeAll(async () => {
+    await seedAdmin(env, async (f) => {
+      const matter = seedData(specFor('matters'));
+      await setDoc(doc(f, PRIVILEGED_MATTER), { ...matter, privileged: true });
+      await setDoc(doc(f, `${PRIVILEGED_MATTER}/disbursements/d-1`), {
+        ...seedData(specFor('disbursements')),
+        matterId: 'matter-disb-privileged',
+      });
+      await setDoc(doc(f, DELETED_MATTER), { ...matter, deletedAt: Timestamp.fromMillis(1), deletedBy: 'x' });
+    });
+  });
+
+  it('the create whitelist matches DisbursementCreateInput in libs/domain', () => {
+    const rules = readFileSync(path.resolve(import.meta.dirname, '../firestore.rules'), 'utf8');
+    const listed = /function disbursementCreateFields\(\) \{\s*return \[([^\]]*)\]/.exec(rules)?.[1] ?? '';
+    const fields = [...listed.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]);
+    expect(fields.sort()).toEqual(Object.keys(DisbursementCreateInput.shape).sort());
+  });
+
+  it.each(ROLES)('creating one as %s follows time.record', async (role) => {
+    const create = setDoc(doc(db(env, role), `${MATTER}/disbursements/new-${role}`), newItem(uidFor(role)));
+    await (allows(role, 'time.record') ? assertSucceeds(create) : assertFails(create));
+  });
+
+  it('a create is unbilled on this matter, not yet counted, with valid values and a receipt on the matter', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const attempt = (id: string, extra: Record<string, unknown>) =>
+      assertFails(setDoc(doc(firestore, `${MATTER}/disbursements/${id}`), newItem(uid, 'matter-1', extra)));
+    await attempt('bad-org', { orgId: OTHER_ORG });
+    await attempt('bad-matter', { matterId: 'matter-2' });
+    await attempt('billed', { status: 'billed' });
+    await attempt('written-off', { status: 'written_off' });
+    await attempt('counted', { wipCountedCents: 3_420 });
+    await attempt('invoice', { invoiceId: 'invoice-1' });
+    await attempt('negative', { amountExGstCents: -1 });
+    await attempt('fraction', { amountExGstCents: 1.5 });
+    await attempt('huge', { amountExGstCents: 100_000_001 });
+    await attempt('inc-zero', { amountIncGstCents: 0 });
+    await attempt('gst', { gstCents: -1 });
+    await attempt('treatment', { gstTreatment: 'luxury' });
+    await attempt('category', { category: 'lunch' });
+    await attempt('date', { date: '01/10/2026' });
+    await attempt('description', { description: ' ' });
+    await attempt('long', { description: 'x'.repeat(501) });
+    await attempt('payee', { payee: 'x'.repeat(201) });
+    await attempt('receipt-missing', { receiptDocumentId: 'no-such-document' });
+    await attempt('preset', { presetId: '' });
+    await attempt('creator', { createdBy: uidFor('lawyer') });
+    await assertSucceeds(
+      setDoc(
+        doc(firestore, `${MATTER}/disbursements/with-receipt`),
+        newItem(uid, 'matter-1', {
+          receiptDocumentId: 'doc-1',
+          presetId: 'death-certificate',
+          amountIncGstCents: 3_420,
+        }),
+      ),
+    );
+  });
+
+  it('privileged and deleted matters: no reads or writes for those who can’t see or edit them', async () => {
+    await assertFails(getDoc(doc(db(env, 'paralegal'), `${PRIVILEGED_MATTER}/disbursements/d-1`)));
+    await assertSucceeds(getDoc(doc(db(env, 'lawyer'), `${PRIVILEGED_MATTER}/disbursements/d-1`)));
+    await assertFails(
+      setDoc(
+        doc(db(env, 'paralegal'), `${PRIVILEGED_MATTER}/disbursements/new`),
+        newItem(uidFor('paralegal'), 'matter-disb-privileged'),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(db(env, 'lawyer'), `${DELETED_MATTER}/disbursements/new`),
+        newItem(uidFor('lawyer'), 'matter-disb-deleted'),
+      ),
+    );
+  });
+
+  it('across matters, only privileged.view roles read through the group', async () => {
+    const group = (role: Role) =>
+      getDocs(query(collectionGroup(db(env, role), 'disbursements'), where('orgId', '==', ORG)));
+    await assertSucceeds(group('lawyer'));
+    await assertFails(group('paralegal'));
+  });
+
+  it('unbilled ones take whitelisted edits; status, billed and written-off ones go through callables', async () => {
+    const ITEM = `${MATTER}/disbursements/edit`;
+    const paralegal = uidFor('paralegal');
+    const reset = (extra: Record<string, unknown> = {}) =>
+      seedAdmin(env, (f) => setDoc(doc(f, ITEM), { ...seedData(specFor('disbursements')), ...extra }));
+    await reset();
+    const ref = doc(db(env, 'paralegal'), ITEM);
+    await assertSucceeds(
+      updateDoc(
+        ref,
+        stamped(
+          { amountIncGstCents: 5_500, amountExGstCents: 5_000, gstCents: 500, gstTreatment: 'taxable' },
+          paralegal,
+        ),
+      ),
+    );
+    await assertSucceeds(updateDoc(ref, stamped({ receiptDocumentId: 'doc-1' }, paralegal)));
+    await assertSucceeds(updateDoc(ref, stamped({ receiptDocumentId: null, amountIncGstCents: null }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ receiptDocumentId: 'no-such-document' }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ status: 'written_off' }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ status: 'billed' }, uidFor('owner'))));
+    await assertFails(updateDoc(ref, stamped({ wipCountedCents: 500 }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ invoiceId: 'invoice-1' }, paralegal)));
+    await assertFails(updateDoc(ref, stamped({ matterId: 'matter-2' }, paralegal)));
+    await assertSucceeds(
+      updateDoc(ref, { ...stamped({}, paralegal), deletedAt: serverTimestamp(), deletedBy: paralegal }),
+    );
+    // Billed ones are immutable (invariant 5), and written-off ones are restored through the callable.
+    for (const status of ['billed', 'written_off']) {
+      await reset({ status, ...(status === 'billed' ? { invoiceId: 'invoice-1' } : {}) });
+      await assertFails(updateDoc(doc(db(env, 'owner'), ITEM), stamped({ description: 'x' }, uidFor('owner'))));
+      await assertFails(
+        updateDoc(ref, { ...stamped({}, paralegal), deletedAt: serverTimestamp(), deletedBy: paralegal }),
+      );
+    }
+  });
+
+  it('every member reads the presets; owners and admins keep them', async () => {
+    const presets = (uid: string, extra: Record<string, unknown> = {}) => ({
+      presets: [{ id: 'courier', label: 'Courier', category: 'courier', gstTreatment: 'taxable' }],
+      createdAt: serverTimestamp(),
+      createdBy: uid,
+      updatedAt: serverTimestamp(),
+      updatedBy: uid,
+      schemaVersion: 1,
+      ...extra,
+    });
+    await assertFails(setDoc(doc(db(env, 'lawyer'), PRESETS), presets(uidFor('lawyer'))));
+    await assertFails(setDoc(doc(db(env, 'admin'), PRESETS), presets(uidFor('admin'), { extra: true })));
+    await assertFails(
+      setDoc(
+        doc(db(env, 'admin'), PRESETS),
+        presets(uidFor('admin'), { presets: Array.from({ length: 51 }, () => ({})) }),
+      ),
+    );
+    await assertSucceeds(setDoc(doc(db(env, 'admin'), PRESETS), presets(uidFor('admin'))));
+    for (const role of ROLES) await assertSucceeds(getDoc(doc(db(env, role), PRESETS)));
+    await assertFails(getDoc(doc(db(env, 'owner', OTHER_ORG), PRESETS)));
+    await assertSucceeds(updateDoc(doc(db(env, 'owner'), PRESETS), stamped({ presets: [] }, uidFor('owner'))));
+    await assertFails(updateDoc(doc(db(env, 'paralegal'), PRESETS), stamped({ presets: [] }, uidFor('paralegal'))));
+    await assertFails(updateDoc(doc(db(env, 'owner'), PRESETS), stamped({ presets: 'none' }, uidFor('owner'))));
+    await assertFails(updateDoc(doc(db(env, 'owner'), PRESETS), stamped({ createdBy: 'x' }, uidFor('owner'))));
+    // Other settings documents stay server-only.
+    await assertFails(getDoc(doc(db(env, 'owner'), `orgs/${ORG}/settings/clerk`)));
+  });
+});
+
 describe('estate register (CORE-16)', () => {
   const PRIVILEGED_MATTER = `orgs/${ORG}/matters/matter-estate-privileged`;
   const DELETED_MATTER = `orgs/${ORG}/matters/matter-estate-deleted`;
@@ -3039,5 +3218,7 @@ describe('rules coverage', () => {
     const coverage = await writeRulesCoverage();
     expect(coverage.missed).toEqual([]);
     expect(coverage.coveragePct).toBeGreaterThanOrEqual(90);
-  }, 60_000);
+    // The emulator builds the whole report twice (JSON, then HTML for the artifact), and both grow
+    // with every rule evaluation in the run: 62.8 s on CI at 1,334 tests, so a minute is too tight.
+  }, 180_000);
 });

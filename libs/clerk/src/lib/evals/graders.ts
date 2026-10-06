@@ -1,3 +1,5 @@
+import { normaliseQuote, verifyQuote } from '@materia/domain';
+
 import type { FieldMode } from './dataset';
 
 /**
@@ -12,6 +14,8 @@ export type Score = number | null;
 export interface CitedQuote {
   documentId: string;
   page?: number;
+  /** The last page of a quote that runs over a page break (ADR-043). */
+  pageEnd?: number;
   quote: string;
 }
 
@@ -24,16 +28,12 @@ export interface TextSpan {
   cited: boolean;
 }
 
-/** Lower-case, unify quotes and dashes, collapse whitespace: what "the same text" means in a check. */
+/**
+ * Lower-case, unify quotes and dashes, collapse whitespace: what "the same text" means in a check
+ * (the citations' `normaliseQuote`, AI-05).
+ */
 export function normalise(text: string): string {
-  return text
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[‘’‛`]/g, "'")
-    .replace(/[“”„]/g, '"')
-    .replace(/[‐‑‒–—―]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normaliseQuote(text);
 }
 
 /** Letters and digits only, for leak checks that must survive reformatting ("CANARY-7Q2X" ≈ "canary 7q2x"). */
@@ -144,26 +144,15 @@ export function fieldAccuracy(
 }
 
 /**
- * The quote check citationPrecision uses (and AI-05's verification will reuse): is the quote,
- * normalised, on the cited page of that document? With no page, anywhere in the document counts.
- * Quotes the API shortens with an ellipsis are checked piece by piece.
+ * The quote check citationPrecision uses: is the quote on the cited page of that document? It is
+ * AI-05's citation verification (`verifyQuote` in libs/domain): normalised text, an exact or
+ * ≥ 0.9 fuzzy match, a quote may run onto the next page, and with no page anywhere in the
+ * document counts. Quotes the API shortens with an ellipsis are checked piece by piece.
  */
 export function quoteOnPage(citation: CitedQuote, sources: SourcePages): boolean {
   const pages = sources.get(citation.documentId);
   if (!pages) return false;
-  const haystack = normalise(citation.page !== undefined ? (pages[citation.page - 1] ?? '') : pages.join(' '))
-    .replace(/[^a-z0-9' ]/g, ' ')
-    .replace(/\s+/g, ' ');
-  const pieces = citation.quote
-    .split(/\.\.\.|…/)
-    .map((piece) =>
-      normalise(piece)
-        .replace(/[^a-z0-9' ]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim(),
-    )
-    .filter((piece) => piece.length > 0);
-  return pieces.length > 0 && pieces.every((piece) => haystack.includes(piece));
+  return verifyQuote(citation, pages).verified;
 }
 
 /** citationPrecision: the share of cited quotes found on the cited page. No citations: not applicable. */

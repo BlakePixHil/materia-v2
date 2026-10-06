@@ -31,12 +31,26 @@ export async function settleAnimations(page: Page): Promise<void> {
   });
 }
 
-/** Fails the test with a readable list if axe finds any WCAG 2.2 AA violation on the page. */
+/**
+ * Fails the test with a readable list if axe finds any WCAG 2.2 AA violation on the page.
+ *
+ * The scan runs with reduced motion emulated, so the app's reduced-motion rule (libs/ui base.css)
+ * makes every animation instant. Settling first isn't enough on its own: something that appears
+ * while axe runs, such as a toast from a server write, would otherwise be measured mid fade-in
+ * (CI: color-contrast on a deadlines toast's description and action at a fraction of its opacity).
+ */
 export async function expectNoA11yViolations(page: Page, options: A11yOptions = {}): Promise<void> {
+  const reduced = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await settleAnimations(page);
   let builder = new AxeBuilder({ page }).withTags([...A11Y_TAGS]);
   for (const selector of options.exclude ?? []) builder = builder.exclude(selector);
-  const { violations } = await builder.analyze();
+  let violations;
+  try {
+    ({ violations } = await builder.analyze());
+  } finally {
+    if (!reduced) await page.emulateMedia({ reducedMotion: null });
+  }
   const summary = violations.map(
     (v) => `${v.id} (${v.impact ?? 'n/a'}): ${v.help} → ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`,
   );

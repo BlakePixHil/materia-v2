@@ -18,6 +18,8 @@ import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist/legacy
 
 import { MtButton, MtNote } from '@materia/ui';
 
+import { hasTextLayer, highlightBoxes, type HighlightBox, type PdfPageText, type PdfTextItem } from './pdf-highlight';
+
 /** Why a PDF couldn't be shown. */
 export type PdfProblem = 'encrypted' | 'corrupt' | 'failed';
 
@@ -63,6 +65,19 @@ export const PDF_PROBLEM_COPY: Readonly<Record<PdfProblem, string>> = {
   failed: 'The preview didn’t load. Check your connection and try again, or download the file.',
 };
 
+/** A passage to highlight (a citation, AI-05): its page, the page it runs to, and the quote. */
+export interface PdfHighlight {
+  page: number;
+  pageEnd?: number | undefined;
+  quote: string;
+}
+
+/** What the highlight found: drawn boxes, or why not (no text layer: a scanned page). */
+export interface PdfHighlightResult {
+  found: boolean;
+  textLayer: boolean;
+}
+
 interface PageSlot {
   number: number;
   /** CSS height of the slot before it renders (from the first page's shape). */
@@ -76,7 +91,9 @@ interface PageSlot {
  * lazily as they scroll near the viewport, so a 500-page PDF opens as fast as a short one (PDF.js
  * fetches byte ranges where the server allows it). Each page's text is in a visually hidden block
  * for screen readers. `page` scrolls to a page (citations: `?page=N`), and `pageChange` reports the
- * page in view.
+ * page in view. `highlight` (AI-05) marks a quote on its page from PDF.js's text content, across a
+ * page break when it runs on, scrolls it into view and reports the outcome (`highlighted`): a
+ * scanned page has no text layer, so the caller shows the OCR text instead.
  */
 @Component({
   selector: 'mt-pdf-viewer',
@@ -161,10 +178,22 @@ interface PageSlot {
       background: #fff;
       box-shadow: var(--shadow-card, 0 1px 2px rgb(0 0 0 / 12%));
     }
-    .page canvas {
+    /* The canvas and highlight boxes are created in code, outside the template's encapsulation. */
+    .page ::ng-deep canvas {
       display: block;
       width: 100%;
       height: auto;
+    }
+    .page ::ng-deep .mt-pdf-hl {
+      display: block;
+      position: absolute;
+      margin: 0;
+      padding: 0;
+      background: var(--amber-300);
+      opacity: 0.45;
+      mix-blend-mode: multiply;
+      border-radius: 2px;
+      pointer-events: none;
     }
   `,
 })
@@ -175,8 +204,11 @@ export class PdfViewer {
   readonly label = input.required<string>();
   /** Scroll to this page (1-based) once loaded, and whenever it changes. */
   readonly page = input<number | null>(null);
+  /** A quote to mark (citations, AI-05). */
+  readonly highlight = input<PdfHighlight | null>(null);
 
   readonly pageChange = output<number>();
+  readonly highlighted = output<PdfHighlightResult>();
   readonly loaded = output<number>();
   readonly failed = output<PdfProblem>();
 
@@ -194,6 +226,9 @@ export class PdfViewer {
   private pdf: PDFDocumentProxy | null = null;
   private observer: IntersectionObserver | null = null;
   private readonly rendered = new Set<number>();
+  /** The highlight's boxes by page, once located. */
+  private boxes = new Map<number, HighlightBox[]>();
+  private highlightId = 0;
   private loadId = 0;
 
   constructor() {
@@ -204,6 +239,10 @@ export class PdfViewer {
     effect(() => {
       const page = this.page();
       if (page && this.count()) untracked(() => this.scrollTo(page));
+    });
+    effect(() => {
+      const highlight = this.highlight();
+      if (this.count()) untracked(() => void this.locate(highlight));
     });
     inject(DestroyRef).onDestroy(() => this.close());
   }
@@ -323,6 +362,7 @@ export class PdfViewer {
       slot.style.minHeight = '';
       slot.appendChild(canvas);
       slot.dataset['rendered'] = '';
+      this.drawBoxes(slot, number);
       const text = await page.getTextContent();
       const words = text.items
         .map((item) => ('str' in item ? item.str : ''))
@@ -337,6 +377,74 @@ export class PdfViewer {
     } catch {
       this.rendered.delete(number);
     }
+  }
+
+  /**
+   * Finds the highlight's quote in the text of its page (and the next, or up to `pageEnd`), draws
+   * it on the pages already rendered (the rest draw as they render) and scrolls it into view.
+   */
+  private async locate(highlight: PdfHighlight | null): Promise<void> {
+    const id = ++this.highlightId;
+    this.boxes = new Map();
+    this.clearBoxes();
+    const pdf = this.pdf;
+    if (!highlight || !pdf) return;
+    const first = Math.min(Math.max(1, highlight.page), pdf.numPages);
+    const last = Math.min(pdf.numPages, Math.max(first + 1, highlight.pageEnd ?? first));
+    try {
+      const pages: PdfPageText[] = [];
+      for (let number = first; number <= last; number++) {
+        const page = await pdf.getPage(number);
+        const content = await page.getTextContent();
+        const viewport = page.getViewport({ scale: 1 }) as PdfPageText['viewport'];
+        const items = content.items.filter((item) => 'str' in item) as unknown as PdfTextItem[];
+        pages.push({ page: number, items, viewport });
+      }
+      if (id !== this.highlightId || pdf !== this.pdf) return;
+      const cited = pages.filter((page) => page.page <= Math.max(first, highlight.pageEnd ?? first));
+      const boxes = highlightBoxes(pages, highlight.quote);
+      for (const box of boxes ?? []) this.boxes.set(box.page, [...(this.boxes.get(box.page) ?? []), box]);
+      const scroller = this.scroller()?.nativeElement;
+      for (const number of this.boxes.keys()) {
+        const slot = scroller?.querySelector<HTMLElement>(`[data-page="${number}"][data-rendered]`);
+        if (slot) this.drawBoxes(slot, number);
+      }
+      this.highlighted.emit({ found: !!boxes, textLayer: hasTextLayer(cited) });
+      if (boxes) this.revealBox();
+    } catch {
+      if (id === this.highlightId) this.highlighted.emit({ found: false, textLayer: false });
+    }
+  }
+
+  private drawBoxes(slot: HTMLElement, number: number): void {
+    for (const old of slot.querySelectorAll('.mt-pdf-hl')) old.remove();
+    for (const box of this.boxes.get(number) ?? []) {
+      const mark = document.createElement('mark');
+      mark.className = 'mt-pdf-hl';
+      mark.dataset['highlight'] = '';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.style.left = `${box.left}%`;
+      mark.style.top = `${box.top}%`;
+      mark.style.width = `${box.width}%`;
+      mark.style.height = `${box.height}%`;
+      slot.appendChild(mark);
+    }
+  }
+
+  private clearBoxes(): void {
+    for (const mark of this.scroller()?.nativeElement.querySelectorAll('.mt-pdf-hl') ?? []) mark.remove();
+  }
+
+  /** Scrolls so the first box shows a little below the top of the pages. */
+  private revealBox(): void {
+    const scroller = this.scroller()?.nativeElement;
+    const first = [...this.boxes.values()][0]?.[0];
+    if (!scroller || !first) return;
+    const slot = scroller.querySelector<HTMLElement>(`[data-page="${first.page}"]`);
+    if (!slot) return;
+    const slotTop = slot.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    const height = slot.getBoundingClientRect().height || slot.clientHeight;
+    scroller.scrollTop += slotTop + (height * first.top) / 100 - 48;
   }
 
   private close(): void {

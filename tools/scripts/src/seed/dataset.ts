@@ -542,6 +542,59 @@ interface MatterDetailSpec {
   grossValueCents?: number;
 }
 
+/**
+ * Disbursements (BILL-04), on open matters: [days ago, description, paid to, category, GST
+ * treatment, amount in cents (fictional), entered incl. or excl. GST, status, receipt document].
+ */
+type DisbursementSpec = [
+  daysAgo: number,
+  description: string,
+  payee: string,
+  category: D.DisbursementCategory,
+  treatment: D.GstTreatment,
+  cents: number,
+  entered: 'inc' | 'ex',
+  status: D.DisbursementStatus,
+  receiptDoc?: number,
+];
+const DISBURSEMENTS: Readonly<Record<string, readonly DisbursementSpec[]>> = {
+  'm-doyle-estate': [
+    [
+      75,
+      'Death certificate',
+      'Births, Deaths and Marriages Victoria',
+      'certificate',
+      'gst_free',
+      4_250,
+      'inc',
+      'unbilled',
+      2,
+    ],
+    [
+      2,
+      'Statutory notice (s 33) advertisement',
+      'Fictional Notices Pty Ltd',
+      'advertising',
+      'taxable',
+      18_700,
+      'inc',
+      'unbilled',
+    ],
+    [10, 'Courier: original will to counsel', 'Fictional Couriers', 'courier', 'taxable', 2_750, 'inc', 'written_off'],
+  ],
+  'm-nguyen-fp': [[30, 'Title search', 'Fictional Titles Office', 'search', 'taxable', 2_000, 'ex', 'unbilled']],
+};
+
+/** A seeded disbursement's stored amounts. */
+function seedDisbursementAmounts([, , , , treatment, cents, entered]: DisbursementSpec) {
+  const amounts = domain.disbursementAmounts(
+    entered === 'inc'
+      ? { amountIncGstCents: cents, gstTreatment: treatment }
+      : { amountExGstCents: cents, gstTreatment: treatment },
+  );
+  return { ...amounts, amountIncGstCents: entered === 'inc' ? cents : null };
+}
+
 const MATTER_DETAILS: Readonly<Record<string, MatterDetailSpec>> = {
   'm-doyle-estate': { stageId: 'advertisement', willDate: -2400, grossValueCents: 1_284_500_00 },
   'm-nguyen-fp': {
@@ -574,7 +627,8 @@ const MATTER_DETAILS: Readonly<Record<string, MatterDetailSpec>> = {
 interface SuggestionSpec {
   kind: D.SuggestionKind;
   payload: Record<string, unknown>;
-  citations: { documentId: string; page?: number; quote: string }[];
+  /** Quotes of the fixture PDFs' text (AI-05 verifies them; the viewer highlights them). */
+  citations: D.CitationInput[];
   rationale: string;
   privileged?: boolean;
   /** Proposed over two weeks ago and swept: shown under "Show expired". */
@@ -587,22 +641,46 @@ const SUGGESTIONS: Readonly<Record<string, readonly SuggestionSpec[]>> = {
     {
       kind: 'task',
       payload: { title: 'Ask the bank for the date-of-death balance of the estate account', priority: 'medium' },
-      citations: [{ documentId: 'm-doyle-estate-doc-1', page: 1, quote: 'my accounts with any bank' }],
-      rationale: 'The will deals with bank accounts and the asset schedule has no balance yet.',
+      citations: [
+        {
+          kind: 'document',
+          documentId: 'm-doyle-estate-doc-1',
+          docVersion: 1,
+          page: 2,
+          quote: 'I direct that my executors pay my funeral expenses and debts from my estate.',
+        },
+      ],
+      rationale: 'The executors pay the debts from the estate and the asset schedule has no bank balance yet.',
     },
     {
       kind: 'key_fact',
       payload: { field: 'grossValue', value: 1_291_300_00 },
-      citations: [{ documentId: 'm-doyle-estate-doc-1', page: 2, quote: 'the residue of my estate' }],
+      citations: [
+        {
+          kind: 'document',
+          documentId: 'm-doyle-estate-doc-1',
+          docVersion: 1,
+          page: 1,
+          quote: 'I give my residence at 1 Example Street, Geelong to my daughter Catherine Doyle.',
+        },
+      ],
       rationale: 'The updated valuation of the residence adds $6,800.00 to the estate.',
     },
     {
       kind: 'note',
       payload: {
-        bodyMd: 'Thomas Doyle is a beneficiary under the will, so he is entitled to a copy of it.',
+        bodyMd: 'The will makes no provision for Thomas Doyle; he is named in it, so he may ask for a copy.',
         pinned: false,
       },
-      citations: [{ documentId: 'm-doyle-estate-doc-1', page: 2, quote: 'to my son Thomas' }],
+      citations: [
+        {
+          kind: 'document',
+          documentId: 'm-doyle-estate-doc-1',
+          docVersion: 1,
+          page: 1,
+          quote: 'I make no provision for my son Thomas Doyle, for reasons he understands.',
+        },
+      ],
       rationale: 'Answers the open question in the file notes.',
     },
     {
@@ -618,6 +696,56 @@ const SUGGESTIONS: Readonly<Record<string, readonly SuggestionSpec[]>> = {
       citations: [],
       rationale: 'A clearer title for the certificate.',
       expired: true,
+    },
+  ],
+};
+
+/** A seeded Clerk conversation on a matter (AI-05): a question and Clerk's cited answer. */
+interface ClerkThreadSpec {
+  id: string;
+  title: string;
+  question: string;
+  /** With `[n]` markers: `n` is the citation's position + 1. */
+  answer: string;
+  citations: D.CitationInput[];
+}
+
+const doyleWill = (page: number, quote: string): D.CitationInput => ({
+  kind: 'document',
+  documentId: 'm-doyle-estate-doc-1',
+  docVersion: 1,
+  page,
+  quote,
+});
+
+/**
+ * Clerk threads on the Doyle estate (fictional). The citations quote the will fixture; the last
+ * one is a quote verification rejected (stored with `verified: false`), so its claim reads
+ * "unverified". Shown by the Clerk panel (AI-06) once it lands.
+ */
+const CLERK_THREADS: Readonly<Record<string, readonly ClerkThreadSpec[]>> = {
+  'm-doyle-estate': [
+    {
+      id: 'm-doyle-estate-ct-1',
+      title: 'Who benefits under the will',
+      question: 'Who are the executors, and who benefits under the will?',
+      answer: [
+        'Catherine Doyle and Peter Hale are the executors.[1]',
+        'The residence at 1 Example Street goes to Catherine[2], and so does the residue.[3]',
+        'The will makes no provision for Thomas Doyle.[4]',
+        'The executors pay the funeral expenses and debts from the estate.[5]',
+        'The matter is at the advertisement stage.[6]',
+        'Thomas was given a copy of the will in 2020.[7]',
+      ].join(' '),
+      citations: [
+        doyleWill(1, 'I appoint my daughter Catherine Doyle and my friend Peter Hale to be the executors'),
+        doyleWill(1, 'I give my residence at 1 Example Street, Geelong to my daughter Catherine Doyle.'),
+        doyleWill(1, 'I give the residue of my estate to my daughter Catherine Doyle absolutely.'),
+        doyleWill(1, 'I make no provision for my son Thomas Doyle, for reasons he understands.'),
+        doyleWill(2, 'I direct that my executors pay my funeral expenses and debts from my estate.'),
+        { kind: 'record', recordRef: { collection: 'matter', id: 'm-doyle-estate' }, quote: 'Stage: Advertisement' },
+        { ...doyleWill(2, 'A copy of this will was given to Thomas in 2020.'), verified: false },
+      ],
     },
   ],
 };
@@ -915,9 +1043,18 @@ export function buildDataset(options: {
         'deadlines.ruleset.vic.v1': true,
         'estate.register': true,
         'clerk.features.suggestions': true,
+        // Disbursements and their presets (BILL-04), awaiting practitioner review (BILL-04a).
+        'billing.disbursements': true,
       },
     }),
   );
+
+  // The starting disbursement presets (BILL-04), as an admin's first save writes them.
+  add(`orgs/${org}/settings/${domain.DISBURSEMENT_PRESETS_DOC}`, {
+    ...meta,
+    schemaVersion: 1,
+    presets: domain.DEFAULT_DISBURSEMENT_PRESETS.map((preset) => ({ ...preset })),
+  });
 
   for (const account of SEED_ACCOUNTS) {
     const member = MEMBERS[account.uid] as (typeof MEMBERS)[string];
@@ -1227,6 +1364,10 @@ export function buildDataset(options: {
         openTaskCount: openTasks.length + openTemplateTasks + engine.tasks.length,
         recomputeVersion: spec.computeDeadlines ? 1 : 0,
         wipCents: wip as D.Cents,
+        disbursementWipCents: (DISBURSEMENTS[spec.id] ?? []).reduce(
+          (sum, item) => sum + (item[7] === 'unbilled' ? seedDisbursementAmounts(item).amountExGstCents : 0),
+          0,
+        ) as D.Cents,
         // Most recent first in the order above, a few hours apart.
         lastActivityAt: new Date(now.getTime() - index * 5 * HOUR),
         closedAt: closed ? new Date(now.getTime() - 30 * 86_400_000) : undefined,
@@ -1419,6 +1560,31 @@ export function buildDataset(options: {
       files.push({ storagePath, fixture });
     });
 
+    (DISBURSEMENTS[spec.id] ?? []).forEach((item, i) => {
+      const [daysAgo, description, payee, category, gstTreatment, , , status, receiptDoc] = item;
+      const amounts = seedDisbursementAmounts(item);
+      add(
+        `${base}/disbursements/${spec.id}-db-${i + 1}`,
+        F.makeDisbursement({
+          ...meta,
+          orgId: org,
+          matterId: spec.id,
+          date: rel(-daysAgo),
+          description,
+          payee,
+          category,
+          gstTreatment,
+          amountExGstCents: amounts.amountExGstCents as D.Cents,
+          gstCents: amounts.gstCents as D.Cents,
+          amountIncGstCents: amounts.amountIncGstCents as D.Cents | null,
+          receiptDocumentId: receiptDoc ? `${spec.id}-doc-${receiptDoc}` : null,
+          status,
+          // Counted into the matter's disbursementWipCents above, so disbursements-onWrite doesn't count it again.
+          wipCountedCents: (status === 'unbilled' ? amounts.amountExGstCents : 0) as D.Cents,
+        }),
+      );
+    });
+
     // Clerk suggestions (AI-07), stored as proposeSuggestions writes them: the basis is the one the
     // server computes from this matter and its documents, so accepting one applies it.
     for (const [i, proposal] of (SUGGESTIONS[spec.id] ?? []).entries()) {
@@ -1452,6 +1618,55 @@ export function buildDataset(options: {
       );
     }
   });
+
+  // Clerk threads (AI-05): a question and Clerk's cited answer, stored as the gateway writes them.
+  for (const [matterId, threads] of Object.entries(CLERK_THREADS)) {
+    if (!matters.some((m) => m.id === matterId)) continue;
+    for (const [i, thread] of threads.entries()) {
+      const at = (minutes: number) => new Date(now.getTime() - (threads.length - i) * 86_400_000 + minutes * 60_000);
+      const threadPath = `orgs/${org}/clerkThreads/${thread.id}`;
+      add(
+        threadPath,
+        F.makeClerkThread({
+          ...meta,
+          title: thread.title,
+          ownerUid: PRIYA,
+          matterId,
+          shared: false,
+          lastMessageAt: at(1),
+        } as Partial<D.ClerkThread>),
+      );
+      add(
+        `${threadPath}/messages/${thread.id}-m-1`,
+        F.makeClerkMessage({
+          ...meta,
+          createdAt: at(0),
+          updatedAt: at(0),
+          role: 'user',
+          content: [{ type: 'text', text: thread.question }],
+          status: 'done',
+        } as Partial<D.ClerkMessage>),
+      );
+      add(
+        `${threadPath}/messages/${thread.id}-m-2`,
+        F.makeClerkMessage({
+          ...meta,
+          createdAt: at(1),
+          updatedAt: at(1),
+          createdBy: 'clerk',
+          updatedBy: 'clerk',
+          role: 'assistant',
+          content: [{ type: 'text', text: thread.answer }],
+          citations: thread.citations,
+          status: 'done',
+          promptId: 'chat-answer@1.0.0',
+          model: 'claude-sonnet-5-5',
+          privileged: false,
+          usage: { inputTokens: 2400, outputTokens: 120, cacheReadTokens: 0, cacheWriteTokens: 0 },
+        } as Partial<D.ClerkMessage>),
+      );
+    }
+  }
 
   // The will safe custody register (CORE-17): held, out, released, and a deceased testator's will.
   if (scenario !== 'minimal') {

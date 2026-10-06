@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import { FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, table, uniqueOrg } from '../support/matters';
 
@@ -39,7 +39,7 @@ test.describe('matters under load', () => {
 
     // Warm-up visit (loads the route's code once, as a returning user would have it cached).
     await page.goto('/matters');
-    await expect(table(page).locator('tbody tr[data-index]').first()).toBeVisible();
+    await expect(table(page).locator('tbody tr[data-index]').first()).toBeVisible(FIRST_LOAD);
     await page.goto('/today');
     await expect(page).toHaveURL(/\/today$/);
 
