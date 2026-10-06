@@ -49,8 +49,8 @@ function meterValues(entry: MeterEntry): Record<string, FieldValue> {
  * - the per-user window in `orgs/{orgId}/counters/clerk-rate-{uid}` (server-only);
  * - metering in `orgs/{orgId}/metrics/clerk-{YYYY-MM}` (totals, `feature.<f>.*`, `user.<uid>.*`,
  *   and `citation_verified`/`citation_unverified` from AI-05's verification);
- * - streamed replies in `clerkThreads/{t}/messages/{m}`, with the verbatim assistant turn in the
- *   server-only `messages/{m}/private/raw` for replay.
+ * - streamed replies in `clerkThreads/{t}/messages/{m}`, with the verbatim assistant turn (and the
+ *   whole exchange, AI-06) in the server-only `messages/{m}/private/raw` for replay.
  */
 export function firestoreClerkStore(db: Firestore, now: () => number = Date.now): ClerkStore {
   return {
@@ -92,27 +92,42 @@ export function firestoreClerkStore(db: Firestore, now: () => number = Date.now)
       if (!(await thread.get()).exists) throw new DomainError('NOT_FOUND', 'Clerk thread not found');
       const ref = thread.collection('messages').doc(messageId);
       const at = new Date(now());
-      try {
-        await ref.create({
-          role: 'assistant',
-          content: [{ type: 'text', text: '' }],
-          citations: [],
-          status: 'streaming',
-          stopRequested: false,
-          toolCalls: [],
-          promptId: init.promptRef,
-          ...(init.manifest ? { manifest: init.manifest, privileged: init.manifest.privileged } : {}),
-          createdAt: at,
-          createdBy: init.uid,
-          updatedAt: at,
-          updatedBy: init.uid,
-          schemaVersion: 1,
-          _requestId: init.requestId,
+      const opened = {
+        promptId: init.promptRef,
+        ...(init.manifest ? { manifest: init.manifest, privileged: init.manifest.privileged } : {}),
+      };
+      if (init.adopt) {
+        // clerk-sendMessage created it as `streaming` (AI-06); a finished one is never reopened.
+        await db.runTransaction(async (tx) => {
+          const current = await tx.get(ref);
+          if (!current.exists || current.get('status') !== 'streaming')
+            throw new DomainError('FAILED_PRECONDITION', 'That Clerk message is not waiting for a reply');
+          tx.update(ref, { ...opened, updatedAt: at });
         });
-      } catch (error) {
-        if ((error as { code?: number }).code === 6)
-          throw new DomainError('ALREADY_EXISTS', 'That Clerk message already exists');
-        throw error;
+      } else {
+        try {
+          await ref.create({
+            role: 'assistant',
+            content: [{ type: 'text', text: '' }],
+            citations: [],
+            status: 'streaming',
+            stopRequested: false,
+            toolCalls: [],
+            suggestionIds: [],
+            privileged: false,
+            ...opened,
+            createdAt: at,
+            createdBy: init.uid,
+            updatedAt: at,
+            updatedBy: init.uid,
+            schemaVersion: 1,
+            _requestId: init.requestId,
+          });
+        } catch (error) {
+          if ((error as { code?: number }).code === 6)
+            throw new DomainError('ALREADY_EXISTS', 'That Clerk message already exists');
+          throw error;
+        }
       }
 
       let latest = '';
@@ -147,6 +162,10 @@ export function firestoreClerkStore(db: Firestore, now: () => number = Date.now)
           stopListeners.push(listener);
           if (stopped) listener();
         },
+        tools(calls) {
+          const toolCalls = calls.map((call) => ({ ...call }));
+          chain = chain.then(() => ref.update({ toolCalls })).catch(() => undefined);
+        },
         async finish(final: FinalMessage) {
           await chain;
           const done = new Date(now());
@@ -164,7 +183,12 @@ export function firestoreClerkStore(db: Firestore, now: () => number = Date.now)
           await ref
             .collection('private')
             .doc('raw')
-            .set({ model: final.model, contentJson: JSON.stringify(final.raw), createdAt: done });
+            .set({
+              model: final.model,
+              contentJson: JSON.stringify(final.raw),
+              ...(final.exchange ? { exchangeJson: JSON.stringify(final.exchange) } : {}),
+              createdAt: done,
+            });
           await thread.update({ lastMessageAt: done });
         },
         close() {

@@ -718,7 +718,7 @@ const doyleWill = (page: number, quote: string): D.CitationInput => ({
 /**
  * Clerk threads on the Doyle estate (fictional). The citations quote the will fixture; the last
  * one is a quote verification rejected (stored with `verified: false`), so its claim reads
- * "unverified". Shown by the Clerk panel (AI-06) once it lands.
+ * "unverified". Listed in the Clerk panel (AI-06) on the matter, for its owner.
  */
 const CLERK_THREADS: Readonly<Record<string, readonly ClerkThreadSpec[]>> = {
   'm-doyle-estate': [
@@ -1483,6 +1483,7 @@ export function buildDataset(options: {
           updatedBy: 'clerk',
           role: 'assistant',
           content: [{ type: 'text', text: thread.answer }],
+          replyTo: `${thread.id}-m-1`,
           citations: thread.citations,
           status: 'done',
           promptId: 'chat-answer@1.0.0',

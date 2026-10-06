@@ -21,6 +21,8 @@ import { MtKbd } from '../kbd/kbd';
 export interface ComposerCommand {
   name: string;
   description: string;
+  /** Listed but can't be picked yet (a command that is "coming soon"). */
+  disabled?: boolean;
 }
 
 /** Tallest the input grows before it scrolls. */
@@ -39,8 +41,9 @@ export function matchCommands(value: string, commands: readonly ComposerCommand[
 /**
  * Composer (`mt-composer`): where people ask Clerk. Shows the scope ("Asking about WE-142"), grows with
  * its text, and sends with ⌘↵ (Ctrl+Enter); while Clerk is answering, Send becomes Stop and Escape stops.
- * Typing `/` lists the commands; ↑/↓ choose and Enter or Tab inserts one. `attach` is emitted by the
- * paperclip; the feature opens the file picker.
+ * Typing `/` lists the commands; ↑/↓ choose and Enter or Tab inserts one (a `disabled` command is
+ * listed, dimmed, and can't be inserted). `attach` is emitted by the paperclip; the feature opens the
+ * file picker.
  */
 @Component({
   selector: 'mt-composer',
@@ -48,6 +51,15 @@ export function matchCommands(value: string, commands: readonly ComposerCommand[
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../generated/components/composer.css', '../../generated/components/send.css'],
   imports: [MtIcon, MtIconButton, MtKbd],
+  styles: `
+    .mt-composer-commands li[data-disabled] {
+      cursor: default;
+      color: var(--text-tertiary);
+    }
+    .mt-composer-commands li[data-disabled] .name {
+      color: var(--text-tertiary);
+    }
+  `,
   host: {
     class: 'mt-composer',
     '[attr.data-focus]': 'focused() ? "" : null',
@@ -82,7 +94,9 @@ export function matchCommands(value: string, commands: readonly ComposerCommand[
             role="option"
             [id]="id + '-command-' + $index"
             [attr.aria-selected]="$index === activeHint()"
+            [attr.aria-disabled]="command.disabled ? 'true' : null"
             [attr.data-active]="$index === activeHint() ? '' : null"
+            [attr.data-disabled]="command.disabled ? '' : null"
             (mousedown)="$event.preventDefault(); pick(command)"
           >
             <span class="name">/{{ command.name }}</span
@@ -203,6 +217,7 @@ export class MtComposer {
   }
 
   protected pick(command: ComposerCommand): void {
+    if (command.disabled) return;
     this.value.set(`/${command.name} `);
     this.activeHint.set(0);
     this.focus();

@@ -1,5 +1,7 @@
-import type { ClerkCitation, ClerkUsage } from '@materia/clerk';
+import type { CitedChunk, CitedDocument, ClerkCitation, ClerkUsage } from '@materia/clerk';
 import type { ClerkModelChoice, ContextManifest } from '@materia/domain';
+
+import type { ClerkContentBlock, ClerkTurn } from '../ports';
 
 /** The org's Clerk settings (`orgs/{orgId}.settings.clerk`). */
 export interface OrgClerkSettings {
@@ -12,6 +14,25 @@ export interface OrgClerkSettings {
 
 export type ClerkMessageStatus = 'done' | 'error' | 'stopped' | 'refused' | 'truncated' | 'invalid_output';
 
+/** The documents and passages of an exchange, in request order (the API numbers each kind so). */
+export interface ExchangeSources {
+  documents: CitedDocument[];
+  searchResults: CitedChunk[];
+}
+
+/**
+ * One question and its answer as the model saw them (AI-06): the user turn as sent (without cache
+ * markers), then every assistant turn and tool-result turn, verbatim. A later question in the
+ * thread replays it unchanged (preserved thinking); it is never edited.
+ */
+export interface StoredExchange {
+  user: ClerkContentBlock[];
+  turns: ClerkTurn[];
+  sources: ExchangeSources;
+  /** The model that answered: thinking blocks only replay to the same model. */
+  model: string;
+}
+
 export interface FinalMessage {
   status: ClerkMessageStatus;
   text: string;
@@ -21,6 +42,15 @@ export interface FinalMessage {
   fallbackUsed: boolean;
   /** The assistant turn verbatim (stored server-side for replay; never shown or edited). */
   raw: readonly unknown[];
+  /** The whole exchange, for a conversation's later turns (AI-06). */
+  exchange?: StoredExchange;
+}
+
+/** A tool Clerk ran while answering, shown as the working step (AI-06). */
+export interface ToolCallState {
+  id: string;
+  name: string;
+  status: 'running' | 'done' | 'error';
 }
 
 /** Where a streamed reply goes: `clerkThreads/{t}/messages/{m}`. */
@@ -29,6 +59,8 @@ export interface MessageSink {
   write(text: string): void;
   /** Called once when the thread owner sets `stopRequested`. */
   onStop(listener: () => void): void;
+  /** The tools run so far and their state. */
+  tools(calls: readonly ToolCallState[]): void;
   finish(final: FinalMessage): Promise<void>;
   close(): void;
 }
@@ -56,7 +88,7 @@ export interface ClerkStore {
   /** Tokens metered so far in a `clerk-YYYY-MM` period. */
   periodTokens(orgId: string, period: string): Promise<number>;
   meter(orgId: string, period: string, entry: MeterEntry, at: Date): Promise<void>;
-  /** Creates the assistant message (never overwrites one: history is append-only). */
+  /** Creates (or adopts) the assistant message (never overwrites a finished one: history is append-only). */
   openMessage(
     orgId: string,
     target: { threadId: string; messageId: string },
@@ -66,6 +98,11 @@ export interface ClerkStore {
       requestId: string;
       /** What Clerk was shown (AI-03); stored for audit, and its `privileged` marks the message. */
       manifest?: ContextManifest;
+      /**
+       * Take over a message `clerk-sendMessage` already created as `streaming` (AI-06), instead of
+       * creating it. Anything else (missing, finished) is refused.
+       */
+      adopt?: boolean;
     },
   ): Promise<MessageSink>;
 }
