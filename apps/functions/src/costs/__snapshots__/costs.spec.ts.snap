@@ -1,0 +1,40 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`costs-generateDisclosure > merges the full disclosure for the band, files it under correspondence and keeps its id 1`] = `
+"Costs disclosure
+Illustrative placeholder only. Replace this template with your firm’s own costs disclosure, reviewed by a practitioner, before it is given to a client.
+Client: Catherine Doyle
+Matter: HV-2026-0001  Estate of Margaret Doyle
+Date: 6 October 2026
+How we will charge
+Fee arrangement: Fixed fee
+Fixed fee: $4,400.00
+Estimate of total legal costs
+Our estimate of your total legal costs is the fixed fee of $4,400.00, plus any disbursements.
+We will tell you in writing if this estimate changes significantly.
+Your rights
+[Your firm’s statement of the client’s rights goes here.]
+
+Jordan Price
+Senior Associate
+Harbour & Vine Legal"
+`;
+
+exports[`costs-generateDisclosure > uses the short form below $3,000 1`] = `
+"Costs disclosure (short form)
+Illustrative placeholder only. Replace this template with your firm’s own costs disclosure, reviewed by a practitioner, before it is given to a client.
+Client: Catherine Doyle
+Matter: HV-2026-0001  Estate of Margaret Doyle
+Date: 6 October 2026
+Your total legal costs are not likely to be more than the amount the Uniform General Rules set for this form, so we can give you this short form instead of a full costs disclosure.
+Our estimate
+Our estimate of your total legal costs is the fixed fee of $2,000.00, plus any disbursements.
+Fee arrangement: Fixed fee
+Disbursements (such as court fees and searches) and GST are charged as well.
+Your rights
+[The uniform standard disclosure form’s statement of your rights goes here.]
+
+Jordan Price
+Senior Associate
+Harbour & Vine Legal"
+`;

@@ -52,8 +52,15 @@ describe('kinds and system templates', () => {
     expect(docTemplateTags('letter')).toEqual([]);
   });
 
-  it('ships a letterhead and three samples', () => {
-    expect(SYSTEM_DOC_TEMPLATES.map((t) => t.kind)).toEqual(['letterhead', 'letter', 'file_note', 'costs_disclosure']);
+  it('ships a letterhead, two samples and the two costs disclosure forms', () => {
+    expect(SYSTEM_DOC_TEMPLATES.map((t) => t.kind)).toEqual([
+      'letterhead',
+      'letter',
+      'file_note',
+      'costs_disclosure',
+      'costs_disclosure',
+    ]);
+    expect(systemDocTemplate('system-costs-disclosure-short')?.name).toContain('short form');
     expect(isSystemDocTemplateId('system-letter')).toBe(true);
     expect(isSystemDocTemplateId('dt-1')).toBe(false);
     expect(systemDocTemplate('system-file-note')?.name).toBe('File note');
@@ -473,9 +480,10 @@ describe('offeredDocTemplates', () => {
       'system-letterhead',
       'system-file-note',
       'system-costs-disclosure',
+      'system-costs-disclosure-short',
     ]);
     expect(
       offeredDocTemplates([t('dt-will', { matterTypes: ['will'], replaces: 'system-letter' })], 'probate').system,
-    ).toHaveLength(4);
+    ).toHaveLength(5);
   });
 });

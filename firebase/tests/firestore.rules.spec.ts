@@ -1046,6 +1046,9 @@ describe('matters (CORE-03)', () => {
       { stageId: 'grant_issued' },
       { title: 'Allowed', stageId: 'grant_issued' },
       { title: 'Allowed', status: 'archived' },
+      // The costs disclosure moves through the costs-* callables and fees-update (BILL-06).
+      { costsDisclosure: { status: 'waived', history: [] } },
+      { title: 'Allowed', costsDisclosure: { status: 'sent', sentOn: '2026-10-06', history: [] } },
     ]) {
       await assertFails(updateDoc(ref, stamped(change, uid)));
     }

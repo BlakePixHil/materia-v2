@@ -154,6 +154,36 @@ const signatureBlock = () => [tight('{lawyer.fullName}'), tight('{lawyer.title}'
 /** The signature block every letter ends with. */
 const signature = (closing: string) => [p({ keepNext: true, runs: [closing] }), blank(), blank(), ...signatureBlock()];
 
+/** The costs disclosures' warning that they are placeholders, not reviewed wording. */
+const PLACEHOLDER_NOTE = [
+  p({
+    runs: [
+      {
+        text: 'Illustrative placeholder only. Replace this template with your firm’s own costs disclosure, reviewed by a practitioner, before it is given to a client.',
+        italic: true,
+        highlight: true,
+      },
+    ],
+  }),
+];
+
+/** On an updated disclosure (BILL-06): what it updates. Dropped entirely on a first disclosure. */
+const UPDATED_NOTE = when(
+  'disclosure.updated',
+  p({ runs: [{ text: 'Updated costs disclosure', bold: true }] }),
+  p(
+    'This updates the costs disclosure we gave you earlier.{#disclosure.previousEstimate} We previously estimated your total legal costs at {disclosure.previousEstimate}.{/disclosure.previousEstimate}',
+  ),
+);
+
+// A range, else a single estimate, else the fixed fee; with none of them the estimate shows as missing.
+const ESTIMATE = p(
+  '{#fee.estimateHigh}Our current estimate is {fee.estimateLow} to {fee.estimateHigh}.{/fee.estimateHigh}' +
+    '{^fee.estimateHigh}{#fee.estimate}Our current estimate is {fee.estimate}.{/fee.estimate}' +
+    '{^fee.estimate}{#fee.amount}Our estimate of your total legal costs is the fixed fee of {fee.amount}, plus any disbursements.{/fee.amount}' +
+    '{^fee.amount}Our current estimate is {fee.estimate}.{/fee.amount}{/fee.estimate}{/fee.estimateHigh}',
+);
+
 const BODIES: Record<string, () => string[]> = {
   'system-letterhead': () => [
     p('{today}'),
@@ -196,15 +226,8 @@ const BODIES: Record<string, () => string[]> = {
   ],
   'system-costs-disclosure': () => [
     p({ style: 'Title', runs: ['Costs disclosure'] }),
-    p({
-      runs: [
-        {
-          text: 'Illustrative placeholder only. Replace this template with your firm’s own costs disclosure, reviewed by a practitioner, before it is given to a client.',
-          italic: true,
-          highlight: true,
-        },
-      ],
-    }),
+    ...PLACEHOLDER_NOTE,
+    ...UPDATED_NOTE,
     label('Client', '{client.fullName}'),
     label('Matter', '{matter.number}  {matter.title}'),
     label('Date', '{today}'),
@@ -214,16 +237,33 @@ const BODIES: Record<string, () => string[]> = {
     ...when('fee.cap', label('Fee cap', '{fee.cap}')),
     ...when('fee.hourlyRate', label('Hourly rate', '{fee.hourlyRate}')),
     p({ style: 'Heading1', runs: ['Estimate of total legal costs'] }),
-    // A range, else a single estimate, else the fixed fee; with none of them the estimate shows as missing.
-    p(
-      '{#fee.estimateHigh}Our current estimate is {fee.estimateLow} to {fee.estimateHigh}.{/fee.estimateHigh}' +
-        '{^fee.estimateHigh}{#fee.estimate}Our current estimate is {fee.estimate}.{/fee.estimate}' +
-        '{^fee.estimate}{#fee.amount}Our estimate of your total legal costs is the fixed fee of {fee.amount}, plus any disbursements.{/fee.amount}' +
-        '{^fee.amount}Our current estimate is {fee.estimate}.{/fee.amount}{/fee.estimate}{/fee.estimateHigh}',
-    ),
+    ESTIMATE,
     p('We will tell you in writing if this estimate changes significantly.'),
     p({ style: 'Heading1', runs: ['Your rights'] }),
     p({ runs: [{ text: '[Your firm’s statement of the client’s rights goes here.]', highlight: true }] }),
+    blank(),
+    ...signatureBlock(),
+  ],
+  // BILL-06: matters whose estimate allows the uniform standard disclosure form.
+  'system-costs-disclosure-short': () => [
+    p({ style: 'Title', runs: ['Costs disclosure (short form)'] }),
+    ...PLACEHOLDER_NOTE,
+    ...UPDATED_NOTE,
+    label('Client', '{client.fullName}'),
+    label('Matter', '{matter.number}  {matter.title}'),
+    label('Date', '{today}'),
+    p(
+      'Your total legal costs are not likely to be more than the amount the Uniform General Rules set for this form, so we can give you this short form instead of a full costs disclosure.',
+    ),
+    p({ style: 'Heading1', runs: ['Our estimate'] }),
+    ESTIMATE,
+    label('Fee arrangement', '{fee.arrangement}'),
+    ...when('fee.hourlyRate', label('Hourly rate', '{fee.hourlyRate}')),
+    p('Disbursements (such as court fees and searches) and GST are charged as well.'),
+    p({ style: 'Heading1', runs: ['Your rights'] }),
+    p({
+      runs: [{ text: '[The uniform standard disclosure form’s statement of your rights goes here.]', highlight: true }],
+    }),
     blank(),
     ...signatureBlock(),
   ],

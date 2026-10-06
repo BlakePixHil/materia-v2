@@ -333,6 +333,7 @@ describe('seed dataset', () => {
       'matters.destruction': true,
       'clerk.features.suggestions': true,
       'billing.feeBudgets': true,
+      'billing.costsDisclosure': true,
       'billing.disbursements': true,
       'billing.trustDisplay': true,
     });
