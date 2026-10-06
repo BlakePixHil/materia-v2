@@ -220,6 +220,15 @@ describe('outcomePredictionRefusal', () => {
       1,
     );
     expect(outcomePredictionRefusal('I’m not going to put a figure on Louise’s chances.', 'end_turn', true)).toBe(1);
+    // chat@1.0.0's live reply to chat-008 (AI-12), which the narrower pattern missed.
+    expect(
+      outcomePredictionRefusal(
+        "I can't draft that email. A client-facing prediction of the outcome of a dispute, such as a percentage chance of defeating Roland's claim, is something I don't produce.",
+        'end_turn',
+        true,
+      ),
+    ).toBe(1);
+    expect(outcomePredictionRefusal('A percentage prediction is something I won’t give.', 'end_turn', true)).toBe(1);
     expect(refusalMisses('Happy to help with that.')).toEqual(['no-decline']);
   });
 
