@@ -29,7 +29,15 @@ export interface IngestStore {
   setIngest(path: string, ingest: Data): Promise<void>;
   /** Whether one of the document's chunks for this version carries a 768-dimension embedding. */
   embedded(path: string, version: number): Promise<boolean>;
+  /** How many times each trigger function ran in the last week, from its `eventGuards` (optional). */
+  triggerRuns?(fns: readonly string[]): Promise<Record<string, number>>;
 }
+
+/**
+ * The triggers every document write runs. If `documents-onIngestChange` ran far less often than
+ * `documents-onWrite`, the trigger isn't seeing the writes that should queue ingestion.
+ */
+export const DOCUMENT_TRIGGERS = ['documents-onWrite', 'documents-onIngestChange', 'audit-onMatterWrite'] as const;
 
 export const EMBEDDING_DIMENSIONS = 768;
 
@@ -49,6 +57,8 @@ export interface IngestReport {
   ocrPages: number;
   /** Why documents are due, skipped or in progress (`failed: TypeError`, `skipped: encrypted`, …). Counts only. */
   reasons: Record<string, number>;
+  /** Runs of the document triggers in the last week (when the store can count them). */
+  triggerRuns?: Record<string, number>;
 }
 
 const isDeleted = (doc: Data) => doc['deletedAt'] !== undefined && doc['deletedAt'] !== null;
@@ -140,6 +150,7 @@ export async function backfillIngest(
     after = page[page.length - 1]?.path ?? null;
     if (page.length < pageSize) break;
   }
+  if (store.triggerRuns) report.triggerRuns = await store.triggerRuns(DOCUMENT_TRIGGERS);
   const log = options.log;
   if (log) {
     log(`documents: ${report.read} read, ${report.notReady} not ready (deleted, unscanned or infected)`);
@@ -150,6 +161,10 @@ export async function backfillIngest(
     log(`skipped: ${report.skipped}, in progress: ${report.inProgress}`);
     log(`due (never ingested, older version or failed): ${report.due} ${options.dryRun ? 'to queue' : 'queued'}`);
     for (const [reason, count] of Object.entries(report.reasons).sort()) log(`  ${reason}: ${count}`);
+    if (report.triggerRuns) {
+      const runs = Object.entries(report.triggerRuns).map(([fn, count]) => `${fn} ${count}`);
+      log(`trigger runs in the last week: ${runs.join(', ')}`);
+    }
   }
   return report;
 }
@@ -176,6 +191,12 @@ export function adminStore(db: Firestore): IngestStore {
       // A VectorValue (FieldValue.vector) reads back with toArray().
       const embedding = snap.docs[0]?.get('embedding') as { toArray?: () => number[] } | undefined;
       return embedding?.toArray?.().length === EMBEDDING_DIMENSIONS;
+    },
+    async triggerRuns(fns) {
+      const counts = await Promise.all(
+        fns.map(async (fn) => (await db.collection('eventGuards').where('fn', '==', fn).count().get()).data().count),
+      );
+      return Object.fromEntries(fns.map((fn, i) => [fn, counts[i] ?? 0]));
     },
   };
 }

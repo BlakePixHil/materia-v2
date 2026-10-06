@@ -113,6 +113,14 @@ async function storedEntries(request: APIRequestContext, orgId: string) {
   return new Map((body.documents ?? []).map((doc) => [String(doc.fields['narrative']?.['stringValue']), doc.fields]));
 }
 
+/**
+ * Entries are written in the background (offline-first), so a full page load straight after one can
+ * drop the write still in flight. Waits until the matter has `count` stored entries.
+ */
+async function expectStored(request: APIRequestContext, orgId: string, count: number): Promise<void> {
+  await expect.poll(async () => (await storedEntries(request, orgId)).size, { timeout: 20_000 }).toBe(count);
+}
+
 async function wip(request: APIRequestContext, orgId: string): Promise<unknown> {
   const response = await request.get(
     `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/orgs/${orgId}/matters/m-quill`,
@@ -130,6 +138,7 @@ test.describe('time entries', () => {
     test.skip(isMobile, 'The t shortcut and ⌘K are desktop features');
     test.setTimeout(120_000);
     const { orgId } = await setUp(page, request);
+    const seeded = (await storedEntries(request, orgId)).size;
     await expectNoA11yViolations(page);
 
     // 1. The Time tab's add row: `t` focuses the duration; 0.25 is 15 minutes, 3 units.
@@ -151,6 +160,7 @@ test.describe('time entries', () => {
     await page.keyboard.press('Enter');
     await expect(rows(page)).toHaveCount(2);
     await expect(page.locator('mt-matter-time .day').first()).toContainText('Today');
+    await expectStored(request, orgId, seeded + 1);
 
     // 2. Quick entry with `t` from another tab of the matter: the matter is picked already.
     await page.goto('/matters/m-quill/overview');
@@ -166,6 +176,7 @@ test.describe('time entries', () => {
     await page.keyboard.type('Letter to beneficiaries');
     await page.keyboard.press('Enter');
     await expect(dialog).toHaveCount(0);
+    await expectStored(request, orgId, seeded + 2);
 
     // 3. ⌘K "Log time" from the Matters list: pick the matter (recent first), then the time.
     await page.goto('/matters');

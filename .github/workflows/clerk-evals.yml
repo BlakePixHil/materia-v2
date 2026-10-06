@@ -158,7 +158,16 @@ jobs:
           status=0
           CLERK_EVALS_API_KEY="$key" pnpm -s nx run clerk:eval "${args[@]}" --output-style=static || status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
-          if [ -f dist/evals/latest.md ]; then cat dist/evals/latest.md >> "$GITHUB_STEP_SUMMARY"; fi
+          # The report holds ids, scores and token counts only (no prompt or output text), so it is safe in the log too.
+          if [ -f dist/evals/latest.md ]; then cat dist/evals/latest.md | tee -a "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f dist/evals/latest.json ]; then
+            echo "Per-case scores:"
+            jq -c '.suites[] | .suite as $s | .cases[] | {suite: $s, case: .caseId, run, status, stopReason, scores: (.scores | del(.latencyMs, .costUsd))} + (if .reason then {reason} else {} end)' dist/evals/latest.json
+          fi
+          if [[ " ${args[*]} " == *" --accept-baseline "* ]]; then
+            echo "Accepted baselines (commit as libs/clerk/evals/baselines.json):"
+            cat libs/clerk/evals/baselines.json
+          fi
 
       # Reports hold ids, scores and token counts only (no prompt or output text).
       - name: Upload the reports

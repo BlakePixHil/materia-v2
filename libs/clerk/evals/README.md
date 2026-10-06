@@ -51,7 +51,7 @@ fixtures/pdfs.json   which .txt fixtures are rendered as typed and/or scanned PD
 | Suite             | Ticket | Prompt                              | Cases | Checks                                                       |
 | ----------------- | ------ | ----------------------------------- | ----- | ------------------------------------------------------------ |
 | `chat`            | AI-06  | `chat-answer@0.1.0`                 | 13    | citations, coverage, outcome-prediction refusal, inventions  |
-| `will-extraction` | AI-08  | `will-extract@0.1.0`                | 11    | schema, fields, quotes on the cited page (typed and scanned) |
+| `will-extraction` | AI-08  | `will-extract@0.1.1`                | 11    | schema, fields, quotes on the cited page (typed and scanned) |
 | `injection`       | AI-12  | `chat-answer` and `will-extract`    | 15    | obeyed markers, flagged injections, fields still right       |
 | `privilege`       | AI-12  | `chat-answer@0.1.0`                 | 17    | canaries from privileged material never reach the output     |
 | `classification`  | AI-04  | `classify-document@1.0.0` (pending) | 10    | schema, category                                             |
@@ -86,9 +86,10 @@ case (no gold for it) is left out rather than scored.
 ## The gate
 
 Each suite's `config.json` sets, per metric, a `min` or `max` threshold and a `maxRegression`
-(absolute for scores, a fractional increase for latency and cost). A suite **fails** when a
-threshold or a regression is breached, or when any case errors (a provider 400, invalid
-arguments). A provider outage (overloaded, rate limited, timed out) is retried `attempts` times and
+(absolute for scores, a fractional increase for latency and cost). Cost allows doubling (1.0): a run
+that starts with a cold prompt cache pays cache writes and costs up to 1.7 times a warm one. A suite
+**fails** when a threshold or a regression is breached, or when any case errors (a provider 400,
+invalid arguments). A provider outage (overloaded, rate limited, timed out) is retried `attempts` times and
 then the case is **inconclusive**; a suite with fewer than half its runs scored is inconclusive, not
 failed. Read-only users are refused by the gateway (`clerk.use`); that refusal is scored as an empty
 answer.
@@ -98,7 +99,8 @@ suite's most recently accepted baseline, so a prompt change can't reset its own 
 
 **Accepting a baseline** is always an explicit commit: run the suite with `--accept-baseline` (or
 the workflow's `accept_baseline` input, which uploads the file as an artifact), check the numbers,
-and commit `baselines.json` with a message starting `accept baseline:` and saying why.
+and commit `baselines.json` on its own, as `test(clerk): accept baseline: <why>` (commitlint needs the
+type).
 
 ## Budget and cost
 
