@@ -3,11 +3,15 @@ import * as z from 'zod';
 
 import {
   can,
+  CLERK_CHAT_DRAFT_TOOLS,
   CLERK_CHAT_TOOLS,
   DateOnlySchema,
   DeadlineStatusSchema,
   DocIdSchema,
+  PrioritySchema,
+  TASK_TITLE_MAX,
   TaskStatusSchema,
+  type ClerkChatDraftTool,
   type ClerkChatTool,
   type ContextManifest,
   type Role,
@@ -105,6 +109,68 @@ export const CHAT_TOOL_DEFINITIONS: ClerkToolDefinition[] = CLERK_CHAT_TOOLS.map
   inputSchema: z.toJSONSchema(INPUTS[name], { io: 'input' }) as Record<string, unknown>,
 }));
 
+/** Drafts one answer may make (AI-06b): the prompt allows three. */
+export const DRAFTS_PER_ANSWER_MAX = 3;
+/** A drafted note's length: a file note, not a document. */
+export const DRAFT_NOTE_MAX = 10_000;
+
+const DRAFT_INPUTS = {
+  draft_note: z.object({
+    text: z
+      .string()
+      .trim()
+      .min(1)
+      .max(DRAFT_NOTE_MAX)
+      .describe('The note, in the person’s own words, tidied (Markdown allowed)'),
+    pinned: z.boolean().optional().describe('Pin the note to the top of the matter’s notes, only when asked'),
+  }),
+  draft_task: z.object({
+    title: z.string().trim().min(1).max(TASK_TITLE_MAX).describe('What to do, in the person’s words'),
+    dueDate: DateOnlySchema.optional().describe('When it is due, YYYY-MM-DD, only when the person said'),
+    details: z.string().trim().max(DRAFT_NOTE_MAX).optional().describe('Anything else the person said about it'),
+    priority: PrioritySchema.optional().describe('Only when the person said how urgent it is'),
+  }),
+} satisfies Record<ClerkChatDraftTool, z.ZodType>;
+
+const DRAFT_DESCRIPTIONS: Record<ClerkChatDraftTool, string> = {
+  draft_note:
+    'Draft a file note on this matter, when the person asks you to record one. The person confirms it below your answer; nothing is saved until they do.',
+  draft_task:
+    'Draft a task on this matter, when the person asks you to add one. The person confirms it below your answer; nothing is saved until they do.',
+};
+
+/** The drafting tools as the model sees them, offered only when drafting is on. */
+export const CHAT_DRAFT_TOOL_DEFINITIONS: ClerkToolDefinition[] = CLERK_CHAT_DRAFT_TOOLS.map((name) => ({
+  name,
+  description: DRAFT_DESCRIPTIONS[name],
+  inputSchema: z.toJSONSchema(DRAFT_INPUTS[name], { io: 'input' }) as Record<string, unknown>,
+}));
+
+/** What a drafting tool asks for: one AI-07 suggestion on the open matter. */
+export type ChatDraft =
+  | { kind: 'note'; payload: { bodyMd: string; pinned: boolean } }
+  | {
+      kind: 'task';
+      payload: { title: string; dueDate?: string; descriptionMd?: string; priority?: z.infer<typeof PrioritySchema> };
+    };
+
+/** What became of a draft (`proposeSuggestions`'s outcome, AI-07). */
+export type ChatDraftOutcome =
+  | { status: 'drafted'; suggestionId: string }
+  | { status: 'duplicate' | 'exists' | 'disabled' | 'matter_unavailable' | 'invalid' };
+
+/** Creates the suggestion for a draft: `runChatMessage` passes one when drafting is on. */
+export type ChatDrafter = (draft: ChatDraft) => Promise<ChatDraftOutcome>;
+
+/** What Clerk is told for each outcome, so its answer says what really happened. */
+const DRAFT_RESULTS: Record<Exclude<ChatDraftOutcome['status'], 'drafted'>, string> = {
+  duplicate: 'The same draft already exists for this question, so it wasn’t drafted again.',
+  exists: 'This matter already has that task, so it wasn’t drafted.',
+  disabled: 'Clerk suggestions are switched off for this practice, so nothing could be drafted.',
+  matter_unavailable: 'This matter is closed or archived, so nothing can be added to it.',
+  invalid: 'That draft isn’t valid, so it wasn’t drafted.',
+};
+
 const isDeleted = (data: Data) => data['deletedAt'] !== undefined && data['deletedAt'] !== null;
 const str = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
 const statusOf = (value: unknown) => (value as { status?: unknown } | undefined)?.status;
@@ -143,23 +209,32 @@ export interface ToolUsage {
   privileged: boolean;
   chunks: ContextManifest['chunks'];
   records: ContextManifest['records'];
+  /** Whether Clerk used a drafting tool (AI-06b), whatever became of the draft. */
+  drafting: boolean;
+  /** Suggestions the drafting tools created, in order: linked from the answer. */
+  drafted: string[];
 }
 
 /**
- * The chat panel's read-only tools (AI-06): each reads only the scoped matter, under the caller's
- * org, with the same privilege rules as `buildContext` (privileged documents and passages only for
- * a role with `privileged.view`, checked in code again after the query). Nothing here writes.
+ * The chat panel's tools (AI-06): each reads only the scoped matter, under the caller's org, with
+ * the same privilege rules as `buildContext` (privileged documents and passages only for a role
+ * with `privileged.view`, checked in code again after the query). The read tools never write.
  * `usage` collects what the tools showed, for the message's manifest; `onPrivileged` fires the
  * first time a tool returns privileged material, so the answer is marked before it is written.
+ *
+ * With `draft`, the drafting tools (AI-06b) are offered too: each turns the person's request into
+ * one AI-07 suggestion through `draft` (at most three per answer), never a record, and tells Clerk
+ * what became of it.
  */
 export function createChatToolbox(
   deps: ChatToolDeps,
   scope: ChatToolScope,
-  events: { onPrivileged?: () => Promise<void> } = {},
+  events: { onPrivileged?: () => Promise<void>; draft?: ChatDrafter } = {},
 ): ClerkToolbox & { usage: ToolUsage } {
   const { orgId, matterId } = scope;
   const allowPrivileged = can(scope.role, 'privileged.view');
-  const usage: ToolUsage = { privileged: false, chunks: [], records: [] };
+  const usage: ToolUsage = { privileged: false, chunks: [], records: [], drafting: false, drafted: [] };
+  let drafts = 0;
   const seen = new Set<string>();
   const note = async (chunk: GatewayChunk, privileged: boolean) => {
     if (privileged && !usage.privileged) {
@@ -308,10 +383,46 @@ export function createChatToolbox(
     },
   };
 
+  const draft = async (request: ChatDraft): Promise<ClerkToolOutput> => {
+    if (!events.draft) return { text: 'Drafting isn’t available.', isError: true };
+    usage.drafting = true;
+    if (drafts >= DRAFTS_PER_ANSWER_MAX)
+      return { text: `At most ${DRAFTS_PER_ANSWER_MAX} drafts per answer: this one wasn’t drafted.`, isError: true };
+    drafts += 1;
+    const outcome = await events.draft(request);
+    if (outcome.status !== 'drafted') return { text: DRAFT_RESULTS[outcome.status], isError: true };
+    usage.drafted.push(outcome.suggestionId);
+    return {
+      text: 'Drafted. It is waiting below your answer for the person to confirm; nothing is saved until they do.',
+    };
+  };
+
+  const drafting: {
+    [K in ClerkChatDraftTool]: (input: z.output<(typeof DRAFT_INPUTS)[K]>) => Promise<ClerkToolOutput>;
+  } = {
+    draft_note: ({ text, pinned }) => draft({ kind: 'note', payload: { bodyMd: text, pinned: pinned ?? false } }),
+    draft_task: ({ title, dueDate, details, priority }) =>
+      draft({
+        kind: 'task',
+        payload: {
+          title,
+          ...(dueDate ? { dueDate } : {}),
+          ...(details ? { descriptionMd: details } : {}),
+          ...(priority ? { priority } : {}),
+        },
+      }),
+  };
+
   return {
-    definitions: CHAT_TOOL_DEFINITIONS,
+    definitions: events.draft ? [...CHAT_TOOL_DEFINITIONS, ...CHAT_DRAFT_TOOL_DEFINITIONS] : CHAT_TOOL_DEFINITIONS,
     usage,
     async run(use: ClerkToolUse): Promise<ClerkToolOutput> {
+      if (events.draft && (CLERK_CHAT_DRAFT_TOOLS as readonly string[]).includes(use.name)) {
+        const name = use.name as ClerkChatDraftTool;
+        const input = DRAFT_INPUTS[name].safeParse(use.input ?? {});
+        if (!input.success) return { text: `Invalid input: ${z.prettifyError(input.error)}`, isError: true };
+        return (drafting[name] as (input: unknown) => Promise<ClerkToolOutput>)(input.data);
+      }
       const name = use.name as ClerkChatTool;
       if (!(CLERK_CHAT_TOOLS as readonly string[]).includes(name))
         return { text: `There is no tool called ${use.name}.`, isError: true };

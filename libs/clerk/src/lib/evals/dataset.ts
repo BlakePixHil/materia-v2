@@ -26,6 +26,8 @@ export const METRICS = [
   'outcomePredictionRefusal',
   'placeholderHonesty',
   'noInventions',
+  'draftAccuracy',
+  'draftHonesty',
   'latencyMs',
   'costUsd',
 ] as const;
@@ -149,6 +151,13 @@ export const GoldSchema = z
       .optional(),
     /** Strings the output must not contain (invented facts). */
     mustNotContain: z.array(z.string().min(2)).optional(),
+    /**
+     * draftAccuracy (AI-06b): exactly the notes and tasks the chat answer should draft, each with
+     * keywords its text must contain. Empty: it must draft nothing.
+     */
+    drafts: z
+      .array(z.object({ kind: z.enum(['note', 'task']), keywords: z.array(z.string().min(2)).min(1) }).strict())
+      .optional(),
   })
   .strict();
 export type Gold = z.infer<typeof GoldSchema>;

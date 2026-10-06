@@ -1,5 +1,6 @@
 import {
   CLERK_CHAT_COMMANDS,
+  CLERK_CHAT_DRAFT_TOOLS,
   CLERK_CHAT_TOOLS,
   clerkToolLabel,
   parseClerkCommand,
@@ -27,8 +28,9 @@ describe('Clerk chat (AI-06)', () => {
   });
 
   it('labels every tool, and anything else as working', () => {
-    for (const tool of CLERK_CHAT_TOOLS) expect(clerkToolLabel(tool)).toMatch(/…$/);
+    for (const tool of [...CLERK_CHAT_TOOLS, ...CLERK_CHAT_DRAFT_TOOLS]) expect(clerkToolLabel(tool)).toMatch(/…$/);
     expect(clerkToolLabel('search_documents')).toBe('Searching documents…');
+    expect(clerkToolLabel('draft_note')).toBe('Drafting a note…');
     expect(clerkToolLabel('unknown')).toBe('Working…');
   });
 

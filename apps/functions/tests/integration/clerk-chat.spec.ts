@@ -171,7 +171,7 @@ describe('Clerk chat through the Functions emulator', () => {
     expect((await read(`orgs/${ORG}/clerkThreads/${sent.threadId}`))['ownerUid']).toBe('clerk-chat-lawyer');
 
     const answer = await settled(messagePath(sent.threadId, sent.messageId));
-    expect(answer).toMatchObject({ status: 'done', replyTo: sent.userMessageId, promptId: 'chat@1.0.0' });
+    expect(answer).toMatchObject({ status: 'done', replyTo: sent.userMessageId, promptId: 'chat@1.1.0' });
     expect(text(answer)).toBe('Let me check the matter. \n\nFake Clerk reply after checking the matter.');
     expect(answer['toolCalls']).toEqual([
       expect.objectContaining({ name: 'search_documents', status: 'done' }),

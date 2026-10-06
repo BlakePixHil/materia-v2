@@ -60,6 +60,20 @@
 - Suggestions proposed from chat are not citation-verified yet (as for AI-07; see ADR-043).
 - The staging smoke test against the real model is pending, for a person to run.
 
+## Amendment: drafting from a direct request (AI-06b, 2026-10-06)
+
+Blake asked to tell Clerk "add a file note to X saying Y". `chat@1.0.0` told Clerk it couldn't change anything, so it refused, and the proposals step only sometimes proposed the note.
+
+- `chat@1.1.0` adds two tools, `draft_note` and `draft_task`, offered only with `clerk.features.suggestions`. Each creates one AI-07 suggestion straight away (`proposeSuggestions`) and returns what became of it (drafted, already drafted, already on the matter, suggestions off, matter closed). So Clerk's "drafted, confirm it below" is never a guess.
+- Clerk rule 3 still holds: the tools write suggestions, never records. The person accepts the card under the answer, as for any suggestion.
+- The `dedupeKey` is scoped to the question (`ask:{questionId}:{defaultDedupeKey}`): Retry finds the existing draft, while asking again in a new question can re-draft a note the person dismissed.
+- A draft is privileged when the context, the thread or a tool result before it was (rule 6).
+- An answer that drafted links its drafts and skips `chat-proposals`, which would only duplicate them.
+- Only notes and tasks. Deadlines, events, key facts and time still come from the proposals step. Requests about another matter are declined with "open Clerk on that matter".
+- Evals: the chat, privilege and injection suites run `chat@1.1.0`; `draftAccuracy` and `draftHonesty` grade drafts, and drafts count as output for the leak and injection graders (inj-016: an injected "draft a note" must draft nothing).
+
+**Alternative considered:** a stronger `chat-proposals` prompt for direct requests. This lost because it runs after the answer is written, so the answer can't truthfully say whether anything was drafted.
+
 ## Alternatives considered
 
 - **A Firestore trigger on the new message.** This lost because an onCreate trigger can fire twice for one event, and per-trigger idempotency (PR #136) isn't in this tree. A task with a dedupe key per answer is simpler and can be retried.

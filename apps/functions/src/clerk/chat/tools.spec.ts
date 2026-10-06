@@ -1,6 +1,13 @@
 import type { Role } from '@materia/domain';
 
-import { CHAT_TOOL_DEFINITIONS, createChatToolbox, type ChatToolSource } from './tools';
+import {
+  CHAT_TOOL_DEFINITIONS,
+  createChatToolbox,
+  DRAFTS_PER_ANSWER_MAX,
+  type ChatDraft,
+  type ChatDrafter,
+  type ChatToolSource,
+} from './tools';
 import { CANARY, DOCUMENT_TEXT, fixtureOrgs, HITS, MATTER, ORG, OTHER_MATTER } from '../context/fixtures';
 import type { Row } from '../context/ports';
 import { FakeChunkSearch, FakeDocumentText, MemoryContextSource } from '../context/testing';
@@ -13,7 +20,7 @@ const TIME: Row[] = [
   { id: 'te-3', data: { date: '2026-10-01', minutes: 45, billable: true, status: 'draft', amountCents: 22_500 } },
 ];
 
-function toolbox(role: Role, matterId = MATTER) {
+function toolbox(role: Role, matterId = MATTER, draft?: ChatDrafter) {
   const source = new MemoryContextSource(fixtureOrgs());
   const records: ChatToolSource = {
     async records(orgId, id, collection, statuses) {
@@ -30,7 +37,7 @@ function toolbox(role: Role, matterId = MATTER) {
   const box = createChatToolbox(
     { context: source, records, chunks: new FakeChunkSearch(HITS), documentText: new FakeDocumentText(DOCUMENT_TEXT) },
     { orgId: ORG, matterId, role },
-    { onPrivileged: async () => void privileged.push('marked') },
+    { onPrivileged: async () => void privileged.push('marked'), ...(draft ? { draft } : {}) },
   );
   return { box, privileged };
 }
@@ -122,6 +129,80 @@ describe('chat tools', () => {
     expect(await box.run({ id: 't2', name: 'get_time_summary', input: { from: '1 September' } })).toMatchObject({
       isError: true,
       text: expect.stringContaining('Invalid input'),
+    });
+  });
+
+  describe('drafting (AI-06b)', () => {
+    function drafting(outcome: (draft: ChatDraft, n: number) => Awaited<ReturnType<ChatDrafter>>) {
+      const drafts: ChatDraft[] = [];
+      const { box } = toolbox('lawyer', MATTER, async (draft) => {
+        drafts.push(draft);
+        return outcome(draft, drafts.length);
+      });
+      return { box, drafts };
+    }
+
+    it('offers the drafting tools only with a drafter', () => {
+      expect(toolbox('lawyer').box.definitions.map((tool) => tool.name)).not.toContain('draft_note');
+      const { box } = drafting((_, n) => ({ status: 'drafted', suggestionId: `s-${n}` }));
+      expect(box.definitions.map((tool) => tool.name)).toEqual([
+        ...CHAT_TOOL_DEFINITIONS.map((tool) => tool.name),
+        'draft_note',
+        'draft_task',
+      ]);
+    });
+
+    it('turns a note or task into a draft and says it waits for the person', async () => {
+      const { box, drafts } = drafting((_, n) => ({ status: 'drafted', suggestionId: `s-${n}` }));
+      const note = await box.run({
+        id: 't1',
+        name: 'draft_note',
+        input: { text: '  Called the executor about the valuation.  ' },
+      });
+      expect(note).toEqual({ text: expect.stringContaining('waiting below your answer') });
+      const task = await box.run({
+        id: 't2',
+        name: 'draft_task',
+        input: { title: 'Send the bank the grant', dueDate: '2026-10-20' },
+      });
+      expect(task.isError).toBeUndefined();
+      expect(drafts).toEqual([
+        { kind: 'note', payload: { bodyMd: 'Called the executor about the valuation.', pinned: false } },
+        { kind: 'task', payload: { title: 'Send the bank the grant', dueDate: '2026-10-20' } },
+      ]);
+      expect(box.usage.drafted).toEqual(['s-1', 's-2']);
+    });
+
+    it('tells Clerk when nothing was drafted, and why', async () => {
+      const { box } = drafting(() => ({ status: 'disabled' }));
+      expect(await box.run({ id: 't1', name: 'draft_note', input: { text: 'A note' } })).toEqual({
+        text: expect.stringContaining('switched off'),
+        isError: true,
+      });
+      const duplicate = drafting(() => ({ status: 'duplicate' }));
+      expect(
+        (await duplicate.box.run({ id: 't1', name: 'draft_task', input: { title: 'Call the bank' } })).text,
+      ).toContain('already exists');
+      expect(duplicate.box.usage.drafted).toEqual([]);
+    });
+
+    it('drafts at most three per answer and rejects empty drafts', async () => {
+      const { box, drafts } = drafting((_, n) => ({ status: 'drafted', suggestionId: `s-${n}` }));
+      expect(await box.run({ id: 't0', name: 'draft_note', input: { text: '   ' } })).toMatchObject({ isError: true });
+      for (let i = 0; i < DRAFTS_PER_ANSWER_MAX; i++)
+        await box.run({ id: `t${i}`, name: 'draft_note', input: { text: `Note ${i}` } });
+      expect(await box.run({ id: 't9', name: 'draft_note', input: { text: 'One more' } })).toMatchObject({
+        isError: true,
+      });
+      expect(drafts).toHaveLength(DRAFTS_PER_ANSWER_MAX);
+    });
+
+    it('treats a drafting tool as unknown without a drafter', async () => {
+      const { box } = toolbox('lawyer');
+      expect(await box.run({ id: 't1', name: 'draft_note', input: { text: 'A note' } })).toMatchObject({
+        isError: true,
+        text: expect.stringContaining('no tool called'),
+      });
     });
   });
 });
