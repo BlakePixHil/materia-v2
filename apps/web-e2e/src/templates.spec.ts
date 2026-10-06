@@ -1,6 +1,12 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-import { expectNoA11yViolations, setEmulatorDocuments, setOrgFlags, signInAsTestUser } from '@materia/test-utils/e2e';
+import {
+  expectNoA11yViolations,
+  FIRST_LOAD,
+  setEmulatorDocuments,
+  setOrgFlags,
+  signInAsTestUser,
+} from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
@@ -98,7 +104,7 @@ test.describe('matter templates', () => {
       willMatter(orgId, uid, 'm-upgrade', { id: templateId, version: 1, stageId: 'instructions' }),
     ]);
     await page.goto('/matters/m-upgrade');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Will of Odette Fictional');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Will of Odette Fictional', FIRST_LOAD);
     await page.getByRole('button', { name: 'More matter actions' }).click();
     await page.getByRole('menuitem', { name: 'Upgrade matter to v2…' }).click();
     const dialog = page.getByRole('dialog');
@@ -137,7 +143,7 @@ test.describe('matter templates', () => {
     ]);
     await page.goto('/matters/m-stage');
     const stepper = page.locator('mt-estate-stepper');
-    await expect(stepper.getByRole('button', { name: /^Execution\s*, current$/ })).toBeVisible();
+    await expect(stepper.getByRole('button', { name: /^Execution\s*, current$/ })).toBeVisible(FIRST_LOAD);
 
     await stepper.getByRole('button', { name: 'Safe custody', exact: true }).click();
     const note = page.locator('mt-matter-stages mt-note');

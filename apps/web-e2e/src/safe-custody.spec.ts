@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { partyDocId } from '@materia/domain';
-import { expectNoA11yViolations, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
@@ -99,7 +99,7 @@ test.describe('safe custody', () => {
     await setUp(page, request);
 
     await page.goto('/safe-custody');
-    await expect(page.getByText('No wills in safe custody yet')).toBeVisible();
+    await expect(page.getByText('No wills in safe custody yet')).toBeVisible(FIRST_LOAD);
     await expectNoA11yViolations(page);
 
     // Receive the will.
@@ -152,8 +152,8 @@ test.describe('safe custody', () => {
 
     // The register shows it released; the testator's contact links to it.
     await page.goto('/safe-custody');
-    await expect(page.getByRole('table', { name: 'Safe custody register' })).toContainText('Released');
+    await expect(page.getByRole('table', { name: 'Safe custody register' })).toContainText('Released', FIRST_LOAD);
     await page.goto('/contacts?contact=c-client');
-    await expect(page.getByRole('link', { name: 'No longer held' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'No longer held' })).toBeVisible(FIRST_LOAD);
   });
 });
