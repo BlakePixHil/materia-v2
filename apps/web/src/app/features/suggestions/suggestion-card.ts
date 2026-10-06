@@ -11,7 +11,7 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 
 import {
   suggestionCallables,
@@ -239,7 +239,6 @@ export class SuggestionCard {
   private readonly defaultApi = suggestionCallables(inject(CALLABLES));
   private readonly toasts = inject(ToastService);
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
 
   /** The screen's cited documents and citation viewer (AI-05), where it provides them. */
   private readonly sources = inject(CitationSources, { optional: true });
@@ -399,15 +398,15 @@ export class SuggestionCard {
 
   /** Opens the citation viewer at the source (AI-05), or the document's page where there is no viewer. */
   protected openCitation(event: CitationOpenEvent): void {
-    // A record citation (a deadline, a time entry…) opens the matter tab that lists it.
+    // A record citation (a deadline, a time entry…) opens the matter tab that lists it. Routes are
+    // absolute, so the card works off the matter too (the Inbox, CORE-22a).
     const stored = event.n ? this.item().citations[event.n - 1] : undefined;
     if (stored?.kind === 'record' && stored.recordRef) {
-      void this.router.navigate(['..', RECORD_TABS[stored.recordRef.collection]], { relativeTo: this.route });
+      void this.router.navigate(['/matters', this.matterId(), RECORD_TABS[stored.recordRef.collection]]);
       return;
     }
     if (this.sources) return this.sources.open(this.item().citations, event.n);
-    void this.router.navigate(['..', 'documents', event.documentId], {
-      relativeTo: this.route,
+    void this.router.navigate(['/matters', this.matterId(), 'documents', event.documentId], {
       queryParams: { ...(event.page ? { page: event.page } : {}), ...(event.version ? { v: event.version } : {}) },
     });
   }
