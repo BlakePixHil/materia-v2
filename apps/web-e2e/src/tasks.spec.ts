@@ -5,6 +5,7 @@ import {
   EMULATOR_PROJECT,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
+  FIRST_LOAD,
   setEmulatorDocument,
   setEmulatorDocuments,
   signInAsTestUser,
@@ -74,7 +75,7 @@ async function setUp(page: Page, request: APIRequestContext) {
     displayName: 'Priya Fictional',
   });
   await page.goto(URL);
-  await expect(page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible(FIRST_LOAD);
   await expect(titles(page)).toHaveCount(3);
   return { orgId, uid: account.uid, colleague: colleague.uid };
 }
@@ -202,7 +203,7 @@ test.describe('tasks', () => {
       .poll(async () => (await stored(request, `orgs/${orgId}/matters/m-larch`))['openTaskCount'], { timeout: 20_000 })
       .toEqual({ integerValue: '4' });
     await page.reload();
-    await expect(row(page, 'Call the executor')).toBeVisible();
+    await expect(row(page, 'Call the executor')).toBeVisible(FIRST_LOAD);
   });
 });
 
@@ -254,11 +255,10 @@ test.describe('tasks with the keyboard', () => {
     await expect(page.locator('.mt-toaster')).toContainText('Task done');
 
     await page.reload();
-    await expect(titles(page)).toHaveText([
-      'Locate the original will',
-      'Order the death certificate',
-      'Write to the bank',
-    ]);
+    await expect(titles(page)).toHaveText(
+      ['Locate the original will', 'Order the death certificate', 'Write to the bank'],
+      FIRST_LOAD,
+    );
   });
 });
 
@@ -285,7 +285,7 @@ test.describe('my tasks', () => {
     // Today's short list (CORE-14): the personal task has no date, so it's on My tasks only.
     await page.goto('/today');
     const today = page.getByRole('region', { name: 'My tasks' });
-    await expect(today).toContainText('No open tasks with a date');
+    await expect(today).toContainText('No open tasks with a date', FIRST_LOAD);
     await expectNoA11yViolations(page);
   });
 });

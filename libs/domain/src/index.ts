@@ -47,4 +47,5 @@ export * from './lib/profile';
 export * from './lib/security';
 export * from './lib/time-entries';
 export * from './lib/trust';
+export * from './lib/billing';
 export * from './lib/disbursements';
