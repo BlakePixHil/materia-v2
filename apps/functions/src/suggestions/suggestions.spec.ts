@@ -348,12 +348,12 @@ describe('suggestions-accept', () => {
   it('rejects kinds without a handler', async () => {
     const w = world();
     const id = await proposed(w, {
-      kind: 'time_entry',
-      payload: { date: '2026-10-05', minutes: 30, narrative: 'Call with executor' },
+      kind: 'evidence',
+      payload: { documentId: 'd1', supports: 'us', strength: 2 },
     });
     expect((await failure(w.accept({ suggestionId: id }))).details).toMatchObject({
       code: 'SUGGESTION_UNSUPPORTED',
-      kind: 'time_entry',
+      kind: 'evidence',
     });
     expect(handledSuggestionKinds()).toEqual([
       'deadline',
@@ -363,31 +363,32 @@ describe('suggestions-accept', () => {
       'note',
       'party',
       'task',
+      'time_entry',
     ]);
   });
 
   it('a registered handler makes a kind acceptable', async () => {
     const w = world();
     registerSuggestionHandler({
-      kind: 'time_entry',
+      kind: 'evidence',
       async apply(ctx) {
         await ctx.db.runTransaction(async (tx) => {
           await ctx.join.read(tx);
-          ctx.join.write(tx, 'orgs/org-s/matters/m1/timeEntries/te-fake');
+          ctx.join.write(tx, 'orgs/org-s/matters/m1/evidence/ev-fake');
         });
-        return { resultRef: 'orgs/org-s/matters/m1/timeEntries/te-fake' };
+        return { resultRef: 'orgs/org-s/matters/m1/evidence/ev-fake' };
       },
     });
     try {
       const id = await proposed(w, {
-        kind: 'time_entry',
-        payload: { date: '2026-10-05', minutes: 30, narrative: 'Call with executor' },
+        kind: 'evidence',
+        payload: { documentId: 'd1', supports: 'us', strength: 2 },
       });
-      expect((await w.accept({ suggestionId: id })).resultRef).toContain('te-fake');
+      expect((await w.accept({ suggestionId: id })).resultRef).toContain('ev-fake');
     } finally {
-      unregisterSuggestionHandler('time_entry');
+      unregisterSuggestionHandler('evidence');
     }
-    expect(suggestionHandler('time_entry')).toBeUndefined();
+    expect(suggestionHandler('evidence')).toBeUndefined();
   });
 
   it('only roles that could do it by hand accept', async () => {

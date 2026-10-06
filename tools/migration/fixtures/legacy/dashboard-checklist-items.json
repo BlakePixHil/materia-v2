@@ -1,0 +1,30 @@
+[
+  {
+    "path": "profiles/AlexRiversLegacyUid000000001/dashboard-checklist-items/d0000000-0000-4000-8000-000000000001",
+    "data": {
+      "id": "d0000000-0000-4000-8000-000000000001",
+      "name": "Renew practising certificate",
+      "checked": false,
+      "dueDate": "2025-06-29T14:00:00.000Z",
+      "doneOnDate": null,
+      "priority": 2,
+      "order": 0,
+      "createdOn": "2025-01-01T00:00:00.000Z",
+      "updatedOn": "2025-01-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "profiles/AlexRiversLegacyUid000000001/dashboard-checklist-items/d0000000-0000-4000-8000-000000000002",
+    "data": {
+      "id": "d0000000-0000-4000-8000-000000000002",
+      "name": "CPD points",
+      "checked": true,
+      "dueDate": null,
+      "doneOnDate": "2025-02-01T00:00:00.000Z",
+      "priority": 0,
+      "order": 1,
+      "createdOn": "2025-01-01T00:00:00.000Z",
+      "updatedOn": "2025-02-01T00:00:00.000Z"
+    }
+  }
+]

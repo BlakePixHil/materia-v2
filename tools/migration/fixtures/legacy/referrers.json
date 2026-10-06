@@ -1,0 +1,46 @@
+[
+  {
+    "path": "referrers/7e7e0000-0000-4000-8000-000000000001",
+    "data": {
+      "id": "7e7e0000-0000-4000-8000-000000000001",
+      "uids": ["AlexRiversLegacyUid000000001"],
+      "name": "Fictional Accountant",
+      "company": "Fictional Accounting Pty Ltd",
+      "industry": "Accountant",
+      "phone": "0412 345 678",
+      "email": "accountant@example.com",
+      "address": "1 Example St, Geelong VIC 3220"
+    }
+  },
+  {
+    "path": "referrers/7e7e0000-0000-4000-8000-000000000002",
+    "data": {
+      "id": "7e7e0000-0000-4000-8000-000000000002",
+      "uids": ["AlexRiversLegacyUid000000001"],
+      "name": "",
+      "company": "Fictional Funeral Services",
+      "industry": "funeral home",
+      "phone": "(03) 5221 0000",
+      "email": "not-an-email",
+      "createdOn": "2024-06-01T00:00:00.000Z",
+      "updatedOn": "2024-06-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "referrers/7e7e0000-0000-4000-8000-000000000003",
+    "data": {
+      "id": "7e7e0000-0000-4000-8000-000000000003",
+      "uids": ["AlexRiversLegacyUid000000001", "AlexRiversLegacyUid000000001"],
+      "name": "",
+      "phone": ""
+    }
+  },
+  {
+    "path": "referrers/7e7e0000-0000-4000-8000-000000000004",
+    "data": {
+      "id": "7e7e0000-0000-4000-8000-000000000004",
+      "uids": ["UnrelatedUserLegacyUid000004"],
+      "name": "Not Alex's referrer"
+    }
+  }
+]
