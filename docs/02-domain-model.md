@@ -336,9 +336,10 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md). Domain: `libs/domain/src/lib
   - key facts on events go through `recordEvent`, and the others go through `Matter.update`;
   - notes use `createNote`;
   - parties use `upsertPartyChange`;
-  - document details use `MatterDocument.update`.
+  - document details use `MatterDocument.update`;
+  - time entries are saved as a draft entry of the person accepting (`source: 'clerk'`), which `time-onWrite` prices and counts into WIP.
 
-  time_entry, chronology, order and evidence are refused with `SUGGESTION_UNSUPPORTED`.
+  chronology, order and evidence are refused with `SUGGESTION_UNSUPPORTED`.
 - **`suggestions-accept`** `{requestId, matterId, suggestionId, editedPayload?, expectedBasis?}` (`clerk.use` plus the kind's action from `SUGGESTION_KIND_ACTION`, idempotent, flag-gated) applies the suggestion in the domain write's transaction (`TxJoin`) and returns `{suggestionId, status: 'accepted'|'edited', resultRef}`. It refuses with:
   - `NOT_FOUND` when the suggestion is missing, or privileged and the caller lacks `privileged.view`;
   - `ALREADY_RESOLVED` when it is no longer open or is past `expiresAt`;

@@ -2,6 +2,8 @@ import type { Firestore, Query, QuerySnapshot, Transaction } from 'firebase-admi
 
 import {
   can,
+  computeTimeEntry,
+  defaultBillable,
   DomainError,
   keyFactEventKind,
   keyFactPatch,
@@ -15,7 +17,10 @@ import {
   partyDocId,
   Deadline,
   Task,
+  TimeEntry,
   type FactMatter,
+  type RateMatter,
+  type RateMember,
   type SuggestionKind,
 } from '@materia/domain';
 
@@ -28,15 +33,17 @@ import { deadlinesPath, eventsPath, tasksPath } from '../deadlines/shared';
 import { upsertPartyChange } from '../matters/parties';
 import { matterPath } from '../matters/shared';
 import { createNote } from '../notes/create';
+import { rateOrg } from '../time/shared';
 
 /**
  * The built-in accept handlers (AI-07, ADR-037), one per kind, each through the domain logic of
  * the manual path: tasks and manual deadlines as the client creates them (validated by the same
  * schemas; the triggers count, remind and log them), events through the `deadlines-upsertEvent`
  * logic (which recomputes the deadlines), parties through `matters-upsertParty`'s, notes through
- * `notes-create`'s, key facts through `keyFactPatch` (or their event), and a document's category
- * and title as the documents screen edits them. `time_entry` (BILL-01) and the litigation kinds
- * (`chronology`, `order`, `evidence`; LIT tickets) have none yet.
+ * `notes-create`'s, key facts through `keyFactPatch` (or their event), a document's category
+ * and title as the documents screen edits them, and time as a draft entry of the person accepting
+ * (BILL-01; `time-onWrite` prices it and counts it into WIP). The litigation kinds (`chronology`,
+ * `order`, `evidence`; LIT tickets) have none yet.
  */
 
 /** What the shared helpers use of a handler's context (everything but the typed payload). */
@@ -353,9 +360,79 @@ const documentMeta: SuggestionHandler<'document_meta'> = {
   },
 };
 
+const timeEntry: SuggestionHandler<'time_entry'> = {
+  kind: 'time_entry',
+  async exists(ctx) {
+    const snap = await ctx.read.query(
+      ctx.db
+        .collection(`${matterPath(ctx.orgId, ctx.matterId)}/timeEntries`)
+        .where('date', '==', ctx.payload.date)
+        .where('minutes', '==', ctx.payload.minutes),
+    );
+    const narrative = ctx.payload.narrative.trim();
+    return snap.docs.some((doc) => isLive(doc.data()) && String(doc.get('narrative') ?? '').trim() === narrative);
+  },
+  async apply(ctx) {
+    const { db, orgId, matterId, uid, requestId, payload, join } = ctx;
+    const ref = db.collection(`${matterPath(orgId, matterId)}/timeEntries`).doc();
+    const now = ctx.clock.now();
+    await db.runTransaction(async (tx) => {
+      await join.read(tx);
+      const [matterSnap, org, member] = await Promise.all([
+        tx.get(db.doc(matterPath(orgId, matterId))),
+        tx.get(db.doc(`orgs/${orgId}`)),
+        tx.get(db.doc(`orgs/${orgId}/members/${uid}`)),
+      ]);
+      const matter = (matterSnap.data() ?? {}) as RateMatter;
+      if (payload.taskId) {
+        const linked = await tx.get(db.doc(`${tasksPath(orgId, matterId)}/${payload.taskId}`));
+        if (!linked.exists || !isLive(linked.data())) throw invalid({ taskId: ['That task isn’t on this matter'] });
+      }
+      // A draft of the person accepting, as a client creates one (`TimeEntryCreateInput`) but with
+      // `source: 'clerk'`; priced here for the preview, and re-priced and counted by time-onWrite.
+      const billing = rateOrg(org.data());
+      const values = billing
+        ? computeTimeEntry({
+            minutes: payload.minutes,
+            date: payload.date,
+            org: billing,
+            matter,
+            member: (member.data() as RateMember | undefined) ?? null,
+          })
+        : { units: 0, rateCents: 0, amountCents: 0 };
+      const entry = TimeEntry.schema.safeParse(
+        compact({
+          orgId,
+          matterId,
+          uid,
+          date: payload.date,
+          minutes: payload.minutes,
+          units: values.units,
+          rateCents: values.rateCents,
+          amountCents: values.amountCents,
+          narrative: payload.narrative.trim(),
+          billable: payload.billable ?? defaultBillable(matter),
+          status: 'draft',
+          source: 'clerk',
+          taskId: payload.taskId,
+          wipCountedCents: 0,
+          createdAt: now,
+          createdBy: uid,
+          ...stamp(uid, now, requestId),
+          schemaVersion: TimeEntry.version,
+        }),
+      );
+      if (!entry.success) throw invalid(issuesOf(entry.error));
+      tx.create(ref, entry.data);
+      join.write(tx, ref.path);
+    });
+    return { resultRef: ref.path };
+  },
+};
+
 /** Registers the built-in handlers (idempotent). */
 export function registerBuiltInHandlers(): void {
-  for (const handler of [task, deadline, event, keyFact, note, party, documentMeta]) {
+  for (const handler of [task, deadline, event, keyFact, note, party, documentMeta, timeEntry]) {
     registerSuggestionHandler(handler as unknown as SuggestionHandler);
   }
 }
