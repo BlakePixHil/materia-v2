@@ -17,13 +17,15 @@ import { RouterLink } from '@angular/router';
 
 import type { NotificationItem } from '@materia/data-access/repository';
 import { INBOX_FILTERS, type InboxFilter } from '@materia/domain';
-import { MtButton, MtEmptyState, MtIcon, MtKbd, MtMatterTag, MtNote, MtSwitch } from '@materia/ui';
+import { DialogService, MtButton, MtEmptyState, MtIcon, MtKbd, MtMatterTag, MtNote, MtSwitch } from '@materia/ui';
 
-import { INBOX_FILTER_LABELS, InboxData } from './inbox-data';
+import { INBOX_FILTER_LABELS, InboxData, inboxSuggestion } from './inbox-data';
+import { InboxSuggestion, InboxSuggestionDialog, type InboxSuggestionDialogData } from './inbox-suggestion';
 import { MtNotificationRow } from '../../core/notifications/notification-row';
 import { isEditable, ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 import { DeadlineActions } from '../deadlines/deadline-actions';
+import type { SuggestionResolved } from '../suggestions/suggestion-card';
 
 /** At this width and up the selected notification shows beside the list. */
 export const INBOX_DETAIL_QUERY = '(min-width: 1100px)';
@@ -57,6 +59,7 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
   ],
   imports: [
     FormsModule,
+    InboxSuggestion,
     MtButton,
     MtEmptyState,
     MtIcon,
@@ -262,6 +265,17 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
             }
             <span class="caption t-3">{{ data.time(item) }} · {{ dayOf(item) }}</span>
           </div>
+          @if (suggestionOf(item); as ref) {
+            @for (key of [ref.suggestionId]; track key) {
+              <mt-inbox-suggestion
+                class="review"
+                [matterId]="ref.matterId"
+                [suggestionId]="ref.suggestionId"
+                [names]="data.names()"
+                (resolved)="data.reviewed(item, $event.outcome)"
+              />
+            }
+          }
           <div class="actions">
             <ng-container [ngTemplateOutlet]="actionTpl" [ngTemplateOutletContext]="{ $implicit: item, wide: true }" />
             @if (!data.gone(item)) {
@@ -347,9 +361,9 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
           }
         }
         @case ('review') {
-          <button mtButton variant="clerk" size="sm" (click)="$event.stopPropagation(); data.follow(item)">
-            Review
-          </button>
+          @if (!data.outcomes().has(item.id) && !(wide && suggestionOf(item))) {
+            <button mtButton variant="clerk" size="sm" (click)="$event.stopPropagation(); review(item)">Review</button>
+          }
         }
         @case ('reconnect') {
           <button mtButton size="sm" iconStart="refresh" (click)="$event.stopPropagation(); data.follow(item)">
@@ -499,6 +513,7 @@ export class InboxPage {
   protected readonly data = inject(InboxData);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly dialogs = inject(DialogService);
   protected readonly filters = INBOX_FILTERS;
   protected readonly labels = INBOX_FILTER_LABELS;
   protected readonly icons = FILTER_ICONS;
@@ -597,6 +612,30 @@ export class InboxPage {
       },
       { injector: this.injector },
     );
+  }
+
+  protected readonly suggestionOf = inboxSuggestion;
+
+  /**
+   * Review (CORE-22a): the suggestion in the detail pane on a wide screen, in a dialog on a narrow
+   * one; a notification without its suggestion opens where it leads.
+   */
+  protected async review(item: NotificationItem): Promise<void> {
+    const ref = inboxSuggestion(item);
+    if (!ref) {
+      await this.data.follow(item);
+      return;
+    }
+    if (this.wide()) {
+      this.focusAt(this.data.rows().findIndex((row) => row.id === item.id));
+      void this.data.markRead([item], true);
+      return;
+    }
+    const outcome = await this.dialogs.open<InboxSuggestionDialogData, SuggestionResolved | undefined>(
+      InboxSuggestionDialog,
+      { data: { ...ref, names: this.data.names() } },
+    ).result;
+    if (outcome) this.data.reviewed(item, outcome.outcome);
   }
 
   /** A click: beside the list on a wide screen (and read); straight to it on a narrow one. */
