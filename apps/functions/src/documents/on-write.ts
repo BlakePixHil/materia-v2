@@ -2,6 +2,7 @@ import { documentSearchTokens } from '@materia/domain';
 
 import { searchPatch } from '../core/search';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
+import { clearFixedReviewCodes } from '../migration/clear';
 
 /**
  * Keeps a document's server-owned `search` in step with its name (CORE-15), for ⌘K. Reads the
@@ -32,7 +33,12 @@ export const onWriteDefinition: TriggerDefinition = {
   name: 'documents-onWrite',
   document: 'orgs/{orgId}/matters/{matterId}/documents/{documentId}',
   on: 'written',
-  handler: async (change, ctx) => void (await maintainSearch(change, ctx)),
+  handler: async (change, ctx) => {
+    await maintainSearch(change, ctx);
+    // A migrated document whose file was missing or unreadable, uploaded again, loses its review
+    // codes (MIG-08).
+    await clearFixedReviewCodes(change, ctx);
+  },
 };
 
 /** `documents-onWrite`. */

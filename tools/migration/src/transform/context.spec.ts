@@ -1,5 +1,6 @@
 import { domain } from '../domain.ts';
 import { FIXTURE_UIDS } from '../legacy/fixtures.ts';
+import { FILE_MISSING, FILE_NOT_COPIED } from '../load/run-files.ts';
 import type { MappingProfile } from '../profile.ts';
 import {
   cutAt,
@@ -96,6 +97,13 @@ describe('review codes and entities', () => {
   it('are unique', () => {
     expect(new Set(REVIEW_CODES).size).toBe(REVIEW_CODES.length);
     expect(new Set(ENTITIES).size).toBe(ENTITIES.length);
+  });
+
+  // The app's review queue (MIG-08) lists and explains each code the transform and load stamp.
+  it('are all codes the review queue knows, the load’s for a file not brought too', () => {
+    for (const code of [...REVIEW_CODES, FILE_MISSING, FILE_NOT_COPIED]) {
+      expect(domain.isMigrationReviewCode(code), code).toBe(true);
+    }
   });
 });
 

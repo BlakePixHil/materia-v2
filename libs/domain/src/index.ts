@@ -65,3 +65,4 @@ export * from './lib/insights-narrative';
 export * from './lib/payments';
 export * from './lib/integrations';
 export * from './lib/xero';
+export * from './lib/migration-review';
