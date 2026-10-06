@@ -1,0 +1,51 @@
+[
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001/attachments/a77a0000-0000-4000-8000-000000000001.pdf",
+    "size": 120000,
+    "contentType": "application/pdf"
+  },
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000001/attachments/a77a0000-0000-4000-8000-000000000002.jpg",
+    "size": 80000,
+    "contentType": "image/jpeg"
+  },
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000003.svg",
+    "size": 2000,
+    "contentType": "image/svg+xml"
+  },
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/cards/WillsCardAuto0000002/attachments/a77a0000-0000-4000-8000-000000000004.msg",
+    "size": 41000
+  },
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000006.pdf",
+    "size": 27262976,
+    "contentType": "application/pdf"
+  },
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000002/attachments/a77a0000-0000-4000-8000-000000000007.docx",
+    "size": 50000,
+    "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  },
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/cards/EstateCardAuto000002/attachments/a77a0000-0000-4000-8000-000000000099.pdf",
+    "size": 9000,
+    "contentType": "application/pdf"
+  },
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/attachments/a77a0000-0000-4000-8000-000000000098.pdf",
+    "size": 7000,
+    "contentType": "application/pdf"
+  },
+  {
+    "name": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-444444444444/cards/SharedCardAuto000001/attachments/a77a0000-0000-4000-8000-000000000008.pdf",
+    "size": 10000,
+    "contentType": "application/pdf"
+  },
+  {
+    "name": "profile-images/AlexRiversLegacyUid000000001.png",
+    "size": 5000,
+    "contentType": "image/png"
+  }
+]
