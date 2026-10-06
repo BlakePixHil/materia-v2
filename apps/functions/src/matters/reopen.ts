@@ -143,7 +143,7 @@ export const setLegalHoldDefinition = {
       // Released on a closed matter: the retention date as closing would have set it.
       const closedAt = (matter['closedAt'] as { toDate?: () => Date } | undefined)?.toDate?.() ?? now;
       const closedOn = dateOnlyAt(closedAt, settings.timeZone);
-      const reads = await readClosing(db, tx, orgId, input.matterId, closedOn);
+      const reads = await readClosing(db, tx, orgId, input.matterId, matter, closedOn);
       const retention = retentionFor({
         type: matter['type'] as MatterType,
         closedOn,

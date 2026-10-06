@@ -122,7 +122,7 @@ describe('matters-closingChecklist', () => {
     const result = await closingChecklistDefinition.handler(w.ctx({ matterId: 'm1' }) as never);
     expect(result.ready).toBe(false);
     expect(result.blocking).toEqual(['deadlines', 'tasks', 'originals', 'closing_letter', 'final_distribution']);
-    expect(result.counts).toEqual({ upcomingDeadlines: 1, openTasks: 1 });
+    expect(result.counts).toEqual({ upcomingDeadlines: 1, openTasks: 1, unbilledWipCents: 0 });
     expect(result.warnings).toEqual([{ kind: 'related_open', matterId: 'm2', number: 'M-2026-0002' }]);
     // 5 October 2026 in Melbourne, plus seven years.
     expect(result).toMatchObject({ destroyAfter: '2033-10-05', holds: [], retentionYears: 7 });
@@ -139,6 +139,16 @@ describe('matters-close', () => {
     expect(w.doc(`${M}/m1`)?.['status']).toBe('open');
     expect(await failureOf(world().close({ checklist: { closingLetterSent: true } }))).toMatchObject({
       details: { blocking: ['originals', 'final_distribution'] },
+    });
+  });
+
+  it('blocks on unbilled time and disbursements unless overridden with a reason (CORE-19b)', async () => {
+    const w = world({ [`${M}/m1`]: matter({ wipCents: 120_00, disbursementWipCents: 30_00 }) });
+    expect(await failureOf(w.close())).toMatchObject({ details: { reason: 'closing_checklist', blocking: ['wip'] } });
+    await w.close({ checklistOverrides: { wip: 'Written off: pro bono final letter' } });
+    expect(w.doc(`${M}/m1`)).toMatchObject({
+      status: 'closed',
+      closing: { overrides: { wip: 'Written off: pro bono final letter' } },
     });
   });
 

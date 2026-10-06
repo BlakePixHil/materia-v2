@@ -14,6 +14,7 @@ import {
   matterSearchTokens,
   parseMentions,
   partyDocId,
+  unbilledWipCents,
   unmetStageRequirements,
   type DateOnly,
   type FlagValue,
@@ -196,15 +197,18 @@ export function serverCallables(): Record<string, FakeCallable> {
       fs.set(path, doc);
       return { matterId: data['matterId'], partyId, clientContactIds: clientIds(fs) };
     },
-    // Closing (CORE-19): one open task, no deadlines; a 7-year retention from today.
-    'matters-closingChecklist': (data) => ({
-      ...evaluateClosing('probate', { upcomingDeadlines: 0, openTasks: 1 }, (data['checklist'] ?? {}) as never),
-      counts: { upcomingDeadlines: 0, openTasks: 1 },
-      warnings: [],
-      retentionYears: 7,
-      destroyAfter: '2033-10-04',
-      holds: [],
-    }),
+    // Closing (CORE-19): one open task, no deadlines, the matter's unbilled WIP; a 7-year retention.
+    'matters-closingChecklist': (data, fs) => {
+      const counts = { upcomingDeadlines: 0, openTasks: 1, unbilledWipCents: unbilledWipCents(fs.get(MATTER) ?? {}) };
+      return {
+        ...evaluateClosing('probate', counts, (data['checklist'] ?? {}) as never),
+        counts,
+        warnings: [],
+        retentionYears: 7,
+        destroyAfter: '2033-10-04',
+        holds: [],
+      };
+    },
     'matters-close': (data, fs) => {
       fs.set(MATTER, {
         ...fs.get(MATTER),

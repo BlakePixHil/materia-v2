@@ -6,6 +6,7 @@ import {
   ClosingChecklistInput,
   DomainError,
   evaluateClosing,
+  unbilledWipCents,
   isMinorOn,
   MATTER_TRANSITIONS,
   OPEN_TASK_STATUSES,
@@ -72,7 +73,7 @@ export const directReader = (db: Firestore): Reader =>
     getAll: (...refs: DocumentReference[]) => db.getAll(...refs),
   }) as unknown as Reader;
 
-/** What closing reads under the matter: unresolved deadlines, open tasks and live parties. */
+/** What closing reads: unresolved deadlines, open tasks and live parties, and the matter's unbilled WIP. */
 export interface ClosingReads {
   counts: ClosingCounts;
   openTasks: DocumentReference[];
@@ -87,6 +88,7 @@ export async function readClosing(
   reader: Reader,
   orgId: string,
   matterId: string,
+  matter: Data,
   on: DateOnly,
 ): Promise<ClosingReads> {
   const base = matterPath(orgId, matterId);
@@ -114,7 +116,11 @@ export async function readClosing(
   });
   const openTasks = live(tasks.docs);
   return {
-    counts: { upcomingDeadlines: live(deadlines.docs).length, openTasks: openTasks.length },
+    counts: {
+      upcomingDeadlines: live(deadlines.docs).length,
+      openTasks: openTasks.length,
+      unbilledWipCents: unbilledWipCents(matter),
+    },
     openTasks: openTasks.map((task) => task.ref),
     reminding: reminding.docs.map((doc) => doc.ref),
     hasMinor,
@@ -161,7 +167,7 @@ export const closingChecklistDefinition = {
     const matter = writableMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
     const type = matter['type'] as MatterType;
     const closedOn = dateOnlyAt(clock.now(), settings.timeZone);
-    const reads = await readClosing(db, directReader(db), orgId, input.matterId, closedOn);
+    const reads = await readClosing(db, directReader(db), orgId, input.matterId, matter, closedOn);
     const evaluation = evaluateClosing(type, reads.counts, input.checklist ?? {}, {
       cancelOpenTasks: input.cancelOpenTasks ?? false,
       overrides: input.checklistOverrides ?? {},
@@ -218,7 +224,7 @@ export const closeDefinition = {
         });
       }
       const type = matter['type'] as MatterType;
-      const reads = await readClosing(db, tx, orgId, input.matterId, closedOn);
+      const reads = await readClosing(db, tx, orgId, input.matterId, matter, closedOn);
       const evaluation = evaluateClosing(type, reads.counts, input.checklist, {
         cancelOpenTasks: !!input.cancelOpenTasks,
         overrides,

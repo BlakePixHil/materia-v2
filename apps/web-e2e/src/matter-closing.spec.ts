@@ -6,7 +6,8 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
 /**
  * Closing a matter (CORE-19) against the emulators: the closing checklist through the real
- * `matters-closingChecklist` and `matters-close` callables (bulk-cancelling the open task), the
+ * `matters-closingChecklist` and `matters-close` callables (bulk-cancelling the open task and
+ * overriding the unbilled WIP with a reason, CORE-19b), the
  * read-only closed state with its banner, then reopening with a reason. Fictional data only.
  */
 
@@ -61,11 +62,12 @@ test.describe('closing a matter', () => {
     await page.goto('/matters/m-fern/overview');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Hollis Fern');
 
-    // The checklist: one open task, nothing answered yet.
+    // The checklist: one open task, the fixture's $1,200 of unbilled time, nothing answered yet.
     await page.getByRole('button', { name: 'More matter actions' }).click();
     await page.getByRole('menuitem', { name: 'Close matter…' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('1 task still open.');
+    await expect(dialog).toContainText('$1,200.00 of time and disbursements not yet billed');
     await expect(dialog).toContainText(/Kept until at least .* \(7 years\)/);
     const close = dialog.getByRole('button', { name: 'Close matter' });
     await expect(close).toBeDisabled();
@@ -78,6 +80,9 @@ test.describe('closing a matter', () => {
     await checkbox(page, 'Closing letter sent').click();
     await checkbox(page, 'Final distribution recorded').click();
     await dialog.getByLabel('Reason for closing').fill('Estate fully administered');
+    await expect(close).toBeDisabled();
+    await dialog.getByLabel('Or say why it won’t be billed').fill('Written off by agreement with the executor');
+    await expect(dialog).toContainText('No unbilled WIP. Skipped with a reason');
     await expect(close).toBeEnabled();
     await close.click();
 

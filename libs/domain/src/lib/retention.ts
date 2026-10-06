@@ -11,6 +11,7 @@ import {
   type RetentionHold,
 } from './schemas/enums';
 import { addDays, addMonths, type DateOnly } from './values/date-only';
+import { formatCents, type Cents } from './values/money';
 
 /**
  * Matter closing and retention (CORE-19). A matter closes through `matters-close`, which runs the
@@ -39,19 +40,30 @@ export const ORIGINALS_KEPT_TYPES: readonly MatterType[] = ['will', 'poa'];
 // ---------- the closing checklist ----------
 
 /**
- * The checklist's items. Unbilled WIP joins them with BILL-03; the CORE-17 safe-custody packet
- * offer with CORE-17. Org- and template-level checklists are a follow-up (CORE-19 descoping).
+ * The checklist's items (unbilled WIP from CORE-19b). The CORE-17 safe-custody packet offer joins
+ * them with CORE-17. Org- and template-level checklists are a follow-up (CORE-19 descoping).
  */
-export const ClosingItemIdSchema = z.enum(['deadlines', 'tasks', 'originals', 'closing_letter', 'final_distribution']);
+export const ClosingItemIdSchema = z.enum([
+  'deadlines',
+  'tasks',
+  'wip',
+  'originals',
+  'closing_letter',
+  'final_distribution',
+]);
 export type ClosingItemId = z.infer<typeof ClosingItemIdSchema>;
 
-/** Items a lawyer may close without doing, giving a reason (the rest must be done). */
-export const OVERRIDABLE_CLOSING_ITEMS = ['closing_letter', 'final_distribution'] as const;
+/**
+ * Items a lawyer may close without doing, giving a reason (the rest must be done). Unbilled WIP is
+ * overridable because writing off a small amount is the practitioner's call (confirm in CORE-19a).
+ */
+export const OVERRIDABLE_CLOSING_ITEMS = ['wip', 'closing_letter', 'final_distribution'] as const;
 export type OverridableClosingItem = (typeof OVERRIDABLE_CLOSING_ITEMS)[number];
 
 export const CLOSING_ITEM_LABELS: Readonly<Record<ClosingItemId, string>> = {
   deadlines: 'No upcoming deadlines',
   tasks: 'No open tasks',
+  wip: 'No unbilled WIP',
   originals: 'Original documents returned or in safe custody',
   closing_letter: 'Closing letter sent',
   final_distribution: 'Final distribution recorded',
@@ -74,6 +86,7 @@ export function closingItemsFor(type: MatterType): ClosingItemId[] {
   return [
     'deadlines',
     'tasks',
+    'wip',
     'originals',
     'closing_letter',
     ...((ESTATE_MATTER_TYPES as readonly MatterType[]).includes(type) ? (['final_distribution'] as const) : []),
@@ -99,6 +112,14 @@ export interface ClosingCounts {
   upcomingDeadlines: number;
   /** Live tasks still open (to do, in progress or blocked). */
   openTasks: number;
+  /** Unbilled time (`wipCents`) plus unbilled disbursements ex GST (`disbursementWipCents`). */
+  unbilledWipCents: number;
+}
+
+/** A matter's unbilled WIP for the closing checklist: time plus disbursements (BILL-03, BILL-04). */
+export function unbilledWipCents(matter: { wipCents?: unknown; disbursementWipCents?: unknown }): number {
+  const amount = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0);
+  return amount(matter.wipCents) + amount(matter.disbursementWipCents);
 }
 
 export type ClosingItemState = 'done' | 'todo' | 'overridden';
@@ -126,8 +147,9 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 /**
  * Evaluates the closing checklist (CORE-19): deadlines must be resolved; open tasks must be done or
- * bulk-cancelled (`cancelOpenTasks`); the originals question must be answered; the closing letter
- * and (estates) the final distribution must be confirmed or overridden with a reason.
+ * bulk-cancelled (`cancelOpenTasks`); unbilled WIP must be billed or written off, or overridden with
+ * a reason; the originals question must be answered; the closing letter and (estates) the final
+ * distribution must be confirmed or overridden with a reason.
  */
 export function evaluateClosing(
   type: MatterType,
@@ -153,6 +175,18 @@ export function evaluateClosing(
         return options.cancelOpenTasks
           ? { id, label, state: 'done', detail: `${plural(counts.openTasks, 'open task')} will be cancelled.` }
           : { id, label, state: 'todo', detail: `${plural(counts.openTasks, 'task')} still open.` };
+      case 'wip': {
+        if (counts.unbilledWipCents <= 0) return { id, label, state: 'done' };
+        const reason = overrides.wip;
+        return reason
+          ? { id, label, state: 'overridden', detail: reason }
+          : {
+              id,
+              label,
+              state: 'todo',
+              detail: `${formatCents(counts.unbilledWipCents as Cents)} of time and disbursements not yet billed: bill or write it off, or give a reason.`,
+            };
+      }
       case 'originals':
         return answers.originals
           ? { id, label, state: 'done', detail: ORIGINALS_LABELS[answers.originals] }

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 import type { MatterCallables } from '@materia/data-access/repository';
 import {
@@ -55,13 +56,24 @@ export function retentionText(
 
 /**
  * Closes a matter through its closing checklist (CORE-19): the server's counts (deadlines, open
- * tasks), the questions it asks (originals, the closing letter, estates' final distribution), a
+ * tasks, unbilled WIP from CORE-19b), the questions it asks (originals, the closing letter, estates' final distribution), a
  * reason, and the retention date closing sets. Closes with the result, or `undefined`.
  */
 @Component({
   selector: 'mt-close-matter-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtCheckbox, MtDialog, MtIcon, MtNote, MtRadioGroup, MtTextarea, MtTextField],
+  imports: [
+    FormsModule,
+    RouterLink,
+    MtButton,
+    MtCheckbox,
+    MtDialog,
+    MtIcon,
+    MtNote,
+    MtRadioGroup,
+    MtTextarea,
+    MtTextField,
+  ],
   template: `
     <mt-dialog
       size="md"
@@ -108,6 +120,18 @@ export function retentionText(
                 (ngModelChange)="cancelReason.set($event ?? '')"
               />
             }
+          }
+
+          @if (checklist()!.counts.unbilledWipCents > 0) {
+            <a class="caption wip-link" [routerLink]="['/matters', data.matter.id, 'time']" (click)="cancel()"
+              >Review time and disbursements</a
+            >
+            <mt-text-field
+              name="wipWhy"
+              label="Or say why it won’t be billed"
+              [ngModel]="wipWhy()"
+              (ngModelChange)="wipWhy.set($event ?? '')"
+            />
           }
 
           <mt-radio-group
@@ -207,6 +231,9 @@ export function retentionText(
     .retention {
       margin: 0;
     }
+    .wip-link {
+      align-self: flex-start;
+    }
   `,
 })
 export class CloseMatterDialog {
@@ -224,6 +251,7 @@ export class CloseMatterDialog {
   protected readonly closingLetterWhy = signal('');
   protected readonly finalDistributionRecorded = signal(false);
   protected readonly finalDistributionWhy = signal('');
+  protected readonly wipWhy = signal('');
   protected readonly cancelTasks = signal(false);
   protected readonly cancelReason = signal('');
   protected readonly reason = signal('');
@@ -236,6 +264,8 @@ export class CloseMatterDialog {
 
   private readonly overrides = computed<ClosingOverrides>(() => {
     const overrides: ClosingOverrides = {};
+    if ((this.checklist()?.counts.unbilledWipCents ?? 0) > 0 && this.wipWhy().trim())
+      overrides.wip = this.wipWhy().trim();
     if (!this.closingLetterSent() && this.closingLetterWhy().trim())
       overrides.closing_letter = this.closingLetterWhy().trim();
     if (this.estate() && !this.finalDistributionRecorded() && this.finalDistributionWhy().trim()) {
@@ -248,7 +278,7 @@ export class CloseMatterDialog {
   protected readonly evaluation = computed(() =>
     evaluateClosing(
       this.data.matter.type,
-      this.checklist()?.counts ?? { upcomingDeadlines: 0, openTasks: 0 },
+      this.checklist()?.counts ?? { upcomingDeadlines: 0, openTasks: 0, unbilledWipCents: 0 },
       {
         originals: this.originals() ?? undefined,
         closingLetterSent: this.closingLetterSent(),
