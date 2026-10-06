@@ -62,7 +62,7 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 
 ### D-04 Column → status and stage
 
-- **Status:** Default, with two columns **Open**.
+- **Status:** Default. The two columns that were open are decided by Blake on 2026-10-06.
 - **Rules:**
   - Columns about prospective work become leads.
   - The last column becomes closed.
@@ -91,9 +91,9 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 | | Caveat (2) | open | caveat_lodged |
 | | Close file (17) | closed | closed |
 
-- **Open questions:**
-  - **Waiting on SOAs** holds 102 of the 205 estate planning cards. The draft reads SOA as statement of account: the will is signed and the file waits on the bill, so the stage is `safe_custody`. If SOA means something else, such as a statement of advice still to be sent, this column moves to `client_review`.
-  - **ASP only or probate not needed:** the draft reads this as an estate wound up without a grant (assets released on a statutory declaration), so the type is `admin` at `assets_collected`. If ASP means something that needs a grant, the type returns to `probate`.
+- **Decided by Blake on 2026-10-06:**
+  - **Waiting on SOAs** holds 102 of the 205 estate planning cards. SOA reads as statement of account: the will is signed and the file waits on the bill, so the stage is `safe_custody`.
+  - **ASP only or probate not needed:** an estate wound up without a grant (assets released on a statutory declaration), so the type is `admin` at `assets_collected`.
 - **Also:**
   - "File to be closed" stays **open** at the closed stage. Tristan closes those matters in v2, where closing runs the CORE-19 checks.
   - Cards in a column the board no longer has import as open, and are flagged for review.
