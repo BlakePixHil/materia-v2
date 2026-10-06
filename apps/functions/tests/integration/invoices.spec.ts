@@ -51,18 +51,21 @@ async function signInAs(role: Role) {
   await signInWithEmailAndPassword(auth, `${uidOf(role)}@example.test`, PASSWORD);
 }
 
-function callable<T>(name: string) {
+function callable<T>(name: string, timeout?: number) {
   return (input: Record<string, unknown>) =>
-    httpsCallable<Record<string, unknown>, T>(
-      getFunctions(client, 'australia-southeast1'),
-      name,
-    )({
+    httpsCallable<Record<string, unknown>, T>(getFunctions(client, 'australia-southeast1'), name, { timeout })({
       requestId: randomUUID(),
       ...input,
     }).then((result) => result.data);
 }
 const saveDraft = callable<{ invoiceId: string; totalCents: number }>('billing-saveDraft');
 const issue = callable<{ invoiceId: string; number: string; totalCents: number }>('billing-issueInvoice');
+// The emulator settles 20 transactions contending for the counter with a lock wait of about 40 s
+// (production Firestore lets the oldest win at once), so the parallel issues outlast the 70 s default.
+const issueContended = callable<{ invoiceId: string; number: string; totalCents: number }>(
+  'billing-issueInvoice',
+  150_000,
+);
 const voidInvoice = callable<{ released: number }>('billing-voidInvoice');
 const creditNote = callable<{ creditNoteId: string; number: string; totalCents: number }>('billing-createCreditNote');
 const send = callable<{ sent: number }>('billing-sendInvoice');
@@ -169,7 +172,7 @@ describe('billing-issueInvoice numbering', () => {
         }),
       );
     }
-    const issued = await Promise.all(drafts.map((draft) => issue({ invoiceId: draft.invoiceId })));
+    const issued = await Promise.all(drafts.map((draft) => issueContended({ invoiceId: draft.invoiceId })));
     const numbers = issued.map((result) => result.number).sort();
     expect(numbers).toEqual(Array.from({ length: PARALLEL }, (_, i) => `INV-${String(i + 1).padStart(6, '0')}`));
     expect(await data(`orgs/${ORG}/counters/invoice`)).toMatchObject({ next: PARALLEL + 1 });
@@ -179,7 +182,7 @@ describe('billing-issueInvoice numbering', () => {
         status: 'issued',
       });
     }
-  }, 120_000);
+  }, 180_000);
 
   it('doesn’t use a number up when the issue fails', async () => {
     await signInAs('lawyer');

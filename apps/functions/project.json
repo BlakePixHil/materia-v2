@@ -58,7 +58,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["build"],
       "options": {
-        "command": "for shard in 1 2 3; do FUNCTIONS_DISCOVERY_TIMEOUT=120 timeout -k 30s 5m firebase emulators:exec --only auth,firestore,functions,storage --project demo-materia --config firebase.json \"timeout -k 15s 270s vitest run --config apps/functions/vitest.integration.config.mts --shard=$shard/3\" || exit 1; done",
+        "command": "for shard in 1 2 3 4; do FUNCTIONS_DISCOVERY_TIMEOUT=120 timeout -k 30s 5m firebase emulators:exec --only auth,firestore,functions,storage --project demo-materia --config firebase.json \"timeout -k 15s 270s vitest run --config apps/functions/vitest.integration.config.mts --shard=$shard/4\" || exit 1; done",
         "cwd": "{workspaceRoot}"
       }
     }
