@@ -154,6 +154,7 @@ beforeAll(async () => {
   await db.doc(`orgs/${ORG}`).set({
     name: 'Fictional Suggest Practice',
     timezone: 'Australia/Melbourne',
+    billing: { unitMinutes: 6, rounding: 'up', defaultRateCents: 30000 },
     flags: { 'clerk.features.suggestions': true },
   });
   clearFlagCaches();
@@ -334,6 +335,41 @@ describe('accepting each kind with a handler', () => {
     });
   });
 
+  it('time_entry: a draft entry of the person accepting, source clerk, priced and counted into WIP', async () => {
+    const payload = { date: '2026-10-05', minutes: 30, narrative: 'Call with the executor' };
+    const id = await proposeOne({ kind: 'time_entry', payload });
+    const result = await accept({ suggestionId: id });
+    expect(result.resultRef).toMatch(new RegExp(`^${MATTER}/timeEntries/`));
+    expect(await data(result.resultRef)).toMatchObject({
+      ...payload,
+      uid: uidOf('lawyer'),
+      status: 'draft',
+      source: 'clerk',
+      billable: true,
+      units: 5,
+      amountCents: 15000,
+      createdBy: uidOf('lawyer'),
+    });
+    const matter = await poll(
+      () => data(MATTER),
+      (m) => typeof m['wipCents'] === 'number' && m['wipCents'] > 0,
+    );
+    expect(matter['wipCents']).toBe(15000);
+    // The same time again is already recorded.
+    expect((await propose([{ kind: 'time_entry', payload }])).skipped).toEqual([
+      expect.objectContaining({ reason: 'exists' }),
+    ]);
+    const error = await failure(
+      accept({
+        suggestionId: await proposeOne({
+          kind: 'time_entry',
+          payload: { ...payload, minutes: 12, taskId: 'no-such-task' },
+        }),
+      }),
+    );
+    expect(detailsOf(error)).toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
   it('edited: applies the edit (status edited) and returns field errors for a bad one', async () => {
     const id = await proposeOne(task('Call the valuer'));
     const bad = await failure(accept({ suggestionId: id, editedPayload: { title: '', dueDate: 'soon' } }));
@@ -351,7 +387,6 @@ describe('accepting each kind with a handler', () => {
 
 describe('kinds without a handler', () => {
   it.each([
-    ['time_entry', { date: '2026-10-05', minutes: 30, narrative: 'Call with the executor' }],
     ['chronology', { date: '2026-01-02', datePrecision: 'day', title: 'Will signed', detail: 'At the firm' }],
     [
       'order',

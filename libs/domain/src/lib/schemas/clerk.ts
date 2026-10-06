@@ -99,7 +99,7 @@ export const KeyFactProposalSchema = z
       issue.addIssue({ code: 'custom', path: ['value'], message: `Expected ${expected}` });
     }
   });
-/** A draft time entry. No handler until BILL-01 registers one. */
+/** A draft time entry of the person accepting (`source: 'clerk'`). */
 export const TimeEntryProposalSchema = z.strictObject({
   date: DateOnlySchema,
   minutes: MinutesSchema,
