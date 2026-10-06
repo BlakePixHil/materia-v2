@@ -15,9 +15,9 @@ import { RouterLink } from '@angular/router';
 
 import { can } from '@materia/data-access';
 import type { OnboardingStep } from '@materia/domain';
-import { MT_TODAY, MtBadge, MtButton, MtEmptyState, MtIcon, MtNote } from '@materia/ui';
+import { formatAud, MT_TODAY, MtBadge, MtButton, MtEmptyState, MtIcon, MtNote } from '@materia/ui';
 
-import { TodayData } from './today-data';
+import { MONTH_ENTRY_LIMIT, TodayData } from './today-data';
 import { TodayAttention, TodayDue, TodayRecent, TodayTasks } from './today-sections';
 import { timeZoneHintText, TODAY_COPY } from './today-view';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
@@ -37,8 +37,8 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
 /**
  * Today (`/today`, CORE-14): the signed-in person's day in the org's time zone. A greeting with the
  * date; Clerk's brief (behind `clerk.features.brief`); a checklist while the practice has no
- * matters; Needs attention (live); My tasks; my numbers; Due today and this week; and the matters
- * I opened lately. The data is `TodayData`'s.
+ * matters; Needs attention (live); My tasks; my numbers (and, for roles that record time, my WIP
+ * this month); Due today and this week; and the matters I opened lately. The data is `TodayData`'s.
  *
  * Keyboard: j/k move through every row on the page, Enter opens the focused row, Space completes
  * the focused task, `a` acknowledges the focused escalation.
@@ -170,6 +170,19 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
                 }
               </div>
             </div>
+            @if (data.wip(); as wip) {
+              <div class="mt-card mt-stat" data-stat="wip">
+                <div class="k"><mt-icon name="billing" />WIP this month</div>
+                <div class="v">{{ amount(wip.cents) }}</div>
+                <div class="f">
+                  @if (wip.truncated) {
+                    Counts your first {{ monthLimit }} entries
+                  } @else {
+                    Your time not yet billed
+                  }
+                </div>
+              </div>
+            }
           </div>
           <mt-today-due />
           <mt-today-recent />
@@ -219,6 +232,9 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: var(--space-12);
+    }
+    .mt-today .stats > :last-child:nth-child(odd) {
+      grid-column: 1 / -1;
     }
     .mt-today h2,
     .mt-today h3 {
@@ -384,6 +400,7 @@ export class TodayPage {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   protected readonly copy = TODAY_COPY;
+  protected readonly monthLimit = MONTH_ENTRY_LIMIT;
   /** The checklist, each open step with where it's done. */
   protected readonly onboarding = computed(() =>
     this.data
@@ -452,6 +469,10 @@ export class TodayPage {
 
   protected count(value: number | null): string {
     return value === null ? '—' : String(value);
+  }
+
+  protected amount(cents: number | null): string {
+    return formatAud(cents);
   }
 
   private items(): HTMLElement[] {

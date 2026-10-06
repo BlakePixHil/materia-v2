@@ -118,7 +118,13 @@ async function failure(promise: Promise<unknown>): Promise<FunctionsError> {
 }
 const detailsOf = (error: FunctionsError) => (error.details ?? {}) as Record<string, unknown>;
 
-async function poll<T>(read: () => Promise<T>, done: (value: T) => boolean, timeoutMs = 20_000): Promise<T> {
+/**
+ * Polls for a trigger's result. Its event waits in the Firestore emulator's queue behind every event
+ * this file's earlier tests left (changeStatus seeds a matter for each pair of statuses, and each
+ * matter write fires the denormalise, audit and metrics triggers in turn), so allow the 45 s the
+ * other files allow.
+ */
+async function poll<T>(read: () => Promise<T>, done: (value: T) => boolean, timeoutMs = 45_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   let value = await read();
   while (!done(value) && Date.now() < deadline) {
@@ -337,7 +343,7 @@ describe('matters-denormalise', () => {
     expect(edited['search']).toContain('rawlinson');
     expect((edited['lastActivityAt'] as Timestamp).toMillis()).toBeGreaterThan(first);
     expect(edited['updatedBy']).toBe('matters-lawyer');
-  });
+  }, 120_000);
 });
 
 describe('matters-restore', () => {

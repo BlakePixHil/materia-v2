@@ -9,11 +9,14 @@
 #   docs  docs-only changes: lint (Prettier) only.
 #   skip  pushes to main in quiet hours (22:00-07:30 Melbourne, nobody is testing), and morning
 #         runs with nothing new to deploy. deploy-dev only deploys runs whose `build` job ran,
-#         so quiet-hour merges wait for the morning run (about 06:30 Melbourne), which tests
-#         everything merged since the last dev deploy and deploys it. A 07:40 catch-up does the
-#         same for merges between 06:30 and 07:30. Release commits (the
-#         release-please PR) are never held back. To deploy overnight anyway, dispatch this
-#         workflow (or deploy-dev) on main.
+#         so quiet-hour merges wait for the morning run, which tests everything merged since the
+#         last dev deploy and deploys it. Release commits (the release-please PR) are never held
+#         back. To deploy overnight anyway, dispatch this workflow (or deploy-dev) on main.
+#
+# The morning run: GitHub fires this repo's crons hours late (06:30 crons arrived around noon),
+# so a Claude routine ("Morning dev deploy") dispatches this workflow with `morning: true` at 06:31
+# and 07:31 Melbourne (the second catches merges made after the first). The crons stay as a late
+# safety net. A morning run, dispatched or cron, deploys only when dev isn't on main yet.
 # Reproduce any job locally with the commands in AGENTS.md → "CI jobs locally".
 #
 # Third-party code: only GitHub-owned actions are used (actions/*, github/codeql-action). CLI tools
@@ -24,23 +27,27 @@ on:
   pull_request:
   push:
     branches: [main]
-  # The morning run and a catch-up. Cron is UTC, so each has one line per Melbourne offset:
-  # 19:30/20:30 are 06:30 in daylight saving (AEDT) / standard time (AEST), 20:40/21:40 are 07:40.
-  # The gate lets through only the line that lands in its local window, and skips when dev already
-  # runs main, so the catch-up costs about a minute unless something merged 06:30-07:30.
+  # Safety net for the morning run (see the top). Cron is UTC: 19:30/20:30 are 06:30 in daylight
+  # saving / standard time, 20:40/21:40 are 07:40. The gate skips these during quiet hours before
+  # 06:00 and whenever dev already runs main, so a skipped one costs about a minute.
   schedule:
     - cron: '30 19 * * *'
     - cron: '30 20 * * *'
     - cron: '40 20 * * *'
     - cron: '40 21 * * *'
   workflow_dispatch:
+    inputs:
+      morning:
+        description: Morning run (skip if dev already runs main)
+        type: boolean
+        default: false
 
 # Per event, so a quiet-hours push never cancels the morning run on main. A new PR push cancels
-# the PR's running CI. A push to main doesn't: the running main CI finishes (and deploys) and only
-# the newest waiting push runs next, so back-to-back merges can't keep dev from ever deploying.
+# the PR's running CI. Main runs don't cancel each other: the running one finishes (and deploys)
+# and only the newest waiting one runs next, so back-to-back merges can't keep dev from deploying.
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'push' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -74,7 +81,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           PR: ${{ github.event.pull_request.number }}
           BEFORE: ${{ github.event.before }}
-          CRON: ${{ github.event.schedule }}
+          MORNING: ${{ inputs.morning }}
         run: .github/scripts/ci-gate.sh
 
   changes:
@@ -359,6 +366,13 @@ jobs:
           # busy runner a late first call has taken longer, failing with "Failed to load function";
           # test-integration sets the same.
           FUNCTIONS_DISCOVERY_TIMEOUT: '120'
+          # The Functions emulator keeps a worker process (the whole functions bundle, about 150 MB)
+          # for every function called and never stops one: a shard reached 79 workers and 12 GB on a
+          # 7 GB runner, which swapped until a 20 ms trigger took a second and saves timed out. Our
+          # firebase-tools patch (patches/) stops the workers idle longest beyond this many.
+          FUNCTIONS_EMULATOR_MAX_WORKERS: '20'
+          # Workers load the bundle from V8's code cache after the first: about a third faster.
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
           # PRs test Chromium only; the morning run and dispatches add WebKit (iPhone Safari).
           E2E_CHROMIUM_ONLY: ${{ github.event_name == 'pull_request' && '1' || '' }}
           E2E_PROJECTS: ${{ github.event_name == 'pull_request' && '--project=chromium' || '--project=chromium --project=webkit-mobile' }}

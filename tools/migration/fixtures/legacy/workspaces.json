@@ -1,0 +1,42 @@
+[
+  {
+    "path": "workspaces/f0000000-0000-4000-8000-000000000001",
+    "data": {
+      "id": "f0000000-0000-4000-8000-000000000001",
+      "isPrime": true,
+      "name": "Alex's workspace",
+      "visibility": "private",
+      "organisationId": null,
+      "uids": ["AlexRiversLegacyUid000000001"],
+      "users": {
+        "AlexRiversLegacyUid000000001": {
+          "roles": {
+            "owner": true
+          }
+        }
+      },
+      "createdOn": "2024-01-01T00:00:00.000Z",
+      "updatedOn": "2024-01-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workspaces/f0000000-0000-4000-8000-000000000002",
+    "data": {
+      "id": "f0000000-0000-4000-8000-000000000002",
+      "isPrime": false,
+      "name": "Old workspace",
+      "visibility": "private",
+      "organisationId": null,
+      "uids": ["AlexRiversLegacyUid000000001"],
+      "users": {
+        "AlexRiversLegacyUid000000001": {
+          "roles": {
+            "owner": true
+          }
+        }
+      },
+      "createdOn": "2023-01-01T00:00:00.000Z",
+      "updatedOn": "2023-01-01T00:00:00.000Z"
+    }
+  }
+]

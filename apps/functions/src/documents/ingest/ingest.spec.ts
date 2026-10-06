@@ -3,9 +3,9 @@ import path from 'node:path';
 
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 
-import type { FlagKey } from '@materia/domain';
+import { DEFAULT_OCR_DAILY_PAGES, type FlagKey } from '@materia/domain';
 
-import { DEFAULT_OCR_DAILY_PAGES, nextBudgetDay, reserveOcrPages } from './budget';
+import { nextBudgetDay, reserveOcrPages } from './budget';
 import { chunkId } from './chunks';
 import { gatewayIngestClerk, OcrUnavailableError, type IngestClerk } from './clerk';
 import { backfillIngest, needsIngest, onIngestChangeHandler } from './index';
@@ -239,6 +239,41 @@ describe('ingestDocument', () => {
     ]);
     // The document's own name and category are untouched (Clerk proposes, never commits).
     expect(await w.docData('d-will')).toMatchObject({ name: 'Will.pdf', category: 'other' });
+  });
+
+  it('tells the responsible lawyer about the classification, once, or else the uploader (CORE-22a)', async () => {
+    const w = world();
+    const member = (role: string) => ({ role, status: 'active', displayName: `Fictional ${role}` });
+    await w.db.doc(`orgs/${ORG}/members/user-lawyer`).set(member('lawyer'));
+    await w.db.doc(`orgs/${ORG}/members/user-principal`).set(member('lawyer'));
+    await w.db.doc(MATTER).set({ number: 'M-2026-0007', responsibleUid: 'user-principal' }, { merge: true });
+    const notifications = async () =>
+      (await w.db.collection(`orgs/${ORG}/notifications`).get()).docs.map((d) => d.data());
+
+    await ingestDocument(await w.addDocument('d-will', 'Will.pdf', fixture('will.pdf')), w.deps());
+    const [suggestion] = (await w.db.collection(`${MATTER}/suggestions`).get()).docs;
+    expect(await notifications()).toEqual([
+      expect.objectContaining({
+        kind: 'suggestion',
+        recipientUid: 'user-principal',
+        suggestionId: suggestion?.id,
+        matterId: 'm1',
+        title: 'Clerk has a suggestion on M-2026-0007',
+        link: '/matters/m1/overview',
+      }),
+    ]);
+    // The document's name stays out of the notification (it can carry personal data).
+    expect(JSON.stringify(await notifications())).not.toMatch(/Doyle|Will\.pdf/);
+
+    // A rerun of the same version is deduped: no second suggestion, no second notification.
+    await w.db.doc(`${MATTER}/documents/d-will`).update({ ingest: { status: 'pending' } });
+    await ingestDocument({ orgId: ORG, matterId: 'm1', docId: 'd-will', version: 1 }, w.deps());
+    expect(await notifications()).toHaveLength(1);
+
+    // With no responsible lawyer the uploader hears about it.
+    await w.db.doc(MATTER).update({ responsibleUid: FieldValue.delete() });
+    await ingestDocument(await w.addDocument('d-letter', 'Letter.pdf', fixture('will.pdf')), w.deps());
+    expect((await notifications()).map((n) => n['recipientUid']).sort()).toEqual(['user-lawyer', 'user-principal']);
   });
 
   it('OCRs a scanned PDF page by page through the gateway, flagging low-confidence pages', async () => {

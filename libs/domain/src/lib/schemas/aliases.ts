@@ -1,7 +1,8 @@
-import { Suggestion, ClerkThread, ClerkMessage } from './clerk';
+import { Suggestion, FactCitation, ClerkThread, ClerkMessage } from './clerk';
 import { Contact, Matter, MatterNumber } from './contacts-matters';
 import { Job } from './jobs';
 import { DisbursementPresetsDoc } from '../disbursements';
+import { LetterheadDoc } from '../doc-templates';
 import { SignIn } from '../security';
 import {
   Proceeding,
@@ -33,9 +34,11 @@ import {
   Liability,
   Distribution,
 } from './matter-records';
+import { MemberMetrics, MetricsLedger, MetricsShard } from './metrics';
 import {
   Invoice,
   CreditNote,
+  InvoiceReminder,
   MatterTemplate,
   MatterTemplateVersion,
   DocTemplate,
@@ -45,6 +48,9 @@ import {
   AuditEntry,
   Notification,
   Integration,
+  IntegrationState,
+  IntegrationStatus,
+  XeroContactLink,
   SafeCustody,
   TrustSnapshot,
   MigrationRun,
@@ -169,6 +175,9 @@ export const CourtBookUpdateSchema = CourtBook.update;
 export const SuggestionSchema = Suggestion.schema;
 export const SuggestionCreateSchema = Suggestion.create;
 export const SuggestionUpdateSchema = Suggestion.update;
+export const FactCitationSchema = FactCitation.schema;
+export const FactCitationCreateSchema = FactCitation.create;
+export const FactCitationUpdateSchema = FactCitation.update;
 export const ClerkThreadSchema = ClerkThread.schema;
 export const ClerkThreadCreateSchema = ClerkThread.create;
 export const ClerkThreadUpdateSchema = ClerkThread.update;
@@ -181,6 +190,9 @@ export const InvoiceUpdateSchema = Invoice.update;
 export const CreditNoteSchema = CreditNote.schema;
 export const CreditNoteCreateSchema = CreditNote.create;
 export const CreditNoteUpdateSchema = CreditNote.update;
+export const InvoiceReminderSchema = InvoiceReminder.schema;
+export const InvoiceReminderCreateSchema = InvoiceReminder.create;
+export const InvoiceReminderUpdateSchema = InvoiceReminder.update;
 export const MatterTemplateSchema = MatterTemplate.schema;
 export const MatterTemplateCreateSchema = MatterTemplate.create;
 export const MatterTemplateUpdateSchema = MatterTemplate.update;
@@ -199,6 +211,15 @@ export const TaskGroupTemplateUpdateSchema = TaskGroupTemplate.update;
 export const MetricsSchema = Metrics.schema;
 export const MetricsCreateSchema = Metrics.create;
 export const MetricsUpdateSchema = Metrics.update;
+export const MemberMetricsSchema = MemberMetrics.schema;
+export const MemberMetricsCreateSchema = MemberMetrics.create;
+export const MemberMetricsUpdateSchema = MemberMetrics.update;
+export const MetricsShardSchema = MetricsShard.schema;
+export const MetricsShardCreateSchema = MetricsShard.create;
+export const MetricsShardUpdateSchema = MetricsShard.update;
+export const MetricsLedgerSchema = MetricsLedger.schema;
+export const MetricsLedgerCreateSchema = MetricsLedger.create;
+export const MetricsLedgerUpdateSchema = MetricsLedger.update;
 export const AuditEntrySchema = AuditEntry.schema;
 export const AuditEntryCreateSchema = AuditEntry.create;
 export const AuditEntryUpdateSchema = AuditEntry.update;
@@ -208,6 +229,15 @@ export const NotificationUpdateSchema = Notification.update;
 export const IntegrationSchema = Integration.schema;
 export const IntegrationCreateSchema = Integration.create;
 export const IntegrationUpdateSchema = Integration.update;
+export const IntegrationStatusSchema = IntegrationStatus.schema;
+export const IntegrationStatusCreateSchema = IntegrationStatus.create;
+export const IntegrationStatusUpdateSchema = IntegrationStatus.update;
+export const IntegrationStateSchema = IntegrationState.schema;
+export const IntegrationStateCreateSchema = IntegrationState.create;
+export const IntegrationStateUpdateSchema = IntegrationState.update;
+export const XeroContactLinkSchema = XeroContactLink.schema;
+export const XeroContactLinkCreateSchema = XeroContactLink.create;
+export const XeroContactLinkUpdateSchema = XeroContactLink.update;
 export const SafeCustodySchema = SafeCustody.schema;
 export const SafeCustodyCreateSchema = SafeCustody.create;
 export const SafeCustodyUpdateSchema = SafeCustody.update;
@@ -253,3 +283,6 @@ export const RecentMatterUpdateSchema = RecentMatter.update;
 export const DisbursementPresetsDocSchema = DisbursementPresetsDoc.schema;
 export const DisbursementPresetsDocCreateSchema = DisbursementPresetsDoc.create;
 export const DisbursementPresetsDocUpdateSchema = DisbursementPresetsDoc.update;
+export const LetterheadDocSchema = LetterheadDoc.schema;
+export const LetterheadDocCreateSchema = LetterheadDoc.create;
+export const LetterheadDocUpdateSchema = LetterheadDoc.update;

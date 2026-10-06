@@ -15,7 +15,7 @@ import {
   type EstateSyncOutcome,
 } from './sync';
 import { runCallable, type CallableDeps } from '../core/callable';
-import { clearFlagCaches } from '../core/flags';
+import { setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
 import type { TriggerChange, TriggerContext } from '../core/trigger';
 import { memoryFirestore } from '../orgs/testing';
@@ -63,7 +63,9 @@ const distribution = (extra: Data = {}) => ({
 });
 
 function world(initial: Record<string, Data> = {}, flags: Data = { 'estate.register': true }) {
-  clearFlagCaches();
+  // No Remote Config: the real loader reaches Google's servers, which on a CI runner took longer
+  // than the test's 20 s (the deadline recompute and the export both read flags).
+  setRemoteFlagLoader(async () => ({}));
   const store = memoryFirestore({
     [`orgs/${ORG}`]: { name: 'Fictional Bayside Legal', timezone: 'Australia/Melbourne', flags },
     [`orgs/${ORG}/members/user-lawyer`]: { ...meta, role: 'lawyer', status: 'active' },
@@ -127,7 +129,7 @@ function world(initial: Record<string, Data> = {}, flags: Data = { 'estate.regis
       exportInventoryDefinition,
       {
         data: { requestId: randomUUID(), matterId: 'm1', ...data },
-        auth: { uid: `user-${role}`, token: { orgId: ORG, role } },
+        auth: { uid: `user-${role}`, token: { orgId: ORG, role, auth_time: NOW.getTime() / 1000 - 60 } },
       },
       deps(),
     );
@@ -255,7 +257,7 @@ describe('estate-onWrite', () => {
     };
     w.docs.set(`ruleSets/${VIC_RULESET_V1.ruleSetId}/versions/${next.version}`, toRuleSetDoc(next) as Data);
     expect(await estateValueChanged(w.doc(M) as Data, ctx())).toBe(true);
-  }, 20_000); // The first recompute loads the rule sets and holiday calendars.
+  });
 });
 
 describe('estate-exportInventory', () => {

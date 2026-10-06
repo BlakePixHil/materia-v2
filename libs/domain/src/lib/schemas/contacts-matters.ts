@@ -17,6 +17,7 @@ import {
   MatterStatusSchema,
   MatterTypeSchema,
   OriginalsOutcomeSchema,
+  PartyRoleSchema,
   PrioritySchema,
   ReferralSourceSchema,
   ReferrerIndustrySchema,
@@ -74,11 +75,18 @@ export const Contact = withMeta(
     sortName: z.string(),
     /** Set by `contacts-merge`: this contact is a tombstone, merged into that one. */
     mergedInto: DocIdSchema.optional(),
+    /**
+     * The roles the contact holds on live, unprivileged matters (CORE-01a, `matterCountsForRoles`),
+     * each once in `PARTY_ROLE_ORDER`, for the "Role in matters" filter. Kept by
+     * `contacts-onPartyWrite` (and `matters-denormalise` when a matter is deleted, restored or its
+     * privileged flag changes); `materia-scripts backfill-matter-roles` fills older contacts.
+     */
+    matterRoles: z.array(PartyRoleSchema).default([]),
   },
   {
     path: 'orgs/{orgId}/contacts',
     softDelete: true,
-    serverOwned: ['search', 'dedupeKey', 'sortName', 'mergedInto'],
+    serverOwned: ['search', 'dedupeKey', 'sortName', 'mergedInto', 'matterRoles'],
   },
 );
 
@@ -157,6 +165,97 @@ export const MatterBudgetSchema = z.object({
 });
 export type MatterBudget = z.infer<typeof MatterBudgetSchema>;
 
+/** What a matter's costs disclosure must be, by its estimate's band (BILL-06): none, the uniform standard form, or full. */
+export const DisclosureRequirementSchema = z.enum(['none', 'short_form', 'full']);
+export type DisclosureRequirement = z.infer<typeof DisclosureRequirementSchema>;
+
+/**
+ * Where a matter's costs disclosure stands (BILL-06). `update_required` follows a significant change
+ * to an estimate already disclosed; `updated` is an updated disclosure sent after it.
+ */
+export const CostsDisclosureStatusSchema = z.enum([
+  'not_required',
+  'required',
+  'sent',
+  'update_required',
+  'updated',
+  'waived',
+]);
+export type CostsDisclosureStatus = z.infer<typeof CostsDisclosureStatusSchema>;
+
+/** Why a lawyer recorded that no disclosure is needed (the Uniform Law's exceptions; BILL-06). */
+export const DisclosureWaiverReasonSchema = z.enum(['commercial_or_government', 'sophisticated_client', 'other']);
+export type DisclosureWaiverReason = z.infer<typeof DisclosureWaiverReasonSchema>;
+
+/** How a disclosure was given. Materia records it; it doesn't send it (BILL-06). */
+export const DisclosureSentMethodSchema = z.enum(['email', 'post', 'hand']);
+export type DisclosureSentMethod = z.infer<typeof DisclosureSentMethodSchema>;
+
+/** What made an estimate revision significant: the band moved, it rose past the org's percentage, or it was first given. */
+export const DisclosureUpdateReasonSchema = z.enum(['band', 'increase', 'estimate']);
+export type DisclosureUpdateReason = z.infer<typeof DisclosureUpdateReasonSchema>;
+
+/** One line of a matter's costs disclosure history (BILL-06), newest last. `by` is `system` for the server. */
+export const DisclosureEventSchema = z.object({
+  at: InstantSchema,
+  by: DocIdSchema,
+  action: z.enum([
+    'assessed',
+    'reassessed',
+    'update_required',
+    'generated',
+    'sent',
+    'waived',
+    'waiver_removed',
+    'reminded',
+  ]),
+  status: CostsDisclosureStatusSchema,
+  requirement: DisclosureRequirementSchema.optional(),
+  estimateCents: CentsSchema.optional(),
+  documentId: DocIdSchema.optional(),
+  note: z.string().max(500).optional(),
+});
+export type DisclosureEvent = z.infer<typeof DisclosureEventSchema>;
+
+/**
+ * `matter.costsDisclosure` (CORE-05, BILL-06; server-written). The status, the requirement the
+ * estimate's band gives under the jurisdiction's rules (`rulesVersion`, absent where none are
+ * configured), the estimate it was assessed on (`basisEstimateCents`, absent while there is none),
+ * since when a disclosure has been due (`requiredSince`, for the 7-day reminder), the last one
+ * sent (date, method, estimate and band) and the generated document, a lawyer's waiver, and the
+ * history. `estimateCents` is CORE-05's name for the estimate, on matters opened before BILL-06.
+ */
+export const CostsDisclosureSchema = z.object({
+  status: CostsDisclosureStatusSchema,
+  requirement: DisclosureRequirementSchema.optional(),
+  bandId: z.string().max(60).optional(),
+  rulesVersion: z.string().max(60).optional(),
+  basisEstimateCents: CentsSchema.optional(),
+  estimateCents: CentsSchema.optional(),
+  notRequiredReason: z.enum(['below_threshold', 'pro_bono']).optional(),
+  requiredSince: DateOnlySchema.optional(),
+  remindedOn: DateOnlySchema.optional(),
+  updateReasons: z.array(DisclosureUpdateReasonSchema).optional(),
+  sentOn: DateOnlySchema.optional(),
+  sentMethod: DisclosureSentMethodSchema.optional(),
+  sentEstimateCents: CentsSchema.optional(),
+  sentBandId: z.string().max(60).optional(),
+  documentId: DocIdSchema.optional(),
+  /** The open "send the disclosure" task the server made, completed when one is recorded as sent. */
+  taskId: DocIdSchema.optional(),
+  waiver: z
+    .object({
+      reason: DisclosureWaiverReasonSchema,
+      note: z.string().max(500).optional(),
+      by: DocIdSchema,
+      at: InstantSchema,
+    })
+    .optional(),
+  /** Absent on matters opened before BILL-06. */
+  history: z.array(DisclosureEventSchema).optional(),
+});
+export type CostsDisclosure = z.infer<typeof CostsDisclosureSchema>;
+
 /** `orgs/{orgId}/matters/{matterId}`. */
 export const Matter = withMeta(
   {
@@ -192,12 +291,7 @@ export const Matter = withMeta(
     /** Where the matter came from when no referrer contact sent it (CORE-18); never set with `referrerContactId`. */
     referralSource: ReferralSourceSchema.optional(),
     fee: FeeSchema,
-    costsDisclosure: z.object({
-      status: z.enum(['not_required', 'required', 'sent', 'updated', 'waived']),
-      sentOn: DateOnlySchema.optional(),
-      estimateCents: CentsSchema.optional(),
-      documentId: DocIdSchema.optional(),
-    }),
+    costsDisclosure: CostsDisclosureSchema,
     conflictCheck: z.object({
       status: z.enum(['pending', 'clear', 'potential', 'conflict']),
       checkedAt: InstantSchema.optional(),
@@ -274,6 +368,8 @@ export const Matter = withMeta(
     lastInvoicedOn: DateOnlySchema.optional(),
     /** Unbilled, live disbursements ex GST (BILL-04), kept by `disbursements-onWrite`; time is `wipCents`. */
     disbursementWipCents: CentsSchema.optional(),
+    /** What the matter's issued invoices still owe, inc GST (BILL-08), kept by `billing-outstandingOnInvoice`. */
+    outstandingCents: CentsSchema.optional(),
     lastActivityAt: InstantSchema.optional(),
     litigationSummary: z.record(z.string(), z.unknown()).optional(),
     /** The estate register's totals (CORE-16), kept by `estate-onWrite` so they never need every row. */
@@ -324,6 +420,7 @@ export const Matter = withMeta(
       'wipCents',
       'lastInvoicedOn',
       'disbursementWipCents',
+      'outstandingCents',
       'lastActivityAt',
       'litigationSummary',
       'estateRegister',

@@ -4,6 +4,7 @@ import { BILLING_UNIT_MINUTES } from './constants';
 import { contactDisplayName } from './contacts';
 import { disbursementInvoiceLine } from './disbursements';
 import { formatAbn } from './org-settings';
+import { owingCents, type InvoiceMoneyLike } from './payments';
 import { DocIdSchema } from './schemas/common';
 import { InvoiceExtraLineSchema, type InvoiceItem, type InvoiceLine, type InvoiceParty } from './schemas/org-records';
 import { addDays, DateOnlySchema, toDisplay, type DateOnly } from './values/date-only';
@@ -109,6 +110,8 @@ export const InvoiceDraftFieldsSchema = /* @__PURE__ */ z
     extraLines: z.array(InvoiceExtraLineSchema).max(INVOICE_EXTRA_LINES_MAX).default([]),
     notes: z.string().max(INVOICE_NOTES_MAX).default(''),
     paymentTermsDays: z.number().int().min(0).max(365),
+    /** "To be paid from trust" (BILL-12): the intention only; no money moves. */
+    paidFromTrust: z.boolean().optional(),
   })
   .refine((fields) => !fields.from || !fields.to || fields.from <= fields.to, {
     message: 'The start date is after the end date',
@@ -556,14 +559,9 @@ export function creditNoteLines(
   return { lines, problem: null };
 }
 
-/** What is still owed on an invoice: its total less credits and payments. */
-export function invoiceBalanceCents(invoice: {
-  totalCents: number;
-  creditedCents?: number | undefined;
-  payments?: readonly { amountCents: number }[] | undefined;
-}): Cents {
-  const paid = (invoice.payments ?? []).reduce((sum, payment) => sum + payment.amountCents, 0);
-  return cents(invoice.totalCents - (invoice.creditedCents ?? 0) - paid);
+/** What is still owed on an invoice: its total less credits and payments (`owingCents`, BILL-08). */
+export function invoiceBalanceCents(invoice: InvoiceMoneyLike): Cents {
+  return owingCents(invoice);
 }
 
 // ---------- the PDF ----------
@@ -602,6 +600,8 @@ export interface InvoicePdfData {
   gstStatement?: string;
   notes?: string;
   terms?: string;
+  /** The r 42(3) notice of intended withdrawal from trust (BILL-12), when the invoice carries one. */
+  trustNotice?: string;
   /** Credit notes: the invoice credited and why. */
   creditOf?: string;
   reason?: string;
@@ -642,6 +642,7 @@ export function invoicePdfData(
     paymentTermsDays?: number | undefined;
     matterNumber?: string | undefined;
     matterTitle?: string | undefined;
+    trustNotice?: { text: string } | undefined;
   },
   credit?: { invoiceNumber: string; reason: string },
 ): InvoicePdfData {
@@ -697,6 +698,7 @@ export function invoicePdfData(
     ...(gst ? { gstStatement: `Total includes GST of ${money(doc.gstCents)}.` } : {}),
     ...(doc.notes?.trim() ? { notes: doc.notes.trim() } : {}),
     ...(terms ? { terms } : {}),
+    ...(!credit && doc.trustNotice?.text ? { trustNotice: doc.trustNotice.text } : {}),
     ...(credit ? { creditOf: credit.invoiceNumber, reason: credit.reason } : {}),
   };
 }
@@ -717,6 +719,7 @@ export const INVOICE_CALLABLES = {
   void: 'billing-voidInvoice',
   createCreditNote: 'billing-createCreditNote',
   retryPdf: 'billing-retryPdf',
+  setPaidFromTrust: 'billing-setPaidFromTrust',
 } as const;
 
 /**
@@ -738,6 +741,7 @@ export const SaveInvoiceDraftInput = /* @__PURE__ */ z.object({
       extraLines: z.array(InvoiceExtraLineSchema).max(INVOICE_EXTRA_LINES_MAX).optional(),
       notes: z.string().max(INVOICE_NOTES_MAX).optional(),
       paymentTermsDays: z.number().int().min(0).max(365).optional(),
+      paidFromTrust: z.boolean().optional(),
     })
     .default({}),
 });
@@ -831,6 +835,25 @@ export type RetryInvoicePdfInput = z.input<typeof RetryInvoicePdfInput>;
 
 export interface RetryInvoicePdfResult {
   jobId: string;
+}
+
+/**
+ * `billing-setPaidFromTrust` (BILL-12; `billing.issue`, flag `billing.invoicing`, idempotent):
+ * marks a pre-bill or issued invoice "To be paid from trust", or clears it. Only the intention is
+ * recorded: nothing is withdrawn, scheduled or authorised. On an issued invoice with
+ * `billing.trustNotice` on, the PDF is rendered again with (or without) the r 42(3) notice.
+ */
+export const SetPaidFromTrustInput = /* @__PURE__ */ z.object({
+  requestId: z.uuid(),
+  invoiceId: DocIdSchema,
+  paidFromTrust: z.boolean(),
+});
+export type SetPaidFromTrustInput = z.input<typeof SetPaidFromTrustInput>;
+
+export interface SetPaidFromTrustResult {
+  paidFromTrust: boolean;
+  /** Whether the PDF is being rendered again for the notice. */
+  pdfRendering: boolean;
 }
 
 // ---------- display ----------

@@ -27,6 +27,7 @@ import {
   MEMBER_LIST_QUERY,
   membersRepository,
   orgSettingsReadRepository,
+  timeCallables,
   type InvoiceItem,
   type OrgSettings,
   type WithId,
@@ -37,6 +38,7 @@ import {
   INVOICE_EXTRA_LINES_MAX,
   INVOICE_NOTES_MAX,
   INVOICE_WARNING_COPY,
+  PAID_FROM_TRUST_COPY,
   unitsToHours,
   type DateOnly,
   type InvoiceDraftFieldsInput,
@@ -62,6 +64,8 @@ import {
 import { dateText, extraLineForm, extraLinesFrom, invoiceSourcesFrom, type ExtraLineForm } from './invoices-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { writeDownTime } from '../billing/write-down';
 import { formatEntryDate, parseEntryDate } from '../time/time-view';
 
 /** What the pre-bill form holds: the choices, as typed. */
@@ -74,6 +78,7 @@ interface PreBillForm {
   extraLines: ExtraLineForm[];
   notes: string;
   paymentTermsDays: string;
+  paidFromTrust: boolean;
 }
 
 function formOf(invoice: InvoiceItem): PreBillForm {
@@ -86,6 +91,7 @@ function formOf(invoice: InvoiceItem): PreBillForm {
     extraLines: invoice.extraLines.map(extraLineForm),
     notes: invoice.notes,
     paymentTermsDays: String(invoice.paymentTermsDays),
+    paidFromTrust: invoice.paidFromTrust === true,
   };
 }
 
@@ -100,6 +106,7 @@ function savedFields(invoice: InvoiceItem): InvoiceDraftFieldsInput {
     extraLines: invoice.extraLines,
     notes: invoice.notes,
     paymentTermsDays: invoice.paymentTermsDays,
+    paidFromTrust: invoice.paidFromTrust === true,
   };
 }
 
@@ -233,6 +240,16 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
                   <mt-badge tone="info">New</mt-badge>
                 }
                 <span class="num mt-ml">{{ money(entry.amountCents) }}</span>
+                @if (canWriteDown()) {
+                  <button
+                    mtIconButton
+                    icon="minus"
+                    size="sm"
+                    [label]="'Write down or off: ' + (entry.narrative || 'this entry')"
+                    [disabled]="writingDown()"
+                    (click)="writeDown(entry.id)"
+                  ></button>
+                }
               </li>
             } @empty {
               <li class="caption t-3">No approved, unbilled time in these dates.</li>
@@ -334,6 +351,13 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
           [ngModel]="form().paymentTermsDays"
           (ngModelChange)="patch({ paymentTermsDays: $event ?? '' })"
         />
+        <mt-checkbox
+          name="paidFromTrust"
+          label="To be paid from trust"
+          [description]="trustCopy"
+          [ngModel]="form().paidFromTrust"
+          (ngModelChange)="patch({ paidFromTrust: !!$event })"
+        />
       </section>
 
       <section class="mt-card preview" aria-labelledby="pb-preview" data-testid="pre-bill-preview">
@@ -423,6 +447,16 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
           Due {{ termsText() }} after it’s issued. Rounding: GST is worked out on each line, to the nearest cent (half
           up), then added up.
         </p>
+        @if (form().paidFromTrust) {
+          <p class="caption t-3" data-testid="pre-bill-trust">
+            To be paid from trust.
+            {{
+              trustNoticeOn()
+                ? 'The notice of intended withdrawal prints on the invoice.'
+                : 'No withdrawal notice prints until the wording is approved.'
+            }}
+          </p>
+        }
       </section>
     </div>
   `,
@@ -591,16 +625,23 @@ export class PreBill {
   readonly invoice = input.required<WithId<InvoiceItem>>();
 
   private readonly context = inject(OrgContext);
+  private readonly flags = inject(FeatureFlagService);
   private readonly router = inject(Router);
   private readonly dialogs = inject(DialogService);
   private readonly toasts = inject(ToastService);
   private readonly today = inject(MT_TODAY);
   private readonly api = invoiceCallables(inject(CALLABLES));
+  private readonly timeApi = timeCallables(inject(CALLABLES));
+  /** Approvers write time down or off from the pre-bill (BILL-07b); the preview follows the entry. */
+  protected readonly canWriteDown = can('time.approve');
+  protected readonly writingDown = signal(false);
   protected readonly canIssue = can('billing.issue');
   protected readonly groupings = GROUPINGS;
   protected readonly warningCopy = INVOICE_WARNING_COPY;
   protected readonly extraMax = INVOICE_EXTRA_LINES_MAX;
   protected readonly notesMax = INVOICE_NOTES_MAX;
+  protected readonly trustCopy = PAID_FROM_TRUST_COPY;
+  protected readonly trustNoticeOn = computed(() => this.flags.isOn('billing.trustNotice'));
 
   protected readonly matterId = computed(() => this.invoice().matterId);
   private readonly matter = matterDetailRepository().watch(() => this.matterId());
@@ -624,8 +665,14 @@ export class PreBill {
     return matter ? `${matter.number} · ${matter.title}` : 'Matter';
   });
 
+  /**
+   * The form resets only when the pre-bill itself changes. A memoised id, because linkedSignal
+   * recomputes whenever its source's dependencies change: with `() => this.invoice().id` every
+   * snapshot of the same pre-bill threw away what was being edited.
+   */
+  private readonly invoiceId = computed(() => this.invoice().id);
   protected readonly form = linkedSignal<string, PreBillForm>({
-    source: () => this.invoice().id,
+    source: this.invoiceId,
     computation: () => formOf(untracked(this.invoice)),
   });
   protected readonly saving = signal(false);
@@ -683,6 +730,7 @@ export class PreBill {
       extraLines: this.extras().lines,
       notes: form.notes,
       paymentTermsDays: this.terms() ?? this.invoice().paymentTermsDays,
+      paidFromTrust: form.paidFromTrust,
     };
   });
 
@@ -741,6 +789,22 @@ export class PreBill {
 
   protected patch(change: Partial<PreBillForm>): void {
     this.form.update((form) => ({ ...form, ...change }));
+  }
+
+  protected async writeDown(entryId: string): Promise<void> {
+    const entry = this.entries.value().find((item) => item.id === entryId);
+    const matterId = this.matterId();
+    if (!entry || !matterId || this.writingDown()) return;
+    this.writingDown.set(true);
+    try {
+      const ui = { dialogs: this.dialogs, toasts: this.toasts };
+      const summary = await writeDownTime(ui, this.timeApi, matterId, [entry], this.sources().unitMinutes);
+      if (summary) this.announcement.set(summary);
+    } catch (error) {
+      this.toasts.show({ title: 'The time wasn’t written down', description: errorCopy(error), tone: 'danger' });
+    } finally {
+      this.writingDown.set(false);
+    }
   }
 
   protected toggle(key: 'excludedTimeEntryIds' | 'excludedDisbursementIds', id: string, included: boolean): void {

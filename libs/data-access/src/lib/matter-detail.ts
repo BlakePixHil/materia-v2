@@ -4,6 +4,7 @@ import * as z from 'zod';
 import {
   Activity,
   Deadline,
+  FactCitation,
   Matter,
   MatterTemplate,
   MatterTemplateVersion,
@@ -27,6 +28,8 @@ import {
   type RenumberMatterResult,
   type ReopenMatterInput,
   type ReopenMatterResult,
+  type RestoreMatterInput,
+  type RestoreMatterResult,
   type SetLegalHoldInput,
   type SetLegalHoldResult,
   type TaskStatus,
@@ -73,6 +76,10 @@ export const MatterDetailSchema = /* @__PURE__ */ z.object({
   fee: matter.fee.optional(),
   /** The budget against the fee (BILL-05), kept by the fees triggers. */
   budget: matter.budget,
+  /** The costs disclosure (CORE-05, BILL-06); a malformed one reads as absent rather than hiding the matter. */
+  costsDisclosure: matter.costsDisclosure.optional().catch(undefined),
+  /** What its issued invoices still owe (BILL-08), kept by `billing-outstandingOnInvoice`. */
+  outstandingCents: matter.outstandingCents,
   priority: matter.priority,
   labels: matter.labels,
   externalRef: matter.externalRef,
@@ -238,6 +245,37 @@ export function matterActivityRepository(matterId: () => string | null): Reposit
   return matterRecords(matterId, 'activity', MatterActivitySchema, Activity.version);
 }
 
+// ---------- key fact citations ----------
+
+const factCitation = FactCitation.schema.shape;
+
+/**
+ * Where Clerk found a key fact's value (CORE-06a, ADR-049): the citations kept when its suggestion
+ * was accepted, with the value they support (`keyFactCitations` shows them only while the fact
+ * still has it). The document id is the fact's id.
+ */
+export const MatterFactCitationSchema = /* @__PURE__ */ z.object({
+  factId: factCitation.factId,
+  value: factCitation.value,
+  citations: factCitation.citations,
+  suggestionId: factCitation.suggestionId,
+  privileged: factCitation.privileged,
+});
+export type MatterFactCitation = z.infer<typeof MatterFactCitationSchema>;
+
+/** A matter's key fact citations, read-only: functions write and delete them. */
+export function matterFactCitationsRepository(matterId: () => string | null): Repository<MatterFactCitation> {
+  return matterRecords(matterId, 'factCitations', MatterFactCitationSchema, FactCitation.version);
+}
+
+/**
+ * Every key fact citation of a matter the reader may see (one per fact, so a handful). Without
+ * `privileged.view` the rules need `privileged == false`.
+ */
+export function factCitationsQuery(options: { privilegedVisible: boolean }): QuerySpec<MatterFactCitation> {
+  return { where: options.privilegedVisible ? [] : [['privileged', '==', false]], pageSize: 20 };
+}
+
 // ---------- templates ----------
 
 const template = MatterTemplate.schema.shape;
@@ -355,6 +393,8 @@ export interface MatterCallables {
   reopen(input: Input<ReopenMatterInput>): Promise<ReopenMatterResult>;
   /** `matters-setLegalHold` (matter.legalHold, CORE-19): a hold keeps the matter from destruction. */
   setLegalHold(input: Input<SetLegalHoldInput>): Promise<SetLegalHoldResult>;
+  /** `matters-restore` (matter.restore, CORE-03): a deleted matter back, within MATTER_RESTORE_WINDOW_DAYS. */
+  restore(input: Input<RestoreMatterInput>): Promise<RestoreMatterResult>;
 }
 
 export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCallables {
@@ -374,5 +414,6 @@ export function matterCallables(client: Pick<CallableClient, 'call'>): MatterCal
     close: call(MATTER_CALLABLES.close),
     reopen: call(MATTER_CALLABLES.reopen),
     setLegalHold: call(MATTER_CALLABLES.setLegalHold),
+    restore: call(MATTER_CALLABLES.restore),
   };
 }

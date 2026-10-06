@@ -15,9 +15,11 @@ import {
   clerkAcknowledged,
   clerkMeteringPeriod,
   DEFAULT_CLERK_MODEL,
+  DEFAULT_OCR_DAILY_PAGES,
   formatUsdCents,
   looksLikeAnthropicKey,
   MAX_DAILY_REQUESTS,
+  MAX_OCR_DAILY_PAGES,
   microsToCents,
   normaliseAnthropicKey,
   ORG_CLERK_FEATURES,
@@ -34,6 +36,7 @@ import {
   formatDateOnly,
   MT_ORG_TIMEZONE,
   MtButton,
+  MtIcon,
   MtNote,
   MtRadioGroup,
   MtSettingsRow,
@@ -51,18 +54,18 @@ import { errorCopy } from '../../core/error-copy';
 import { dollarsText, parseDollars } from '../settings/money';
 
 /** "1,250" → 1250; empty is null; anything else undefined (invalid). */
-function parseCount(text: string): number | null | undefined {
+function parseCount(text: string, min: number, max: number): number | null | undefined {
   const trimmed = text.replace(/[,\s]/g, '');
   if (!trimmed) return null;
   const value = Number(trimmed);
-  return Number.isInteger(value) && value >= 1 && value <= MAX_DAILY_REQUESTS ? value : undefined;
+  return Number.isInteger(value) && value >= min && value <= max ? value : undefined;
 }
 
 /**
  * Settings → Clerk and AI (`/settings/clerk`, AI-02a and AI-13). Owners and admins:
  * - acknowledge the data-use disclosure (Clerk stays off until they do, and again for a new version);
  * - turn Clerk on or off for the practice and per feature (saved at once);
- * - set the monthly spend limit and the per-person daily request limit;
+ * - set the monthly spend limit, the per-person daily request limit and the daily scanned-page limit (AI-04);
  * - save the firm's Anthropic API key and choose the model (AI-02a);
  * - see this month's usage and cost.
  * Everyone else sees which features are on and the disclosure, read-only. Every change goes
@@ -75,6 +78,7 @@ function parseCount(text: string): number | null | undefined {
     ClerkUsage,
     FormsModule,
     MtButton,
+    MtIcon,
     MtMarkdown,
     MtNote,
     MtRadioGroup,
@@ -84,294 +88,424 @@ function parseCount(text: string): number | null | undefined {
     MtTextField,
     RouterLink,
   ],
-  host: { class: 'clerk-settings' },
   template: `
-    <div class="main mt-col">
-      <div class="mt-col" style="gap: 6px">
-        <h1 class="title-l" style="margin: 0">Clerk and AI</h1>
-        <p style="margin: 0; color: var(--text-secondary)">
-          Choose what Clerk can do for {{ orgName() }}. These settings apply to everyone in the practice.
-          <a routerLink="/help/clerk">How Clerk works</a>
-        </p>
-      </div>
+    <div class="layout" [class.with-aside]="canConfigure()">
+      <div class="main mt-col">
+        <div class="mt-col" style="gap: 6px">
+          <h1 class="title-l" style="margin: 0">Clerk and AI</h1>
+          <p style="margin: 0; color: var(--text-secondary)">
+            Choose what Clerk can do for {{ orgName() }}. These settings apply to everyone in the practice.
+            <a routerLink="/help/clerk">How Clerk works</a>
+          </p>
+        </div>
 
-      @if (org.status() === 'error') {
-        <mt-note tone="danger">Clerk’s settings couldn’t be loaded. {{ errorText(org.error()) }}</mt-note>
-      }
+        @if (org.status() === 'error') {
+          <mt-note tone="danger">Clerk’s settings couldn’t be loaded. {{ errorText(org.error()) }}</mt-note>
+        }
 
-      <mt-settings-section
-        title="How Clerk uses your firm’s data"
-        [description]="'Data-use disclosure, version ' + disclosureVersion + '.'"
-        [headingLevel]="2"
-        data-disclosure
-      >
-        @if (loaded()) {
-          @if (acknowledged()) {
-            <p style="margin: 0" data-acknowledged>
-              Acknowledged by {{ acknowledgedBy() }}
-              @if (acknowledgedOn(); as date) {
-                on {{ date }}
-              }
-              .
-            </p>
-          } @else {
-            <mt-note tone="warning" data-ack-needed>
-              @if (settings()?.ackVersion) {
-                This disclosure has changed. Clerk is off until an owner or admin reads it and acknowledges it again.
+        <mt-settings-section
+          title="How Clerk uses your firm’s data"
+          [description]="'Data-use disclosure, version ' + disclosureVersion + '.'"
+          [headingLevel]="2"
+          data-disclosure
+        >
+          <div class="mt-card disclosure-card" [attr.data-pending]="loaded() && !acknowledged() ? '' : null">
+            @if (loaded()) {
+              @if (acknowledged()) {
+                <p class="ack" data-acknowledged>
+                  <mt-icon name="check-circle" />
+                  <span
+                    >Acknowledged by {{ acknowledgedBy()
+                    }}{{ acknowledgedOn() ? ' on ' + acknowledgedOn() : '' }}.</span
+                  >
+                </p>
               } @else {
-                Clerk is off until an owner or admin reads this and acknowledges it.
+                <mt-note tone="warning" data-ack-needed>
+                  @if (settings()?.ackVersion) {
+                    This disclosure has changed. Clerk is off until an owner or admin reads it and acknowledges it
+                    again.
+                  } @else {
+                    Clerk is off until an owner or admin reads this and acknowledges it.
+                  }
+                </mt-note>
               }
-            </mt-note>
-          }
-        }
-        <details class="disclosure" [open]="loaded() && !acknowledged()">
-          <summary>Read the disclosure</summary>
-          <mt-markdown [content]="disclosure" [breaks]="false" />
-        </details>
-        @if (canConfigure() && loaded() && !acknowledged()) {
-          <div>
-            <button mtButton variant="primary" type="button" [loading]="saving() === 'ack'" (click)="acknowledge()">
-              I’ve read this, turn Clerk on
-            </button>
+            }
+            <details class="fold disclosure" [open]="loaded() && !acknowledged()">
+              <summary>
+                <span class="mt-grow">Read the disclosure</span>
+                <span class="chev"><mt-icon name="chevron-down" /></span>
+              </summary>
+              <div class="disclosure-text" tabindex="0" role="region" aria-label="Clerk data-use disclosure">
+                <mt-markdown [content]="disclosure" [breaks]="false" />
+              </div>
+            </details>
+            @if (canConfigure() && loaded() && !acknowledged()) {
+              <div>
+                <button mtButton variant="primary" type="button" [loading]="saving() === 'ack'" (click)="acknowledge()">
+                  I’ve read this, turn Clerk on
+                </button>
+              </div>
+            }
           </div>
-        }
-      </mt-settings-section>
+        </mt-settings-section>
 
-      <mt-settings-section title="Clerk for your practice" [headingLevel]="2">
-        <mt-settings-row title="Clerk" description="Turns every Clerk feature on or off for everyone in the practice.">
-          @if (canConfigure()) {
-            <mt-switch
-              name="clerk-enabled"
-              label="Clerk"
-              labelHidden
-              [disabled]="!loaded() || !!saving()"
-              [ngModel]="enabled()"
-              (ngModelChange)="setEnabled(!!$event)"
-            />
-          } @else {
-            <span class="state" data-state="enabled">{{ enabled() ? 'On' : 'Off' }}</span>
-          }
-        </mt-settings-row>
-      </mt-settings-section>
-
-      <mt-settings-section
-        title="What Clerk can do"
-        description="Everything Clerk produces arrives as a suggestion or a draft for a person to check."
-        [headingLevel]="2"
-      >
-        @for (feature of features; track feature.key) {
+        <mt-settings-section title="Clerk for your practice" [headingLevel]="2">
           <mt-settings-row
-            [title]="feature.label"
-            [description]="feature.description"
-            [attr.data-feature]="feature.key"
+            title="Clerk"
+            description="Turns every Clerk feature on or off for everyone in the practice."
           >
             @if (canConfigure()) {
               <mt-switch
-                [name]="'clerk-feature-' + feature.key"
-                [label]="feature.label"
+                name="clerk-enabled"
+                label="Clerk"
                 labelHidden
                 [disabled]="!loaded() || !!saving()"
-                [ngModel]="featureOn(feature.key)"
-                (ngModelChange)="setFeature(feature.key, !!$event)"
+                [ngModel]="enabled()"
+                (ngModelChange)="setEnabled(!!$event)"
               />
             } @else {
-              <span class="state">{{ featureOn(feature.key) ? 'On' : 'Off' }}</span>
+              <span class="state" data-state="enabled">{{ enabled() ? 'On' : 'Off' }}</span>
             }
           </mt-settings-row>
-        }
-        <mt-settings-row
-          title="Send, file or bill"
-          description="Clerk never sends email, files with a court or registry, or issues a bill. A person always does."
-          locked
+        </mt-settings-section>
+
+        <mt-settings-section
+          title="What Clerk can do"
+          description="Everything Clerk produces arrives as a suggestion or a draft for a person to check."
+          [headingLevel]="2"
         >
-          <span class="state">Never</span>
-        </mt-settings-row>
-      </mt-settings-section>
+          @for (feature of features; track feature.key) {
+            <mt-settings-row
+              [title]="feature.label"
+              [description]="feature.description"
+              [attr.data-feature]="feature.key"
+            >
+              @if (canConfigure()) {
+                <mt-switch
+                  [name]="'clerk-feature-' + feature.key"
+                  [label]="feature.label"
+                  labelHidden
+                  [disabled]="!loaded() || !!saving()"
+                  [ngModel]="featureOn(feature.key)"
+                  (ngModelChange)="setFeature(feature.key, !!$event)"
+                />
+              } @else {
+                <span class="state">{{ featureOn(feature.key) ? 'On' : 'Off' }}</span>
+              }
+            </mt-settings-row>
+          }
+          <mt-settings-row
+            title="Send, file or bill"
+            description="Clerk never sends email, files with a court or registry, or issues a bill. A person always does."
+            locked
+          >
+            <span class="state">Never</span>
+          </mt-settings-row>
+        </mt-settings-section>
+
+        @if (canConfigure()) {
+          <mt-settings-section
+            title="Limits"
+            description="Clerk stops for the rest of the month at the spend limit, and for a person for the rest of the day at the request limit. Leave either empty for none. Scanned documents past the daily page limit wait until the next day."
+            [headingLevel]="2"
+          >
+            <form class="mt-col" style="gap: 12px" (submit)="$event.preventDefault(); saveLimits()">
+              <div class="pair">
+                <mt-text-field
+                  name="clerk-budget"
+                  label="Monthly spend limit"
+                  description="In US dollars, as Anthropic bills your firm."
+                  inputmode="decimal"
+                  suffix="USD"
+                  [error]="budgetProblem() ?? undefined"
+                  [ngModel]="budgetText()"
+                  (ngModelChange)="budgetText.set($event ?? '')"
+                />
+                <mt-text-field
+                  name="clerk-daily"
+                  label="Requests per person per day"
+                  inputmode="numeric"
+                  [error]="dailyProblem() ?? undefined"
+                  [ngModel]="dailyText()"
+                  (ngModelChange)="dailyText.set($event ?? '')"
+                />
+                <mt-text-field
+                  name="clerk-ocr-pages"
+                  label="Scanned pages read per day"
+                  [description]="'Empty uses ' + defaultOcrPages + '. 0 stops reading scans.'"
+                  inputmode="numeric"
+                  [placeholder]="'' + defaultOcrPages"
+                  [error]="ocrProblem() ?? undefined"
+                  [ngModel]="ocrText()"
+                  (ngModelChange)="ocrText.set($event ?? '')"
+                />
+              </div>
+              <div>
+                <button
+                  mtButton
+                  variant="secondary"
+                  type="submit"
+                  [loading]="saving() === 'limits'"
+                  [disabled]="!limitsChanged() || !!budgetProblem() || !!dailyProblem() || !!ocrProblem()"
+                >
+                  Save limits
+                </button>
+              </div>
+            </form>
+          </mt-settings-section>
+
+          <mt-settings-section
+            title="Anthropic API key"
+            description="Clerk runs on your firm’s own Anthropic account, and your firm pays Anthropic directly. The key is stored encrypted; nobody can see it again after you save it, including you."
+            [headingLevel]="2"
+          >
+            <div class="stack">
+              @if (keyLoadError(); as message) {
+                <mt-note tone="danger">{{ message }}</mt-note>
+              }
+              <p role="status" style="margin: 0" data-key-status>
+                @if (!status()) {
+                  <span style="color: var(--text-tertiary)">Loading…</span>
+                } @else if (status()?.set) {
+                  Key ending <strong class="mono">{{ status()?.last4 }}</strong>
+                  @if (validatedOn(); as date) {
+                    · checked {{ date }}
+                  }
+                } @else {
+                  No key saved. Clerk is off for your practice.
+                }
+              </p>
+              @if (status()?.status === 'invalid') {
+                <mt-note tone="danger">Anthropic rejected this key. Clerk is off until you save a new one.</mt-note>
+              }
+
+              <form class="mt-col" style="gap: 12px" (submit)="$event.preventDefault(); saveKey()">
+                <mt-text-field
+                  name="clerk-api-key"
+                  type="password"
+                  autocomplete="off"
+                  [label]="status()?.set ? 'Replace the key' : 'API key'"
+                  placeholder="sk-ant-…"
+                  [error]="keyProblem() ?? undefined"
+                  [ngModel]="keyInput()"
+                  (ngModelChange)="keyInput.set($event ?? '')"
+                />
+                <div class="mt-row" style="gap: 8px">
+                  <button mtButton variant="primary" type="submit" [loading]="savingKey()" [disabled]="!canSaveKey()">
+                    Save key
+                  </button>
+                  @if (status()?.set) {
+                    <button mtButton variant="ghost" type="button" [loading]="removing()" (click)="removeKey()">
+                      Remove key
+                    </button>
+                  }
+                </div>
+              </form>
+            </div>
+          </mt-settings-section>
+
+          <mt-settings-section
+            title="Model"
+            description="Applies to everyone in your practice. Your firm’s Anthropic account is billed per token."
+            [headingLevel]="2"
+          >
+            <div class="stack">
+              <mt-radio-group
+                name="clerk-model"
+                label="Clerk model"
+                [options]="modelOptions()"
+                [disabled]="!status() || savingModel()"
+                [ngModel]="model()"
+                (ngModelChange)="setModel($event)"
+              />
+              @if (status()?.set && status()?.opusAvailable === false) {
+                <mt-note tone="warning">This key can’t use Claude Opus 5.5, so Clerk stays on Sonnet 5.5.</mt-note>
+              }
+            </div>
+          </mt-settings-section>
+        }
+
+        <mt-settings-section title="Data and retention" [headingLevel]="2">
+          <details class="fold mt-card retention" data-retention>
+            <summary>
+              <span class="mt-grow">Processed outside Australia, never used for training, kept with the matter</span>
+              <span class="chev"><mt-icon name="chevron-down" /></span>
+            </summary>
+            <div class="fold-body">
+              <mt-settings-row
+                title="Processing location"
+                description="Anthropic processes Clerk requests outside Australia. Everything else stays in Google Cloud in Sydney."
+                locked
+              >
+                <span class="state">Outside Australia</span>
+              </mt-settings-row>
+              <mt-settings-row
+                title="Model training"
+                description="Anthropic’s commercial terms don’t allow using your firm’s requests to train its models."
+                locked
+              >
+                <span class="state">Never</span>
+              </mt-settings-row>
+              <mt-settings-row
+                title="Clerk conversations and suggestions"
+                description="Kept with the matter file and destroyed with it."
+                locked
+              >
+                <span class="state">With the matter</span>
+              </mt-settings-row>
+            </div>
+          </details>
+        </mt-settings-section>
+      </div>
 
       @if (canConfigure()) {
-        <mt-settings-section
-          title="Limits"
-          description="Clerk stops for the rest of the month at the spend limit, and for a person for the rest of the day at the request limit. Leave a limit empty for none."
-          [headingLevel]="2"
-        >
-          <form class="mt-col" style="gap: 12px" (submit)="$event.preventDefault(); saveLimits()">
-            <div class="pair">
-              <mt-text-field
-                name="clerk-budget"
-                label="Monthly spend limit"
-                description="In US dollars, as Anthropic bills your firm."
-                inputmode="decimal"
-                suffix="USD"
-                [error]="budgetProblem() ?? undefined"
-                [ngModel]="budgetText()"
-                (ngModelChange)="budgetText.set($event ?? '')"
-              />
-              <mt-text-field
-                name="clerk-daily"
-                label="Requests per person per day"
-                inputmode="numeric"
-                [error]="dailyProblem() ?? undefined"
-                [ngModel]="dailyText()"
-                (ngModelChange)="dailyText.set($event ?? '')"
-              />
-            </div>
-            <div>
-              <button
-                mtButton
-                variant="secondary"
-                type="submit"
-                [loading]="saving() === 'limits'"
-                [disabled]="!limitsChanged() || !!budgetProblem() || !!dailyProblem()"
-              >
-                Save limits
-              </button>
-            </div>
-          </form>
-        </mt-settings-section>
-
-        <mt-settings-section
-          title="Anthropic API key"
-          description="Clerk runs on your firm’s own Anthropic account, and your firm pays Anthropic directly. The key is stored encrypted; nobody can see it again after you save it, including you."
-          [headingLevel]="2"
-        >
-          @if (keyLoadError(); as message) {
-            <mt-note tone="danger">{{ message }}</mt-note>
-          }
-          <p role="status" style="margin: 0" data-key-status>
-            @if (!status()) {
-              <span style="color: var(--text-tertiary)">Loading…</span>
-            } @else if (status()?.set) {
-              Key ending <strong class="mono">{{ status()?.last4 }}</strong>
-              @if (validatedOn(); as date) {
-                · checked {{ date }}
-              }
-            } @else {
-              No key saved. Clerk is off for your practice.
-            }
-          </p>
-          @if (status()?.status === 'invalid') {
-            <mt-note tone="danger">Anthropic rejected this key. Clerk is off until you save a new one.</mt-note>
-          }
-
-          <form class="mt-col" style="gap: 12px" (submit)="$event.preventDefault(); saveKey()">
-            <mt-text-field
-              name="clerk-api-key"
-              type="password"
-              autocomplete="off"
-              [label]="status()?.set ? 'Replace the key' : 'API key'"
-              placeholder="sk-ant-…"
-              [error]="keyProblem() ?? undefined"
-              [ngModel]="keyInput()"
-              (ngModelChange)="keyInput.set($event ?? '')"
-            />
-            <div class="mt-row" style="gap: 8px">
-              <button mtButton variant="primary" type="submit" [loading]="savingKey()" [disabled]="!canSaveKey()">
-                Save key
-              </button>
-              @if (status()?.set) {
-                <button mtButton variant="ghost" type="button" [loading]="removing()" (click)="removeKey()">
-                  Remove key
-                </button>
-              }
-            </div>
-          </form>
-        </mt-settings-section>
-
-        <mt-settings-section
-          title="Model"
-          description="Applies to everyone in your practice. Your firm’s Anthropic account is billed per token."
-          [headingLevel]="2"
-        >
-          <mt-radio-group
-            name="clerk-model"
-            label="Clerk model"
-            [options]="modelOptions()"
-            [disabled]="!status() || savingModel()"
-            [ngModel]="model()"
-            (ngModelChange)="setModel($event)"
-          />
-          @if (status()?.set && status()?.opusAvailable === false) {
-            <mt-note tone="warning">This key can’t use Claude Opus 5.5, so Clerk stays on Sonnet 5.5.</mt-note>
-          }
-        </mt-settings-section>
+        <aside class="aside">
+          <mt-clerk-usage [currentPeriod]="period" [budgetCents]="settings()?.monthlyBudgetCents ?? null" />
+          <mt-note
+            >Practitioners remain responsible for advice. Clerk’s answers carry citations so they can be
+            checked.</mt-note
+          >
+        </aside>
       }
-
-      <mt-settings-section title="Data and retention" [headingLevel]="2">
-        <mt-settings-row
-          title="Processing location"
-          description="Anthropic processes Clerk requests outside Australia. Everything else stays in Google Cloud in Sydney."
-          locked
-        >
-          <span class="state">Outside Australia</span>
-        </mt-settings-row>
-        <mt-settings-row
-          title="Model training"
-          description="Anthropic’s commercial terms don’t allow using your firm’s requests to train its models."
-          locked
-        >
-          <span class="state">Never</span>
-        </mt-settings-row>
-        <mt-settings-row
-          title="Clerk conversations and suggestions"
-          description="Kept with the matter file and destroyed with it."
-          locked
-        >
-          <span class="state">With the matter</span>
-        </mt-settings-row>
-      </mt-settings-section>
     </div>
-
-    @if (canConfigure()) {
-      <aside class="aside">
-        <mt-clerk-usage [currentPeriod]="period" [budgetCents]="settings()?.monthlyBudgetCents ?? null" />
-        <mt-note
-          >Practitioners remain responsible for advice. Clerk’s answers carry citations so they can be checked.</mt-note
-        >
-      </aside>
-    }
   `,
   styles: `
-    .clerk-settings {
+    /* Emulated encapsulation: rules here reach elements in this template, not the host. */
+    :host {
+      display: block;
+      container-type: inline-size;
+    }
+    .layout {
       display: grid;
       grid-template-columns: minmax(0, 720px);
       gap: 40px;
       align-items: start;
     }
-    @media (min-width: 1200px) {
-      .clerk-settings:has(> .aside) {
+    /* The usage column sits beside the settings only when there is room for both. */
+    @container (min-width: 1080px) {
+      .layout.with-aside {
         grid-template-columns: minmax(0, 720px) 320px;
       }
     }
-    .clerk-settings .main {
-      gap: 24px;
+    .main {
+      gap: 32px;
       min-width: 0;
     }
-    .clerk-settings .aside {
+    .aside {
       display: flex;
       flex-direction: column;
       gap: 12px;
       min-width: 0;
     }
-    .clerk-settings .pair {
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .pair {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 12px;
     }
-    .clerk-settings .state {
+    .state {
       color: var(--text-secondary);
       font: 400 13px/18px var(--font-sans);
       white-space: nowrap;
     }
-    .clerk-settings .disclosure summary {
-      cursor: pointer;
-      color: var(--text-link, var(--accent));
-      font-weight: 500;
-    }
-    .clerk-settings .disclosure[open] summary {
-      margin-bottom: 8px;
-    }
-    .clerk-settings .mono {
+    .mono {
       font-family: var(--font-mono);
+    }
+
+    .disclosure-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+    }
+    .disclosure-card[data-pending] {
+      border-color: var(--border-ai);
+    }
+    .ack {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font: 400 13px/18px var(--font-sans);
+      color: var(--text-secondary);
+    }
+    .ack mt-icon {
+      color: var(--text-success);
+      flex: none;
+    }
+
+    /* Expanders: a summary row with a chevron that turns when open. */
+    .fold > summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      list-style: none;
+      cursor: pointer;
+      font: 500 13px/18px var(--font-sans);
+      color: var(--text-primary);
+      border-radius: var(--radius-md);
+    }
+    .fold > summary::-webkit-details-marker {
+      display: none;
+    }
+    .fold > summary:focus-visible {
+      box-shadow: var(--focus-ring);
+      outline: none;
+    }
+    .fold > summary .chev {
+      display: inline-flex;
+      flex: none;
+      color: var(--icon-muted);
+      transition: transform 0.15s ease-out;
+    }
+    .fold[open] > summary .chev {
+      transform: rotate(180deg);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .fold > summary .chev {
+        transition: none;
+      }
+    }
+    .disclosure > summary {
+      padding: 8px 12px;
+      margin: 0 -12px;
+    }
+    .disclosure > summary:hover,
+    .retention > summary:hover {
+      background: var(--bg-hover);
+    }
+    /* The disclosure reads in its own scroll box, so the acknowledge button stays close. */
+    .disclosure-text {
+      margin-top: 8px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding: 12px 16px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: var(--bg-sunken);
+    }
+    /* Focusable so keyboard users can scroll it. */
+    .disclosure-text:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+    .disclosure-text ::ng-deep p:has(> b:only-child):not(:first-child) {
+      margin-top: 8px;
+    }
+    .retention > summary {
+      padding: 12px 16px;
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+    .retention .fold-body .mt-setting {
+      border: 0;
+      border-top: 1px solid var(--border-default);
+      border-radius: 0;
+      background: transparent;
     }
   `,
 })
@@ -413,8 +547,11 @@ export class ClerkSettingsPage {
   );
   protected readonly budgetText = signal('');
   protected readonly dailyText = signal('');
+  protected readonly ocrText = signal('');
+  protected readonly defaultOcrPages = DEFAULT_OCR_DAILY_PAGES;
   private readonly budgetCents = computed(() => parseDollars(this.budgetText()));
-  private readonly dailyRequests = computed(() => parseCount(this.dailyText()));
+  private readonly dailyRequests = computed(() => parseCount(this.dailyText(), 1, MAX_DAILY_REQUESTS));
+  private readonly ocrPages = computed(() => parseCount(this.ocrText(), 0, MAX_OCR_DAILY_PAGES));
   protected readonly budgetProblem = computed(() =>
     this.budgetCents() === undefined ? 'Enter an amount in dollars, such as 250.' : null,
   );
@@ -423,11 +560,15 @@ export class ClerkSettingsPage {
       ? `Enter a whole number from 1 to ${MAX_DAILY_REQUESTS.toLocaleString()}.`
       : null,
   );
+  protected readonly ocrProblem = computed(() =>
+    this.ocrPages() === undefined ? `Enter a whole number from 0 to ${MAX_OCR_DAILY_PAGES.toLocaleString()}.` : null,
+  );
   protected readonly limitsChanged = computed(
     () =>
       this.loaded() &&
       (this.budgetCents() !== (this.settings()?.monthlyBudgetCents ?? null) ||
-        this.dailyRequests() !== (this.settings()?.perUserDailyRequests ?? null)),
+        this.dailyRequests() !== (this.settings()?.perUserDailyRequests ?? null) ||
+        this.ocrPages() !== (this.settings()?.ocrDailyPages ?? null)),
   );
 
   // ---------- key and model (AI-02a) ----------
@@ -467,16 +608,27 @@ export class ClerkSettingsPage {
   ]);
 
   constructor() {
-    // The limits fields follow the saved settings until someone edits them.
-    let filled = false;
+    // The limits fields follow the saved settings unless someone has typed other values. "Typed"
+    // means the text differs from what was last filled in: after a reload the first snapshot can
+    // come from the offline cache, older than the server's, and the untouched fields must still
+    // take the server's values when they arrive.
+    let filled: { budget: string; daily: string; ocr: string } | null = null;
     effect(() => {
       if (!this.loaded()) return;
       const settings = this.settings();
       untracked(() => {
-        if (filled && this.limitsChanged()) return;
-        filled = true;
-        this.budgetText.set(dollarsText(settings?.monthlyBudgetCents));
-        this.dailyText.set(settings?.perUserDailyRequests ? String(settings.perUserDailyRequests) : '');
+        const typed =
+          !!filled &&
+          (this.budgetText() !== filled.budget || this.dailyText() !== filled.daily || this.ocrText() !== filled.ocr);
+        if (typed && this.limitsChanged()) return;
+        filled = {
+          budget: dollarsText(settings?.monthlyBudgetCents),
+          daily: settings?.perUserDailyRequests ? String(settings.perUserDailyRequests) : '',
+          ocr: settings?.ocrDailyPages !== undefined ? String(settings.ocrDailyPages) : '',
+        };
+        this.budgetText.set(filled.budget);
+        this.dailyText.set(filled.daily);
+        this.ocrText.set(filled.ocr);
       });
     });
     effect(() => {
@@ -526,7 +678,8 @@ export class ClerkSettingsPage {
   protected async saveLimits(): Promise<void> {
     const budget = this.budgetCents();
     const daily = this.dailyRequests();
-    if (budget === undefined || daily === undefined || !this.limitsChanged()) return;
+    const ocr = this.ocrPages();
+    if (budget === undefined || daily === undefined || ocr === undefined || !this.limitsChanged()) return;
     const spent = microsToCents(this.thisMonth.value()?.values['costMicros'] ?? 0);
     if (budget !== null && budget <= spent && budget !== (this.settings()?.monthlyBudgetCents ?? null)) {
       const ok = await this.dialogs.confirm({
@@ -537,7 +690,7 @@ export class ClerkSettingsPage {
       });
       if (!ok) return;
     }
-    if (await this.update({ monthlyBudgetCents: budget, perUserDailyRequests: daily }, 'limits'))
+    if (await this.update({ monthlyBudgetCents: budget, perUserDailyRequests: daily, ocrDailyPages: ocr }, 'limits'))
       this.toasts.show({ title: 'Limits saved', tone: 'success' });
   }
 

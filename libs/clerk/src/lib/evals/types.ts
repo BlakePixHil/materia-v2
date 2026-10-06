@@ -17,8 +17,16 @@ export interface CaseOutcome {
   usage: ClerkUsage;
   costMicros: number;
   latencyMs: number;
+  /** What the chat drafting tools (AI-06b) were asked to draft, as text ("title · due · details" for a task). */
+  drafts?: DraftedItem[];
   /** citationSupport from the LLM judge, when it ran: supported citations / judged citations. */
   judge?: { supported: number; judged: number; costMicros: number };
+}
+
+/** One draft a chat answer made (AI-06b). */
+export interface DraftedItem {
+  kind: 'note' | 'task';
+  text: string;
 }
 
 /**

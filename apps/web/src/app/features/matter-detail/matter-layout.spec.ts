@@ -3,7 +3,7 @@ import { Title } from '@angular/platform-browser';
 
 import { evaluateClosing } from '@materia/domain';
 
-import { cleanUpOverlays, LAWYER, MATTER, ME, openMatter, PARALEGAL, PRIYA, READONLY } from './testing';
+import { ADMIN, cleanUpOverlays, LAWYER, MATTER, ME, openMatter, PARALEGAL, PRIYA, READONLY } from './testing';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 
 /** The matter screen's frame and header (CORE-06). Fictional data only. */
@@ -399,6 +399,58 @@ describe('access and lifecycle', () => {
     await page.click('Delete matter', page.dialog() ?? page.body);
     expect(page.firestore.writes.at(-1)).toMatchObject({ op: 'softDelete', path: MATTER });
     expect(page.router.url).toBe('/matters');
+  });
+
+  it('lets an owner or admin restore a deleted matter from its banner; others are told who can (CORE-03)', async () => {
+    const deleted = { deletedAt: new Date(), deletedBy: PRIYA };
+    const restore = {
+      'matters-restore': (data: Record<string, unknown>, fs: Page['firestore']) => {
+        fs.set(MATTER, { ...fs.get(MATTER), deletedAt: null, deletedBy: null });
+        return { matterId: data['matterId'], restored: true };
+      },
+    };
+    const lawyer = await openMatter(undefined, { matter: deleted, callables: restore });
+    expect(lawyer.text(lawyer.layout())).toContain('an owner or admin can restore it within 30 days');
+    expect(lawyer.buttons('Restore matter')).toHaveLength(0);
+    cleanUpOverlays();
+    TestBed.resetTestingModule();
+
+    const page = await openMatter(undefined, { session: ADMIN, matter: deleted, callables: restore });
+    expect(page.buttons('Edit title')).toHaveLength(0);
+    await page.click('Restore matter');
+    expect(page.calls('matters-restore')).toEqual([{ matterId: 'm-whitfield', requestId: expect.any(String) }]);
+    expect(page.text()).toContain('Restored M-2026-0142');
+    expect(page.text(page.layout())).not.toContain('This matter was deleted');
+    expect(page.buttons('Edit title')).toHaveLength(1);
+  });
+
+  it('says a deleted matter past the 30-day window can no longer be restored', async () => {
+    const page = await openMatter(undefined, {
+      session: ADMIN,
+      matter: { deletedAt: new Date(Date.now() - 31 * 86_400_000), deletedBy: PRIYA },
+    });
+    expect(page.text(page.layout())).toContain('it can no longer be restored');
+    expect(page.buttons('Restore matter')).toHaveLength(0);
+  });
+
+  it('offers Undo on the delete toast to owners and admins, which restores the matter', async () => {
+    const page = await openMatter(undefined, {
+      session: ADMIN,
+      callables: {
+        'matters-restore': (data, fs) => {
+          fs.set(MATTER, { ...fs.get(MATTER), deletedAt: null, deletedBy: null });
+          return { matterId: data['matterId'], restored: true };
+        },
+      },
+    });
+    await page.click('More matter actions');
+    await page.click('Delete matter…', page.body.querySelector('[role="menu"]') ?? page.body);
+    await page.click('Delete matter', page.dialog() ?? page.body);
+    expect(page.router.url).toBe('/matters');
+    await page.click('Undo');
+    expect(page.calls('matters-restore')).toEqual([{ matterId: 'm-whitfield', requestId: expect.any(String) }]);
+    await page.stable();
+    expect(page.router.url).toBe('/matters/m-whitfield/overview');
   });
 
   it('says who changed the matter just now when it was someone else', async () => {

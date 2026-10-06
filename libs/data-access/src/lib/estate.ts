@@ -68,6 +68,7 @@ export const EstateDistributionSchema = /* @__PURE__ */ z.object({
   share: distribution.share,
   status: distribution.status,
   paidOn: distribution.paidOn,
+  paymentReference: distribution.paymentReference,
   notes: distribution.notes,
   needsValueReview: distribution.needsValueReview,
   createdAt: distribution.createdAt.optional(),

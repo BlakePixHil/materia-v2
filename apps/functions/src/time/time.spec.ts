@@ -488,7 +488,7 @@ describe('time-exportCsv', () => {
       exportCsvDefinition,
       {
         data: { from: '2026-10-01', to: '2026-10-31', ...data },
-        auth: { uid: `user-${role}`, token: { orgId: ORG, role } },
+        auth: { uid: `user-${role}`, token: { orgId: ORG, role, auth_time: NOW.getTime() / 1000 - 60 } },
       },
       deps(w),
     );

@@ -2,13 +2,16 @@ import * as z from 'zod';
 
 import { OrgClerkSettingsSchema } from '../clerk-settings';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
+import { BoardWipLimitsSchema } from '../matter-board';
 import { NotificationPrefsSchema } from '../notifications';
 import { OrgSecuritySchema } from '../security';
+import { XeroSettingsSchema } from '../xero';
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
 import {
   InviteStatusSchema,
   JurisdictionSchema,
   MatterTypeSchema,
+  MemberMetricsVisibilitySchema,
   MemberStatusSchema,
   RoleSchema,
   RoundingSchema,
@@ -70,6 +73,8 @@ export const Org = withMeta(
       paymentTermsDays: z.number().int().min(0).max(365),
       /** Budget alert thresholds, percent of the fee basis (BILL-05); 80 and 100 when unset. */
       budgetAlertPcts: z.array(z.number().int().min(1).max(200)).max(5).optional(),
+      /** An estimate rising by more than this percentage needs an updated costs disclosure (BILL-06); 10 when unset. */
+      disclosureChangePct: z.number().int().min(1).max(100).optional(),
       /** The daily time target on the Time and billing screen (BILL-03); 6 hours when unset. */
       dailyTargetMinutes: z
         .number()
@@ -100,6 +105,14 @@ export const Org = withMeta(
             thankYouTask: z.boolean().optional(),
           })
           .optional(),
+        /** The Matters board's WIP limits per column (CORE-04a), set by owners and admins from the board. */
+        board: z.object({ wipLimits: BoardWipLimitsSchema.optional() }).optional(),
+        insights: z
+          .object({
+            /** Who sees every member's figures (INS-01); lawyers and above when unset. */
+            memberVisibility: MemberMetricsVisibilitySchema.optional(),
+          })
+          .optional(),
       })
       .optional(),
     /**
@@ -116,6 +129,11 @@ export const Org = withMeta(
         staleAfterDays: z.number().int().min(1).max(365),
       })
       .optional(),
+    /**
+     * Xero (BILL-09, ADR-053): the organisation and accounts invoices go to. Written only by
+     * `xero-saveSettings`, behind `integrations.xero`; the connection itself is the token vault's.
+     */
+    xero: XeroSettingsSchema.optional(),
     /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */
     flags: z.record(z.string(), z.union([z.boolean(), z.string(), z.number()])).optional(),
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: z.string(), at: InstantSchema }).optional(),

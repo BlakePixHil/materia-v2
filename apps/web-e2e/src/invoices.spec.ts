@@ -242,9 +242,16 @@ test.describe('invoicing', () => {
     await page.getByRole('button', { name: 'Issue invoice' }).click();
     const confirm = page.getByRole('dialog');
     await expect(confirm).toContainText('$1,936.00 on M-2026-0731');
+    const issued = page.waitForResponse(
+      (res) => res.url().endsWith('/billing-issueInvoice') && res.request().method() === 'POST',
+      FIRST_CALL,
+    );
     await confirm.getByRole('button', { name: 'Issue invoice' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Tax invoice INV-000001' })).toBeVisible(FIRST_CALL);
     await expect(page.getByTestId('invoice-pdf-pending')).toBeVisible();
+    // The invoice shows as issued before the server starts its PDF job and records `pdfJobId`, so
+    // wait for the server's answer before reading the invoice.
+    await issued;
     const invoiceId = page.url().split('/').pop() as string;
     const invoice = await get(request, `orgs/${orgId}/invoices/${invoiceId}`);
     expect(invoice['number']).toEqual({ stringValue: 'INV-000001' });
@@ -255,6 +262,7 @@ test.describe('invoicing', () => {
 
     // 4. The PDF render finishes: the invoice shows it.
     const jobId = String(invoice['pdfJobId']?.['stringValue']);
+    expect(jobId).not.toBe('undefined');
     await finishPdfJob(request, orgId, matterPath, jobId);
     await expect(page.getByLabel('PDF').locator('mt-pdf-viewer')).toBeVisible(FIRST_CALL);
     await expectNoA11yViolations(page);

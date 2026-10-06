@@ -43,6 +43,7 @@ const ENTITY_FOR: Record<string, { schema: { shape: Record<string, unknown> } }>
   safeCustody: domain.SafeCustody,
   invoices: domain.Invoice,
   creditNotes: domain.CreditNote,
+  disbursements: domain.Disbursement,
   // A union of kinds: every kind shares these fields (FND-20).
   notifications: { schema: { shape: { ...domain.NotificationPayloadSchema.options[0].shape, ...domain.MetaShape } } },
 } as never;
@@ -88,6 +89,8 @@ describe('firestore.indexes.json', () => {
       'kind:ASCENDING,sortName:ASCENDING',
       'isReferrer:ASCENDING,sortName:ASCENDING',
       'tags:CONTAINS,sortName:ASCENDING',
+      // The "Role in matters" filter (CORE-01a).
+      'matterRoles:CONTAINS,sortName:ASCENDING',
       'search:CONTAINS,sortName:ASCENDING',
       // ⌘K's contacts, most recently updated first (CORE-15).
       'search:CONTAINS,updatedAt:DESCENDING',
@@ -104,6 +107,27 @@ describe('firestore.indexes.json', () => {
         .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`);
     expect(key('invoices')).toEqual(['COLLECTION:matterId:ASCENDING,createdAt:DESCENDING']);
     expect(key('creditNotes')).toEqual(['COLLECTION:invoiceId:ASCENDING,createdAt:ASCENDING']);
+  });
+
+  it('the nightly metrics recompute reads a month of records through group indexes, and no rollup map is indexed (INS-01)', () => {
+    const groups = file.indexes
+      .filter((i) => i.queryScope === 'COLLECTION_GROUP')
+      .map((i) => `${i.collectionGroup}:${i.fields.map((f) => f.fieldPath).join(',')}`);
+    expect(groups).toEqual(
+      expect.arrayContaining(['timeEntries:orgId,date', 'disbursements:orgId,date', 'deadlines:orgId,status,dueDate']),
+    );
+    const exempt = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; indexes?: unknown[] }[])
+      .filter((o) => o.indexes?.length === 0)
+      .map((o) => `${o.collectionGroup}.${o.fieldPath}`);
+    expect(exempt).toEqual(
+      expect.arrayContaining([
+        'metrics.values',
+        'metrics.counted',
+        'metrics.stages',
+        'byMember.values',
+        'shards.values',
+      ]),
+    );
   });
 
   it('a matter’s conflict checks are listed newest first (CORE-02)', () => {
@@ -235,6 +259,9 @@ describe('firestore.indexes.json', () => {
     expect(audit).toEqual([
       'entity.matterId:ASCENDING,at:DESCENDING',
       'entity.path:ASCENDING,at:DESCENDING',
+      // A contact's Activity (CORE-01a): its matter links, beside the entity.path entries.
+      'data.contactId:ASCENDING,at:DESCENDING',
+      'after.contactId:ASCENDING,at:DESCENDING',
       'actor.uid:ASCENDING,at:DESCENDING',
       'entity.matterId:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',
       'entity.path:ASCENDING,actor.uid:ASCENDING,at:DESCENDING',

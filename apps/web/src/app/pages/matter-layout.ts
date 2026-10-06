@@ -5,6 +5,7 @@ import {
   DestroyRef,
   effect,
   inject,
+  signal,
   untracked,
   viewChild,
 } from '@angular/core';
@@ -13,7 +14,8 @@ import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from 
 import { filter, map } from 'rxjs';
 
 import { ACCESS_REVOKED_HANDLER, can, OrgContext } from '@materia/data-access';
-import { formatDateOnly, MtButton, MtEmptyState, MtNote, MtTabLink, MtTabNav } from '@materia/ui';
+import { canRestoreMatter } from '@materia/domain';
+import { formatDateOnly, MtButton, MtEmptyState, MtNote, MtTabLink, MtTabNav, ToastService } from '@materia/ui';
 
 import { matterTabsFor } from './matter-tabs';
 import { NotFoundPage } from './not-found';
@@ -114,8 +116,15 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
         @if (screen.value(); as m) {
           @if (m.deletedAt) {
             <mt-note tone="danger" class="deleted">
-              This matter was deleted on {{ deletedOn() }}{{ deletedBy() }}. Everything here is read-only; an owner or
-              admin can restore it within 30 days.
+              This matter was deleted on {{ deletedOn() }}{{ deletedBy() }}. Everything here is read-only;
+              @if (!restorable()) {
+                it can no longer be restored.
+              } @else if (screen.canRestore()) {
+                you can restore it within 30 days of the delete.
+                <button mtButton size="sm" [disabled]="restoring()" (click)="restore()">Restore matter</button>
+              } @else {
+                an owner or admin can restore it within 30 days.
+              }
             </mt-note>
           } @else if (closedText(); as text) {
             <mt-note class="closed" icon="archive"
@@ -196,6 +205,13 @@ export class MatterLayout {
     return `${state} ${kept}${this.screen.canStatus() ? ' Reopen it from the status menu to make changes.' : ''}`;
   });
   protected readonly deletedOn = computed(() => formatDateOnly(this.screen.value()?.deletedAt ?? null));
+  /** Still inside the restore window (CORE-03); the server checks again. */
+  protected readonly restorable = computed(() => {
+    const deletedAt = this.screen.value()?.deletedAt;
+    return !!deletedAt && canRestoreMatter(deletedAt, new Date());
+  });
+  protected readonly restoring = signal(false);
+  private readonly toasts = inject(ToastService);
   protected readonly deletedBy = computed(() => {
     const by = this.screen.value()?.deletedBy;
     return by ? ` by ${this.screen.memberName(by)}` : '';
@@ -262,6 +278,21 @@ export class MatterLayout {
       () => this.header()?.closeMatter(),
       () => !!this.header(),
     );
+  }
+
+  /** Brings the deleted matter back (`matters-restore`, owner and admin). */
+  protected async restore(): Promise<void> {
+    const matter = this.screen.value();
+    if (!matter || this.restoring()) return;
+    this.restoring.set(true);
+    try {
+      await this.screen.api.restore({ matterId: matter.id });
+      this.toasts.show({ title: `Restored ${matter.number}`, tone: 'success' });
+    } catch (error) {
+      this.toasts.show({ title: 'Couldn’t restore the matter', description: errorCopy(error), tone: 'danger' });
+    } finally {
+      this.restoring.set(false);
+    }
   }
 
   private childPath(): string | null {

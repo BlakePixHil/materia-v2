@@ -99,7 +99,7 @@ export const KeyFactProposalSchema = z
       issue.addIssue({ code: 'custom', path: ['value'], message: `Expected ${expected}` });
     }
   });
-/** A draft time entry. No handler until BILL-01 registers one. */
+/** A draft time entry of the person accepting (`source: 'clerk'`). */
 export const TimeEntryProposalSchema = z.strictObject({
   date: DateOnlySchema,
   minutes: MinutesSchema,
@@ -217,6 +217,31 @@ export const Suggestion = {
   path: `${MATTER}/suggestions`,
 };
 export type Suggestion = z.infer<typeof Suggestion.schema>;
+
+/** The most citations a key fact keeps (a suggestion's own limit). */
+export const FACT_CITATIONS_MAX = 20;
+
+/**
+ * `matters/{matterId}/factCitations/{factId}` (CORE-06a, ADR-049): where Clerk found a key fact's
+ * value, kept when a person accepts a `key_fact` suggestion, so the Key facts card shows the source.
+ * It stands for `value` only: shown while the fact still has that value, and deleted by
+ * `matters-denormalise` once the fact changes (a person's edit, another suggestion). Written only by
+ * functions; `privileged` (the suggestion was, or a cited document is) needs `privileged.view` to
+ * read, like the suggestion. The document id is the fact's id.
+ */
+export const FactCitation = withMeta(
+  {
+    factId: KeyFactIdSchema,
+    /** The value the citations support: an ISO date, cents, or text, as the matter stores it. */
+    value: z.union([z.string().max(KEY_FACT_TEXT_MAX), z.number().int()]),
+    citations: z.array(CitationSchema).min(1).max(FACT_CITATIONS_MAX),
+    /** The accepted suggestion the citations came from. */
+    suggestionId: DocIdSchema,
+    privileged: z.boolean().default(false),
+  },
+  { path: `${MATTER}/factCitations`, updatable: [], migratable: false },
+);
+export type FactCitation = z.infer<typeof FactCitation.schema>;
 
 /**
  * `orgs/{orgId}/clerkThreads/{threadId}` (AI-06, ADR-044): one Clerk conversation about one matter.

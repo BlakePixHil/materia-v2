@@ -134,7 +134,7 @@ These are pure: inputs in, outputs out, no data access. Each takes a view-model 
 | `<mt-table>` | See below |
 | `<mt-task-row [task] editable (done) (titleChange) (open)>` | A task: the checkbox emits `done`; with `editable` the title edits in place (Enter saves, Escape cancels) |
 | `<mt-matter-card [matter] (open)>` | Board card. Drag behaviour is added by the board (CORE-04) |
-| `<mt-key-facts [facts] (copied)>` + `<ng-template mtFactCitation let-fact>` | Facts with copy buttons; Clerk-sourced facts render the citation template (FND-11's Citation) |
+| `<mt-key-facts [facts] (copied)>` + `<ng-template mtFactCitation let-fact>` | Facts with copy buttons; Clerk-sourced facts render the citation template (the matter Overview puts an `mt-citation` chip per source there, CORE-06a) |
 | `<mt-estate-stepper [stages] current completed interactive (stageSelect)>` | The matter's stages from its template |
 | `<mt-timeline [items] grouped hasMore loading (loadMore)>` | History or deadlines, grouped by day in the org timezone; kinds note, activity, document, email, clerk, deadline |
 | `<mt-time-entry [entry] (accept)>` | A recorded entry (actions projected) or a captured one (Accept) |
@@ -233,11 +233,11 @@ Each component's guidelines are on its page in the design system.
 
 `/today` (apps/web `features/today`) follows the design's Today frame; the data is in docs/02 (Today).
 
-- **Layout.** The date as an eyebrow and the greeting as the `display` heading, in the org's time zone, with a caption when this device's time zone differs. Left column: Clerk's brief slot (an EmptyState, only while `clerk.features.brief` is on), the new-practice checklist (create a matter, invite people, connect a calendar: disabled, "Coming soon"), Needs attention and My tasks. Right column (400px; one column below 1100px): two Stats (open matters, deadlines this week; no WIP), Due today and this week as a timeline, and Recent matters. The page action is New matter.
+- **Layout.** The date as an eyebrow and the greeting as the `display` heading, in the org's time zone, with a caption when this device's time zone differs. Left column: Clerk's brief slot (an EmptyState, only while `clerk.features.brief` is on), the new-practice checklist (create a matter, invite people, connect a calendar: disabled, "Coming soon"), Needs attention and My tasks. Right column (400px; one column below 1100px): the Stats (open matters, deadlines this week and, for roles with `time.record`, WIP this month), Due today and this week as a timeline, and Recent matters. The page action is New matter.
 - **Rows.** Deadlines show the DeadlineChip with the trace in its tooltip and Mark done (`deadlines-complete`); changes show what moves and Accept/Reject (`DeadlineActions.resolve`, a red banner for `isUrgentChange`); tasks use TaskRow and `TaskActions` (Undo on completion).
 - **Keyboard.** `j`/`k` move through every row on the page (all sections, in page order), Enter opens the focused row, Space completes the focused task (focus then takes the row that moves into its place), `a` acknowledges the focused escalation (escalations arrive with CORE-11).
 - **First paint.** Below the heading, "Loading your day…" stands until every section has its first answer (the cached one when this device has it: rows, their matters and the counts), at most 2.5 s; then the sections are drawn together, so the page doesn't shift as each lands (CLS on mobile, where the columns stack).
-- **Empty and offline.** A clear day says so plainly ("Nothing needs attention", "Your week is clear"). Offline, the page keeps what it showed with a note; counts show `—`.
+- **Empty and offline.** A clear day says so plainly ("Nothing needs attention", "Your week is clear"). Offline, the page keeps what it showed with a note; counts and WIP this month show `—`.
 - **Stats** use the design system's `.mt-stat` styles in the page rather than `MtStat`: the first use of a `@materia/ui` component from a lazy page lands in the initial bundle, and Today must not grow it.
 
 Every screen above is designed. DES-01 (pass four) added the settings sub-pages, Inbox, unfiled email, notifications, the Clerk full page, tablet layouts and system states; `node design/system/check.mjs` checks the gallery for overflow at 1440, 1024 and 390 in light and dark.

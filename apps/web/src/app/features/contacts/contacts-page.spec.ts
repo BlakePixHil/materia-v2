@@ -3,9 +3,23 @@ import { provideRouter, Router } from '@angular/router';
 
 import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
-import { DomainError, contactDedupeKey, contactDisplayName, contactSearchTokens, type Contact } from '@materia/domain';
+import {
+  DomainError,
+  contactDedupeKey,
+  contactDisplayName,
+  contactSearchTokens,
+  type Contact,
+  type ContactActivityLine,
+  type ContactActivityResult,
+} from '@materia/domain';
 import { MT_KEYBOARD_PLATFORM } from '@materia/ui';
 
+import {
+  appendLines,
+  CONTACT_ACTIVITY_SETTLE_MS,
+  contactActivityItem,
+  contactActivitySummary,
+} from './contact-activity';
 import { refusingReferences } from './contact-delete-dialog';
 import { clearedFields, contactFromForm, createContactForm, parseDateInput, phoneGroup } from './contact-form';
 import { duplicateReasons } from './contact-form-dialog';
@@ -118,12 +132,22 @@ function seedMatter(fs: InMemoryFirestore): void {
 
 interface Options {
   configure?: (port: FakeAuthPort, firestore: InMemoryFirestore) => void;
+  /** Answers `contacts-activity` (CORE-01a); those calls go to `activityCalls`, not `port.calls`. */
+  activity?: (input: { contactId: string; limit: number; cursor?: string }) => Promise<ContactActivityResult>;
 }
 
 async function open(url: string, session: AuthSession, options: Options = {}) {
   const port = new FakeAuthPort(session);
   const firestore = new InMemoryFirestore();
   options.configure?.(port, firestore);
+  const activityCalls: unknown[] = [];
+  const call = port.call.bind(port);
+  port.call = async <T>(name: string, data: unknown): Promise<T> => {
+    if (name !== 'contacts-activity') return call<T>(name, data);
+    activityCalls.push(data);
+    const answer = options.activity ?? (async () => ({ lines: [], nextCursor: null }));
+    return (await answer(data as { contactId: string; limit: number })) as T;
+  };
   TestBed.configureTestingModule({
     imports: [App],
     providers: [
@@ -200,6 +224,7 @@ async function open(url: string, session: AuthSession, options: Options = {}) {
   const detail = () => body.querySelector('mt-contact-detail')?.textContent?.replace(/\s+/g, ' ') ?? '';
   return {
     port,
+    activityCalls,
     firestore,
     router,
     body,
@@ -300,6 +325,30 @@ describe('contacts list', () => {
     expect(page.listNames()).toEqual(['Coastal Fictional Accounting']);
   });
 
+  it('filters by role in matters, showing the roles held (CORE-01a)', async () => {
+    const page = await open('/contacts', LAWYER, {
+      configure: (_p, fs) => {
+        seedPeople(fs);
+        fs.set(`${CONTACTS}/c-avery`, {
+          ...(fs.get(`${CONTACTS}/c-avery`) as Seed),
+          matterRoles: ['executor', 'beneficiary'],
+        });
+        fs.set(`${CONTACTS}/c-bram`, { ...(fs.get(`${CONTACTS}/c-bram`) as Seed), matterRoles: ['beneficiary'] });
+      },
+    });
+    const roles = [...(page.field('Role in matters') as HTMLSelectElement).options].map((o) => o.textContent?.trim());
+    expect(roles.slice(1, 5)).toEqual(['Any role', 'Client', 'Testator', 'Deceased']);
+    await page.choose('Role in matters', 'Executor');
+    expect(page.listNames()).toEqual(['Avery Quill']);
+    expect(page.body.querySelector('.mt-contacts-caption')?.textContent?.trim()).toBe('Executor, Beneficiary');
+    await page.choose('Role in matters', 'Beneficiary');
+    expect(page.listNames()).toEqual(['Avery Quill', 'Bram Ostler']);
+    await page.choose('Role in matters', 'Trustee');
+    expect(page.text()).toContain('No contacts match');
+    await page.choose('Role in matters', 'Any role');
+    expect(page.listNames()).toHaveLength(3);
+  });
+
   it('moves with j and k, focuses search with /, and creates with c', async () => {
     const page = await open('/contacts', LAWYER, { configure: (_p, fs) => seedPeople(fs) });
     expect(page.selected()).toBe('c-avery');
@@ -346,7 +395,107 @@ describe('contact detail', () => {
     );
     expect(roles).toEqual(['Executor WE-0142', 'Beneficiary 50% WE-0142']);
     expect(page.body.querySelector('a[href="/matters/m-1"]')).not.toBeNull();
-    expect(detail).toContain('Added 1 Sep');
+  });
+
+  it('lists the contact’s activity from contacts-activity, with matter links, and pages (CORE-01a)', async () => {
+    const line = (id: string, extra: Partial<ContactActivityLine>): ContactActivityLine => ({
+      id,
+      at: '2026-10-05T01:00:00.000Z',
+      actorUid: 'user-jordan',
+      kind: 'created',
+      ...extra,
+    });
+    const pages: Record<string, ContactActivityResult> = {
+      first: {
+        lines: [
+          line('l-1', {
+            kind: 'party_added',
+            role: 'executor',
+            matter: { id: 'm-1', number: 'WE-0142', title: 'Estate of Fictional Quill' },
+          }),
+          line('l-2', { kind: 'updated', fields: ['phones', 'emails'], actorUid: 'user-gone' }),
+        ],
+        nextCursor: 'cursor-2',
+      },
+      second: {
+        // l-2 again (an event across the page break) shows once.
+        lines: [line('l-2', { kind: 'updated', fields: ['phones'] }), line('l-3', { at: '2026-08-03T00:00:00.000Z' })],
+        nextCursor: null,
+      },
+    };
+    const page = await open('/contacts?contact=c-avery', LAWYER, {
+      configure: (_port, fs) => {
+        seedPeople(fs);
+        seedMatter(fs);
+        fs.set(`orgs/${ORG}/members/user-jordan`, {
+          displayName: 'Jordan Price',
+          email: 'lawyer@harbourvine.example',
+          role: 'lawyer',
+          status: 'active',
+        });
+      },
+      activity: async (input) => (input.cursor ? pages['second'] : pages['first']) as ContactActivityResult,
+    });
+    const items = () =>
+      [...page.body.querySelectorAll('[data-testid="contact-activity"] li')].map((li) =>
+        [...li.children].map((part) => part.textContent?.replace(/\s+/g, ' ').trim()).join(' '),
+      );
+    expect(page.activityCalls).toEqual([{ contactId: 'c-avery', limit: 20 }]);
+    expect(items()).toEqual([
+      'Jordan Price added this contact as executor on WE-0142 Estate of Fictional Quill 5 Oct 2026',
+      'Former member updated the phone and email 5 Oct 2026',
+    ]);
+    expect(
+      page.body.querySelector('[data-testid="contact-activity"] a[href="/matters/m-1"]')?.textContent?.trim(),
+    ).toBe('WE-0142 Estate of Fictional Quill');
+    await page.click('Show older activity');
+    expect(page.activityCalls.at(-1)).toEqual({ contactId: 'c-avery', limit: 20, cursor: 'cursor-2' });
+    expect(items()).toHaveLength(3);
+    expect(items()[2]).toBe('Jordan Price added the contact 3 Aug 2026');
+    expect(page.buttons('Show older activity')).toHaveLength(0);
+  });
+
+  it('looks at the activity again shortly after the contact’s matters change (CORE-01a)', async () => {
+    const page = await open('/contacts?contact=c-avery', LAWYER, {
+      configure: (_port, fs) => {
+        seedPeople(fs);
+        seedMatter(fs);
+      },
+    });
+    expect(page.activityCalls).toHaveLength(1);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      // A party added elsewhere: its audit entry lands just after, so the list looks twice.
+      page.firestore.set(`orgs/${ORG}/matters/m-1/parties/p-3`, {
+        contactId: 'c-avery',
+        role: 'trustee',
+        orgId: ORG,
+        matterId: 'm-1',
+      });
+      await vi.advanceTimersByTimeAsync(CONTACT_ACTIVITY_SETTLE_MS[0]);
+      expect(page.activityCalls).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(CONTACT_ACTIVITY_SETTLE_MS[1] - CONTACT_ACTIVITY_SETTLE_MS[0]);
+      expect(page.activityCalls).toHaveLength(3);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(page.activityCalls).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says so when the activity can’t load, and tries again', async () => {
+    let fail = true;
+    const page = await open('/contacts?contact=c-avery', LAWYER, {
+      configure: (_port, fs) => seedPeople(fs),
+      activity: async () => {
+        if (fail) throw new DomainError('UNAVAILABLE', 'down');
+        return { lines: [], nextCursor: null };
+      },
+    });
+    expect(page.detail()).toContain('This service is temporarily unavailable');
+    fail = false;
+    await page.click('Try again', page.body.querySelector('mt-contact-activity') as ParentNode);
+    expect(page.detail()).toContain('No activity yet.');
   });
 
   it('shows an organisation with its ABN and referrer badge', async () => {
@@ -367,11 +516,16 @@ describe('contact detail', () => {
       deletedAt: null,
       ...extra,
     });
+    const budget = (billedCents: number) => ({ recordedCents: billedCents + 22000, billedCents });
     const seed = (fs: InMemoryFirestore) => {
       seedPeople(fs);
       fs.set(
         `orgs/${ORG}/matters/m-r1`,
-        referred('0101', { title: 'Will of Fictional Ash', createdAt: new Date('2026-03-02T00:00:00Z') }),
+        referred('0101', {
+          title: 'Will of Fictional Ash',
+          createdAt: new Date('2026-03-02T00:00:00Z'),
+          budget: budget(44000),
+        }),
       );
       fs.set(
         `orgs/${ORG}/matters/m-r2`,
@@ -380,16 +534,25 @@ describe('contact detail', () => {
           type: 'probate',
           status: 'closed',
           createdAt: new Date('2026-08-20T00:00:00Z'),
+          budget: budget(385000),
         }),
       );
-      fs.set(`orgs/${ORG}/matters/m-r3`, referred('0103', { title: 'Hidden privileged matter', privileged: true }));
-      fs.set(`orgs/${ORG}/matters/m-r4`, referred('0104', { title: 'Deleted referral', deletedAt: new Date() }));
+      fs.set(
+        `orgs/${ORG}/matters/m-r3`,
+        referred('0103', { title: 'Hidden privileged matter', privileged: true, budget: budget(110000) }),
+      );
+      fs.set(
+        `orgs/${ORG}/matters/m-r4`,
+        referred('0104', { title: 'Deleted referral', deletedAt: new Date(), budget: budget(99900) }),
+      );
       fs.set(`orgs/${ORG}/matters/m-x`, referred('0105', { title: 'Someone else’s', referrerContactId: 'c-bram' }));
     };
     const page = await open('/contacts?contact=c-coastal', READONLY, { configure: (_p, fs) => seed(fs) });
     const section = page.body.querySelector('[data-testid="contact-referrals"]')?.textContent?.replace(/\s+/g, ' ');
     expect(section).toContain('Referrals 2');
+    // Without billing.view, nothing about what was billed.
     expect(section).toContain('2 matters referred · 1 active · last on 20 Aug 2026');
+    expect(section).not.toContain('billed');
     expect(section).toContain('Will · Open · Opened 2 Mar 2026');
     expect(section).toContain('Probate · Closed · Opened 20 Aug 2026');
     expect(section).not.toContain('Hidden privileged matter');
@@ -401,9 +564,13 @@ describe('contact detail', () => {
     expect(titles).toEqual(['Estate of Fictional Birch', 'Will of Fictional Ash']);
     TestBed.resetTestingModule();
 
-    // A lawyer (privileged.view) sees the privileged one too; a contact who isn't a referrer has no section.
+    // A lawyer (privileged.view, billing.view) sees the privileged one too, and what was billed on all
+    // three; a contact who isn't a referrer has no section.
     const lawyer = await open('/contacts?contact=c-coastal', LAWYER, { configure: (_p, fs) => seed(fs) });
     expect(lawyer.detail()).toContain('Hidden privileged matter');
+    expect(lawyer.body.querySelector('[data-testid="referral-totals"]')?.textContent?.trim()).toBe(
+      '3 matters referred · 2 active · $5,390.00 billed · last on 20 Aug 2026',
+    );
     await lawyer.router.navigateByUrl('/contacts?contact=c-avery');
     await lawyer.stable();
     expect(lawyer.body.querySelector('[data-testid="contact-referrals"]')).toBeNull();
@@ -803,8 +970,52 @@ describe('contact form helpers', () => {
         addresses: [],
         tags: [],
         isReferrer: false,
+        matterRoles: [],
       }),
     ).toEqual(['notes']);
+  });
+
+  it('words each kind of activity line (CORE-01a)', () => {
+    const at = '2026-10-05T01:00:00.000Z';
+    const say = (extra: Partial<ContactActivityLine>) =>
+      contactActivitySummary({ id: 'x', at, actorUid: 'u', kind: 'created', ...extra });
+    expect(say({})).toBe('Added the contact');
+    expect(say({ kind: 'updated', fields: ['name', 'dateOfDeath', 'abn'] })).toBe(
+      'Updated the name, date of death and ABN',
+    );
+    expect(say({ kind: 'deleted' })).toBe('Deleted the contact');
+    expect(say({ kind: 'restored' })).toBe('Restored the contact');
+    expect(say({ kind: 'merged_in', other: { id: 'c-2', name: 'Avery Q' } })).toBe('Merged Avery Q into this contact');
+    expect(say({ kind: 'merged_in' })).toBe('Merged another contact into this one');
+    expect(say({ kind: 'merged_away', other: { id: 'c-2', name: 'Avery Quill' } })).toBe(
+      'Merged this contact into Avery Quill',
+    );
+    expect(say({ kind: 'party_updated', role: 'beneficiary' })).toBe(
+      'Updated this contact’s details as beneficiary on',
+    );
+    expect(say({ kind: 'party_role_changed', role: 'executor', previousRole: 'other_side_solicitor' })).toBe(
+      'Changed this contact’s role from other side’s solicitor to executor on',
+    );
+    expect(say({ kind: 'party_removed', role: 'client' })).toBe('Removed this contact as client from');
+    expect(
+      contactActivityItem(
+        {
+          id: 'x',
+          at,
+          actorUid: 'system',
+          kind: 'party_added',
+          role: 'client',
+          matter: { id: 'm', number: null, title: 'Untitled' },
+        },
+        () => 'n/a',
+      ),
+    ).toMatchObject({
+      text: 'Added this contact as client on',
+      matter: { id: 'm', label: 'Untitled' },
+      when: '5 Oct 2026',
+    });
+    const a = { id: 'a', at, actorUid: 'u', kind: 'created' } as const;
+    expect(appendLines([a], [a, { ...a, id: 'b' }]).map((l) => l.id)).toEqual(['a', 'b']);
   });
 
   it('words duplicate reasons, refused-delete references and merge refusals', () => {

@@ -3,7 +3,6 @@ import type { z } from 'zod';
 
 import {
   can,
-  costsDisclosureRequirement,
   CreateMatterInput,
   dateOfDeathProblem,
   DEATH_CERTIFICATE_TASK_KEY,
@@ -11,8 +10,8 @@ import {
   DEFAULT_MATTER_NUMBER_FORMAT,
   DEFAULT_ORG_TIMEZONE,
   DomainError,
-  feeEstimateCents,
   formatMatterNumber,
+  initialCostsDisclosure,
   isDateOnly,
   initialMatterStatus,
   Matter,
@@ -137,27 +136,56 @@ export function intakeEvents(matter: MatterInput, events: readonly EventRow[] = 
 
 /**
  * The fee and costs disclosure a new matter is stored with: the top-level `fee`/`costsDisclosure`
- * (CORE-05) over `matter.fee`/`matter.costsDisclosure`; without either disclosure, the requirement
- * for the fee's estimate (`costsDisclosureRequirement`, a BILL-06 placeholder). A top-level
- * `not_required` the estimate doesn't allow is INVALID_ARGUMENT on `costsDisclosure.status`.
+ * (CORE-05) over `matter.fee`/`matter.costsDisclosure`. The disclosure is assessed from the
+ * jurisdiction's rules and the fee's estimate (BILL-06, `initialCostsDisclosure`): asked-for
+ * `required` stands, a `not_required` the estimate doesn't allow is INVALID_ARGUMENT on
+ * `costsDisclosure.status`, and `waived` needs its reason and a lawyer or above (PERMISSION_DENIED).
+ * A legacy `matter.costsDisclosure` already sent keeps its status and date.
  */
-export function intakeFeeAndDisclosure(input: Input): Pick<Matter, 'fee' | 'costsDisclosure'> {
+export function intakeFeeAndDisclosure(
+  input: Input,
+  options: { role: Role; uid: string; now: Date; today: DateOnly },
+): Pick<Matter, 'fee' | 'costsDisclosure'> {
   const fee = (input.fee ?? input.matter.fee) as Matter['fee'] | undefined;
   if (!fee) {
     throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', { fields: { fee: ['Choose a fee arrangement'] } });
   }
-  const estimateCents = feeEstimateCents(fee);
-  const requirement = costsDisclosureRequirement(estimateCents);
-  if (input.costsDisclosure?.status === 'not_required' && requirement === 'required') {
+  const legacy = input.costsDisclosure ? undefined : input.matter.costsDisclosure;
+  const requested = input.costsDisclosure?.status ?? legacy?.status;
+  const waiver = input.costsDisclosure?.waiver ?? legacy?.waiver;
+  if (requested === 'waived') {
+    if (!waiver) {
+      throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', {
+        fields: { 'costsDisclosure.waiver.reason': ['Choose why no disclosure is needed'] },
+      });
+    }
+    if (!can(options.role, 'matter.fee')) {
+      throw new DomainError('PERMISSION_DENIED', 'Only a lawyer can record that no costs disclosure is needed', {
+        reason: 'disclosure_waiver_role',
+      });
+    }
+  }
+  const assessed = initialCostsDisclosure({
+    jurisdiction: input.matter.jurisdiction,
+    fee,
+    requested:
+      requested === 'required' || requested === 'not_required' || requested === 'waived' ? requested : undefined,
+    waiver: waiver ? { reason: waiver.reason, ...(waiver.note ? { note: waiver.note } : {}) } : undefined,
+    uid: options.uid,
+    now: options.now,
+    today: options.today,
+  });
+  if (requested === 'not_required' && assessed.status !== 'not_required') {
     throw new DomainError('INVALID_ARGUMENT', 'Invalid matter', {
       fields: { 'costsDisclosure.status': ['This estimate needs a costs disclosure'] },
     });
   }
-  const costsDisclosure = (input.costsDisclosure ??
-    input.matter.costsDisclosure ?? {
-      status: requirement,
-      ...(estimateCents !== undefined ? { estimateCents } : {}),
-    }) as Matter['costsDisclosure'];
+  // Matters created outside intake (a migration, say) with a disclosure already given keep it.
+  const costsDisclosure =
+    legacy && (legacy.status === 'sent' || legacy.status === 'updated')
+      ? { ...assessed, status: legacy.status, ...(legacy.sentOn ? { sentOn: legacy.sentOn } : {}) }
+      : assessed;
+  if (costsDisclosure.status !== 'required') delete costsDisclosure.requiredSince;
   return { fee: { ...fee, history: fee.history ?? [] }, costsDisclosure };
 }
 
@@ -318,7 +346,12 @@ export const createMatterDefinition = {
   idempotent: true,
   handler: async (ctx): Promise<CreateMatterResult> => {
     const { input, orgId, uid, role, db, requestId, log } = ctx;
-    const { fee, costsDisclosure } = intakeFeeAndDisclosure(input);
+    const clock = await orgClock(db, orgId, ctx.clock);
+    const now = clock.now();
+    const org = (await db.doc(`orgs/${orgId}`).get()).data() ?? {};
+    const timeZone = typeof org['timezone'] === 'string' && org['timezone'] ? org['timezone'] : DEFAULT_ORG_TIMEZONE;
+    const orgToday = today(timeZone, now);
+    const { fee, costsDisclosure } = intakeFeeAndDisclosure(input, { role, uid, now, today: orgToday });
     const resultId = input.conflictCheckId ?? input.matter.conflictCheck.resultId;
     const matter: MatterInput = {
       ...input.matter,
@@ -328,10 +361,6 @@ export const createMatterDefinition = {
     };
     await checkReferences(db, orgId, role, matter);
 
-    const clock = await orgClock(db, orgId, ctx.clock);
-    const now = clock.now();
-    const org = (await db.doc(`orgs/${orgId}`).get()).data() ?? {};
-    const timeZone = typeof org['timezone'] === 'string' && org['timezone'] ? org['timezone'] : DEFAULT_ORG_TIMEZONE;
     const format =
       typeof org['matterNumberFormat'] === 'string' && org['matterNumberFormat']
         ? org['matterNumberFormat']
@@ -343,7 +372,6 @@ export const createMatterDefinition = {
         ? (org['matterTypeCodes'] as Partial<Record<MatterType, string>>)
         : undefined,
     );
-    const orgToday = today(timeZone, now);
     await checkDateOfDeath(db, orgId, matter, orgToday);
     const events = intakeEvents(matter, input.events);
     const parties = intakeParties(matter, input.parties);
@@ -524,7 +552,14 @@ export const createMatterDefinition = {
         for (const event of events) {
           tx.create(
             db.collection(`${matterRef.path}/events`).doc(),
-            MatterEvent.schema.parse({ ...event, meta: {}, ...meta, schemaVersion: MatterEvent.version }),
+            MatterEvent.schema.parse({
+              ...event,
+              meta: {},
+              // A copy of the matter's flag (CORE-10b).
+              privileged: data.privileged,
+              ...meta,
+              schemaVersion: MatterEvent.version,
+            }),
           );
         }
         for (const task of tasks) tx.create(db.doc(task.path), task.data);
@@ -546,6 +581,8 @@ export const createMatterDefinition = {
           year,
           parties: parties.length,
           events: events.length,
+          costsDisclosure: costsDisclosure.status,
+          ...(costsDisclosure.waiver ? { disclosureWaiver: costsDisclosure.waiver.reason } : {}),
           ...(deathCertificateTask ? { deathCertificateTask: true } : {}),
           ...(thankYouTitle ? { referrerThankYouTask: true } : {}),
           ...(template

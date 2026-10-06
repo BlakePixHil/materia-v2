@@ -242,6 +242,22 @@ const shellRoutes: Route[] = [
           },
         ],
       },
+      // Aged debtors and payment reminders (BILL-08): billing.view roles, behind invoicing's flag.
+      {
+        path: 'debtors',
+        title: 'Aged debtors',
+        data: { crumb: 'Aged debtors' },
+        canActivate: [flagGuard('billing.invoicing'), roleGuard(BILLING_VIEW_ROLES)],
+        loadComponent: () => import('./features/invoices/debtors-page').then((m) => m.DebtorsPage),
+      },
+      // Outstanding costs disclosures (BILL-06): billing.view roles, behind its flag.
+      {
+        path: 'disclosures',
+        title: 'Costs disclosures',
+        data: { crumb: 'Costs disclosures' },
+        canActivate: [flagGuard('billing.costsDisclosure'), roleGuard(BILLING_VIEW_ROLES)],
+        loadComponent: () => import('./features/costs/disclosures-page').then((m) => m.DisclosuresPage),
+      },
     ],
   },
   planned('insights', 'Insights', {
@@ -249,6 +265,13 @@ const shellRoutes: Route[] = [
     icon: 'insights',
     description: 'Workload, realisation and deadline health.',
   }),
+  // Where an OAuth provider sends the browser back after consent (INT-01, ADR-051).
+  {
+    path: 'integrations/callback/:provider',
+    title: 'Connecting',
+    loadComponent: () =>
+      import('./features/integrations/integration-callback-page').then((m) => m.IntegrationCallbackPage),
+  },
   // How Clerk works (AI-13): the seven Clerk rules in plain words, linked from the Clerk panel.
   {
     path: 'help/clerk',
@@ -315,6 +338,15 @@ const shellRoutes: Route[] = [
         canDeactivate: [unsavedChangesGuard],
         loadComponent: () => import('./features/trust/trust-settings-page').then((m) => m.TrustSettingsPage),
       },
+      // Integrations (BILL-09): the practice's Xero connection; owners and admins, while `integrations.xero` is on.
+      {
+        path: 'integrations',
+        title: 'Integrations',
+        data: { crumb: 'Integrations' },
+        canActivate: [flagGuard('integrations.xero'), roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/integrations/integrations-page').then((m) => m.IntegrationsPage),
+      },
       // Matter numbering (CORE-21a): owners and admins (`org.settings`).
       {
         path: 'numbering',
@@ -344,6 +376,16 @@ const shellRoutes: Route[] = [
           },
         ],
       },
+      // Document templates and the letterhead (INT-06): owners and admins (`org.settings`).
+      {
+        path: 'document-templates',
+        title: 'Document templates',
+        data: { crumb: 'Document templates' },
+        canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () =>
+          import('./features/document-templates/document-templates-page').then((m) => m.DocumentTemplatesPage),
+      },
       // Clerk and AI (AI-02a, AI-13): owners and admins change it (`clerk.configure`); everyone
       // else sees which features are on and the data-use disclosure.
       {
@@ -366,7 +408,7 @@ const shellRoutes: Route[] = [
         data: { crumb: 'Security' },
         loadComponent: () => import('./features/security/security-page').then((m) => m.SecurityPage),
       },
-      // Settings pages still to come (integrations INT-03) land on the team page.
+      // Settings pages still to come land on the team page.
       { path: '**', redirectTo: 'team' },
     ],
   },

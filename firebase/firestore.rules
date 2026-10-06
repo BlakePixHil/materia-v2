@@ -65,6 +65,17 @@ service cloud.firestore {
     function canViewPrivileged(orgId) {
       return can(orgId, 'privileged.view');
     }
+    // Who sees every member's figures in the practice metrics (INS-01): the org's
+    // `settings.insights.memberVisibility`, lawyers and above by default (MEMBER_METRICS_READERS in
+    // libs/domain). Role lists, not can(): every action in perm() costs each can() call, and
+    // Clerk's message lists are at the 1000-expression limit. The caller checks inOrg().
+    function seesEveryMember(orgId) {
+      let visibility = get(/databases/$(database)/documents/orgs/$(orgId)).data
+        .get('settings', {}).get('insights', {}).get('memberVisibility', 'lawyers');
+      return visibility == 'everyone'
+        || visibility == 'admins' && claimRole() in ['owner', 'admin']
+        || visibility != 'everyone' && visibility != 'admins' && claimRole() in ['owner', 'admin', 'lawyer'];
+    }
     // Privileged documents are readable only by roles with privileged.view (never readonly).
     // No get() default here: in a list query, `data.get(field, default)` on a field the query does
     // not constrain evaluates to the default, which would let any query through. Comparing the
@@ -210,7 +221,7 @@ service cloud.firestore {
         && (!('assetId' in data) || data.assetId is string && data.assetId.size() > 0)
         && optionalText(data, 'share', 300) && optionalText(data, 'notes', 2000)
         && data.status in ['planned', 'approved', 'paid', 'cancelled']
-        && optionalDate(data, 'paidOn')
+        && optionalDate(data, 'paidOn') && optionalText(data, 'paymentReference', 300)
         && (!('needsValueReview' in data) || data.needsValueReview is bool);
     }
 
@@ -289,7 +300,7 @@ service cloud.firestore {
     // Fields a client may write when creating a manual deadline: `ManualDeadlineCreateInput` in
     // libs/domain (the rules tests check the two agree), plus the meta fields.
     function manualDeadlineCreateFields() {
-      return ['orgId', 'matterId', 'title', 'dueDate', 'dueTime', 'kind', 'critical', 'status', 'assigneeUid', 'reminders'];
+      return ['orgId', 'matterId', 'title', 'dueDate', 'dueTime', 'kind', 'critical', 'status', 'assigneeUid', 'reminders', 'privileged'];
     }
     // The values a manual deadline may hold after a client write.
     function validManualDeadline(data) {
@@ -306,7 +317,7 @@ service cloud.firestore {
     function newManualDeadline(orgId, matterId) {
       let data = request.resource.data;
       return data.keys().hasOnly(manualDeadlineCreateFields().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
-        && data.keys().hasAll(['orgId', 'matterId', 'title', 'dueDate', 'kind', 'critical', 'status', 'assigneeUid', 'reminders', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
+        && data.keys().hasAll(['orgId', 'matterId', 'title', 'dueDate', 'kind', 'critical', 'status', 'assigneeUid', 'reminders', 'privileged', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
         && data.orgId == orgId && data.matterId == matterId && data.status == 'upcoming'
         && data.createdBy == uid() && data.createdAt == request.time && validMeta() && data.schemaVersion == 1
         && validManualDeadline(data);
@@ -625,6 +636,9 @@ service cloud.firestore {
         // and closing go through callables. task.edit roles create manual deadlines (contractual,
         // internal or court) on a live, visible matter, edit their whitelisted fields while upcoming,
         // and soft delete them. Status changes (done, waived, missed) go through deadlines-complete.
+        // Reads follow the matter's access, like tasks (CORE-10b): a privileged matter's deadlines
+        // need privileged.view. Each deadline carries a copy of the matter's `privileged` flag for the
+        // collection-group rule below; a manual one is created with the matter's.
         match /deadlines/{deadlineId} {
           function deadlineMatter() {
             return get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data;
@@ -637,8 +651,9 @@ service cloud.firestore {
             return unchanged(['ackBy', 'ackAt'])
               || request.resource.data.get('ackBy', null) == uid() && request.resource.data.get('ackAt', null) == request.time;
           }
-          allow read: if inOrg(orgId);
-          allow create: if canEditDeadlines() && newManualDeadline(orgId, matterId);
+          allow read: if inOrg(orgId) && visible(orgId, deadlineMatter());
+          allow create: if canEditDeadlines() && newManualDeadline(orgId, matterId)
+            && request.resource.data.privileged == deadlineMatter().privileged;
           allow update: if canEditDeadlines() && (
             resource.data.get('computed', null) == null && (
               resource.data.status == 'upcoming'
@@ -651,9 +666,10 @@ service cloud.firestore {
         }
 
         // Proposed changes to computed deadlines (CORE-10): server-written, decided through
-        // deadlines-resolveChange.
+        // deadlines-resolveChange. Readable like the matter's deadlines (CORE-10b).
         match /deadlineChanges/{changeId} {
-          allow read: if inOrg(orgId);
+          allow read: if inOrg(orgId)
+            && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data);
         }
 
         // Time entries (BILL-01): drafts are written client-direct by their author (or anyone with
@@ -745,6 +761,15 @@ service cloud.firestore {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
         }
 
+        // Where Clerk found a key fact's value (CORE-06a, ADR-049): written by suggestions-accept
+        // and deleted by matters-denormalise once the fact changes; server-only writes. Readable by
+        // whoever can read the matter, and a privileged one (from a privileged suggestion or cited
+        // document) needs privileged.view, so a list by a role without it proves `privileged == false`.
+        match /factCitations/{factId} {
+          allow read: if inOrg(orgId) && visible(orgId, resource.data)
+            && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data);
+        }
+
         match /parties/{partyId} {
           allow read: if inOrg(orgId);
           // Share and notes only: adding, re-roling and removing parties go through the
@@ -753,9 +778,11 @@ service cloud.firestore {
           allow update: if can(orgId, 'matter.edit') && clientUpdate(fieldsParty()) && matterWritable();
         }
         // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent,
-        // which recompute the matter's deadlines in the same transaction.
+        // which recompute the matter's deadlines in the same transaction. Readable like the matter's
+        // deadlines (CORE-10b).
         match /events/{eventId} {
-          allow read: if inOrg(orgId);
+          allow read: if inOrg(orgId)
+            && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data);
         }
         // Disbursements (BILL-04): unbilled ones are written client-direct by time.record roles on a
         // live matter they can see. disbursements-onWrite recomputes the GST and keeps the matter's
@@ -840,6 +867,10 @@ service cloud.firestore {
           allow read: if inOrg(orgId);
           allow update: if editable(orgId, 'matter.edit', fieldsCourtBook()) && matterWritable();
         }
+        // What each record has added to the practice metrics (INS-01, ADR-048): functions only.
+        match /metrics/{ledgerId} {
+          allow read, write: if false;
+        }
       }
 
       // Clerk threads (AI-06, ADR-044): private to their owner until shared with the matter team.
@@ -871,6 +902,11 @@ service cloud.firestore {
         allow read: if can(orgId, 'billing.view');
       }
       match /creditNotes/{creditNoteId} {
+        allow read: if can(orgId, 'billing.view');
+      }
+      // Payment reminders (BILL-08): queued by the nightly job, sent or dismissed through
+      // billing-sendReminder and -dismissReminder; billing.view reads them.
+      match /invoiceReminders/{reminderId} {
         allow read: if can(orgId, 'billing.view');
       }
 
@@ -930,9 +966,11 @@ service cloud.firestore {
         allow update: if canEditTaskGroupTemplates()
           && (clientUpdate(fieldsTaskGroupTemplate()) && validTaskGroupTemplate(request.resource.data) || softDelete());
       }
+      // Document templates (INT-06): every member reads them (to generate on a matter); uploads,
+      // versions, publishing and deletes go through the docs-* callables, which check the tags
+      // and scan the file.
       match /docTemplates/{templateId} {
         allow read: if inOrg(orgId);
-        allow update: if editable(orgId, 'org.settings', fieldsDocTemplate());
       }
 
       // Original will packets (CORE-17): every member reads the register; every write goes
@@ -971,6 +1009,11 @@ service cloud.firestore {
 
       // Disbursement presets (BILL-04): every member reads them to prefill a disbursement; owners and
       // admins keep the list. Other settings documents stay server-only.
+      // The letterhead's contact details (INT-06): every member reads them; docs-saveLetterhead writes.
+      match /settings/letterhead {
+        allow read: if inOrg(orgId);
+      }
+
       match /settings/disbursementPresets {
         allow read: if inOrg(orgId);
         allow create: if can(orgId, 'org.settings') && validPresets()
@@ -989,13 +1032,41 @@ service cloud.firestore {
       match /trustSnapshots/{matterId} {
         allow read: if can(orgId, 'billing.view');
       }
+      // Practice metrics (INS-01, ADR-048), written by the metrics-* functions. Every member reads
+      // the day, month and FY rollups (by path: a list can't prove the id's prefix) and their shards;
+      // Clerk's metering (`clerk-…`) and the aged-debtors report (`debtors-…`, which names clients)
+      // need billing.view. A member reads their own figures; everyone's follow the org's
+      // `settings.insights.memberVisibility` (lawyers and above by default).
       match /metrics/{metricId} {
-        allow read: if can(orgId, 'billing.view');
+        function rollupReader() {
+          return can(orgId, 'billing.view') || metricId.matches('^(day|month|fy)-.*') && inOrg(orgId);
+        }
+        allow read: if rollupReader();
+        match /shards/{shardId} {
+          allow read: if rollupReader();
+        }
+        match /byMember/{memberUid} {
+          allow read: if inOrg(orgId) && (uid() == memberUid || seesEveryMember(orgId));
+        }
       }
       match /migrations/{runId} {
         allow read: if can(orgId, 'org.settings') && isActiveMember(orgId);
       }
       match /integrations/{integrationId} {
+        allow read, write: if false;
+      }
+      // The client-readable mirror of an OAuth connection (INT-01, ADR-051), with nothing secret: a
+      // practice connection (`uid` null) is read by its members, a person's own only by them.
+      // Written only by the token vault.
+      match /integrationStatus/{integrationId} {
+        allow read: if inOrg(orgId) && (resource.data.uid == null || resource.data.uid == uid());
+      }
+      // OAuth connect attempts (INT-01): the state's hash and the PKCE verifier. Server-only.
+      match /integrationStates/{stateId} {
+        allow read, write: if false;
+      }
+      // Which Xero contact a matter's clients are invoiced as (BILL-09). Server-only.
+      match /xeroContacts/{linkId} {
         allow read, write: if false;
       }
       // Daily digest records (FND-20), `digest-{uid}-{date}`: written by notifications-digest so a
@@ -1028,12 +1099,18 @@ service cloud.firestore {
         && (resource.data.assigneeUid == uid()
           || resource.data.get('matterId', null) != null && canViewPrivileged(claimOrg()));
     }
+    // Deadlines across matters (CORE-10: the Deadlines screen, Today). A group query can't check
+    // each deadline's matter, so it reads the copy of the matter's flag each deadline carries
+    // (CORE-10b): roles without privileged.view must query `privileged == false`. This rule also
+    // matches single reads, where the path rule checks the matter itself.
     match /{path=**}/deadlines/{deadlineId} {
-      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg())
+        && visible(claimOrg(), resource.data);
     }
-    // Pending deadline changes across matters (CORE-10: "changes waiting on me").
+    // Pending deadline changes across matters (CORE-10: "changes waiting on me"), likewise.
     match /{path=**}/deadlineChanges/{changeId} {
-      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg());
+      allow read: if isSignedIn() && resource.data.orgId == claimOrg() && inOrg(claimOrg())
+        && visible(claimOrg(), resource.data);
     }
     // Time entries across matters (BILL-01, as tasks in ADR-026): a group query can't check each
     // entry's matter, so my own entries, or everyone's with privileged.view.
@@ -1127,16 +1204,21 @@ service cloud.firestore {
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
-    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'notes', 'needsValueReview']; }
-    function fieldsDocTemplate() { return ['name', 'storagePath', 'mergeFields', 'matterTypes', 'active']; }
+    function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'paymentReference', 'notes', 'needsValueReview']; }
+    function fieldsDocTemplate() { return []; }
     function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }
+    function fieldsFactCitation() { return []; }
     function fieldsIntakeDraft() { return ['orgId', 'kind', 'step', 'stateJson', 'expireAt']; }
     function fieldsIntegration() { return []; }
+    function fieldsIntegrationState() { return []; }
+    function fieldsIntegrationStatus() { return []; }
     function fieldsInvite() { return ['role']; }
     function fieldsInvoice() { return []; }
+    function fieldsInvoiceReminder() { return []; }
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
+    function fieldsLetterheadDoc() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'reference', 'amountCents', 'status', 'notes']; }
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged', 'referrerContactId', 'referralSource', 'boardOrder']; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }
@@ -1145,13 +1227,16 @@ service cloud.firestore {
     function fieldsMatterTemplate() { return []; }
     function fieldsMatterTemplateVersion() { return []; }
     function fieldsMember() { return ['displayName', 'initials', 'title', 'admissionNo', 'defaultRateCents', 'rates', 'colour', 'budgets', 'supervisorUid']; }
-    function fieldsMetrics() { return ['period', 'values']; }
+    function fieldsMemberMetrics() { return []; }
+    function fieldsMetrics() { return ['period', 'values', 'snapshotOn', 'debtors']; }
+    function fieldsMetricsLedger() { return []; }
+    function fieldsMetricsShard() { return []; }
     function fieldsMigrationRun() { return []; }
     function fieldsNote() { return ['pinned']; }
     function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt', 'hiddenAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'settings', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'settings', 'xero', 'termsAcceptedVersion']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
@@ -1168,6 +1253,7 @@ service cloud.firestore {
     function fieldsTimer() { return ['taskId', 'startedAt', 'accumulatedMs', 'running', 'narrativeDraft', 'lastHeartbeatAt', 'clientStarted', 'needsReview', 'forgottenSeenAt']; }
     function fieldsTrustSnapshot() { return []; }
     function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl']; }
+    function fieldsXeroContactLink() { return []; }
     // </generated:rules-sync>
 
     // Everything else is denied.

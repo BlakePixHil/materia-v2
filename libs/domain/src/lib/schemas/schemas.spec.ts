@@ -39,10 +39,14 @@ describe('entity schemas', () => {
       'DocTemplate',
       'DocumentHash',
       'Evidence',
+      'FactCitation',
       'IntakeDraft',
       'Integration',
+      'IntegrationState',
+      'IntegrationStatus',
       'Invite',
       'Invoice',
+      'InvoiceReminder',
       'Issue',
       'Job',
       'Liability',
@@ -53,7 +57,10 @@ describe('entity schemas', () => {
       'MatterTemplate',
       'MatterTemplateVersion',
       'Member',
+      'MemberMetrics',
       'Metrics',
+      'MetricsLedger',
+      'MetricsShard',
       'MigrationRun',
       'Note',
       'Notification',
@@ -73,6 +80,7 @@ describe('entity schemas', () => {
       'TimeEntry',
       'TrustSnapshot',
       'User',
+      'XeroContactLink',
     ]) {
       expect(names).toContain(required);
     }
@@ -84,7 +92,7 @@ describe('entity schemas', () => {
 
   it('exports XSchema, XCreateSchema and XUpdateSchema for every entity', () => {
     const exports = D as unknown as Record<string, unknown>;
-    expect(ENTITIES.length).toBe(64);
+    expect(ENTITIES.length).toBe(73);
     for (const [name, entity] of ENTITIES) {
       expect(exports[`${name}Schema`], `${name}Schema`).toBe(entity.schema);
       expect(exports[`${name}CreateSchema`], `${name}CreateSchema`).toBe(entity.create);

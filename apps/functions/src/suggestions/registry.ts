@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
 
-import type { Role, SuggestionKind, SuggestionPayloadOf } from '@materia/domain';
+import type { CitationInput, Role, SuggestionKind, SuggestionPayloadOf } from '@materia/domain';
 
 import type { Reader } from './shared';
 import type { Log } from '../core/log';
@@ -11,8 +11,7 @@ import type { Clock, Ports } from '../ports';
  * The accept-handler registry (AI-07, ADR-037). Each suggestion kind that can be accepted has one
  * handler, which applies the payload through the same domain logic as the manual path (never a
  * raw write) and joins the suggestion's re-check and resolution to that logic's transaction.
- * Kinds without a handler (`time_entry` until BILL-01, the litigation kinds until their LIT
- * tickets) are refused with SUGGESTION_UNSUPPORTED. A feature ticket registers its handler with
+ * Kinds without a handler (the litigation kinds until their LIT tickets) are refused with SUGGESTION_UNSUPPORTED. A feature ticket registers its handler with
  * `registerSuggestionHandler` from its module, imported by `suggestions/handlers.ts`.
  */
 
@@ -30,7 +29,16 @@ export interface ApplyContext<K extends SuggestionKind> {
   ports: Ports;
   /** The payload to apply (the edited one when the person edited it). */
   payload: SuggestionPayloadOf<K>;
-  suggestion: { id: string; privileged: boolean };
+  /**
+   * The suggestion: whether it is privileged, what Clerk cited and the payload it proposed (before
+   * any edit), so a handler can keep the sources with what they support (key facts, CORE-06a).
+   */
+  suggestion: {
+    id: string;
+    privileged: boolean;
+    citations: readonly CitationInput[];
+    proposed: Readonly<Record<string, unknown>>;
+  };
   /**
    * Must be joined to the transaction that makes the domain write: `read` before the writes (it
    * re-checks the suggestion and its basis, and throws to abort), `write` after them with the

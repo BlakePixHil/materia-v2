@@ -20,7 +20,11 @@ export default defineConfig({
     // Each file starts once the triggers earlier files queued have run (see the file).
     setupFiles: ['tests/integration/support/drain-triggers.ts'],
     fileParallelism: false,
-    testTimeout: 30_000,
+    // Tests wait for triggers and tasks with polls of up to 45 s: their events queue behind the
+    // whole shard's, and each function's first call waits for its worker to start. At 30 s a test
+    // was cut off while its polls were in bounds, and the next test's reset then deleted the data
+    // its late answer was writing. The shard's 6-minute timeout still catches a hang.
+    testTimeout: 120_000,
     hookTimeout: 60_000,
     reporters: process.env['CI'] ? ['default', 'hanging-process'] : ['default'],
   },

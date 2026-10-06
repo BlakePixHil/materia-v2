@@ -158,8 +158,10 @@ export const MatterEvent = withMeta(
     label: z.string().max(200).optional(),
     meta: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).default({}),
     sourceDocumentId: DocIdSchema.optional(),
+    /** The matter's privileged flag, copied (CORE-10b): see `Deadline.privileged`. */
+    privileged: z.boolean(),
   },
-  { path: `${MATTER}/events`, softDelete: true, updatable: [] },
+  { path: `${MATTER}/events`, softDelete: true, serverOwned: ['privileged'], updatable: [] },
 );
 
 /** Why a deadline has no date yet (CORE-10): its anchor event, calendar data, or a bad input. */
@@ -265,6 +267,13 @@ export const Deadline = withMeta(
     escalatedTo: z.array(DocIdSchema).max(DEADLINE_ESCALATION_RECIPIENTS_MAX).optional(),
     /** Already past when computed: in the review queue, never marked missed automatically. */
     pastOnCreation: z.boolean().default(false),
+    /**
+     * The matter's privileged flag, copied (CORE-10b) so the rules can hide a privileged matter's
+     * deadlines from roles without `privileged.view` in cross-matter queries, which can't read each
+     * matter. Every writer copies it from the matter, and `matters-denormalise` rewrites it when the
+     * matter's flag changes. No default: a writer that forgets it fails rather than leaks.
+     */
+    privileged: z.boolean(),
   },
   {
     path: `${MATTER}/deadlines`,
@@ -272,6 +281,7 @@ export const Deadline = withMeta(
     serverOwned: [
       'orgId',
       'matterId',
+      'privileged',
       'status',
       'blockedReason',
       'blockedCode',
@@ -332,6 +342,8 @@ export const DeadlineChange = withMeta(
     recomputeVersion: z.number().int().min(0),
     resolvedBy: DocIdSchema.optional(),
     resolvedAt: InstantSchema.optional(),
+    /** The matter's privileged flag, copied (CORE-10b): see `Deadline.privileged`. */
+    privileged: z.boolean(),
   },
   {
     path: `${MATTER}/deadlineChanges`,
@@ -339,6 +351,7 @@ export const DeadlineChange = withMeta(
     serverOwned: [
       'orgId',
       'matterId',
+      'privileged',
       'deadlineId',
       'ruleId',
       'title',
@@ -534,6 +547,11 @@ export const MatterDocument = withMeta(
     renditions: DocumentRenditionsSchema.optional(),
     /** Name tokens for ⌘K (CORE-15), kept by `documents-onWrite`; empty until then. */
     search: SearchTokensSchema.default([]),
+    /** The docx template and version it was generated from (`docs-generate`, INT-06). */
+    generatedFrom: z
+      .object({ templateId: DocIdSchema, version: z.number().int().min(1) })
+      .strict()
+      .optional(),
   },
   {
     path: `${MATTER}/documents`,
@@ -557,6 +575,7 @@ export const MatterDocument = withMeta(
       'pageCount',
       'encrypted',
       'search',
+      'generatedFrom',
     ],
     updatable: ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes'],
   },
@@ -875,6 +894,11 @@ export const Distribution = withMeta(
     share: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
     status: DistributionStatusSchema,
     paidOn: DateOnlySchema.optional(),
+    /**
+     * BILL-12 (ADR-035): the trust system's reference for a distribution paid from trust. A record
+     * only: no money moves and no balance is derived from it.
+     */
+    paymentReference: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
     notes: z.string().max(ESTATE_NOTES_MAX).optional(),
     needsValueReview: z.boolean().optional(),
   },

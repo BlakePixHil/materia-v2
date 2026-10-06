@@ -1,4 +1,4 @@
-import { DomainError, isErrorCode, type ErrorCode } from '@materia/domain';
+import { DomainError, isErrorCode, ORG_CLERK_FEATURES, type ErrorCode } from '@materia/domain';
 
 /**
  * What users see for each error code from a callable (FND-15). Plain, specific and actionable:
@@ -28,11 +28,12 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   UNAVAILABLE: 'This service is temporarily unavailable. Try again shortly.',
   CLERK_DISABLED: 'Clerk isn’t turned on for your practice.',
   CLERK_RATE_LIMITED: 'You’ve asked Clerk a lot in the last few minutes. Wait a little and try again.',
-  CLERK_BUDGET_EXCEEDED: 'Your practice has used this month’s Clerk allowance. An admin can raise it in settings.',
+  CLERK_BUDGET_EXCEEDED:
+    'Your practice has used this month’s Clerk allowance. An owner or admin can check its usage and spend limit in Settings → Clerk and AI.',
   CLERK_BUSY: 'Clerk is busy. Try again in a moment.',
   CLERK_UNAVAILABLE: 'Clerk is unavailable right now. You can carry on without it.',
   CLERK_KEY_INVALID:
-    'Anthropic rejected your practice’s API key. An owner or admin can add a new key in Settings → Clerk.',
+    'Anthropic rejected your practice’s API key. An owner or admin can add a new key in Settings → Clerk and AI.',
   PDF_ENCRYPTED: 'One of the PDFs is password-protected. Remove the password and upload it again.',
   PDF_INVALID: 'One of the PDFs is damaged or isn’t a PDF. Upload a fresh copy and try again.',
   JOB_TIMEOUT: 'This took too long and was stopped. Try again.',
@@ -54,6 +55,10 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   SUGGESTION_STALE: 'The matter changed since Clerk suggested this. Review the changes, then accept again.',
   ALREADY_RESOLVED: 'Someone has already dealt with this suggestion.',
   SUGGESTION_UNSUPPORTED: 'This kind of suggestion can’t be accepted yet. Make the change by hand instead.',
+  INTEGRATION_STATE_INVALID: 'That connection link has expired or was already used. Start connecting again.',
+  INTEGRATION_NOT_CONFIGURED: 'This integration isn’t set up for Materia yet. Ask your practice admin.',
+  INTEGRATION_REJECTED: 'The connection wasn’t allowed. Try again, or ask your IT administrator to approve Materia.',
+  INTEGRATION_RECONNECT_REQUIRED: 'This connection has stopped working. Connect it again from Settings.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 
@@ -66,17 +71,78 @@ export function errorCodeOf(error: unknown): ErrorCode {
 
 /** CLERK_DISABLED because the practice hasn't added its own Anthropic key (AI-02a). */
 export const CLERK_KEY_MISSING_COPY =
-  'Clerk needs your practice’s Anthropic API key. An owner or admin can add it in Settings → Clerk.';
+  'Clerk needs your practice’s Anthropic API key. An owner or admin can add it in Settings → Clerk and AI.';
+
+/**
+ * CLERK_DISABLED by the switch the gateway names (`details.switch`, AI-02, AI-13). The practice's
+ * own switches say who turns them back on and where. Materia's kill switches (`clerk.enabled` and
+ * the `clerk.features.*` flags) aren't in Settings, whose switches can read On while they're off.
+ */
+export const CLERK_DISABLED_COPY = {
+  acknowledgement:
+    'Clerk stays off until your practice accepts its data-use disclosure. An owner or admin needs to read and accept the Clerk disclosure in Settings → Clerk and AI.',
+  practice: 'Your practice has turned Clerk off. An owner or admin can turn it back on in Settings → Clerk and AI.',
+  feature:
+    'Your practice has turned this Clerk feature off. An owner or admin can turn it back on in Settings → Clerk and AI.',
+  killSwitch:
+    'Clerk isn’t available to your practice right now. It’s switched off on Materia’s side, not in Settings → Clerk and AI, so nothing there needs changing. Carry on without it, and contact support if it stays off.',
+  featureKillSwitch:
+    'This Clerk feature isn’t available to your practice right now. It’s switched off on Materia’s side, not in Settings → Clerk and AI, so nothing there needs changing. Carry on without it, and contact support if it stays off.',
+} as const;
+
+/**
+ * CLERK_BUDGET_EXCEEDED (AI-02, AI-13): the spend limit an owner or admin sets (`details.spend`), or
+ * the monthly token allowance (`details.period` alone), which isn't in Settings. Without either
+ * (a chat answer stores only the code), `ERROR_COPY` covers both.
+ */
+export const CLERK_BUDGET_COPY = {
+  spend:
+    'Your practice has reached its monthly Clerk spend limit. An owner or admin can raise it in Settings → Clerk and AI, or Clerk starts again next month.',
+  tokens:
+    'Your practice has used this month’s Clerk allowance. Clerk starts again next month; contact support if you need more before then.',
+} as const;
+
+/** "Your practice has turned off “Ask Clerk”…", for `org.settings.clerk.features.<key>`. */
+function orgFeatureCopy(key: string): string {
+  const feature = ORG_CLERK_FEATURES.find((f) => f.key === key);
+  return feature
+    ? `Your practice has turned off “${feature.label}”. An owner or admin can turn it back on in Settings → Clerk and AI.`
+    : CLERK_DISABLED_COPY.feature;
+}
+
+/** Copy for a Clerk error from the details the gateway adds, or undefined to use `ERROR_COPY`. */
+function clerkCopy(code: ErrorCode, details: Record<string, unknown>): string | undefined {
+  if (code === 'CLERK_DISABLED') {
+    const flag = details['switch'];
+    if (typeof flag !== 'string') return undefined;
+    if (flag === 'org.byok.missing') return CLERK_KEY_MISSING_COPY;
+    if (flag === 'org.settings.clerk.acknowledgement') return CLERK_DISABLED_COPY.acknowledgement;
+    if (flag === 'org.settings.clerk.enabled') return CLERK_DISABLED_COPY.practice;
+    if (flag.startsWith('org.settings.clerk.features.'))
+      return orgFeatureCopy(flag.slice('org.settings.clerk.features.'.length));
+    if (flag === 'clerk.enabled') return CLERK_DISABLED_COPY.killSwitch;
+    if (flag.startsWith('clerk.features.')) return CLERK_DISABLED_COPY.featureKillSwitch;
+    return undefined;
+  }
+  if (code === 'CLERK_BUDGET_EXCEEDED') {
+    if (details['spend'] === true) return CLERK_BUDGET_COPY.spend;
+    if (typeof details['period'] === 'string') return CLERK_BUDGET_COPY.tokens;
+    return undefined;
+  }
+  if (code === 'CLERK_RATE_LIMITED' && typeof details['daily'] === 'number') {
+    const daily = details['daily'];
+    return `You’ve used today’s Clerk requests: your practice allows ${daily} ${daily === 1 ? 'request' : 'requests'} a day for each person. Try again tomorrow, or ask an owner or admin to raise the limit in Settings → Clerk and AI.`;
+  }
+  return undefined;
+}
 
 /** User-facing copy for any error thrown by a callable. */
 export function errorCopy(error: unknown): string {
   const code = errorCodeOf(error);
-  if (
-    code === 'CLERK_DISABLED' &&
-    (error as { details?: { switch?: unknown } } | null)?.details?.switch === 'org.byok.missing'
-  )
-    return CLERK_KEY_MISSING_COPY;
-  return ERROR_COPY[code];
+  const details = (error as { details?: unknown } | null)?.details;
+  const specific =
+    details && typeof details === 'object' ? clerkCopy(code, details as Record<string, unknown>) : undefined;
+  return specific ?? ERROR_COPY[code];
 }
 
 /** ORG_CLAIM_MISMATCH means: refresh the ID token and retry the call once. */

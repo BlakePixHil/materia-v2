@@ -40,6 +40,13 @@ export type ReferrerIndustry = z.infer<typeof ReferrerIndustrySchema>;
 export const ReferralSourceSchema = z.enum(['unknown', 'website', 'existing_client', 'walk_in']);
 export type ReferralSource = z.infer<typeof ReferralSourceSchema>;
 
+/**
+ * Who sees every member's figures in the metrics rollups (INS-01, `settings.insights.memberVisibility`):
+ * lawyers and above (the default), only owners and admins, or everyone. Each member always sees their own.
+ */
+export const MemberMetricsVisibilitySchema = z.enum(['lawyers', 'admins', 'everyone']);
+export type MemberMetricsVisibility = z.infer<typeof MemberMetricsVisibilitySchema>;
+
 export const RoleSchema = z.enum(['owner', 'admin', 'lawyer', 'paralegal', 'readonly']);
 export type Role = z.infer<typeof RoleSchema>;
 
@@ -103,6 +110,22 @@ export const DocumentCategorySchema = z.enum([
   'other',
 ]);
 export const DocumentSourceSchema = z.enum(['upload', 'email', 'clerk_draft', 'migration', 'camera', 'generated']);
+
+/**
+ * What a docx template is for (INT-06): a letterhead (a blank letter with a `{@body}` block, which
+ * Clerk drafting fills), a letter, a file note, a costs disclosure (BILL-06), a chronology export
+ * (LIT-06) or a court book index (LIT-10). The kind sets the generated document's category and tags.
+ */
+export const DocTemplateKindSchema = z.enum([
+  'letterhead',
+  'letter',
+  'file_note',
+  'costs_disclosure',
+  'chronology',
+  'court_book_index',
+  'other',
+]);
+export type DocTemplateKind = z.infer<typeof DocTemplateKindSchema>;
 
 export const TimeEntryStatusSchema = z.enum(['draft', 'final', 'billed', 'written_off']);
 export type TimeEntryStatus = z.infer<typeof TimeEntryStatusSchema>;

@@ -208,7 +208,7 @@ export const makePersonalTask = (o: Partial<D.PersonalTask> = {}) =>
   );
 
 export const makeMatterEvent = (o: Partial<D.MatterEvent> = {}) =>
-  build(D.MatterEvent, { kind: 'date_of_death', date: d('2026-07-14') }, o);
+  build(D.MatterEvent, { kind: 'date_of_death', date: d('2026-07-14'), privileged: false }, o);
 
 export const makeDeadline = (o: Partial<D.Deadline> = {}) =>
   build(
@@ -230,6 +230,7 @@ export const makeDeadline = (o: Partial<D.Deadline> = {}) =>
         inputs: { months: 6 },
         trace: ['anchor 2026-07-14', '+6 months'],
       },
+      privileged: false,
     },
     o,
   );
@@ -254,6 +255,7 @@ export const makeDeadlineChange = (o: Partial<D.DeadlineChange> = {}) =>
       intoPast: false,
       assigneeUid: TEST_UID,
       recomputeVersion: 2,
+      privileged: false,
     },
     o,
   );
@@ -396,6 +398,22 @@ export const makeSuggestion = (o: Partial<D.Suggestion> = {}) =>
       basisParts: {},
       dedupeKey: 'task:publish notice of intention to apply|',
       expiresAt: new Date('2026-10-19T00:00:00.000Z'),
+    },
+    o,
+  );
+
+/** Where Clerk found a key fact's value, kept when its suggestion was accepted (CORE-06a). */
+export const makeFactCitation = (o: Partial<D.FactCitation> = {}) =>
+  build(
+    D.FactCitation,
+    {
+      factId: 'willDate',
+      value: d('2019-05-03'),
+      citations: [
+        { kind: 'document', documentId: 'doc-test-1', docVersion: 1, page: 2, quote: 'Signed on 3 May 2019' },
+      ],
+      suggestionId: 'suggestion-test-1',
+      privileged: false,
     },
     o,
   );
@@ -564,6 +582,23 @@ export const makeCreditNote = (o: Partial<D.CreditNote> = {}) =>
     o,
   );
 
+export const makeInvoiceReminder = (o: Partial<D.InvoiceReminder> = {}) =>
+  build(
+    D.InvoiceReminder,
+    {
+      invoiceId: 'invoice-test-1',
+      invoiceNumber: 'INV-000001',
+      matterId: TEST_MATTER_ID,
+      threshold: 7,
+      dueDate: d('2026-10-15'),
+      balanceCents: 14850,
+      lawyerUid: TEST_UID,
+      to: ['client@example.com'],
+      status: 'pending',
+    },
+    o,
+  );
+
 const templateContent = {
   name: 'Probate (fictional)',
   matterType: 'probate' as const,
@@ -605,7 +640,26 @@ export const makeMatterTemplateVersion = (o: Partial<D.MatterTemplateVersion> = 
 export const makeDocTemplate = (o: Partial<D.DocTemplate> = {}) =>
   build(
     D.DocTemplate,
-    { name: 'Engagement letter', storagePath: `orgs/${TEST_ORG_ID}/docTemplates/engagement.docx` },
+    {
+      name: 'Engagement letter',
+      kind: 'letter',
+      storagePath: `orgs/${TEST_ORG_ID}/docTemplates/doctemplate-1/v1.docx`,
+      fields: ['client.fullName', 'matter.number'],
+      version: 1,
+      versions: [
+        {
+          version: 1,
+          storagePath: `orgs/${TEST_ORG_ID}/docTemplates/doctemplate-1/v1.docx`,
+          fileName: 'engagement.docx',
+          sizeBytes: 1024,
+          sha256: sha,
+          fields: ['client.fullName', 'matter.number'],
+          warnings: [],
+          uploadedAt: FIXED_INSTANT,
+          uploadedBy: TEST_UID,
+        },
+      ],
+    },
     o,
   );
 
@@ -635,7 +689,26 @@ export const makeTaskGroupTemplate = (o: Partial<D.TaskGroupTemplate> = {}) =>
   );
 
 export const makeMetrics = (o: Partial<D.Metrics> = {}) =>
-  build(D.Metrics, { period: 'month-2026-10', values: { mattersOpened: 3, wipCents: 125000 } }, o);
+  build(D.Metrics, { period: 'month-2026-10', values: { 'matters.opened': 3, 'wip.timeCents': 125000 } }, o);
+
+export const makeMemberMetrics = (o: Partial<D.MemberMetrics> = {}) =>
+  build(D.MemberMetrics, { period: 'month-2026-10', uid: TEST_UID, values: { 'time.minutes': 360 } }, o);
+
+export const makeMetricsShard = (o: Partial<D.MetricsShard> = {}) =>
+  build(D.MetricsShard, { period: 'month-2026-10', shard: 3, values: { 'time.minutes': 60 } }, o);
+
+export const makeMetricsLedger = (o: Partial<D.MetricsLedger> = {}) =>
+  build(
+    D.MetricsLedger,
+    {
+      orgId: TEST_ORG_ID,
+      matterId: TEST_MATTER_ID,
+      kind: 'time',
+      sourceId: 'time-entry-1',
+      counted: { '2026-10-06': { 'time.minutes': 60 }, [`2026-10-06|${TEST_UID}`]: { 'time.minutes': 60 } },
+    },
+    o,
+  );
 
 export const makeAuditEntry = (o: Partial<D.AuditEntry> = {}) =>
   build(
@@ -682,6 +755,49 @@ export const makeIntegration = (o: Partial<D.Integration> = {}) =>
       scopes: ['Calendars.ReadWrite'],
       encryptedRefreshToken: 'ciphertext-placeholder',
       kmsKeyVersion: '1',
+    },
+    o,
+  );
+
+export const makeIntegrationStatus = (o: Partial<D.IntegrationStatus> = {}) =>
+  build(
+    D.IntegrationStatus,
+    {
+      provider: 'microsoft',
+      level: 'user',
+      uid: TEST_UID,
+      status: 'connected',
+      scopes: ['Calendars.ReadWrite'],
+      account: { email: 'connected@example.test' },
+      connectedAt: new Date('2026-10-06T00:00:00Z'),
+      connectedBy: TEST_UID,
+    },
+    o,
+  );
+
+export const makeIntegrationState = (o: Partial<D.IntegrationState> = {}) =>
+  build(
+    D.IntegrationState,
+    {
+      provider: 'microsoft',
+      level: 'user',
+      uid: TEST_UID,
+      codeVerifier: 'v'.repeat(43),
+      redirectUri: 'https://materia-v2-dev.web.app/integrations/callback/microsoft',
+      returnTo: '/settings',
+      expireAt: new Date('2026-10-06T00:10:00Z'),
+    },
+    o,
+  );
+
+export const makeXeroContactLink = (o: Partial<D.XeroContactLink> = {}) =>
+  build(
+    D.XeroContactLink,
+    {
+      tenantId: '7d0f3b1e-5a6c-4e2b-9f1d-2c3b4a5d6e7f',
+      contactId: 'fake-cont-000001',
+      clientContactIds: ['contact-1'],
+      name: 'Fictional Client',
     },
     o,
   );
@@ -901,6 +1017,7 @@ export const ENTITY_FACTORIES = {
   Liability: [D.Liability, makeLiability],
   Distribution: [D.Distribution, makeDistribution],
   Suggestion: [D.Suggestion, makeSuggestion],
+  FactCitation: [D.FactCitation, makeFactCitation],
   ClerkThread: [D.ClerkThread, makeClerkThread],
   ClerkMessage: [D.ClerkMessage, makeClerkMessage],
   Proceeding: [D.Proceeding, makeProceeding],
@@ -914,15 +1031,22 @@ export const ENTITY_FACTORIES = {
   CourtBook: [D.CourtBook, makeCourtBook],
   Invoice: [D.Invoice, makeInvoice],
   CreditNote: [D.CreditNote, makeCreditNote],
+  InvoiceReminder: [D.InvoiceReminder, makeInvoiceReminder],
   MatterTemplate: [D.MatterTemplate, makeMatterTemplate],
   MatterTemplateVersion: [D.MatterTemplateVersion, makeMatterTemplateVersion],
   DocTemplate: [D.DocTemplate, makeDocTemplate],
   ChecklistTemplate: [D.ChecklistTemplate, makeChecklistTemplate],
   TaskGroupTemplate: [D.TaskGroupTemplate, makeTaskGroupTemplate],
   Metrics: [D.Metrics, makeMetrics],
+  MemberMetrics: [D.MemberMetrics, makeMemberMetrics],
+  MetricsShard: [D.MetricsShard, makeMetricsShard],
+  MetricsLedger: [D.MetricsLedger, makeMetricsLedger],
   AuditEntry: [D.AuditEntry, makeAuditEntry],
   Notification: [D.Notification, makeNotification],
   Integration: [D.Integration, makeIntegration],
+  IntegrationStatus: [D.IntegrationStatus, makeIntegrationStatus],
+  IntegrationState: [D.IntegrationState, makeIntegrationState],
+  XeroContactLink: [D.XeroContactLink, makeXeroContactLink],
   SafeCustody: [D.SafeCustody, makeSafeCustody],
   TrustSnapshot: [D.TrustSnapshot, makeTrustSnapshot],
   MigrationRun: [D.MigrationRun, makeMigrationRun],

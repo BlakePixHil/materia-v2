@@ -51,6 +51,11 @@ export interface ManualDeadlineContext {
   assigneeUid: string;
 }
 
+/** A new manual deadline's context: also its matter's flag, which it copies (CORE-10b; the rules check it). */
+export interface NewManualDeadlineContext extends ManualDeadlineContext {
+  privileged: boolean;
+}
+
 /**
  * What the deadline lists do (CORE-10), shared by the Deadlines screen and the matter's Deadlines
  * tab; provide it on the page. Status, dates and decisions go through the `deadlines-*` callables
@@ -254,14 +259,14 @@ export class DeadlineActions {
   // ---------- manual deadlines ----------
 
   /** Adds a manual deadline (written directly; queued offline). */
-  async addManual(matterId: string, context: ManualDeadlineContext): Promise<void> {
+  async addManual(matterId: string, context: NewManualDeadlineContext): Promise<void> {
     const fields = await this.dialogs.open<ManualDeadlineDialogData, ManualDeadlineDialogResult | undefined>(
       ManualDeadlineDialog,
       { data: { people: context.people, assigneeUid: context.assigneeUid } },
     ).result;
     if (!fields) return;
     this.deadlines(matterId)
-      .create({ ...fields, reminders: [] })
+      .create({ ...fields, reminders: [], privileged: context.privileged })
       .catch((error: unknown) =>
         this.toasts.show({ title: 'The deadline didn’t save', description: deadlineErrorCopy(error), tone: 'danger' }),
       );
@@ -308,7 +313,7 @@ export class DeadlineActions {
   /** Records an event, or edits one, and says what the recompute changed. */
   async recordEvent(matterId: string, event?: WithId<MatterEventItem>): Promise<RecomputeSummary | undefined> {
     const answer = await this.dialogs.open<EventDialogData, EventDialogResult | undefined>(EventDialog, {
-      data: { event, today: this.today() },
+      data: { event, today: this.today(), matterId },
     }).result;
     if (!answer) return undefined;
     return this.saveEvent(matterId, answer, event?.id);

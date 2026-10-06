@@ -25,6 +25,7 @@ import {
 import {
   ManualDeadlineCreateInput,
   MatterTaskCreateInput,
+  MEMBER_METRICS_READERS,
   PERMISSIONS,
   ROLES,
   DisbursementCreateInput,
@@ -317,6 +318,39 @@ describe('field-level rules', () => {
     await assertSucceeds(list('lawyer', where('status', 'in', ['proposed', 'stale'])));
   });
 
+  it('key fact citations: no client writes; privileged ones, or a privileged matter’s, need privileged.view (CORE-06a)', async () => {
+    const FACT = `${MATTER}/factCitations/willDate`;
+    const PRIV_FACT = `${MATTER}/factCitations/grantNo`;
+    const PRIV_MATTER = `orgs/${ORG}/matters/matter-fact-priv`;
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, FACT), seedData(specFor('factCitations')));
+      await setDoc(doc(f, PRIV_FACT), { ...seedData(specFor('factCitations')), factId: 'grantNo', privileged: true });
+      await setDoc(doc(f, PRIV_MATTER), { ...seedData(specFor('matters')), privileged: true });
+      await setDoc(doc(f, `${PRIV_MATTER}/factCitations/willDate`), seedData(specFor('factCitations')));
+    });
+    // Accepting a suggestion writes them and a changed fact deletes them; never a person directly.
+    await assertFails(updateDoc(doc(db(env, 'owner'), FACT), stamped({ value: '2020-01-01' }, uidFor('owner'))));
+    await assertFails(deleteDoc(doc(db(env, 'lawyer'), FACT)));
+    await assertFails(
+      setDoc(doc(db(env, 'lawyer'), `${MATTER}/factCitations/grantDate`), seedData(specFor('factCitations'))),
+    );
+    for (const role of ROLES) {
+      const as = (path: string) => getDoc(doc(db(env, role), path));
+      await assertSucceeds(as(FACT));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(as(PRIV_FACT));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(
+        as(`${PRIV_MATTER}/factCitations/willDate`),
+      );
+    }
+    // A list without privileged.view must prove `privileged == false`.
+    const list = (role: Role, ...filters: ReturnType<typeof where>[]) =>
+      getDocs(query(collection(db(env, role), `${MATTER}/factCitations`), ...filters));
+    await assertFails(list('readonly'));
+    await assertSucceeds(list('readonly', where('privileged', '==', false)));
+    await assertSucceeds(list('paralegal', where('privileged', '==', false)));
+    await assertSucceeds(list('lawyer'));
+  });
+
   it('invoices, pre-bills and credit notes change only through the billing callables (BILL-07)', async () => {
     const INVOICE = `orgs/${ORG}/invoices/invoice-1`;
     const CREDIT = `orgs/${ORG}/creditNotes/credit-1`;
@@ -523,6 +557,11 @@ describe('org settings (CORE-21)', () => {
     const ref = doc(db(env, 'owner'), ORG_DOC);
     const owner = uidFor('owner');
     await assertSucceeds(updateDoc(ref, stamped({ settings: { referrals: { thankYouTask: true } } }, owner)));
+    // The Matters board's WIP limits (CORE-04a): owners and admins, not lawyers.
+    const limits = { settings: { referrals: { thankYouTask: true }, board: { wipLimits: { 'status:open': 5 } } } };
+    await assertSucceeds(updateDoc(ref, stamped(limits, owner)));
+    await assertSucceeds(updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped(limits, uidFor('admin'))));
+    await assertFails(updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped(limits, uidFor('lawyer'))));
     await assertFails(updateDoc(ref, stamped({ 'settings.clerk.ackVersion': 1 }, owner)));
     await assertFails(updateDoc(ref, stamped({ 'settings.clerk.features.chat': false }, owner)));
     await assertFails(
@@ -729,7 +768,13 @@ describe('collection groups', () => {
 
   it('a member queries their org across matters', async () => {
     const firestore = db(env, 'paralegal');
-    await assertSucceeds(getDocs(query(collectionGroup(firestore, 'deadlines'), where('orgId', '==', ORG))));
+    // Without privileged.view, proving the deadlines aren't on privileged matters (CORE-10b).
+    await assertSucceeds(
+      getDocs(
+        query(collectionGroup(firestore, 'deadlines'), where('orgId', '==', ORG), where('privileged', '==', false)),
+      ),
+    );
+    await assertSucceeds(getDocs(query(collectionGroup(db(env, 'lawyer'), 'deadlines'), where('orgId', '==', ORG))));
   });
 
   // BILL-01: time entries through the group follow tasks (ADR-026).
@@ -1001,6 +1046,9 @@ describe('matters (CORE-03)', () => {
       { stageId: 'grant_issued' },
       { title: 'Allowed', stageId: 'grant_issued' },
       { title: 'Allowed', status: 'archived' },
+      // The costs disclosure moves through the costs-* callables and fees-update (BILL-06).
+      { costsDisclosure: { status: 'waived', history: [] } },
+      { title: 'Allowed', costsDisclosure: { status: 'sent', sentOn: '2026-10-06', history: [] } },
     ]) {
       await assertFails(updateDoc(ref, stamped(change, uid)));
     }
@@ -2253,6 +2301,7 @@ describe('deadlines (CORE-10)', () => {
     status: 'upcoming',
     assigneeUid: uid,
     reminders: [{ offsetDays: 7 }],
+    privileged: false,
     createdAt: serverTimestamp(),
     createdBy: uid,
     updatedAt: serverTimestamp(),
@@ -2332,7 +2381,7 @@ describe('deadlines (CORE-10)', () => {
     await assertSucceeds(
       setDoc(
         doc(db(env, 'lawyer'), `${PRIVILEGED_MATTER}/deadlines/l`),
-        newDeadline(uidFor('lawyer'), 'matter-deadlines-privileged'),
+        newDeadline(uidFor('lawyer'), 'matter-deadlines-privileged', { privileged: true }),
       ),
     );
     await assertFails(
@@ -2341,6 +2390,33 @@ describe('deadlines (CORE-10)', () => {
         newDeadline(uidFor('lawyer'), 'matter-deadlines-deleted'),
       ),
     );
+  });
+
+  it('a manual deadline copies its matter’s privileged flag (CORE-10b)', async () => {
+    const lawyer = db(env, 'lawyer');
+    const uid = uidFor('lawyer');
+    const PRIVILEGED_ID = 'matter-deadlines-privileged';
+    await assertFails(
+      setDoc(doc(lawyer, `${PRIVILEGED_MATTER}/deadlines/copy-false`), newDeadline(uid, PRIVILEGED_ID)),
+    );
+    await assertSucceeds(
+      setDoc(
+        doc(lawyer, `${PRIVILEGED_MATTER}/deadlines/copy-true`),
+        newDeadline(uid, PRIVILEGED_ID, { privileged: true }),
+      ),
+    );
+    await assertFails(
+      setDoc(doc(lawyer, `${MATTER}/deadlines/copy-true`), newDeadline(uid, 'matter-1', { privileged: true })),
+    );
+    await assertFails(
+      setDoc(doc(lawyer, `${MATTER}/deadlines/copy-text`), newDeadline(uid, 'matter-1', { privileged: 'no' })),
+    );
+    const missing = newDeadline(uid) as Record<string, unknown>;
+    delete missing['privileged'];
+    await assertFails(setDoc(doc(lawyer, `${MATTER}/deadlines/copy-missing`), missing));
+    // Nor does an edit change it.
+    await seedManual();
+    await assertFails(updateDoc(doc(lawyer, MANUAL), stamped({ privileged: true }, uid)));
   });
 
   it('a manual deadline’s whitelisted fields are edited while upcoming, with valid values', async () => {
@@ -2410,6 +2486,7 @@ describe('deadlines (CORE-10)', () => {
         query(
           collectionGroup(paralegal, 'deadlineChanges'),
           where('orgId', '==', ORG),
+          where('privileged', '==', false),
           where('assigneeUid', '==', uidFor('lawyer')),
           where('status', '==', 'pending'),
         ),
@@ -2438,6 +2515,84 @@ describe('deadlines (CORE-10)', () => {
         query(group, where('orgId', '==', ORG), where('status', '==', 'upcoming'), where('pastOnCreation', '==', true)),
       ),
     );
+  });
+
+  // CORE-10b: privileged material is never shown to roles without privileged.view, and a
+  // collection-group query can't read each record's matter, so it reads the copy of the flag.
+  describe('a privileged matter’s deadlines, proposals and events (CORE-10b)', () => {
+    const RECORDS = [
+      ['deadlines', 'pd-1'],
+      ['deadlineChanges', 'pc-1'],
+      ['events', 'pe-1'],
+    ] as const;
+    const SEEDED = { deadlines: 'doc-1', deadlineChanges: 'change-1', events: 'doc-1' } as const;
+
+    beforeAll(async () => {
+      await seedAdmin(env, async (f) => {
+        for (const [collectionId, id] of RECORDS) {
+          await setDoc(doc(f, `${PRIVILEGED_MATTER}/${collectionId}/${id}`), {
+            ...seedData(specFor(collectionId)),
+            ...(collectionId === 'events' ? {} : { matterId: 'matter-deadlines-privileged' }),
+            privileged: true,
+          });
+        }
+      });
+    });
+
+    it.each(ROLES)('one, or the matter’s list, as %s follows privileged.view', async (role) => {
+      const firestore = db(env, role);
+      const expected = allows(role, 'privileged.view') ? assertSucceeds : assertFails;
+      for (const [collectionId, id] of RECORDS) {
+        await expected(getDoc(doc(firestore, `${PRIVILEGED_MATTER}/${collectionId}/${id}`)));
+        await expected(getDocs(collection(firestore, `${PRIVILEGED_MATTER}/${collectionId}`)));
+        // Another matter's are every member's, with no filter: the rule reads the matter.
+        await assertSucceeds(getDoc(doc(firestore, `${MATTER}/${collectionId}/${SEEDED[collectionId]}`)));
+        await assertSucceeds(getDocs(collection(firestore, `${MATTER}/${collectionId}`)));
+      }
+    });
+
+    it.each(ROLES)('across matters as %s, a query without privileged.view proves privileged == false', async (role) => {
+      const firestore = db(env, role);
+      const viewer = allows(role, 'privileged.view');
+      for (const collectionId of ['deadlines', 'deadlineChanges']) {
+        const group = collectionGroup(firestore, collectionId);
+        const everything = getDocs(query(group, where('orgId', '==', ORG)));
+        await (viewer ? assertSucceeds(everything) : assertFails(everything));
+        const privileged = getDocs(query(group, where('orgId', '==', ORG), where('privileged', '==', true)));
+        await (viewer ? assertSucceeds(privileged) : assertFails(privileged));
+        // A filter on another field doesn't get round it.
+        const byStatus = getDocs(query(group, where('orgId', '==', ORG), where('status', '==', 'upcoming')));
+        await (viewer ? assertSucceeds(byStatus) : assertFails(byStatus));
+        await assertSucceeds(getDocs(query(group, where('orgId', '==', ORG), where('privileged', '==', false))));
+      }
+      // Today's and the Deadlines screen's queries, as the repositories send them.
+      const deadlines = collectionGroup(firestore, 'deadlines');
+      const scoped = viewer ? [] : [where('privileged', '==', false)];
+      await assertSucceeds(
+        getDocs(
+          query(
+            deadlines,
+            where('orgId', '==', ORG),
+            ...scoped,
+            where('assigneeUid', '==', uidFor(role)),
+            where('status', '==', 'upcoming'),
+            orderBy('dueDate'),
+          ),
+        ),
+      );
+      await assertSucceeds(
+        getDocs(
+          query(
+            deadlines,
+            where('orgId', '==', ORG),
+            ...scoped,
+            where('escalatedTo', 'array-contains', uidFor(role)),
+            where('status', '==', 'upcoming'),
+            orderBy('dueDate'),
+          ),
+        ),
+      );
+    });
   });
 });
 
@@ -3426,6 +3581,7 @@ describe('estate register (CORE-16)', () => {
     await distribution('paid-on', { paidOn: 'yesterday' });
     await distribution('share', { share: 7 });
     await distribution('review', { needsValueReview: true });
+    await distribution('payment-reference', { paymentReference: 'x'.repeat(301) });
     await assertSucceeds(
       setDoc(
         doc(firestore, `${MATTER}/distributions/minimal`),
@@ -3461,6 +3617,11 @@ describe('estate register (CORE-16)', () => {
     await assertFails(updateDoc(liability, stamped({ amountCents: 1.25 }, uid)));
     const distribution = doc(firestore, `${MATTER}/distributions/edit-1`);
     await assertSucceeds(updateDoc(distribution, stamped({ status: 'approved' }, uid)));
+    // BILL-12: a distribution paid from trust keeps the trust system's reference; nothing else follows.
+    await assertSucceeds(
+      updateDoc(distribution, stamped({ status: 'paid', paidOn: '2026-10-06', paymentReference: 'TR-0042' }, uid)),
+    );
+    await assertFails(updateDoc(distribution, stamped({ paymentReference: 42 }, uid)));
     await assertSucceeds(updateDoc(distribution, stamped({ needsValueReview: false }, uid)));
     await assertFails(updateDoc(distribution, stamped({ needsValueReview: true }, uid)));
     await assertFails(updateDoc(distribution, stamped({ amountCents: -1 }, uid)));
@@ -3491,6 +3652,166 @@ describe('estate register (CORE-16)', () => {
     await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/assets/doc-1`)));
     await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/liabilities/doc-1`)));
     await assertFails(deleteDoc(doc(db(env, 'owner'), `${MATTER}/distributions/doc-1`)));
+  });
+});
+
+describe('practice metrics (INS-01)', () => {
+  const METRICS = `orgs/${ORG}/metrics`;
+  const figuresOf = (uid: string) => `${METRICS}/month-2026-10/byMember/${uid}`;
+  const setVisibility = (memberVisibility: string | null) =>
+    seedAdmin(env, (firestore) =>
+      updateDoc(doc(firestore, `orgs/${ORG}`), {
+        'settings.insights.memberVisibility': memberVisibility ?? deleteField(),
+      }),
+    );
+  const others = (role: Role) => ROLES.filter((other) => other !== role);
+
+  beforeAll(async () => {
+    await seed(specFor('orgs'));
+    await seedAdmin(env, async (firestore) => {
+      for (const role of ROLES)
+        await setDoc(doc(firestore, figuresOf(uidFor(role))), { ...seedData(specFor('byMember')), uid: uidFor(role) });
+      for (const period of ['day-2026-10-05', 'fy-2026', 'debtors-2026-10-05'])
+        await setDoc(doc(firestore, `${METRICS}/${period}`), { ...seedData(specFor('metrics')), period });
+    });
+  });
+  afterEach(() => setVisibility(null));
+
+  it.each(ROLES)('%s reads their own figures, whatever the org shows of everyone’s', async (role) => {
+    for (const visibility of ['admins', 'lawyers', 'everyone']) {
+      await setVisibility(visibility);
+      await assertSucceeds(getDoc(doc(db(env, role), figuresOf(uidFor(role)))));
+    }
+  });
+
+  it.each(['lawyers', 'admins', 'everyone'] as const)(
+    'with memberVisibility %s, everyone’s figures follow MEMBER_METRICS_READERS',
+    async (visibility) => {
+      await setVisibility(visibility);
+      for (const role of ROLES)
+        for (const other of others(role)) {
+          const read = getDoc(doc(db(env, role), figuresOf(uidFor(other))));
+          await (MEMBER_METRICS_READERS[visibility].includes(role) ? assertSucceeds(read) : assertFails(read));
+        }
+    },
+  );
+
+  it('listing a period’s member figures needs to see everyone’s', async () => {
+    const list = (role: Role) => getDocs(collection(db(env, role), `${METRICS}/month-2026-10/byMember`));
+    await assertSucceeds(list('lawyer'));
+    await assertFails(list('paralegal'));
+    await setVisibility('everyone');
+    await assertSucceeds(list('paralegal'));
+  });
+
+  it.each(EVERYONE)('day and FY rollups are for every member; aged debtors need billing.view (%s)', async (who) => {
+    const { firestore } = firestoreOf(who);
+    for (const period of ['day-2026-10-05', 'fy-2026']) {
+      const read = getDoc(doc(firestore, `${METRICS}/${period}`));
+      await (isMember(who) ? assertSucceeds(read) : assertFails(read));
+    }
+    const debtors = getDoc(doc(firestore, `${METRICS}/debtors-2026-10-05`));
+    await (allows(who, 'billing.view') ? assertSucceeds(debtors) : assertFails(debtors));
+  });
+
+  it('a suspended member doesn’t read even their own figures', async () => {
+    await seedAdmin(env, (firestore) =>
+      setDoc(doc(firestore, figuresOf(SUSPENDED_UID)), { ...seedData(specFor('byMember')), uid: SUSPENDED_UID }),
+    );
+    await assertFails(getDoc(doc(db(env, 'lawyer', ORG, SUSPENDED_UID), figuresOf(SUSPENDED_UID))));
+  });
+
+  it('owners and admins choose whose figures lawyers see; nobody else does', async () => {
+    const choose = (role: Role, memberVisibility: string) =>
+      updateDoc(
+        doc(db(env, role), `orgs/${ORG}`),
+        stamped({ 'settings.insights.memberVisibility': memberVisibility }, uidFor(role)),
+      );
+    await assertSucceeds(choose('owner', 'everyone'));
+    await assertSucceeds(choose('admin', 'admins'));
+    await assertFails(choose('lawyer', 'everyone'));
+    await assertFails(choose('paralegal', 'everyone'));
+  });
+
+  it('only functions write the metrics', async () => {
+    const owner = db(env, 'owner');
+    const figures = { values: { 'time.minutes': 1 }, updatedAt: serverTimestamp(), updatedBy: uidFor('owner') };
+    await assertFails(
+      setDoc(doc(owner, `${METRICS}/month-2026-11`), { ...seedData(specFor('metrics')), period: 'month-2026-11' }),
+    );
+    await assertFails(updateDoc(doc(owner, `${METRICS}/month-2026-10`), figures));
+    await assertFails(updateDoc(doc(owner, figuresOf(uidFor('owner'))), figures));
+    await assertFails(updateDoc(doc(owner, `${METRICS}/month-2026-10/shards/3`), figures));
+    await assertFails(getDoc(doc(owner, `${MATTER}/metrics/time-entry-1`)));
+    await assertFails(deleteDoc(doc(owner, `${MATTER}/metrics/time-entry-1`)));
+  });
+});
+
+describe('document templates and the letterhead (INT-06)', () => {
+  const LETTERHEAD = `orgs/${ORG}/settings/letterhead`;
+  const TEMPLATE = `orgs/${ORG}/docTemplates/doctemplate-1`;
+
+  it('lets members read the letterhead details and templates, and nobody write them directly', async () => {
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, LETTERHEAD), {
+        phone: '(03) 5200 0000',
+        createdAt: new Date(),
+        createdBy: uidFor('owner'),
+        updatedAt: new Date(),
+        updatedBy: uidFor('owner'),
+        schemaVersion: 1,
+      });
+      await setDoc(doc(f, TEMPLATE), seedData(specFor('docTemplates')));
+    });
+    for (const role of ROLES) {
+      await assertSucceeds(getDoc(doc(db(env, role), LETTERHEAD)));
+      await assertSucceeds(getDoc(doc(db(env, role), TEMPLATE)));
+    }
+    await assertFails(getDoc(doc(db(env, 'owner', OTHER_ORG), LETTERHEAD)));
+    await assertFails(
+      updateDoc(doc(db(env, 'owner'), LETTERHEAD), stamped({ phone: '(03) 5200 0001' }, uidFor('owner'))),
+    );
+    await assertFails(setDoc(doc(db(env, 'owner'), `orgs/${ORG}/settings/letterhead2`), { phone: 'x' }));
+    await assertFails(updateDoc(doc(db(env, 'owner'), TEMPLATE), stamped({ published: true }, uidFor('owner'))));
+    await assertFails(setDoc(doc(db(env, 'owner'), `orgs/${ORG}/docTemplates/new`), seedData(specFor('docTemplates'))));
+  });
+});
+
+describe('integrations (INT-01)', () => {
+  const STATUS = `orgs/${ORG}/integrationStatus`;
+
+  it('lets each person read only their own connections and the practice’s, never a token', async () => {
+    await seedAdmin(env, async (f) => {
+      await setDoc(
+        doc(f, `${STATUS}/${uidFor('paralegal')}_microsoft`),
+        seedData({ ...specFor('integrationStatus'), seed: { uid: uidFor('paralegal') } }),
+      );
+    });
+    const lawyer = db(env, 'lawyer');
+    await assertSucceeds(getDoc(doc(lawyer, `${STATUS}/${OWNER_UID}_microsoft`)));
+    await assertSucceeds(getDoc(doc(lawyer, `${STATUS}/xero`)));
+    // Another person's connection, owners and admins included.
+    await assertFails(getDoc(doc(lawyer, `${STATUS}/${uidFor('paralegal')}_microsoft`)));
+    await assertFails(getDoc(doc(db(env, 'owner'), `${STATUS}/${uidFor('paralegal')}_microsoft`)));
+    // A list must prove it reads only the caller's own and the practice's.
+    await assertSucceeds(getDocs(query(collection(lawyer, STATUS), where('uid', '==', OWNER_UID))));
+    await assertSucceeds(getDocs(query(collection(lawyer, STATUS), where('uid', '==', null))));
+    await assertFails(getDocs(collection(lawyer, STATUS)));
+    // The tokens themselves stay closed to everyone, as do connect attempts.
+    for (const role of ROLES) {
+      await assertFails(getDoc(doc(db(env, role), `orgs/${ORG}/integrations/${OWNER_UID}_microsoft`)));
+      await assertFails(getDocs(collection(db(env, role), `orgs/${ORG}/integrations`)));
+      await assertFails(getDocs(collection(db(env, role), `orgs/${ORG}/integrationStates`)));
+    }
+    // Nobody writes the mirror but the vault.
+    await assertFails(
+      setDoc(doc(lawyer, `${STATUS}/${OWNER_UID}_google`), {
+        ...seedData(specFor('integrationStatus')),
+        provider: 'google',
+        uid: OWNER_UID,
+      }),
+    );
+    await assertFails(deleteDoc(doc(lawyer, `${STATUS}/${OWNER_UID}_microsoft`)));
   });
 });
 

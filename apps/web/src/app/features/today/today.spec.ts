@@ -3,7 +3,18 @@ import { signal } from '@angular/core';
 import { Connectivity, DATA_CLOCK } from '@materia/data-access';
 
 import { DEVICE_TIME_ZONE } from './today-data';
-import { ADMIN, cleanUpOverlays, MATTER, matterDoc, meta, ME, openMatter, ORG } from '../matter-detail/testing';
+import {
+  ADMIN,
+  cleanUpOverlays,
+  MATTER,
+  matterDoc,
+  meta,
+  ME,
+  openMatter,
+  ORG,
+  PARALEGAL,
+  READONLY,
+} from '../matter-detail/testing';
 
 /** The Today screen (CORE-14). Fictional data only. */
 
@@ -92,6 +103,39 @@ function busyDay(fs: Fs): void {
   fs.set(`${MATTER}/tasks/t-theirs`, taskDoc('Someone else’s task', 'm-whitfield', { assigneeUid: 'user-daniel' }));
   fs.set(`users/${ME}/recent/${ORG}_m-ostler`, recentDoc('m-ostler', '2026-10-02T00:00:00Z'));
   fs.set(`users/${ME}/recent/${ORG}_m-whitfield`, recentDoc('m-whitfield', '2026-10-03T00:00:00Z'));
+}
+
+function entryDoc(data: Seed = {}): Seed {
+  return {
+    orgId: ORG,
+    matterId: 'm-whitfield',
+    uid: ME,
+    date: '2026-10-02',
+    minutes: 60,
+    units: 10,
+    rateCents: 44000,
+    amountCents: 44000,
+    narrative: 'Perusing and considering the will',
+    billable: true,
+    status: 'draft',
+    source: 'manual',
+    wipCountedCents: 44000,
+    deletedAt: null,
+    ...meta,
+    ...data,
+  };
+}
+
+/** My time this month (drafts, final, billed, written off, non-billable), last month's and a colleague's. */
+function myTime(fs: Fs): void {
+  const entry = (id: string, data: Seed) => fs.set(`${MATTER}/timeEntries/${id}`, entryDoc(data));
+  entry('te-draft', {});
+  entry('te-final', { date: '2026-10-05', status: 'final', amountCents: 30000 });
+  entry('te-billed', { status: 'billed', invoiceId: 'inv-1' });
+  entry('te-off', { status: 'written_off' });
+  entry('te-free', { billable: false });
+  entry('te-september', { date: '2026-09-30' });
+  entry('te-theirs', { uid: 'user-daniel' });
 }
 
 function recentDoc(matterId: string, at: string): Seed {
@@ -226,12 +270,36 @@ describe('today', () => {
     ]);
   });
 
-  it('counts my open matters and this week’s deadlines', async () => {
+  it('counts my open matters, this week’s deadlines and my WIP this month', async () => {
     const page = await openToday({ configure: busyDay });
     expect(stats(page)).toEqual([
       ['Open matters', '2', 'You’re responsible for'],
       ['Deadlines this week', '1', '1 overdue'],
+      ['WIP this month', '$0.00', 'Your time not yet billed'],
     ]);
+  });
+
+  it('adds up my unbilled billable time this month', async () => {
+    const page = await openToday({
+      configure: (fs) => {
+        busyDay(fs);
+        myTime(fs);
+      },
+    });
+    expect(stats(page)[2]).toEqual(['WIP this month', '$740.00', 'Your time not yet billed']);
+  });
+
+  it('shows WIP this month to a paralegal, who records time too', async () => {
+    const page = await openToday({ session: PARALEGAL, configure: myTime });
+    expect(stats(page).map(([label, value]) => [label, value])).toContainEqual(['WIP this month', '$740.00']);
+  });
+
+  it('leaves out WIP this month for roles that don’t record time', async () => {
+    const page = await openToday({ session: READONLY, configure: myTime });
+    expect(stats(page).map(([label]) => label)).toEqual(['Open matters', 'Deadlines this week']);
+    expect(page.body.querySelector('[data-stat="wip"]')).toBeNull();
+    // Nothing waits on a read that never starts.
+    expect(page.body.querySelector('[data-today-loading]')).toBeNull();
   });
 
   it('celebrates a clear day in plain words', async () => {
@@ -322,6 +390,7 @@ describe('today', () => {
     expect(stats(page).map(([label, value]) => [label, value])).toEqual([
       ['Open matters', '—'],
       ['Deadlines this week', '—'],
+      ['WIP this month', '—'],
     ]);
   });
 

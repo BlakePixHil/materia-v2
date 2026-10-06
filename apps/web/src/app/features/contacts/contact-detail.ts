@@ -21,6 +21,7 @@ import {
   REFERRER_INDUSTRY_LABELS,
 } from '@materia/domain';
 import {
+  formatAud,
   formatDateOnly,
   MATTER_TYPE_LABELS,
   MtBadge,
@@ -33,6 +34,7 @@ import {
   type PersonRoleVm,
 } from '@materia/ui';
 
+import { ContactActivity } from './contact-activity';
 import { partyRoleLabel } from './contact-form';
 import { errorCopy } from '../../core/error-copy';
 import { ContactPackets } from '../safe-custody/contact-packets';
@@ -51,13 +53,23 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
 /**
  * The contact detail pane (CORE-01): PersonHeader with roles across matters, the deceased banner,
  * details, the "Matters" list (a collection-group query on `parties`), the original wills held in
- * safe custody (CORE-17) and activity. Edit, merge and delete are offered by permission; the page
- * opens the dialogs.
+ * safe custody (CORE-17) and the contact's Activity from the audit log (CORE-01a). Edit, merge and
+ * delete are offered by permission; the page opens the dialogs.
  */
 @Component({
   selector: 'mt-contact-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, ContactPackets, MtBadge, MtButton, MtEmptyState, MtKeyFacts, MtNote, MtPersonHeader],
+  imports: [
+    RouterLink,
+    ContactActivity,
+    ContactPackets,
+    MtBadge,
+    MtButton,
+    MtEmptyState,
+    MtKeyFacts,
+    MtNote,
+    MtPersonHeader,
+  ],
   host: { class: 'mt-col mt-contact-detail' },
   template: `
     @switch (state()) {
@@ -197,15 +209,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
 
             <section class="mt-contact-card" aria-labelledby="contact-activity-h">
               <h2 id="contact-activity-h">Activity</h2>
-              <ul class="mt-contact-activity">
-                @if (c.updatedAt && c.createdAt && c.updatedAt.getTime() !== c.createdAt.getTime()) {
-                  <li>Details updated {{ date(c.updatedAt) }}</li>
-                }
-                @if (c.createdAt) {
-                  <li>Added {{ date(c.createdAt) }}</li>
-                }
-              </ul>
-              <p class="caption mt-contact-muted">Calls, emails and file notes will show here as they’re recorded.</p>
+              <mt-contact-activity [contactId]="c.id" [version]="activityVersion()" />
             </section>
           </div>
         }
@@ -249,8 +253,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
       font: 400 12px/16px var(--font-mono);
       color: var(--text-tertiary);
     }
-    .mt-contact-matters,
-    .mt-contact-activity {
+    .mt-contact-matters {
       margin: 0;
       padding: 0;
       list-style: none;
@@ -270,11 +273,6 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
     .mt-contact-matters a {
       color: var(--text-primary);
     }
-    .mt-contact-activity li {
-      padding: var(--space-4) 0;
-      font: 400 13px/18px var(--font-sans);
-      color: var(--text-secondary);
-    }
   `,
 })
 export class ContactDetail {
@@ -293,6 +291,7 @@ export class ContactDetail {
   protected readonly parties = contactPartiesRepository().watchQuery(() => contactPartiesQuery(this.contactId()));
   private readonly matterRepo = matterSummariesRepository();
   private readonly canSeePrivileged = can('privileged.view');
+  private readonly canSeeBilling = can('billing.view');
   /** Matters this contact referred (CORE-18): live, and privileged ones only for privileged.view. */
   protected readonly referrals = referredMattersRepository().watchQuery(() =>
     referredMattersQuery(this.contactId(), this.canSeePrivileged()),
@@ -317,12 +316,16 @@ export class ContactDetail {
           .join(' · '),
       })),
   );
-  /** "3 matters referred · 2 active · last on 5 Oct 2026" (billed fees join with BILL-07). */
+  /**
+   * "3 matters referred · 2 active · $4,400.00 billed · last on 5 Oct 2026". What has been billed on
+   * them (BILL-07, `budget.billedCents`) shows only to billing.view roles.
+   */
   protected readonly totalsText = computed(() => {
-    const { count, active, lastReferredAt } = this.totals();
+    const { count, active, lastReferredAt, billedCents } = this.totals();
     return [
       count === 1 ? '1 matter referred' : `${count} matters referred`,
       `${active} active`,
+      this.canSeeBilling() ? `${formatAud(billedCents)} billed` : null,
       lastReferredAt ? `last on ${formatDateOnly(lastReferredAt)}` : null,
     ]
       .filter(Boolean)
@@ -339,6 +342,16 @@ export class ContactDetail {
     return this.contact() ? 'ready' : 'loading';
   });
   protected readonly errorText = computed(() => errorCopy(this.doc.error()));
+  /** The Activity reloads when the contact is edited or merged, or its matters change. */
+  protected readonly activityVersion = computed(() => {
+    const c = this.contact();
+    const parties = this.parties
+      .value()
+      .map((party) => `${party.matterId}/${party.role}/${party.deletedAt ? 'x' : ''}`)
+      .sort()
+      .join(',');
+    return `${c?.updatedAt?.getTime() ?? ''}|${c?.mergedInto ?? ''}|${parties}`;
+  });
   protected readonly partiesError = computed(() => errorCopy(this.parties.error()));
   protected readonly name = computed(() => {
     const contact = this.contact();

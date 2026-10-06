@@ -8,6 +8,7 @@ import {
   searchQueryToken,
   searchWords,
   SoftDeleteShape,
+  type PartyRole,
   type ReferrerIndustry,
 } from '@materia/domain';
 
@@ -39,6 +40,8 @@ export const ContactListItemSchema = /* @__PURE__ */ z.object({
   referrerMeta: contact.referrerMeta,
   notes: contact.notes,
   mergedInto: contact.mergedInto,
+  /** Roles on live, unprivileged matters (CORE-01a), server-maintained; empty until the backfill reaches it. */
+  matterRoles: contact.matterRoles,
   sortName: z.string().optional(),
   createdAt: contact.createdAt.optional(),
   createdBy: contact.createdBy.optional(),
@@ -58,6 +61,8 @@ export interface ContactFilters {
   referrersOnly?: boolean;
   /** Referrers in this industry (CORE-18); implies `referrersOnly`. */
   industry?: ReferrerIndustry | null;
+  /** Contacts holding this role on a live, unprivileged matter (CORE-01a: "Role in matters"). */
+  role?: PartyRole | null;
 }
 
 export const CONTACT_PAGE_SIZE = 50;
@@ -65,9 +70,10 @@ export const CONTACT_PAGE_SIZE = 50;
 /**
  * The Firestore query for the contacts list, ordered by `sortName`. Firestore allows one
  * `array-contains` per query and each combination needs its own composite index, so the query
- * carries one filter, in this order: the search token, kind, referrer, tag. Indexes (contacts):
- * (search array-contains, sortName), (kind, sortName), (isReferrer, sortName),
- * (tags array-contains, sortName). `contactMatchesFilters` applies the rest.
+ * carries one filter, in this order: the search token, role in matters, kind, referrer, tag.
+ * Indexes (contacts): (search array-contains, sortName), (matterRoles array-contains, sortName),
+ * (kind, sortName), (isReferrer, sortName), (tags array-contains, sortName).
+ * `contactMatchesFilters` applies the rest.
  */
 export function contactListQuery(
   filters: ContactFilters = {},
@@ -76,6 +82,7 @@ export function contactListQuery(
   const token = searchQueryToken(filters.query ?? '');
   let where: readonly [string, WhereOp, unknown] | null = null;
   if (token) where = ['search', 'array-contains', token];
+  else if (filters.role) where = ['matterRoles', 'array-contains', filters.role];
   else if (filters.kind) where = ['kind', '==', filters.kind];
   else if (filters.referrersOnly || filters.industry) where = ['isReferrer', '==', true];
   else if (filters.tag) where = ['tags', 'array-contains', filters.tag];
@@ -93,6 +100,7 @@ export function contactMatchesFilters(row: ContactListItem, filters: ContactFilt
   if ((filters.referrersOnly || filters.industry) && !row.isReferrer) return false;
   if (filters.industry && row.referrerMeta?.industry !== filters.industry) return false;
   if (filters.tag && !row.tags.includes(filters.tag)) return false;
+  if (filters.role && !row.matterRoles.includes(filters.role)) return false;
   const words = searchWords(filters.query);
   if (words.length && words.some((word) => word.length >= 2)) {
     const { familyName, givenNames, preferredName, orgName, emails, phones, abn } = row;
@@ -169,7 +177,10 @@ export function matterSummariesRepository(): Repository<MatterSummary> {
   return repo((orgId) => `orgs/${orgId}/matters`, { schema: MatterSummarySchema, version: Matter.version });
 }
 
-/** A matter in a referrer's "Referrals" section (CORE-18): what it is, where it is, and when it came in. */
+/**
+ * A matter in a referrer's "Referrals" section (CORE-18): what it is, where it is, when it came in,
+ * and its budget (BILL-05), whose `billedCents` the section totals for billing.view roles.
+ */
 export const ReferredMatterSchema = /* @__PURE__ */ z.object({
   number: matter.number,
   title: matter.title,
@@ -179,6 +190,7 @@ export const ReferredMatterSchema = /* @__PURE__ */ z.object({
   referrerContactId: matter.referrerContactId,
   createdAt: matter.createdAt.optional(),
   closedAt: matter.closedAt,
+  budget: matter.budget,
   deletedAt: SoftDeleteShape.deletedAt,
 });
 export type ReferredMatter = z.infer<typeof ReferredMatterSchema>;

@@ -9,9 +9,10 @@ import {
   untracked,
   ViewEncapsulation,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
-import { can } from '@materia/data-access';
+import { can, OrgContext } from '@materia/data-access';
 import {
   contactsRepository,
   creditNoteRepository,
@@ -19,12 +20,30 @@ import {
   invoiceCallables,
   invoiceCreditNotesQuery,
   matterDetailRepository,
+  orgXeroSettingsRepository,
+  paymentCallables,
+  trustSnapshotRepository,
   type CreditNoteItem,
   type InvoiceItem,
   type WithId,
 } from '@materia/data-access/repository';
-import { creditableLines, invoiceBalanceCents, invoiceClientEmails, type InvoiceClientLike } from '@materia/domain';
-import { DialogService, formatAud, MtBadge, MtButton, MtNote, ToastService } from '@materia/ui';
+import {
+  creditableLines,
+  hasLivePayments,
+  hasTrustPayments,
+  invoiceBalanceCents,
+  invoiceClientEmails,
+  paidCents,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_WARNING_COPY,
+  PAID_FROM_TRUST_COPY,
+  TRUST_CORRECTION_COPY,
+  trustSnapshotLine,
+  type InvoiceClientLike,
+  type InvoicePayment,
+  type XeroSync,
+} from '@materia/domain';
+import { DialogService, formatAud, MtBadge, MtButton, MtCheckbox, MtNote, ToastService } from '@materia/ui';
 
 import {
   CreditNoteDialog,
@@ -36,26 +55,38 @@ import {
   type SendInvoiceDialogResult,
   type VoidInvoiceDialogData,
 } from './invoice-dialogs';
+import { InvoiceXero, POSSIBLE_DUPLICATE_COPY, XeroChip, xeroSyncIn } from './invoice-xero';
 import { dateText, INVOICE_STATUS_TONES, invoiceStatusLabel, LIVE_INVOICE_STATUSES } from './invoices-view';
+import {
+  PaymentDialog,
+  ReversePaymentDialog,
+  type PaymentDialogData,
+  type PaymentDialogResult,
+  type ReversePaymentDialogData,
+} from './payment-dialogs';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { DOWNLOAD_NAVIGATOR } from '../documents/document-actions';
 import { PdfViewer } from '../documents/pdf-viewer';
+import type { TrustSnapshotDialogData } from '../trust/trust-snapshot-dialog';
 
 type CreditNote = WithId<CreditNoteItem>;
 
 /**
  * An issued (or void) invoice (BILL-07): its PDF, the facts (to, dates, total, what's owed, when it
- * was emailed) and its credit notes. Lawyers and above download and email it (`billing-sendInvoice`:
- * to the clients by default; never automatic) and render a failed PDF again; owners and admins void
- * an unpaid one or credit it. When no client has an email address, sending is off and the PDF is
- * offered to print.
+ * was emailed), its payments (BILL-08) and its credit notes. Lawyers and above download and email
+ * it (`billing-sendInvoice`: to the clients by default; never automatic), record payments and
+ * render a failed PDF again; owners and admins void an unpaid one, credit it, reverse a payment and
+ * refund credit held. When no client has an email address, sending is off and the PDF is offered
+ * to print. While `integrations.xero` is on and the practice has chosen its Xero organisation, it
+ * shows where the invoice and its credit notes stand in Xero (BILL-09).
  */
 @Component({
   selector: 'mt-invoice-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [RouterLink, MtBadge, MtButton, MtNote, PdfViewer],
+  imports: [FormsModule, RouterLink, InvoiceXero, MtBadge, MtButton, MtCheckbox, MtNote, PdfViewer, XeroChip],
   host: { class: 'mt-col mt-invoice-detail' },
   template: `
     @let inv = invoice();
@@ -64,6 +95,9 @@ type CreditNote = WithId<CreditNoteItem>;
         <div class="mt-row title-row">
           <h1 class="title-l">{{ title() }} {{ inv.number }}</h1>
           <mt-badge [tone]="tone()" data-testid="invoice-status">{{ statusLabel() }}</mt-badge>
+          @if (xeroOn()) {
+            <mt-xero-chip kind="invoice" data-testid="invoice-xero" [sync]="xeroSync()" />
+          }
         </div>
         <a class="caption" [routerLink]="['/matters', inv.matterId, 'time']">{{ matterLabel() }}</a>
       </div>
@@ -84,6 +118,14 @@ type CreditNote = WithId<CreditNoteItem>;
           >
             Email invoice
           </button>
+        }
+        @if (canIssue() && live() && balance() > 0) {
+          <button mtButton variant="secondary" size="sm" iconStart="plus" (click)="pay('payment')">
+            Record payment
+          </button>
+        }
+        @if (canVoid() && live() && balance() < 0) {
+          <button mtButton variant="secondary" size="sm" (click)="pay('refund')">Record refund</button>
         }
         @if (canVoid() && live()) {
           <button mtButton variant="secondary" size="sm" [disabled]="!creditable()" (click)="credit()">
@@ -107,6 +149,9 @@ type CreditNote = WithId<CreditNoteItem>;
       <mt-note tone="info" data-testid="invoice-no-email"
         >The client has no email address, so it can’t be emailed. Download the PDF to print and post it.</mt-note
       >
+    }
+    @if (xeroOn()) {
+      <mt-invoice-xero [invoice]="inv" [sync]="xeroSync()" [canSend]="canIssue()" />
     }
 
     <div class="grid">
@@ -167,10 +212,16 @@ type CreditNote = WithId<CreditNoteItem>;
               <dd>{{ money(inv.creditedCents) }}</dd>
             </div>
           }
+          @if (paid()) {
+            <div>
+              <dt>Paid</dt>
+              <dd data-testid="invoice-paid">{{ money(paid()) }}</dd>
+            </div>
+          }
           @if (live()) {
             <div class="owing">
-              <dt>Owing</dt>
-              <dd data-testid="invoice-owing">{{ money(balance()) }}</dd>
+              <dt>{{ balance() < 0 ? 'Credit held' : 'Owing' }}</dt>
+              <dd data-testid="invoice-owing">{{ money(balance() < 0 ? -balance() : balance()) }}</dd>
             </div>
           }
           <div>
@@ -179,6 +230,65 @@ type CreditNote = WithId<CreditNoteItem>;
           </div>
         </dl>
 
+        @if (canIssue() && live()) {
+          <mt-checkbox
+            name="paidFromTrust"
+            label="To be paid from trust"
+            data-testid="invoice-trust-option"
+            [description]="trustCopy"
+            [disabled]="markingTrust()"
+            [ngModel]="!!inv.paidFromTrust"
+            (ngModelChange)="setFromTrust(!!$event)"
+          />
+        } @else if (inv.paidFromTrust) {
+          <p class="caption t-2" data-testid="invoice-trust">{{ trustCopy }}</p>
+        }
+        @if (inv.trustNotice) {
+          <p class="caption t-3" data-testid="invoice-trust-notice">
+            The PDF includes the notice of intended withdrawal from trust.
+          </p>
+        }
+
+        @if (inv.payments.length) {
+          <section class="mt-col" aria-labelledby="payments-title">
+            <h2 class="title-s" id="payments-title">Payments</h2>
+            <ul class="notes" data-testid="payments">
+              @for (payment of inv.payments; track payment.id) {
+                <li class="mt-card mt-col note" [class.reversed]="!!payment.reversedAt" [attr.data-kind]="payment.kind">
+                  <div class="mt-row">
+                    <span class="label-m">{{ payment.kind === 'refund' ? 'Refund' : methodLabel(payment) }}</span>
+                    @if (possibleDuplicate(payment)) {
+                      <mt-badge tone="warning" data-testid="payment-duplicate" [attr.title]="duplicateCopy"
+                        >Possible duplicate</mt-badge
+                      >
+                    }
+                    <span class="caption t-3">{{ date(payment.date) }}</span>
+                    <span class="num mt-ml"
+                      >{{ payment.kind === 'refund' ? '−' : '' }}{{ money(payment.amountCents) }}</span
+                    >
+                  </div>
+                  @if (paymentDetail(payment); as detail) {
+                    <span class="caption t-3">{{ detail }}</span>
+                  }
+                  @if (possibleDuplicate(payment)) {
+                    <span class="caption t-2">{{ duplicateCopy }}</span>
+                  }
+                  @if (payment.reversedAt) {
+                    <span class="caption" data-testid="payment-reversed">Reversed: {{ payment.reversalReason }}</span>
+                  } @else {
+                    @if (inv.issueDate && payment.date < inv.issueDate) {
+                      <span class="caption t-3">{{ beforeIssue }}</span>
+                    }
+                    @if (canVoid() && live()) {
+                      <button mtButton variant="ghost" size="sm" (click)="reverse(payment)">Reverse</button>
+                    }
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
         <section class="mt-col" aria-labelledby="credit-notes-title">
           <h2 class="title-s" id="credit-notes-title">Credit notes</h2>
           <ul class="notes" data-testid="credit-notes">
@@ -186,6 +296,9 @@ type CreditNote = WithId<CreditNoteItem>;
               <li class="mt-card mt-col note">
                 <div class="mt-row">
                   <span class="label-m">{{ note.number }}</span>
+                  @if (xeroOn() && note.xero) {
+                    <mt-xero-chip kind="creditNote" data-testid="credit-note-xero" [sync]="noteXero(note)" />
+                  }
                   <span class="caption t-3">{{ date(note.issueDate) }}</span>
                   <span class="num mt-ml">{{ money(note.totalCents) }}</span>
                 </div>
@@ -227,6 +340,7 @@ type CreditNote = WithId<CreditNoteItem>;
     .mt-invoice-detail .title-row {
       align-items: center;
       gap: var(--space-8);
+      flex-wrap: wrap;
     }
     .mt-invoice-detail .actions {
       gap: var(--space-8);
@@ -293,6 +407,10 @@ type CreditNote = WithId<CreditNoteItem>;
     .mt-invoice-detail .num {
       font-variant-numeric: tabular-nums;
     }
+    .mt-invoice-detail .note.reversed .num {
+      text-decoration: line-through;
+      color: var(--text-tertiary);
+    }
     @media (max-width: 960px) {
       .mt-invoice-detail .grid {
         grid-template-columns: minmax(0, 1fr);
@@ -307,12 +425,28 @@ export class InvoiceDetail {
   private readonly toasts = inject(ToastService);
   private readonly navigate = inject(DOWNLOAD_NAVIGATOR);
   private readonly api = invoiceCallables(inject(CALLABLES));
+  private readonly payments = paymentCallables(inject(CALLABLES));
   private readonly documents = documentCallables(inject(CALLABLES));
   private readonly contacts = contactsRepository();
   protected readonly canIssue = can('billing.issue');
   protected readonly canVoid = can('billing.void');
+  private readonly flags = inject(FeatureFlagService);
+  private readonly context = inject(OrgContext);
+  private readonly trustSnapshots = trustSnapshotRepository();
+  private readonly canViewTrust = can('billing.view');
+  private readonly canRecordTrust = can('trust.record');
+  protected readonly trustCopy = PAID_FROM_TRUST_COPY;
+  protected readonly markingTrust = signal(false);
 
   private readonly matter = matterDetailRepository().watch(() => this.invoice().matterId);
+  /** Xero (BILL-09): the practice's settings are read only while the flag is on. */
+  private readonly xeroFlag = computed(() => this.flags.isOn('integrations.xero'));
+  private readonly xeroOrg = orgXeroSettingsRepository().watch(() => (this.xeroFlag() ? this.context.orgId() : null));
+  private readonly xeroSettings = computed(() => (this.xeroFlag() ? (this.xeroOrg.value()?.xero ?? null) : null));
+  /** Xero is on and the practice has chosen its Xero organisation. */
+  protected readonly xeroOn = computed(() => !!this.xeroSettings());
+  protected readonly xeroSync = computed(() => xeroSyncIn(this.invoice().xero, this.xeroSettings()));
+  protected readonly duplicateCopy = POSSIBLE_DUPLICATE_COPY;
   protected readonly creditNotes = creditNoteRepository().watchQuery(() => invoiceCreditNotesQuery(this.invoice().id));
 
   protected readonly gst = computed(() => this.invoice().gstRegistered !== false);
@@ -322,12 +456,14 @@ export class InvoiceDetail {
   protected readonly live = computed(() => LIVE_INVOICE_STATUSES.has(this.invoice().status));
   protected readonly voidable = computed(() => {
     const invoice = this.invoice();
-    return invoice.status === 'issued' && !invoice.payments.length && !invoice.creditedCents;
+    return invoice.status === 'issued' && !hasLivePayments(invoice.payments) && !invoice.creditedCents;
   });
   protected readonly creditable = computed(() =>
     creditableLines(this.invoice(), this.creditNotes.value()).some((line) => line.amountExGstCents > 0),
   );
   protected readonly balance = computed(() => invoiceBalanceCents(this.invoice()));
+  protected readonly paid = computed(() => paidCents(this.invoice().payments));
+  protected readonly beforeIssue = PAYMENT_WARNING_COPY.before_issue;
   protected readonly matterLabel = computed(() => {
     const invoice = this.invoice();
     const matter = this.matter.value();
@@ -424,7 +560,11 @@ export class InvoiceDetail {
   protected async voidIt(): Promise<void> {
     const invoice = this.invoice();
     const reason = await this.dialogs.open<VoidInvoiceDialogData, string | undefined>(VoidInvoiceDialog, {
-      data: { number: invoice.number, total: formatAud(invoice.totalCents) },
+      data: {
+        number: invoice.number,
+        total: formatAud(invoice.totalCents),
+        trustWarning: hasTrustPayments(invoice.payments) ? TRUST_CORRECTION_COPY : undefined,
+      },
     }).result;
     if (!reason) return;
     try {
@@ -451,6 +591,132 @@ export class InvoiceDetail {
     } catch (error) {
       this.toasts.show({ title: 'The credit note wasn’t issued', description: errorCopy(error), tone: 'danger' });
     }
+  }
+
+  protected noteXero(note: CreditNote): XeroSync | null {
+    return xeroSyncIn(note.xero, this.xeroSettings());
+  }
+
+  /** A payment from Xero that may be one already recorded here, while both still count (BILL-09). */
+  protected possibleDuplicate(payment: InvoicePayment): boolean {
+    if (!payment.possibleDuplicateOf || payment.reversedAt) return false;
+    const twin = this.invoice().payments.find((other) => other.id === payment.possibleDuplicateOf);
+    return !twin?.reversedAt;
+  }
+
+  protected methodLabel(payment: InvoicePayment): string {
+    return PAYMENT_METHOD_LABELS[payment.method] ?? payment.method;
+  }
+
+  protected paymentDetail(payment: InvoicePayment): string {
+    const parts = [
+      payment.kind === 'refund' ? PAYMENT_METHOD_LABELS[payment.method] : '',
+      payment.reference ? `Ref ${payment.reference}` : '',
+      payment.payer ? `Paid by ${payment.payer}` : '',
+      payment.credit ? 'Extra kept as credit' : '',
+    ];
+    return parts.filter(Boolean).join(' · ');
+  }
+
+  protected async pay(kind: 'payment' | 'refund'): Promise<void> {
+    const invoice = this.invoice();
+    const request = await this.dialogs.open<PaymentDialogData, PaymentDialogResult | undefined>(PaymentDialog, {
+      data: { kind, number: invoice.number, invoice },
+    }).result;
+    if (!request) return;
+    try {
+      const result = await this.payments.record({ invoiceId: invoice.id, ...request });
+      const left =
+        result.owingCents > 0
+          ? `${formatAud(result.owingCents)} still owing.`
+          : result.owingCents < 0
+            ? `${formatAud(-result.owingCents)} held in credit.`
+            : 'Nothing left owing.';
+      this.toasts.show({ title: kind === 'refund' ? 'Refund recorded' : 'Payment recorded', description: left });
+      this.announcement.set(kind === 'refund' ? 'Refund recorded.' : 'Payment recorded.');
+      if (request.method === 'trust_transfer') void this.promptTrustSnapshot(invoice.matterId);
+    } catch (error) {
+      this.toasts.show({
+        title: kind === 'refund' ? 'The refund wasn’t recorded' : 'The payment wasn’t recorded',
+        description: errorCopy(error),
+        tone: 'danger',
+      });
+    }
+  }
+
+  protected async reverse(payment: InvoicePayment): Promise<void> {
+    const invoice = this.invoice();
+    const what = `${payment.kind === 'refund' ? 'the refund' : 'the payment'} of ${formatAud(payment.amountCents)}`;
+    const reason = await this.dialogs.open<ReversePaymentDialogData, string | undefined>(ReversePaymentDialog, {
+      data: {
+        number: invoice.number,
+        what,
+        trustWarning: payment.method === 'trust_transfer' ? TRUST_CORRECTION_COPY : undefined,
+      },
+    }).result;
+    if (!reason) return;
+    try {
+      await this.payments.reverse({ invoiceId: invoice.id, paymentId: payment.id, reason });
+      this.toasts.show({ title: payment.kind === 'refund' ? 'Refund reversed' : 'Payment reversed' });
+    } catch (error) {
+      this.toasts.show({ title: 'It wasn’t reversed', description: errorCopy(error), tone: 'danger' });
+    }
+  }
+
+  /** BILL-12: marks the invoice "To be paid from trust", or clears it. Only the intention is recorded. */
+  protected async setFromTrust(paidFromTrust: boolean): Promise<void> {
+    const invoice = this.invoice();
+    if (this.markingTrust() || !!invoice.paidFromTrust === paidFromTrust) return;
+    this.markingTrust.set(true);
+    try {
+      const result = await this.api.setPaidFromTrust({ invoiceId: invoice.id, paidFromTrust });
+      const done = paidFromTrust ? 'Marked to be paid from trust.' : 'No longer marked to be paid from trust.';
+      this.toasts.show({
+        title: paidFromTrust ? 'Marked to be paid from trust' : 'No longer to be paid from trust',
+        ...(result.pdfRendering ? { description: 'The PDF is being made again.' } : {}),
+      });
+      this.announcement.set(done);
+    } catch (error) {
+      this.toasts.show({ title: 'The invoice wasn’t changed', description: errorCopy(error), tone: 'danger' });
+    } finally {
+      this.markingTrust.set(false);
+    }
+  }
+
+  /**
+   * BILL-12: after a payment from trust, when the matter shows a trust balance copied from the
+   * firm's records (BILL-11), asks the person to copy the new balance. Materia never changes it.
+   */
+  private async promptTrustSnapshot(matterId: string): Promise<void> {
+    if (!this.flags.isOn('billing.trustDisplay') || !this.canViewTrust()) return;
+    const snapshot = await this.trustSnapshots.get(matterId).catch(() => null);
+    if (!snapshot) return;
+    const shown = `The trust balance shown on ${this.matterLabel()} is ${formatAud(snapshot.amountCents)}, ${trustSnapshotLine(snapshot)}, and Materia doesn’t change it.`;
+    if (!this.canRecordTrust()) {
+      this.toasts.show({
+        title: 'The trust balance may be out of date',
+        description: `${shown} Ask someone who records trust balances to update it.`,
+        tone: 'neutral',
+      });
+      return;
+    }
+    const update = await this.dialogs.confirm({
+      title: 'Update the trust balance?',
+      body: `You recorded a payment from trust. ${shown} Copy the new balance from your trust records.`,
+      confirmLabel: 'Update trust balance',
+      cancelLabel: 'Not now',
+    });
+    if (!update) return;
+    const { TrustSnapshotDialog } = await import('../trust/trust-snapshot-dialog');
+    const saved = await this.dialogs.open<TrustSnapshotDialogData, boolean>(TrustSnapshotDialog, {
+      data: {
+        matterId,
+        matterLabel: this.matterLabel(),
+        recordsName: snapshot.sourceSystemName,
+        amountCents: snapshot.amountCents,
+      },
+    }).result;
+    if (saved) this.toasts.show({ title: 'Trust balance saved', tone: 'success' });
   }
 
   protected async retry(target: { invoiceId: string } | { creditNoteId: string }): Promise<void> {

@@ -32,6 +32,7 @@ const person = (overrides: Partial<ContactListItem> = {}): ContactListItem => ({
   addresses: [],
   tags: [],
   isReferrer: false,
+  matterRoles: [],
   ...overrides,
 });
 
@@ -48,6 +49,15 @@ describe('contactListQuery', () => {
       orderBy: [['sortName', 'asc']],
       pageSize: 10,
     });
+  });
+
+  it('filters by role in matters ahead of kind, referrer and tag, after the search token (CORE-01a)', () => {
+    expect(contactListQuery({ role: 'executor', kind: 'person', tag: 'vip' }).where).toEqual([
+      ['matterRoles', 'array-contains', 'executor'],
+    ]);
+    expect(contactListQuery({ query: 'quill', role: 'executor' }).where).toEqual([
+      ['search', 'array-contains', 'quill'],
+    ]);
   });
 });
 
@@ -76,6 +86,14 @@ describe('contactMatchesFilters', () => {
     expect(
       contactMatchesFilters(person({ referrerMeta: { industry: 'accountant' } }), { industry: 'accountant' }),
     ).toBe(false);
+  });
+
+  it('keeps contacts holding the role in matters (CORE-01a)', () => {
+    const executor = person({ matterRoles: ['client', 'executor'] });
+    expect(contactMatchesFilters(executor, { role: 'executor' })).toBe(true);
+    expect(contactMatchesFilters(executor, { query: 'quill', role: 'executor' })).toBe(true);
+    expect(contactMatchesFilters(executor, { role: 'beneficiary' })).toBe(false);
+    expect(contactMatchesFilters(person(), { role: 'client' })).toBe(false);
   });
 
   it('hides tombstones and soft-deleted contacts', () => {
@@ -245,9 +263,15 @@ describe('referredMattersRepository (CORE-18)', () => {
     ]);
   });
 
-  it('reads them with their type, status and created date', async () => {
+  it('reads them with their type, status, created date and budget', async () => {
     setup((f) => {
-      f.set('orgs/org-a/matters/m1', matter({ createdAt: new Date('2026-05-01T00:00:00Z') }));
+      f.set(
+        'orgs/org-a/matters/m1',
+        matter({
+          createdAt: new Date('2026-05-01T00:00:00Z'),
+          budget: { recordedCents: 52800, billedCents: 44000, timeCents: 52800 },
+        }),
+      );
       f.set('orgs/org-a/matters/m2', matter({ referrerContactId: 'c-other' }));
       f.set('orgs/org-a/matters/m3', matter({ deletedAt: new Date() }));
       f.set('orgs/org-a/matters/m4', matter({ privileged: true }));
@@ -255,6 +279,11 @@ describe('referredMattersRepository (CORE-18)', () => {
     const repo = TestBed.runInInjectionContext(() => referredMattersRepository());
     const rows = await repo.query(referredMattersQuery('c-ref', false));
     expect(rows.map((row) => row.id)).toEqual(['m1']);
-    expect(rows[0]).toMatchObject({ type: 'will', status: 'open', createdAt: new Date('2026-05-01T00:00:00Z') });
+    expect(rows[0]).toMatchObject({
+      type: 'will',
+      status: 'open',
+      createdAt: new Date('2026-05-01T00:00:00Z'),
+      budget: { billedCents: 44000 },
+    });
   });
 });

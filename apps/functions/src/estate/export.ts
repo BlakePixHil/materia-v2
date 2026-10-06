@@ -4,6 +4,7 @@ import {
   inventoryFileName,
   inventorySchedule,
   PERMISSIONS,
+  SENSITIVE_REAUTH_MINUTES,
   today,
   type ExportInventoryResult,
   type InventoryAsset,
@@ -25,13 +26,15 @@ export const INVENTORY_TEMPLATE = 'estate-inventory';
  * and liabilities (working draft)") to PDF through the `pdf.render` job (FND-24) and saves it to the
  * matter's documents (category financial), privileged when the matter is (so only roles with
  * privileged.view can make or read it). The schedule is built here from the live register, never
- * from the caller's data, so the PDF matches the CSV the Estate tab downloads.
+ * from the caller's data, so the PDF matches the CSV the Estate tab downloads. An export, so it
+ * needs a recent sign-in (SEC-04, REAUTH_REQUIRED).
  */
 export const exportInventoryDefinition = {
   name: 'estate-exportInventory',
   input: ExportInventoryInput,
   roles: PERMISSIONS['document.upload'],
   idempotent: true,
+  recentLoginMinutes: SENSITIVE_REAUTH_MINUTES,
   handler: async ({ input, ...ctx }) => {
     const { db, orgId, role, clock } = ctx;
     await requireFlag({ db, orgId, clock }, 'estate.register');

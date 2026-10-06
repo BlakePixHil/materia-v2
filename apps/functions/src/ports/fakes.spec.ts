@@ -12,8 +12,8 @@ import {
   FakeKms,
   fakeMalwareScan,
   fakeTranscription,
-  fakeXero,
 } from './fakes';
+import { FAKE_XERO_TENANT, FakeXero } from '../xero/fake';
 
 describe('fakes', () => {
   it('behave deterministically', async () => {
@@ -44,7 +44,7 @@ describe('fakes', () => {
       serverFallbacks: false,
     };
     expect((await fakeClerkModel.run(request)).text).toBe('Fake Clerk reply.');
-    expect(await fakeXero.pushInvoice('o', 'inv-1')).toEqual({ xeroInvoiceId: 'xero-inv-1' });
+    expect(await new FakeXero().client().tenants()).toEqual([FAKE_XERO_TENANT]);
     expect((await fakeTranscription.transcribe('b', 'p')).durationSeconds).toBe(3);
     const jobs = new FakeJobRunner();
     expect(await jobs.start('pdf', { orgId: 'o', jobId: 'j' })).toEqual({ executionId: 'fake-execution-1' });

@@ -15,9 +15,11 @@ import { clamavScanner } from '../documents/clamav';
 import { vertexEmbeddings } from '../documents/ingest/vertex';
 import { previewService } from '../documents/preview';
 import { emulatorSignedUrls, storageSignedUrls } from '../documents/signed-urls';
+import { httpOAuth } from '../integrations/oauth';
 import { cloudRunJobs } from '../jobs/cloud-run';
 import { mailFrom, postmarkMail } from '../mail/postmark';
 import { emulatorPush, fcmPush } from '../notifications/push';
+import { httpXero } from '../xero/client';
 
 export const systemClock = { now: () => new Date() };
 
@@ -43,12 +45,15 @@ function realPorts(): Ports {
     // AI-02a (ADR-011b): no platform key. Each call carries the org's own key, decrypted with KMS.
     clerkModel: anthropicModel(),
     clerkKms: cloudKms({ cryptoKey: 'clerk-api-keys' }),
+    // INT-01 (ADR-051): each provider's endpoints and client credentials come from its registry entry.
+    oauth: httpOAuth(),
+    oauthKms: cloudKms({ cryptoKey: 'oauth-tokens' }),
     // AI-04 (ADR-012): Vertex AI text embeddings in australia-southeast1, as the runtime account.
     embedding: vertexEmbeddings({
       project: () => process.env['GCLOUD_PROJECT'] ?? process.env['GOOGLE_CLOUD_PROJECT'] ?? '',
     }),
     calendar: notConfigured('CalendarPort'), // INT-01
-    xero: notConfigured('XeroPort'), // BILL-08
+    xero: httpXero(),
     // CORE-12: ClamAV over HTTP. Until the scanner service is deployed (CLAMAV_SCAN_URL empty),
     // every upload stays quarantined as "Scanning delayed": fail closed.
     malwareScan: clamavScanner({ url: clamavScanUrl }),

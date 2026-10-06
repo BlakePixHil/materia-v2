@@ -8,6 +8,8 @@ import {
   BillingSettingsInput,
   budgetAlertPcts,
   DEFAULT_DAILY_TARGET_MINUTES,
+  disclosureChangePct,
+  DisclosureChangePctSchema,
   feeProblems,
   MatterTypeSchema,
   type FeeDefault,
@@ -54,6 +56,8 @@ interface BillingForm {
   nextInvoiceNumber: string;
   /** Budget alert thresholds (BILL-05), "80, 100". */
   alertPcts: string;
+  /** The rise in a matter's estimate that needs an updated costs disclosure (BILL-06), "10". */
+  disclosurePct: string;
   fees: Record<MatterType, FeeRow>;
 }
 
@@ -89,6 +93,7 @@ function formOf(org: OrgSettings | undefined): BillingForm {
     dailyTargetHours: String((billing.dailyTargetMinutes ?? DEFAULT_DAILY_TARGET_MINUTES) / 60),
     nextInvoiceNumber: '',
     alertPcts: budgetAlertPcts(org).join(', '),
+    disclosurePct: String(disclosureChangePct(org)),
     fees,
   };
 }
@@ -281,6 +286,26 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
           </mt-settings-section>
         }
 
+        @if (disclosureOn()) {
+          <mt-settings-section
+            title="Costs disclosure"
+            description="A matter needs an updated costs disclosure when its estimate moves to another disclosure band, or rises by more than this since the last disclosure. The responsible lawyer gets a task and a notification."
+            [headingLevel]="2"
+          >
+            <mt-text-field
+              name="disclosurePct"
+              label="Significant rise"
+              description="A whole percentage from 1 to 100."
+              suffix="%"
+              inputmode="numeric"
+              autocomplete="off"
+              [error]="disclosurePctProblem() ?? undefined"
+              [ngModel]="form().disclosurePct"
+              (ngModelChange)="set({ disclosurePct: $event ?? '' })"
+            />
+          </mt-settings-section>
+        }
+
         <mt-settings-section
           title="Fee defaults by matter type"
           description="Filled in when a new matter of the type is opened. People can change them on the matter."
@@ -382,6 +407,7 @@ export class BillingSettingsPage implements HasUnsavedChanges {
   private readonly toasts = inject(ToastService);
   private readonly flags = inject(FeatureFlagService);
   protected readonly feeBudgetsOn = computed(() => this.flags.isOn('billing.feeBudgets'));
+  protected readonly disclosureOn = computed(() => this.flags.isOn('billing.costsDisclosure'));
   protected readonly org = orgSettingsReadRepository().watch(() => this.context.orgId());
   /** Disbursement presets (BILL-04) show while their flag is on. */
   protected readonly disbursementsOn = computed(() => this.flags.isOn('billing.disbursements'));
@@ -441,6 +467,14 @@ export class BillingSettingsPage implements HasUnsavedChanges {
       ? null
       : 'Up to 5 different percentages from 1 to 200.';
   });
+  private readonly disclosurePct = computed(() => {
+    const text = this.form().disclosurePct.trim().replace(/%$/, '');
+    const parsed = DisclosureChangePctSchema.safeParse(/^\d+$/.test(text) ? Number(text) : NaN);
+    return parsed.success ? parsed.data : undefined;
+  });
+  protected readonly disclosurePctProblem = computed(() =>
+    this.disclosurePct() === undefined ? 'Enter a whole percentage from 1 to 100.' : null,
+  );
   private readonly fees = computed(() => feeDefaultsOf(this.form().fees));
   protected readonly feeProblems = computed(() => this.fees().problems);
   private readonly billing = computed(() => {
@@ -453,6 +487,7 @@ export class BillingSettingsPage implements HasUnsavedChanges {
       invoicePrefix: f.invoicePrefix,
       paymentTermsDays: Number(f.paymentTermsDays),
       budgetAlertPcts: this.alertPcts(),
+      disclosureChangePct: this.disclosurePct(),
       dailyTargetMinutes: targetMinutes(f.dailyTargetHours) ?? -1,
     });
   });
@@ -461,6 +496,7 @@ export class BillingSettingsPage implements HasUnsavedChanges {
       this.unsaved() &&
       this.billing().success &&
       !this.alertProblem() &&
+      !this.disclosurePctProblem() &&
       !!this.fees().value &&
       !this.nextNumberProblem() &&
       !this.saving(),

@@ -10,8 +10,23 @@ import {
   SearchTokensSchema,
   withMeta,
 } from './common';
-import { InvoiceStatusSchema, JurisdictionSchema, MatterTypeSchema, PrioritySchema } from './enums';
+import {
+  DocTemplateKindSchema,
+  InvoiceStatusSchema,
+  JurisdictionSchema,
+  MatterTypeSchema,
+  PrioritySchema,
+} from './enums';
+import {
+  AppReturnPathSchema,
+  IntegrationAccountSchema,
+  IntegrationConnectionStatusSchema,
+  IntegrationLevelSchema,
+  IntegrationStatusReasonSchema,
+  OAuthProviderSchema,
+} from '../integrations';
 import { TemplateBasedOnSchema, templateContentShape } from '../templates';
+import { XeroPullStateSchema, XeroSyncSchema } from '../xero';
 
 const ORG = 'orgs/{orgId}';
 
@@ -66,13 +81,38 @@ export const InvoiceExtraLineSchema = z.object({
 });
 export type InvoiceExtraLine = z.infer<typeof InvoiceExtraLineSchema>;
 
-const PaymentSchema = z.object({
+/** `xero`: a payment made in Xero and brought across (BILL-09); never recorded by hand. */
+export const PaymentMethodSchema = z.enum(['eft', 'card', 'cheque', 'trust_transfer', 'other', 'xero']);
+export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
+
+/**
+ * One payment against an invoice, or a refund of money received (BILL-08, ADR-046), recorded by
+ * `billing-recordPayment`. Amounts are positive cents inc GST; a refund counts against what was
+ * paid. A reversed one (a bounced cheque, a mistake) stays on the invoice with who, when and why
+ * and no longer counts. `credit` marks a payment allowed to exceed what was owing (the excess is
+ * held as the client's credit). `payer` is free text: an estate's executor often pays.
+ */
+export const InvoicePaymentSchema = z.object({
   id: z.string(),
+  kind: z.enum(['payment', 'refund']).default('payment'),
   date: DateOnlySchema,
   amountCents: CentsSchema,
-  method: z.enum(['eft', 'card', 'cheque', 'trust_transfer', 'other']),
+  method: PaymentMethodSchema,
   reference: z.string().optional(),
+  payer: z.string().optional(),
+  credit: z.boolean().optional(),
+  recordedAt: InstantSchema.optional(),
+  recordedBy: DocIdSchema.optional(),
+  reversedAt: InstantSchema.optional(),
+  reversedBy: DocIdSchema.optional(),
+  reversalReason: z.string().optional(),
+  /**
+   * A payment from Xero (id `xero-{PaymentID}`) that looks like one already recorded by hand: the
+   * same amount within a week (BILL-09). Both count until someone reverses one.
+   */
+  possibleDuplicateOf: z.string().optional(),
 });
+export type InvoicePayment = z.infer<typeof InvoicePaymentSchema>;
 
 /** Who issued the document and who it is for, frozen at issue (the ATO's identity requirements). */
 export const InvoicePartySchema = z.object({
@@ -154,8 +194,16 @@ export const Invoice = withMeta(
     /** The credit notes against it and their total (inc GST). */
     creditNoteIds: z.array(DocIdSchema).default([]),
     creditedCents: CentsSchema.default(0 as never),
-    xero: z.object({ invoiceId: z.string(), syncedAt: InstantSchema, error: z.string().optional() }).optional(),
-    payments: z.array(PaymentSchema).default([]),
+    /** Its copy in Xero (BILL-09). */
+    xero: XeroSyncSchema.optional(),
+    payments: z.array(InvoicePaymentSchema).default([]),
+    /**
+     * BILL-12 (ADR-035): the firm intends to pay this invoice from money held in trust. Only the
+     * intention: the withdrawal is made, and recorded first, in the firm's trust system.
+     */
+    paidFromTrust: z.boolean().optional(),
+    /** The r 42(3) notice the PDF prints, frozen when given (`billing.trustNotice` on). */
+    trustNotice: z.object({ version: z.number().int().min(1), text: z.string() }).optional(),
   },
   {
     path: `${ORG}/invoices`,
@@ -191,6 +239,8 @@ export const Invoice = withMeta(
       'creditedCents',
       'xero',
       'payments',
+      'paidFromTrust',
+      'trustNotice',
     ],
     updatable: [],
   },
@@ -217,13 +267,88 @@ export const CreditNote = withMeta(
     supplier: InvoicePartySchema.optional(),
     buyer: InvoicePartySchema.optional(),
     ...InvoicePdfShape,
+    /** Its copy in Xero, allocated against the invoice there (BILL-09). */
+    xero: XeroSyncSchema.optional(),
   },
   {
     path: `${ORG}/creditNotes`,
-    serverOwned: ['number', 'subtotalCents', 'gstCents', 'totalCents', 'pdfStatus', 'pdfJobId', 'pdfDocumentId'],
+    serverOwned: [
+      'number',
+      'subtotalCents',
+      'gstCents',
+      'totalCents',
+      'pdfStatus',
+      'pdfJobId',
+      'pdfDocumentId',
+      'xero',
+    ],
     updatable: [],
   },
 );
+
+/** The overdue thresholds, in days past the due date, at which a payment reminder is queued (BILL-08). */
+export const REMINDER_THRESHOLDS = [7, 30, 60] as const;
+export type ReminderThreshold = (typeof REMINDER_THRESHOLDS)[number];
+
+/**
+ * `invoiceReminders/{invoiceId}-{threshold}` (BILL-08, ADR-046): a payment reminder the nightly job
+ * queued for an overdue invoice, for the matter's responsible lawyer to review, edit and send
+ * (`billing-sendReminder`) or dismiss. Nothing is ever sent without a person. `cancelled` is set
+ * by the job when the invoice no longer owes anything, is voided, or reaches a later threshold.
+ * Read-only to clients (`billing.view`).
+ */
+export const InvoiceReminder = withMeta(
+  {
+    invoiceId: DocIdSchema,
+    invoiceNumber: z.string(),
+    matterId: DocIdSchema,
+    matterNumber: z.string().optional(),
+    matterTitle: z.string().optional(),
+    clientName: z.string().optional(),
+    /** Days past due that queued it: 7, 30 or 60. */
+    threshold: z.number().int().min(1),
+    dueDate: DateOnlySchema,
+    /** What was owing when it was queued (inc GST). */
+    balanceCents: CentsSchema,
+    /** Who reviews and sends it: the matter's responsible lawyer when queued. */
+    lawyerUid: DocIdSchema.optional(),
+    /** The clients' email addresses when queued (the default "To"). */
+    to: z.array(z.string()).default([]),
+    status: z.enum(['pending', 'sent', 'dismissed', 'cancelled']),
+    sentAt: InstantSchema.optional(),
+    sentBy: DocIdSchema.optional(),
+    sentTo: z.array(z.string()).optional(),
+    closedAt: InstantSchema.optional(),
+    closedBy: z.string().optional(),
+    closeReason: z.string().optional(),
+  },
+  {
+    path: `${ORG}/invoiceReminders`,
+    migratable: false,
+    serverOwned: [
+      'invoiceId',
+      'invoiceNumber',
+      'matterId',
+      'matterNumber',
+      'matterTitle',
+      'clientName',
+      'threshold',
+      'dueDate',
+      'balanceCents',
+      'lawyerUid',
+      'to',
+      'status',
+      'sentAt',
+      'sentBy',
+      'sentTo',
+      'closedAt',
+      'closedBy',
+      'closeReason',
+    ],
+    updatable: [],
+  },
+);
+export type InvoiceReminder = z.infer<typeof InvoiceReminder.schema>;
 
 /**
  * `templates/{id}`: an org's matter template (CORE-07): the editable draft, plus where it stands.
@@ -264,16 +389,59 @@ export const MatterTemplateVersion = withMeta(
   { path: `${ORG}/templates/{templateId}/versions`, migratable: false, updatable: [] },
 );
 
-/** `docTemplates/{id}`: docx templates with merge fields (INT-06). */
+/** Limits on docx templates (INT-06). */
+export const DOC_TEMPLATE_NAME_MAX = 120;
+export const DOC_TEMPLATE_VERSIONS_MAX = 50;
+/** The largest template file accepted (a letterhead with a logo is well under 1 MB). */
+export const DOC_TEMPLATE_MAX_BYTES = 5 * 1024 * 1024;
+
+/** A template file's Storage path: `orgs/{orgId}/docTemplates/{templateId}/v{n}.docx`. */
+export const DocTemplateStoragePathSchema = z.string().regex(/^orgs\/[^/]+\/docTemplates\/[^/]+\/v\d+\.docx$/);
+
+/** One uploaded version of a docx template (INT-06). Versions are never edited or removed. */
+export const DocTemplateVersionSchema = z
+  .object({
+    version: z.number().int().min(1),
+    storagePath: DocTemplateStoragePathSchema,
+    fileName: NonEmptyString.max(255),
+    sizeBytes: z.number().int().min(0),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    /** The merge fields it uses, as full paths (`client.fullName`, `executors.fullName`), sorted. */
+    fields: z.array(z.string()).max(500),
+    /** Problems that don't stop it merging, such as fonts the PDF preview substitutes. */
+    warnings: z.array(z.string().max(300)).max(20).default([]),
+    uploadedAt: InstantSchema,
+    uploadedBy: DocIdSchema,
+  })
+  .strict();
+export type DocTemplateVersion = z.infer<typeof DocTemplateVersionSchema>;
+
+/**
+ * `docTemplates/{id}`: an org's docx template with merge fields (INT-06, ADR-047). Every upload is a
+ * new version (`versions`; `version`, `storagePath` and `fields` mirror the latest); documents are
+ * generated from `publishedVersion`, so a new upload changes nothing until it is published. A
+ * template that `replaces` a system template hides that one while published. Written only by the
+ * `docs-*` callables; every member reads them.
+ */
 export const DocTemplate = withMeta(
   {
-    name: NonEmptyString,
-    storagePath: z.string(),
-    mergeFields: z.array(z.string()).default([]),
+    name: NonEmptyString.max(DOC_TEMPLATE_NAME_MAX),
+    kind: DocTemplateKindSchema,
+    /** The matter types it is offered on; empty means every type. */
     matterTypes: z.array(MatterTypeSchema).default([]),
-    active: z.boolean().default(true),
+    storagePath: DocTemplateStoragePathSchema,
+    fields: z.array(z.string()).max(500).default([]),
+    version: z.number().int().min(1),
+    versions: z.array(DocTemplateVersionSchema).min(1).max(DOC_TEMPLATE_VERSIONS_MAX),
+    published: z.boolean().default(false),
+    /** The version generation uses; absent until the first publish. */
+    publishedVersion: z.number().int().min(1).optional(),
+    publishedAt: InstantSchema.optional(),
+    publishedBy: DocIdSchema.optional(),
+    /** The system template this one stands in for (`system-letter`): hidden while this is published. */
+    replaces: DocIdSchema.optional(),
   },
-  { path: `${ORG}/docTemplates`, softDelete: true },
+  { path: `${ORG}/docTemplates`, softDelete: true, updatable: [] },
 );
 
 /** Limits on checklist templates (CORE-08d); the items match a template task's checklist (CORE-07). */
@@ -331,14 +499,59 @@ export const TaskGroupTemplate = withMeta(
   { path: `${ORG}/taskGroupTemplates`, softDelete: true, migratable: false },
 );
 
+/** Aged-debt buckets, by whole days past the due date (BILL-08): not yet due, 1–30, 31–60, 61–90, over 90. */
+export const AGED_BUCKETS = ['current', 'd1_30', 'd31_60', 'd61_90', 'd90_plus'] as const;
+export type AgedBucket = (typeof AGED_BUCKETS)[number];
+export const AgedAmountsSchema = z.object({
+  current: CentsSchema,
+  d1_30: CentsSchema,
+  d31_60: CentsSchema,
+  d61_90: CentsSchema,
+  d90_plus: CentsSchema,
+});
+export type AgedAmounts = z.infer<typeof AgedAmountsSchema>;
+
+/** One matter's outstanding invoices in the aged-debtors report (BILL-08). */
+export const DebtorRowSchema = z.object({
+  matterId: DocIdSchema,
+  matterNumber: z.string(),
+  matterTitle: z.string(),
+  /** The invoice's buyer as issued (the clients' names). */
+  clientName: z.string(),
+  lawyerUid: DocIdSchema.optional(),
+  invoices: z.number().int().min(0),
+  buckets: AgedAmountsSchema,
+  totalCents: CentsSchema,
+  oldestDueDate: DateOnlySchema.optional(),
+});
+export type DebtorRow = z.infer<typeof DebtorRowSchema>;
+
+/** `metrics/debtors-{date}`: the aged-debtors report as of a day (BILL-08). */
+export const DebtorsSnapshotSchema = z.object({
+  asOf: DateOnlySchema,
+  rows: z.array(DebtorRowSchema),
+  /** More matters owed than one document holds; the totals still count them all. */
+  truncated: z.boolean().default(false),
+});
+export type DebtorsSnapshot = z.infer<typeof DebtorsSnapshotSchema>;
+
 /**
- * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY`, or
- * `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per feature and per user).
+ * `metrics/{period}`: rollups; period is `day-YYYY-MM-DD`, `month-YYYY-MM` or `fy-YYYY` (INS-01,
+ * ADR-048: org-wide counters in `values`, members' in `byMember/{uid}`, a large org's in
+ * `shards/{n}` too), or `clerk-YYYY-MM` for Clerk metering (AI-02: token and cost totals, per
+ * feature and per user), or `debtors-YYYY-MM-DD` for the aged-debtors report (BILL-08: bucket
+ * totals in `values`, the matters in `debtors`; Clerk's metrics scope reads only month and year
+ * rollups).
  */
 export const Metrics = withMeta(
   {
-    period: z.string().regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4}|clerk-\d{4}-\d{2})$/),
+    period: z
+      .string()
+      .regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4}|clerk-\d{4}-\d{2}|debtors-\d{4}-\d{2}-\d{2})$/),
     values: z.record(z.string(), z.number()),
+    /** The day the snapshot figures (`wip.`, `active.`, `overdue.`, `debtors.`) were taken (INS-01). */
+    snapshotOn: DateOnlySchema.optional(),
+    debtors: DebtorsSnapshotSchema.optional(),
   },
   { path: `${ORG}/metrics`, migratable: false },
 );
@@ -530,6 +743,8 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
   // A testator whose original is held in safe custody has died (CORE-17): to the packet's lawyer.
   z.object({ kind: z.literal('safe_custody'), packetId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('budget_alert'), matterId: DocIdSchema, ...notificationBase }),
+  // A costs disclosure is due: unsent 7 days on, or an estimate revision made it out of date (BILL-06).
+  z.object({ kind: z.literal('costs_disclosure'), matterId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('system'), ...notificationBase }),
 ]);
 export type NotificationKind = z.infer<typeof NotificationPayloadSchema>['kind'];
@@ -545,20 +760,33 @@ export const Notification = {
 export type Notification = z.infer<typeof Notification.schema>;
 
 /**
- * `integrations/{uid_provider}`: server-only; secrets are KMS-encrypted (ADR-019). OAuth providers
- * store a refresh token; `integrations/anthropic` holds the org's own Anthropic API key (AI-02a,
- * ADR-011b), with only its last four characters in clear.
+ * `integrations/{id}`: server-only; secrets are KMS-encrypted (ADR-019). OAuth connections (INT-01,
+ * ADR-051) are `{uid}_{provider}` per person or `{provider}` per practice and store a refresh token
+ * bound to the document path; `integrations/anthropic` holds the org's own Anthropic API key
+ * (AI-02a, ADR-011b), with only its last four characters in clear.
  */
 export const Integration = withMeta(
   {
     provider: z.enum(['microsoft', 'google', 'xero', 'anthropic']),
     uid: DocIdSchema.nullable(),
-    /** `valid` and `invalid` are the Anthropic key's states (invalid: Anthropic rejected it). */
-    status: z.enum(['connected', 'error', 'revoked', 'valid', 'invalid']),
+    /**
+     * OAuth: `connected`, or `reconnect_required` once the provider refuses the refresh token.
+     * `valid` and `invalid` are the Anthropic key's states (invalid: Anthropic rejected it).
+     */
+    status: z.enum(['connected', 'reconnect_required', 'error', 'revoked', 'valid', 'invalid']),
+    level: IntegrationLevelSchema.optional(),
+    /** A new id for each connect, so a refresh never overwrites a newer connection's token. */
+    connectionId: z.string().optional(),
     scopes: z.array(z.string()).default([]),
+    account: IntegrationAccountSchema.optional(),
     encryptedRefreshToken: z.string().optional(),
     encryptedApiKey: z.string().optional(),
     kmsKeyVersion: z.string(),
+    connectedAt: InstantSchema.optional(),
+    connectedBy: DocIdSchema.optional(),
+    /** When the refresh token was last rotated by the provider. */
+    refreshedAt: InstantSchema.optional(),
+    reconnectRequiredAt: InstantSchema.optional(),
     last4: z.string().max(4).optional(),
     setBy: DocIdSchema.optional(),
     setAt: InstantSchema.optional(),
@@ -570,6 +798,69 @@ export const Integration = withMeta(
     error: z.string().optional(),
   },
   { path: `${ORG}/integrations`, migratable: false, updatable: [] },
+);
+
+/**
+ * `integrationStatus/{id}` (INT-01, ADR-051): the client-readable mirror of an OAuth connection,
+ * with the same id as its `integrations` document and nothing secret. A practice connection is
+ * read by every member, a person's own only by them. Written only by the vault.
+ */
+export const IntegrationStatus = withMeta(
+  {
+    provider: OAuthProviderSchema,
+    level: IntegrationLevelSchema,
+    /** The person whose connection it is; null for the practice's. */
+    uid: DocIdSchema.nullable(),
+    status: IntegrationConnectionStatusSchema,
+    scopes: z.array(z.string()).default([]),
+    account: IntegrationAccountSchema.optional(),
+    connectedAt: InstantSchema.optional(),
+    connectedBy: DocIdSchema.optional(),
+    reconnectRequiredAt: InstantSchema.optional(),
+    disconnectedAt: InstantSchema.optional(),
+    /** A uid, or `system` (the member was removed). */
+    disconnectedBy: z.string().min(1).optional(),
+    reason: IntegrationStatusReasonSchema.optional(),
+    /** Xero: when payments were last brought across (BILL-09). Reset by reconnecting. */
+    sync: XeroPullStateSchema.optional(),
+  },
+  { path: `${ORG}/integrationStatus`, migratable: false, updatable: [] },
+);
+
+/**
+ * `integrationStates/{sha256(state)}` (INT-01, ADR-051): one connect attempt, server-only. The
+ * OAuth `state` is a random nonce the browser carries; only its hash is the id, so reading the
+ * collection gives no usable state. Used once by `integrations-complete`, which checks it belongs
+ * to the caller; Firestore TTL deletes abandoned ones after `expireAt`.
+ */
+export const IntegrationState = withMeta(
+  {
+    provider: OAuthProviderSchema,
+    level: IntegrationLevelSchema,
+    uid: DocIdSchema,
+    /** The PKCE verifier (RFC 7636); only the token exchange uses it. */
+    codeVerifier: z.string().min(43).max(128),
+    redirectUri: z.string().url(),
+    returnTo: AppReturnPathSchema,
+    expireAt: InstantSchema,
+  },
+  { path: `${ORG}/integrationStates`, migratable: false, updatable: [] },
+);
+
+/**
+ * `xeroContacts/{tenantId}_{hash}` (BILL-09, ADR-053): the Xero contact a matter's clients are
+ * invoiced as, in one Xero organisation. Keyed by the organisation and the (sorted) client
+ * contacts, so joint clients ("A and B") get one contact of their own. Server-only.
+ */
+export const XeroContactLink = withMeta(
+  {
+    tenantId: z.string().max(64),
+    contactId: z.string().max(64),
+    clientContactIds: z.array(DocIdSchema).min(1).max(20),
+    /** The name it was created or matched with in Xero. */
+    name: z.string().max(255),
+  },
+  { path: `${ORG}/xeroContacts`, migratable: false, updatable: [] },
 );
 
 /** A stored matter document: originals' scans and release authorities (CORE-17). */
@@ -768,6 +1059,9 @@ export type TaskGroupTemplate = z.infer<typeof TaskGroupTemplate.schema>;
 export type Metrics = z.infer<typeof Metrics.schema>;
 export type AuditEntry = z.infer<typeof AuditEntry.schema>;
 export type Integration = z.infer<typeof Integration.schema>;
+export type IntegrationStatus = z.infer<typeof IntegrationStatus.schema>;
+export type IntegrationState = z.infer<typeof IntegrationState.schema>;
+export type XeroContactLink = z.infer<typeof XeroContactLink.schema>;
 export type SafeCustody = z.infer<typeof SafeCustody.schema>;
 export type TrustSnapshot = z.infer<typeof TrustSnapshot.schema>;
 export type MigrationRun = z.infer<typeof MigrationRun.schema>;

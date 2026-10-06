@@ -51,7 +51,7 @@ class ClerkPort extends FakeAuthPort {
     const clerk = { ...(settings.clerk ?? {}) };
     if (input['enabled'] !== undefined) clerk['enabled'] = input['enabled'];
     if (input['features']) clerk['features'] = { ...(clerk['features'] as object), ...(input['features'] as object) };
-    for (const field of ['monthlyBudgetCents', 'perUserDailyRequests']) {
+    for (const field of ['monthlyBudgetCents', 'perUserDailyRequests', 'ocrDailyPages']) {
       if (input[field] !== undefined) clerk[field] = input[field];
     }
     const kept = Object.fromEntries(Object.entries(clerk).filter(([, value]) => value !== null));
@@ -180,6 +180,15 @@ describe('Settings → Clerk and AI', () => {
     expect(page.text()).not.toContain('I’ve read this');
   });
 
+  it('folds the long reading away once acknowledged: the disclosure, data and retention, cost breakdown', async () => {
+    const page = await open('/settings/clerk', ADMIN, { ackVersion: CLERK_DISCLOSURE_VERSION });
+    expect(page.page().querySelector('[data-acknowledged]')?.textContent?.replace(/\s+/g, ' ').trim()).toMatch(
+      /^Acknowledged by .+\S\.$/,
+    );
+    for (const selector of ['details.disclosure', 'details[data-retention]', 'details[data-breakdown]'])
+      expect(page.page().querySelector(selector)?.hasAttribute('open'), selector).toBe(false);
+  });
+
   it('turns a feature and Clerk itself off at once', async () => {
     const page = await open('/settings/clerk', ADMIN, { ackVersion: CLERK_DISCLOSURE_VERSION });
     await page.flip('[data-feature="chat"]');
@@ -219,14 +228,59 @@ describe('Settings → Clerk and AI', () => {
     const dialog = document.body.querySelector<HTMLElement>('.mt-dialog');
     expect(dialog?.textContent).toContain('Stop Clerk for the rest of the month?');
     await page.click('Set the limit', dialog ?? undefined);
-    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({ monthlyBudgetCents: 250, perUserDailyRequests: 200 });
+    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({
+      monthlyBudgetCents: 250,
+      perUserDailyRequests: 200,
+      ocrDailyPages: null,
+    });
     expect(page.clerk()).toMatchObject({ monthlyBudgetCents: 250, perUserDailyRequests: 200 });
     expect(page.el.querySelector('[data-budget-reached]')).not.toBeNull();
 
     // Clearing a limit sends null.
     await page.type('Monthly spend limit', '');
     await page.click('Save limits');
-    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({ monthlyBudgetCents: null, perUserDailyRequests: 200 });
+    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({
+      monthlyBudgetCents: null,
+      perUserDailyRequests: 200,
+      ocrDailyPages: null,
+    });
+
+    // The daily scanned-page limit: 0 stops reading scans; empty goes back to the default.
+    await page.type('Scanned pages read per day', '-1');
+    expect(page.text()).toContain('Enter a whole number from 0');
+    await page.type('Scanned pages read per day', '0');
+    await page.click('Save limits');
+    expect(page.calls('clerk-updateSettings').at(-1)).toMatchObject({ ocrDailyPages: 0 });
+    expect(page.clerk()).toMatchObject({ ocrDailyPages: 0 });
+    await page.type('Scanned pages read per day', '');
+    await page.click('Save limits');
+    expect(page.calls('clerk-updateSettings').at(-1)).toMatchObject({ ocrDailyPages: null });
+  });
+
+  it('fills the limits from settings that arrive after the first snapshot, but keeps what someone typed', async () => {
+    // After a reload the first snapshot can come from the offline cache, older than the server's.
+    const page = await open('/settings/clerk', ADMIN, { ackVersion: CLERK_DISCLOSURE_VERSION });
+    const field = (label: string) =>
+      [...page.el.querySelectorAll('mt-text-field')].find((f) => f.textContent?.includes(label))?.querySelector('input')
+        ?.value;
+    expect(field('Monthly spend limit')).toBe('');
+
+    const org = page.firestore.get(`orgs/${ORG}`) ?? {};
+    const later = (clerk: Record<string, unknown>) =>
+      page.firestore.set(`orgs/${ORG}`, {
+        ...org,
+        settings: { clerk: { ackVersion: CLERK_DISCLOSURE_VERSION, ...clerk } },
+      });
+    later({ monthlyBudgetCents: 25_000, perUserDailyRequests: 150, ocrDailyPages: 50 });
+    await page.stable();
+    expect(field('Monthly spend limit')).toBe('250.00');
+    expect(field('Requests per person per day')).toBe('150');
+    expect(field('Scanned pages read per day')).toBe('50');
+
+    await page.type('Monthly spend limit', '300');
+    later({ monthlyBudgetCents: 40_000, perUserDailyRequests: 150 });
+    await page.stable();
+    expect(field('Monthly spend limit')).toBe('300');
   });
 
   it('shows a lawyer what is on and the disclosure, read-only, with no key, limits or usage', async () => {

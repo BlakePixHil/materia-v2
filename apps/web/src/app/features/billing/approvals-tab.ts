@@ -37,6 +37,7 @@ import {
   type WriteDownDialogData,
   type WriteDownDialogResult,
 } from './review-dialogs';
+import { writeDownFields } from './write-down';
 import { errorCopy } from '../../core/error-copy';
 import { TimeEntryForm, type TimeEntryFormValue } from '../time/time-entry-form';
 import { dayHeading } from '../time/time-view';
@@ -295,13 +296,8 @@ export class ApprovalsTab {
         this.screen.api.writeDown({
           matterId,
           entryIds: group.map((entry) => entry.id),
-          reason: change.reason,
           expectedUpdatedAt: expectedUpdatedAt(group),
-          ...('writeOff' in change
-            ? { writeOff: true as const }
-            : 'percent' in change
-              ? { percent: change.percent }
-              : { newUnits: change.newUnits }),
+          ...writeDownFields(change),
         }),
       entries,
     );

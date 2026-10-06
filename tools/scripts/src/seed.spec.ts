@@ -145,6 +145,23 @@ describe('seed dataset', () => {
     }
   });
 
+  it('gives each contact the roles it holds on live matters, as contacts-onPartyWrite would (CORE-01a)', () => {
+    const rows = dataset.docs.filter((d) => /\/parties\/[^/]+$/.test(d.path));
+    let withRoles = 0;
+    for (const contact of docsUnder('contacts')) {
+      const id = contact.path.split('/').at(-1);
+      const held = new Set(
+        rows.filter((r) => (r.data as D.Party).contactId === id).map((r) => (r.data as D.Party).role),
+      );
+      const roles = (contact.data as D.Contact).matterRoles;
+      expect(new Set(roles), contact.path).toEqual(held);
+      expect(roles, contact.path).toEqual(D.PARTY_ROLE_ORDER.filter((role) => held.has(role)));
+      if (roles.length) withRoles++;
+    }
+    expect(withRoles).toBeGreaterThan(10);
+    expect(new Set(docsUnder('contacts').flatMap((c) => (c.data as D.Contact).matterRoles))).toContain('executor');
+  });
+
   it('gives demo matters a stage and key facts that meet the stage’s requirements (CORE-06)', () => {
     const matters = docsUnder('matters').map((d) => d.data as D.Matter);
     const staged = matters.filter((m) => m.stageId && m.templateId);
@@ -296,6 +313,16 @@ describe('seed dataset', () => {
     expect(presets?.data['presets']).toEqual(D.DEFAULT_DISBURSEMENT_PRESETS);
   });
 
+  it('seeds the letterhead details with a Geelong address (INT-06)', () => {
+    const letterhead = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}/settings/letterhead`);
+    expect(letterhead?.data).toMatchObject({
+      address: 'Level 2, 10 Example Street\nGeelong VIC 3220',
+      phone: '(03) 5200 0000',
+    });
+    const entity = registry.find((e) => e.pattern.test(letterhead?.path ?? ''));
+    expect(entity?.name).toBe('LetterheadDoc');
+  });
+
   it('seeds the conflict scenarios with conflicts.enforced on, but not in the minimal scenario (CORE-02)', () => {
     const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
     expect(org?.['flags']).toEqual({
@@ -306,6 +333,7 @@ describe('seed dataset', () => {
       'matters.destruction': true,
       'clerk.features.suggestions': true,
       'billing.feeBudgets': true,
+      'billing.costsDisclosure': true,
       'billing.disbursements': true,
       'billing.trustDisplay': true,
     });

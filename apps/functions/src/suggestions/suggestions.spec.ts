@@ -13,6 +13,7 @@ import {
 import { acceptDefinition, acceptManyDefinition } from './accept';
 import { dismissDefinition } from './dismiss';
 import { expireSuggestions } from './expire';
+import { notifyNewSuggestions, type SuggestionNoticeOptions } from './notify';
 import { proposeSuggestions, type ProposeOptions } from './propose';
 import {
   handledSuggestionKinds,
@@ -23,8 +24,10 @@ import {
 import { runCallable, type CallableDefinition, type CallableDeps } from '../core/callable';
 import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
+import type { TriggerChange, TriggerContext } from '../core/trigger';
+import { clearStaleFactCitations } from '../matters/fact-citations';
 import { memoryFirestore } from '../orgs/testing';
-import { FakeClock, fakePorts } from '../ports/fakes';
+import { FakeClock, fakePorts, FakeTaskQueue } from '../ports/fakes';
 
 /** Unit tests for Clerk suggestions (AI-07). Every org, person, matter and record is fictional. */
 
@@ -111,7 +114,37 @@ function world(
       .filter(([p]) => p.startsWith(`${path}/`) && p.split('/').length === path.split('/').length + 1)
       .map(([p, data]): Data & { id: string } => ({ ...data, id: p.split('/').at(-1) as string }));
   const suggestion = (id: string, matterId = 'm1') => doc(`${M}/${matterId}/suggestions/${id}`) as Data;
-  return { store, clock, accept, acceptMany, dismiss, propose, doc, under, suggestion, log };
+  const tasks = new FakeTaskQueue();
+  const logs: { message: string; entry: Data }[] = [];
+  const noticeLog = createLog({ fn: 'test' }, (_s, message, entry) => void logs.push({ message, entry }));
+  const notice = (
+    created: Awaited<ReturnType<typeof propose>>['created'],
+    options: SuggestionNoticeOptions = {},
+    matterId = 'm1',
+  ) =>
+    notifyNewSuggestions(
+      { db: store.db, orgId: ORG, clock, log: noticeLog, ports: { tasks } },
+      matterId,
+      created,
+      options,
+    );
+  const notifications = () => under(`orgs/${ORG}/notifications`);
+  return {
+    store,
+    clock,
+    accept,
+    acceptMany,
+    dismiss,
+    propose,
+    doc,
+    under,
+    suggestion,
+    log,
+    notice,
+    notifications,
+    tasks,
+    logs,
+  };
 }
 
 async function failure(promise: Promise<unknown>): Promise<HttpsError & { details: Data }> {
@@ -232,6 +265,75 @@ describe('proposeSuggestions', () => {
   });
 });
 
+describe('notifyNewSuggestions (CORE-22a)', () => {
+  it('tells the responsible lawyer once per batch, about the first suggestion, without its content', async () => {
+    const w = world();
+    const { created } = await w.propose([task(), task('Write to the bank')]);
+    const ids = await w.notice(created);
+    expect(ids).toEqual([`suggest-m1-${created[0]?.id}`]);
+    expect(w.notifications()).toEqual([
+      expect.objectContaining({
+        id: `suggest-m1-${created[0]?.id}`,
+        kind: 'suggestion',
+        recipientUid: 'user-lawyer',
+        suggestionId: created[0]?.id,
+        matterId: 'm1',
+        title: 'Clerk has 2 suggestions on SG-2026-0001',
+        body: 'Task: review them before anything changes.',
+        link: '/matters/m1/overview',
+        channels: ['inapp'],
+        readAt: null,
+        createdBy: 'clerk',
+      }),
+    ]);
+    expect(JSON.stringify(w.notifications())).not.toContain('valuation');
+    // In-app only by default: nothing to deliver. A rerun rewrites the same notification.
+    expect(w.tasks.queued).toEqual([]);
+    await w.notice(created);
+    expect(w.notifications()).toHaveLength(1);
+    // Nothing new, nothing sent.
+    expect(await w.notice([])).toEqual([]);
+  });
+
+  it('falls back to the uploader when the responsible lawyer can’t review it, never to a read-only member', async () => {
+    const w = world({ [`${M}/m-ro`]: matter({ number: 'SG-2026-0002', responsibleUid: 'user-readonly' }) });
+    const doc = { kind: 'document_meta', payload: { documentId: 'd9', category: 'will' } };
+    const { created } = await w.propose([doc], {}, 'm-ro');
+    expect(await w.notice(created, {}, 'm-ro')).toEqual([]);
+    expect(w.logs.map((l) => l.entry['reason'])).toContain('no_recipient');
+    expect(await w.notice(created, { fallbackUid: 'user-readonly' }, 'm-ro')).toEqual([]);
+    await w.notice(created, { fallbackUid: 'user-paralegal' }, 'm-ro');
+    expect(w.notifications()).toEqual([
+      expect.objectContaining({
+        recipientUid: 'user-paralegal',
+        title: 'Clerk has a suggestion on SG-2026-0002',
+        body: 'Document details: review it before anything changes.',
+      }),
+    ]);
+  });
+
+  it('sends a privileged suggestion only to someone who can see privileged material', async () => {
+    const w = world({
+      [`${M}/m-priv`]: matter({ number: 'SG-2026-0003', privileged: true, responsibleUid: 'user-paralegal' }),
+    });
+    const { created } = await w.propose([task()], {}, 'm-priv');
+    expect(created[0]?.privileged).toBe(true);
+    expect(await w.notice(created, { fallbackUid: 'user-readonly' }, 'm-priv')).toEqual([]);
+    await w.notice(created, { fallbackUid: 'user-owner' }, 'm-priv');
+    expect(w.notifications().map((n) => n['recipientUid'])).toEqual(['user-owner']);
+  });
+
+  it('leaves out inactive members and follows the recipient’s preferences', async () => {
+    const w = world({
+      [`orgs/${ORG}/members/user-lawyer`]: { ...member('lawyer'), status: 'suspended' },
+      'users/user-owner': { prefs: { notifications: { kinds: { suggestion: { inapp: false } } } } },
+    });
+    const { created } = await w.propose([task()]);
+    expect(await w.notice(created, { fallbackUid: 'user-owner' })).toEqual([]);
+    expect(w.notifications()).toEqual([]);
+  });
+});
+
 describe('suggestions-accept', () => {
   async function proposed(w: ReturnType<typeof world>, proposal: unknown) {
     const result = await w.propose([proposal]);
@@ -348,12 +450,12 @@ describe('suggestions-accept', () => {
   it('rejects kinds without a handler', async () => {
     const w = world();
     const id = await proposed(w, {
-      kind: 'time_entry',
-      payload: { date: '2026-10-05', minutes: 30, narrative: 'Call with executor' },
+      kind: 'evidence',
+      payload: { documentId: 'd1', supports: 'us', strength: 2 },
     });
     expect((await failure(w.accept({ suggestionId: id }))).details).toMatchObject({
       code: 'SUGGESTION_UNSUPPORTED',
-      kind: 'time_entry',
+      kind: 'evidence',
     });
     expect(handledSuggestionKinds()).toEqual([
       'deadline',
@@ -363,31 +465,32 @@ describe('suggestions-accept', () => {
       'note',
       'party',
       'task',
+      'time_entry',
     ]);
   });
 
   it('a registered handler makes a kind acceptable', async () => {
     const w = world();
     registerSuggestionHandler({
-      kind: 'time_entry',
+      kind: 'evidence',
       async apply(ctx) {
         await ctx.db.runTransaction(async (tx) => {
           await ctx.join.read(tx);
-          ctx.join.write(tx, 'orgs/org-s/matters/m1/timeEntries/te-fake');
+          ctx.join.write(tx, 'orgs/org-s/matters/m1/evidence/ev-fake');
         });
-        return { resultRef: 'orgs/org-s/matters/m1/timeEntries/te-fake' };
+        return { resultRef: 'orgs/org-s/matters/m1/evidence/ev-fake' };
       },
     });
     try {
       const id = await proposed(w, {
-        kind: 'time_entry',
-        payload: { date: '2026-10-05', minutes: 30, narrative: 'Call with executor' },
+        kind: 'evidence',
+        payload: { documentId: 'd1', supports: 'us', strength: 2 },
       });
-      expect((await w.accept({ suggestionId: id })).resultRef).toContain('te-fake');
+      expect((await w.accept({ suggestionId: id })).resultRef).toContain('ev-fake');
     } finally {
-      unregisterSuggestionHandler('time_entry');
+      unregisterSuggestionHandler('evidence');
     }
-    expect(suggestionHandler('time_entry')).toBeUndefined();
+    expect(suggestionHandler('evidence')).toBeUndefined();
   });
 
   it('only roles that could do it by hand accept', async () => {
@@ -455,6 +558,168 @@ describe('suggestions-accept', () => {
   it('is refused while the flag is off', async () => {
     const w = world({}, {});
     expect((await failure(w.accept({ suggestionId: 'x' }))).details['code']).toBe('FEATURE_DISABLED');
+  });
+});
+
+describe('key fact citations (CORE-06a)', () => {
+  const WILL_LINE = 'Signed by the will-maker on 3 May 2019.';
+  const cite = (documentId = 'd1', extra: Data = {}) => ({
+    documentId,
+    version: 1,
+    page: 2,
+    quote: WILL_LINE,
+    ...extra,
+  });
+  const fact = (field: string, value: string | number, citations: unknown[] = [cite()]) => ({
+    kind: 'key_fact',
+    payload: { field, value },
+    citations,
+    rationale: 'The will’s attestation clause dates it',
+  });
+  const record = (w: ReturnType<typeof world>, factId: string) => w.doc(`${M}/m1/factCitations/${factId}`);
+
+  async function accepted(
+    w: ReturnType<typeof world>,
+    proposal: unknown,
+    data: Data = {},
+    options: Partial<ProposeOptions> = {},
+  ) {
+    const created = await w.propose([proposal], options);
+    const id = created.created[0]?.id;
+    if (!id) throw new Error(`not created: ${JSON.stringify(created.skipped)}`);
+    await w.accept({ suggestionId: id, ...data });
+    return id;
+  }
+
+  /** `matters-denormalise`'s clean-up for a write from `before` to the stored matter. */
+  function cleanUp(w: ReturnType<typeof world>, before: Data) {
+    const path = `${M}/m1`;
+    const after = w.doc(path);
+    const change = {
+      before: { ref: { path }, data: () => before },
+      after: after ? { ref: { path }, data: () => after } : undefined,
+    } as unknown as TriggerChange;
+    const ctx = {
+      eventId: 'e1',
+      time: NOW,
+      params: { orgId: ORG, matterId: 'm1' },
+      log: w.log,
+      clock: w.clock,
+      db: w.store.db,
+      ports: fakePorts(),
+    } as unknown as TriggerContext;
+    return clearStaleFactCitations(change, ctx);
+  }
+
+  it('keeps what Clerk cited with the fact, in the accept’s transaction', async () => {
+    const w = world();
+    const id = await accepted(w, fact('willDate', '2019-05-03'));
+    expect((w.doc(`${M}/m1`)?.['facts'] as Data)['willDate']).toBe('2019-05-03');
+    expect(record(w, 'willDate')).toMatchObject({
+      factId: 'willDate',
+      value: '2019-05-03',
+      // Stored with the current field names (`version` read as `docVersion`).
+      citations: [{ kind: 'document', documentId: 'd1', docVersion: 1, page: 2, quote: WILL_LINE }],
+      suggestionId: id,
+      privileged: false,
+      createdBy: 'user-lawyer',
+      schemaVersion: 1,
+    });
+    expect(record(w, 'willDate')?.['citations']).toEqual([expect.not.objectContaining({ version: 1 })]);
+  });
+
+  it('keeps the citations of a date of death recorded as its event (CORE-10)', async () => {
+    const w = world({
+      [`${M}/m1`]: matter({ deceased: { contactId: 'c-client', domicile: 'VIC', lastAddress: '1 Example St' } }),
+    });
+    await accepted(w, fact('dateOfDeath', '2026-07-01'));
+    expect((w.doc(`${M}/m1`)?.['deceased'] as Data)['dateOfDeath']).toBe('2026-07-01');
+    expect(w.under(`${M}/m1/events`)).toEqual([expect.objectContaining({ kind: 'date_of_death', date: '2026-07-01' })]);
+    expect(record(w, 'dateOfDeath')).toMatchObject({ value: '2026-07-01', citations: [{ page: 2 }] });
+  });
+
+  it('keeps none when the person changed the value first, or Clerk cited nothing', async () => {
+    const w = world();
+    await accepted(w, fact('grantNo', 'G-2026-77'), { editedPayload: { field: 'grantNo', value: 'G-2026-78' } });
+    expect((w.doc(`${M}/m1`)?.['estate'] as Data)['grantNo']).toBe('G-2026-78');
+    expect(record(w, 'grantNo')).toBeUndefined();
+    await accepted(w, fact('willDate', '2019-05-03', []));
+    expect(record(w, 'willDate')).toBeUndefined();
+    // An edit that leaves the value as proposed keeps them.
+    await accepted(w, fact('grossValue', 125_000_00), { editedPayload: { field: 'grossValue', value: 125_000_00 } });
+    expect(record(w, 'grossValue')).toMatchObject({ value: 125_000_00 });
+  });
+
+  it('is privileged when the suggestion is, or a cited document is', async () => {
+    const w = world({
+      [`${M}/m1/documents/d-advice`]: { ...meta, name: 'Advice', category: 'other', privileged: true, version: 1 },
+    });
+    await accepted(w, fact('willDate', '2019-05-03'));
+    expect(record(w, 'willDate')?.['privileged']).toBe(false);
+    await accepted(w, fact('grantNo', 'G-2026-77', [cite('d1'), cite('d-advice')]));
+    expect(record(w, 'grantNo')?.['privileged']).toBe(true);
+    await accepted(w, fact('grossValue', 125_000_00), {}, { privileged: true });
+    expect(record(w, 'grossValue')?.['privileged']).toBe(true);
+  });
+
+  it('is privileged when a cited document became privileged after Clerk proposed it', async () => {
+    const w = world();
+    const created = await w.propose([fact('willDate', '2019-05-03')]);
+    const id = created.created[0]?.id ?? 'missing';
+    w.store.docs.set(`${M}/m1/documents/d1`, { ...w.doc(`${M}/m1/documents/d1`), privileged: true });
+    // The sources changed: reviewed, then accepted against the new basis.
+    const stale = await failure(w.accept({ suggestionId: id }));
+    expect(stale.details['code']).toBe('SUGGESTION_STALE');
+    expect(record(w, 'willDate')).toBeUndefined();
+    await w.accept({ suggestionId: id, expectedBasis: stale.details['basis'] });
+    expect(record(w, 'willDate')).toMatchObject({ value: '2019-05-03', privileged: true });
+  });
+
+  it('writes nothing when the fact is refused', async () => {
+    const w = world({ [`${M}/m1`]: matter({ type: 'will' }) });
+    const created = await w.propose([fact('grantNo', 'G-2026-77')]);
+    const id = created.created[0]?.id ?? 'missing';
+    expect((await failure(w.accept({ suggestionId: id }))).details['code']).toBe('INVALID_ARGUMENT');
+    expect(record(w, 'grantNo')).toBeUndefined();
+    expect(w.suggestion(id)['status']).toBe('proposed');
+  });
+
+  it('a person’s edit of the fact clears its citations; other facts keep theirs', async () => {
+    const w = world();
+    await accepted(w, fact('grantNo', 'G-2026-77'));
+    await accepted(w, fact('willDate', '2019-05-03'));
+    const before = { ...w.doc(`${M}/m1`) } as Data;
+    // As the Key facts card writes it: the whole estate object, with the new grant number.
+    await w.store.db.doc(`${M}/m1`).update({ estate: { grantNo: 'G-2026-99' }, updatedBy: 'user-paralegal' });
+    expect(await cleanUp(w, before)).toEqual(['grantNo']);
+    expect(record(w, 'grantNo')).toBeUndefined();
+    expect(record(w, 'willDate')).toBeDefined();
+    // Clearing the fact clears them too.
+    const again = { ...w.doc(`${M}/m1`) } as Data;
+    await w.store.db.doc(`${M}/m1`).update({ facts: {} });
+    expect(await cleanUp(w, again)).toEqual(['willDate']);
+    expect(record(w, 'willDate')).toBeUndefined();
+  });
+
+  it('keeps citations whose value the fact has again, and ignores writes that change no fact', async () => {
+    const w = world();
+    await accepted(w, fact('grantNo', 'G-2026-77'));
+    const stored = { ...w.doc(`${M}/m1`) } as Data;
+    // An out-of-date event: the fact read differently before, but the matter has the cited value now.
+    expect(await cleanUp(w, { ...stored, estate: { grantNo: 'G-1' } })).toEqual([]);
+    expect(record(w, 'grantNo')).toBeDefined();
+    await w.store.db.doc(`${M}/m1`).update({ title: 'Estate of Fictional Marlowe' });
+    expect(await cleanUp(w, stored)).toEqual([]);
+    expect(record(w, 'grantNo')).toBeDefined();
+  });
+
+  it('leaves a destroyed matter’s tombstone alone (CORE-19)', async () => {
+    const w = world();
+    await accepted(w, fact('grantNo', 'G-2026-77'));
+    const before = { ...w.doc(`${M}/m1`) } as Data;
+    w.store.docs.set(`${M}/m1`, { ...before, estate: {}, destroyedAt: NOW });
+    expect(await cleanUp(w, before)).toEqual([]);
+    expect(record(w, 'grantNo')).toBeDefined();
   });
 });
 

@@ -3,10 +3,9 @@
   "title": "Chat answers (AI-06)",
   "ticket": "AI-06",
   "feature": "chat",
-  "promptId": "chat@1.0.0",
+  "promptId": "chat@1.1.0",
   "subset": [
     "chat-001",
-    "chat-002",
     "chat-003",
     "chat-005",
     "chat-006",
@@ -15,7 +14,9 @@
     "chat-009",
     "chat-011",
     "chat-013",
-    "chat-014"
+    "chat-014",
+    "chat-015",
+    "chat-017"
   ],
   "runs": {
     "subset": 1,
@@ -39,6 +40,14 @@
       "maxRegression": 0
     },
     "noInventions": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "draftAccuracy": {
+      "min": 0.8,
+      "maxRegression": 0.2
+    },
+    "draftHonesty": {
       "min": 1,
       "maxRegression": 0
     },

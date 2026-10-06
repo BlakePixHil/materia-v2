@@ -1,12 +1,15 @@
+import { fyTotals, type BillingEntryLike } from './billing';
 import { isUrgentChange } from './deadlines';
 import type { DeadlineStatus, Priority, TaskStatus } from './schemas/enums';
 import { endOfWeek, OPEN_TASK_STATUSES, PRIORITY_RANK } from './tasks';
-import { compareDates, dateOnlyAt, type DateOnly } from './values/date-only';
+import { addDays, addMonths, compareDates, dateOnly, dateOnlyAt, type DateOnly } from './values/date-only';
+import { cents, type Cents } from './values/money';
 
 /**
  * The Today screen (CORE-14): pure helpers that put the person's overdue deadlines, pending
- * deadline changes, escalations, and this week's deadlines and tasks into its sections, in order.
- * No data access here; the web feature reads the rows and the matters they're on.
+ * deadline changes, escalations, and this week's deadlines and tasks into its sections, in order,
+ * and work out their WIP this month. No data access here; the web feature reads the rows and the
+ * matters they're on.
  */
 
 /** The most rows a Today section shows; past this it links to the full list. */
@@ -225,6 +228,24 @@ export function groupDueItems<T extends { dueDate: DateOnly }>(
     { id: 'today' as const, label: 'Today', items: today },
     { id: 'this_week' as const, label: 'Later this week', items: later },
   ].filter((group) => group.items.length);
+}
+
+// ---------- WIP this month ----------
+
+/** The first and last days of the month `todayDate` falls in. */
+export function monthWindow(todayDate: DateOnly): { start: DateOnly; end: DateOnly } {
+  const start = dateOnly(`${todayDate.slice(0, 7)}-01`);
+  return { start, end: addDays(addMonths(start, 1), -1) };
+}
+
+/**
+ * WIP this month: the billable value of the person's live time dated this month that isn't billed
+ * yet (drafts and final entries; written-off time doesn't count, and a write-down counts at its
+ * reduced value). BILL-03's `fyTotals`, over the month rather than the year.
+ */
+export function wipThisMonth(entries: readonly BillingEntryLike[], todayDate: DateOnly): Cents {
+  const { recordedCents, billedCents } = fyTotals(entries, monthWindow(todayDate));
+  return cents(recordedCents - billedCents);
 }
 
 // ---------- the header ----------
