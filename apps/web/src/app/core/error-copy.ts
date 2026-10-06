@@ -7,6 +7,9 @@ import { DomainError, isErrorCode, type ErrorCode } from '@materia/domain';
 export const ERROR_COPY: Record<ErrorCode, string> = {
   UNAUTHENTICATED: 'Your session has ended. Sign in again to continue.',
   REAUTH_REQUIRED: 'For your security, confirm it’s you by signing in again.',
+  MFA_REQUIRED: 'Your practice requires two-step sign-in. Set it up, then sign in again.',
+  SESSION_EXPIRED: 'Your sign-in has expired. Sign in again to continue.',
+  SESSION_REVOKED: 'You were signed out of this device. Sign in again to continue.',
   ORG_CLAIM_MISSING: 'Your account isn’t linked to a practice yet. Ask your practice admin for an invite.',
   ORG_CLAIM_MISMATCH: 'You switched practices in another tab. Refreshing your access…',
   MEMBER_INACTIVE: 'Your access to this practice has been paused. Contact your practice admin.',

@@ -17,6 +17,8 @@ import { toHttpsError } from './errors';
 import { firestoreIdempotency, type IdempotencyStore } from './idempotency';
 import { createLog, functionsSink, type Log, type LogSink } from './log';
 import { cachedMemberLookup, type MemberLookup } from './members';
+import { assertSessionAllowed, cachedSessionLookup, type SessionLookup } from './sessions';
+import { requireRecentLogin } from './user-callable';
 import { ports, systemClock } from '../ports/container';
 
 /** What every handler receives. */
@@ -49,6 +51,17 @@ export interface CallableDefinition<TSchema extends z.ZodType, TOutput> {
   consumeAppCheckToken?: boolean;
   /** Requires a UUID `requestId` in the input; a repeat call returns the stored result. */
   idempotent?: boolean;
+  /**
+   * A sensitive action (SEC-04): requires a sign-in within this many minutes (REAUTH_REQUIRED
+   * otherwise; the web client asks the person to confirm it's them and retries). Usually
+   * `SENSITIVE_REAUTH_MINUTES`.
+   */
+  recentLoginMinutes?: number;
+  /**
+   * Whether the org's MFA requirement applies (default true). False only for calls a person
+   * without MFA must still make (error reporting).
+   */
+  mfa?: boolean;
   secrets?: SecretParam[];
   memory?: MemoryOption;
   timeoutSeconds?: number;
@@ -64,6 +77,8 @@ export interface CallableDeps {
   sink: LogSink;
   /** Admin Auth; handlers that never touch Auth don't need it (unit tests omit it). */
   auth?: () => Auth;
+  /** The org's security policy and the member's revocation (SEC-04); unit tests may omit it. */
+  sessions?: SessionLookup;
 }
 
 /** The request fields the wrapper reads (a subset of `CallableRequest`). */
@@ -79,7 +94,8 @@ function isRole(value: unknown): value is Role {
 
 /**
  * The callable pipeline, separated from `onCall` so it can be tested directly:
- * authenticate → claims → role → active member → validate → idempotency → handler → output.
+ * authenticate → claims → role → active member → session policy (SEC-04: revoked, expired, MFA)
+ * → recent sign-in → validate → idempotency → handler → output.
  */
 export async function runCallable<TSchema extends z.ZodType, TOutput>(
   def: CallableDefinition<TSchema, TOutput>,
@@ -107,6 +123,9 @@ export async function runCallable<TSchema extends z.ZodType, TOutput>(
     }
     if (!def.roles.includes(role)) throw new DomainError('PERMISSION_DENIED', `Role ${role} cannot call ${def.name}`);
     if (!(await deps.memberLookup(orgId, uid))) throw new DomainError('MEMBER_INACTIVE', 'Membership is not active');
+    const nowMs = deps.clock.now().getTime();
+    if (deps.sessions) assertSessionAllowed(token, await deps.sessions(orgId, uid), nowMs, { mfa: def.mfa ?? true });
+    if (def.recentLoginMinutes !== undefined) requireRecentLogin(token, nowMs, def.recentLoginMinutes);
 
     const parsed = def.input.safeParse(data);
     if (!parsed.success) throw parsed.error;
@@ -174,6 +193,7 @@ export function callableDeps(): CallableDeps {
     idempotency: firestoreIdempotency(adminDb, systemClock),
     sink: functionsSink,
     auth: () => getAuth(adminApp()),
+    sessions: cachedSessionLookup(adminDb, systemClock),
   };
   return defaultDeps;
 }

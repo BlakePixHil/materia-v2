@@ -15,6 +15,8 @@ export interface AuthSession {
   claims: { orgId?: string; role?: Role; orgName?: string };
   /** When this sign-in happened (ms), for re-authentication checks. */
   authTime: number;
+  /** Whether this sign-in used a second factor (`firebase.sign_in_second_factor`, SEC-04). */
+  secondFactor?: boolean;
 }
 
 /** Local persistence by default; session-only on a shared computer. */

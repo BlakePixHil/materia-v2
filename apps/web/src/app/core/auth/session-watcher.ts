@@ -1,10 +1,11 @@
-import { effect, inject, Injectable, untracked } from '@angular/core';
+import { effect, inject, Injectable, Injector, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 
 import type { DomainError } from '@materia/domain';
 import { ToastService } from '@materia/ui';
 
 import { AuthState } from './auth-state';
+import { SessionPolicy } from './session-policy';
 import { PAGE_LOAD } from '../orgs/org-service';
 
 /**
@@ -55,12 +56,16 @@ export const ACCESS_REVOKED_SETTLE_MS = 300;
 export function accessRevokedHandler(): (error: DomainError) => void {
   const auth = inject(AuthState);
   const router = inject(Router);
+  // Looked up when a read is refused: SessionPolicy reads through the data layer, which uses this handler.
+  const injector = inject(Injector);
   let pending = false;
   return () => {
     if (pending) return;
     pending = true;
     setTimeout(() => {
       pending = false;
+      // Signing out everywhere else refuses this tab's reads too, until it confirms it's them (SEC-04).
+      if (injector.get(SessionPolicy).checksPaused()) return;
       if (auth.status() === 'ready' && !auth.signingOut()) void router.navigateByUrl('/no-access');
     }, ACCESS_REVOKED_SETTLE_MS);
   };
