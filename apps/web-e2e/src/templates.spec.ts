@@ -55,7 +55,7 @@ function willMatter(
 
 test.describe('matter templates', () => {
   test('customise a system template, publish two versions and upgrade a matter', async ({ page, request }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     const { orgId, uid } = await signInAs(page, request, 'admin');
 
     // Settings → Templates lists the system templates.
@@ -79,7 +79,9 @@ test.describe('matter templates', () => {
     await expect(page.getByText('Unsaved changes')).toBeVisible();
     await expectNoA11yViolations(page);
     await page.getByRole('button', { name: 'Publish v1' }).click();
-    await expect(page.getByText('Published v1', { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    // Publishing saves first, so this cold-starts two callables (save, then publish) in turn; on a
+    // busy CI runner the pair has taken over 20s.
+    await expect(page.getByText('Published v1', { exact: true }).first()).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole('button', { name: 'Publish v2' })).toBeVisible();
 
     // Edit again: a new task in the first stage, published as v2.
