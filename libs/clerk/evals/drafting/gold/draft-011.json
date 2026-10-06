@@ -1,0 +1,13 @@
+{
+  "id": "draft-011",
+  "fixtures": {},
+  "placeholders": {
+    "missing": [
+      {
+        "fact": "date of birth",
+        "keywords": ["birth"]
+      }
+    ],
+    "forbidden": ["account ending", "account number 1", "customer number 1"]
+  }
+}

@@ -452,6 +452,31 @@ describe('field-level rules', () => {
     );
   });
 
+  it('a Clerk draft is its owner’s: edited once Clerk has finished, stopped while drafting (AI-10)', async () => {
+    const DRAFTS = `${MATTER}/clerkDrafts`;
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, `${DRAFTS}/running`), { ...seedData(specFor('clerkDrafts')), status: 'drafting' });
+      await setDoc(doc(f, `${DRAFTS}/ready`), seedData(specFor('clerkDrafts')));
+      await setDoc(doc(f, `${DRAFTS}/priv`), { ...seedData(specFor('clerkDrafts')), privileged: true });
+    });
+    const mine = (id: string) => doc(db(env, 'lawyer'), `${DRAFTS}/${id}`);
+    // While Clerk writes it, the owner can only ask it to stop.
+    await assertFails(updateDoc(mine('running'), stamped({ bodyMd: 'Mine now' }, OWNER_UID)));
+    await assertSucceeds(updateDoc(mine('running'), stamped({ stopRequested: true }, OWNER_UID)));
+    await assertFails(updateDoc(mine('ready'), stamped({ stopRequested: true }, OWNER_UID)));
+    // Once it's ready: the body and who wrote what, never the status, recipients or privilege.
+    await assertSucceeds(
+      updateDoc(mine('ready'), stamped({ bodyMd: 'Edited', provenance: [{ origin: 'person', length: 6 }] }, OWNER_UID)),
+    );
+    for (const change of [{ status: 'saved' }, { privileged: true }, { recipients: [] }, { documentIds: ['d1'] }])
+      await assertFails(updateDoc(mine('ready'), stamped(change, OWNER_UID)));
+    await assertFails(updateDoc(mine('ready'), stamped({ bodyMd: 'x'.repeat(50_001) }, OWNER_UID)));
+    // A privileged draft needs privileged.view, and a list must prove whose drafts it reads.
+    await assertSucceeds(getDoc(mine('priv')));
+    await assertFails(getDocs(collection(db(env, 'lawyer'), DRAFTS)));
+    await assertSucceeds(getDocs(query(collection(db(env, 'lawyer'), DRAFTS), where('ownerUid', '==', OWNER_UID))));
+  });
+
   it('notifications and personal tasks belong to one member', async () => {
     await assertFails(getDoc(doc(db(env, 'admin'), `orgs/${ORG}/notifications/notification-1`)));
     await assertFails(getDoc(doc(db(env, 'owner'), `orgs/${ORG}/members/${OWNER_UID}/tasks/task-1`)));

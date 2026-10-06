@@ -198,6 +198,16 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'owner',
     change: { stopRequested: true },
   },
+  // Clerk's draft letters (AI-10): private to their owner, like a Clerk thread.
+  {
+    collection: 'clerkDrafts',
+    docPath: `${MATTER}/clerkDrafts/draft-1`,
+    entity: 'ClerkDraft',
+    seed: { ownerUid: OWNER, status: 'ready', privileged: false },
+    read: 'owner',
+    update: 'owner',
+    change: { bodyMd: 'Dear Sir or Madam\n\nEdited by the lawyer.' },
+  },
   {
     collection: 'invoices',
     docPath: `orgs/${ORG}/invoices/invoice-1`,

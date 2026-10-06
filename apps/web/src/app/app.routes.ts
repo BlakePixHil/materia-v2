@@ -137,6 +137,20 @@ const matterRoutes: Route[] = [
         data: { crumb: 'Document' },
         loadComponent: () => import('./features/documents/document-page').then((m) => m.DocumentPage),
       },
+      // Clerk drafting (AI-10): starting a letter (`?type=`, `?instructions=`), then the draft's editor.
+      {
+        path: 'drafts/new',
+        title: 'Draft a letter',
+        data: { crumb: 'Draft a letter' },
+        loadComponent: () =>
+          import('./features/clerk-drafts/clerk-draft-start-page').then((m) => m.ClerkDraftStartPage),
+      },
+      {
+        path: 'drafts/:draftId',
+        title: 'Draft letter',
+        data: { crumb: 'Draft letter' },
+        loadComponent: () => import('./features/clerk-drafts/clerk-draft-page').then((m) => m.ClerkDraftPage),
+      },
       // Deep links to a tab that doesn't exist land on the overview.
       { path: '**', redirectTo: 'overview' },
     ],

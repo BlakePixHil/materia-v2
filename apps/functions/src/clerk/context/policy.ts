@@ -29,6 +29,7 @@ export const CONTEXT_POLICIES = {
   brief: { budgetTokens: 24_000, scopes: ['matter'] },
   willExtraction: { budgetTokens: 120_000, scopes: ['matter'] },
   drafting: { budgetTokens: 40_000, scopes: ['matter'] },
+  draftingRewrite: { budgetTokens: 24_000, scopes: ['matter'] },
   timeAssist: { budgetTokens: 12_000, scopes: ['matter'] },
   /** The eval harness's citation judge (AI-12): sent only test items, never a matter's context. */
   evalJudge: { budgetTokens: 16_000, scopes: ['matter'] },

@@ -233,11 +233,12 @@ export class MatterLayout {
     });
 
     // Litigation is for disputes only: elsewhere its URL lands on the overview. A tab's own pages
-    // (a document, `documents/:docId`) belong to their tab.
+    // (a document, `documents/:docId`) belong to their tab; the conflict check and Clerk drafts
+    // (AI-10) are pages of the matter, not tabs.
     effect(() => {
       const tab = this.activeTab()?.split('/')[0];
       const matter = this.screen.value();
-      if (!matter || !tab || tab === 'conflicts') return;
+      if (!matter || !tab || tab === 'conflicts' || tab === 'drafts') return;
       if (!this.tabs().some((t) => t.path === tab)) untracked(() => void this.leaveUnavailableTab(tab));
     });
 

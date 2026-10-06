@@ -421,6 +421,22 @@ export const makeFactCitation = (o: Partial<D.FactCitation> = {}) =>
 export const makeClerkThread = (o: Partial<D.ClerkThread> = {}) =>
   build(D.ClerkThread, { title: 'Grant timeline', ownerUid: TEST_UID, matterId: TEST_MATTER_ID }, o);
 
+export const makeClerkDraft = (o: Partial<D.ClerkDraft> = {}) =>
+  build(
+    D.ClerkDraft,
+    {
+      typeId: 'bank-balance-request',
+      title: 'Bank balance request: Surfcoast Community Bank',
+      ownerUid: TEST_UID,
+      recipients: [{ name: 'Surfcoast Community Bank', address: 'PO Box 1\nTorquay VIC 3228' }],
+      status: 'ready',
+      bodyMd: 'Dear Sir or Madam\n\nPlease tell us the balance as at [[TO CONFIRM: date of death]].',
+      provenance: [{ origin: 'clerk', length: 82 }],
+      deletedAt: null,
+    },
+    o,
+  );
+
 export const makeClerkMessage = (o: Partial<D.ClerkMessage> = {}) =>
   build(
     D.ClerkMessage,
@@ -958,6 +974,7 @@ export const ENTITY_FACTORIES = {
   FactCitation: [D.FactCitation, makeFactCitation],
   ClerkThread: [D.ClerkThread, makeClerkThread],
   ClerkMessage: [D.ClerkMessage, makeClerkMessage],
+  ClerkDraft: [D.ClerkDraft, makeClerkDraft],
   Proceeding: [D.Proceeding, makeProceeding],
   CourtEvent: [D.CourtEvent, makeCourtEvent],
   CourtOrder: [D.CourtOrder, makeCourtOrder],

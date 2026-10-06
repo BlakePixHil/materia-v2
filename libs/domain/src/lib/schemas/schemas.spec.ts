@@ -20,6 +20,7 @@ describe('entity schemas', () => {
       'ChecklistTemplate',
       'ChronologyEntry',
       'Chunk',
+      'ClerkDraft',
       'ClerkMessage',
       'ClerkThread',
       'ConflictCheck',

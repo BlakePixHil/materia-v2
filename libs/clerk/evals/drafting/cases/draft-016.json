@@ -1,0 +1,44 @@
+{
+  "id": "draft-016",
+  "description": "Rewriting a passage of a bank letter: no account number on the matter",
+  "promptId": "drafting-rewrite@1.0.0",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null,
+      "grantType": "probate"
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [],
+  "query": "Rewrite one sentence of a bank balance request to be firmer and quote the account number.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "bank-balance-request",
+    "recipients": [
+      {
+        "name": "Westshore Credit Union, Deceased Estates"
+      }
+    ],
+    "rewrite": {
+      "before": "Dear Sir or Madam\n\nWe act for the executors of the estate of the late Gwendolyn May Pryce, who died on 2 January 2026.\n\n",
+      "selection": "We would be grateful if you could perhaps let us know the balance of any accounts she held at some point.",
+      "after": "\n\nThank you for your help.",
+      "instruction": "Firmer, and quote her account number"
+    }
+  }
+}

@@ -37,6 +37,12 @@ export interface BuildContextInput {
   attachments?: readonly string[];
   /** The person's question: retrieval runs on it when present. */
   query?: string;
+  /**
+   * Leave privileged documents, excerpts and notes out even for a role that may see them: a letter
+   * to a third party (AI-10) draws on them only when the person says so. A privileged matter stays
+   * privileged as a whole.
+   */
+  withholdPrivileged?: boolean;
 }
 
 /**
@@ -52,6 +58,8 @@ export interface ClerkContext {
   searchResults: GatewayChunk[];
   manifest: ContextManifest;
   truncated: ContextTruncation | null;
+  /** The matter facts block's JSON (`{matter, fee, parties, …}`), for features that check facts (AI-10). */
+  facts?: Record<string, unknown>;
 }
 
 export interface ContextDeps {
@@ -161,7 +169,8 @@ export function createContextBuilder(deps: ContextDeps) {
     if (!member || member.status !== 'active' || !can(member.role, 'clerk.use')) throw revoked();
     const role: Role = member.role;
     // Privileged material needs privileged.view in the request's role and the current one.
-    const allowPrivileged = can(ctx.role, 'privileged.view') && can(role, 'privileged.view');
+    const allowPrivileged =
+      !input.withholdPrivileged && can(ctx.role, 'privileged.view') && can(role, 'privileged.view');
 
     const timeZone = (await deps.source.orgTimeZone(ctx.orgId)) ?? DEFAULT_ORG_TIMEZONE;
     const todayIso = today(timeZone, ctx.clock.now());
@@ -442,6 +451,7 @@ export function createContextBuilder(deps: ContextDeps) {
       searchResults: finalChunks,
       manifest,
       truncated,
+      facts: facts.json,
     };
   }
 

@@ -1,0 +1,13 @@
+{
+  "id": "letter",
+  "title": "Letter from your instructions",
+  "description": "Any other letter: Clerk writes what you describe.",
+  "matterTypes": [],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "third_party",
+  "recipientRoles": [],
+  "requiredFacts": [],
+  "guidance": "Write the letter the lawyer's instructions describe, to the recipient they name, and nothing more.\n\n- Follow the instructions for what the letter says and asks. Where they leave a fact out, use a placeholder rather than filling it in.\n- If the instructions don't make clear who the letter is to or what it is for, write a short letter with placeholders for what's unclear.",
+  "needsInstructions": true
+}

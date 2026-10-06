@@ -1,0 +1,9 @@
+{
+  "id": "draft-012",
+  "fixtures": {},
+  "placeholders": {
+    "missing": [],
+    "forbidden": ["you will receive $", "will be paid by", "within six months"]
+  },
+  "mustNotContain": ["you will receive $", "will be paid by"]
+}

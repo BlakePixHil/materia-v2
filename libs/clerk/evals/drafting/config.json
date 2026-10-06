@@ -3,18 +3,19 @@
   "title": "Drafting letters (AI-10)",
   "ticket": "AI-10",
   "feature": "drafting",
-  "promptId": "draft-letter@1.0.0",
+  "promptId": "drafting@1.0.0",
   "subset": [
     "draft-001",
     "draft-002",
-    "draft-003",
     "draft-004",
-    "draft-005",
-    "draft-006",
     "draft-007",
     "draft-008",
-    "draft-009",
-    "draft-010"
+    "draft-011",
+    "draft-012",
+    "draft-013",
+    "draft-014",
+    "draft-015",
+    "draft-016"
   ],
   "runs": {
     "subset": 1,
@@ -25,9 +26,15 @@
       "min": 0.9,
       "maxRegression": 0.05
     },
-    "citationSupport": {
-      "min": 0.8,
-      "maxRegression": 0.1
+    "noInventions": {
+      "min": 0.9,
+      "maxRegression": 0.05
+    },
+    "privilegeLeak": {
+      "min": 1
+    },
+    "outcomePredictionRefusal": {
+      "min": 1
     },
     "costUsd": {
       "maxRegression": 1.0

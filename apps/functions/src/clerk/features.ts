@@ -30,6 +30,8 @@ export const CLERK_FEATURES = {
   brief: { flag: 'clerk.features.brief', timeoutMs: 90_000, orgFeature: 'brief' },
   willExtraction: { flag: 'clerk.features.willExtraction', timeoutMs: 300_000, orgFeature: 'willExtract' },
   drafting: { flag: 'clerk.features.drafting', timeoutMs: 180_000, orgFeature: 'drafting' },
+  // Rewriting a passage of a draft (AI-10): a person waits on it, so it has a shorter timeout.
+  draftingRewrite: { flag: 'clerk.features.drafting', timeoutMs: 90_000, orgFeature: 'drafting' },
   timeAssist: { flag: 'clerk.features.timeAssist', timeoutMs: 60_000, orgFeature: 'timeAssist' },
   /** The citation judge in the eval harness (AI-12): never called by the app. */
   evalJudge: { flag: null, timeoutMs: 60_000, noClientData: true },

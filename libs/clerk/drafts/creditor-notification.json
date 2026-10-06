@@ -1,0 +1,16 @@
+{
+  "id": "creditor-notification",
+  "title": "Creditor notification",
+  "description": "Tells a creditor of the death and asks for the amount owing.",
+  "matterTypes": ["probate", "loa", "admin"],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "third_party",
+  "recipientRoles": [],
+  "requiredFacts": [
+    { "fact": "matter.deceased.name", "label": "name of the deceased" },
+    { "fact": "matter.deceased.dateOfDeath", "label": "date of death" }
+  ],
+  "guidance": "Write to a creditor of the deceased (a utility, a card provider, a lender, a hospital). We act for the executors (or the person applying for the grant).\n\n- Tell them of the death: the deceased's full name and date of death, and any account or reference number the matter's documents give.\n- Ask for a statement of the amount owing at the date of death, and to send future correspondence about the estate to us.\n- Ask them to close the account or stop any regular charges, where that applies.\n- Don't admit the debt, promise payment or say when it will be paid: say only that the executors will consider their claim with the estate's other debts.",
+  "needsInstructions": false
+}

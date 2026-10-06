@@ -1,0 +1,14 @@
+{
+  "id": "draft-014",
+  "fixtures": {},
+  "placeholders": {
+    "missing": [
+      {
+        "fact": "amount sought",
+        "keywords": ["amount", "sum", "provision", "share"]
+      }
+    ],
+    "forbidden": ["$100,000", "$150,000", "$200,000"]
+  },
+  "mustNotContain": ["will succeed", "strong claim", "within six months of the grant"]
+}
