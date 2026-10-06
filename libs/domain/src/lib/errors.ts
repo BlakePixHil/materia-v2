@@ -87,6 +87,17 @@ export const ERROR_CODES = {
   ALREADY_RESOLVED: 'failed-precondition',
   /** No accept handler is registered for this suggestion kind yet (AI-07): `details.kind`. */
   SUGGESTION_UNSUPPORTED: 'failed-precondition',
+  /** The connect attempt expired, was already used, or was started by someone else (INT-01): start again. */
+  INTEGRATION_STATE_INVALID: 'failed-precondition',
+  /** The provider's app isn't set up in this environment yet (INT-01): no client id or secret. */
+  INTEGRATION_NOT_CONFIGURED: 'failed-precondition',
+  /**
+   * The provider refused the connection (INT-01): consent was declined, the code was wrong, or an
+   * administrator must consent first (`details.reason`: `denied`, `consent_required`, `rejected`).
+   */
+  INTEGRATION_REJECTED: 'failed-precondition',
+  /** The provider no longer accepts the connection, revoked or expired (INT-01): connect it again. */
+  INTEGRATION_RECONNECT_REQUIRED: 'failed-precondition',
   INTERNAL: 'internal',
 } as const;
 

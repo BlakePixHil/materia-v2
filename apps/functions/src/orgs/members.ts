@@ -16,6 +16,9 @@ import { assertCanGrant } from './invites';
 import { assertAnotherOwner, memberPath } from './shared';
 import { audit } from '../audit/audit';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
+import { errorReportFields } from '../core/log';
+import { OAUTH_SECRETS } from '../integrations/providers';
+import { removeMemberConnections } from '../integrations/vault';
 
 type Ctx = CallableContext<unknown>;
 
@@ -115,7 +118,7 @@ export const suspendMemberDefinition = {
 /**
  * `orgs-removeMember` (FND-17): the member document stays (status `removed`) for the audit trail.
  * If this was their active org their refresh tokens are revoked, so they are signed out; the
- * rules deny them at once either way.
+ * rules deny them at once either way. Their own integrations (INT-01) are revoked and deleted.
  */
 export const removeMemberDefinition = {
   name: 'orgs-removeMember',
@@ -123,6 +126,7 @@ export const removeMemberDefinition = {
   input: MemberRefInput,
   roles: PERMISSIONS['members.manage'],
   idempotent: true,
+  secrets: OAUTH_SECRETS,
   handler: async (ctx): Promise<{ ok: true; tokensRevoked: boolean }> => {
     const { input } = ctx;
     await changeMember(ctx, input.uid, (member) => {
@@ -131,11 +135,16 @@ export const removeMemberDefinition = {
     });
     const tokensRevoked = await revokeIfActive(ctx, ctx.db, input.uid);
     await sync(ctx, input.uid);
+    // Best effort: a provider being down never blocks removing someone.
+    const integrationsRemoved = await removeMemberConnections(ctx, input.uid).catch((error: unknown) => {
+      ctx.log.warn('member integrations not removed', errorReportFields(error));
+      return 0;
+    });
     await audit(ctx, {
       action: 'member.removed',
       entity: { path: memberPath(ctx.orgId, input.uid) },
       summary: 'Member removed',
-      data: { tokensRevoked },
+      data: { tokensRevoked, ...(integrationsRemoved ? { integrationsRemoved } : {}) },
     });
     return { ok: true, tokensRevoked };
   },
