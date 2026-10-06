@@ -78,13 +78,14 @@ async function seed(spec: CollectionSpec) {
 const writerFor = (spec: CollectionSpec): Role =>
   spec.update === 'owner' ? 'lawyer' : (rolesFor(spec.update)[0] ?? 'owner');
 
+// Seeding a document per collection one by one passes the 10 s hook default on a cold emulator.
 beforeAll(async () => {
   env = await createRulesEnv();
   await env.clearFirestore();
   await seedMembers(env);
   // Seed every document first: some rules read a parent (Clerk messages read their thread).
   for (const spec of COLLECTIONS) await seed(spec);
-});
+}, 60_000);
 
 afterAll(async () => {
   await env.cleanup();
