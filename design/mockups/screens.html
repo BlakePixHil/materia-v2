@@ -350,7 +350,8 @@ ol.mt-crumbs { list-style: none; margin: 0; padding: 0; }
 .mt-toaster:empty { display: none; }
 .mt-toaster .mt-toast { animation: mt-toast-in .18s ease-out; }
 @keyframes mt-toast-in { from { opacity: 0; transform: translateY(8px); } }
-@media (max-width: 767px) { .mt-toaster { left: var(--space-16); bottom: calc(var(--space-16) + env(safe-area-inset-bottom, 0px)); align-items: stretch; } }
+@media (max-width: 767px) { .mt-toaster { left: var(--space-16); top: calc(var(--space-16) + env(safe-area-inset-top, 0px)); bottom: auto; flex-direction: column-reverse; align-items: stretch; } .mt-toaster .mt-toast { animation-name: mt-toast-in-top; } }
+@keyframes mt-toast-in-top { from { opacity: 0; transform: translateY(-8px); } }
 @media (prefers-reduced-motion: reduce) { .mt-toaster .mt-toast { animation: none; } }
 
 /* ---------- Empty state ---------- */

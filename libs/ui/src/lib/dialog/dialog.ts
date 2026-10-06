@@ -56,7 +56,12 @@ export type MtDialogSize = 'sm' | 'md' | 'lg';
   ],
   // A tall dialog (a long form on a laptop screen) fits the viewport and scrolls its body, keeping
   // the title and footer in view; centring an overflowing panel would cut off its top.
+  // On a phone narrower than the dialog, it fits the screen: the overlay's single grid column would
+  // otherwise grow to the dialog's 480px, so `max-width: 100%` capped nothing and it ran off the side.
   styles: `
+    .mt-modal-root:has(> .mt-dialog) {
+      grid-template-columns: minmax(0, 1fr);
+    }
     .mt-modal-root > .mt-dialog {
       max-height: calc(100dvh - 2 * var(--space-16));
     }
