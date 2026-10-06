@@ -165,6 +165,12 @@ test.describe('global timer', () => {
     await expect(ask).toBeVisible();
     await expectNoA11yViolations(page);
     await ask.getByRole('button', { name: 'Stop and save' }).click();
+    // The first time-stopTimer call spins up its emulator worker, which can take a while on a busy CI
+    // runner. Wait for the save to report (success or the error toast in the trace), then the restart.
+    await expect(page.locator('.mt-toaster')).toContainText(/Saved the time on M-2026-0510|didn’t save/, {
+      timeout: 60_000,
+    });
+    await expect(page.locator('.mt-toaster')).not.toContainText('didn’t save');
     await expect(widget(page).getByTestId('timer-matter')).toHaveText('M-2026-0511', { timeout: 20_000 });
     await expect(widget(other).getByTestId('timer-matter')).toHaveText('M-2026-0511', { timeout: 20_000 });
     await expect
