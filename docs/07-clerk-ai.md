@@ -122,7 +122,7 @@ See [ADR-043](adr/043-citations.md).
 See [ADR-044](adr/044-clerk-chat-panel.md). Code: `apps/functions/src/clerk/chat/`, `libs/domain/src/lib/clerk-chat.ts`, `libs/data-access/src/lib/clerk-chat.ts`, `apps/web/src/app/features/clerk/`.
 
 - **Callables** (`CLERK_CHAT_CALLABLES`, all `clerk.use`, idempotent):
-  - `clerk-sendMessage({threadId?, matterId, text, attachments?, requestId})` → `{threadId, userMessageId, messageId, continuedFrom?}`. It returns before the answer is written: the client listens to `messageId`. It says at once when Clerk is off (`CLERK_DISABLED` with the switch), has no usable key or is over budget.
+  - `clerk-sendMessage({threadId?, matterId, text, attachments?, requestId})` → `{threadId, userMessageId, messageId, continuedFrom?}`. It returns before the answer is written: the client listens to `messageId`. It says at once when Clerk is off (`CLERK_DISABLED` with the switch), has no usable key or is over budget: the month's token budget or the org's spend limit (`monthlyBudgetCents`), checked by the gateway's own `assertWithinBudget` (`CLERK_BUDGET_EXCEEDED`, with `spend: true` for the spend limit).
   - `clerk-retryMessage({threadId, messageId})` adds a new answer to the same question. Only the newest answer can be retried.
   - `clerk-setFeedback({threadId, messageId, rating, reason?, comment?})` stores `feedback` on an answer and counts `feature.chat.feedback_up`/`_down` in `metrics/clerk-{YYYY-MM}`.
 - **The answer** is written by the `clerk-runMessage` queue (Cloud Tasks, one task per answer):
