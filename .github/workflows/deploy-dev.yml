@@ -1,7 +1,9 @@
 # Continuous deployment to dev (FND-05). Every push to main whose CI run succeeds (`ci-ok` green)
 # is built once and deployed to materia-v2-dev, then smoke-tested. CI runs that skipped their
 # `build` job deploy nothing: quiet-hour merges (22:00-07:30 Melbourne) and docs-only changes wait
-# for CI's morning run, which deploys whatever main has gained since the last dev deploy (ci.yml). MVP has no staging project:
+# for CI's morning run, which deploys whatever main has gained since the last dev deploy (ci.yml).
+# Daytime pushes deploy at most once every two hours: a push within two hours of the last dev
+# deploy is left for CI's hourly catch-up run (ci.yml), except release commits. MVP has no staging project:
 # dev plays that role. The same run builds the prod web bundle from the same commit and keeps the
 # whole release as the artifact release-<sha>, which deploy-prod.yml promotes without rebuilding.
 #
@@ -43,11 +45,16 @@ jobs:
     outputs:
       ready: ${{ steps.check.outputs.ready }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
       - id: check
         env:
           WEB_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG_DEV }}
           GH_TOKEN: ${{ github.token }}
           CI_RUN_ID: ${{ github.event.workflow_run.id }}
+          CI_EVENT: ${{ github.event.workflow_run.event }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           if [ -z "$WEB_CONFIG" ]; then
             echo "::notice::Dev deploy skipped: set the FIREBASE_WEB_CONFIG_DEV repository variable (docs/runbooks/deploy.md)."
@@ -58,6 +65,16 @@ jobs:
             build="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name == "build")][0].conclusion')"
             if [ "$build" != "success" ]; then
               echo "::notice::Dev deploy skipped: CI didn't build this commit (quiet hours or docs-only). CI's morning run deploys it, or dispatch deploy-dev."
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          # Two-hour batching (ci.yml): release commits always deploy, so deploy-prod finds them.
+          if [ "$CI_EVENT" = push ] &&
+            ! gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA" --jq '.files[].filename' | grep -qx '\.release-please-manifest\.json'; then
+            read -r _ mins state <<< "$(.github/scripts/last-dev-deploy.sh || true)" || true
+            if [ "${state:-}" = recent ]; then
+              echo "::notice::Dev deploy batched: dev deployed $mins min ago. CI's hourly catch-up run deploys this once two hours have passed, or dispatch deploy-dev."
               echo "ready=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
