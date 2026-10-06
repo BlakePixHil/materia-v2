@@ -1,14 +1,19 @@
 import {
+  ContactActivityInput,
+  contactActivityFields,
   contactDedupeKey,
   contactDerivedFields,
   contactDisplayName,
   contactInitials,
+  contactMatterRoles,
   contactSearchTokens,
   contactSortName,
   DUPLICATE_THRESHOLD,
   formatPhone,
   guessPhoneType,
   jaroWinkler,
+  matterCountsForRoles,
+  matterIsLive,
   MergeContactsInput,
   nearDate,
   normalisePhone,
@@ -214,5 +219,54 @@ describe('MergeContactsInput', () => {
     const requestId = '00000000-0000-4000-8000-000000000000';
     expect(MergeContactsInput.safeParse({ requestId, keepId: 'a', mergeId: 'a' }).success).toBe(false);
     expect(MergeContactsInput.safeParse({ requestId, keepId: 'a', mergeId: 'b' }).success).toBe(true);
+  });
+});
+
+describe('roles in matters (CORE-01a)', () => {
+  it('lists the roles of live rows on live matters once, in the Parties tab’s order', () => {
+    const live = new Set(['m-1', 'm-2']);
+    const roles = contactMatterRoles(
+      [
+        { role: 'beneficiary', matterId: 'm-1' },
+        { role: 'executor', matterId: 'm-2', deletedAt: null },
+        { role: 'beneficiary', matterId: 'm-2' },
+        { role: 'client', matterId: 'm-1', deletedAt: new Date() },
+        { role: 'trustee', matterId: 'm-gone' },
+        { role: 'not_a_role', matterId: 'm-1' },
+      ],
+      (matterId) => live.has(matterId),
+    );
+    expect(roles).toEqual(['executor', 'beneficiary']);
+    expect(contactMatterRoles([], () => true)).toEqual([]);
+  });
+
+  it('counts matters that exist, are neither deleted nor destroyed, and aren’t privileged', () => {
+    expect(matterCountsForRoles({ deletedAt: null, privileged: false })).toBe(true);
+    expect(matterCountsForRoles({})).toBe(true);
+    expect(matterCountsForRoles(undefined)).toBe(false);
+    expect(matterCountsForRoles({ deletedAt: new Date() })).toBe(false);
+    expect(matterCountsForRoles({ deletedAt: null, destroyedAt: new Date() })).toBe(false);
+    expect(matterCountsForRoles({ privileged: true })).toBe(false);
+    // A privileged matter is still live (its lines show to readers with privileged.view).
+    expect(matterIsLive({ privileged: true } as never)).toBe(true);
+    expect(matterIsLive({ deletedAt: new Date() })).toBe(false);
+  });
+});
+
+describe('contact activity (CORE-01a)', () => {
+  it('groups changed fields into the details an edit names, ignoring server and delete fields', () => {
+    expect(contactActivityFields(['phones', 'familyName', 'emails', 'givenNames'])).toEqual([
+      'name',
+      'phones',
+      'emails',
+    ]);
+    expect(contactActivityFields(['referrerMeta', 'dateOfDeath'])).toEqual(['dateOfDeath', 'referrer']);
+    expect(contactActivityFields(['search', 'sortName', 'matterRoles', 'deletedAt'])).toEqual([]);
+  });
+
+  it('pages 1 to 50 lines, 20 by default', () => {
+    expect(ContactActivityInput.parse({ contactId: 'c-1' })).toEqual({ contactId: 'c-1', limit: 20 });
+    expect(ContactActivityInput.safeParse({ contactId: 'c-1', limit: 51 }).success).toBe(false);
+    expect(ContactActivityInput.safeParse({ contactId: 'c-1', cursor: '' }).success).toBe(false);
   });
 });

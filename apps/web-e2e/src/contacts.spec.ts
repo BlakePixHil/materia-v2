@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { expectNoA11yViolations, setEmulatorDocument, signInAsTestUser } from '@materia/test-utils/e2e';
+import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocument, signInAsTestUser } from '@materia/test-utils/e2e';
 
 /**
  * Contacts (CORE-01) against the emulators: create, the duplicate prompt, edit, and the matters a
- * contact is on (a matter and party seeded through the emulator). Each test runs in its own
- * fictional practice so lists start empty. Needs the contacts-* callables and the contacts trigger
- * (search tokens, sortName) from the backend half of CORE-01.
+ * contact is on (a matter and party seeded through the emulator), its Activity and the role filter
+ * (CORE-01a). Each test runs in its own fictional practice so lists start empty. Needs the
+ * contacts-* callables and triggers (search tokens, sortName, roles in matters) and the audit log.
  */
 
 const detail = (page: Page) => page.getByRole('region', { name: 'Contact details' });
@@ -30,7 +30,7 @@ test.describe('contacts', () => {
   test.skip(({ isMobile }) => isMobile, 'Keyboard shortcuts and the two-pane layout are desktop features');
 
   test('create a contact, catch a near-duplicate, edit it, and see its matters', async ({ page, request }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
     const orgId = uniqueOrg();
     const account = await signInAsTestUser(page, request, {
       claims: { orgId, role: 'lawyer', orgName: 'Fictional Contacts Practice' },
@@ -110,6 +110,27 @@ test.describe('contacts', () => {
     await expect(matters.getByRole('link', { name: 'Estate of Fictional Testperson' })).toBeVisible();
     await expect(matters).toContainText('Executor');
     await expect(detail(page).locator('mt-person-header')).toContainText('WE-9001');
+    await expectNoA11yViolations(page);
+
+    // CORE-01a: the Activity reads the audit log, which is written just after each change, so a
+    // reload stands in for the list's own refresh if the entry was late.
+    const activity = detail(page).getByRole('region', { name: 'Activity' });
+    const link = activity.getByRole('link', { name: 'WE-9001 Estate of Fictional Testperson' });
+    await expect(async () => {
+      if (!(await link.isVisible())) await page.reload();
+      await expect(link).toBeVisible({ timeout: 5_000 });
+    }).toPass(FIRST_LOAD);
+    await expect(activity).toContainText('Jordan Fictional added this contact as executor on');
+    await expect(activity).toContainText('Jordan Fictional updated the name');
+    await expect(activity).toContainText('Jordan Fictional added the contact');
+    await expectNoA11yViolations(page);
+
+    // The contacts-onPartyWrite trigger gives the contact its role, so the role filter finds it.
+    const contacts = page.getByRole('table', { name: 'Contacts' });
+    await page.getByLabel('Role in matters').selectOption({ label: 'Executor' });
+    await expect(contacts).toContainText('Lowe Testperson', FIRST_LOAD);
+    await page.getByLabel('Role in matters').selectOption({ label: 'Beneficiary' });
+    await expect(contacts).toContainText('No contacts match');
     await expectNoA11yViolations(page);
   });
 });
