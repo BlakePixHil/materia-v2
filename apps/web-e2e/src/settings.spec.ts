@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test';
 import {
   createTestAccount,
   expectNoA11yViolations,
+  FIRST_CALL,
+  FIRST_LOAD,
   setEmulatorDocuments,
   signInAsTestUser,
 } from '@materia/test-utils/e2e';
@@ -66,12 +68,20 @@ test.describe('org settings', () => {
     await page.goto('/settings');
     await expect(page).toHaveURL(/\/settings\/practice$/);
     await expect(page.getByRole('heading', { name: 'Practice', level: 1 })).toBeVisible();
+    // The form shows before the settings load, and loading fills it: edit it only once they're in.
+    await expect(page.getByLabel('Practice name')).toHaveValue('Fictional Settings Legal', FIRST_LOAD);
     await expectNoA11yViolations(page);
     await page.getByLabel('ABN').fill('51 824 753 557');
     await expect(page.getByText('This isn’t a valid ABN. Check the digits.')).toBeVisible();
     await page.getByLabel('ABN').fill('51 824 753 556');
     await page.getByLabel('Keep records for').fill('10');
+    // The first save starts orgs-updateSettings in the emulator: wait for its answer, then the toast.
+    const saved = page.waitForResponse(
+      (res) => res.url().endsWith('/orgs-updateSettings') && res.request().method() === 'POST',
+      FIRST_CALL,
+    );
     await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await saved;
     await expect(page.getByText('Practice settings saved').first()).toBeVisible();
 
     // Team: a new role and rate for Casey.
