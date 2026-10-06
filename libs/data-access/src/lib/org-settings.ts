@@ -1,6 +1,6 @@
 import * as z from 'zod';
 
-import { Org } from '@materia/domain';
+import { Org, OrgClerkSettingsSchema } from '@materia/domain';
 
 import { repo, type Repository } from './repository';
 
@@ -71,4 +71,33 @@ export function withThankYouTask(
   return { ...(settings ?? {}), referrals: { ...(settings?.referrals ?? {}), thankYouTask } } as NonNullable<
     OrgReferralSettings['settings']
   >;
+}
+
+/**
+ * What Settings → Clerk and AI reads from `orgs/{orgId}` (AI-13): the org's Clerk switches, limits
+ * and disclosure acknowledgement. Read-only here: they change through `clerk-updateSettings`.
+ */
+export const OrgClerkSettingsReadSchema = /* @__PURE__ */ z.object({
+  name: org.name,
+  settings: z.object({ clerk: OrgClerkSettingsSchema.optional() }).optional(),
+});
+export type OrgClerkSettingsRead = z.infer<typeof OrgClerkSettingsReadSchema>;
+
+/** The active org's Clerk settings, by the org id. */
+export function orgClerkSettingsRepository(): Repository<OrgClerkSettingsRead> {
+  return repo(() => 'orgs', { schema: OrgClerkSettingsReadSchema, version: Org.version });
+}
+
+/**
+ * A month of the org's Clerk metering (`orgs/{orgId}/metrics/clerk-{YYYY-MM}`, AI-02 and AI-07):
+ * flat counters under `values`. Readable by roles with `billing.view`; written only by Functions.
+ */
+export const ClerkMetricsSchema = /* @__PURE__ */ z.object({
+  period: z.string().optional(),
+  values: z.record(z.string(), z.number()).default({}),
+});
+export type ClerkMetrics = z.infer<typeof ClerkMetricsSchema>;
+
+export function clerkMetricsRepository(): Repository<ClerkMetrics> {
+  return repo((orgId) => `orgs/${orgId}/metrics`, { schema: ClerkMetricsSchema, version: 1 });
 }

@@ -311,6 +311,12 @@ export const MOBILE_QUERY = '(max-width: 767px)';
               <p class="caption t-2" role="alert">Clerk didn’t load. Reload the page to try again.</p>
             </div>
           }
+          <footer
+            class="clerk-panel-foot"
+            style="flex: none; padding: 8px 16px; border-top: 1px solid var(--border-default); font-size: 13px"
+          >
+            <a routerLink="/help/clerk" (click)="toggleClerk()">How Clerk works</a>
+          </footer>
         </aside>
       }
     </div>

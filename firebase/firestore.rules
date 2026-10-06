@@ -488,7 +488,11 @@ service cloud.firestore {
       // Readable whatever the security policy says (memberOf, not inOrg), so the app can tell a
       // member why their session isn't accepted (MFA required, session expired, signed out).
       allow read: if memberOf(orgId);
-      allow update: if can(orgId, 'org.settings') && isActiveMember(orgId) && clientUpdate(fieldsOrg());
+      // Clerk's settings (`settings.clerk`: switches, limits, the disclosure acknowledgement) change
+      // only through the audited clerk-* callables (AI-02a, AI-13), even when a client rewrites
+      // another part of `settings` (referrals, CORE-18).
+      allow update: if can(orgId, 'org.settings') && isActiveMember(orgId) && clientUpdate(fieldsOrg())
+        && request.resource.data.get('settings', {}).get('clerk', null) == resource.data.get('settings', {}).get('clerk', null);
 
       match /members/{memberUid} {
         // Their own member document likewise (its `sessionsValidAfter`); everyone else's needs inOrg.

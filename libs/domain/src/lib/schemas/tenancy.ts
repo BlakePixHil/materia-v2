@@ -1,6 +1,6 @@
 import * as z from 'zod';
 
-import { ClerkModelChoiceSchema, DEFAULT_CLERK_MODEL } from '../clerk';
+import { OrgClerkSettingsSchema } from '../clerk-settings';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
 import { NotificationPrefsSchema } from '../notifications';
 import { OrgSecuritySchema } from '../security';
@@ -92,22 +92,8 @@ export const Org = withMeta(
     security: OrgSecuritySchema,
     settings: z
       .object({
-        clerk: z
-          .object({
-            /** The org's own Clerk switch (AI-13 builds the toggle); `false` turns Clerk off for the org. */
-            enabled: z.boolean().optional(),
-            /** The model Clerk runs on (AI-02a): Sonnet 5.5 unless an admin opts into Opus 5.5 (`clerk-setModel`). */
-            model: ClerkModelChoiceSchema.default(DEFAULT_CLERK_MODEL),
-            /** Monthly token budget (all token kinds); the gateway default applies when unset. */
-            monthlyTokenBudget: z.number().int().positive().optional(),
-            /** Per-user request window; the gateway default (30 per 10 minutes) applies when unset. */
-            userRateLimit: z
-              .object({ requests: z.number().int().positive(), windowMinutes: z.number().int().positive() })
-              .optional(),
-            /** Pages per day Clerk may OCR for the org (AI-04); the ingestion default applies when unset. */
-            ocrDailyPages: z.number().int().min(0).optional(),
-          })
-          .optional(),
+        /** Clerk's switches, limits and disclosure acknowledgement (AI-02a, AI-13); see clerk-settings.ts. */
+        clerk: OrgClerkSettingsSchema.optional(),
         referrals: z
           .object({
             /** A "Thank referrer" task when a referred matter opens (CORE-18). Off unless set. */

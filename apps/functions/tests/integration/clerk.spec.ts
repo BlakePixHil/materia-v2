@@ -7,7 +7,7 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type 
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
 
-import type { FlagKey, Role } from '@materia/domain';
+import { CLERK_DISCLOSURE_VERSION, type FlagKey, type Role } from '@materia/domain';
 
 import { meteringPeriod } from '../../src/clerk/features';
 import { firestoreClerkStore } from '../../src/clerk/firestore-store';
@@ -407,6 +407,72 @@ describe('Clerk key callables through the Functions emulator (AI-02a)', () => {
       expect(await callError(call())).toEqual(['functions/permission-denied', 'PERMISSION_DENIED']);
     }
     expect((await db.doc(anthropicKeyPath(KEY_ORG)).get()).get('last4')).toBe(ORG_KEY.slice(-4));
+  });
+});
+
+describe('Clerk settings through the Functions emulator (AI-13)', () => {
+  const SETTINGS_ORG = 'org-clerk-settings';
+  const call =
+    <O>(name: string) =>
+    (data: Record<string, unknown> = {}) =>
+      httpsCallable<Record<string, unknown>, O>(
+        getFunctions(client, 'australia-southeast1'),
+        name,
+      )({ requestId: randomUUID(), ...data });
+  const updateSettings = call<{ changed: string[] }>('clerk-updateSettings');
+  const hello = call<Record<string, unknown>>('clerk-hello');
+  const chat = (orgId = SETTINGS_ORG) =>
+    gatewayWith([{ chunks: ['Fictional answer.'] }], {
+      'clerk.enabled': true,
+      'clerk.features.chat': true,
+    }).gateway.run(
+      input({
+        ctx: { orgId, uid: 'clerk-settings-owner', role: 'owner', requestId: randomUUID(), log, clock },
+        feature: 'chat',
+        promptId: 'chat-answer',
+        vars: { today: '2026-10-05', role: 'owner', matterContext: 'None.', question: 'Who are the executors?' },
+      }),
+    );
+
+  beforeEach(() => resetOrg(SETTINGS_ORG, { flags: { 'clerk.enabled': true } }));
+
+  it('holds every feature until an owner acknowledges the disclosure, then a disabled feature stays blocked', async () => {
+    await signInMember('clerk-settings-owner', SETTINGS_ORG, 'owner');
+    await expect(chat()).rejects.toMatchObject({
+      code: 'CLERK_DISABLED',
+      details: { switch: 'org.settings.clerk.acknowledgement' },
+    });
+
+    expect((await updateSettings({ acknowledgeVersion: CLERK_DISCLOSURE_VERSION })).data.changed).toEqual([
+      'acknowledgement',
+    ]);
+    const clerk = (await db.doc(`orgs/${SETTINGS_ORG}`).get()).get('settings.clerk') as Record<string, unknown>;
+    expect(clerk).toMatchObject({ ackVersion: CLERK_DISCLOSURE_VERSION, acknowledgedBy: 'clerk-settings-owner' });
+    await expect(chat()).resolves.toMatchObject({ status: 'done' });
+
+    await updateSettings({ features: { chat: false } });
+    await expect(chat()).rejects.toMatchObject({
+      code: 'CLERK_DISABLED',
+      details: { switch: 'org.settings.clerk.features.chat' },
+    });
+    const audit = await db
+      .collection(`orgs/${SETTINGS_ORG}/audit`)
+      .where('action', '==', 'clerk.settings_changed')
+      .get();
+    expect(audit.size).toBe(2);
+  });
+
+  it('turning Clerk off for the org blocks clerk-hello; a lawyer can’t change settings', async () => {
+    await signInMember('clerk-settings-owner', SETTINGS_ORG, 'owner');
+    expect((await hello()).data).toMatchObject({ status: 'done' });
+    await updateSettings({ enabled: false });
+    expect(await callError(hello())).toEqual(['functions/failed-precondition', 'CLERK_DISABLED']);
+
+    await signInMember('clerk-settings-lawyer', SETTINGS_ORG, 'lawyer');
+    expect(await callError(updateSettings({ enabled: true }))).toEqual([
+      'functions/permission-denied',
+      'PERMISSION_DENIED',
+    ]);
   });
 });
 

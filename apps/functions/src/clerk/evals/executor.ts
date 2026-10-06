@@ -40,7 +40,7 @@ import {
   type GatewayDocument,
 } from '../gateway';
 import type { ClerkKeyring } from '../keyring';
-import { MemoryClerkStore } from '../testing';
+import { ACKNOWLEDGED_CLERK_SETTINGS, MemoryClerkStore } from '../testing';
 import {
   caseNow,
   EVAL_MATTER,
@@ -301,6 +301,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
     };
     const store = new MemoryClerkStore();
     store.settings = {
+      ...ACKNOWLEDGED_CLERK_SETTINGS,
       ...((CLERK_MODELS.choices as readonly string[]).includes(options.modelId)
         ? { model: options.modelId as (typeof CLERK_MODELS.choices)[number] }
         : {}),

@@ -141,7 +141,7 @@ describe('app routes', () => {
     const lawyerNav = [...asLawyer.el.querySelectorAll('nav[aria-label="Settings pages"] a')].map((a) =>
       a.textContent?.trim(),
     );
-    expect(lawyerNav).toEqual(['Profile', 'Preferences', 'Team and roles', 'Security']);
+    expect(lawyerNav).toEqual(['Profile', 'Preferences', 'Team and roles', 'Security', 'Clerk and AI']);
   });
 
   it.each(['/settings/practice', '/settings/billing', '/settings/audit', '/settings/numbering'])(

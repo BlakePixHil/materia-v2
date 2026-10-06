@@ -11,6 +11,8 @@ import {
   RoleSchema,
   SendClerkMessageInput,
   SetClerkFeedbackInput,
+  clerkAcknowledged,
+  orgClerkFeatureOn,
   type RetryClerkMessageResult,
   type SendClerkMessageResult,
   type SetClerkFeedbackResult,
@@ -62,7 +64,8 @@ export function threadTitle(text: string): string {
 
 /**
  * Says at once why Clerk can't answer, so the Composer can show it and offer the manual path
- * (AI-06): the kill switches, the org's own setting, no usable key, or the month's budget used.
+ * (AI-06): the kill switches, the org's own settings (its "Ask Clerk" switch and the data-use
+ * disclosure, AI-13), no usable key, or the month's budget used.
  * The gateway checks all of these again when the answer runs (and the per-user window then).
  */
 async function checkAvailable(db: Firestore, orgId: string, clock: Clock): Promise<void> {
@@ -74,6 +77,10 @@ async function checkAvailable(db: Firestore, orgId: string, clock: Clock): Promi
   const settings = (org.get('settings.clerk') as OrgClerkSettings | undefined) ?? {};
   if (settings.enabled === false)
     throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: 'org.settings.clerk.enabled' });
+  if (!orgClerkFeatureOn(settings, 'chat'))
+    throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: 'org.settings.clerk.features.chat' });
+  if (!clerkAcknowledged(settings))
+    throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: 'org.settings.clerk.acknowledgement' });
   if (!key.exists || !key.get('encryptedApiKey'))
     throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: BYOK_MISSING_SWITCH });
   if (key.get('status') === 'invalid')

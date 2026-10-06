@@ -7,7 +7,7 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type 
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
 
-import type { Role } from '@materia/domain';
+import { CLERK_DISCLOSURE_VERSION, type Role } from '@materia/domain';
 
 import { chatRunDeps } from '../../src/clerk/chat/callables';
 import { runChatMessage } from '../../src/clerk/chat/run';
@@ -46,7 +46,13 @@ const log = createLog({ fn: 'clerk-chat-integration' }, () => undefined);
 
 async function resetOrg(orgId: string, flags: Data = FLAGS) {
   await db.recursiveDelete(db.doc(`orgs/${orgId}`));
-  await db.doc(`orgs/${orgId}`).set({ name: 'Fictional Chat Practice', timezone: 'Australia/Melbourne', flags });
+  // An admin has acknowledged the data-use disclosure (AI-13), so Clerk may read the matter.
+  await db.doc(`orgs/${orgId}`).set({
+    name: 'Fictional Chat Practice',
+    timezone: 'Australia/Melbourne',
+    flags,
+    settings: { clerk: { ackVersion: CLERK_DISCLOSURE_VERSION } },
+  });
   const sealed = await kms.encrypt(ORG_KEY, anthropicKeyPath(orgId));
   await db.doc(anthropicKeyPath(orgId)).set({
     provider: 'anthropic',

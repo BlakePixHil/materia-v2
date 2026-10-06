@@ -1,6 +1,6 @@
 import * as z from 'zod';
 
-import type { FlagKey } from '@materia/domain';
+import { CLERK_DISCLOSURE_VERSION, type FlagKey } from '@materia/domain';
 
 import { createLog, type Severity } from '../core/log';
 import { ClerkModelError } from '../ports';
@@ -8,7 +8,7 @@ import { meteringPeriod } from './features';
 import { backoffMs, createClerkGateway, type ClerkRunInput } from './gateway';
 import { FakeClock } from '../ports/fakes';
 import { FakeClerkModel, type FakeStep } from './providers/fake';
-import { MemoryClerkStore, MemoryKeyring } from './testing';
+import { ACKNOWLEDGED_CLERK_SETTINGS, MemoryClerkStore, MemoryKeyring } from './testing';
 
 // Most cases run on Opus 5.5, the org's opt-in, so its fallback chain and prices are exercised.
 const CLERK_MODEL = 'claude-opus-5-5';
@@ -19,7 +19,7 @@ const SECRET_DOC = 'Fictional will of Avery Quill: the residue to the Lantern Tr
 function setup(script: FakeStep[] = [], flags: Partial<Record<FlagKey, boolean>> = { 'clerk.enabled': true }) {
   const model = new FakeClerkModel(script);
   const store = new MemoryClerkStore();
-  store.settings = { model: CLERK_MODEL };
+  store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS, model: CLERK_MODEL };
   const keyring = new MemoryKeyring();
   const logs: { severity: Severity; message: string; entry: Record<string, unknown> }[] = [];
   const log = createLog({ fn: 'test', requestId: 'req-1', orgId: 'org-a', uid: 'u-1' }, (severity, message, entry) =>
@@ -198,7 +198,7 @@ describe('ClerkGateway', () => {
 
   it("kill switch: the org's own setting", async () => {
     const { gateway, input, store, model } = setup();
-    store.settings = { enabled: false };
+    store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS, enabled: false };
     await expect(gateway.run(input())).rejects.toMatchObject({
       code: 'CLERK_DISABLED',
       details: { switch: 'org.settings.clerk.enabled' },
@@ -206,9 +206,82 @@ describe('ClerkGateway', () => {
     expect(model.requests).toHaveLength(0);
   });
 
+  it('an org toggle turns one feature off (AI-13)', async () => {
+    const { gateway, input, store, model } = setup([], {
+      'clerk.enabled': true,
+      'clerk.features.classification': true,
+    });
+    store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS, features: { classification: false, chat: true } };
+    const classify = () =>
+      gateway.run(
+        input({
+          feature: 'classification',
+          promptId: 'classify-document',
+          vars: { fileName: 'Fictional letter.pdf', pageCount: 1 },
+        }),
+      );
+    await expect(classify()).rejects.toMatchObject({
+      code: 'CLERK_DISABLED',
+      details: { switch: 'org.settings.clerk.features.classification' },
+    });
+    expect(model.requests).toHaveLength(0);
+    // The connectivity check isn't a feature an org toggles.
+    await expect(gateway.run(input())).resolves.toMatchObject({ status: 'done' });
+  });
+
+  it('needs the current data-use disclosure acknowledged before sending firm data (AI-13)', async () => {
+    const { gateway, input, store, model } = setup();
+    const ocr = () =>
+      gateway.run(input({ feature: 'ocr', promptId: 'ocr', vars: { page: 1, fileName: 'Fictional scan.pdf' } }));
+    store.settings = { model: CLERK_MODEL };
+    await expect(ocr()).rejects.toMatchObject({
+      code: 'CLERK_DISABLED',
+      details: { switch: 'org.settings.clerk.acknowledgement' },
+    });
+    // An older version needs acknowledging again.
+    store.settings = { model: CLERK_MODEL, ackVersion: CLERK_DISCLOSURE_VERSION - 0.5 };
+    await expect(ocr()).rejects.toMatchObject({ code: 'CLERK_DISABLED' });
+    expect(model.requests).toHaveLength(0);
+    // The connectivity check sends no firm data, so it runs (the live smoke test, AI-02a).
+    await expect(gateway.run(input())).resolves.toMatchObject({ status: 'done' });
+    store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS };
+    await expect(ocr()).resolves.toMatchObject({ status: 'done' });
+  });
+
+  it('stops at the monthly spend limit in US cents, even one lowered below this month’s spend (AI-13)', async () => {
+    const { gateway, input, store, model } = setup();
+    store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS, monthlyBudgetCents: 500 };
+    store.costMicrosUsed = 4_999_999;
+    await expect(gateway.run(input())).resolves.toMatchObject({ status: 'done' });
+    store.costMicrosUsed = 5_000_000;
+    await expect(gateway.run(input())).rejects.toMatchObject({
+      code: 'CLERK_BUDGET_EXCEEDED',
+      details: { period: 'clerk-2026-03', spend: true },
+    });
+    store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS, monthlyBudgetCents: 0 };
+    store.costMicrosUsed = 0;
+    await expect(gateway.run(input())).rejects.toMatchObject({ code: 'CLERK_BUDGET_EXCEEDED' });
+    expect(model.requests).toHaveLength(1);
+  });
+
+  it('enforces the per-person daily request limit, by Melbourne day (AI-13)', async () => {
+    const { gateway, input, store, clock } = setup();
+    store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS, perUserDailyRequests: 2 };
+    await gateway.run(input());
+    await gateway.run(input());
+    await expect(gateway.run(input())).rejects.toMatchObject({ code: 'CLERK_RATE_LIMITED', details: { daily: 2 } });
+    // 2026-03-14T00:00Z is 11 am in Melbourne; 13 hours later is the next Melbourne day.
+    clock.advance(13 * 60 * 60_000);
+    await expect(gateway.run(input())).resolves.toMatchObject({ status: 'done' });
+  });
+
   it('enforces the per-user window (org-configurable)', async () => {
     const { gateway, input, store, clock } = setup();
-    store.settings = { enabled: true, userRateLimit: { requests: 2, windowMinutes: 10 } };
+    store.settings = {
+      ...ACKNOWLEDGED_CLERK_SETTINGS,
+      enabled: true,
+      userRateLimit: { requests: 2, windowMinutes: 10 },
+    };
     await gateway.run(input());
     await gateway.run(input());
     await expect(gateway.run(input())).rejects.toMatchObject({
@@ -221,7 +294,11 @@ describe('ClerkGateway', () => {
 
   it('skips the per-user window for background features (ingestion OCR)', async () => {
     const { gateway, input, store } = setup();
-    store.settings = { enabled: true, userRateLimit: { requests: 1, windowMinutes: 10 } };
+    store.settings = {
+      ...ACKNOWLEDGED_CLERK_SETTINGS,
+      enabled: true,
+      userRateLimit: { requests: 1, windowMinutes: 10 },
+    };
     const ocr = () =>
       gateway.run(input({ feature: 'ocr', promptId: 'ocr', vars: { page: 1, fileName: 'Fictional scan.pdf' } }));
     await ocr();
@@ -232,7 +309,7 @@ describe('ClerkGateway', () => {
 
   it('blocks the next call once the monthly budget is used (the current call finishes)', async () => {
     const { gateway, input, store } = setup([{ chunks: [HELLO_JSON], usage: { inputTokens: 900, outputTokens: 200 } }]);
-    store.settings = { monthlyTokenBudget: 1000 };
+    store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS, monthlyTokenBudget: 1000 };
     await expect(gateway.run(input())).resolves.toMatchObject({ status: 'done' });
     await expect(gateway.run(input())).rejects.toMatchObject({
       code: 'CLERK_BUDGET_EXCEEDED',
@@ -248,7 +325,7 @@ describe('ClerkGateway', () => {
       { chunks: [HELLO_JSON], usage },
       { chunks: [HELLO_JSON], usage },
     ]);
-    store.settings = { monthlyTokenBudget: 1000 };
+    store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS, monthlyTokenBudget: 1000 };
     await gateway.run(input());
     await gateway.run(input());
     const warnings = () => logs.filter((l) => l.message === 'clerk budget threshold');
@@ -384,7 +461,7 @@ describe('gateway helpers', () => {
         overloaded,
         { chunks: [HELLO_JSON], model: 'claude-sonnet-5' },
       ]);
-      store.settings = {};
+      store.settings = { ...ACKNOWLEDGED_CLERK_SETTINGS };
       const result = await gateway.run(input());
       expect(result).toMatchObject({ status: 'done', model: 'claude-sonnet-5', fallbackUsed: true });
       expect(model.requests.map((r) => r.model)).toEqual([

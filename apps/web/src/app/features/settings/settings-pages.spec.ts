@@ -148,6 +148,12 @@ afterEach(() => {
 });
 
 describe('Settings → Practice', () => {
+  it('keeps the form hidden until the practice has loaded, so nothing typed is overwritten', async () => {
+    const page = await open('/settings/practice', OWNER, (firestore) => (firestore.stalled = true));
+    expect(page.text()).toContain('Loading settings…');
+    expect(page.el.querySelector('mt-practice-settings-page form')).toBeNull();
+  });
+
   it('loads the practice, checks the ABN, and confirms the reminders a time zone change moves', async () => {
     const page = await open('/settings/practice', OWNER);
     expect(page.text()).toContain('Practice');
