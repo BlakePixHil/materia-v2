@@ -259,6 +259,22 @@ describe('Settings → Preferences', () => {
     expect(page.user().prefs).not.toHaveProperty('timezone');
   });
 
+  it('sets how many days before they’re due task reminders come (CORE-11)', async () => {
+    const page = await open('/settings/preferences');
+    const select = page.field('Remind me about tasks') as HTMLSelectElement;
+    // The server's default until the person chooses.
+    expect(select.selectedOptions[0]?.textContent?.trim()).toBe('1 day before they’re due');
+    const options = [...select.options].map((o) => o.textContent?.trim());
+    expect(options).toContain('On the day they’re due');
+    expect(options.at(-1)).toBe('14 days before they’re due');
+    await page.choose('Remind me about tasks', '3 days before they’re due');
+    expect((page.user().prefs['notifications'] as NotificationPrefs).taskReminderDays).toBe(3);
+    await page.choose('Remind me about tasks', 'On the day they’re due');
+    expect((page.user().prefs['notifications'] as NotificationPrefs).taskReminderDays).toBe(0);
+    // The other notification preferences are kept.
+    expect(page.user().prefs['notifications']).toEqual({ ...DEFAULT_NOTIFICATION_PREFS, taskReminderDays: 0 });
+  });
+
   it('lists devices and signs one out of push notifications', async () => {
     const page = await open('/settings/preferences', (firestore) =>
       firestore.set(`users/${UID}/devices/d1`, {

@@ -1,0 +1,51 @@
+[
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111/checklist-templates/7e3a0000-0000-4000-8000-000000000001",
+    "data": {
+      "id": "7e3a0000-0000-4000-8000-0000000000aa",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-111111111111",
+      "title": "Will intake",
+      "templateExists": false,
+      "items": [
+        {
+          "id": "c7ec0000-0000-4000-8000-000000000010",
+          "name": "Take instructions",
+          "checked": false,
+          "dueDate": null,
+          "doneOnDate": null,
+          "priority": 0
+        },
+        {
+          "id": "c7ec0000-0000-4000-8000-000000000011",
+          "name": "Send quote",
+          "checked": false,
+          "dueDate": null,
+          "doneOnDate": null,
+          "priority": 1
+        }
+      ],
+      "createdOn": "2024-05-01T00:00:00.000Z",
+      "updatedOn": "2024-05-01T00:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222/checklist-templates/7e3a0000-0000-4000-8000-000000000002",
+    "data": {
+      "id": "7e3a0000-0000-4000-8000-000000000002",
+      "workflowId": "0b6f1c2e-5d4a-4c3b-9a8e-222222222222",
+      "title": "Probate steps",
+      "items": [
+        {
+          "id": "c7ec0000-0000-4000-8000-000000000012",
+          "name": "Obtain death certificate",
+          "checked": false,
+          "dueDate": null,
+          "doneOnDate": null,
+          "priority": 0
+        }
+      ],
+      "createdOn": "2024-05-02T00:00:00.000Z",
+      "updatedOn": "2024-05-02T00:00:00.000Z"
+    }
+  }
+]

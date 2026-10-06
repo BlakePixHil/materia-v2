@@ -26,6 +26,13 @@ let nextId = 0;
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   host: { class: 'mt-field mt-narrative-field' },
+  // Its own field, label, input and phrase-list styles, so it looks right wherever it renders first.
+  styleUrls: [
+    '../../../../../../libs/ui/src/generated/components/field.css',
+    '../../../../../../libs/ui/src/generated/components/label.css',
+    '../../../../../../libs/ui/src/generated/components/input.css',
+    '../../../../../../libs/ui/src/generated/components/menu.css',
+  ],
   template: `
     @if (!labelHidden()) {
       <label class="mt-label" [for]="id">{{ label() }}</label>

@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "subject": { "label": "Tristan Burke", "legacyUid": "fen5jJdhNHTkGBpgAdsLSKQRvXx2" },
+  "org": { "timezone": "Australia/Melbourne", "jurisdiction": "VIC" },
+  "workflows": [
+    {
+      "mode": "matters",
+      "name": "Estate planning",
+      "matterType": "will",
+      "swimlanes": [
+        { "title": "Upcoming initial appt / prospective clients", "status": "lead" },
+        { "title": "New files / waiting for quote approved", "status": "open", "stageId": "instructions" },
+        { "title": "To draft", "status": "open", "stageId": "draft" },
+        { "title": "Drafts sent to clients", "status": "open", "stageId": "client_review" },
+        {
+          "title": "Waiting on SOAs",
+          "status": "open",
+          "stageId": "safe_custody",
+          "note": "Signed and waiting on the statement of account (D-04, Blake, 2026-10-06)"
+        },
+        { "title": "Close file", "status": "closed", "stageId": "closed" }
+      ]
+    },
+    {
+      "mode": "matters",
+      "name": "Estate admin",
+      "matterType": "probate",
+      "swimlanes": [
+        { "title": "Waiting for client to approve quote / open file", "status": "lead" },
+        { "title": "General estate advice (non-dispute)", "status": "open", "stageId": "instructions" },
+        {
+          "title": "ASP only or probate not needed",
+          "status": "open",
+          "matterType": "admin",
+          "stageId": "assets_collected",
+          "note": "No grant needed, so administration rather than probate (D-04, Blake, 2026-10-06)"
+        },
+        { "title": "Stage 1 (pre-filing)", "status": "open", "stageId": "documents" },
+        { "title": "Stage 2 (filed)", "status": "open", "stageId": "application_filed" },
+        { "title": "Stage 3 & 4 (admin and property)", "status": "open", "stageId": "assets_collected" },
+        {
+          "title": "File to be closed",
+          "status": "open",
+          "stageId": "closed",
+          "note": "Still open: the lawyer closes it in v2 with the closing checklist"
+        }
+      ]
+    },
+    {
+      "mode": "matters",
+      "name": "Disputes",
+      "matterType": "contest",
+      "note": "The columns are kinds of dispute, not stages, so most leave the stage unset",
+      "swimlanes": [
+        { "title": "Part IV", "status": "open", "matterType": "fp" },
+        { "title": "VCAT", "status": "open" },
+        { "title": "Superannuation", "status": "open" },
+        { "title": "Other", "status": "open" },
+        { "title": "Caveat", "status": "open", "stageId": "caveat_lodged" },
+        { "title": "Close file", "status": "closed", "stageId": "closed" }
+      ]
+    },
+    {
+      "mode": "personal_tasks",
+      "name": "FY BD & Non-Billable - Track for Promotion",
+      "note": "Blake, 2026-10-04: personal tasks grouped by column"
+    },
+    { "mode": "personal_tasks", "name": "Non-billable", "note": "Blake, 2026-10-04: personal tasks grouped by column" },
+    {
+      "mode": "exclude",
+      "name": "Test Workflow",
+      "reason": "Shared board Tristan doesn't own (Blake, 2026-10-04)"
+    }
+  ],
+  "labels": { "default": "keep", "map": {} },
+  "fees": {
+    "unit": "dollars",
+    "billingTypes": { "fixed": "fixed", "hourly": "hourly", "folio": "hourly", "nowin": "conditional" }
+  },
+  "foreignAssignees": "reassign_with_note",
+  "matterNumbers": "allocate",
+  "matterDefaults": {
+    "clientContact": "from_title",
+    "conflictCheck": "clear_unless_lead",
+    "costsDisclosure": "required_unless_closed"
+  },
+  "signOff": {
+    "user": { "name": "Tristan Burke", "on": "2026-10-06", "note": "Signed off through Blake in the project thread" },
+    "productOwner": { "name": "Blake Linnell", "on": "2026-10-06" }
+  }
+}

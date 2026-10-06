@@ -96,6 +96,9 @@ describe('key facts', () => {
         fs.set(`${MATTER}/events/ev-death`, {
           kind: 'date_of_death',
           date: '2026-07-22',
+          time: '14:30',
+          label: 'At the hospice',
+          sourceDocumentId: 'doc-cert',
           meta: {},
           orgId: 'org-harbour-vine',
           matterId: 'm-whitfield',
@@ -107,8 +110,16 @@ describe('key facts', () => {
     await page.fill('Date of death', '21/07/2026');
     await page.submit(page.body.querySelector('mt-key-facts'));
     await page.stable(20);
+    // The rest of the event stays as recorded (the server replaces it whole).
     expect(page.calls('deadlines-upsertEvent')).toEqual([
-      expect.objectContaining({ eventId: 'ev-death', kind: 'date_of_death', date: '2026-07-21' }),
+      expect.objectContaining({
+        eventId: 'ev-death',
+        kind: 'date_of_death',
+        date: '2026-07-21',
+        time: '14:30',
+        label: 'At the hospice',
+        sourceDocumentId: 'doc-cert',
+      }),
     ]);
     expect(facts(page)['Date of death']).toBe(formatDateOnly('2026-07-21'));
 

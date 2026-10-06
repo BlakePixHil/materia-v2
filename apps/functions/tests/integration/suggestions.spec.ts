@@ -17,6 +17,8 @@ import {
 import { clearFlagCaches, setRemoteFlagLoader } from '../../src/core/flags';
 import { createLog } from '../../src/core/log';
 import { systemClock } from '../../src/ports/container';
+import { FakeTaskQueue } from '../../src/ports/fakes';
+import { notifyNewSuggestions } from '../../src/suggestions/notify';
 import { proposeSuggestions, type ProposeOptions } from '../../src/suggestions/propose';
 
 /**
@@ -25,7 +27,8 @@ import { proposeSuggestions, type ProposeOptions } from '../../src/suggestions/p
  * `suggestions-*` callables with real claims. One test per kind with a handler (each through its
  * domain logic: the triggers, recompute and audit run for real), the kinds without one refused,
  * stale detection, dedupe across runs, the audit's human actor with `via: 'clerk'`, two people
- * accepting at once, a closed matter, permissions and privilege. Everything is fictional.
+ * accepting at once, a closed matter, permissions and privilege, and the `suggestion`
+ * notification a background batch sends (CORE-22a). Everything is fictional.
  */
 const PROJECT_ID = 'demo-materia';
 const ORG = 'org-suggest';
@@ -154,6 +157,7 @@ beforeAll(async () => {
   await db.doc(`orgs/${ORG}`).set({
     name: 'Fictional Suggest Practice',
     timezone: 'Australia/Melbourne',
+    billing: { unitMinutes: 6, rounding: 'up', defaultRateCents: 30000 },
     flags: { 'clerk.features.suggestions': true },
   });
   clearFlagCaches();
@@ -334,6 +338,41 @@ describe('accepting each kind with a handler', () => {
     });
   });
 
+  it('time_entry: a draft entry of the person accepting, source clerk, priced and counted into WIP', async () => {
+    const payload = { date: '2026-10-05', minutes: 30, narrative: 'Call with the executor' };
+    const id = await proposeOne({ kind: 'time_entry', payload });
+    const result = await accept({ suggestionId: id });
+    expect(result.resultRef).toMatch(new RegExp(`^${MATTER}/timeEntries/`));
+    expect(await data(result.resultRef)).toMatchObject({
+      ...payload,
+      uid: uidOf('lawyer'),
+      status: 'draft',
+      source: 'clerk',
+      billable: true,
+      units: 5,
+      amountCents: 15000,
+      createdBy: uidOf('lawyer'),
+    });
+    const matter = await poll(
+      () => data(MATTER),
+      (m) => typeof m['wipCents'] === 'number' && m['wipCents'] > 0,
+    );
+    expect(matter['wipCents']).toBe(15000);
+    // The same time again is already recorded.
+    expect((await propose([{ kind: 'time_entry', payload }])).skipped).toEqual([
+      expect.objectContaining({ reason: 'exists' }),
+    ]);
+    const error = await failure(
+      accept({
+        suggestionId: await proposeOne({
+          kind: 'time_entry',
+          payload: { ...payload, minutes: 12, taskId: 'no-such-task' },
+        }),
+      }),
+    );
+    expect(detailsOf(error)).toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
   it('edited: applies the edit (status edited) and returns field errors for a bad one', async () => {
     const id = await proposeOne(task('Call the valuer'));
     const bad = await failure(accept({ suggestionId: id, editedPayload: { title: '', dueDate: 'soon' } }));
@@ -351,7 +390,6 @@ describe('accepting each kind with a handler', () => {
 
 describe('kinds without a handler', () => {
   it.each([
-    ['time_entry', { date: '2026-10-05', minutes: 30, narrative: 'Call with the executor' }],
     ['chronology', { date: '2026-01-02', datePrecision: 'day', title: 'Will signed', detail: 'At the firm' }],
     [
       'order',
@@ -461,6 +499,41 @@ describe('dedupe and concurrency', () => {
     expect(detailsOf(failed[0]?.reason as FunctionsError)['code']).toBe('ALREADY_RESOLVED');
     const tasks = await db.collection(`${MATTER}/tasks`).where('title', '==', 'Notify the State Revenue Office').get();
     expect(tasks.size).toBe(1);
+  });
+});
+
+describe('notifications (CORE-22a)', () => {
+  it('a background batch tells the responsible lawyer once, and their Review accepts what it points at', async () => {
+    const { created } = await propose([task('Order the valuation report'), task('Ask the bank for balances')]);
+    const notice = () =>
+      notifyNewSuggestions(
+        { db, orgId: ORG, clock: systemClock, log, ports: { tasks: new FakeTaskQueue() } },
+        MATTER_ID,
+        created,
+      );
+    const ids = await notice();
+    expect(ids).toEqual([`suggest-${MATTER_ID}-${created[0]?.id}`]);
+    expect(await data(`orgs/${ORG}/notifications/${ids[0]}`)).toMatchObject({
+      kind: 'suggestion',
+      recipientUid: uidOf('lawyer'),
+      suggestionId: created[0]?.id,
+      matterId: MATTER_ID,
+      title: 'Clerk has 2 suggestions on SG-2026-0001',
+      link: `/matters/${MATTER_ID}/overview`,
+      channels: ['inapp'],
+      readAt: null,
+    });
+    await notice();
+    const sent = await db
+      .collection(`orgs/${ORG}/notifications`)
+      .where('kind', '==', 'suggestion')
+      .where('suggestionId', '==', created[0]?.id)
+      .get();
+    expect(sent.size).toBe(1);
+
+    await signInAs('lawyer');
+    await accept({ suggestionId: created[0]?.id });
+    expect(await suggestionDoc(created[0]?.id as string)).toMatchObject({ status: 'accepted' });
   });
 });
 

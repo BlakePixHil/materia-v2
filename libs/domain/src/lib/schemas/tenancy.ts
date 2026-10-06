@@ -2,6 +2,7 @@ import * as z from 'zod';
 
 import { OrgClerkSettingsSchema } from '../clerk-settings';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
+import { BoardWipLimitsSchema } from '../matter-board';
 import { NotificationPrefsSchema } from '../notifications';
 import { OrgSecuritySchema } from '../security';
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
@@ -100,6 +101,8 @@ export const Org = withMeta(
             thankYouTask: z.boolean().optional(),
           })
           .optional(),
+        /** The Matters board's WIP limits per column (CORE-04a), set by owners and admins from the board. */
+        board: z.object({ wipLimits: BoardWipLimitsSchema.optional() }).optional(),
       })
       .optional(),
     /**
