@@ -127,7 +127,7 @@ function world(initial: Record<string, Data> = {}, flags: Data = { 'estate.regis
       exportInventoryDefinition,
       {
         data: { requestId: randomUUID(), matterId: 'm1', ...data },
-        auth: { uid: `user-${role}`, token: { orgId: ORG, role } },
+        auth: { uid: `user-${role}`, token: { orgId: ORG, role, auth_time: NOW.getTime() / 1000 - 60 } },
       },
       deps(),
     );

@@ -1,5 +1,8 @@
 import type { MatterListFilters } from '@materia/data-access/repository';
 import {
+  boardWipStageKey,
+  boardWipState,
+  boardWipStatusKey,
   compareBoardOrder,
   MATTER_BOARD_CLOSED_DAYS,
   MATTER_BOARD_STATUSES,
@@ -32,6 +35,8 @@ export interface BoardColumn {
   description?: string;
   /** Cards can be moved here (not "Other stages"). */
   droppable: boolean;
+  /** Its WIP limit's key in the org's settings (CORE-04a); "Other stages" has none. */
+  wipKey?: string;
 }
 
 /** The column for matters whose stage isn't one of the type's stages (an older org template). */
@@ -64,6 +69,7 @@ export function boardColumns(type: MatterType | null, templatesOn: boolean): Boa
       kind: 'status',
       status,
       droppable: true,
+      wipKey: boardWipStatusKey(status),
       ...(status === 'closed' ? { description: `Closed in the last ${MATTER_BOARD_CLOSED_DAYS} days` } : {}),
     }));
   }
@@ -75,6 +81,7 @@ export function boardColumns(type: MatterType | null, templatesOn: boolean): Boa
       kind: 'stage',
       stageId: stage.id,
       droppable: true,
+      wipKey: boardWipStageKey(type, stage.id),
       ...(stage.criteria ? { description: stage.criteria } : {}),
     })),
     {
@@ -271,4 +278,31 @@ export function movedCards(previous: ReadonlyMap<string, CardSpot>, next: Readon
 /** "Moved M-2026-0001 to Open, 2 of 5." for screen readers. */
 export function moveAnnouncement(number: string, column: string, position: number, total: number): string {
   return `Moved ${number} to ${column}, ${position} of ${total}.`;
+}
+
+/**
+ * A column's list name for screen readers (CORE-04a): its title, the lane, its matters, and its
+ * WIP limit with where the column stands against it. In swimlanes the limit counts the whole column.
+ */
+export function cellLabel(cell: {
+  column: string;
+  lane?: string;
+  count: number;
+  total: number;
+  limit?: number | undefined;
+}): string {
+  const matters = cell.count === 1 ? '1 matter' : `${cell.count} matters`;
+  const head = cell.lane ? `${cell.column}, ${cell.lane}: ${matters}` : `${cell.column}: ${matters}`;
+  if (!cell.limit) return head;
+  const state = boardWipState(cell.total, cell.limit);
+  const limit = cell.lane ? `; ${cell.total} in the column, WIP limit ${cell.limit}` : `, WIP limit ${cell.limit}`;
+  return `${head}${limit}${state === 'over' ? ', over the limit' : state === 'full' ? ', at the limit' : ''}`;
+}
+
+/** The warning when a move takes a column past its WIP limit (CORE-04a). */
+export function wipWarning(column: string, total: number, limit: number): { title: string; description: string } {
+  return {
+    title: `${column} is over its WIP limit`,
+    description: `${total} matters against a limit of ${limit}.`,
+  };
 }

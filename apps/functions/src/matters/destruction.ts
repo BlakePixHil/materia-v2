@@ -401,6 +401,10 @@ export async function destroyMatter(
   const certificateId = destructionCertificateId(matterId);
 
   if (!after(stage, 'files')) {
+    // Export files made from the matter (document zips, CORE-12b) aren't under its prefix: they are
+    // `orgs/{orgId}/exports/{jobId}.zip` with no matter id in the path or the object's metadata, so
+    // they can't be found from here. `jobs-sweepExports` deletes every export, and its job, within
+    // EXPORT_TTL_DAYS (7) of being made, which is soon enough.
     const purged = await files.purge(`${matterRef.path}/`);
     await mark('files', { 'counts.files': FieldValue.increment(purged) });
   }

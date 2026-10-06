@@ -37,6 +37,8 @@ What to do when an alert fires or something is broken (FND-21). Materia is a sin
 | Firestore reads/writes over 3× the 24-hour baseline | SEV-3 | Cost guard. Usually a listener loop in the web app or a trigger writing to what it listens to. Dashboard: invocations by service. |
 | Clerk monthly budget at 80% | SEV-3 | Usage is in `orgs/{orgId}/metrics/clerk-YYYY-MM`. Raise the org's `monthlyTokenBudget` or let it stop at 100% (`CLERK_BUDGET_EXCEEDED`). |
 | Scheduled job not running / Reminders not running | SEV-2 | Cloud Scheduler (job paused?) and the function's logs. A paused daily job (deadlines-flagMissed) does not alert; only one that runs and fails does. Reminders catch up by themselves once the job runs again. |
+| Trigger dead-lettered an event | SEV-2 | The `fn` label names the trigger. For `audit-…` a change is missing from the audit log: the dead-letter log entry has the document path and the stack (Error Reporting too). Fix the cause, then replay the write or record the entry. |
+| Deadline calendar data missing | SEV-2 | The log lists the `calendars` and `ruleIds`. Add that year's calendar data to `libs/deadlines` (docs/06-deadline-engine.md) and deploy; the next recompute unblocks the deadlines. |
 | Test alert | none | A delivery test. Nothing is wrong. |
 
 ## Decoding a web stack trace

@@ -23,7 +23,8 @@ export function newOrgDoc(input: z.output<typeof CreateOrgInput>, uid: string, n
     jurisdictions: [input.primaryJurisdiction],
     primaryJurisdiction: input.primaryJurisdiction,
     timezone: input.timezone,
-    holidayLocality: input.primaryJurisdiction,
+    // Reminders use a locality's own public holidays (CORE-21); Melbourne until the practice picks one.
+    holidayLocality: 'VIC_MELBOURNE',
     billing: {
       unitMinutes: 6,
       rounding: 'up',

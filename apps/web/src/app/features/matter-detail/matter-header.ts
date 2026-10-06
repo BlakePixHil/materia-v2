@@ -794,10 +794,28 @@ export class MatterHeader {
     if (!confirmed) return;
     try {
       await this.screen.repo.softDelete(matter.id);
-      this.toasts.show({ title: `Deleted ${matter.number}`, tone: 'success' });
+      const api = this.screen.api;
+      this.toasts.show({
+        title: `Deleted ${matter.number}`,
+        tone: 'success',
+        // Owners and admins can take it back straight away (CORE-03, `matters-restore`).
+        ...(this.screen.canRestore()
+          ? { action: { label: 'Undo', run: () => void this.undoDelete(api, matter.id, matter.number) } }
+          : {}),
+      });
       await this.router.navigateByUrl('/matters');
     } catch (error) {
       this.toasts.show({ title: 'Couldn’t delete the matter', description: errorCopy(error), tone: 'danger' });
+    }
+  }
+
+  private async undoDelete(api: MatterScreen['api'], matterId: string, number: string): Promise<void> {
+    try {
+      await api.restore({ matterId });
+      this.toasts.show({ title: `Restored ${number}`, tone: 'success' });
+      await this.router.navigate(['/matters', matterId]);
+    } catch (error) {
+      this.toasts.show({ title: 'Couldn’t restore the matter', description: errorCopy(error), tone: 'danger' });
     }
   }
 

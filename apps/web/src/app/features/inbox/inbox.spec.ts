@@ -305,6 +305,14 @@ describe('the Inbox (CORE-22)', () => {
     expect(page.firestore.get(`${N}/n-mention`)?.['readAt']).toBeInstanceOf(Date);
   });
 
+  it('leads to my notification settings', async () => {
+    const page = await openInbox();
+    const link = page.buttons('Notification settings')[0] as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/settings/preferences');
+    await page.click('Notification settings');
+    expect(page.router.url).toBe('/settings/preferences');
+  });
+
   it('is all caught up when there is nothing', async () => {
     const page = await openInbox(() => undefined);
     expect(page.text(page.body.querySelector('.mt-inbox'))).toContain('You’re all caught up');

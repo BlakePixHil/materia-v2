@@ -53,7 +53,11 @@ function formOf(org: OrgSettings | undefined): PracticeForm {
     primaryJurisdiction: primary,
     jurisdictions: org?.jurisdictions?.length ? [...org.jurisdictions] : [primary],
     timezone: org?.timezone || DEFAULT_ORG_TIMEZONE,
-    holidayLocality: org?.holidayLocality || 'VIC_MELBOURNE',
+    // Orgs created before the locality list (FND-17 stored the jurisdiction, `VIC`) start on Melbourne,
+    // so the form is valid and Save works.
+    holidayLocality: HOLIDAY_LOCALITIES.some((l) => l.value === org?.holidayLocality)
+      ? (org?.holidayLocality ?? 'VIC_MELBOURNE')
+      : 'VIC_MELBOURNE',
     retentionYears: String(org?.retentionYears ?? MIN_RETENTION_YEARS),
   };
 }

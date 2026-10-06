@@ -8,6 +8,7 @@ import {
   groupDueItems,
   hourIn,
   longDayLabel,
+  monthWindow,
   needsAttention,
   onboardingSteps,
   RECENT_MATTERS_SHOWN,
@@ -17,6 +18,7 @@ import {
   timeZoneHint,
   todayItemKey,
   todayWindow,
+  wipThisMonth,
   type TodayChangeLike,
   type TodayDeadlineLike,
   type TodayEscalationLike,
@@ -230,6 +232,45 @@ describe('due today and this week', () => {
     ]);
     expect(groupDueItems(items.slice(1), TODAY).map((g) => g.id)).toEqual(['this_week']);
     expect(groupDueItems([], TODAY)).toEqual([]);
+  });
+});
+
+describe('WIP this month', () => {
+  const entry = (date: string, amountCents: number, data: Record<string, unknown> = {}) => ({
+    date,
+    minutes: 60,
+    units: 10,
+    amountCents,
+    billable: true,
+    status: 'draft',
+    ...data,
+  });
+
+  it('runs from the first to the last day of the month', () => {
+    expect(monthWindow(TODAY)).toEqual({ start: '2026-10-01', end: '2026-10-31' });
+    expect(monthWindow(dateOnly('2026-02-14'))).toEqual({ start: '2026-02-01', end: '2026-02-28' });
+    expect(monthWindow(dateOnly('2028-02-29'))).toEqual({ start: '2028-02-01', end: '2028-02-29' });
+    expect(monthWindow(dateOnly('2026-12-31'))).toEqual({ start: '2026-12-01', end: '2026-12-31' });
+  });
+
+  it('adds up billable drafts and final time this month that isn’t billed', () => {
+    const entries = [
+      entry('2026-10-01', 44000),
+      entry('2026-10-31', 30000, { status: 'final' }),
+      // A write-down counts at its reduced value.
+      entry('2026-10-05', 12500, { status: 'final', units: 5 }),
+      entry('2026-10-02', 22000, { status: 'billed' }),
+      entry('2026-10-02', 22000, { status: 'written_off' }),
+      entry('2026-10-02', 8800, { billable: false }),
+      entry('2026-10-02', 8800, { deletedAt: new Date('2026-10-03T00:00:00Z') }),
+      entry('2026-09-30', 44000),
+      entry('2026-11-01', 44000),
+    ];
+    expect(wipThisMonth(entries, TODAY)).toBe(86500);
+  });
+
+  it('is nothing without time this month', () => {
+    expect(wipThisMonth([], TODAY)).toBe(0);
   });
 });
 
