@@ -344,12 +344,15 @@ export const makeDisbursement = (o: Partial<D.Disbursement> = {}) =>
     D.Disbursement,
     {
       date: d('2026-10-01'),
+      orgId: TEST_ORG_ID,
+      matterId: TEST_MATTER_ID,
       description: 'Probate filing fee (fictional amount)',
       amountExGstCents: 10000,
       gstCents: ZERO,
       gstTreatment: 'gst_free',
       payee: 'Court registry',
-      status: 'draft',
+      status: 'unbilled',
+      wipCountedCents: ZERO,
     },
     o,
   );

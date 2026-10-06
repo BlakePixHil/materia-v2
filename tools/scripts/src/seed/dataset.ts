@@ -539,6 +539,59 @@ interface MatterDetailSpec {
   grossValueCents?: number;
 }
 
+/**
+ * Disbursements (BILL-04), on open matters: [days ago, description, paid to, category, GST
+ * treatment, amount in cents (fictional), entered incl. or excl. GST, status, receipt document].
+ */
+type DisbursementSpec = [
+  daysAgo: number,
+  description: string,
+  payee: string,
+  category: D.DisbursementCategory,
+  treatment: D.GstTreatment,
+  cents: number,
+  entered: 'inc' | 'ex',
+  status: D.DisbursementStatus,
+  receiptDoc?: number,
+];
+const DISBURSEMENTS: Readonly<Record<string, readonly DisbursementSpec[]>> = {
+  'm-doyle-estate': [
+    [
+      75,
+      'Death certificate',
+      'Births, Deaths and Marriages Victoria',
+      'certificate',
+      'gst_free',
+      4_250,
+      'inc',
+      'unbilled',
+      2,
+    ],
+    [
+      2,
+      'Statutory notice (s 33) advertisement',
+      'Fictional Notices Pty Ltd',
+      'advertising',
+      'taxable',
+      18_700,
+      'inc',
+      'unbilled',
+    ],
+    [10, 'Courier: original will to counsel', 'Fictional Couriers', 'courier', 'taxable', 2_750, 'inc', 'written_off'],
+  ],
+  'm-nguyen-fp': [[30, 'Title search', 'Fictional Titles Office', 'search', 'taxable', 2_000, 'ex', 'unbilled']],
+};
+
+/** A seeded disbursement's stored amounts. */
+function seedDisbursementAmounts([, , , , treatment, cents, entered]: DisbursementSpec) {
+  const amounts = domain.disbursementAmounts(
+    entered === 'inc'
+      ? { amountIncGstCents: cents, gstTreatment: treatment }
+      : { amountExGstCents: cents, gstTreatment: treatment },
+  );
+  return { ...amounts, amountIncGstCents: entered === 'inc' ? cents : null };
+}
+
 const MATTER_DETAILS: Readonly<Record<string, MatterDetailSpec>> = {
   'm-doyle-estate': { stageId: 'advertisement', willDate: -2400, grossValueCents: 1_284_500_00 },
   'm-nguyen-fp': {
@@ -754,9 +807,18 @@ export function buildDataset(options: {
         'templates.system': true,
         'deadlines.ruleset.vic.v1': true,
         'clerk.features.suggestions': true,
+        // Disbursements and their presets (BILL-04), awaiting practitioner review (BILL-04a).
+        'billing.disbursements': true,
       },
     }),
   );
+
+  // The starting disbursement presets (BILL-04), as an admin's first save writes them.
+  add(`orgs/${org}/settings/${domain.DISBURSEMENT_PRESETS_DOC}`, {
+    ...meta,
+    schemaVersion: 1,
+    presets: domain.DEFAULT_DISBURSEMENT_PRESETS.map((preset) => ({ ...preset })),
+  });
 
   for (const account of SEED_ACCOUNTS) {
     const member = MEMBERS[account.uid] as (typeof MEMBERS)[string];
@@ -1059,6 +1121,10 @@ export function buildDataset(options: {
         openTaskCount: openTasks.length + openTemplateTasks + engine.tasks.length,
         recomputeVersion: spec.computeDeadlines ? 1 : 0,
         wipCents: wip as D.Cents,
+        disbursementWipCents: (DISBURSEMENTS[spec.id] ?? []).reduce(
+          (sum, item) => sum + (item[7] === 'unbilled' ? seedDisbursementAmounts(item).amountExGstCents : 0),
+          0,
+        ) as D.Cents,
         // Most recent first in the order above, a few hours apart.
         lastActivityAt: new Date(now.getTime() - index * 5 * HOUR),
         closedAt: closed ? new Date(now.getTime() - 30 * 86_400_000) : undefined,
@@ -1243,6 +1309,31 @@ export function buildDataset(options: {
       // The duplicate check's hash index (CORE-12): uploading the same file again flags it.
       add(`${base}/documentHashes/${info.sha256}`, makeDocumentHash({ ...meta, documentId: id }));
       files.push({ storagePath, fixture });
+    });
+
+    (DISBURSEMENTS[spec.id] ?? []).forEach((item, i) => {
+      const [daysAgo, description, payee, category, gstTreatment, , , status, receiptDoc] = item;
+      const amounts = seedDisbursementAmounts(item);
+      add(
+        `${base}/disbursements/${spec.id}-db-${i + 1}`,
+        F.makeDisbursement({
+          ...meta,
+          orgId: org,
+          matterId: spec.id,
+          date: rel(-daysAgo),
+          description,
+          payee,
+          category,
+          gstTreatment,
+          amountExGstCents: amounts.amountExGstCents as D.Cents,
+          gstCents: amounts.gstCents as D.Cents,
+          amountIncGstCents: amounts.amountIncGstCents as D.Cents | null,
+          receiptDocumentId: receiptDoc ? `${spec.id}-doc-${receiptDoc}` : null,
+          status,
+          // Counted into the matter's disbursementWipCents above, so disbursements-onWrite doesn't count it again.
+          wipCountedCents: (status === 'unbilled' ? amounts.amountExGstCents : 0) as D.Cents,
+        }),
+      );
     });
 
     // Clerk suggestions (AI-07), stored as proposeSuggestions writes them: the basis is the one the
