@@ -27,7 +27,8 @@ const H_MARGIN = { l: 120, r: 64, t: 4, b: 22 };
  * default; horizontal with `orientation="horizontal"`, or automatically past 24 bars.
  *
  * Each bar is focusable (arrow keys move between them) and shows a tooltip on hover and focus. The SVG
- * is `role="img"` with a generated summary, and "View as table" shows the same data as a table.
+ * is `role="img"` (a labelled group when bars drill down) with a generated summary, and "View as table"
+ * shows the same data as a table.
  */
 @Component({
   selector: 'mt-bar-chart',
@@ -53,7 +54,7 @@ const H_MARGIN = { l: 120, r: 64, t: 4, b: 22 };
         class="mt-chart"
         [attr.viewBox]="'0 0 ' + geometry().w + ' ' + geometry().h"
         [attr.height]="geometry().h"
-        role="img"
+        [attr.role]="drill() ? 'group' : 'img'"
         [attr.aria-label]="summary()"
         (mouseleave)="hideTip()"
       >

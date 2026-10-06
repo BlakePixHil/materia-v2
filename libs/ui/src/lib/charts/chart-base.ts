@@ -52,7 +52,8 @@ export abstract class MtChartBase {
   readonly emptyText = input('No data for this period');
   /**
    * Points open something (drill-down, INS-02): a click, or Enter or Space on a focused point, emits
-   * `pointSelect` with its datum, and the points act as buttons.
+   * `pointSelect` with its datum, and the points act as buttons. The SVG is then a labelled `group`,
+   * since an `img` can't hold buttons.
    */
   readonly drill = input(false, { transform: booleanAttribute });
   readonly pointSelect = output<ChartDatum>();

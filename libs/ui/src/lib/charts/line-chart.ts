@@ -38,7 +38,7 @@ const MARGIN = { l: 40, r: 64, t: 14, b: 26 };
         class="mt-chart"
         [attr.viewBox]="'0 0 ' + geometry().w + ' ' + geometry().h"
         [attr.height]="geometry().h"
-        role="img"
+        [attr.role]="drill() ? 'group' : 'img'"
         [attr.aria-label]="summary()"
         (mouseleave)="hideTip()"
       >

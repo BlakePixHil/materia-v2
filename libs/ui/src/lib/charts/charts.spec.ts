@@ -80,6 +80,9 @@ describe('MtBarChart', () => {
       on: { pointSelect: (datum: ChartDatum) => opened.push(datum) },
     });
     expect(points(container).every((bar) => bar.getAttribute('role') === 'button')).toBe(true);
+    // An img's children are presentational, so the buttons sit in a labelled group.
+    expect(container.querySelector('svg.mt-chart')).toHaveAttribute('role', 'group');
+    expect(container.querySelector('svg.mt-chart')).toHaveAccessibleName(/^Billed, 6 points\./);
     await userEvent.click(points(container)[2] as Element);
     expect(opened.map((d) => d.meta)).toEqual(['Dec 2025']);
     (points(container)[0] as SVGElement).focus();
@@ -89,6 +92,7 @@ describe('MtBarChart', () => {
 
     await rerender({ inputs: { data: BILLED, label: 'Billed', format: money, drill: false } });
     expect(points(container)[0]).toHaveAttribute('role', 'img');
+    expect(container.querySelector('svg.mt-chart')).toHaveAttribute('role', 'img');
     await userEvent.click(points(container)[4] as Element);
     expect(opened).toHaveLength(3);
   });
