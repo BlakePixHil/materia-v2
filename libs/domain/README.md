@@ -54,7 +54,7 @@ Each entity `X` exports `{ schema, create, update, version, path }` built by `wi
 | `time.record` | ✓ | ✓ | ✓ | ✓ |  |
 | `time.approve` | ✓ | ✓ | ✓ |  |  |
 | `billing.view` | ✓ | ✓ | ✓ |  |  |
-| `billing.issue` | ✓ | ✓ |  |  |  |
+| `billing.issue` | ✓ | ✓ | ✓ |  |  |
 | `billing.void` | ✓ | ✓ |  |  |  |
 | `clerk.use` | ✓ | ✓ | ✓ | ✓ |  |
 | `clerk.configure` | ✓ | ✓ |  |  |  |

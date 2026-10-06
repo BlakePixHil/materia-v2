@@ -714,10 +714,11 @@ service cloud.firestore {
         }
       }
 
+      // Invoices and credit notes (BILL-07): billing.view reads them; every write (pre-bills too,
+      // whose lines the server builds) goes through the billing-* callables, so an issued invoice
+      // is never changed by a client.
       match /invoices/{invoiceId} {
         allow read: if can(orgId, 'billing.view');
-        // Draft invoices only; issuing and voiding are callables.
-        allow update: if can(orgId, 'billing.issue') && resource.data.status == 'draft' && clientUpdate(fieldsInvoice());
       }
       match /creditNotes/{creditNoteId} {
         allow read: if can(orgId, 'billing.view');
@@ -921,7 +922,7 @@ service cloud.firestore {
         'time.record': ['owner', 'admin', 'lawyer', 'paralegal'],
         'time.approve': ['owner', 'admin', 'lawyer'],
         'billing.view': ['owner', 'admin', 'lawyer'],
-        'billing.issue': ['owner', 'admin'],
+        'billing.issue': ['owner', 'admin', 'lawyer'],
         'billing.void': ['owner', 'admin'],
         'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
         'clerk.configure': ['owner', 'admin'],
@@ -964,7 +965,7 @@ service cloud.firestore {
     function fieldsIntakeDraft() { return ['orgId', 'kind', 'step', 'stateJson', 'expireAt']; }
     function fieldsIntegration() { return []; }
     function fieldsInvite() { return ['role']; }
-    function fieldsInvoice() { return ['lines', 'dueDate']; }
+    function fieldsInvoice() { return []; }
     function fieldsIssue() { return ['title', 'elements', 'ourPosition', 'internalAssessment']; }
     function fieldsJob() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'amountCents', 'status']; }

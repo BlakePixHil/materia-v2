@@ -31,7 +31,9 @@ export const PERMISSIONS = {
   'time.record': ['owner', 'admin', 'lawyer', 'paralegal'],
   'time.approve': ['owner', 'admin', 'lawyer'],
   'billing.view': ['owner', 'admin', 'lawyer'],
-  'billing.issue': ['owner', 'admin'],
+  /** Build pre-bills, issue and send invoices (BILL-07: lawyers and above). */
+  'billing.issue': ['owner', 'admin', 'lawyer'],
+  /** Void invoices and issue credit notes (BILL-07). */
   'billing.void': ['owner', 'admin'],
   'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
   'clerk.configure': ['owner', 'admin'],

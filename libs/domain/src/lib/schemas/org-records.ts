@@ -15,14 +15,56 @@ import { TemplateBasedOnSchema, templateContentShape } from '../templates';
 
 const ORG = 'orgs/{orgId}';
 
-const InvoiceLineSchema = z.object({
+/**
+ * One invoice or credit note line (BILL-07). Amounts are integer cents ex GST; `gstCents` is worked
+ * out on the line (half away from zero) and the document's GST is the sum of its lines. A discount
+ * or the fee-cap adjustment is a negative `adjustment` line.
+ */
+export const InvoiceLineSchema = z.object({
   kind: z.enum(['time', 'disbursement', 'fixed_fee', 'adjustment']),
+  /** The time entry or disbursement the line bills (itemised lines only). */
   refId: DocIdSchema.optional(),
   description: NonEmptyString,
+  /** Hours for time, otherwise 1. */
   quantity: z.number().min(0),
+  /** The price per unit (the hourly rate for time), when it isn't simply the amount. */
+  unitPriceCents: CentsSchema.optional(),
   amountExGstCents: CentsSchema,
   gstCents: CentsSchema,
+  /** No GST is charged on the line (a GST-free or input-taxed disbursement, or a GST-free line). */
+  gstFree: z.boolean().optional(),
+  /** When the work was done or the outlay made. */
+  date: DateOnlySchema.optional(),
+  /** Who did the work (time lines). */
+  by: z.string().max(120).optional(),
+  /** The automatic adjustment that keeps a capped matter's fees within the cap (BILL-05). */
+  cap: z.boolean().optional(),
+  /** Credit notes: the invoice line credited. */
+  invoiceLine: z.number().int().min(0).optional(),
 });
+export type InvoiceLine = z.infer<typeof InvoiceLineSchema>;
+
+/** A summary invoice's itemisation: the time entries behind its "Professional fees" line. */
+export const InvoiceItemSchema = z.object({
+  refId: DocIdSchema,
+  date: DateOnlySchema,
+  by: z.string().max(120).optional(),
+  description: z.string(),
+  hours: z.number().min(0),
+  amountExGstCents: CentsSchema,
+});
+export type InvoiceItem = z.infer<typeof InvoiceItemSchema>;
+
+/** A line the person adds to a pre-bill: a fixed fee or an adjustment (a discount is negative). */
+export const InvoiceExtraLineSchema = z.object({
+  kind: z.enum(['fixed_fee', 'adjustment']),
+  description: NonEmptyString.max(500),
+  amountExGstCents: CentsSchema.refine((value) => Math.abs(value) <= 100_000_000, {
+    message: 'Up to $1,000,000 a line',
+  }),
+  gstFree: z.boolean().optional(),
+});
+export type InvoiceExtraLine = z.infer<typeof InvoiceExtraLineSchema>;
 
 const PaymentSchema = z.object({
   id: z.string(),
@@ -32,10 +74,29 @@ const PaymentSchema = z.object({
   reference: z.string().optional(),
 });
 
-/** `invoices/{id}`. Numbers are gapless and never reused; issued invoices are never edited. */
+/** Who issued the document and who it is for, frozen at issue (the ATO's identity requirements). */
+export const InvoicePartySchema = z.object({
+  name: NonEmptyString,
+  abn: z.string().optional(),
+  address: z.string().optional(),
+});
+export type InvoiceParty = z.infer<typeof InvoicePartySchema>;
+
+/** The PDF (FND-24 `pdf.render`, template `invoice`): rendered after issue into the matter's documents. */
+export const InvoicePdfStatusSchema = z.enum(['pending', 'ready', 'failed']);
+export type InvoicePdfStatus = z.infer<typeof InvoicePdfStatusSchema>;
+
+const InvoicePdfShape = {
+  pdfStatus: InvoicePdfStatusSchema.optional(),
+  pdfJobId: DocIdSchema.optional(),
+  /** The matter document holding the PDF (`job-{jobId}`). */
+  pdfDocumentId: DocIdSchema.optional(),
+};
+
 /**
- * `orgs/{orgId}/counters/{name}`: a sequence (`matter-2026` for matter numbers, CORE-03). `next`
- * is the next value to hand out. Server-only: written in transactions by functions.
+ * `orgs/{orgId}/counters/{name}`: a sequence (`matter-2026` for matter numbers, CORE-03;
+ * `invoice` and `credit-note`, BILL-07). `next` is the next value to hand out. Server-only:
+ * written in transactions by functions, so a failed transaction never uses a number up.
  */
 export const Counter = withMeta(
   { next: z.number().int().min(1) },
@@ -43,18 +104,56 @@ export const Counter = withMeta(
 );
 export type Counter = z.infer<typeof Counter.schema>;
 
+/**
+ * `invoices/{id}` (BILL-07). A `draft` is a pre-bill: what to bill (the matter, a date range, the
+ * time entries and disbursements left out, extra lines) and the lines built from it. Issuing gives
+ * it a gapless number and freezes it; an issued invoice is never edited, only voided or credited.
+ * Every write goes through the `billing-*` callables.
+ */
 export const Invoice = withMeta(
   {
+    /** Empty until issued. */
     number: z.string(),
     matterId: DocIdSchema,
+    matterNumber: z.string().optional(),
+    matterTitle: z.string().optional(),
+    /** The pre-bill's date range (inclusive); open-ended when absent. */
+    from: DateOnlySchema.optional(),
+    to: DateOnlySchema.optional(),
+    grouping: z.enum(['itemised', 'summary']).default('itemised'),
+    excludedTimeEntryIds: z.array(DocIdSchema).default([]),
+    excludedDisbursementIds: z.array(DocIdSchema).default([]),
+    extraLines: z.array(InvoiceExtraLineSchema).default([]),
+    /** What the lines bill: set when the pre-bill is saved and frozen at issue. */
+    timeEntryIds: z.array(DocIdSchema).default([]),
+    disbursementIds: z.array(DocIdSchema).default([]),
+    notes: z.string().max(2000).default(''),
+    paymentTermsDays: z.number().int().min(0).max(365),
     issueDate: DateOnlySchema.optional(),
     dueDate: DateOnlySchema.optional(),
     lines: z.array(InvoiceLineSchema),
+    itemisation: z.array(InvoiceItemSchema).optional(),
     subtotalCents: CentsSchema,
     gstCents: CentsSchema,
     totalCents: CentsSchema,
+    /** Whether the firm was registered for GST when it was issued (an "Invoice" without GST if not). */
+    gstRegistered: z.boolean().optional(),
+    supplier: InvoicePartySchema.optional(),
+    buyer: InvoicePartySchema.optional(),
     status: InvoiceStatusSchema,
-    pdfDocumentId: DocIdSchema.optional(),
+    issuedAt: InstantSchema.optional(),
+    issuedBy: DocIdSchema.optional(),
+    ...InvoicePdfShape,
+    /** The last time it was emailed (`billing-sendInvoice`); never sent automatically. */
+    sentAt: InstantSchema.optional(),
+    sentBy: DocIdSchema.optional(),
+    sentTo: z.array(z.string()).optional(),
+    voidedAt: InstantSchema.optional(),
+    voidedBy: DocIdSchema.optional(),
+    voidReason: z.string().optional(),
+    /** The credit notes against it and their total (inc GST). */
+    creditNoteIds: z.array(DocIdSchema).default([]),
+    creditedCents: CentsSchema.default(0 as never),
     xero: z.object({ invoiceId: z.string(), syncedAt: InstantSchema, error: z.string().optional() }).optional(),
     payments: z.array(PaymentSchema).default([]),
   },
@@ -62,31 +161,68 @@ export const Invoice = withMeta(
     path: `${ORG}/invoices`,
     serverOwned: [
       'number',
+      'matterNumber',
+      'matterTitle',
+      'timeEntryIds',
+      'disbursementIds',
+      'lines',
+      'itemisation',
       'subtotalCents',
       'gstCents',
       'totalCents',
+      'gstRegistered',
+      'supplier',
+      'buyer',
       'status',
+      'issueDate',
+      'dueDate',
+      'issuedAt',
+      'issuedBy',
+      'pdfStatus',
+      'pdfJobId',
       'pdfDocumentId',
+      'sentAt',
+      'sentBy',
+      'sentTo',
+      'voidedAt',
+      'voidedBy',
+      'voidReason',
+      'creditNoteIds',
+      'creditedCents',
       'xero',
       'payments',
-      'issueDate',
     ],
-    updatable: ['lines', 'dueDate'],
+    updatable: [],
   },
 );
 
-/** `creditNotes/{id}`: reverses (part of) an issued invoice. */
+/**
+ * `creditNotes/{id}` (BILL-07): credits (part of) an issued invoice, with its own gapless `CN-…`
+ * number. Amounts are positive: what is credited. The billed time and disbursements stay billed.
+ */
 export const CreditNote = withMeta(
   {
     number: z.string(),
     invoiceId: DocIdSchema,
+    invoiceNumber: z.string(),
     matterId: DocIdSchema,
     issueDate: DateOnlySchema,
     reason: NonEmptyString,
+    full: z.boolean(),
     lines: z.array(InvoiceLineSchema),
+    subtotalCents: CentsSchema,
+    gstCents: CentsSchema,
     totalCents: CentsSchema,
+    gstRegistered: z.boolean().optional(),
+    supplier: InvoicePartySchema.optional(),
+    buyer: InvoicePartySchema.optional(),
+    ...InvoicePdfShape,
   },
-  { path: `${ORG}/creditNotes`, serverOwned: ['number', 'totalCents'], updatable: [] },
+  {
+    path: `${ORG}/creditNotes`,
+    serverOwned: ['number', 'subtotalCents', 'gstCents', 'totalCents', 'pdfStatus', 'pdfJobId', 'pdfDocumentId'],
+    updatable: [],
+  },
 );
 
 /**

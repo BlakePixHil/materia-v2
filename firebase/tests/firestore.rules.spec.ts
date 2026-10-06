@@ -315,19 +315,48 @@ describe('field-level rules', () => {
     await assertSucceeds(list('lawyer', where('status', 'in', ['proposed', 'stale'])));
   });
 
-  it('issued invoices are read-only for clients', async () => {
-    await seedAdmin(env, (f) =>
-      setDoc(doc(f, `orgs/${ORG}/invoices/invoice-1`), {
+  it('invoices, pre-bills and credit notes change only through the billing callables (BILL-07)', async () => {
+    const INVOICE = `orgs/${ORG}/invoices/invoice-1`;
+    const CREDIT = `orgs/${ORG}/creditNotes/credit-1`;
+    for (const status of ['draft', 'issued', 'void'] as const) {
+      await seedAdmin(env, async (f) => {
+        await setDoc(doc(f, INVOICE), { ...seedData(specFor('invoices')), status });
+        await setDoc(doc(f, CREDIT), seedData(specFor('creditNotes')));
+      });
+      for (const role of ROLES) {
+        const as = (path: string) => doc(db(env, role), path);
+        await (allows(role, 'billing.view') ? assertSucceeds : assertFails)(getDoc(as(INVOICE)));
+        await assertFails(updateDoc(as(INVOICE), stamped({ dueDate: '2026-05-01' }, uidFor(role))));
+        await assertFails(updateDoc(as(INVOICE), stamped({ status: 'issued', number: 'INV-000099' }, uidFor(role))));
+        await assertFails(updateDoc(as(INVOICE), stamped({ totalCents: 1 }, uidFor(role))));
+        await assertFails(deleteDoc(as(INVOICE)));
+        await assertFails(updateDoc(as(CREDIT), stamped({ totalCents: 1 }, uidFor(role))));
+        await assertFails(deleteDoc(as(CREDIT)));
+      }
+    }
+    await assertFails(
+      setDoc(doc(db(env, 'owner'), `orgs/${ORG}/invoices/invoice-new`), {
         ...seedData(specFor('invoices')),
-        status: 'issued',
+        status: 'draft',
       }),
     );
-    await assertFails(
-      updateDoc(
-        doc(db(env, 'owner'), `orgs/${ORG}/invoices/invoice-1`),
-        stamped({ dueDate: '2026-05-01' }, uidFor('owner')),
-      ),
+    // The invoice counters are server-only: no one reads or sets the next number.
+    await assertFails(getDoc(doc(db(env, 'owner'), `orgs/${ORG}/counters/invoice`)));
+    await assertFails(setDoc(doc(db(env, 'owner'), `orgs/${ORG}/counters/invoice`), { next: 1 }));
+  });
+
+  it('billed time can’t be edited, deleted or unbilled by a client (BILL-07)', async () => {
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, TIME), { ...seedData(specFor('timeEntries')), status: 'billed', invoiceId: 'invoice-1' }),
     );
+    for (const role of ['owner', 'lawyer'] as const) {
+      const ref = doc(db(env, role), TIME);
+      await assertFails(updateDoc(ref, stamped({ status: 'final' }, uidFor(role))));
+      await assertFails(updateDoc(ref, stamped({ invoiceId: deleteField() }, uidFor(role))));
+      await assertFails(
+        updateDoc(ref, stamped({ deletedAt: serverTimestamp(), deletedBy: uidFor(role) }, uidFor(role))),
+      );
+    }
   });
 
   it('a shared Clerk thread is readable by other members but only its owner edits it', async () => {

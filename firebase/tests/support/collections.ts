@@ -192,7 +192,7 @@ export const COLLECTIONS: CollectionSpec[] = [
     entity: 'Invoice',
     seed: { status: 'draft' },
     read: 'billing.view',
-    update: 'billing.issue',
+    update: 'none',
   },
   {
     collection: 'creditNotes',

@@ -117,7 +117,7 @@ service firebase.storage {
         'time.record': ['owner', 'admin', 'lawyer', 'paralegal'],
         'time.approve': ['owner', 'admin', 'lawyer'],
         'billing.view': ['owner', 'admin', 'lawyer'],
-        'billing.issue': ['owner', 'admin'],
+        'billing.issue': ['owner', 'admin', 'lawyer'],
         'billing.void': ['owner', 'admin'],
         'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
         'clerk.configure': ['owner', 'admin'],
