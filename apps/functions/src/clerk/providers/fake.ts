@@ -40,6 +40,9 @@ const SAMPLE_OUTPUT: Record<string, unknown> = {
   },
 };
 
+/** The file note `[fake:note]` drafts (fictional). */
+export const FAKE_DRAFTED_NOTE = 'Called the executor about the house valuation (fictional).';
+
 /** The text of a turn's text blocks (user turns only carry our own blocks). */
 function turnText(turn: ClerkModelRequest['messages'][number] | undefined): string {
   return ((turn?.content ?? []) as { type?: string; text?: string }[])
@@ -52,7 +55,8 @@ function turnText(turn: ClerkModelRequest['messages'][number] | undefined): stri
  * The chat panel's script in the emulator (AI-06), steered by markers in the question so e2e tests
  * can drive every path with fictional text: `[fake:tools]` searches the documents and reads the
  * deadlines before answering, `[fake:slow]` streams slowly (stop, navigating away, two tabs),
- * `[fake:refuse]` refuses, and `[fake:propose]` makes the proposals step suggest a task.
+ * `[fake:refuse]` refuses, `[fake:propose]` makes the proposals step suggest a task, and
+ * `[fake:note]` drafts a file note with the drafting tool (AI-06b).
  */
 function chatStep(request: ClerkModelRequest): FakeStep | undefined {
   const last = request.messages[request.messages.length - 1];
@@ -75,7 +79,12 @@ function chatStep(request: ClerkModelRequest): FakeStep | undefined {
   }
   if (!request.tools?.length) return undefined;
   const toolResults = ((last?.content ?? []) as { type?: string }[]).some((block) => block.type === 'tool_result');
-  if (toolResults) return { chunks: ['Fake Clerk reply ', 'after checking the matter.'] };
+  if (toolResults) {
+    const called = (request.messages.at(-2)?.content ?? []) as { type?: string; name?: string }[];
+    return called.some((block) => block.type === 'tool_use' && block.name === 'draft_note')
+      ? { chunks: ['I’ve drafted that file note. It is waiting below for you to confirm.'] }
+      : { chunks: ['Fake Clerk reply ', 'after checking the matter.'] };
+  }
   const question = turnText(last);
   if (question.includes('[fake:refuse]')) return { chunks: ['I can’t help with that request.'], stopReason: 'refusal' };
   if (question.includes('[fake:tools]'))
@@ -86,6 +95,8 @@ function chatStep(request: ClerkModelRequest): FakeStep | undefined {
         { name: 'get_deadlines', input: {} },
       ],
     };
+  if (question.includes('[fake:note]'))
+    return { toolUses: [{ name: 'draft_note', input: { text: FAKE_DRAFTED_NOTE } }] };
   if (question.includes('[fake:slow]'))
     return { chunks: Array.from({ length: 80 }, (_, i) => `word${i + 1} `), delayMs: 100 };
   return undefined;

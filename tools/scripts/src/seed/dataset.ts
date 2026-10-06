@@ -1473,7 +1473,14 @@ export function buildDataset(options: {
     spec.events.forEach(([kind, offset, label], i) =>
       add(
         `${base}/events/${spec.id}-ev-${i + 1}`,
-        makeMatterEvent({ ...meta, kind, date: rel(offset), ...(label ? { label } : {}) }),
+        makeMatterEvent({
+          ...meta,
+          kind,
+          date: rel(offset),
+          ...(label ? { label } : {}),
+          // A copy of the matter's flag, as every writer keeps it (CORE-10b).
+          privileged: matterData.privileged,
+        }),
       ),
     );
     spec.tasks.forEach(([title, status, priority, due, assignee], i) =>
@@ -1527,6 +1534,7 @@ export function buildDataset(options: {
           computed: undefined,
           reminders: [{ offsetDays: -7 }, { offsetDays: -1 }],
           pastOnCreation: false,
+          privileged: matterData.privileged,
         }),
       ),
     );
@@ -1542,6 +1550,7 @@ export function buildDataset(options: {
           matterId: spec.id,
           assigneeUid: spec.responsible,
           ...(task ? { taskId: task.id } : {}),
+          privileged: matterData.privileged,
         }),
       );
     }

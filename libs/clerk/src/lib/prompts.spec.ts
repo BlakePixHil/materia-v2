@@ -36,6 +36,11 @@ describe('prompt registry', () => {
     expect(parsed.user).toBe('Hi {{b}}.');
   });
 
+  it('reads a field continued on an indented line', () => {
+    const parsed = parsePrompt('demo@1.2.0', prompt(`${META}\ntools:\n  [searchMatter, getDeadlines]`));
+    expect(parsed.meta.tools).toEqual(['searchMatter', 'getDeadlines']);
+  });
+
   it.each([
     ['no front-matter', 'demo@1.2.0', '# System\nx\n# User\ny', /missing front-matter/],
     ['a bad version', 'demo@1.2', prompt('id: demo\nversion: 1.2\neffort: low\nmaxTokens: 10'), /version/],

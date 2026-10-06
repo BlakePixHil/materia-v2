@@ -524,7 +524,14 @@ export const createMatterDefinition = {
         for (const event of events) {
           tx.create(
             db.collection(`${matterRef.path}/events`).doc(),
-            MatterEvent.schema.parse({ ...event, meta: {}, ...meta, schemaVersion: MatterEvent.version }),
+            MatterEvent.schema.parse({
+              ...event,
+              meta: {},
+              // A copy of the matter's flag (CORE-10b).
+              privileged: data.privileged,
+              ...meta,
+              schemaVersion: MatterEvent.version,
+            }),
           );
         }
         for (const task of tasks) tx.create(db.doc(task.path), task.data);
