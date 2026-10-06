@@ -19,6 +19,7 @@ export const NON_ACTIVITY_FIELDS: ReadonlySet<string> = new Set([
   'openTaskCount',
   'wipCents',
   'disbursementWipCents',
+  'outstandingCents',
   'recomputeVersion',
   'litigationSummary',
   'budget',
