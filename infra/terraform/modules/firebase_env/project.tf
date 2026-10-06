@@ -35,7 +35,9 @@ locals {
     "run.googleapis.com",
     "cloudbuild.googleapis.com",
     "artifactregistry.googleapis.com",
-    "containerscanning.googleapis.com", # vulnerability scans of job images (FND-24)
+    # Vulnerability scans of pushed images (FND-24). Automatic scanning bills per image and covers
+    # every repository, including gcf-artifacts, where each deploy pushes one image per function.
+    "containerscanning.googleapis.com",
     "eventarc.googleapis.com",
     "pubsub.googleapis.com",
     "cloudtasks.googleapis.com",
@@ -81,9 +83,12 @@ resource "google_project" "this" {
 resource "google_project_service" "this" {
   for_each = toset(local.services)
 
-  project            = google_project.this.project_id
-  service            = each.value
-  disable_on_destroy = false
+  project = google_project.this.project_id
+  service = each.value
+
+  # APIs stay on when they leave the list, except container scanning: dropping it from the list
+  # must turn it off, or Artifact Analysis keeps scanning (and billing) every pushed image.
+  disable_on_destroy = each.value == "containerscanning.googleapis.com"
 }
 
 # Some APIs take minutes to become usable after enablement.
