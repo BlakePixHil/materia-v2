@@ -226,6 +226,19 @@ describe('citations and the judge', () => {
     );
     expect(items[0]).toContain('Page text: the page');
   });
+
+  it('gives the judge every page of a quote that runs over a page break', () => {
+    const padded = [
+      { type: 'text', text: 'The gift lapses.', citations: [{ type: 'page_location', cited_text: ` ${quote}\n` }] },
+    ];
+    const items = judgeItems(
+      padded,
+      [{ kind: 'document', documentId: 'd', docVersion: 1, page: 2, pageEnd: 3, quote }],
+      new Map([['d', ['one', 'two', 'three', 'four']]]),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toContain('Page text: two\nthree');
+  });
 });
 
 describe('the eval CLI', () => {
