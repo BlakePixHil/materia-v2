@@ -94,8 +94,22 @@ describe('referral totals', () => {
         { status: 'lead', createdAt: at('2026-05-01T00:00:00Z'), deletedAt: null },
         { status: 'open', createdAt: at('2026-09-01T00:00:00Z'), deletedAt: at('2026-09-02T00:00:00Z') },
       ]),
-    ).toEqual({ count: 3, active: 2, lastReferredAt: at('2026-07-15T00:00:00Z') });
-    expect(referralTotals([])).toEqual({ count: 0, active: 0, lastReferredAt: null });
+    ).toEqual({ count: 3, active: 2, lastReferredAt: at('2026-07-15T00:00:00Z'), billedCents: 0 });
+    expect(referralTotals([])).toEqual({ count: 0, active: 0, lastReferredAt: null, billedCents: 0 });
+  });
+
+  it('adds up what has been billed on the live referred matters (BILL-07)', () => {
+    expect(
+      referralTotals([
+        { status: 'closed', budget: { billedCents: 385000 } },
+        { status: 'open', budget: { billedCents: 44000 } },
+        // Nothing billed yet, and no budget at all.
+        { status: 'open', budget: { billedCents: 0 } },
+        { status: 'lead', budget: null },
+        { status: 'open' },
+        { status: 'closed', budget: { billedCents: 99900 }, deletedAt: new Date('2026-09-02T00:00:00Z') },
+      ]).billedCents,
+    ).toBe(429000);
   });
 });
 

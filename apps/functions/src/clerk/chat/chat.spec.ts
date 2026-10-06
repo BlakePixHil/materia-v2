@@ -453,7 +453,24 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
       settings: { monthlyTokenBudget: 1000 },
       extra: { [`orgs/${ORG}/metrics/clerk-2026-10`]: { period: 'clerk-2026-10', values: { tokens: 1000 } } },
     });
-    expect((await failure(spent.send({ text: 'Hello?' }))).details['code']).toBe('CLERK_BUDGET_EXCEEDED');
+    expect((await failure(spent.send({ text: 'Hello?' }))).details).toEqual({
+      code: 'CLERK_BUDGET_EXCEEDED',
+      period: 'clerk-2026-10',
+    });
+    // The spend limit too (AI-13), with the gateway's details, before the question is stored.
+    const metrics = (costMicros: number) => ({
+      [`orgs/${ORG}/metrics/clerk-2026-10`]: { period: 'clerk-2026-10', values: { tokens: 10, costMicros } },
+    });
+    const overSpent = await world({ settings: { monthlyBudgetCents: 500 }, extra: metrics(5_000_000) });
+    expect((await failure(overSpent.send({ text: 'Hello?' }))).details).toEqual({
+      code: 'CLERK_BUDGET_EXCEEDED',
+      period: 'clerk-2026-10',
+      spend: true,
+    });
+    expect(overSpent.tasks.queued).toEqual([]);
+    expect([...overSpent.store.docs.keys()].some((path) => path.includes('/clerkThreads/'))).toBe(false);
+    const underSpent = await world({ settings: { monthlyBudgetCents: 500 }, extra: metrics(4_999_999) });
+    await expect(underSpent.send({ text: 'Hello?' })).resolves.toMatchObject({ threadId: expect.any(String) });
 
     const busy = await world({
       extra: {
