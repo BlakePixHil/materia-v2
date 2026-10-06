@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   input,
   output,
@@ -43,6 +44,8 @@ import {
 } from './suggestion-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { CitationSources } from '../citations/citation-sources';
+import { RECORD_TABS } from '../citations/citation-view';
 
 /** What the card is showing below the suggestion. */
 type Mode = 'view' | 'edit' | 'dismiss' | 'review';
@@ -64,6 +67,8 @@ const OTHER = 'Other';
  * `suggestions-*` callables; the card leaves the list when the suggestion's status changes.
  *
  * Reusable outside the matter Overview: give it the suggestion, its matter and what the person may do.
+ * Where the screen provides `CitationSources` (AI-05), its citations are labelled with the documents'
+ * names and open in the citation viewer; otherwise a citation opens the document's page.
  */
 @Component({
   selector: 'mt-suggestion-card',
@@ -235,7 +240,13 @@ export class SuggestionCard {
   private readonly toasts = inject(ToastService);
   private readonly router = inject(Router);
 
-  protected readonly vm = computed(() => suggestionVm(this.item()));
+  /** The screen's cited documents and citation viewer (AI-05), where it provides them. */
+  private readonly sources = inject(CitationSources, { optional: true });
+
+  protected readonly vm = computed(() => {
+    const vm = suggestionVm(this.item());
+    return this.sources ? { ...vm, citations: this.sources.vms(this.item().citations) } : vm;
+  });
   protected readonly kindLabel = computed(() => SUGGESTION_KIND_LABELS[this.item().kind].toLowerCase());
   protected readonly fields = computed(() => editFields(this.item()));
   protected readonly actionable = computed(
@@ -264,6 +275,10 @@ export class SuggestionCard {
   protected readonly reasons = [...SUGGESTION_DISMISS_REASONS, OTHER].map((value) => ({ value, label: value }));
   protected readonly reason = signal<string>(SUGGESTION_DISMISS_REASONS[0]);
   protected readonly otherReason = signal('');
+
+  constructor() {
+    effect(() => this.sources?.want(this.item().citations));
+  }
 
   private get callables(): SuggestionCallables {
     return this.api() ?? this.defaultApi;
@@ -381,10 +396,18 @@ export class SuggestionCard {
     }
   }
 
+  /** Opens the citation viewer at the source (AI-05), or the document's page where there is no viewer. */
   protected openCitation(event: CitationOpenEvent): void {
-    // Absolute, so the card works off the matter too (the Inbox, CORE-22a).
+    // A record citation (a deadline, a time entry…) opens the matter tab that lists it. Routes are
+    // absolute, so the card works off the matter too (the Inbox, CORE-22a).
+    const stored = event.n ? this.item().citations[event.n - 1] : undefined;
+    if (stored?.kind === 'record' && stored.recordRef) {
+      void this.router.navigate(['/matters', this.matterId(), RECORD_TABS[stored.recordRef.collection]]);
+      return;
+    }
+    if (this.sources) return this.sources.open(this.item().citations, event.n);
     void this.router.navigate(['/matters', this.matterId(), 'documents', event.documentId], {
-      ...(event.page ? { queryParams: { page: event.page } } : {}),
+      queryParams: { ...(event.page ? { page: event.page } : {}), ...(event.version ? { v: event.version } : {}) },
     });
   }
 }

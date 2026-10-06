@@ -1,6 +1,7 @@
 import { Suggestion, ClerkThread, ClerkMessage } from './clerk';
 import { Contact, Matter, MatterNumber } from './contacts-matters';
 import { Job } from './jobs';
+import { DisbursementPresetsDoc } from '../disbursements';
 import { SignIn } from '../security';
 import {
   Proceeding,
@@ -242,3 +243,6 @@ export const IntakeDraftUpdateSchema = IntakeDraft.update;
 export const RecentMatterSchema = RecentMatter.schema;
 export const RecentMatterCreateSchema = RecentMatter.create;
 export const RecentMatterUpdateSchema = RecentMatter.update;
+export const DisbursementPresetsDocSchema = DisbursementPresetsDoc.schema;
+export const DisbursementPresetsDocCreateSchema = DisbursementPresetsDoc.create;
+export const DisbursementPresetsDocUpdateSchema = DisbursementPresetsDoc.update;

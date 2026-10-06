@@ -11,7 +11,7 @@ import {
   stripUndefined,
 } from './seed/dataset.ts';
 import { resolveSeedTarget, SeedGuardError } from './seed/guard.ts';
-import { FIXTURE_NAMES, fixtureInfo, renderFixture } from './seed/pdfs.ts';
+import { FIXTURE_NAMES, fixtureInfo, fixturePageText, renderFixture } from './seed/pdfs.ts';
 import { entityRegistry, fromFirestore, main, parseSeedArgs } from './seed.ts';
 
 const CONFLICT_MATTER_COUNT = Object.keys(CONFLICT_MATTERS).length;
@@ -283,6 +283,19 @@ describe('seed dataset', () => {
     expect(empty.accounts).toEqual(SEED_ACCOUNTS);
   });
 
+  it('seeds disbursements counted into disbursementWipCents, and the starting presets (BILL-04)', () => {
+    const items = dataset.docs.filter((d) => /\/matters\/[^/]+\/disbursements\/[^/]+$/.test(d.path));
+    expect(items.length).toBeGreaterThan(0);
+    for (const matter of docsUnder('matters')) {
+      const own = items.filter((d) => d.path.startsWith(`${matter.path}/`)).map((d) => d.data);
+      const counted = own.reduce((sum, item) => sum + D.disbursementWipContribution(item), 0);
+      expect(matter.data['disbursementWipCents'] ?? 0, matter.path).toBe(counted);
+      for (const item of own) expect(item['wipCountedCents']).toBe(D.disbursementWipContribution(item));
+    }
+    const presets = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}/settings/disbursementPresets`);
+    expect(presets?.data['presets']).toEqual(D.DEFAULT_DISBURSEMENT_PRESETS);
+  });
+
   it('seeds the conflict scenarios with conflicts.enforced on, but not in the minimal scenario (CORE-02)', () => {
     const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
     expect(org?.['flags']).toEqual({
@@ -290,6 +303,7 @@ describe('seed dataset', () => {
       'templates.system': true,
       'deadlines.ruleset.vic.v1': true,
       'clerk.features.suggestions': true,
+      'billing.disbursements': true,
       'billing.trustDisplay': true,
     });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
@@ -326,6 +340,25 @@ describe('seed dataset', () => {
     const statuses = suggestions.map((d) => (d.data as D.Suggestion).status);
     expect(statuses.filter((status) => status === 'expired')).toHaveLength(1);
     expect(suggestions.some((d) => (d.data as D.Suggestion).privileged)).toBe(true);
+  });
+
+  it('seeds a Clerk thread whose citations quote the fixture PDFs, one of them unverified (AI-05)', () => {
+    const messages = dataset.docs.filter((d) => /\/clerkThreads\/m-doyle-estate-ct-1\/messages\/[^/]+$/.test(d.path));
+    expect(messages.map((d) => (d.data as D.ClerkMessage).role)).toEqual(['user', 'assistant']);
+    const answer = messages[1]?.data as D.ClerkMessage;
+    const citations = D.ClerkMessage.schema.parse(answer).citations;
+    const text = answer.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
+    for (let n = 1; n <= citations.length; n++) expect(text).toContain(`[${n}]`);
+    const will = fixturePageText('will');
+    const suggestions = dataset.docs
+      .filter((d) => /\/matters\/m-doyle-estate\/suggestions\/[^/]+$/.test(d.path))
+      .flatMap((d) => D.Suggestion.schema.parse(d.data).citations);
+    for (const citation of [...citations, ...suggestions].filter(D.isDocumentCitation)) {
+      expect(citation.documentId).toBe('m-doyle-estate-doc-1');
+      expect(D.verifyQuote(citation, will).verified, citation.quote).toBe(citation.verified !== false);
+    }
+    expect(citations.filter((c) => c.verified === false)).toHaveLength(1);
+    expect(citations.some((c) => c.kind === 'record')).toBe(true);
   });
 
   it('seeds two copied trust balances, one out of date, with the switch on (BILL-11)', () => {

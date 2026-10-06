@@ -384,6 +384,7 @@ export const DOCUMENT_CALLABLES = {
   bulkUpdate: 'documents-bulkUpdate',
   saveAttachment: 'documents-saveAttachment',
   startZip: 'documents-startZip',
+  citationText: 'documents-citationText',
 } as const;
 
 export const DownloadRenditionSchema = z.enum(['original', 'previewPdf', 'previewImage', 'message']);
@@ -407,6 +408,37 @@ export interface GetDownloadUrlResult {
   expiresAt: string;
   fileName: string;
   version: number;
+}
+
+/** The most pages `documents-citationText` returns in one call (a whole short document). */
+export const CITATION_TEXT_MAX_PAGES = 50;
+
+/**
+ * `documents-citationText` (AI-05; `matter.view`, privileged documents need `privileged.view`, else
+ * NOT_FOUND; removed documents are NOT_FOUND): the extracted text of a version's pages, read back
+ * from its chunks (AI-04), for the citation viewer's highlight in DOCX and email sources and over
+ * OCR'd PDF pages. A version without chunks (not ingested yet, or superseded) has no pages.
+ */
+export const CitationTextInput = z.object({
+  matterId: DocIdSchema,
+  docId: DocIdSchema,
+  /** The cited version (the current one by default). */
+  version: z.number().int().min(1).optional(),
+  /** The pages wanted (1-based); all of them, up to the limit, when omitted. */
+  pages: z.array(z.number().int().min(1)).max(10).optional(),
+});
+export type CitationTextInput = z.input<typeof CitationTextInput>;
+export interface CitationTextPage {
+  page: number;
+  text: string;
+  /** The page was read by OCR (a scanned PDF page has no text layer). */
+  ocr: boolean;
+}
+export interface CitationTextResult {
+  version: number;
+  pages: CitationTextPage[];
+  /** More pages exist than were returned. */
+  truncated: boolean;
 }
 
 /**

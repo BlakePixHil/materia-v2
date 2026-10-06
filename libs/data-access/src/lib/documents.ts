@@ -11,6 +11,8 @@ import {
   uploadSettings,
   type BulkUpdateDocumentsInput,
   type BulkUpdateDocumentsResult,
+  type CitationTextInput,
+  type CitationTextResult,
   type GetDownloadUrlInput,
   type GetExportUrlResult,
   type GetDownloadUrlResult,
@@ -182,6 +184,11 @@ export interface DocumentCallables {
   startZip(input: Input<StartZipInput>): Promise<StartZipResult>;
   /** `jobs-getExportUrl`: a 5-minute link to a finished zip this member started. */
   exportUrl(jobId: string): Promise<GetExportUrlResult>;
+  /**
+   * `documents-citationText` (AI-05): a version's page text from its chunks, for the citation
+   * viewer (DOCX and email sources, OCR'd PDF pages). No pages when the version has no chunks.
+   */
+  citationText(input: CitationTextInput): Promise<CitationTextResult>;
 }
 
 export function documentCallables(client: Pick<CallableClient, 'call'>): DocumentCallables {
@@ -207,5 +214,6 @@ export function documentCallables(client: Pick<CallableClient, 'call'>): Documen
     startZip: (input) =>
       client.call<Input<StartZipInput>, StartZipResult>(DOCUMENT_CALLABLES.startZip, input, { idempotent: true }),
     exportUrl: (jobId) => client.call<{ jobId: string }, GetExportUrlResult>(GET_EXPORT_URL_CALLABLE, { jobId }),
+    citationText: (input) => client.call<CitationTextInput, CitationTextResult>(DOCUMENT_CALLABLES.citationText, input),
   };
 }
