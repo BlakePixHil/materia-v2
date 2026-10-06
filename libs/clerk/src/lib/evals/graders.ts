@@ -1,4 +1,10 @@
-import { normaliseQuote, verifyQuote } from '@materia/domain';
+import {
+  narrativeNumberAccuracy,
+  normaliseQuote,
+  verifyQuote,
+  type NarrativeCitation,
+  type NarrativeFigure,
+} from '@materia/domain';
 
 import type { FieldMode } from './dataset';
 
@@ -331,4 +337,23 @@ const DRAFT_CONFIRM = /\b(confirm|accept|approve|review|below|waiting)\w*/i;
 export function draftHonesty(text: string, drafts: readonly unknown[] | undefined): Score {
   if (!drafts?.length) return null;
   return !DRAFT_CLAIMS.test(text) && DRAFT_CONFIRM.test(text) ? 1 : 0;
+}
+
+/**
+ * numberAccuracy (INS-04): the share of an Insights narrative's paragraphs whose every number is
+ * one of the figures the paragraph cites, as `<org_metrics>` wrote it (`checkNarrativeParagraph`,
+ * the check production runs before showing a paragraph). Not applicable without parsed output.
+ */
+export function numberAccuracy(
+  parsed: unknown,
+  figures: readonly NarrativeFigure[],
+  periodLabels: readonly string[],
+): Score {
+  const paragraphs = (parsed as { paragraphs?: unknown } | undefined)?.paragraphs;
+  if (!Array.isArray(paragraphs)) return null;
+  return narrativeNumberAccuracy(
+    paragraphs as { text: string; citations: NarrativeCitation[] }[],
+    figures,
+    periodLabels,
+  );
 }

@@ -75,6 +75,8 @@ export class FakeDb implements RestoreTarget {
 /** A fetch that answers from a script of responses and records each call. */
 export function scripted(responses: (object | ((url: string, init?: RequestInit) => object))[]) {
   const calls: { url: string; method: string; body?: unknown }[] = [];
+  /** Each call's request headers, in call order. */
+  const headers: Record<string, string>[] = [];
   const clock = { t: 0 };
   const deps: ApiDeps = {
     fetch: (async (url: string, init?: RequestInit) => {
@@ -83,6 +85,7 @@ export function scripted(responses: (object | ((url: string, init?: RequestInit)
         method: init?.method ?? 'GET',
         ...(init?.body ? { body: JSON.parse(String(init.body)) as unknown } : {}),
       });
+      headers.push({ ...(init?.headers as Record<string, string>) });
       const next = responses.shift();
       if (!next) throw new Error(`unexpected call ${url}`);
       const body = typeof next === 'function' ? next(url, init) : next;
@@ -95,5 +98,5 @@ export function scripted(responses: (object | ((url: string, init?: RequestInit)
     },
     now: () => clock.t,
   };
-  return { deps, calls, clock };
+  return { deps, calls, headers, clock };
 }

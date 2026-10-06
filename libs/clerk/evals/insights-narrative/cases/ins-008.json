@@ -1,0 +1,30 @@
+{
+  "id": "ins-008",
+  "description": "A steady month against the same month last year: small changes, nothing dramatic",
+  "role": "lawyer",
+  "today": "2026-04-08",
+  "insights": {
+    "range": "last_month",
+    "compare": "last_year"
+  },
+  "metrics": {
+    "2026-03": {
+      "billing.invoicedCents": 4400000,
+      "billing.collectedCents": 4300000,
+      "matters.opened": 6,
+      "matters.closed": 5,
+      "time.billable.minutes": 16200,
+      "deadlines.due": 10,
+      "deadlines.metOnTime": 10
+    },
+    "2025-03": {
+      "billing.invoicedCents": 4350000,
+      "billing.collectedCents": 4250000,
+      "matters.opened": 6,
+      "matters.closed": 6,
+      "time.billable.minutes": 16000,
+      "deadlines.due": 9,
+      "deadlines.metOnTime": 9
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "id": "ins-008",
+  "fields": {
+    "insufficientData": false
+  },
+  "mustNotContain": ["surge", "plummet", "dramatic", "collapse", "soar"]
+}

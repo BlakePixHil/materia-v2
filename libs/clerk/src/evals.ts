@@ -3,6 +3,7 @@
 export * from './lib/evals/dataset';
 export * from './lib/evals/gate';
 export * from './lib/evals/graders';
+export * from './lib/evals/insights';
 export * from './lib/evals/report';
 export * from './lib/evals/runner';
 export * from './lib/evals/types';

@@ -1069,6 +1069,11 @@ service cloud.firestore {
       match /xeroContacts/{linkId} {
         allow read, write: if false;
       }
+      // Clerk's Insights explanations (INS-04, ADR-054), one per period and comparison. Server-only:
+      // `clerk-explainInsights` returns them after the org's Clerk switches.
+      match /insightsNarratives/{narrativeId} {
+        allow read, write: if false;
+      }
       // Daily digest records (FND-20), `digest-{uid}-{date}`: written by notifications-digest so a
       // person gets one a day; Firestore TTL deletes them after 30 days.
       match /digests/{digestId} {

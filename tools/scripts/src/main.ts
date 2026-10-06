@@ -25,6 +25,7 @@ const COMMANDS = {
   'decode-stack': 'Deobfuscate a web stack trace with the private sourcemaps (FND-21)',
   'restore-matter': 'Restore one matter from a PITR time or a restored database (SEC-03; dry run unless --apply)',
   'backup-drill': 'Restore a backup or export into a scratch database and verify the counts (SEC-03; dev)',
+  'backup-status': 'List recent backups, exports, the files copy and the export job logs (SEC-03; read-only)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -70,6 +71,7 @@ export async function run(argv: string[]): Promise<number> {
       'decode-stack': () => import('./decode-stack.ts'),
       'restore-matter': () => import('./backups/restore-matter.ts'),
       'backup-drill': () => import('./backups/drill.ts'),
+      'backup-status': () => import('./backups/status.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);

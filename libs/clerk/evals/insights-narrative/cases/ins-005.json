@@ -1,0 +1,47 @@
+{
+  "id": "ins-005",
+  "description": "Last financial year against the one before: the median time from instructions to grant rose",
+  "role": "lawyer",
+  "today": "2026-08-05",
+  "insights": {
+    "range": "last_fy",
+    "compare": "previous"
+  },
+  "metrics": {
+    "2025-08": {
+      "billing.invoicedCents": 4000000,
+      "matters.closed": 3
+    },
+    "2025-09": {
+      "cycle.probate.instructionsToGrant.d120": 1,
+      "cycle.probate.instructionsToGrant.d150": 1,
+      "billing.invoicedCents": 4200000
+    },
+    "2026-02": {
+      "cycle.probate.instructionsToGrant.d180": 1,
+      "cycle.probate.instructionsToGrant.d200": 1,
+      "billing.invoicedCents": 3900000,
+      "matters.closed": 2
+    },
+    "2026-05": {
+      "cycle.probate.instructionsToGrant.d210": 1,
+      "billing.invoicedCents": 4100000
+    },
+    "2024-10": {
+      "cycle.probate.instructionsToGrant.d100": 1,
+      "cycle.probate.instructionsToGrant.d110": 1,
+      "billing.invoicedCents": 3800000,
+      "matters.closed": 4
+    },
+    "2025-03": {
+      "cycle.probate.instructionsToGrant.d130": 1,
+      "cycle.probate.instructionsToGrant.d140": 1,
+      "billing.invoicedCents": 3700000
+    },
+    "2025-06": {
+      "cycle.probate.instructionsToGrant.d90": 1,
+      "billing.invoicedCents": 4000000,
+      "matters.closed": 3
+    }
+  }
+}

@@ -35,6 +35,7 @@ function evalCase(id: string): EvalCase {
     documents: [],
     query: 'q',
     tags: [],
+    metrics: {},
   };
 }
 

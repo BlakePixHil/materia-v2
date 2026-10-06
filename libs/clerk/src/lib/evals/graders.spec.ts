@@ -1,3 +1,4 @@
+import type { EvalCase } from './dataset';
 import {
   citationCoverage,
   citationPrecision,
@@ -19,7 +20,9 @@ import {
   schemaValid,
   setF1,
   valueAt,
+  numberAccuracy,
 } from './graders';
+import { insightsCase } from './insights';
 
 // Synthetic outputs only: the graders are pure, so every case here is hand-written.
 
@@ -316,5 +319,32 @@ describe('draftAccuracy and draftHonesty (AI-06b)', () => {
     expect(draftHonesty('Drafted.', [note])).toBe(0);
     expect(draftHonesty('Anything', [])).toBeNull();
     expect(draftHonesty('Anything', undefined)).toBeNull();
+  });
+});
+
+describe('numberAccuracy (INS-04)', () => {
+  const evalCase = {
+    id: 'ins-x',
+    today: '2026-06-10',
+    insights: { range: 'last_month', compare: 'previous', fyStartMonth: 7 },
+    metrics: {
+      '2026-04': { 'billing.collectedCents': 3_850_000 },
+      '2026-05': { 'billing.collectedCents': 3_157_000 },
+    },
+  } as unknown as EvalCase;
+  const insights = insightsCase(evalCase);
+  const cite = [
+    { metric: 'billing.collectedCents', period: 'current' },
+    { metric: 'billing.collectedCents', period: 'comparison' },
+  ];
+
+  it('scores the share of paragraphs whose numbers all match their cited figures', () => {
+    expect(insights?.labels).toEqual(['May 2026', 'April 2026']);
+    const good = { text: 'Collections fell 18% to $31,570 in May 2026.', citations: cite };
+    const rounded = { text: 'Collections fell to about $32,000.', citations: cite };
+    expect(numberAccuracy({ paragraphs: [good] }, insights?.figures ?? [], insights?.labels ?? [])).toBe(1);
+    expect(numberAccuracy({ paragraphs: [good, rounded] }, insights?.figures ?? [], insights?.labels ?? [])).toBe(0.5);
+    expect(numberAccuracy({ paragraphs: [] }, [], [])).toBe(1);
+    expect(numberAccuracy(undefined, [], [])).toBeNull();
   });
 });
