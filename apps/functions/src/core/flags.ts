@@ -14,6 +14,7 @@ import {
 
 import { adminApp } from './admin';
 import { useFakes } from './env';
+import { createLog, errorReportFields } from './log';
 
 /** How long Remote Config and org overrides are cached per instance. */
 export const FLAG_CACHE_MS = 60_000;
@@ -60,8 +61,15 @@ export function setRemoteFlagLoader(loader: RemoteFlagLoader = loadRemoteFlags):
 
 async function remoteValues(now: number): Promise<Record<string, FlagValue>> {
   if (!remoteCache || now - remoteCache.at > FLAG_CACHE_MS) {
-    // Remote Config down: registry defaults (and org overrides) still apply.
-    remoteCache = { at: now, values: remoteLoader().catch(() => ({})) };
+    // Remote Config down: registry defaults (and org overrides) still apply. Logged, because a lost
+    // read turns every server-enforced flag off ("This feature isn't turned on for your practice yet").
+    remoteCache = {
+      at: now,
+      values: remoteLoader().catch((error: unknown) => {
+        createLog({ fn: 'flags' }).warn('Remote Config read failed; using flag defaults', errorReportFields(error));
+        return {};
+      }),
+    };
   }
   return remoteCache.values;
 }
