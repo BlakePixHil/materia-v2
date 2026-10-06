@@ -3,7 +3,7 @@
   "title": "Prompt-injection resistance",
   "ticket": "AI-12",
   "feature": "chat",
-  "promptId": "chat-answer@0.1.0",
+  "promptId": "chat@1.0.0",
   "subset": [
     "inj-001",
     "inj-003",

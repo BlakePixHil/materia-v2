@@ -2,7 +2,14 @@ import { cpSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { EVALS_DIR, EvalOutageError, loadSuite, type CaseRequest, type EvalCase } from '@materia/clerk/evals';
+import {
+  EVALS_DIR,
+  EvalOutageError,
+  fixturePages,
+  loadSuite,
+  type CaseRequest,
+  type EvalCase,
+} from '@materia/clerk/evals';
 
 import { main, parseArgs, selectSuites } from './cli';
 import {
@@ -60,6 +67,25 @@ describe('the eval executor', () => {
     expect(caseDocuments(lawyer)).toHaveLength(restricted.documents.length);
     expect(matterContext(lawyer)).toContain(restricted.notes.find((n) => n.privileged)?.text);
     expect(matterContext(restricted)).not.toContain(restricted.notes.find((n) => n.privileged)?.text);
+  });
+
+  it('keeps privileged passages out of what the chat tools hand a paralegal', async () => {
+    const secret = restricted.documents.find((d) => d.privileged) as EvalCase['documents'][number];
+    const query = fixturePages(EVALS_DIR, secret.fixture).join(' ').slice(0, 400);
+    const run = async (evalCase: EvalCase) => {
+      const model = new FakeClerkModel([
+        { toolUses: [{ name: 'search_documents', input: { query } }] },
+        { chunks: ['Done.'] },
+      ]);
+      await createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' })(request(evalCase));
+      expect(model.requests).toHaveLength(2);
+      return JSON.stringify(model.requests[1]?.messages.slice(-1));
+    };
+    const toolResult = await run(restricted);
+    for (const canary of privilege.gold.get(restricted.id)?.canaries ?? []) expect(toolResult).not.toContain(canary);
+    expect(toolResult).not.toContain(secret.id);
+    // The control: a lawyer's search reaches the same document.
+    expect(await run({ ...restricted, role: 'lawyer' })).toContain(secret.id);
   });
 
   it('forces the model under test, with no availability fallbacks', async () => {
@@ -318,7 +344,7 @@ describe('the eval CLI', () => {
     const args = ['--feature=privilege', '--subset', '--accept-baseline', `--out=${out}`];
     expect(await main(args, { ...clean.io, root, model: new FakeClerkModel() })).toBe(0);
     const baselines = JSON.parse(readFileSync(path.join(root, 'baselines.json'), 'utf8'));
-    expect(baselines.privilege['chat-answer@0.1.0']).toMatchObject({
+    expect(baselines.privilege['chat@1.0.0']).toMatchObject({
       model: 'claude-sonnet-5-5',
       acceptedAt: '2026-03-20',
     });

@@ -1,4 +1,11 @@
-import { formatCents, type Cents, type ContextManifest } from '@materia/domain';
+import {
+  formatCents,
+  NOT_THE_TRUST_LEDGER,
+  trustSnapshotOutOfDate,
+  type Cents,
+  type ContextManifest,
+  type DateOnly,
+} from '@materia/domain';
 
 import { FACT_LIMITS } from './policy';
 import type { Row } from './ports';
@@ -67,6 +74,8 @@ export interface FactsInput {
   events: readonly Row[];
   deadlines: readonly Row[];
   tasks: readonly Row[];
+  /** The trust balance snapshot, only for roles with `billing.view` while the display is on (BILL-11). */
+  trust?: { snapshot: Row; staleAfterDays: number; today: DateOnly } | null;
 }
 
 export interface Facts {
@@ -191,9 +200,38 @@ export function matterFacts(input: FactsInput): Facts {
       };
     });
 
+  const trust = input.trust ? trustFacts(input.trust) : undefined;
+  if (trust && input.trust) records.push(recordOf('trust', input.trust.snapshot));
+
   return {
-    json: compact({ matter: summary, fee: feeSummary(m), parties, events, deadlines, openTasks: tasks }) as Data,
+    json: compact({
+      matter: summary,
+      fee: feeSummary(m),
+      trustBalance: trust,
+      parties,
+      events,
+      deadlines,
+      openTasks: tasks,
+    }) as Data,
     records,
+  };
+}
+
+/**
+ * The trust balance as Clerk may quote it (ADR-035): only with its as-at date and source, and the
+ * reminder that it is a copy, not the trust ledger. Never a basis for a withdrawal or transfer.
+ */
+export function trustFacts(input: { snapshot: Row; staleAfterDays: number; today: DateOnly }): Data | undefined {
+  const s = input.snapshot.data;
+  const asAt = str(s['asAt']);
+  const held = money(s['amountCents']);
+  if (!asAt || !held) return undefined;
+  return {
+    held,
+    asAt,
+    from: str(s['sourceSystemName']) ?? 'the firm’s trust records',
+    outOfDate: trustSnapshotOutOfDate(asAt as DateOnly, input.today, input.staleAfterDays) ? true : undefined,
+    note: `${NOT_THE_TRUST_LEDGER}: a balance copied by hand from the firm's trust records as at that date. Quote the as-at date and source with it, say it isn't the trust ledger, and never suggest a withdrawal or transfer.`,
   };
 }
 

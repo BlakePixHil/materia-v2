@@ -35,6 +35,8 @@ export const PERMISSIONS = {
   'billing.issue': ['owner', 'admin', 'lawyer'],
   /** Void invoices and issue credit notes (BILL-07). */
   'billing.void': ['owner', 'admin'],
+  /** Record a matter's trust balance, copied from the firm's trust records (BILL-11); needs `billing.view` too. */
+  'trust.record': ['owner', 'admin', 'lawyer'],
   'clerk.use': ['owner', 'admin', 'lawyer', 'paralegal'],
   'clerk.configure': ['owner', 'admin'],
   'members.manage': ['owner', 'admin'],

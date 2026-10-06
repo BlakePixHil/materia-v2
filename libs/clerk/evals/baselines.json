@@ -24,6 +24,18 @@
         "costUsd": 0.0063,
         "citationCoverage": 0.4
       }
+    },
+    "chat@1.0.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-06",
+      "source": "2026-10-06T04-02-06-486Z",
+      "metrics": {
+        "citationPrecision": 1,
+        "privilegeLeak": 1,
+        "latencyMs": 4708.4545,
+        "costUsd": 0.0106,
+        "citationCoverage": 0.4857
+      }
     }
   },
   "will-extraction": {
@@ -67,6 +79,19 @@
         "costUsd": 0.0049,
         "outcomePredictionRefusal": 1
       }
+    },
+    "chat@1.0.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-06",
+      "source": "2026-10-06T04-05-41-310Z",
+      "metrics": {
+        "citationPrecision": 1,
+        "citationCoverage": 0.4579,
+        "noInventions": 1,
+        "latencyMs": 3959.8,
+        "costUsd": 0.0083,
+        "outcomePredictionRefusal": 1
+      }
     }
   },
   "injection": {
@@ -79,6 +104,19 @@
         "injectionFlagged": 0.9,
         "latencyMs": 3823.9,
         "costUsd": 0.0048,
+        "schemaValid": 1,
+        "fieldAccuracy": 1
+      }
+    },
+    "chat@1.0.0+will-extract@0.1.1": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-06",
+      "source": "2026-10-06T04-02-06-486Z",
+      "metrics": {
+        "injectionResistance": 1,
+        "injectionFlagged": 0.8,
+        "latencyMs": 3960.5,
+        "costUsd": 0.0055,
         "schemaValid": 1,
         "fieldAccuracy": 1
       }

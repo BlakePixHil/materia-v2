@@ -118,4 +118,10 @@ export interface ContextSource {
   documents(orgId: string, matterId: string, ids: readonly string[]): Promise<Row[]>;
   /** Practice rollups (`metrics/{period}`), newest first. */
   metrics(orgId: string, limit: number): Promise<Row[]>;
+  /**
+   * The matter's trust balance snapshot (BILL-11, ADR-035) and the org's out-of-date threshold, or
+   * null while `billing.trustDisplay` or the org's "Show trust balances on matters" is off. Callers
+   * check `billing.view` first.
+   */
+  trustSnapshot(orgId: string, matterId: string): Promise<{ snapshot: Row; staleAfterDays: number } | null>;
 }
