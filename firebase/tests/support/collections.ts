@@ -139,6 +139,18 @@ export const COLLECTIONS: CollectionSpec[] = [
     ownerCreatesAndDeletes: true,
   },
 
+  // The global timer (BILL-02): the user's own, started, paused and discarded by the client.
+  {
+    collection: 'timer',
+    docPath: `users/${OWNER}/timer/current`,
+    entity: 'Timer',
+    seed: { orgId: ORG, createdBy: OWNER },
+    read: 'owner',
+    update: 'owner',
+    change: { narrativeDraft: 'Perusing the will', lastHeartbeatAt: serverTimestamp() },
+    ownerCreatesAndDeletes: true,
+  },
+
   // Organisation.
   { collection: 'orgs', docPath: `orgs/${ORG}`, entity: 'Org', read: 'members', update: 'org.settings' },
   {

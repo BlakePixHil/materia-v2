@@ -50,6 +50,7 @@ export * from './lib/profile';
 export * from './lib/clerk-settings';
 export * from './lib/security';
 export * from './lib/time-entries';
+export * from './lib/timer';
 export * from './lib/trust';
 export * from './lib/fees';
 export * from './lib/billing';

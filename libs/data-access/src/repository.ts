@@ -33,3 +33,4 @@ export * from './lib/trust';
 export * from './lib/fees';
 export * from './lib/disbursements';
 export * from './lib/testing/in-memory-firestore';
+export * from './lib/testing/in-memory-timer';

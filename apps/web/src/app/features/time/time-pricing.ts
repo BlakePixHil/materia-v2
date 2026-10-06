@@ -10,6 +10,7 @@ import {
 import {
   BILLING_UNIT_MINUTES,
   computeTimeEntry,
+  DEFAULT_ORG_TIMEZONE,
   dayMinutes,
   type RateMatter,
   type RateMember,
@@ -22,6 +23,8 @@ const FALLBACK: RateOrg['billing'] = { unitMinutes: BILLING_UNIT_MINUTES, roundi
 
 export interface TimePricing {
   unitMinutes: () => number;
+  /** The org's time zone (entry dates), Melbourne until read. */
+  timeZone: () => string;
   /** The units, rate and amount the server will snapshot for my entry (a preview it replaces). */
   preview(input: { minutes: number; date: string; matter: RateMatter | null | undefined }): TimeEntryValues;
 }
@@ -34,12 +37,14 @@ export function timePricing(): TimePricing {
   const context = inject(OrgContext);
   const billing = signal<RateOrg['billing']>(FALLBACK);
   const me = signal<RateMember | null>(null);
+  const timeZone = signal<string>(DEFAULT_ORG_TIMEZONE);
   const orgId = context.orgId();
   const uid = context.uid();
   if (orgId) {
     orgSettingsReadRepository()
       .get(orgId)
       .then((org) => {
+        if (org?.timezone) timeZone.set(org.timezone);
         const settings = org?.billing;
         if (settings)
           billing.set({
@@ -59,6 +64,7 @@ export function timePricing(): TimePricing {
   const unitMinutes = computed(() => billing().unitMinutes ?? BILLING_UNIT_MINUTES);
   return {
     unitMinutes,
+    timeZone,
     preview: ({ minutes, date, matter }) =>
       computeTimeEntry({ minutes, date, matter, member: me(), org: { billing: billing() } }),
   };

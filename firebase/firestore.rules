@@ -373,6 +373,54 @@ service cloud.firestore {
         allow update: if isDeviceOwner() && clientUpdate(fieldsDevice()) && validDevice(request.resource.data);
       }
 
+      // The global timer (BILL-02): one document, `current`, private to its user, started (by
+      // time.record roles) in their current org, paused, resumed and discarded by the client (a transaction makes two tabs starting at once end with
+      // one timer). Its matter never changes (switching stops
+      // or discards it first). `startedAt` is the server's time unless the timer was started
+      // offline (`clientStarted`), and every write stamps `lastHeartbeatAt` with it, which each
+      // device measures its clock skew from. `forgotten` is server-owned (time-flagForgottenTimers);
+      // time-stopTimer saves the time entries and deletes the timer.
+      match /timer/{timerId} {
+        function isTimerOwner() {
+          return isSignedIn() && uid() == userId && timerId == 'current';
+        }
+        // Fields a client may write when starting a timer: `Timer.create` in libs/domain (the rules
+        // tests check the two agree), plus the meta fields.
+        function timerCreateFields() {
+          return ['orgId', 'matterId', 'matterNumber', 'taskId', 'startedAt', 'accumulatedMs', 'running', 'narrativeDraft', 'lastHeartbeatAt', 'clientStarted', 'needsReview', 'forgottenSeenAt'];
+        }
+        function validTimer(data) {
+          return data.matterId is string && data.matterId.size() > 0
+            && data.matterNumber is string && data.matterNumber.size() > 0 && data.matterNumber.size() <= 64
+            && (!('taskId' in data) || data.taskId is string && data.taskId.size() > 0)
+            && data.startedAt is timestamp
+            && data.accumulatedMs is int && data.accumulatedMs >= 0 && data.accumulatedMs <= 5040000000
+            && data.running is bool
+            && data.narrativeDraft is string && data.narrativeDraft.size() <= 2000
+            && data.lastHeartbeatAt == request.time
+            && data.get('clientStarted', false) is bool
+            && data.get('needsReview', false) is bool
+            && (!('forgottenSeenAt' in data) || data.forgottenSeenAt is timestamp);
+        }
+        // A server-time start, or the device's clock when started offline.
+        function startOk(data) {
+          return data.startedAt == request.time || data.get('clientStarted', false) == true;
+        }
+        allow read, delete: if isTimerOwner();
+        allow create: if isTimerOwner()
+          && request.resource.data.keys().hasOnly(timerCreateFields().concat(['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion']))
+          && request.resource.data.keys().hasAll(['orgId', 'matterId', 'matterNumber', 'startedAt', 'accumulatedMs', 'running', 'narrativeDraft', 'lastHeartbeatAt', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'])
+          && request.resource.data.orgId == claimOrg() && can(claimOrg(), 'time.record')
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt == request.time
+          && validMeta() && request.resource.data.schemaVersion == 1
+          && validTimer(request.resource.data) && startOk(request.resource.data)
+          && !('forgottenSeenAt' in request.resource.data);
+        allow update: if isTimerOwner() && clientUpdate(fieldsTimer())
+          && validTimer(request.resource.data)
+          && (unchanged(['startedAt']) || startOk(request.resource.data))
+          && (unchanged(['forgottenSeenAt']) || request.resource.data.forgottenSeenAt == request.time);
+      }
+
       // Server-only: MFA recovery code hashes and sign-in stamps (FND-16). Not even the owner reads them.
       match /private/{docId} {
         allow read, write: if false;
@@ -1116,6 +1164,7 @@ service cloud.firestore {
     function fieldsTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsTaskGroupTemplate() { return ['name', 'tasks']; }
     function fieldsTimeEntry() { return ['date', 'minutes', 'units', 'rateCents', 'amountCents', 'narrative', 'billable', 'taskId']; }
+    function fieldsTimer() { return ['taskId', 'startedAt', 'accumulatedMs', 'running', 'narrativeDraft', 'lastHeartbeatAt', 'clientStarted', 'needsReview', 'forgottenSeenAt']; }
     function fieldsTrustSnapshot() { return []; }
     function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl']; }
     // </generated:rules-sync>

@@ -29,6 +29,7 @@ import {
   ROLES,
   DisbursementCreateInput,
   TimeEntryCreateInput,
+  Timer,
   type Role,
 } from '@materia/domain';
 import { ENTITY_FACTORIES } from '@materia/test-utils';
@@ -1632,6 +1633,133 @@ describe('⌘K search and recents (CORE-15)', () => {
     await assertFails(group(db(env, 'owner', OTHER_ORG)));
     await assertFails(group(db(env, 'owner'), OTHER_ORG));
     await assertFails(group(db(env, 'lawyer', ORG, SUSPENDED_UID)));
+  });
+});
+
+describe('the global timer (BILL-02)', () => {
+  const timerOf = (uid: string) => `users/${uid}/timer/current`;
+  /** A timer as the web app starts it online. */
+  const timer = (uid: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    orgId: ORG,
+    matterId: 'matter-1',
+    matterNumber: 'M-2026-0001',
+    startedAt: serverTimestamp(),
+    accumulatedMs: 0,
+    running: true,
+    narrativeDraft: '',
+    lastHeartbeatAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    createdBy: uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    schemaVersion: 1,
+    ...extra,
+  });
+  const beat = (change: Record<string, unknown>, uid: string) =>
+    stamped({ ...change, lastHeartbeatAt: serverTimestamp() }, uid);
+
+  it('the create whitelist matches Timer.create in libs/domain', () => {
+    const rules = readFileSync(path.resolve(import.meta.dirname, '../firestore.rules'), 'utf8');
+    const listed = /function timerCreateFields\(\) \{\s*return \[([^\]]*)\]/.exec(rules)?.[1] ?? '';
+    const fields = [...listed.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]);
+    expect(fields.sort()).toEqual(Object.keys(Timer.create.shape).sort());
+  });
+
+  it.each(ROLES)('start, pause, resume, dismiss the banner, read and discard my own timer, as %s', async (role) => {
+    const uid = uidFor(role);
+    const ref = doc(db(env, role), timerOf(uid));
+    await deleteDoc(ref).catch(() => undefined);
+    if (!allows(role, 'time.record')) {
+      // Roles that can't record time can't start a timer.
+      await assertFails(setDoc(ref, timer(uid)));
+      return;
+    }
+    await assertSucceeds(setDoc(ref, timer(uid)));
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(updateDoc(ref, beat({ running: false, accumulatedMs: 120_000 }, uid)));
+    await assertSucceeds(updateDoc(ref, beat({ running: true, startedAt: serverTimestamp() }, uid)));
+    await assertSucceeds(updateDoc(ref, beat({ narrativeDraft: 'Letter to executor', taskId: 'task-1' }, uid)));
+    await assertSucceeds(updateDoc(ref, beat({ forgottenSeenAt: serverTimestamp() }, uid)));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it('starts offline with the device clock only when marked clientStarted', async () => {
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), timerOf(uid));
+    await deleteDoc(ref).catch(() => undefined);
+    const deviceClock = Timestamp.fromMillis(Date.now() - 60_000);
+    await assertFails(setDoc(ref, timer(uid, { startedAt: deviceClock })));
+    await assertSucceeds(setDoc(ref, timer(uid, { startedAt: deviceClock, clientStarted: true })));
+    // Resumed offline too, and marked for review on reconnect.
+    await assertSucceeds(updateDoc(ref, beat({ startedAt: deviceClock, needsReview: true }, uid)));
+    await deleteDoc(ref);
+    await setDoc(ref, timer(uid));
+    // An online timer can't move its start to a chosen time.
+    await assertFails(updateDoc(ref, beat({ startedAt: deviceClock }, uid)));
+    await deleteDoc(ref);
+  });
+
+  it('keeps forgotten server-owned', async () => {
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), timerOf(uid));
+    await deleteDoc(ref).catch(() => undefined);
+    const flag = { reason: 'long', at: Timestamp.fromMillis(Date.now()) };
+    await assertFails(setDoc(ref, timer(uid, { forgotten: flag })));
+    await assertFails(setDoc(ref, timer(uid, { forgottenSeenAt: serverTimestamp() })));
+    await seedAdmin(env, (f) =>
+      setDoc(doc(f, timerOf(uid)), { ...seedData(specFor('timer')), createdBy: uid, forgotten: flag }),
+    );
+    await assertFails(updateDoc(ref, beat({ forgotten: { reason: 'midnight', at: serverTimestamp() } }, uid)));
+    await assertFails(updateDoc(ref, beat({ forgotten: deleteField() }, uid)));
+    // The banner is dismissed with the server's time only.
+    await assertFails(updateDoc(ref, beat({ forgottenSeenAt: Timestamp.fromMillis(0) }, uid)));
+    await assertSucceeds(updateDoc(ref, beat({ forgottenSeenAt: serverTimestamp() }, uid)));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it('refuses another matter or org, a client heartbeat and bad values', async () => {
+    const uid = uidFor('lawyer');
+    const ref = doc(db(env, 'lawyer'), timerOf(uid));
+    await deleteDoc(ref).catch(() => undefined);
+    for (const bad of [
+      { orgId: OTHER_ORG },
+      { matterId: '' },
+      { matterNumber: 'M'.repeat(65) },
+      { accumulatedMs: -1 },
+      { accumulatedMs: 1.5 },
+      { running: 'yes' },
+      { narrativeDraft: 'x'.repeat(2001) },
+      { lastHeartbeatAt: Timestamp.fromMillis(0) },
+      { taskId: '' },
+      { createdBy: 'someone-else' },
+      { schemaVersion: 2 },
+      { colour: 'red' },
+    ]) {
+      await assertFails(setDoc(ref, timer(uid, bad)));
+    }
+    // Not the one timer document.
+    await assertFails(setDoc(doc(db(env, 'lawyer'), `users/${uid}/timer/second`), timer(uid)));
+    await assertSucceeds(setDoc(ref, timer(uid)));
+    // The matter is fixed: a start over a running timer (a set, so an update) is refused.
+    await assertFails(setDoc(ref, timer(uid, { matterId: 'matter-2' })));
+    await assertFails(updateDoc(ref, beat({ matterId: 'matter-2' }, uid)));
+    await assertFails(updateDoc(ref, stamped({ running: false }, uid)));
+    await assertFails(updateDoc(ref, beat({ accumulatedMs: -5 }, uid)));
+    await deleteDoc(ref);
+    // A suspended member and someone outside the org can't start one in this org.
+    await assertFails(setDoc(doc(db(env, 'lawyer', ORG, SUSPENDED_UID), timerOf(SUSPENDED_UID)), timer(SUSPENDED_UID)));
+    const outsider = uidFor('owner', OTHER_ORG);
+    await assertFails(setDoc(doc(db(env, 'owner', OTHER_ORG), timerOf(outsider)), timer(outsider)));
+  });
+
+  it.each(ROLES)("someone else's timer is off limits, as %s", async (role) => {
+    const other = role === 'lawyer' ? uidFor('owner') : uidFor('lawyer');
+    await seedAdmin(env, (f) => setDoc(doc(f, timerOf(other)), { ...seedData(specFor('timer')), createdBy: other }));
+    const ref = doc(db(env, role), timerOf(other));
+    await assertFails(getDoc(ref));
+    await assertFails(updateDoc(ref, beat({ running: false }, uidFor(role))));
+    await assertFails(deleteDoc(ref));
+    await assertFails(setDoc(doc(db(env, role), timerOf(other)), timer(uidFor(role))));
   });
 });
 

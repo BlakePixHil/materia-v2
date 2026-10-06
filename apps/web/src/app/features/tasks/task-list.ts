@@ -23,6 +23,8 @@ import { TaskActions } from './task-actions';
 import { TaskDetails } from './task-details';
 import type { TaskEntry, TaskSectionVm } from './task-view';
 import { isEditable, ShortcutService } from '../../core/shortcuts/shortcut.service';
+import { TimerStore } from '../../core/timer/timer-store';
+import { MatterRefs } from '../../core/title-strategy';
 
 /** How long focus follows a moved task while the list catches up with the write. */
 const FOLLOW_MS = 1500;
@@ -123,6 +125,17 @@ const FOLLOW_MS = 1500;
                         "
                         >{{ matter.number || 'Open the matter' }}</a
                       >
+                    }
+                    @if (entry.task.matterId && timer.canRecord()) {
+                      <!-- The global timer (BILL-02), on this task. -->
+                      <button
+                        mtIconButton
+                        size="sm"
+                        icon="timer"
+                        [label]="'Start timer: ' + entry.task.title"
+                        [tooltip]="false"
+                        (click)="startTimer(entry)"
+                      ></button>
                     }
                     <button
                       mtIconButton
@@ -287,8 +300,18 @@ export class TaskList {
   readonly groups = input<readonly string[] | null>(null);
 
   protected readonly actions = inject(TaskActions);
+  protected readonly timer = inject(TimerStore);
+  private readonly matterRefs = inject(MatterRefs);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+
+  /** Starts the timer on a matter task's matter, for that task. */
+  protected startTimer(entry: TaskEntry): void {
+    const matterId = entry.task.matterId;
+    if (!matterId) return;
+    const matterNumber = entry.matter?.number || this.matterRefs.label(matterId);
+    void this.timer.start({ matterId, matterNumber, taskId: entry.task.id });
+  }
 
   protected readonly selected = computed(() => new Set(this.selection()));
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
