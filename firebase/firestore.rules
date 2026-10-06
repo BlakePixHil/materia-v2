@@ -740,16 +740,23 @@ service cloud.firestore {
         }
       }
 
+      // Clerk threads (AI-06, ADR-044): private to their owner until shared with the matter team.
+      // A privileged thread or message (drawn from privileged material, Clerk rule 6) needs
+      // privileged.view as well, even when shared (ADR-034), so a list by a role without it must
+      // prove `privileged == false`. Threads and messages are created by clerk-sendMessage.
       match /clerkThreads/{threadId} {
         function thread() {
           return get(/databases/$(database)/documents/orgs/$(orgId)/clerkThreads/$(threadId)).data;
         }
-        allow read: if can(orgId, 'clerk.use') && (resource.data.ownerUid == uid() || resource.data.shared == true);
-        allow update: if can(orgId, 'clerk.use') && resource.data.ownerUid == uid() && unchanged(['ownerUid'])
+        function readable(data) {
+          return can(orgId, 'clerk.use') && (data.ownerUid == uid() || data.shared == true) && visible(orgId, data);
+        }
+        allow read: if readable(resource.data);
+        allow update: if can(orgId, 'clerk.use') && resource.data.ownerUid == uid()
           && (clientUpdate(fieldsClerkThread()) || softDelete());
 
         match /messages/{messageId} {
-          allow read: if can(orgId, 'clerk.use') && (thread().ownerUid == uid() || thread().shared == true);
+          allow read: if readable(thread()) && visible(orgId, resource.data);
           // The thread owner can ask a running reply to stop.
           allow update: if can(orgId, 'clerk.use') && thread().ownerUid == uid() && clientUpdate(fieldsClerkMessage());
         }
@@ -947,6 +954,7 @@ service cloud.firestore {
         'matter.status': ['owner', 'admin', 'lawyer'],
         'matter.restore': ['owner', 'admin'],
         'matter.renumber': ['owner', 'admin', 'lawyer'],
+        'matter.fee': ['owner', 'admin', 'lawyer'],
         'contact.edit': ['owner', 'admin', 'lawyer', 'paralegal'],
         'contact.delete': ['owner', 'admin', 'lawyer'],
         'contact.merge': ['owner', 'admin'],
@@ -984,7 +992,7 @@ service cloud.firestore {
     function fieldsChronologyEntry() { return ['date', 'datePrecision', 'title', 'detail', 'sources', 'disputed', 'issueIds']; }
     function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'docVersion', 'ordinal', 'privileged', 'ocr', 'embedding']; }
     function fieldsClerkMessage() { return ['stopRequested']; }
-    function fieldsClerkThread() { return ['title', 'ownerUid', 'matterId', 'shared']; }
+    function fieldsClerkThread() { return ['title', 'shared']; }
     function fieldsConflictCheck() { return []; }
     function fieldsContact() { return ['kind', 'givenNames', 'familyName', 'preferredName', 'dateOfBirth', 'dateOfDeath', 'orgName', 'abn', 'emails', 'phones', 'addresses', 'tags', 'isReferrer', 'referrerMeta', 'notes']; }
     function fieldsCounter() { return []; }

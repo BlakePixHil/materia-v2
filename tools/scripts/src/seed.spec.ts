@@ -303,6 +303,7 @@ describe('seed dataset', () => {
       'templates.system': true,
       'deadlines.ruleset.vic.v1': true,
       'clerk.features.suggestions': true,
+      'billing.feeBudgets': true,
       'billing.disbursements': true,
     });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
@@ -339,6 +340,23 @@ describe('seed dataset', () => {
     const statuses = suggestions.map((d) => (d.data as D.Suggestion).status);
     expect(statuses.filter((status) => status === 'expired')).toHaveLength(1);
     expect(suggestions.some((d) => (d.data as D.Suggestion).privileged)).toBe(true);
+  });
+
+  it('seeds each matter’s fee and the budget the fees triggers would keep (BILL-05)', () => {
+    // The practice's twelve matters (the conflict scenarios' matters have no time or budget).
+    const matters = dataset.docs.filter((d) => /\/matters\/[^/]+$/.test(d.path) && !d.path.includes('/m-cf-'));
+    expect(matters).toHaveLength(12);
+    for (const matter of matters) {
+      const time = dataset.docs
+        .filter((d) => d.path.startsWith(`${matter.path}/timeEntries/`))
+        .reduce((sum, d) => sum + (d.data['amountCents'] as number), 0);
+      const budget = matter.data['budget'] as Record<string, unknown>;
+      expect(budget['recordedCents']).toBe(time);
+      expect(budget['alerted']).toEqual([]);
+    }
+    const doyle = matters.find((d) => d.path.endsWith('/m-doyle-estate'))?.data['fee'] as Record<string, unknown>;
+    expect(doyle).toMatchObject({ arrangement: 'hourly', estimateHighCents: 650_000, revision: 1 });
+    expect(doyle['history']).toHaveLength(1);
   });
 
   it('seeds a Clerk thread whose citations quote the fixture PDFs, one of them unverified (AI-05)', () => {

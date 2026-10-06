@@ -30,7 +30,7 @@ import { bulkLabel, isExpired, type SuggestionRecord } from './suggestion-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
-import { CitationSources } from '../citations/citation-sources';
+import { CitationScope, CitationSources } from '../citations/citation-sources';
 import { CitationViewer } from '../citations/citation-viewer';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
@@ -60,7 +60,7 @@ const ORDER: Record<string, number> = { proposed: 0, stale: 1, expired: 2 };
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
   imports: [CitationViewer, FormsModule, MtButton, MtClerkMark, MtSwitch, SuggestionCard],
-  providers: [CitationSources],
+  providers: [CitationSources, { provide: CitationScope, useExisting: MatterScreen }],
   host: { class: 'mt-matter-suggestions' },
   template: `
     @if (visible()) {

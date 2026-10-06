@@ -348,6 +348,47 @@ describe('field-level rules', () => {
     await assertFails(getDoc(doc(db(env, 'readonly'), THREAD)));
   });
 
+  it('privileged Clerk threads and messages need privileged.view, even when shared (AI-06, ADR-034)', async () => {
+    const PRIV = `orgs/${ORG}/clerkThreads/thread-priv`;
+    const OPEN = `orgs/${ORG}/clerkThreads/thread-open`;
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, PRIV), { ...seedData(specFor('clerkThreads')), shared: true, privileged: true });
+      await setDoc(doc(f, `${PRIV}/messages/m1`), { ...seedData(specFor('messages')), privileged: true });
+      await setDoc(doc(f, OPEN), { ...seedData(specFor('clerkThreads')), shared: true, privileged: false });
+      await setDoc(doc(f, `${OPEN}/messages/m-open`), seedData(specFor('messages')));
+      await setDoc(doc(f, `${OPEN}/messages/m-priv`), { ...seedData(specFor('messages')), privileged: true });
+    });
+    for (const role of ['owner', 'admin', 'lawyer'] as const) {
+      await assertSucceeds(getDoc(doc(db(env, role), PRIV)));
+      await assertSucceeds(getDoc(doc(db(env, role), `${PRIV}/messages/m1`)));
+    }
+    await assertFails(getDoc(doc(db(env, 'paralegal'), PRIV)));
+    await assertFails(getDoc(doc(db(env, 'paralegal'), `${PRIV}/messages/m1`)));
+    await assertSucceeds(getDoc(doc(db(env, 'paralegal'), `${OPEN}/messages/m-open`)));
+    await assertFails(getDoc(doc(db(env, 'paralegal'), `${OPEN}/messages/m-priv`)));
+
+    // A list without privileged.view must prove `privileged == false`.
+    const messages = collection(db(env, 'paralegal'), `${OPEN}/messages`);
+    await assertFails(getDocs(messages));
+    await assertSucceeds(getDocs(query(messages, where('privileged', '==', false))));
+    const threads = collection(db(env, 'paralegal'), `orgs/${ORG}/clerkThreads`);
+    await assertFails(getDocs(query(threads, where('shared', '==', true))));
+    await assertSucceeds(getDocs(query(threads, where('shared', '==', true), where('privileged', '==', false))));
+    await assertSucceeds(
+      getDocs(query(collection(db(env, 'lawyer'), `orgs/${ORG}/clerkThreads`), where('ownerUid', '==', OWNER_UID))),
+    );
+
+    // The owner renames and shares; the scope, owner and privilege are the server's.
+    const mine = doc(db(env, 'lawyer'), OPEN);
+    await assertSucceeds(updateDoc(mine, stamped({ title: 'Renamed', shared: false }, OWNER_UID)));
+    await assertFails(updateDoc(mine, stamped({ matterId: 'm-other' }, OWNER_UID)));
+    await assertFails(updateDoc(mine, stamped({ ownerUid: uidFor('paralegal') }, OWNER_UID)));
+    await assertFails(updateDoc(mine, stamped({ privileged: true }, OWNER_UID)));
+    await assertFails(
+      updateDoc(doc(db(env, 'lawyer'), `${OPEN}/messages/m-open`), stamped({ feedback: {} }, OWNER_UID)),
+    );
+  });
+
   it('notifications and personal tasks belong to one member', async () => {
     await assertFails(getDoc(doc(db(env, 'admin'), `orgs/${ORG}/notifications/notification-1`)));
     await assertFails(getDoc(doc(db(env, 'owner'), `orgs/${ORG}/members/${OWNER_UID}/tasks/task-1`)));

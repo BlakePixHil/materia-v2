@@ -299,6 +299,7 @@ class ComposerHost {
     { name: 'draft', description: 'Draft a document' },
     { name: 'deadlines', description: 'List deadlines' },
     { name: 'summarise', description: 'Summarise the matter' },
+    { name: 'timeline', description: 'Timeline (coming soon)', disabled: true },
   ];
   readonly events: string[] = [];
 }
@@ -379,5 +380,16 @@ describe('MtComposer', () => {
     await userEvent.type(input, 'dr');
     await userEvent.click(within(screen.getByRole('listbox')).getByRole('option'));
     expect(fixture.componentInstance.value()).toBe('/draft ');
+  });
+
+  it('lists a command that isn’t available yet without inserting it', async () => {
+    const { fixture } = await render(ComposerHost);
+    const input = screen.getByRole('textbox');
+    await userEvent.type(input, '/t');
+    const option = within(screen.getByRole('listbox')).getByRole('option');
+    expect(option).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.keyboard('{Enter}');
+    await userEvent.click(option);
+    expect(fixture.componentInstance.value()).toBe('/t');
   });
 });

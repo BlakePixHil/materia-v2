@@ -10,8 +10,8 @@ export interface ClerkScope {
 
 /**
  * The shell's Clerk panel (FND-12): open or closed, and its scope. A page with a subject (the
- * matter screen, CORE-06) sets the scope while it's shown, so ⌘J asks about that matter. The
- * panel's content arrives in AI-06; it reads `scope()` to ground its answers.
+ * matter screen, CORE-06) sets the scope while it's shown, so ⌘J asks about that matter. The chat
+ * (AI-06, `features/clerk`) reads `scope()` to ground its answers.
  */
 @Injectable({ providedIn: 'root' })
 export class ClerkPanel {
