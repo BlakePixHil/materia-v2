@@ -112,104 +112,107 @@ const sameForm = (a: PracticeForm, b: PracticeForm) =>
       </mt-note>
     }
 
-    <form class="mt-col" style="gap: 24px" (submit)="$event.preventDefault(); save()">
-      <mt-settings-section title="Firm details" [headingLevel]="2">
-        <mt-text-field
-          name="name"
-          label="Practice name"
-          autocomplete="organization"
-          [error]="nameProblem() ?? undefined"
-          [ngModel]="form().name"
-          (ngModelChange)="set({ name: $event ?? '' })"
-        />
-        <mt-text-field
-          name="abn"
-          label="ABN"
-          inputmode="numeric"
-          autocomplete="off"
-          description="11 digits, checked against the ATO’s checksum."
-          optional
-          [error]="abnError() ?? undefined"
-          [ngModel]="form().abn"
-          (ngModelChange)="set({ abn: $event ?? '' })"
-          (focusout)="tidyAbn()"
-        />
-      </mt-settings-section>
+    <!-- Shown once the org has loaded, so nothing typed is overwritten when the settings arrive. -->
+    @if (org.value()) {
+      <form class="mt-col" style="gap: 24px" (submit)="$event.preventDefault(); save()">
+        <mt-settings-section title="Firm details" [headingLevel]="2">
+          <mt-text-field
+            name="name"
+            label="Practice name"
+            autocomplete="organization"
+            [error]="nameProblem() ?? undefined"
+            [ngModel]="form().name"
+            (ngModelChange)="set({ name: $event ?? '' })"
+          />
+          <mt-text-field
+            name="abn"
+            label="ABN"
+            inputmode="numeric"
+            autocomplete="off"
+            description="11 digits, checked against the ATO’s checksum."
+            optional
+            [error]="abnError() ?? undefined"
+            [ngModel]="form().abn"
+            (ngModelChange)="set({ abn: $event ?? '' })"
+            (focusout)="tidyAbn()"
+          />
+        </mt-settings-section>
 
-      <mt-settings-section
-        title="Jurisdictions"
-        description="Where the practice works. New matters default to the primary jurisdiction."
-        [headingLevel]="2"
-      >
-        <mt-select
-          name="primaryJurisdiction"
-          label="Primary jurisdiction"
-          [native]="true"
-          [options]="jurisdictionOptions"
-          [ngModel]="form().primaryJurisdiction"
-          (ngModelChange)="setPrimary($event)"
-        />
-        <fieldset class="jurisdictions">
-          <legend class="label">Also works in</legend>
-          @for (code of jurisdictions; track code) {
-            <mt-checkbox
-              [name]="'j-' + code"
-              [label]="code"
-              [disabled]="code === form().primaryJurisdiction"
-              [ngModel]="form().jurisdictions.includes(code)"
-              (ngModelChange)="toggle(code, $event)"
-            />
-          }
-        </fieldset>
-      </mt-settings-section>
+        <mt-settings-section
+          title="Jurisdictions"
+          description="Where the practice works. New matters default to the primary jurisdiction."
+          [headingLevel]="2"
+        >
+          <mt-select
+            name="primaryJurisdiction"
+            label="Primary jurisdiction"
+            [native]="true"
+            [options]="jurisdictionOptions"
+            [ngModel]="form().primaryJurisdiction"
+            (ngModelChange)="setPrimary($event)"
+          />
+          <fieldset class="jurisdictions">
+            <legend class="label">Also works in</legend>
+            @for (code of jurisdictions; track code) {
+              <mt-checkbox
+                [name]="'j-' + code"
+                [label]="code"
+                [disabled]="code === form().primaryJurisdiction"
+                [ngModel]="form().jurisdictions.includes(code)"
+                (ngModelChange)="toggle(code, $event)"
+              />
+            }
+          </fieldset>
+        </mt-settings-section>
 
-      <mt-settings-section
-        title="Time and holidays"
-        description="Legal dates and reminders follow the practice’s time zone."
-        [headingLevel]="2"
-      >
-        <mt-select
-          name="timezone"
-          label="Time zone"
-          [native]="true"
-          [options]="timeZones"
-          [ngModel]="form().timezone"
-          (ngModelChange)="set({ timezone: $event ?? form().timezone })"
-        />
-        <mt-select
-          name="holidayLocality"
-          label="Holiday locality"
-          description="Local public holidays move reminders, not court deadlines. Greater Geelong has Geelong Cup Day instead of Melbourne Cup Day."
-          [native]="true"
-          [options]="localities"
-          [ngModel]="form().holidayLocality"
-          (ngModelChange)="set({ holidayLocality: $event ?? form().holidayLocality })"
-        />
-      </mt-settings-section>
+        <mt-settings-section
+          title="Time and holidays"
+          description="Legal dates and reminders follow the practice’s time zone."
+          [headingLevel]="2"
+        >
+          <mt-select
+            name="timezone"
+            label="Time zone"
+            [native]="true"
+            [options]="timeZones"
+            [ngModel]="form().timezone"
+            (ngModelChange)="set({ timezone: $event ?? form().timezone })"
+          />
+          <mt-select
+            name="holidayLocality"
+            label="Holiday locality"
+            description="Local public holidays move reminders, not court deadlines. Greater Geelong has Geelong Cup Day instead of Melbourne Cup Day."
+            [native]="true"
+            [options]="localities"
+            [ngModel]="form().holidayLocality"
+            (ngModelChange)="set({ holidayLocality: $event ?? form().holidayLocality })"
+          />
+        </mt-settings-section>
 
-      <mt-settings-section title="Records" [headingLevel]="2">
-        <mt-text-field
-          name="retentionYears"
-          label="Keep records for"
-          suffix="years"
-          inputmode="numeric"
-          [description]="retentionNote"
-          [error]="retentionProblem() ?? undefined"
-          [ngModel]="form().retentionYears"
-          (ngModelChange)="set({ retentionYears: $event ?? '' })"
-        />
-        <mt-settings-row title="Matter numbering" description="The format new matter numbers follow.">
-          <a mtButton size="sm" routerLink="/settings/numbering">Edit numbering</a>
-        </mt-settings-row>
-      </mt-settings-section>
+        <mt-settings-section title="Records" [headingLevel]="2">
+          <mt-text-field
+            name="retentionYears"
+            label="Keep records for"
+            suffix="years"
+            inputmode="numeric"
+            [description]="retentionNote"
+            [error]="retentionProblem() ?? undefined"
+            [ngModel]="form().retentionYears"
+            (ngModelChange)="set({ retentionYears: $event ?? '' })"
+          />
+          <mt-settings-row title="Matter numbering" description="The format new matter numbers follow.">
+            <a mtButton size="sm" routerLink="/settings/numbering">Edit numbering</a>
+          </mt-settings-row>
+        </mt-settings-section>
 
-      <div class="mt-row" style="gap: 8px">
-        <button mtButton variant="primary" type="submit" [loading]="saving()" [disabled]="!ready()">Save</button>
-        <button mtButton variant="ghost" type="button" [disabled]="!unsaved()" (click)="reset()">
-          Discard changes
-        </button>
-      </div>
-    </form>
+        <div class="mt-row" style="gap: 8px">
+          <button mtButton variant="primary" type="submit" [loading]="saving()" [disabled]="!ready()">Save</button>
+          <button mtButton variant="ghost" type="button" [disabled]="!unsaved()" (click)="reset()">
+            Discard changes
+          </button>
+        </div>
+      </form>
+    }
   `,
   styles: `
     .jurisdictions {
