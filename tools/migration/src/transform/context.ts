@@ -187,7 +187,13 @@ export function plainMeta(ctx: TransformContext): Record<string, unknown> {
 export function fit(ctx: TransformContext, text: string, max: number, legacyPath: string): string {
   if (text.length <= max) return text;
   ctx.warnings.add('MIG_W_TEXT_TRUNCATED', legacyPath);
-  return text.slice(0, max).trimEnd();
+  return cutAt(text, max).trimEnd();
+}
+
+/** The first `max` UTF-16 units of `text`, without half of a surrogate pair (an emoji) at the end. */
+export function cutAt(text: string, max: number): string {
+  const cut = text.slice(0, max);
+  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
 }
 
 /** One output record: a v2 document (or a file to copy), where it goes and where it came from. */

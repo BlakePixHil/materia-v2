@@ -31,6 +31,15 @@ describe('the transform contract (MIG-03 → MIG-05)', () => {
     expect(parseJsonl('d', JSON.stringify({ ...line, copy: missing }), DocumentLineSchema)).toHaveLength(1);
   });
 
+  it('accepts bytes the transform extracted (copy.content), and refuses a malformed sha256', () => {
+    const { target, fileName, mime, sizeBytes } = copy;
+    const content = { encoding: 'base64', data: 'iVBORw==', sha256: 'a'.repeat(64) };
+    const extracted = { ...line, copy: { target, fileName, mime, sizeBytes, md5Hash: 'bWQ1', content } };
+    expect(parseJsonl('d', JSON.stringify(extracted), DocumentLineSchema)[0]?.copy.content).toEqual(content);
+    const bad = { ...extracted, copy: { ...extracted.copy, content: { ...content, sha256: 'nope' } } };
+    expect(() => parseJsonl('d', JSON.stringify(bad), DocumentLineSchema)).toThrow('d line 1: copy.content.sha256');
+  });
+
   it('names the file and line of anything it cannot use', () => {
     const bad = (value: unknown) => () =>
       parseJsonl(

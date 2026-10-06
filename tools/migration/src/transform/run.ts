@@ -106,7 +106,10 @@ export interface TransformReport {
   integrations: { provider: string; type: string; connected: boolean }[];
   workspaces: { prime: number; nonPrime: string[] };
   notifications: number | null;
-  /** Per output file: lines and sha256. */
+  /**
+   * Per output file: lines and sha256. Empty when records were rejected and nothing else was
+   * written (no --allow-rejects), so a load can't take stale files for this run's.
+   */
   files: Record<string, { count: number; sha256: string }>;
 }
 
@@ -342,7 +345,7 @@ export function runTransform(raw: RawRun, args: TransformArgs): TransformOutput 
     if (unnamed) orphans.push({ name: object.name, size: object.size });
   }
 
-  const { kept, rejects } = validate(records);
+  const { kept, rejects } = validateRecords(records);
   const output = writeOutput(kept);
   const copies = kept.filter((r) => r.copy?.source || r.copy?.content);
   const report: TransformReport = {
@@ -419,7 +422,10 @@ function objectOf(record: ExportRecord): StorageObject {
  * rejected with every record under its path, and a matter's number reservation goes with it.
  * Records keep the schema's output, so defaults are filled in as v2 stores them.
  */
-function validate(records: readonly TransformedRecord[]): { kept: TransformedRecord[]; rejects: Reject[] } {
+export function validateRecords(records: readonly TransformedRecord[]): {
+  kept: TransformedRecord[];
+  rejects: Reject[];
+} {
   const rejects: Reject[] = [];
   const passed: TransformedRecord[] = [];
   const seen = new Set<string>();

@@ -243,6 +243,44 @@ describe('materia-migrate copy-files on the Storage emulator', () => {
     expect((await stat(FILES, letter.copy.target))?.generation).toBe(stored?.generation);
   });
 
+  it('uploads an image a description embedded through quarantine and the scan, once', async () => {
+    const runId = `int-inline-${Date.now()}`;
+    const line = await attachment(runId, 'inline', null, 'Image 1 from the description.png', 'image/png');
+    const inline = {
+      ...line,
+      legacyPath: 'workflows/wf-rivers/cards/card-quill#description/image-1',
+      copy: {
+        ...line.copy,
+        sizeBytes: PNG.length,
+        md5Hash: createHash('md5').update(PNG).digest('base64'),
+        content: { encoding: 'base64', data: PNG.toString('base64'), sha256: sha256(PNG) },
+      },
+    };
+    await upload(
+      RUNS,
+      `runs/${runId}/manifest.json`,
+      JSON.stringify({ runId, sourceBucket: LEGACY }),
+      'application/json',
+    );
+    await upload(RUNS, `runs/${runId}/transformed/documents.jsonl`, jsonl([inline]), 'application/x-ndjson');
+
+    expect(await copyFiles(runId)).toBe(0);
+    expect(await bytes(FILES, inline.copy.target)).toEqual(PNG);
+    expect((await stat(FILES, inline.copy.target))?.metadata).toMatchObject({
+      legacyPath: inline.legacyPath,
+      sha256: sha256(PNG),
+      scan: 'clean',
+      kind: 'png',
+    });
+    expect(await stat(FILES, `migration-quarantine/${runId}/${inline.copy.target}`)).toBeNull();
+    const report = JSON.parse(await runFile(runId, 'files/report.json')) as CopyReport;
+    expect(report.counts).toMatchObject({ documents: 1, copied: 1, missing: 0, failed: 0 });
+
+    expect(await copyFiles(runId)).toBe(0);
+    const again = JSON.parse(await runFile(runId, 'files/report.json')) as CopyReport;
+    expect(again.counts).toMatchObject({ copied: 0, skipped: 1 });
+  });
+
   it("fails a copy whose checksum doesn't match the export's, keeps nothing of it, and exits 5", async () => {
     const runId = `int-bad-${Date.now()}`;
     const line = await attachment(runId, 'altered', PDF, 'Altered.pdf', 'application/pdf');

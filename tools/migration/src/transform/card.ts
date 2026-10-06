@@ -74,8 +74,8 @@ export function mapCard(ctx: TransformContext, card: ExportRecord, deps: CardDep
   if (status === 'closed' || status === 'archived') review.push('closed_without_closing_record');
 
   // The client (D-10): v2 matters need one, and a card has only its title.
-  const client = clientContact(ctx, path, title, createdAt, updatedAt);
-  review.push(ctx.profile.matterDefaults.clientContact === 'from_title' ? 'client_from_title' : 'client_placeholder');
+  const { client, placeholder } = clientContact(ctx, path, title, createdAt, updatedAt);
+  review.push(placeholder ? 'client_placeholder' : 'client_from_title');
   records.push(client);
 
   // Who is responsible (D-07): always the user; someone else's card gets a note naming them.
@@ -224,12 +224,18 @@ function clientContact(
   title: string,
   createdAt: Date,
   updatedAt: Date,
-): TransformedRecord {
+): { client: TransformedRecord; placeholder: boolean } {
   const base = { legacyPath: `${cardPath}#client`, createdAt, updatedAt };
-  const name = title === UNTITLED_MATTER ? '' : (title.split(/\s+[-–—:|]\s+/)[0] ?? '').trim();
+  // The first part before " - ", " – ", " | " or ": " (a colon needs no space before it).
+  const name = title === UNTITLED_MATTER ? '' : (title.split(/\s+[-–—|]\s+|\s*:\s+/)[0] ?? '').trim();
   if (ctx.profile.matterDefaults.clientContact === 'placeholder' || !name) {
-    return buildContact(ctx, { ...base, kind: 'organisation', orgName: 'Client (imported)' });
+    return {
+      client: buildContact(ctx, { ...base, kind: 'organisation', orgName: 'Client (imported)' }),
+      placeholder: true,
+    };
   }
-  if (/^estate of\b/i.test(name)) return buildContact(ctx, { ...base, kind: 'organisation', orgName: name });
-  return buildContact(ctx, { ...base, kind: 'person', ...splitName(name) });
+  const client = /^estate of\b/i.test(name)
+    ? buildContact(ctx, { ...base, kind: 'organisation', orgName: name })
+    : buildContact(ctx, { ...base, kind: 'person', ...splitName(name) });
+  return { client, placeholder: false };
 }

@@ -175,6 +175,53 @@ describe('copyFile', () => {
     expect(calls).toEqual([]);
   });
 
+  it('uploads an image the transform extracted (copy.content) through the same quarantine and scan', async () => {
+    const { ctx, attachment, get, names, calls } = setup();
+    const extracted = attachment('inline', null, {
+      fileName: 'Description image 1.png',
+      mime: 'image/png',
+      copy: {
+        content: { encoding: 'base64', data: PNG.toString('base64'), sha256: sha256(PNG) },
+        md5Hash: createHash('md5').update(PNG).digest('base64'),
+        sizeBytes: PNG.length,
+      },
+    });
+
+    const result = await copyFile(ctx, extracted, 'document');
+
+    expect(result).toMatchObject({ outcome: 'copied', sha256: sha256(PNG), sizeBytes: PNG.length, kind: 'png' });
+    expect(get(FILES, extracted.copy.target)?.data.equals(PNG)).toBe(true);
+    expect(get(FILES, extracted.copy.target)?.metadata).toMatchObject({
+      scan: 'clean',
+      legacyPath: extracted.legacyPath,
+    });
+    expect(names(FILES)).toEqual([extracted.copy.target]);
+    expect(calls.find((call) => call.op === 'upload')).toEqual({
+      op: 'upload',
+      bucket: FILES,
+      name: quarantinePath(RUN, extracted.copy.target),
+    });
+    // Nothing comes from (or goes to) the legacy bucket for it.
+    expect(calls.filter((call) => call.bucket === LEGACY || call.from?.startsWith(LEGACY))).toEqual([]);
+    // A re-run finds it in place.
+    expect((await copyFile(ctx, extracted, 'document')).outcome).toBe('skipped');
+  });
+
+  it("fails extracted bytes that aren't what the transform hashed, uploading nothing", async () => {
+    const { ctx, attachment, calls } = setup();
+    const extracted = attachment('inline', null, {
+      fileName: 'Description image 1.png',
+      mime: 'image/png',
+      copy: {
+        content: { encoding: 'base64', data: PNG.toString('base64'), sha256: sha256(PDF) },
+        md5Hash: createHash('md5').update(PNG).digest('base64'),
+        sizeBytes: PNG.length,
+      },
+    });
+    expect(await copyFile(ctx, extracted, 'document')).toEqual({ outcome: 'failed', reason: 'checksum_mismatch' });
+    expect(calls.filter((call) => call.op === 'upload')).toEqual([]);
+  });
+
   it('keeps an infected file in quarantine and never moves it to its final path', async () => {
     const { ctx, attachment, get, names } = setup();
     const line = attachment('eicar', Buffer.from(EICAR_TEST_STRING), { fileName: 'eicar.txt', mime: 'text/plain' });

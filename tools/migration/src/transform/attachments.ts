@@ -67,6 +67,7 @@ function documentRecord(
   input: { legacyPath: string; name: string; createdAt: Date; updatedAt: Date; by: string; copy: CopyPlan },
 ): TransformedRecord {
   const id = migId(input.legacyPath);
+  const name = fitFileName(ctx, input.name, input.legacyPath);
   return {
     entity: 'documents',
     path: `orgs/${matter.orgId}/matters/${matter.matterId}/documents/${id}`,
@@ -74,7 +75,7 @@ function documentRecord(
     data: {
       orgId: matter.orgId,
       matterId: matter.matterId,
-      name: fit(ctx, input.name, DOCUMENT_NAME_MAX, input.legacyPath),
+      name,
       category: 'other',
       privileged: false,
       tags: [],
@@ -95,8 +96,15 @@ function documentRecord(
         by: input.by,
       }),
     },
-    copy: input.copy,
+    copy: { ...input.copy, fileName: name },
   };
+}
+
+/** A file name cut to what a document holds, keeping its extension. */
+function fitFileName(ctx: TransformContext, name: string, legacyPath: string): string {
+  if (name.length <= DOCUMENT_NAME_MAX) return name;
+  const extension = /\.[A-Za-z0-9]{1,8}$/.exec(name)?.[0] ?? '';
+  return `${fit(ctx, name.slice(0, name.length - extension.length), DOCUMENT_NAME_MAX - extension.length, legacyPath)}${extension}`;
 }
 
 export function mapAttachments(
@@ -120,7 +128,10 @@ export function mapAttachment(
   // The object is `{attachmentId}{ext}` under the card; the doc's own path wins when it is there.
   const object =
     objects.get(recordedName) ??
-    [...objects.values()].find((o) => o.name.startsWith(`${matter.cardPath}/attachments/${attachmentId}`));
+    [...objects.values()].find((o) => {
+      const base = `${matter.cardPath}/attachments/${attachmentId}`;
+      return o.name === base || (o.name.startsWith(`${base}.`) && !o.name.slice(base.length + 1).includes('/'));
+    });
   const fileName = cleanText(data['originalFileName']) || `${attachmentId}${str(data['fileExtension']) ?? ''}`;
   const extension =
     extensionOf(fileName) || extensionOf(str(data['fileExtension']) ?? '') || extensionOf(object?.name ?? '');

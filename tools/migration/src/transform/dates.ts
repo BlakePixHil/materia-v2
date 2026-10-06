@@ -51,7 +51,7 @@ export function createdAndUpdated(
   const created = readInstant(data['createdOn']);
   const updatedRaw = data['updatedOn'];
   const updated = readInstant(updatedRaw);
-  if (!created || (updatedRaw !== undefined && updatedRaw !== null && !updated)) {
+  if (!created || (updatedRaw !== undefined && updatedRaw !== null && updatedRaw !== '' && !updated)) {
     ctx.warnings.add('MIG_W_DATE_INVALID', legacyPath);
   }
   const createdAt = created ?? updated ?? ctx.asOf;

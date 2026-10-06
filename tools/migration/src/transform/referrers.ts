@@ -69,7 +69,9 @@ export function mapReferrer(ctx: TransformContext, path: string, data: Record<st
   }
 
   const industry = referrerIndustryFromText(cleanText(data['industry']));
-  const hasDates = data['createdOn'] !== undefined && data['createdOn'] !== null;
+  const hasDates = [data['createdOn'], data['updatedOn']].some(
+    (value) => value !== undefined && value !== null && value !== '',
+  );
   if (!hasDates) ctx.warnings.add('MIG_W_REFERRER_NO_TIMESTAMPS', path);
   const { createdAt, updatedAt } = hasDates
     ? createdAndUpdated(ctx, data, path)

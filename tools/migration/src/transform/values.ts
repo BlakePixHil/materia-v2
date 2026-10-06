@@ -28,7 +28,10 @@ export function priorityOf(ctx: TransformContext, value: unknown, legacyPath: st
 export function centsOf(ctx: TransformContext, value: unknown): Cents | undefined {
   const number = typeof value === 'string' && value.trim() ? Number(value.replace(/[$,\s]/g, '')) : value;
   if (typeof number !== 'number' || !Number.isFinite(number)) return undefined;
-  if (ctx.profile.fees.unit === 'cents') return Math.round(number) as Cents;
+  if (ctx.profile.fees.unit === 'cents') {
+    const cents = Math.round(number);
+    return Number.isSafeInteger(cents) ? (cents as Cents) : undefined;
+  }
   try {
     // fromDollars reads the decimal text exactly, so 5500.5 is 550050, never 550049.99…
     return fromDollars(String(number));

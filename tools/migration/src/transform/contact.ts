@@ -82,8 +82,11 @@ export function emailEntry(
 }
 
 const STATES = AU_STATES.join('|');
-/** `1 Example St, Geelong VIC 3220` (an optional `, Australia`): line(s), suburb, state, postcode. */
-const ADDRESS = new RegExp(`^(.+?),\\s*([^,]+?)\\s+(${STATES})\\s+(\\d{4})(?:\\s*,?\\s*australia)?$`, 'i');
+/**
+ * `1 Example St, Geelong VIC 3220` (or `Geelong, VIC 3220`, and an optional `, Australia`): line(s),
+ * suburb, state, postcode.
+ */
+const ADDRESS = new RegExp(`^(.+?),\\s*([^,]+?),?\\s+(${STATES})\\s+(\\d{4})(?:\\s*,?\\s*australia)?$`, 'i');
 
 /** A one-line Australian address split into its parts, or null when it doesn't read as one. */
 export function parseAddress(

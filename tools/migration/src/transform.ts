@@ -10,7 +10,7 @@ import { DESTINATIONS, toolVersion, type ExportManifest } from './export.ts';
 import { emulatorEndpoints, GOOGLE_APIS, type RestDeps } from './legacy/rest.ts';
 import { MappingProfileSchema, type MappingProfile } from './profile.ts';
 import type { NumberBase } from './transform/numbers.ts';
-import { untagDates } from './transform/output.ts';
+import { reportJson, untagDates } from './transform/output.ts';
 import {
   IDMAP_FILE,
   OUTPUT_DIR,
@@ -113,6 +113,7 @@ export interface TransformCommandDeps {
   /** The run's place: overridden by tests. */
   sink?: (runId: string) => RunSink;
   toolVersion?: () => Promise<string>;
+  transform?: typeof runTransform;
 }
 
 export async function transformCommand(
@@ -215,7 +216,7 @@ export async function transformCommand(
     if (profileHash !== raw.manifest.profileHash) {
       log(`Warning: ${profilePath} differs from the profile run ${runId} was exported under.`);
     }
-    const output = runTransform(raw, {
+    const output = (deps.transform ?? runTransform)(raw, {
       runId,
       profile,
       profileHash,
@@ -225,7 +226,7 @@ export async function transformCommand(
     });
     summarise(output.report, log);
     if (output.rejected && !values['allow-rejects']) {
-      await writeText(sink, REPORT_FILE, output.files.get(REPORT_FILE) as string);
+      await writeText(sink, REPORT_FILE, reportJson({ ...output.report, files: {} }));
       error(
         `${output.report.rejects.length} records failed validation (listed in ${sink.location}${REPORT_FILE}). ` +
           'Nothing else was written: fix the data or the mapping, or pass --allow-rejects to leave them out.',

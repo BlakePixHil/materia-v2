@@ -147,8 +147,19 @@ interface Walk {
 /** Inline Markdown of a node's children: text, emphasis, code, links, mentions, line breaks. */
 function inline(walk: Walk, node: HtmlNode, pre = false): string {
   let out = '';
-  for (const child of Array.from(node.childNodes)) out += inlineNode(walk, child, pre);
+  for (const child of Array.from(node.childNodes)) {
+    const part = inlineNode(walk, child, pre);
+    out = pre ? out + part : joinInline(out, part);
+  }
   return out;
+}
+
+/**
+ * Two pieces of inline Markdown side by side. Each text node is escaped alone, so an `@` or `#`
+ * ending one piece would make a mention of a `[` starting the next (`@<a>Name</a>` → `@[Name](…)`).
+ */
+function joinInline(before: string, after: string): string {
+  return /[@#]$/.test(before) && after.startsWith('[') ? `${before}\u200B${after}` : before + after;
 }
 
 function wrap(marker: string, text: string): string {
@@ -183,7 +194,9 @@ function inlineNode(walk: Walk, node: HtmlNode, pre: boolean): string {
       return pre ? inline(walk, node, pre) : wrap('*', inline(walk, node));
     case 'CODE': {
       const text = (node.textContent ?? '').replace(/\uFEFF/g, '');
-      return pre || text.includes('`') || !text.trim() ? text : `\`${text}\``;
+      if (pre) return text;
+      // Code holding a backtick can't be a code span here, so it is plain text, escaped as text is.
+      return text.includes('`') || !text.trim() ? escapeText(text) : `\`${text}\``;
     }
     case 'A':
       return link(walk, node, pre);
@@ -266,7 +279,7 @@ function blocks(walk: Walk, node: HtmlNode): string[] {
       continue;
     }
     if (child.nodeType !== ELEMENT || !BLOCKS.has(name)) {
-      paragraph += inlineNode(walk, child, false);
+      paragraph = joinInline(paragraph, inlineNode(walk, child, false));
       continue;
     }
     flushInline();
@@ -299,6 +312,7 @@ function blocks(walk: Walk, node: HtmlNode): string[] {
         listIndex = 0;
         for (const item of Array.from(child.childNodes)) {
           if (item.nodeType !== ELEMENT || item.nodeName.toUpperCase() !== 'LI') continue;
+          walk.unsafeRemoved += unsafeAttributes(item);
           // Quill 2 writes every list as `<ol>` and says which kind on each item.
           const kind = attr(item, 'data-list');
           const ordered = kind ? kind === 'ordered' : name === 'OL';
@@ -325,8 +339,10 @@ function blocks(walk: Walk, node: HtmlNode): string[] {
         const code = inline(walk, child, true)
           .replace(/\uFEFF/g, '')
           .replace(/\n+$/, '');
+        // A zero-width space before a fence line inside keeps it from closing the block: both the
+        // notes parser and the renderer close on any line that starts, after spaces, with a fence.
         if (code.trim())
-          out.push('```', ...code.split('\n').map((line) => line.replace(/^(```|~~~)/, ' $1')), '```', '');
+          out.push('```', ...code.split('\n').map((line) => line.replace(/^(\s*)(```|~~~)/, '$1\u200B$2')), '```', '');
         break;
       }
       case 'HR':
@@ -345,7 +361,7 @@ function blocks(walk: Walk, node: HtmlNode): string[] {
 /** Sanitised Markdown of legacy HTML (or plain text). Empty input, and Quill's empty editor, give ''. */
 export function htmlToMarkdown(html: string, options: HtmlOptions): MarkdownResult {
   const walk: Walk = { options, images: [], unsafeRemoved: 0, remoteImages: 0 };
-  const fragment = JSDOM.fragment(html);
+  const fragment = JSDOM.fragment(/</.test(html) ? html : plainToHtml(html));
   const markdown = blocks(walk, fragment)
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
@@ -353,12 +369,21 @@ export function htmlToMarkdown(html: string, options: HtmlOptions): MarkdownResu
   return { markdown, images: walk.images, unsafeRemoved: walk.unsafeRemoved, remoteImages: walk.remoteImages };
 }
 
+/** Text with no tags keeps its line breaks: a blank line parts paragraphs, a single one breaks a line. */
+function plainToHtml(text: string): string {
+  const escaped = text.replace(/&/g, '&amp;').replace(/>/g, '&gt;');
+  return escaped
+    .split(/\r?\n[\t ]*\r?\n/)
+    .map((paragraph) => `<p>${paragraph.replace(/\r?\n/g, '<br>')}</p>`)
+    .join('');
+}
+
 function plainText(node: HtmlNode): string {
   if (node.nodeType === TEXT) return node.nodeValue ?? '';
   const name = node.nodeName.toUpperCase();
   if (DROP.has(name)) return '';
   const inner = Array.from(node.childNodes).map(plainText).join('');
-  return name === 'BR' || BLOCKS.has(name) ? ` ${inner} ` : inner;
+  return name === 'BR' || name === 'TD' || name === 'TH' || BLOCKS.has(name) ? ` ${inner} ` : inner;
 }
 
 /**
