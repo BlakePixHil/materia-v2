@@ -3,7 +3,6 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, type Writ
 import { FormsModule } from '@angular/forms';
 
 import { MEMBER_LIST_QUERY, membersRepository } from '@materia/data-access/repository';
-import { DomainError } from '@materia/domain';
 import {
   DialogService,
   injectDialogRef,
@@ -19,7 +18,6 @@ import {
 } from '@materia/ui';
 
 import { SettingsApi, type AuditEntryView, type AuditFilters } from './settings-api';
-import { AuthState } from '../../core/auth/auth-state';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService } from '../../core/orgs/org-service';
 
@@ -170,60 +168,11 @@ export class AuditEntryDialog {
   }
 }
 
-/** Asks for the password again before a sensitive action (the owner's CSV export). */
-@Component({
-  selector: 'mt-reauth-dialog',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtDialog, MtTextField],
-  template: `
-    <mt-dialog size="sm" title="Confirm it’s you" description="Enter your password to export the audit log.">
-      <form id="mt-reauth-form" (submit)="$event.preventDefault(); confirm()">
-        <mt-text-field
-          name="password"
-          label="Password"
-          type="password"
-          autocomplete="current-password"
-          [error]="error() ?? undefined"
-          [ngModel]="password()"
-          (ngModelChange)="password.set($event ?? '')"
-        />
-      </form>
-      <ng-container mtDialogFooter>
-        <button mtButton variant="ghost" (click)="ref.close(false)">Cancel</button>
-        <button mtButton variant="primary" type="submit" form="mt-reauth-form" [loading]="busy()">Confirm</button>
-      </ng-container>
-    </mt-dialog>
-  `,
-})
-export class ReauthDialog {
-  protected readonly ref = injectDialogRef<undefined, boolean>();
-  private readonly auth = inject(AuthState);
-  protected readonly password = signal('');
-  protected readonly error = signal<string | null>(null);
-  protected readonly busy = signal(false);
-
-  protected async confirm(): Promise<void> {
-    if (!this.password()) {
-      this.error.set('Enter your password.');
-      return;
-    }
-    this.busy.set(true);
-    try {
-      await this.auth.api.reauthenticateWithPassword(this.password());
-      void this.ref.close(true);
-    } catch (error) {
-      this.error.set(errorCopy(error));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-}
-
 /**
  * Settings → Audit log (`/settings/audit`, CORE-21; owners and admins): the practice's audit trail
  * from `audit-query`, newest first, filtered by person, kind of record, action and dates. A row opens
  * its details with the redacted before and after. Owners export the filtered log to CSV after
- * confirming their password (`audit-exportCsv`).
+ * confirming it's them (`audit-exportCsv`).
  */
 @Component({
   selector: 'mt-audit-log-page',
@@ -446,12 +395,8 @@ export class AuditLogPage {
   protected async exportCsv(): Promise<void> {
     this.exporting.set(true);
     try {
-      const result = await this.exportOnce().catch(async (error: unknown) => {
-        if (!(error instanceof DomainError) || error.code !== 'REAUTH_REQUIRED') throw error;
-        const confirmed = await this.dialogs.open<undefined, boolean>(ReauthDialog).result;
-        return confirmed ? this.exportOnce() : null;
-      });
-      if (!result) return;
+      // A stale sign-in gets "Confirm it's you" and a retry from the callable client (SEC-04).
+      const result = await this.exportOnce();
       download(`audit-log-${new Date().toISOString().slice(0, 10)}.csv`, result.csv);
       this.toasts.show({
         title: `Exported ${result.rows} ${result.rows === 1 ? 'entry' : 'entries'}`,

@@ -1951,6 +1951,12 @@
       "indexes": []
     },
     {
+      "collectionGroup": "signIns",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "recent",
       "fieldPath": "expireAt",
       "ttl": true,

@@ -56,7 +56,7 @@ export const makeOrg = (o: Partial<D.Org> = {}) =>
       fy: { startMonth: 7 },
       retentionYears: 7,
       plan: 'standard',
-      security: { mfaRequired: true, sessionIdleMinutes: 30 },
+      security: { mfaRequired: false, sessionIdleMinutes: 30 },
     },
     o,
   );

@@ -461,6 +461,94 @@ describe('org settings (CORE-21)', () => {
   });
 });
 
+describe('session policy (SEC-04)', () => {
+  const LAWYER = uidFor('lawyer');
+  const nowSeconds = () => Math.floor(Date.now() / 1000);
+  /** The lawyer's Firestore with a chosen sign-in time and second factor. */
+  const signedIn = (options: { authTime?: number; secondFactor?: boolean } = {}) =>
+    env
+      .authenticatedContext(LAWYER, {
+        orgId: ORG,
+        role: 'lawyer',
+        iat: nowSeconds(),
+        auth_time: options.authTime ?? nowSeconds(),
+        firebase: {
+          sign_in_provider: 'password',
+          ...(options.secondFactor ? { sign_in_second_factor: 'totp' } : {}),
+        },
+      })
+      .firestore() as unknown as Firestore;
+  const setSecurity = (security: Record<string, unknown>) =>
+    seedAdmin(env, (firestore) => updateDoc(doc(firestore, `orgs/${ORG}`), { security }));
+  const setValidAfter = (at: Date | null) =>
+    seedAdmin(env, (firestore) =>
+      updateDoc(doc(firestore, `orgs/${ORG}/members/${LAWYER}`), {
+        sessionsValidAfter: at ? Timestamp.fromDate(at) : deleteField(),
+      }),
+    );
+
+  beforeAll(() => seed(specFor('matters')));
+  afterEach(async () => {
+    await setSecurity({ mfaRequired: false, sessionIdleMinutes: 60 });
+    await setValidAfter(null);
+  });
+
+  it('once the org requires MFA, only sign-ins with a second factor read org data', async () => {
+    await setSecurity({ mfaRequired: true, sessionIdleMinutes: 60 });
+    await assertFails(getDoc(doc(signedIn(), MATTER)));
+    await assertSucceeds(getDoc(doc(signedIn({ secondFactor: true }), MATTER)));
+    // The org and their own membership stay readable, so the app can say why and offer MFA set-up.
+    await assertSucceeds(getDoc(doc(signedIn(), `orgs/${ORG}`)));
+    await assertSucceeds(getDoc(doc(signedIn(), `orgs/${ORG}/members/${LAWYER}`)));
+    await assertFails(getDoc(doc(signedIn(), `orgs/${ORG}/members/${uidFor('owner')}`)));
+  });
+
+  it('lets sign-ins without MFA in until the grace period ends', async () => {
+    const tomorrow = Timestamp.fromMillis(Date.now() + 86_400_000);
+    await setSecurity({ mfaRequired: true, sessionIdleMinutes: 60, mfaEnforceAfter: tomorrow });
+    await assertSucceeds(getDoc(doc(signedIn(), MATTER)));
+    await setSecurity({ mfaRequired: true, sessionIdleMinutes: 60, mfaEnforceAfter: Timestamp.fromMillis(0) });
+    await assertFails(getDoc(doc(signedIn(), MATTER)));
+  });
+
+  it('refuses sign-ins from before "sign out everywhere"', async () => {
+    const at = nowSeconds() - 60;
+    await setValidAfter(new Date((at + 1) * 1000));
+    await assertFails(getDoc(doc(signedIn({ authTime: at }), MATTER)));
+    await assertSucceeds(getDoc(doc(signedIn({ authTime: at + 1 }), MATTER)));
+  });
+
+  it('refuses sign-ins older than the org allows (14 days unless set)', async () => {
+    const fifteenDaysAgo = nowSeconds() - 15 * 86_400;
+    await assertFails(getDoc(doc(signedIn({ authTime: fifteenDaysAgo }), MATTER)));
+    await setSecurity({ mfaRequired: false, sessionIdleMinutes: 60, maxSessionDays: 30 });
+    await assertSucceeds(getDoc(doc(signedIn({ authTime: fifteenDaysAgo }), MATTER)));
+  });
+
+  it('keeps the policy and revocation server-owned', async () => {
+    const owner = uidFor('owner');
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'owner'), `orgs/${ORG}`),
+        stamped({ security: { mfaRequired: false, sessionIdleMinutes: 480 } }, owner),
+      ),
+    );
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'owner'), `orgs/${ORG}/members/${LAWYER}`),
+        stamped({ sessionsValidAfter: Timestamp.now() }, owner),
+      ),
+    );
+  });
+
+  it('shows a person their own sign-in log only', async () => {
+    const path = `users/${LAWYER}/signIns/event-1`;
+    await assertSucceeds(getDoc(doc(db(env, 'lawyer'), path)));
+    await assertFails(getDoc(doc(db(env, 'owner'), path)));
+    await assertFails(setDoc(doc(db(env, 'lawyer'), `users/${LAWYER}/signIns/forged`), { provider: 'password' }));
+  });
+});
+
 describe('profile (CORE-20)', () => {
   it('a member edits their own name, title, admission number, initials and colour, and nothing else', async () => {
     const uid = uidFor('paralegal');

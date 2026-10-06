@@ -5,6 +5,7 @@ import {
   DomainError,
   MemberRefInput,
   PERMISSIONS,
+  SENSITIVE_REAUTH_MINUTES,
   SuspendMemberInput,
   TransferOwnershipInput,
   type Role,
@@ -15,7 +16,6 @@ import { assertCanGrant } from './invites';
 import { assertAnotherOwner, memberPath } from './shared';
 import { audit } from '../audit/audit';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
-import { requireRecentLogin } from '../core/user-callable';
 
 type Ctx = CallableContext<unknown>;
 
@@ -65,6 +65,7 @@ const sync = (ctx: Ctx, uid: string) =>
 /** `orgs-changeRole` (FND-17). Only owners grant or take away the owner role. */
 export const changeRoleDefinition = {
   name: 'orgs-changeRole',
+  recentLoginMinutes: SENSITIVE_REAUTH_MINUTES,
   input: ChangeRoleInput,
   roles: PERMISSIONS['members.manage'],
   idempotent: true,
@@ -89,6 +90,7 @@ export const changeRoleDefinition = {
 /** `orgs-suspendMember` (FND-17): pauses access (`suspended: false` reinstates). */
 export const suspendMemberDefinition = {
   name: 'orgs-suspendMember',
+  recentLoginMinutes: SENSITIVE_REAUTH_MINUTES,
   input: SuspendMemberInput,
   roles: PERMISSIONS['members.manage'],
   idempotent: true,
@@ -117,6 +119,7 @@ export const suspendMemberDefinition = {
  */
 export const removeMemberDefinition = {
   name: 'orgs-removeMember',
+  recentLoginMinutes: SENSITIVE_REAUTH_MINUTES,
   input: MemberRefInput,
   roles: PERMISSIONS['members.manage'],
   idempotent: true,
@@ -144,12 +147,12 @@ export const removeMemberDefinition = {
  */
 export const transferOwnershipDefinition = {
   name: 'orgs-transferOwnership',
+  recentLoginMinutes: SENSITIVE_REAUTH_MINUTES,
   input: TransferOwnershipInput,
   roles: ['owner'],
   idempotent: true,
   handler: async (ctx): Promise<{ ok: true }> => {
-    const { input, uid, orgId, db, clock, requestId, token } = ctx;
-    requireRecentLogin(token, clock.now().getTime(), 5);
+    const { input, uid, orgId, db, clock, requestId } = ctx;
     if (input.toUid === uid) throw new DomainError('INVALID_ARGUMENT', 'Transfer to another member');
     const now = clock.now();
     await db.runTransaction(async (tx) => {

@@ -72,6 +72,23 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
   },
 
+  // The sign-in log (SEC-04): written by the beforeSignIn function, read by its owner only.
+  {
+    collection: 'signIns',
+    docPath: `users/${OWNER}/signIns/event-1`,
+    seed: {
+      at: Timestamp.fromDate(new Date('2026-10-01T00:00:00Z')),
+      authTime: 1_790_000_000,
+      provider: 'password',
+      device: 'Mac',
+      browser: 'Safari',
+      secondFactor: false,
+      expireAt: Timestamp.fromDate(new Date('2026-12-30T00:00:00Z')),
+    },
+    read: 'owner',
+    update: 'none',
+  },
+
   // Saved Matters list views (CORE-03): the user's own, created and deleted by the client.
   {
     collection: 'views',

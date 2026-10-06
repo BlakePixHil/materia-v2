@@ -30,9 +30,13 @@ export async function createRulesEnv(): Promise<RulesTestEnvironment> {
   });
 }
 
-/** An authenticated context carrying the custom claims {orgId, role} (ADR-005). */
+/**
+ * An authenticated context carrying the custom claims {orgId, role} (ADR-005), signed in now: the
+ * mock token's `iat`, and so its `auth_time`, would otherwise be 1970, which the session-length
+ * check (SEC-04) refuses.
+ */
 export function ctx(env: RulesTestEnvironment, role: Role, orgId: string = ORG, uid: string = uidFor(role, orgId)) {
-  return env.authenticatedContext(uid, { orgId, role });
+  return env.authenticatedContext(uid, { orgId, role, iat: Math.floor(Date.now() / 1000) });
 }
 
 // rules-unit-testing types its contexts with the compat SDK; the instances work with the modular API.
