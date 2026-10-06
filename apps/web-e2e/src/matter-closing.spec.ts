@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-import { expectNoA11yViolations, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import { expectNoA11yViolations, FIRST_CALL, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
 
@@ -45,6 +45,14 @@ async function seed(request: APIRequestContext, orgId: string, uid: string): Pro
   ]);
 }
 
+/**
+ * The answer to a POST to the callable `name`. Its first call starts the function's worker in the
+ * emulator, which on a busy runner has taken longer than the UI check's timeout: wait for the
+ * server's answer itself, then the UI check after it keeps its own timeout.
+ */
+const answered = (page: Page, name: string) =>
+  page.waitForResponse((res) => res.url().endsWith(`/${name}`) && res.request().method() === 'POST', FIRST_CALL);
+
 /** A checkbox in the close dialog, by its label. */
 const checkbox = (page: Page, label: string) =>
   page.getByRole('dialog').locator('mt-checkbox', { hasText: label }).getByRole('checkbox');
@@ -64,7 +72,9 @@ test.describe('closing a matter', () => {
 
     // The checklist: one open task, the fixture's $1,200 of unbilled time, nothing answered yet.
     await page.getByRole('button', { name: 'More matter actions' }).click();
+    const checked = answered(page, 'matters-closingChecklist');
     await page.getByRole('menuitem', { name: 'Close matter…' }).click();
+    await checked;
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('1 task still open.');
     await expect(dialog).toContainText('$1,200.00 of time and disbursements not yet billed');
@@ -84,7 +94,9 @@ test.describe('closing a matter', () => {
     await dialog.getByLabel('Or say why it won’t be billed').fill('Written off by agreement with the executor');
     await expect(dialog).toContainText('No unbilled WIP. Skipped with a reason');
     await expect(close).toBeEnabled();
+    const closed = answered(page, 'matters-close');
     await close.click();
+    await closed;
 
     // Closed: a banner, the status, and nothing editable. (The emulator starts the function on its
     // first call, which can take a while.)
@@ -103,7 +115,9 @@ test.describe('closing a matter', () => {
     await page.getByRole('button', { name: 'Status: Closed. Change status' }).click();
     await page.getByRole('menuitem', { name: 'Reopen…' }).click();
     await page.getByRole('dialog').getByLabel('Reason').fill('Further fictional assets found');
+    const reopened = answered(page, 'matters-reopen');
     await page.getByRole('dialog').getByRole('button', { name: 'Reopen matter' }).click();
+    await reopened;
     await expect(page.getByRole('button', { name: 'Status: Open. Change status' })).toBeVisible({ timeout: 20_000 });
     await expect(banner).toBeHidden();
     await tabs.getByRole('link', { name: 'Overview' }).click();
