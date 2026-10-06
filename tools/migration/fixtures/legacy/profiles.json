@@ -1,0 +1,42 @@
+[
+  {
+    "path": "profiles/AlexRiversLegacyUid000000001",
+    "data": {
+      "uid": "AlexRiversLegacyUid000000001",
+      "email": "alex.rivers@example.com",
+      "displayName": "Alex Rivers",
+      "firstName": "Alex",
+      "lastName": "Rivers",
+      "companyName": "Rivers Wills & Estates",
+      "defaultOrganisationId": null,
+      "currentFinancialYearBudget": 250000,
+      "budgetFinancialYear": 2025,
+      "previousFinancialYearBudget": 230000,
+      "previousBudgetFinancialYear": 2024
+    }
+  },
+  {
+    "path": "profiles/JordanEllisLegacyUid00000002",
+    "data": {
+      "uid": "JordanEllisLegacyUid00000002",
+      "email": "jordan.ellis@example.com",
+      "displayName": "",
+      "firstName": "Jordan",
+      "lastName": "Ellis",
+      "companyName": null,
+      "defaultOrganisationId": null,
+      "currentFinancialYearBudget": null,
+      "budgetFinancialYear": null,
+      "previousFinancialYearBudget": null,
+      "previousBudgetFinancialYear": null
+    }
+  },
+  {
+    "path": "profiles/UnrelatedUserLegacyUid000004",
+    "data": {
+      "uid": "UnrelatedUserLegacyUid000004",
+      "email": "stranger@example.com",
+      "displayName": "Unrelated Person"
+    }
+  }
+]

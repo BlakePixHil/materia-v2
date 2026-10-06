@@ -1,0 +1,208 @@
+[
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-111111111111",
+    "data": {
+      "id": "0b6f1c2e-5d4a-4c3b-9a8e-111111111111",
+      "name": "Wills & powers",
+      "backgroundIndex": 2,
+      "workspaceId": "f0000000-0000-4000-8000-000000000001",
+      "visibility": "private",
+      "uids": ["AlexRiversLegacyUid000000001", "JordanEllisLegacyUid00000002", "AlexRiversLegacyUid000000001"],
+      "users": {
+        "AlexRiversLegacyUid000000001": {
+          "roles": {
+            "owner": true
+          }
+        },
+        "JordanEllisLegacyUid00000002": {
+          "roles": {
+            "readWrite": true
+          }
+        }
+      },
+      "owner": "AlexRiversLegacyUid000000001",
+      "labels": [
+        {
+          "id": "1abe1000-0000-4000-8000-000000000001",
+          "name": "Urgent",
+          "color": "var(--mr-label-1-rgb)"
+        },
+        {
+          "id": "1abe1000-0000-4000-8000-000000000002",
+          "name": "Referral",
+          "color": "var(--mr-label-4-rgb)"
+        }
+      ],
+      "swimlanes": [
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000001",
+          "title": "Enquiries",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        },
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000002",
+          "title": "Drafting",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        },
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000003",
+          "title": "Signed, waiting to bill",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        },
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000004",
+          "title": "Closed",
+          "isDoneSwimlane": true,
+          "isCollapsed": false
+        }
+      ],
+      "order": 0,
+      "createdOn": "2024-02-01T01:00:00.000Z",
+      "updatedOn": "2025-05-01T01:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-222222222222",
+    "data": {
+      "id": "0b6f1c2e-5d4a-4c3b-9a8e-222222222222",
+      "name": "Estates",
+      "backgroundIndex": 1,
+      "workspaceId": "f0000000-0000-4000-8000-000000000001",
+      "visibility": "organisation",
+      "uids": ["AlexRiversLegacyUid000000001"],
+      "users": {
+        "AlexRiversLegacyUid000000001": {
+          "roles": {
+            "admin": true,
+            "readWrite": true
+          }
+        }
+      },
+      "swimlanes": [
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000005",
+          "title": "Probate application",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        },
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000006",
+          "title": "Administration",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        },
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000007",
+          "title": "Done",
+          "isDoneSwimlane": true,
+          "isCollapsed": false
+        }
+      ],
+      "createdOn": "2024-02-02T01:00:00.000Z",
+      "updatedOn": "2025-05-02T01:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-333333333333",
+    "data": {
+      "id": "0b6f1c2e-5d4a-4c3b-9a8e-333333333333",
+      "name": "Business development",
+      "backgroundIndex": 0,
+      "workspaceId": "f0000000-0000-4000-8000-000000000001",
+      "visibility": "private",
+      "uids": ["AlexRiversLegacyUid000000001"],
+      "users": {
+        "AlexRiversLegacyUid000000001": {
+          "roles": {
+            "owner": true
+          }
+        }
+      },
+      "labels": [],
+      "swimlanes": [
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000008",
+          "title": "Events",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        },
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000009",
+          "title": "Articles",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        }
+      ],
+      "order": 2,
+      "createdOn": "2024-02-03T01:00:00.000Z",
+      "updatedOn": "2025-05-03T01:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-444444444444",
+    "data": {
+      "id": "0b6f1c2e-5d4a-4c3b-9a8e-444444444444",
+      "name": "Shared board",
+      "backgroundIndex": 0,
+      "workspaceId": "f0000000-0000-4000-8000-000000000009",
+      "visibility": "private",
+      "uids": ["JordanEllisLegacyUid00000002", "AlexRiversLegacyUid000000001"],
+      "users": {
+        "JordanEllisLegacyUid00000002": {
+          "roles": {
+            "owner": true
+          }
+        },
+        "AlexRiversLegacyUid000000001": {
+          "roles": {
+            "readWrite": true
+          }
+        }
+      },
+      "labels": [],
+      "swimlanes": [
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000010",
+          "title": "Shared column",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        }
+      ],
+      "order": 3,
+      "createdOn": "2024-03-01T01:00:00.000Z",
+      "updatedOn": "2025-05-04T01:00:00.000Z"
+    }
+  },
+  {
+    "path": "workflows/0b6f1c2e-5d4a-4c3b-9a8e-555555555555",
+    "data": {
+      "id": "0b6f1c2e-5d4a-4c3b-9a8e-555555555555",
+      "name": "Someone else's board",
+      "backgroundIndex": 0,
+      "workspaceId": "f0000000-0000-4000-8000-000000000008",
+      "visibility": "private",
+      "uids": ["UnrelatedUserLegacyUid000004"],
+      "users": {
+        "UnrelatedUserLegacyUid000004": {
+          "roles": {
+            "owner": true
+          }
+        }
+      },
+      "labels": [],
+      "swimlanes": [
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000011",
+          "title": "Someone else",
+          "isDoneSwimlane": false,
+          "isCollapsed": false
+        }
+      ],
+      "createdOn": "2024-03-02T01:00:00.000Z",
+      "updatedOn": "2025-05-05T01:00:00.000Z"
+    }
+  }
+]

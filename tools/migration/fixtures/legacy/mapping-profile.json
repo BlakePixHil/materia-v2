@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "subject": { "label": "Alex Rivers (fictional)", "legacyUid": "AlexRiversLegacyUid000000001" },
+  "org": { "name": "Rivers Wills & Estates", "timezone": "Australia/Melbourne", "jurisdiction": "VIC" },
+  "workflows": [
+    {
+      "mode": "matters",
+      "id": "0b6f1c2e-5d4a-4c3b-9a8e-111111111111",
+      "name": "Wills & powers",
+      "matterType": "will",
+      "swimlanes": [
+        { "title": "Enquiries", "status": "lead" },
+        { "title": "drafting", "status": "open", "stageId": "draft" },
+        {
+          "id": "5a1e0000-0000-4000-8000-000000000003",
+          "title": "Signed (renamed)",
+          "status": "open",
+          "stageId": "safe_custody"
+        },
+        { "title": "Closed", "status": "closed", "stageId": "closed" }
+      ]
+    },
+    {
+      "mode": "matters",
+      "name": "Estates",
+      "matterType": "probate",
+      "swimlanes": [
+        { "title": "Probate application", "status": "open", "stageId": "application_filed" },
+        { "title": "Administration", "status": "open", "matterType": "admin", "stageId": "assets_collected" },
+        { "title": "Done", "status": "closed", "stageId": "closed" }
+      ]
+    },
+    { "mode": "personal_tasks", "name": "Business development" },
+    { "mode": "exclude", "name": "Shared board", "reason": "Alex doesn't own it" }
+  ],
+  "labels": { "default": "keep", "map": { "Referral": "referral", "Urgent": null } },
+  "fees": {
+    "unit": "dollars",
+    "billingTypes": { "fixed": "fixed", "hourly": "hourly", "folio": "hourly", "nowin": "conditional" }
+  },
+  "foreignAssignees": "reassign_with_note",
+  "matterNumbers": "adopt_reference_when_unique",
+  "matterDefaults": {
+    "clientContact": "from_title",
+    "conflictCheck": "clear_unless_lead",
+    "costsDisclosure": "required_unless_closed"
+  },
+  "signOff": { "productOwner": { "name": "Fictional Owner", "on": "2026-10-06" } }
+}
