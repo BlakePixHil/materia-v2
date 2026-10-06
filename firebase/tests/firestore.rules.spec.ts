@@ -562,6 +562,10 @@ describe('org settings (CORE-21)', () => {
     await assertSucceeds(updateDoc(ref, stamped(limits, owner)));
     await assertSucceeds(updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped(limits, uidFor('admin'))));
     await assertFails(updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped(limits, uidFor('lawyer'))));
+    // Who sees every member's Insights figures (INS-01's setting, set from Insights, INS-02): the same.
+    const insights = { settings: { ...limits.settings, insights: { memberVisibility: 'everyone' } } };
+    await assertSucceeds(updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped(insights, uidFor('admin'))));
+    await assertFails(updateDoc(doc(db(env, 'lawyer'), ORG_DOC), stamped(insights, uidFor('lawyer'))));
     await assertFails(updateDoc(ref, stamped({ 'settings.clerk.ackVersion': 1 }, owner)));
     await assertFails(updateDoc(ref, stamped({ 'settings.clerk.features.chat': false }, owner)));
     await assertFails(

@@ -1,6 +1,6 @@
 import * as z from 'zod';
 
-import { Org, OrgClerkSettingsSchema, withBoardWipLimit } from '@materia/domain';
+import { Org, OrgClerkSettingsSchema, withBoardWipLimit, type MemberMetricsVisibility } from '@materia/domain';
 
 import { repo, type Repository } from './repository';
 
@@ -89,6 +89,24 @@ export function withBoardWipLimitSetting(
 ): NonNullable<OrgReferralSettings['settings']> {
   const wipLimits = withBoardWipLimit(settings?.board?.wipLimits, key, limit);
   return { ...(settings ?? {}), board: { ...(settings?.board ?? {}), wipLimits } } as NonNullable<
+    OrgReferralSettings['settings']
+  >;
+}
+
+/**
+ * Who sees every member's figures on Insights (INS-01's `settings.insights.memberVisibility`, set
+ * from the Insights screen, INS-02) sits in the same `settings` map, read and written whole.
+ */
+export function orgInsightsSettingsRepository(): Repository<OrgReferralSettings> {
+  return orgReferralSettingsRepository();
+}
+
+/** The `settings` an update writes to set who sees every member's figures. */
+export function withInsightsVisibility(
+  settings: OrgReferralSettings['settings'],
+  memberVisibility: MemberMetricsVisibility,
+): NonNullable<OrgReferralSettings['settings']> {
+  return { ...(settings ?? {}), insights: { ...(settings?.insights ?? {}), memberVisibility } } as NonNullable<
     OrgReferralSettings['settings']
   >;
 }

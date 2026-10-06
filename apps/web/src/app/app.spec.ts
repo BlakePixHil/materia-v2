@@ -90,11 +90,12 @@ describe('app routes', () => {
     expect(title()).toBe('Health · Materia');
   });
 
-  it.each([['/insights', 'Insights', 'INS-02']])('%s is a placeholder for its ticket', async (url, heading, ticket) => {
-    const { el, title } = await setup(url);
-    expect(el.querySelector('h1')?.textContent).toContain(heading);
-    expect(el.textContent).toContain(`Coming in ${ticket}`);
-    expect(title()).toBe(`${heading} · Materia`);
+  it('/insights is Insights (INS-02)', async () => {
+    const { el, title } = await setup('/insights');
+    expect(el.querySelector('h1')?.textContent).toContain('Insights');
+    expect(el.querySelector('mt-insights-page')).not.toBeNull();
+    expect(el.textContent).not.toContain('Coming in INS-02');
+    expect(title()).toBe('Insights · Materia');
   });
 
   it('/billing is Time and billing (BILL-03)', async () => {

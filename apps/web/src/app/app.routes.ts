@@ -260,11 +260,12 @@ const shellRoutes: Route[] = [
       },
     ],
   },
-  planned('insights', 'Insights', {
-    ticket: 'INS-02',
-    icon: 'insights',
-    description: 'Workload, realisation and deadline health.',
-  }),
+  // Insights (INS-02): practice figures from the INS-01 metrics rollups, for every member.
+  {
+    path: 'insights',
+    title: 'Insights',
+    loadComponent: () => import('./features/insights/insights-page').then((m) => m.InsightsPage),
+  },
   // Where an OAuth provider sends the browser back after consent (INT-01, ADR-051).
   {
     path: 'integrations/callback/:provider',

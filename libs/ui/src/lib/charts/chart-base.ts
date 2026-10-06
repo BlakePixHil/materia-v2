@@ -8,6 +8,7 @@ import {
   inject,
   Injector,
   input,
+  output,
   signal,
 } from '@angular/core';
 
@@ -49,6 +50,13 @@ export abstract class MtChartBase {
   readonly valueLabel = input('Value');
   readonly loading = input(false, { transform: booleanAttribute });
   readonly emptyText = input('No data for this period');
+  /**
+   * Points open something (drill-down, INS-02): a click, or Enter or Space on a focused point, emits
+   * `pointSelect` with its datum, and the points act as buttons. The SVG is then a labelled `group`,
+   * since an `img` can't hold buttons.
+   */
+  readonly drill = input(false, { transform: booleanAttribute });
+  readonly pointSelect = output<ChartDatum>();
 
   protected readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly injector = inject(Injector);
@@ -99,7 +107,18 @@ export abstract class MtChartBase {
     this.showTip(index, event.target);
   }
 
+  /** Opens a point (drill-down), when the chart's points open something. */
+  protected selectPoint(index: number): void {
+    const datum = this.data()[index];
+    if (this.drill() && datum) this.pointSelect.emit(datum);
+  }
+
   protected onPointKeydown(event: KeyboardEvent): void {
+    if (this.drill() && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      this.selectPoint(this.activeIndex());
+      return;
+    }
     const count = this.data().length;
     const moves: Record<string, number> = {
       ArrowRight: this.activeIndex() + 1,
