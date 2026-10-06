@@ -1,4 +1,4 @@
-import { assertReadOnly, checkReadOnly, NotReadOnlyError, REQUIRED_READS } from './iam.ts';
+import { assertAuthReadable, assertReadOnly, checkReadOnly, NotReadOnlyError, REQUIRED_READS } from './iam.ts';
 import type { IamTester } from '../legacy/rest.ts';
 
 /** A fake IAM that grants `granted` out of whatever is asked (the testIamPermissions contract). */
@@ -59,6 +59,18 @@ describe('the read-only guard', () => {
       authReadable: false,
       missingReads: [],
     });
+  });
+
+  it('lets the auth import read Auth alone, but never with a write', async () => {
+    expect(await assertAuthReadable(fakeIam({ project: ['firebaseauth.users.get'] }))).toMatchObject({
+      authReadable: true,
+    });
+    await expect(assertAuthReadable(fakeIam({ project: [...REQUIRED_READS] }))).rejects.toThrow(
+      /can't read \(firebaseauth\.users\.get\)/,
+    );
+    await expect(
+      assertAuthReadable(fakeIam({ project: ['firebaseauth.users.get', 'firebaseauth.users.update'] })),
+    ).rejects.toThrow(/can write \(firebaseauth\.users\.update\)/);
   });
 
   it('fails closed when IAM itself fails', async () => {

@@ -164,16 +164,7 @@ export function restReader(deps: RestDeps, { project, bucket }: LegacyProject): 
       return out;
     },
     async authUser(uid) {
-      const res = await call<{
-        users?: {
-          passwordHash?: string;
-          providerUserInfo?: { providerId: string }[];
-          mfaInfo?: unknown[];
-          disabled?: boolean;
-          emailVerified?: boolean;
-        }[];
-      }>(deps, `${IDENTITY}/projects/${project}/accounts:lookup`, { localId: [uid] });
-      const user = res?.users?.[0];
+      const user = await lookupAuthUser(deps, project, uid);
       if (!user)
         return {
           found: false,
@@ -193,6 +184,30 @@ export function restReader(deps: RestDeps, { project, bucket }: LegacyProject): 
       } satisfies AuthSummary;
     },
   };
+}
+
+// ---------- Auth ----------
+
+/** An Identity Toolkit account as `accounts:lookup` returns it (`src/auth/record.ts` parses it). */
+export interface IdentityToolkitUser {
+  passwordHash?: string;
+  providerUserInfo?: { providerId: string }[];
+  mfaInfo?: unknown[];
+  disabled?: boolean;
+  emailVerified?: boolean;
+  [field: string]: unknown;
+}
+
+/** The full Auth record of one legacy user (MIG-04), or null if there is none. Read-only. */
+export async function lookupAuthUser(
+  deps: RestDeps,
+  project: string,
+  uid: string,
+): Promise<IdentityToolkitUser | null> {
+  const res = await call<{ users?: IdentityToolkitUser[] }>(deps, `${IDENTITY}/projects/${project}/accounts:lookup`, {
+    localId: [uid],
+  });
+  return res?.users?.[0] ?? null;
 }
 
 // ---------- IAM ----------

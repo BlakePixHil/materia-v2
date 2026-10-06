@@ -49,7 +49,7 @@ const args = { uid: FIXTURE_UIDS.subject, out: 'out', project: 'legacy-p', bucke
 describe('runAudit', () => {
   it('refuses write-capable credentials before reading anything', async () => {
     const { auditDeps, written, reads } = deps(grants([...REQUIRED_READS, 'datastore.entities.delete']));
-    await expect(runAudit(args, auditDeps)).rejects.toThrow(/Refusing to audit/);
+    await expect(runAudit(args, auditDeps)).rejects.toThrow(/Refusing to read the legacy project/);
     expect(reads).toEqual([]);
     expect(written.size).toBe(0);
   });
@@ -91,7 +91,7 @@ describe('auditCommand', () => {
     expect(
       await auditCommand(['--uid', 'u1', '--project', 'p', '--bucket', 'b'], quiet.log, (e) => errors.push(e)),
     ).toBe(3);
-    expect(errors[0]).toMatch(/Refusing to audit: these credentials can write/);
+    expect(errors[0]).toMatch(/Refusing to read the legacy project: these credentials can write/);
     expect(asked.every((url) => url.includes('testIamPermissions') || url.includes('/iam/testPermissions'))).toBe(true);
     vi.unstubAllEnvs();
   });
@@ -102,6 +102,12 @@ describe('tokenSource', () => {
     expect(await tokenSource({ adc: false, impersonate: 'x' }, { MIGRATION_ACCESS_TOKEN: 'from-env' })()).toBe(
       'from-env',
     );
+    expect(
+      await tokenSource(
+        { adc: false, envVar: 'MIGRATION_TARGET_ACCESS_TOKEN' },
+        { MIGRATION_TARGET_ACCESS_TOKEN: 't' },
+      )(),
+    ).toBe('t');
   });
 });
 
