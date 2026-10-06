@@ -17,6 +17,9 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
  * Fictional data only.
  */
 
+/** Callables on the emulator can be slow to start on CI runners. */
+const CALLABLE_TIMEOUT = 30_000;
+
 function meta(uid: string) {
   return { createdAt: new Date(), createdBy: uid, updatedAt: new Date(), updatedBy: uid, schemaVersion: 1 };
 }
@@ -131,7 +134,8 @@ test.describe('time and billing', () => {
     const confirm = page.getByRole('alertdialog').or(page.getByRole('dialog'));
     await expect(confirm).toContainText('Finalise 2 entries?');
     await confirm.getByRole('button', { name: 'Finalise week' }).click();
-    await expect(myTime).not.toContainText('drafts this week');
+    // The first call to a callable can take a while on a cold emulator.
+    await expect(myTime).not.toContainText('drafts this week', { timeout: CALLABLE_TIMEOUT });
     await expect(myTime.locator('mt-time-entry[data-status="final"]')).toHaveCount(2);
     for (const id of ['te-mine-1', 'te-mine-2']) {
       await expect.poll(async () => (await stored(request, orgId, id))['status']).toEqual({ stringValue: 'final' });
@@ -152,7 +156,7 @@ test.describe('time and billing', () => {
 
     // Approve one.
     await daniel.getByRole('button', { name: 'Approve Filing the inventory' }).click();
-    await expect(daniel.locator('mt-time-entry')).toHaveCount(1);
+    await expect(daniel.locator('mt-time-entry')).toHaveCount(1, { timeout: CALLABLE_TIMEOUT });
     await expect
       .poll(async () => (await stored(request, orgId, 'te-daniel-2'))['status'])
       .toEqual({ stringValue: 'final' });
@@ -167,8 +171,8 @@ test.describe('time and billing', () => {
     await dialog.getByRole('textbox', { name: 'Reason' }).fill('A simple search, over-recorded');
     await expectNoA11yViolations(page);
     await dialog.getByRole('button', { name: 'Write down' }).click();
-    await expect(dialog).toHaveCount(0);
-    await expect(approvals.getByText('Nothing to approve')).toBeVisible();
+    await expect(dialog).toHaveCount(0, { timeout: CALLABLE_TIMEOUT });
+    await expect(approvals.getByText('Nothing to approve')).toBeVisible({ timeout: CALLABLE_TIMEOUT });
     await expect
       .poll(async () => {
         const fields = await stored(request, orgId, 'te-daniel-1');
