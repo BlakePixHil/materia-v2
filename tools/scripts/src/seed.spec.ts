@@ -283,6 +283,19 @@ describe('seed dataset', () => {
     expect(empty.accounts).toEqual(SEED_ACCOUNTS);
   });
 
+  it('seeds disbursements counted into disbursementWipCents, and the starting presets (BILL-04)', () => {
+    const items = dataset.docs.filter((d) => /\/matters\/[^/]+\/disbursements\/[^/]+$/.test(d.path));
+    expect(items.length).toBeGreaterThan(0);
+    for (const matter of docsUnder('matters')) {
+      const own = items.filter((d) => d.path.startsWith(`${matter.path}/`)).map((d) => d.data);
+      const counted = own.reduce((sum, item) => sum + D.disbursementWipContribution(item), 0);
+      expect(matter.data['disbursementWipCents'] ?? 0, matter.path).toBe(counted);
+      for (const item of own) expect(item['wipCountedCents']).toBe(D.disbursementWipContribution(item));
+    }
+    const presets = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}/settings/disbursementPresets`);
+    expect(presets?.data['presets']).toEqual(D.DEFAULT_DISBURSEMENT_PRESETS);
+  });
+
   it('seeds the conflict scenarios with conflicts.enforced on, but not in the minimal scenario (CORE-02)', () => {
     const org = dataset.docs.find((d) => d.path === `orgs/${SEED_ORG_ID}`)?.data;
     expect(org?.['flags']).toEqual({
@@ -290,6 +303,7 @@ describe('seed dataset', () => {
       'templates.system': true,
       'deadlines.ruleset.vic.v1': true,
       'clerk.features.suggestions': true,
+      'billing.disbursements': true,
     });
     for (const id of Object.values(CONFLICT_CONTACTS)) {
       expect(docsUnder('contacts').some((d) => d.path.endsWith(`/${id}`))).toBe(true);

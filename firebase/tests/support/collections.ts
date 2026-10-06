@@ -410,7 +410,12 @@ export const COLLECTIONS: CollectionSpec[] = [
   { ...matterRecord('parties', 'Party'), seed: { orgId: ORG, matterId: 'matter-1' } },
   // Matter events (CORE-10): written through deadlines-upsertEvent and deadlines-deleteEvent.
   { ...matterRecord('events', 'MatterEvent'), update: 'none' },
-  matterRecord('disbursements', 'Disbursement', 'time.record'),
+  // Disbursements (BILL-04): unbilled ones take whitelisted edits from time.record roles.
+  {
+    ...matterRecord('disbursements', 'Disbursement', 'time.record'),
+    seed: { orgId: ORG, matterId: 'matter-1' },
+    change: { description: 'Title search (corrected)' },
+  },
   matterRecord('assets', 'Asset'),
   matterRecord('liabilities', 'Liability'),
   matterRecord('distributions', 'Distribution'),
