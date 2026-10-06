@@ -13,8 +13,9 @@ import { Router, RouterLink } from '@angular/router';
 
 import { can, type JobView } from '@materia/data-access';
 import { matterDocumentsQuery } from '@materia/data-access/repository';
-import { documentDisplayName } from '@materia/domain';
+import { documentDisplayName, type GenerateDocumentResult } from '@materia/domain';
 import {
+  DialogService,
   formatDateOnly,
   MT_MENU,
   MtBadge,
@@ -65,6 +66,8 @@ import { onIntent } from '../../core/commands/intents';
 import { errorCopy } from '../../core/error-copy';
 import { JobProgress } from '../../core/jobs/job-progress';
 import { MOBILE_QUERY } from '../../shell/app-shell';
+import { missingText } from '../document-templates/document-templates-view';
+import type { GenerateDocumentData } from '../document-templates/generate-document-dialog';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
 type Layout = 'table' | 'grid';
@@ -137,6 +140,9 @@ function storedLayout(): Layout {
             [accept]="accept"
             (change)="picked($event)"
           />
+          <button mtButton variant="secondary" size="sm" iconStart="document" (click)="newFromTemplate()">
+            New from template
+          </button>
           <button mtButton variant="primary" size="sm" iconStart="upload" (click)="picker.click()">Upload</button>
         }
       </span>
@@ -431,6 +437,7 @@ export class MatterDocuments {
   protected readonly actions = inject(DocumentActions);
   private readonly uploads = inject(DocumentUploads);
   private readonly toasts = inject(ToastService);
+  private readonly dialogs = inject(DialogService);
   private readonly router = inject(Router);
   private readonly picker = viewChild<ElementRef<HTMLInputElement>>('picker');
 
@@ -645,6 +652,33 @@ export class MatterDocuments {
 
   protected open(doc: DocumentRow): void {
     void this.router.navigate(['/matters', this.matterId(), 'documents', doc.id]);
+  }
+
+  /** New from template (INT-06): generates a document on this matter from a published or built-in template. */
+  protected async newFromTemplate(): Promise<void> {
+    const matter = this.screen.matter.value();
+    const matterId = this.screen.id();
+    if (!matter || !matterId) return;
+    const { GenerateDocumentDialog } = await import('../document-templates/generate-document-dialog');
+    const result = await this.dialogs.open<GenerateDocumentData, GenerateDocumentResult>(GenerateDocumentDialog, {
+      data: {
+        matterId,
+        matterType: matter.type,
+        matterLabel: `${matter.number} · ${matter.title}`,
+        privilegedMatter: matter.privileged === true,
+      },
+    }).result;
+    if (!result) return;
+    this.toasts.show({
+      title: `${result.name} added`,
+      description: missingText(result.missing) ?? 'Every field had a value. A PDF preview follows shortly.',
+      tone: result.missing.length ? 'neutral' : 'success',
+      duration: result.missing.length ? 0 : 5000,
+      action: {
+        label: 'Open',
+        run: () => void this.router.navigate(['/matters', matterId, 'documents', result.documentId]),
+      },
+    });
   }
 
   protected openPicker(): void {
