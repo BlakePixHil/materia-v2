@@ -1,0 +1,33 @@
+{
+  "id": "ins-003",
+  "description": "Deadlines met on time fell against the same month last year, with a critical deadline missed",
+  "role": "lawyer",
+  "today": "2026-09-03",
+  "insights": {
+    "range": "last_month",
+    "compare": "last_year"
+  },
+  "metrics": {
+    "2026-08": {
+      "deadlines.due": 14,
+      "deadlines.metOnTime": 10,
+      "deadlines.metLate": 2,
+      "deadlines.missed": 2,
+      "deadlines.critical.due": 3,
+      "deadlines.critical.missed": 1,
+      "overdue.deadlines": 3,
+      "matters.opened": 5,
+      "billing.invoicedCents": 3800000,
+      "billing.collectedCents": 3500000
+    },
+    "2025-08": {
+      "deadlines.due": 12,
+      "deadlines.metOnTime": 12,
+      "deadlines.critical.due": 2,
+      "overdue.deadlines": 0,
+      "matters.opened": 6,
+      "billing.invoicedCents": 3600000,
+      "billing.collectedCents": 3400000
+    }
+  }
+}

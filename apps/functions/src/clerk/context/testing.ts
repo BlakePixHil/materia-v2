@@ -1,4 +1,4 @@
-import type { Role } from '@materia/domain';
+import { sumMetricShards, type Role } from '@materia/domain';
 
 import type {
   ChunkHit,
@@ -28,7 +28,10 @@ export interface MemoryOrg {
   members: Record<string, { status: string; role: Role; displayName?: string; title?: string }>;
   contacts?: Record<string, string>;
   matters: Record<string, MemoryMatter>;
+  /** Metrics documents by id (`month-2026-05`): `{period, values}`. */
   metrics?: Record<string, Data>;
+  /** Counter shards' `values` by period id (ADR-048). */
+  metricShards?: Record<string, Data[]>;
   /** Trust balance snapshots by matter id, shown while `trust` is set (the flag and the org switch on). */
   trustSnapshots?: Record<string, Data>;
   trust?: { staleAfterDays: number };
@@ -105,10 +108,16 @@ export class MemoryContextSource implements ContextSource {
     return ids.filter((id) => docs[id]).map((id) => ({ id, data: docs[id] as Data }));
   }
 
-  async metrics(orgId: string, limit: number) {
-    return toRows(this.orgs[orgId]?.metrics)
-      .sort((a, b) => b.id.localeCompare(a.id))
-      .slice(0, limit);
+  async metricMonths(orgId: string, months: readonly string[]) {
+    this.reads.push(`metrics:${months.length}`);
+    const org = this.orgs[orgId];
+    return months.flatMap((month) => {
+      const id = `month-${month}`;
+      const data = org?.metrics?.[id];
+      const shards = org?.metricShards?.[id] ?? [];
+      if (!data && !shards.length) return [];
+      return [{ id, data: { ...data, values: sumMetricShards(data?.['values'] as Data | undefined, shards) } }];
+    });
   }
 
   async trustSnapshot(orgId: string, matterId: string) {

@@ -40,6 +40,24 @@ describe('AdminApi', () => {
     expect(calls[0]?.url).toBe(`${F}/projects/p/locations/australia-southeast1/backups`);
   });
 
+  it('waits for a restored database to serve, and stops on other errors', async () => {
+    const restoring = {
+      status: 400,
+      error: { message: 'Cannot serve requests when the database is undergoing a restore.' },
+    };
+    const { deps, clock } = scripted([restoring, restoring, { collectionIds: ['orgs'] }]);
+    await new AdminApi(deps, 'p').waitServing('x', { pollMs: 1000 });
+    expect(clock.t).toBe(2000);
+
+    const denied = scripted([{ status: 403, error: { message: 'denied' } }]);
+    await expect(new AdminApi(denied.deps, 'p').waitServing('x')).rejects.toThrow('403');
+
+    const stuck = scripted(Array.from({ length: 5 }, () => restoring));
+    await expect(new AdminApi(stuck.deps, 'p').waitServing('x', { pollMs: 1000, timeoutMs: 2500 })).rejects.toThrow(
+      'x still restoring',
+    );
+  });
+
   it('lists database ids', async () => {
     const { deps, calls } = scripted([
       {

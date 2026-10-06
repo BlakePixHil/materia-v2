@@ -14,7 +14,7 @@ How Materia's data is backed up and how to get it back (SEC-03). Never restore o
 
 Everything is in Terraform (`infra/terraform/modules/firebase_env/backups.tf` and `data.tf`). The export folder is named after its snapshot time in UTC: `daily/2026-10-05T15-00-00Z` holds the database as it was at 15:00 UTC.
 
-**Alerts** (email, FND-21): "Scheduled job backups-exportFirestore not running" when no export has finished for 24.5 hours, and "Files backup failed" when the Storage Transfer job logs a failed copy or delete. Firestore's managed backups have no alert; the drill checks them.
+**Alerts** (email, FND-21; `backup-status` below shows why): "Scheduled job backups-exportFirestore not running" when no export has finished for 24.5 hours, and "Files backup failed" when the Storage Transfer job logs a failed copy or delete. Firestore's managed backups have no alert; the drill checks them.
 
 **Targets.** RPO: ≤ 1 minute for the last 7 days (PITR), ≤ 24 hours after that (backups and exports). RTO: ≤ 4 hours for a full restore. The quarterly drill measures both.
 
@@ -128,6 +128,8 @@ PITR and the managed backups live in australia-southeast1 with the database. The
 ## Drill
 
 The `backup-drill` workflow runs quarterly on dev (1 January, April, July and October) and on demand (Actions → backup-drill → Run workflow; source `all`, `backup`, `export` or `pitr`). For each source it restores the newest backup or export into a scratch database `drill-…`, compares every collection group's count with the live database as it was at the snapshot time (PITR; a managed backup's snapshot falls mid-minute, so its counts must lie between the live counts at the minutes either side), writes the RPO and restore time to the run summary, and deletes the scratch database. It first deletes any `drill-…` database a cancelled run left behind. Locally: `pnpm materia-scripts backup-drill --project materia-v2-dev --source backup` (refuses prod).
+
+To see what the backups have done lately without restoring anything, run the workflow with source `status` (or `pnpm materia-scripts backup-status --project <project>`, read-only, prod too). It lists the managed backups, the export folders (and any that never finished), the files copy, the export's scheduler job and its last 8 days of log lines (including why a failed export failed), and the Storage Transfer job's latest run. A run with source `all` prints it first. Use it for the 7-day evidence and when an export alert fires. Once the cause is fixed, source `run-export` starts the nightly export straight away instead of waiting for 02:00.
 
 After each drill, add a row:
 

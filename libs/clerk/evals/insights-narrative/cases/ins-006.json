@@ -1,0 +1,30 @@
+{
+  "id": "ins-006",
+  "description": "This month to date against the same month last year: work in progress up, billing down",
+  "role": "lawyer",
+  "today": "2026-10-20",
+  "insights": {
+    "range": "this_month",
+    "compare": "last_year"
+  },
+  "metrics": {
+    "2026-10": {
+      "billing.invoicedCents": 1800000,
+      "billing.collectedCents": 2400000,
+      "time.recordedCents": 6200000,
+      "time.billable.minutes": 12400,
+      "wip.timeCents": 9800000,
+      "wip.disbursementsCents": 450000,
+      "active.matters": 64
+    },
+    "2025-10": {
+      "billing.invoicedCents": 4100000,
+      "billing.collectedCents": 3900000,
+      "time.recordedCents": 7000000,
+      "time.billable.minutes": 14000,
+      "wip.timeCents": 6100000,
+      "wip.disbursementsCents": 300000,
+      "active.matters": 55
+    }
+  }
+}

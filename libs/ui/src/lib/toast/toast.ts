@@ -58,6 +58,7 @@ const TONE_ICON: Record<MtToastTone, MtIconName | null> = {
 
 /**
  * Toasts confirm something that just happened (bottom right, 5 seconds), optionally with one action.
+ * On a phone they run along the top, clear of the TabBar and a dialog's buttons.
  *
  * ```ts
  * inject(ToastService).show({ tone: 'success', title: 'Notice published', action: { label: 'Undo', run: undo } });

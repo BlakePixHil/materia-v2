@@ -93,6 +93,27 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     '../../../../../libs/ui/src/generated/components/skip.css',
     '../../../../../libs/ui/src/generated/components/loading.css',
   ],
+  // On a phone the page's actions in the top bar show just their icons (the label stays for screen
+  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page.
+  styles: `
+    @media (max-width: 767px) {
+      .mt-topbar .mt-btn:has(> mt-icon:first-child + span) {
+        width: var(--h);
+        padding: 0;
+      }
+      .mt-topbar .mt-btn > mt-icon:first-child + span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .mt-topbar .mt-btn mt-kbd {
+        display: none;
+      }
+    }
+  `,
   imports: [
     NgTemplateOutlet,
     RouterLink,

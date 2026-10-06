@@ -130,7 +130,8 @@ describe('Settings → Integrations', () => {
     expect(page.text(byTestId('xero'))).toContain(
       'Send issued invoices and credit notes to Xero, and bring payments made in Xero back.',
     );
-    // Nothing to read from Xero until it's connected.
+    // Not connected: no badge, and nothing to read from Xero yet.
+    expect(byTestId('xero-card')?.querySelector('mt-badge')).toBeNull();
     expect(page.calls('xero-options')).toHaveLength(0);
     expect(byTestId('xero-payments-checked')).toBeNull();
 
@@ -142,10 +143,14 @@ describe('Settings → Integrations', () => {
   });
 
   it('asks for reconnecting when Xero refused the connection, through the same flow', async () => {
-    const page = await open({ configure: practice(null, connected({ status: 'reconnect_required' })) });
-    expect(page.text(byTestId('xero-reconnect'))).toContain(
-      'Xero needs reconnecting. Sending to Xero and bringing payments back are paused.',
+    const refused = connected({ status: 'reconnect_required', reconnectRequiredAt: new Date('2026-10-03T01:00:00Z') });
+    const page = await open({ configure: practice(null, refused) });
+    const card = byTestId('xero-card');
+    expect(card?.querySelector('mt-badge')?.textContent?.trim()).toBe('Reconnect needed');
+    expect(page.text(card)).toContain(
+      'Xero refused Materia’s saved sign-in on 3 Oct 2026. Sending to Xero and bringing payments back are paused until someone reconnects; nothing is lost.',
     );
+    expect(page.text(card)).not.toContain('Connected as');
     expect(page.calls('xero-options')).toHaveLength(0);
     await page.click('Reconnect Xero');
     expect(callsOf(page, 'integrations-start')).toEqual([expect.objectContaining({ provider: 'xero' })]);
@@ -155,7 +160,8 @@ describe('Settings → Integrations', () => {
   it('shows the connection and fills the organisation and accounts from Xero', async () => {
     const checked = new Date('2026-10-04T02:15:00Z');
     const page = await open({ configure: practice(null, connected({ sync: { paymentsCheckedAt: checked } })) });
-    expect(page.text(byTestId('xero'))).toContain('Connected as Harbour & Vine Legal (demo) on 2 Oct 2026.');
+    expect(byTestId('xero-card')?.querySelector('mt-badge')?.textContent?.trim()).toBe('Connected');
+    expect(page.text(byTestId('xero-card'))).toContain('Connected as Harbour & Vine Legal (demo) on 2 Oct 2026.');
     expect(page.text(byTestId('xero-payments-checked'))).toBe('Payments last checked 4 Oct 2026 at 1:15 pm.');
     expect(callsOf(page, 'xero-options')).toEqual([{}]);
 

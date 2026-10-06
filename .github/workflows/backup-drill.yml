@@ -4,7 +4,9 @@
 # and restore time in the run summary, and deletes the scratch databases. Quarterly, on the 1st of
 # January, April, July and October (22:00 UTC: 08:00 or 09:00 in Melbourne, outside quiet hours),
 # or by hand. A failed run (mismatched counts, nothing to restore) emails the repository's watchers
-# like any failed workflow.
+# like any failed workflow. Source `status` only lists what the backups have done lately
+# (`materia-scripts backup-status`); `all` lists it before drilling; `run-export` lists it and then
+# starts the nightly export now.
 #
 # Runs `materia-scripts backup-drill` from main as terraform-agent, through the same Workload
 # Identity pool as infra.yml (GitHub environment infra-dev). Dev only: the script refuses prod.
@@ -20,7 +22,7 @@ on:
         description: What to restore
         required: true
         type: choice
-        options: [all, backup, export, pitr]
+        options: [all, backup, export, pitr, status, run-export]
         default: all
 
 concurrency:
@@ -61,5 +63,11 @@ jobs:
           workload_identity_provider: ${{ vars.TF_WIF_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
+      # Read-only: what the backups, exports and files copy have done lately (evidence, diagnosis).
+      - name: Backup status
+        if: env.SOURCE == 'status' || env.SOURCE == 'all' || env.SOURCE == 'run-export'
+        run: pnpm -s materia-scripts backup-status --project "$PROJECT" ${{ env.SOURCE == 'run-export' && '--run-export' || '' }}
+
       - name: Restore drill (${{ env.SOURCE }})
+        if: env.SOURCE != 'status' && env.SOURCE != 'run-export'
         run: pnpm -s materia-scripts backup-drill --project "$PROJECT" --source "$SOURCE"
