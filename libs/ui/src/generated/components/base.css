@@ -12,6 +12,7 @@ html, body { background: var(--bg-surface); }
 .mt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @keyframes mt-pop-in { from { opacity: 0; transform: translateY(4px) scale(.98); } }
 @keyframes mt-toast-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes mt-toast-in-top { from { opacity: 0; transform: translateY(-8px); } }
 @keyframes mt-loading { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
 @keyframes mt-spin { to { transform: rotate(360deg); } }
 @keyframes mt-pulse { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
