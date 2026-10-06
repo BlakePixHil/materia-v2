@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, ViewEncapsulation } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import type { TimeEntryItem, WithId } from '@materia/data-access/repository';
@@ -51,12 +51,13 @@ type Entry = WithId<TimeEntryItem>;
 @Component({
   selector: 'mt-my-time',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
   imports: [RouterLink, MtButton, MtEmptyState, MtIconButton, MtNote, MtProgress, MtTimeEntry],
   host: { class: 'mt-col mt-my-time' },
   template: `
     <div class="mt-row week-nav">
       <button mtIconButton icon="chevron-left" size="sm" label="Previous week" (click)="move(-1)"></button>
-      <h2 class="label-m" data-testid="week-label">{{ weekText() }}</h2>
+      <h2 class="title-m" data-testid="week-label">{{ weekText() }}</h2>
       <button mtIconButton icon="chevron-right" size="sm" label="Next week" (click)="move(1)"></button>
       @if (!isThisWeek()) {
         <button mtButton size="sm" variant="ghost" (click)="thisWeek()">This week</button>
@@ -80,7 +81,7 @@ type Entry = WithId<TimeEntryItem>;
             <span class="fy caption" data-testid="fy-boundary">{{ newFyLabel() }}</span>
           }
           <span class="caption t-3">{{ strip(day.date).weekday }}</span>
-          <span class="label-m">{{ strip(day.date).day }}</span>
+          <span class="title-m">{{ strip(day.date).day }}</span>
           <span class="mono-s">{{ hours(day.minutes) }} h</span>
           @if (day.targetMinutes) {
             <mt-progress

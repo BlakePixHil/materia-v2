@@ -6,6 +6,7 @@ import {
   Injector,
   runInInjectionContext,
   signal,
+  ViewEncapsulation,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -60,6 +61,7 @@ interface PersonGroup {
 @Component({
   selector: 'mt-approvals-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
   imports: [
     FormsModule,
     RouterLink,
@@ -96,7 +98,7 @@ interface PersonGroup {
         @for (group of groups(); track group.uid) {
           <section class="person" [attr.aria-labelledby]="'approve-' + group.uid" [attr.data-person]="group.uid">
             <div class="mt-row person-head">
-              <h3 class="label-m" [id]="'approve-' + group.uid">{{ group.name }}</h3>
+              <h3 [id]="'approve-' + group.uid">{{ group.name }}</h3>
               <span class="caption t-3">
                 {{ group.entries.length }} {{ group.entries.length === 1 ? 'draft' : 'drafts' }} ·
                 {{ screen.unitsText(group.units) }} · {{ amount(group.amountCents) }}
@@ -178,6 +180,7 @@ interface PersonGroup {
     }
     .mt-approvals-tab h3 {
       margin: 0;
+      font: 600 14px/20px var(--font-sans);
     }
     .mt-approvals-tab .person {
       display: flex;

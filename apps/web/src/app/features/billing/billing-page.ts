@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  ViewEncapsulation,
+} from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
 import { billableShare, fyBudgetSummary, timeTotals } from '@materia/domain';
@@ -23,6 +32,7 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
 @Component({
   selector: 'mt-billing-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
   imports: [
     ApprovalsTab,
     MtButton,
@@ -68,9 +78,9 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
       >
         <span class="caption t-3">of hours recorded this week</span>
       </mt-stat>
-      <section class="mt-card fy" aria-labelledby="fy-budget-title" data-testid="fy-budget">
+      <section class="mt-card fy-card" aria-labelledby="fy-budget-title" data-testid="fy-budget">
         <div class="mt-row fy-head">
-          <h2 class="label-m" id="fy-budget-title">{{ fy().window.label }} budget</h2>
+          <h2 id="fy-budget-title">{{ fy().window.label }} budget</h2>
           @if (fy().status === 'behind') {
             <span class="caption t-danger mt-ml">Behind</span>
           } @else if (fy().status === 'on_track') {
@@ -79,7 +89,7 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
         </div>
         @if (fy().budgetCents; as budget) {
           <div class="fy-value">
-            <span class="title-m">{{ amount(fy().recordedCents) }}</span>
+            <span class="amount">{{ amount(fy().recordedCents) }}</span>
             <span class="caption t-3">recorded of {{ amount(budget) }}</span>
           </div>
           <mt-meter
@@ -94,8 +104,11 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
             {{ fy().elapsedPct }}% of the year gone
           </span>
         } @else {
-          <span class="title-m">{{ amount(fy().recordedCents) }}</span>
-          <span class="caption t-3">recorded. No budget set for this year: owners set it in Settings → Team.</span>
+          <div class="fy-value">
+            <span class="amount">{{ amount(fy().recordedCents) }}</span>
+            <span class="caption t-3">recorded this year</span>
+          </div>
+          <span class="caption t-3">No budget set for this year. Owners set it in Settings → Team.</span>
         }
         @if (screen.fyEntries.hasMore()) {
           <span class="caption t-3">Counts your first {{ fyLimit }} entries this year.</span>
@@ -156,11 +169,20 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
     .mt-billing .stats[data-count='3'] {
       grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 1.4fr);
     }
-    .mt-billing .fy {
+    .mt-billing .fy-card {
       display: flex;
       flex-direction: column;
       gap: var(--space-6);
       padding: var(--space-12) var(--space-16);
+    }
+    .mt-billing .fy-card h2 {
+      font: 500 12px/16px var(--font-sans);
+      color: var(--text-tertiary);
+    }
+    .mt-billing .fy-card .amount {
+      font: 600 28px/32px var(--font-sans);
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
     }
     .mt-billing .fy-head {
       align-items: baseline;

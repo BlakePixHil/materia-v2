@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, ViewEncapsulation } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
@@ -37,6 +37,7 @@ const ANY = '';
 @Component({
   selector: 'mt-wip-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
   imports: [FormsModule, MtBadge, MtButton, MtEmptyState, MtMeter, MtNote, MtSelect, MtTable, MtTableCell],
   host: { class: 'mt-col mt-wip-tab' },
   template: `
