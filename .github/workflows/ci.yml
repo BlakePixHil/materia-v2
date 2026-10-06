@@ -183,7 +183,11 @@ jobs:
           java: 'true'
       # The firebase project depends implicitly on libs/domain and libs/test-utils, so changes to
       # firebase/**, libs/domain/** or libs/test-utils/** run the rules suite in the emulators.
+      # The emulator builds the coverage report in memory; with a runner's default heap (a quarter of
+      # 7 GB) it answers 500 once the suite is this large.
       - run: pnpm nx affected -t test-rules --base="$NX_BASE" --head="$NX_HEAD"
+        env:
+          JAVA_TOOL_OPTIONS: -Xmx3g
       # FND-14: rules coverage (fails below 90% of expressions inside test-rules) and its report.
       - name: Upload the rules coverage report
         if: always()

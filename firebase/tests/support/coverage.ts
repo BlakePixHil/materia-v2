@@ -33,25 +33,17 @@ interface CoverageReport {
   report: CoverageNode[];
 }
 
-/**
- * The emulator's report. Under CI load it now and then answers without one (an error body); a
- * retry gets it, and a lasting failure says what came back rather than a TypeError.
- */
-async function fetchCoverage(url: string, attempts = 3): Promise<CoverageReport> {
-  let last = '';
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    const response = await fetch(url);
-    const text = await response.text();
-    try {
-      const body = JSON.parse(text) as Partial<CoverageReport>;
-      if (body.rules?.files && Array.isArray(body.report)) return body as CoverageReport;
-    } catch {
-      // Not JSON: reported below.
-    }
-    last = `${response.status} ${text.slice(0, 300)}`;
-    await new Promise((resolve) => setTimeout(resolve, 2_000 * attempt));
+/** The emulator's report; a 500 here is usually the emulator out of heap (ci.yml sets -Xmx). */
+async function fetchCoverage(url: string): Promise<CoverageReport> {
+  const response = await fetch(url);
+  const text = await response.text();
+  try {
+    const body = JSON.parse(text) as Partial<CoverageReport>;
+    if (body.rules?.files && Array.isArray(body.report)) return body as CoverageReport;
+  } catch {
+    // Not JSON: reported below.
   }
-  throw new Error(`The emulator returned no rules coverage report: ${last}`);
+  throw new Error(`The emulator returned no rules coverage report: ${response.status} ${text.slice(0, 300)}`);
 }
 
 export async function writeRulesCoverage(): Promise<RulesCoverage> {
