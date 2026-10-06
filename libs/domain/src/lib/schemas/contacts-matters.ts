@@ -192,6 +192,8 @@ export const Matter = withMeta(
       .optional(),
     openTaskCount: z.number().int().min(0).default(0),
     wipCents: CentsSchema.default(0 as never),
+    /** Unbilled, live disbursements ex GST (BILL-04), kept by `disbursements-onWrite`; time is `wipCents`. */
+    disbursementWipCents: CentsSchema.optional(),
     lastActivityAt: InstantSchema.optional(),
     litigationSummary: z.record(z.string(), z.unknown()).optional(),
     recomputeVersion: z.number().int().min(0).default(0),
@@ -227,6 +229,7 @@ export const Matter = withMeta(
       'nextDeadline',
       'openTaskCount',
       'wipCents',
+      'disbursementWipCents',
       'lastActivityAt',
       'litigationSummary',
       'recomputeVersion',
