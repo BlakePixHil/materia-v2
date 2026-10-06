@@ -25,7 +25,7 @@ import { memoryAuth, memoryFirestore, type FakeUser } from './testing';
 import { clearRetentionCache } from '../audit/retention';
 import { syncClaimsDefinition } from '../auth/sync-claims';
 import { createLog } from '../core/log';
-import { FakeClock, FakeMail, fakePorts } from '../ports/fakes';
+import { FakeClock, FakeKms, FakeMail, fakePorts } from '../ports/fakes';
 
 /**
  * Unit tests for the orgs callables (FND-17) against an in-memory Firestore and Auth. The
@@ -408,6 +408,30 @@ describe('members', () => {
     expect(await removeMemberDefinition.handler(w.orgCtx('owner', 'owner', { uid: 'admin' }))).toEqual({
       ok: true,
       tokensRevoked: false,
+    });
+  });
+
+  it('revokes and deletes the removed member’s own integrations (INT-01)', async () => {
+    const w = world();
+    const path = `orgs/${ORG}/integrations/lawyer_microsoft`;
+    const sealed = await new FakeKms('fake-kms/oauth-tokens/cryptoKeyVersions/1').encrypt(
+      'fake-refresh.microsoft.lawyer',
+      path,
+    );
+    w.docs.set(path, {
+      provider: 'microsoft',
+      uid: 'lawyer',
+      level: 'user',
+      status: 'connected',
+      connectionId: 'c1',
+      encryptedRefreshToken: sealed.ciphertext,
+      kmsKeyVersion: sealed.keyVersion,
+    });
+    await removeMemberDefinition.handler(w.orgCtx('admin', 'admin', { uid: 'lawyer' }));
+    expect(w.doc(path)).toBeUndefined();
+    expect(w.doc(`orgs/${ORG}/integrationStatus/lawyer_microsoft`)).toMatchObject({
+      status: 'disconnected',
+      reason: 'member_removed',
     });
   });
 
