@@ -2,10 +2,10 @@
 # artifact built once by deploy-dev.yml (no rebuild; only the jobs and services images are assembled
 # here from the release's bundles), in a fixed order, then runs the @smoke Playwright tests against
 # the deployed site. Order: Firestore indexes → rules (Firestore and Storage) → Cloud Run jobs →
-# Cloud Run services (ClamAV, previews) → functions (codebase `core`) → hosting. A failure stops the
-# run loudly. The only automatic retry is for functions that fail to update (two more attempts of
-# just those, 5 and 10 minutes later, for the regional CPU quota); docs/runbooks/deploy.md covers
-# partial deploys.
+# Cloud Run services (ClamAV, previews) → retired functions deleted → functions (codebase `core`) →
+# hosting. A failure stops the run loudly. The only automatic retry is for functions that fail to
+# update (two more attempts of just those, 5 and 10 minutes later, for the regional CPU quota);
+# docs/runbooks/deploy.md covers partial deploys.
 #
 # Settings come from variables named <NAME>_<DEV|PROD> (repository or environment variables):
 # GCP_PROJECT_*, GCP_WIF_PROVIDER_* and GCP_DEPLOYER_SA_*. No JSON keys anywhere.
@@ -186,6 +186,28 @@ jobs:
           [ -n "$clamav" ] || echo "::warning::No clamav service in $PROJECT: uploads stay \"Scanning delayed\" (ADR-028)."
           [ -n "$preview" ] || echo "::warning::No preview service in $PROJECT: Office and HEIC files have no preview."
           echo "CLAMAV_SCAN_URL=$clamav" >> "$GITHUB_ENV"
+
+      # Deploys never pass --force, which would delete every deployed function missing from the
+      # source, so the CLI refuses a release that drops a deployed function. A function retired on
+      # purpose is listed in apps/functions/retired-functions.txt and deleted here first; one that
+      # isn't deployed (on prod, or already gone) is skipped.
+      - name: Delete retired functions
+        if: ${{ !inputs.hosting-only }}
+        run: |
+          set -o pipefail
+          list=apps/functions/retired-functions.txt
+          [ -f "$list" ] || exit 0
+          retired="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$list" | grep -v '^$' || true)"
+          [ -n "$retired" ] || exit 0
+          deployed="$(pnpm exec firebase functions:list --project "$PROJECT" --config firebase.json --json \
+            | jq -r --arg region "$REGION" '.result[] | select(.region == $region) | .id')"
+          for id in $retired; do
+            if grep -qxF "$id" <<<"$deployed"; then
+              pnpm exec firebase functions:delete "$id" --region "$REGION" --project "$PROJECT" --config firebase.json --force --non-interactive
+            else
+              echo "$id isn't deployed in $PROJECT."
+            fi
+          done
 
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.

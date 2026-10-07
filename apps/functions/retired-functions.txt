@@ -1,0 +1,5 @@
+# Functions deleted on deploy before the functions deploy (.github/workflows/deploy.yml), one id per
+# line. Deploys never pass --force, so a function dropped from the source must be listed here, once
+# its owner agrees, or every deploy fails with "would delete functions". A name that isn't deployed
+# is skipped, so entries can stay until every environment has deployed past them.
+notifications-postmarkWebhook # Postmark's bounce webhook, replaced by Resend's (ADR-057)
