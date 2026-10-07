@@ -3,7 +3,8 @@
 # `build` job deploy nothing: quiet-hour merges (22:00-07:30 Melbourne) and docs-only changes wait
 # for CI's morning run, which deploys whatever main has gained since the last dev deploy (ci.yml).
 # Daytime pushes deploy at most once every two hours: a push within two hours of the last dev
-# deploy is left for CI's hourly catch-up run (ci.yml), except release commits. MVP has no staging project:
+# deploy is left for CI's hourly catch-up run (ci.yml), except release commits. An open issue
+# labelled dev-deploy-hold stops every dev deploy (.github/scripts/dev-deploy-hold.sh). MVP has no staging project:
 # dev plays that role. The same run builds the prod web bundle from the same commit and keeps the
 # whole release as the artifact release-<sha>, which deploy-prod.yml promotes without rebuilding.
 #
@@ -42,6 +43,7 @@ jobs:
     permissions:
       contents: read
       actions: read # read the CI run's jobs
+      issues: read # look for a dev deploy hold
     outputs:
       ready: ${{ steps.check.outputs.ready }}
     steps:
@@ -61,8 +63,14 @@ jobs:
             echo "ready=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # An open issue labelled dev-deploy-hold stops every dev deploy, dispatches included.
+          if hold="$(.github/scripts/dev-deploy-hold.sh)"; then
+            echo "::notice::Dev deploy held by $hold. Close that issue to lift the hold, then dispatch deploy-dev."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -n "$CI_RUN_ID" ]; then
-            build="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name == "build")][0].conclusion')"
+            build=""$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name == "build")][0].conclusion')"
             if [ "$build" != "success" ]; then
               echo "::notice::Dev deploy skipped: CI didn't build this commit (quiet hours or docs-only). CI's morning run deploys it, or dispatch deploy-dev."
               echo "ready=false" >> "$GITHUB_OUTPUT"

@@ -77,6 +77,7 @@ jobs:
       contents: read
       actions: read # find the last dev deploy
       pull-requests: read # list the PR's files
+      issues: read # look for a dev deploy hold
     outputs:
       mode: ${{ steps.decide.outputs.mode }}
       base: ${{ steps.decide.outputs.base }}

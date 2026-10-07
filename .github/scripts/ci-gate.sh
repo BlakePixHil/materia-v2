@@ -60,6 +60,9 @@ deploy_run() {
   elif [ "$kind" = catchup ] && [ "$quiet" = true ]; then
     mode=skip
     reason="quiet hours ($hhmm in Melbourne): the morning run deploys this"
+  elif hold="$("$(dirname "${BASH_SOURCE[0]}")/dev-deploy-hold.sh")"; then
+    mode=skip
+    reason="dev deploys are held by $hold"
   elif [ "${others:-0}" != 0 ]; then
     mode=skip
     reason="another run is already building this commit"
