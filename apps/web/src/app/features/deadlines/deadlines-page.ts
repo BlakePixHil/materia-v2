@@ -197,7 +197,8 @@ function storedView(): View {
             </p>
             <ul class="rows">
               @for (row of reviewRows(); track row.key) {
-                <li [hidden]="!matching().has(row.key)">
+                @let shown = matching().has(row.key);
+                <li [attr.data-filtered]="shown ? null : ''" [attr.aria-hidden]="shown ? null : 'true'">
                   <mt-deadline-row
                     [row]="row"
                     [showMatter]="true"
@@ -248,36 +249,40 @@ function storedView(): View {
               {{ count === 1 ? '1 new deadline' : count + ' new deadlines' }}
             </button>
           }
-          @for (group of groups(); track group.id) {
-            @let count = groupCounts().get(group.id) ?? 0;
-            <section
-              class="block"
-              [hidden]="!count"
-              [attr.aria-labelledby]="'mt-dl-' + group.id"
-              [attr.data-group]="group.id"
-            >
-              <h2 class="title-m" [id]="'mt-dl-' + group.id">
-                {{ group.label }}
-                <span class="caption t-3">{{ count }}{{ $last && deadlines.hasMore() ? '+' : '' }}</span>
-              </h2>
-              <ul class="rows">
-                @for (row of group.deadlines; track row.key) {
-                  <li [hidden]="!matching().has(row.key)">
-                    <mt-deadline-row
-                      [row]="row"
-                      [showMatter]="true"
-                      [assignee]="memberName(row.deadline.assigneeUid)"
-                      [canComplete]="canComplete()"
-                      [canDecide]="canDecide()"
-                      [canEdit]="canComplete()"
-                      [busy]="actions.isBusy(row.key)"
-                      (action)="act(row, $event)"
-                    />
-                  </li>
-                }
-              </ul>
-            </section>
-          }
+          <div class="groups">
+            @for (group of groups(); track group.id) {
+              @let count = groupCounts().get(group.id) ?? 0;
+              <section
+                class="block"
+                [attr.data-empty]="count ? null : ''"
+                [attr.aria-hidden]="count ? null : 'true'"
+                [attr.aria-labelledby]="'mt-dl-' + group.id"
+                [attr.data-group]="group.id"
+              >
+                <h2 class="title-m" [id]="'mt-dl-' + group.id">
+                  {{ group.label }}
+                  <span class="caption t-3">{{ count }}{{ $last && deadlines.hasMore() ? '+' : '' }}</span>
+                </h2>
+                <ul class="rows">
+                  @for (row of group.deadlines; track row.key) {
+                    @let shown = matching().has(row.key);
+                    <li [attr.data-filtered]="shown ? null : ''" [attr.aria-hidden]="shown ? null : 'true'">
+                      <mt-deadline-row
+                        [row]="row"
+                        [showMatter]="true"
+                        [assignee]="memberName(row.deadline.assigneeUid)"
+                        [canComplete]="canComplete()"
+                        [canDecide]="canDecide()"
+                        [canEdit]="canComplete()"
+                        [busy]="actions.isBusy(row.key)"
+                        (action)="act(row, $event)"
+                      />
+                    </li>
+                  }
+                </ul>
+              </section>
+            }
+          </div>
           @if (deadlines.hasMore()) {
             <div class="more" #more>
               @if (filtered()) {
@@ -361,9 +366,16 @@ function storedView(): View {
       gap: var(--space-8);
       min-width: 0;
     }
-    .mt-deadlines-page .block[hidden],
-    .mt-deadlines-page .rows > li[hidden] {
+    .mt-deadlines-page .block[hidden] {
       display: none;
+    }
+    .mt-deadlines-page .groups {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .mt-deadlines-page .groups > .block:not([data-empty]) ~ .block:not([data-empty]) {
+      margin-top: var(--space-16);
     }
     .mt-deadlines-page .hint {
       margin: 0;
@@ -376,7 +388,7 @@ function storedView(): View {
       border-radius: var(--radius-md);
       background: var(--bg-surface);
     }
-    .mt-deadlines-page .rows > li:not([hidden]) ~ li:not([hidden]) {
+    .mt-deadlines-page .rows > li:not([data-filtered]) ~ li:not([data-filtered]) {
       border-top: 1px solid var(--border-subtle);
     }
     /* Rows off screen aren't laid out or painted until they near it: a page of 100, or a filter
@@ -384,6 +396,14 @@ function storedView(): View {
     .mt-deadlines-page .rows > li {
       content-visibility: auto;
       contain-intrinsic-size: auto 96px;
+    }
+    /* A row the filters leave out, and a group left empty, take no space and aren't drawn. Not
+       display: none, which would size every button inside to nothing and wake each one's resize
+       observer, which then reads its style: about 2 ms a row on a slow phone (SEC-07c). */
+    .mt-deadlines-page .rows > li[data-filtered],
+    .mt-deadlines-page .groups > .block[data-empty] {
+      content-visibility: hidden;
+      contain-intrinsic-size: 0 0;
     }
     .mt-deadlines-page .fresh {
       align-self: flex-start;
@@ -549,7 +569,7 @@ export class DeadlinesPage {
     const matches = this.matches();
     return this.rowsOf(this.calendarDeadlines.value()).filter((row) => !needsReview(row.deadline) && matches(row));
   });
-  /** The keys of the list and review rows these filters keep; the rest are hidden, not redrawn. */
+  /** The keys of the list and review rows these filters keep; the rest are set aside, not redrawn. */
   protected readonly matching = computed(() => {
     const matches = this.matches();
     return new Set([...this.listRows(), ...this.reviewRows()].filter(matches).map((row) => row.key));

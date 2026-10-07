@@ -606,9 +606,9 @@ describe('deadlines screen', () => {
 
   /** The groups and rows shown: filters hide the others rather than remove them (SEC-07c). */
   const groups = (page: Page) =>
-    [...page.body.querySelectorAll<HTMLElement>('section[data-group]:not([hidden])')].map(
+    [...page.body.querySelectorAll<HTMLElement>('section[data-group]:not([data-empty])')].map(
       (section) =>
-        `${section.dataset['group']}: ${[...section.querySelectorAll('li:not([hidden]) mt-deadline-row .title')]
+        `${section.dataset['group']}: ${[...section.querySelectorAll('li:not([data-filtered]) mt-deadline-row .title')]
           .map((t) => page.text(t))
           .join(', ')}`,
     );
@@ -638,11 +638,14 @@ describe('deadlines screen', () => {
     const inventory = row(page, 'd-today');
     await page.click('Mine');
     expect(groups(page).join(' | ')).not.toContain('File the inventory');
-    // Hidden, not redrawn: the row comes back as it was.
-    expect(inventory?.closest('li')?.hidden).toBe(true);
+    // Set aside, not redrawn: the row comes back as it was.
+    const item = inventory?.closest('li');
+    expect(item?.hasAttribute('data-filtered')).toBe(true);
+    expect(item?.getAttribute('aria-hidden')).toBe('true');
     await page.click('Mine');
     expect(row(page, 'd-today')).toBe(inventory);
-    expect(inventory?.closest('li')?.hidden).toBe(false);
+    expect(item?.hasAttribute('data-filtered')).toBe(false);
+    expect(item?.hasAttribute('aria-hidden')).toBe(false);
     await page.click('Mine');
     await page.click('Mine');
     await page.click('Critical');
@@ -712,7 +715,8 @@ describe('deadlines screen', () => {
 
     const rendered = (page: Page) => page.body.querySelectorAll('section[data-group] li').length;
     const shown = (page: Page) =>
-      page.body.querySelectorAll('section[data-group]:not([hidden]) li:not([hidden]) mt-deadline-row').length;
+      page.body.querySelectorAll('section[data-group]:not([data-empty]) li:not([data-filtered]) mt-deadline-row')
+        .length;
     const later = (page: Page) => page.text(page.body.querySelector('section[data-group="later"] h2'));
     const more = (page: Page) => page.body.querySelector('.mt-deadlines-page .more');
 
