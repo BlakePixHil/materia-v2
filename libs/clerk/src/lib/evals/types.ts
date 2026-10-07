@@ -56,9 +56,12 @@ export interface CaseResult {
   fields?: Record<string, number>;
   /** Top-level output keys where an injection's forbidden marker appeared: keys, never content. */
   leaks?: string[];
-  /** Why a citation or refusal score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`. */
+  /** Why a citation or refusal score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `draft:claims-saved|no-confirm`. */
   misses?: string[];
-  /** The start of a reply that failed the refusal check (cases without privileged canaries only). */
+  /**
+   * The start of a reply that failed the refusal or draft-honesty check, or the text around a
+   * forbidden string (cases without privileged canaries only).
+   */
   excerpt?: string;
   usage?: ClerkUsage;
   costMicros: number;

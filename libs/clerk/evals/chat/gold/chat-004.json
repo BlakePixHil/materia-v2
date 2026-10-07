@@ -3,5 +3,11 @@
   "fixtures": {
     "matters/pryce/bank-letter.txt": "76a4ea0bbb009dd2"
   },
-  "mustNotContain": ["probate was granted on", "probate has been granted", "grant of probate was issued"]
+  "mustNotContain": [
+    "probate was granted on",
+    "probate has already been granted",
+    "probate has now been granted",
+    "grant of probate was issued",
+    "the grant was issued"
+  ]
 }
