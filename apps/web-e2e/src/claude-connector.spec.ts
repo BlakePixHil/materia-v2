@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page, type Response } from '@playwright/test';
 
 import {
   expectNoA11yViolations,
@@ -22,6 +22,14 @@ import { matterDoc, uniqueOrg } from './support/matters';
 
 const CLAUDE_CODE = 'https://claude.ai/oauth/claude-code-client-metadata';
 const CALLBACK = 'http://localhost:53682/callback';
+
+/** A callable's answer (the POST, not its CORS preflight), failing with what the server said. */
+const answered = (page: Page, name: string) =>
+  page.waitForResponse((r) => r.url().endsWith(`/${name}`) && r.request().method() === 'POST', FIRST_CALL);
+async function expectOk(response: Promise<Response>): Promise<void> {
+  const answer = await response;
+  expect(answer.ok(), `${answer.status()} ${await answer.text().catch(() => '')}`).toBe(true);
+}
 
 test.describe('Claude connector', () => {
   test.skip(({ isMobile }) => isMobile, 'The settings sidebar is the desktop layout');
@@ -73,9 +81,9 @@ test.describe('Claude connector', () => {
     await expect(page.getByRole('heading', { name: 'Claude connector', level: 1 })).toBeVisible(FIRST_LOAD);
     const enabled = page.getByRole('switch', { name: 'Let people connect Claude' });
     await expect(enabled).not.toBeChecked(FIRST_LOAD);
-    const turnedOn = page.waitForResponse((r) => r.url().includes('connector-setPractice'), FIRST_CALL);
+    const turnedOn = answered(page, 'connector-setPractice');
     await enabled.click();
-    expect((await turnedOn).ok()).toBe(true);
+    await expectOk(turnedOn);
     const origin = new URL(page.url()).origin;
     await expect(page.getByTestId('server-url')).toHaveText(`${origin}/mcp`, FIRST_LOAD);
     await expectNoA11yViolations(page);
@@ -100,9 +108,9 @@ test.describe('Claude connector', () => {
     await expect(page.getByRole('heading', { name: 'Allow Claude Code to use Materia?' })).toBeVisible(FIRST_LOAD);
     await expect(page.getByTestId('who')).toContainText('in Fictional Connector Legal');
     await expectNoA11yViolations(page);
-    const allowed = page.waitForResponse((r) => r.url().includes('connector-authorize'), FIRST_CALL);
+    const allowed = answered(page, 'connector-authorize');
     await page.getByRole('button', { name: 'Allow' }).click();
-    expect((await allowed).ok()).toBe(true);
+    await expectOk(allowed);
     await page.waitForURL(`${CALLBACK}**`);
     const back = new URL(page.url());
     expect(back.searchParams.get('state')).toBe('e2e-state');
@@ -158,9 +166,9 @@ test.describe('Claude connector', () => {
     await mine.getByRole('button', { name: 'Disconnect' }).click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toContainText('Disconnect Claude Code?');
-    const ended = page.waitForResponse((r) => r.url().includes('connector-disconnect'), FIRST_CALL);
+    const ended = answered(page, 'connector-disconnect');
     await dialog.getByRole('button', { name: 'Disconnect' }).click();
-    expect((await ended).ok()).toBe(true);
+    await expectOk(ended);
     await expect(mine).toContainText('You haven’t connected Claude.');
     if (hosted) expect((await mcp({ id: 3, method: 'ping' })).status()).toBe(401);
   });
