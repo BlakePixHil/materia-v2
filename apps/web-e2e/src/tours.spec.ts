@@ -1,7 +1,10 @@
 import { devices, expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import {
+  EMULATOR_PROJECT,
   expectNoA11yViolations,
+  FIRESTORE_EMULATOR,
+  FIRST_CALL,
   FIRST_LOAD,
   setEmulatorDocuments,
   setOrgFlags,
@@ -16,8 +19,22 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
  * tour on the first visit to Matters, ⇧H, and the phone layout (iPhone 13) docking the card.
  */
 
+const USER_DOCS = `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/users`;
+const ADMIN = { Authorization: 'Bearer owner' };
+
 const tour = (page: Page) => page.getByRole('dialog');
 const title = (page: Page) => tour(page).getByRole('heading', { level: 2 });
+
+/** The tours this person has seen, as the server has them. */
+async function seenTours(request: APIRequestContext, uid: string): Promise<string[]> {
+  const response = await request.get(`${USER_DOCS}/${uid}`, { headers: ADMIN });
+  if (!response.ok()) return [];
+  type Seen = { arrayValue?: { values?: { stringValue: string }[] } };
+  type Tours = { mapValue?: { fields?: { seen?: Seen } } };
+  const body = (await response.json()) as { fields?: { prefs?: { mapValue?: { fields?: { tours?: Tours } } } } };
+  const seen = body.fields?.prefs?.mapValue?.fields?.tours?.mapValue?.fields?.seen;
+  return seen?.arrayValue?.values?.map((value) => value.stringValue) ?? [];
+}
 
 async function practice(page: Page, request: APIRequestContext) {
   const orgId = uniqueOrg();
@@ -46,7 +63,7 @@ test.describe('guided tours', () => {
     page,
     request,
   }) => {
-    await practice(page, request);
+    const { uid } = await practice(page, request);
     await expect(title(page)).toHaveText('Let’s show you around', FIRST_LOAD);
     await expect(page.getByRole('button', { name: 'Show me around' })).toBeFocused();
     await expectNoA11yViolations(page);
@@ -63,6 +80,7 @@ test.describe('guided tours', () => {
     await expect(page).toHaveURL(/\/today$/);
     await page.keyboard.press('Escape');
     await expect(tour(page)).toHaveCount(0);
+    await expect.poll(() => seenTours(request, uid), FIRST_CALL).toContain('welcome');
 
     // Page tours are on now: Matters plays its tour the first time it opens.
     await page.goto('/matters');
@@ -72,6 +90,7 @@ test.describe('guided tours', () => {
       await page.getByRole('button', { name: /^(Next|Done)$/ }).click();
     }
     await expect(tour(page)).toHaveCount(0);
+    await expect.poll(() => seenTours(request, uid), FIRST_CALL).toContain('matters');
 
     // Not again on the next visit, but ⇧H starts it on demand.
     await page.goto('/today');
@@ -85,10 +104,12 @@ test.describe('guided tours', () => {
   });
 
   test('Skip closes the welcome tour for good', async ({ page, request }) => {
-    await practice(page, request);
+    const { uid } = await practice(page, request);
     await expect(title(page)).toHaveText('Let’s show you around', FIRST_LOAD);
     await page.getByRole('button', { name: 'Skip' }).click();
     await expect(tour(page)).toHaveCount(0);
+    // The answer is saved to the profile, so it holds on the next sign-in and every device.
+    await expect.poll(() => seenTours(request, uid), FIRST_CALL).toContain('welcome');
     await page.reload();
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible(FIRST_LOAD);
     await page.waitForTimeout(1500);
