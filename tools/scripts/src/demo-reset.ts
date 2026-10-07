@@ -180,32 +180,47 @@ const SECRET_MANAGER = 'https://secretmanager.googleapis.com/v1';
 const CLOUD_RUN = 'https://run.googleapis.com/v2';
 const REGION = 'australia-southeast1';
 
-async function call(url: string, init: RequestInit = {}): Promise<Response> {
+/**
+ * terraform-agent belongs to the admin project, where Firebase Auth (Identity Toolkit) and the
+ * other APIs are off, and some Google APIs bill quota to the caller's project. So on dev every
+ * call names the target project instead, as remote-config.ts does: firebase-admin's own requests
+ * through GOOGLE_CLOUD_QUOTA_PROJECT, and this script's REST calls through the header.
+ */
+export function billToTarget(target: DemoTarget, env: NodeJS.ProcessEnv): void {
+  if (target.kind === 'dev') env['GOOGLE_CLOUD_QUOTA_PROJECT'] = target.projectId;
+}
+
+async function call(project: string, url: string, init: RequestInit = {}): Promise<Response> {
   const { fetch: doFetch, token } = apiDeps();
   return doFetch(url, {
     ...init,
-    headers: { authorization: `Bearer ${await token()}`, 'content-type': 'application/json', ...init.headers },
+    headers: {
+      authorization: `Bearer ${await token()}`,
+      'content-type': 'application/json',
+      'x-goog-user-project': project,
+      ...init.headers,
+    },
   });
 }
 
 /** The demo password from Secret Manager; created with a new random value when it isn't there yet. */
 async function devPassword(project: string, create: boolean): Promise<{ password: string | null; created: boolean }> {
   const secret = `${SECRET_MANAGER}/projects/${project}/secrets/${DEMO_SECRET}`;
-  const latest = await call(`${secret}/versions/latest:access`);
+  const latest = await call(project, `${secret}/versions/latest:access`);
   if (latest.ok) {
     const body = (await latest.json()) as { payload?: { data?: string } };
     return { password: Buffer.from(body.payload?.data ?? '', 'base64').toString('utf8'), created: false };
   }
   if (latest.status !== 404) throw new Error(`Secret Manager: reading ${DEMO_SECRET} failed (${latest.status})`);
   if (!create) return { password: null, created: false };
-  const made = await call(`${SECRET_MANAGER}/projects/${project}/secrets?secretId=${DEMO_SECRET}`, {
+  const made = await call(project, `${SECRET_MANAGER}/projects/${project}/secrets?secretId=${DEMO_SECRET}`, {
     method: 'POST',
     body: JSON.stringify({ replication: { automatic: {} }, labels: { purpose: 'demo-login' } }),
   });
   if (!made.ok && made.status !== 409)
     throw new Error(`Secret Manager: creating ${DEMO_SECRET} failed (${made.status})`);
   const password = generatePassword();
-  const added = await call(`${secret}:addVersion`, {
+  const added = await call(project, `${secret}:addVersion`, {
     method: 'POST',
     body: JSON.stringify({ payload: { data: Buffer.from(password, 'utf8').toString('base64') } }),
   });
@@ -215,7 +230,7 @@ async function devPassword(project: string, create: boolean): Promise<{ password
 
 /** Starts the `pdf` Cloud Run job for one queued job document, as jobs-startPdf does (ADR-014). */
 async function startPdfJob(project: string, jobId: string): Promise<string> {
-  const response = await call(`${CLOUD_RUN}/projects/${project}/locations/${REGION}/jobs/pdf:run`, {
+  const response = await call(project, `${CLOUD_RUN}/projects/${project}/locations/${REGION}/jobs/pdf:run`, {
     method: 'POST',
     body: JSON.stringify({
       overrides: {
@@ -442,6 +457,7 @@ export async function main(argv: string[] = []): Promise<void> {
   const target = resolveDemoTarget(args.project, process.env);
   const dev = target.kind === 'dev';
   if (!dev) process.env['METADATA_SERVER_DETECTION'] = 'none';
+  billToTarget(target, process.env);
   const now = new Date();
   const fixtures = Object.fromEntries(FIXTURE_NAMES.map((name) => [name, fixtureInfo(name)])) as Record<
     FixtureName,

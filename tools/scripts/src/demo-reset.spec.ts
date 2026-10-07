@@ -1,6 +1,7 @@
 import * as D from '@materia/domain';
 
 import {
+  billToTarget,
   DEMO_EMAILS,
   demoAccounts,
   demoDocs,
@@ -42,6 +43,15 @@ describe('demo-reset guard', () => {
     for (const project of ['materia-v2-prod', 'materia-v2-admin', 'matt-r-1fe15', 'dev'])
       expect(() => resolveDemoTarget(project, EMULATOR_ENV)).toThrow(/Refusing project/);
     expect(() => resolveDemoTarget(undefined, {})).toThrow(/Pass --project/);
+  });
+
+  it('bills Google API calls on dev to dev, not to terraform-agent’s admin project', () => {
+    const env: NodeJS.ProcessEnv = { GOOGLE_CLOUD_PROJECT: 'materia-v2-admin' };
+    billToTarget(resolveDemoTarget('materia-v2-dev', env), env);
+    expect(env['GOOGLE_CLOUD_QUOTA_PROJECT']).toBe('materia-v2-dev');
+    const emulator: NodeJS.ProcessEnv = { ...EMULATOR_ENV };
+    billToTarget(resolveDemoTarget('demo-materia', emulator), emulator);
+    expect(emulator['GOOGLE_CLOUD_QUOTA_PROJECT']).toBeUndefined();
   });
 
   it('stops main() before touching anything when the guard fails', async () => {
