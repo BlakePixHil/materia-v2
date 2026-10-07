@@ -251,6 +251,14 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'tours.enabled': defineFlag({
+    key: 'tours.enabled',
+    description: 'Guided tours: the welcome tour on first sign-in, page tours, ⌘K "Tour this page" and ⇧H.',
+    owner: 'CORE-24',
+    type: 'boolean',
+    default: false,
+    serverEnforced: false,
+  }),
   'auth.openSignup': defineFlag({
     key: 'auth.openSignup',
     description: 'Sign-up without an invite (to create a practice). Without a Remote Config value, only dev is open.',

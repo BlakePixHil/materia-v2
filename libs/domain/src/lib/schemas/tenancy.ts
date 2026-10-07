@@ -263,6 +263,13 @@ export const User = withMeta(
       timezone: z.string().min(1).max(64).optional(),
       /** Where signing in (or `/`) lands (CORE-20); Today when absent. */
       startPage: z.enum(['today', 'matters']).optional(),
+      /** Guided tours (CORE-24): page tours on or off, and the tours finished or skipped. */
+      tours: z
+        .object({
+          auto: z.boolean(),
+          seen: z.array(z.string().regex(/^[a-z][a-z0-9-]{0,39}$/)).max(40),
+        })
+        .optional(),
     }),
     /**
      * The download URL of `users/{uid}/avatar.png` (CORE-20), set by its owner after uploading the

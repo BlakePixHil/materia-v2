@@ -457,6 +457,13 @@ ol.mt-crumbs { list-style: none; margin: 0; padding: 0; }
 .mt-composer textarea.field { display: block; width: 100%; margin: 0; border: 0; outline: none; resize: none; background: transparent; color: var(--text-primary); overflow-y: auto; }
 .mt-composer textarea.field::placeholder { color: var(--text-tertiary); }
 .mt-composer:focus-within { border-color: var(--icon-ai); }
+.mt-composer textarea.field:focus-visible { box-shadow: none; }
+/* Focused, a soft violet glow travels slowly round the border, about half of it lit; the box's violet border is the focus indicator. The glow sits behind a surface-coloured fill, so it only shows at the edge. Static with reduced motion. */
+.mt-composer { position: relative; isolation: isolate; }
+.mt-composer::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: calc(var(--radius-lg) - 1px); background: var(--bg-surface); pointer-events: none; }
+.mt-composer::after { content: ""; position: absolute; inset: -3px; z-index: -2; border-radius: calc(var(--radius-lg) + 3px); background: conic-gradient(from var(--mt-composer-angle), transparent 0turn, var(--icon-ai) .25turn, transparent .5turn); filter: blur(6px); opacity: 0; transition: opacity var(--motion-slow) var(--ease-out); pointer-events: none; }
+.mt-composer:focus-within::after { opacity: 1; animation: mt-composer-orbit 6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .mt-composer:focus-within::after { animation: none; background: var(--icon-ai); opacity: .4; } }
 .mt-composer-hint { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-4); margin-right: var(--space-6); font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
 .mt-composer-commands { list-style: none; margin: 0; padding: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--bg-raised); box-shadow: var(--shadow-popover); }
 .mt-composer-commands li { display: flex; gap: var(--space-8); padding: var(--space-6) var(--space-8); border-radius: var(--radius-sm); cursor: pointer; font: 400 13px/18px var(--font-sans); color: var(--text-secondary); }
@@ -610,9 +617,14 @@ button.mt-ws:hover { background: var(--bg-hover); }
 .mt-app[data-collapsed] .mt-nav { width: 36px; justify-content: center; padding: 0; }
 .mt-app[data-collapsed] .mt-nav-section { height: 1px; padding: 0; width: 24px; margin: var(--space-8) 0; background: var(--border-default); overflow: hidden; color: transparent; }
 .mt-app[data-clerk] { grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--clerk-panel, 360px); }
-.mt-clerk-panel { margin: var(--space-8) var(--space-8) var(--space-8) 0; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+.mt-clerk-panel { margin: var(--space-8) var(--space-8) var(--space-8) 0; background: linear-gradient(180deg, var(--bg-ai-subtle), var(--bg-surface) 160px) var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
 .mt-clerk-panel > header { display: flex; align-items: center; gap: var(--space-8); height: var(--topbar); padding: 0 var(--space-12) 0 var(--space-16); border-bottom: 1px solid var(--border-default); flex: none; font: 600 13px/18px var(--font-sans); }
 .mt-clerk-panel > .body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-16); display: flex; flex-direction: column; justify-content: center; }
+.mt-clerk-panel > footer { flex: none; display: flex; align-items: center; padding: var(--space-8) var(--space-16); border-top: 1px solid var(--border-subtle); }
+.mt-clerk-help { display: inline-flex; align-items: center; gap: var(--space-4); height: 22px; margin-left: calc(-1 * var(--space-6)); padding: 0 var(--space-6); border-radius: var(--radius-xs); font: 500 12px/16px var(--font-sans); color: var(--text-tertiary); text-decoration: none; transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+.mt-clerk-help .mt-i { width: 12px; height: 12px; color: var(--icon-ai); }
+.mt-clerk-help:hover { color: var(--text-ai); background: var(--bg-ai-subtle); }
+.mt-clerk-help:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 button.mt-search { cursor: pointer; text-align: left; width: 100%; }
 button.mt-search:focus-visible { box-shadow: var(--focus-ring); }
 .mt-skip { position: fixed; top: var(--space-8); left: var(--space-8); z-index: 1000; padding: var(--space-8) var(--space-12); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text-primary); box-shadow: var(--shadow-popover); font: 500 13px/18px var(--font-sans); transform: translateY(-200%); }
@@ -768,6 +780,26 @@ button.mt-search:focus-visible { box-shadow: var(--focus-ring); }
 .mt-ptr[data-ready] { color: var(--text-brand); }
 .mt-ptr[data-refreshing] .mt-i { animation: mt-spin 1s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .mt-ptr { transition: none; } .mt-ptr[data-refreshing] .mt-i { animation: none; } }
+.mt-tour { position: fixed; inset: 0; z-index: var(--layer-modal); animation: mt-fade-in var(--motion-slow) var(--ease-out); transition: opacity var(--motion-base) var(--ease-in); }
+.mt-tour[data-leaving] { opacity: 0; pointer-events: none; }
+.mt-tour-catch { position: absolute; inset: 0; }
+.mt-tour-spot { position: fixed; top: 50%; left: 50%; width: 0; height: 0; border-radius: var(--radius-md); box-shadow: 0 0 0 2px var(--border-focus), 0 0 0 200vmax rgba(11, 12, 15, .55); pointer-events: none; transition: top var(--motion-slow) var(--ease-in-out), left var(--motion-slow) var(--ease-in-out), width var(--motion-slow) var(--ease-in-out), height var(--motion-slow) var(--ease-in-out); }
+.mt-tour-spot:not([data-target]) { box-shadow: 0 0 0 200vmax rgba(11, 12, 15, .55); }
+.mt-tour-card { position: fixed; top: 50%; left: 50%; width: 340px; max-width: calc(100vw - 24px); box-sizing: border-box; display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-16) var(--space-20) var(--space-16); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-dialog); color: var(--text-secondary); font: 400 14px/20px var(--font-sans); transition: top var(--motion-slow) var(--ease-in-out), left var(--motion-slow) var(--ease-in-out); outline: none; }
+.mt-tour-card:not([data-placed]) { transform: translate(-50%, -50%); }
+.mt-tour-card[data-intro] { width: 400px; }
+.mt-tour-card .eyebrow { font: 500 12px/16px var(--font-sans); color: var(--text-brand); }
+.mt-tour-card h2 { margin: 0; padding-right: var(--space-24); font: 600 16px/24px var(--font-sans); letter-spacing: -.01em; color: var(--text-primary); }
+.mt-tour-card p { margin: 0; }
+.mt-tour-card .mt-kbd { vertical-align: 1px; }
+.mt-tour-step { display: flex; flex-direction: column; gap: var(--space-8); animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }
+.mt-tour-close { position: absolute; top: var(--space-12); right: var(--space-12); }
+.mt-tour-foot { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--space-8); }
+.mt-tour-dots { display: flex; gap: 4px; margin-right: auto; }
+.mt-tour-dots i { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--border-strong); transition: background var(--motion-fast) var(--ease-out), width var(--motion-base) var(--ease-out); }
+.mt-tour-dots i[data-on] { width: 16px; background: var(--bg-brand); }
+@media (max-width: 767px) { .mt-tour-card, .mt-tour-card[data-intro] { top: auto; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: auto; max-width: none; transform: none; transition: none; } .mt-tour-card[data-dock="top"] { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; } .mt-tour-card:not([data-placed]) { transform: none; } .mt-tour-foot .mt-btn { flex: none; } }
+@media (prefers-reduced-motion: reduce) { .mt-tour, .mt-tour-step { animation: none; } .mt-tour, .mt-tour-spot, .mt-tour-card, .mt-tour-dots i { transition: none; } }
 .mt-tabbar { flex: none; display: grid; grid-template-columns: repeat(5, 1fr); align-items: start; min-height: calc(53px + env(safe-area-inset-bottom, 34px)); padding-top: 8px; padding-bottom: env(safe-area-inset-bottom, 34px); border-top: 1px solid var(--border-default); background: var(--bg-surface); }
 .mt-tabbar a { display: flex; flex-direction: column; align-items: center; gap: 4px; font: 500 10px/12px var(--font-sans); color: var(--text-tertiary); text-decoration: none; min-height: 44px; }
 .mt-tabbar a .mt-i { width: 24px; height: 24px; stroke-width: 1.6; }
@@ -908,6 +940,8 @@ button.mt-search:focus-visible { box-shadow: var(--focus-ring); }
 @keyframes mt-caret { 50% { opacity: 0; } }
 @keyframes mt-fade-in { from { opacity: 0; } }
 @keyframes mt-rise-in { from { opacity: 0; transform: translateY(4px); } }
+@property --mt-composer-angle { syntax: "<angle>"; inherits: false; initial-value: 0turn; }
+@keyframes mt-composer-orbit { to { --mt-composer-angle: 1turn; } }
 .mt-rise { animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }
 .mt-fade { animation: mt-fade-in var(--motion-slow) var(--ease-out) backwards; }
 .mt-stagger > * { animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }

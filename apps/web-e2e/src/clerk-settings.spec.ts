@@ -108,5 +108,7 @@ test.describe('Settings → Clerk and AI', () => {
     await expect(page).toHaveURL(/\/help\/clerk$/);
     await expect(page.getByRole('heading', { level: 2 })).toHaveCount(7);
     await expectNoA11yViolations(page);
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page).toHaveURL(/\/settings\/clerk$/);
   });
 });

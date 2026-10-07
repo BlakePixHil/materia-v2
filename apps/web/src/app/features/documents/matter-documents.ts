@@ -140,15 +140,31 @@ function storedLayout(): Layout {
             [accept]="accept"
             (change)="picked($event)"
           />
-          <button mtButton variant="secondary" size="sm" iconStart="document" (click)="newFromTemplate()">
+          <button
+            mtButton
+            variant="secondary"
+            size="sm"
+            iconStart="document"
+            data-tour="doc-template"
+            (click)="newFromTemplate()"
+          >
             New from template
           </button>
-          <button mtButton variant="primary" size="sm" iconStart="upload" (click)="picker.click()">Upload</button>
+          <button
+            mtButton
+            variant="primary"
+            size="sm"
+            iconStart="upload"
+            data-tour="doc-upload"
+            (click)="picker.click()"
+          >
+            Upload
+          </button>
         }
       </span>
     </div>
 
-    <div class="filters" role="group" aria-label="Filters and sort">
+    <div class="filters" role="group" aria-label="Filters and sort" data-tour="doc-filters">
       <button
         type="button"
         class="mt-chip"
@@ -267,6 +283,7 @@ function storedLayout(): Layout {
           }
         } @else if (layout() === 'table') {
           <mt-table
+            data-tour="doc-list"
             label="Documents"
             density="compact"
             sortMode="external"
@@ -305,7 +322,7 @@ function storedLayout(): Layout {
             <div mtTableEmpty></div>
           </mt-table>
         } @else {
-          <ul class="grid" aria-label="Documents">
+          <ul class="grid" aria-label="Documents" data-tour="doc-list">
             @for (doc of rows(); track doc.id) {
               <li class="card" [attr.data-selected]="isSelected(doc.id) ? '' : null">
                 @if (selectable()) {

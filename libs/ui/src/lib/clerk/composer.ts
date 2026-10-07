@@ -30,6 +30,11 @@ export const MT_COMPOSER_MAX_HEIGHT = 240;
 
 let nextId = 0;
 
+/** Enter that confirms an input method's candidate (Safari reports it as keyCode 229 after compositionend). */
+function composing(event: KeyboardEvent): boolean {
+  return event.isComposing || event.keyCode === 229;
+}
+
 /** Commands matching what has been typed after a leading `/` (nothing once a space is typed). */
 export function matchCommands(value: string, commands: readonly ComposerCommand[]): ComposerCommand[] {
   const match = /^\/(\S*)$/.exec(value);
@@ -40,7 +45,10 @@ export function matchCommands(value: string, commands: readonly ComposerCommand[
 
 /**
  * Composer (`mt-composer`): where people ask Clerk. Shows the scope ("Asking about WE-142"), grows with
- * its text, and sends with ⌘↵ (Ctrl+Enter); while Clerk is answering, Send becomes Stop and Escape stops.
+ * its text, and sends with Enter (⌘↵ and Ctrl+Enter too); Shift+Enter starts a new line, and Enter
+ * while an input method is composing (Japanese, Chinese…) only confirms the text. While Clerk is
+ * answering, Send becomes Stop and Escape stops. Focused, a soft violet glow travels round the box
+ * (static under reduced motion) instead of a focus ring on the text itself.
  * Typing `/` lists the commands; ↑/↓ choose and Enter or Tab inserts one (a `disabled` command is
  * listed, dimmed, and can't be inserted). `attach` is emitted by the paperclip; the feature opens the
  * file picker.
@@ -128,7 +136,8 @@ export function matchCommands(value: string, commands: readonly ComposerCommand[
       ></button>
       <span class="mt-grow mt-composer-hint" [id]="id + '-hint'">
         <span>Clerk can be wrong. Check the citations.</span>
-        <span class="send-keys"><mt-kbd keys="mod+enter" /> to send</span>
+        <span class="send-keys"><mt-kbd keys="enter" /> to send</span>
+        <span class="send-keys"><mt-kbd keys="shift+enter" /> new line</span>
       </span>
       @if (streaming()) {
         <button type="button" class="mt-send" data-stop aria-label="Stop" (click)="stop.emit()">
@@ -220,7 +229,7 @@ export class MtComposer {
         return;
       }
     }
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    if (event.key === 'Enter' && !event.shiftKey && !composing(event)) {
       event.preventDefault();
       this.submit();
     } else if (event.key === 'Escape' && this.streaming()) {

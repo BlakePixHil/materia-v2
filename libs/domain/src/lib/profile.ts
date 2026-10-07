@@ -80,6 +80,20 @@ export type ThemePref = z.infer<typeof ThemeSchema>;
 export type DensityPref = 'comfortable' | 'compact';
 export type StartPage = 'today' | 'matters';
 
+/**
+ * Guided tours (CORE-24). `auto` plays a page's tour the first time the page opens; `seen` lists the
+ * tours finished or skipped (`welcome` among them once the first-sign-in tour has been answered).
+ */
+export interface TourPrefs {
+  auto: boolean;
+  seen: string[];
+}
+
+/** At most this many tour ids are kept in `seen` (the oldest drop off). */
+export const TOUR_SEEN_MAX = 40;
+/** A tour id: lower-case words joined by hyphens (`welcome`, `matter-documents`). */
+export const TOUR_ID_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
+
 /** `users/{uid}.prefs`, with every field filled. */
 export interface UserPrefs {
   theme: ThemePref;
@@ -88,6 +102,7 @@ export interface UserPrefs {
   notifications: NotificationPrefs;
   timezone?: string;
   startPage: StartPage;
+  tours: TourPrefs;
 }
 
 export const DEFAULT_USER_PREFS: UserPrefs = {
@@ -96,7 +111,22 @@ export const DEFAULT_USER_PREFS: UserPrefs = {
   shortcuts: true,
   notifications: DEFAULT_NOTIFICATION_PREFS,
   startPage: 'today',
+  tours: { auto: false, seen: [] },
 };
+
+/** Reads stored tour preferences defensively: unknown ids and duplicates are dropped. */
+export function readTourPrefs(raw: unknown): TourPrefs {
+  const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const seen = Array.isArray(data['seen'])
+    ? data['seen'].filter((id): id is string => typeof id === 'string' && TOUR_ID_PATTERN.test(id))
+    : [];
+  return { auto: data['auto'] === true, seen: [...new Set(seen)].slice(-TOUR_SEEN_MAX) };
+}
+
+/** Marks a tour finished or skipped: it moves to the end of `seen`, which keeps the newest ids. */
+export function markTourSeen(tours: TourPrefs, id: string): TourPrefs {
+  return { ...tours, seen: [...tours.seen.filter((seen) => seen !== id), id].slice(-TOUR_SEEN_MAX) };
+}
 
 /** Reads stored preferences defensively: a missing or invalid field takes its default. */
 export function readUserPrefs(raw: unknown): UserPrefs {
@@ -108,6 +138,7 @@ export function readUserPrefs(raw: unknown): UserPrefs {
     shortcuts: typeof data['shortcuts'] === 'boolean' ? data['shortcuts'] : true,
     notifications: readNotificationPrefs(data['notifications']),
     startPage: data['startPage'] === 'matters' ? 'matters' : 'today',
+    tours: readTourPrefs(data['tours']),
   };
   if (typeof data['timezone'] === 'string' && data['timezone']) prefs.timezone = data['timezone'];
   return prefs;

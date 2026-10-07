@@ -122,6 +122,6 @@ export async function pdfText(path: string): Promise<string> {
     const content = await (await pdf.getPage(n)).getTextContent();
     pages.push(content.items.map((item) => ('str' in item ? `${item.str}${item.hasEOL ? '\n' : ''}` : '')).join(''));
   }
-  await pdf.destroy();
+  await pdf.loadingTask.destroy();
   return pages.join('\n');
 }

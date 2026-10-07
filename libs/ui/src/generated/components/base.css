@@ -23,6 +23,8 @@ html, body { background: var(--bg-surface); }
 @keyframes mt-caret { 50% { opacity: 0; } }
 @keyframes mt-fade-in { from { opacity: 0; } }
 @keyframes mt-rise-in { from { opacity: 0; transform: translateY(4px); } }
+@property --mt-composer-angle { syntax: "<angle>"; inherits: false; initial-value: 0turn; }
+@keyframes mt-composer-orbit { to { --mt-composer-angle: 1turn; } }
 .mt-rise { animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }
 .mt-fade { animation: mt-fade-in var(--motion-slow) var(--ease-out) backwards; }
 .mt-stagger > * { animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }

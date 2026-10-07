@@ -91,6 +91,7 @@ Motion says where something came from and that the app heard you. It is quick an
 - **Lists and cards.** Content that replaces a skeleton fades in. Short lists and card columns rise in one after another, 30ms apart, capped at 150ms; long tables fade in as one so scrolling never re-animates rows.
 - **Hover and focus.** Rows, nav items, tabs, chips and cards ease their fill, border and focus ring over `motion-fast`. Menu items highlight instantly, so arrowing through a menu never lags.
 - **Loading.** Skeletons wait 150ms before fading in, so a fast load never flashes one. Clerk's working state is three pulsing dots plus a named step.
+- **Tours.** A guided tour (Tour) fades its theatre in over `motion-slow`; between steps the spotlight glides to the next feature and the card follows with `ease-in-out`, its words rising in. It fades out over `motion-base`.
 - **Reduced motion.** With `prefers-reduced-motion`, animations stop and transitions drop to instant; overlays and pages simply appear.
 
 ### Charts
