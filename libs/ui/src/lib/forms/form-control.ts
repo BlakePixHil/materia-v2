@@ -78,6 +78,11 @@ export abstract class MtFormControl<T> implements ControlValueAccessor, DoCheck 
 @Directive()
 export abstract class MtLabelledControl<T> extends MtFormControl<T> {
   readonly label = input<string>();
+  /**
+   * Keeps the label for screen readers but hides it, where something beside the control already says
+   * what it is (a SettingsRow's title, a table row's name).
+   */
+  readonly labelHidden = input(false, { transform: booleanAttribute });
   /** Helper text: where the value comes from, or its format. Replaced by the error when invalid. */
   readonly description = input<string>();
   /** An error to show regardless of validation (for example from the server). */

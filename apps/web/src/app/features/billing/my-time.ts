@@ -139,7 +139,7 @@ type Entry = WithId<TimeEntryItem>;
         @for (day of shownDays(); track day.date) {
           <section class="day-list" [attr.aria-labelledby]="'my-time-' + day.date">
             <h3 class="mt-row day-head" [id]="'my-time-' + day.date">
-              <span class="label-m">{{ heading(day.date) }}</span>
+              <span class="label">{{ heading(day.date) }}</span>
               <span class="mt-ml caption t-3">{{ screen.unitsText(day.units) }} · {{ amount(day.amountCents) }}</span>
             </h3>
             <ul class="rows" role="list">

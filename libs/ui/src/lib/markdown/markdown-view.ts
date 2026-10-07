@@ -115,12 +115,12 @@ export const MT_RESTRICTED_MATTER_LABEL = 'Restricted matter';
             @if (node.kind === 'member') {
               @if (memberOf(node.id); as person) {
                 @if (person.former) {
-                  <span class="mt-mention-text">{{ person.name }}</span>
+                  <span>{{ person.name }}</span>
                 } @else {
                   <span class="mt-mention" data-kind="member">&#64;{{ person.name }}</span>
                 }
               } @else {
-                <span class="mt-mention-text">Unknown member</span>
+                <span>Unknown member</span>
               }
             } @else {
               @switch (matterState(node.id)) {

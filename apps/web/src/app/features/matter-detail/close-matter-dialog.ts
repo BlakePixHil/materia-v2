@@ -83,9 +83,9 @@ export function retentionText(
       @if (loadError(); as message) {
         <mt-note tone="danger">{{ message }}</mt-note>
       } @else if (!checklist()) {
-        <p class="body-m t-3" role="status">Checking the matter…</p>
+        <p class="body t-3" role="status">Checking the matter…</p>
       } @else {
-        <form id="mt-close-matter-form" class="mt-stack form" (submit)="$event.preventDefault(); close()">
+        <form id="mt-close-matter-form" class="mt-col form" (submit)="$event.preventDefault(); close()">
           @for (warning of checklist()!.warnings; track warning.matterId) {
             <mt-note tone="warning">Related matter {{ warning.number }} is still open.</mt-note>
           }
@@ -94,7 +94,7 @@ export function retentionText(
               <li class="mt-row item" [attr.data-state]="item.state">
                 <mt-icon [name]="icon(item)" [size]="16" />
                 <span class="mt-grow">
-                  <span class="body-m">{{ item.label }}</span>
+                  <span class="body">{{ item.label }}</span>
                   <span class="mt-sr">. {{ stateText(item) }}</span>
                   @if (item.detail) {
                     <span class="caption t-3 detail">{{ item.detail }}</span>

@@ -102,14 +102,12 @@ const WHOSE: MtOption<Whose>[] = [
     <p class="mt-sr" role="status" aria-live="polite">{{ announcement() }}</p>
 
     <section class="mt-col" aria-labelledby="reminders-title">
-      <h2 class="title-s" id="reminders-title">Reminders to send</h2>
+      <h2 class="heading" id="reminders-title">Reminders to send</h2>
       <ul class="reminders" data-testid="reminders">
         @for (reminder of reminders(); track reminder.id) {
           <li class="mt-card mt-row reminder">
             <span class="mt-col">
-              <a class="label-m" [routerLink]="['/billing/invoices', reminder.invoiceId]">{{
-                reminder.invoiceNumber
-              }}</a>
+              <a class="label" [routerLink]="['/billing/invoices', reminder.invoiceId]">{{ reminder.invoiceNumber }}</a>
               <span class="caption t-3"
                 >{{ reminder.clientName || 'Client' }} · {{ reminder.matterNumber }} · {{ overdueText(reminder) }}</span
               >
@@ -153,12 +151,12 @@ const WHOSE: MtOption<Whose>[] = [
               <tbody>
                 @for (group of groups(); track group.clientName) {
                   <tr class="client" data-testid="debtor-client">
-                    <th scope="rowgroup" class="label-m">{{ group.clientName || 'Unnamed client' }}</th>
+                    <th scope="rowgroup" class="label">{{ group.clientName || 'Unnamed client' }}</th>
                     <td></td>
                     @for (bucket of buckets; track bucket) {
                       <td class="num">{{ cell(group.buckets[bucket]) }}</td>
                     }
-                    <td class="num label-m">{{ money(group.totalCents) }}</td>
+                    <td class="num label">{{ money(group.totalCents) }}</td>
                   </tr>
                   @for (row of group.rows; track row.matterId) {
                     <tr data-testid="debtor-matter">
@@ -182,7 +180,7 @@ const WHOSE: MtOption<Whose>[] = [
                   @for (bucket of buckets; track bucket) {
                     <td class="num">{{ money(totals()[bucket]) }}</td>
                   }
-                  <td class="num label-m" data-testid="debtors-total">{{ money(total()) }}</td>
+                  <td class="num label" data-testid="debtors-total">{{ money(total()) }}</td>
                 </tr>
               </tfoot>
             </table>

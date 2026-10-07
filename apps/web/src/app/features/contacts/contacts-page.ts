@@ -286,8 +286,8 @@ const KIND_FILTERS: MtOption<string>[] = [
       display: flex;
       flex: 1;
       min-height: 0;
-      /* Cancels the page padding, and the page's gap after the router outlet. */
-      margin: calc(-1 * (var(--space-24) + var(--space-20))) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
+      /* Full-bleed: cancels the shell page's padding. */
+      margin: calc(-1 * var(--space-24)) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
     }
     .mt-contacts-list {
       flex: none;

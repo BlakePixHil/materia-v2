@@ -76,7 +76,7 @@ const choiceOf = (matter: PickedMatter): MatterChoice => ({
       <div class="mt-col quick" style="gap: var(--space-16)">
         @if (matter(); as picked) {
           <div class="mt-row picked">
-            <span class="label-m">{{ picked.number }}</span>
+            <span class="label">{{ picked.number }}</span>
             <span class="mt-ell t-2">{{ picked.title }}</span>
             <button mtButton variant="ghost" size="sm" type="button" class="mt-ml" (click)="clearMatter()">
               Change<span class="mt-sr"> matter</span>
@@ -114,7 +114,7 @@ const choiceOf = (matter: PickedMatter): MatterChoice => ({
               @for (row of choices(); track row.id) {
                 <li>
                   <button mtButton variant="ghost" size="sm" type="button" class="result" (click)="pick(row)">
-                    <span class="label-m">{{ row.number }}</span>
+                    <span class="label">{{ row.number }}</span>
                     <span class="caption t-3">{{ row.title }}</span>
                   </button>
                 </li>

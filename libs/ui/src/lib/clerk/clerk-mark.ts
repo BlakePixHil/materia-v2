@@ -12,7 +12,7 @@ import { MtAvatar, type MtAvatarSize } from '../markers/markers';
   encapsulation: ViewEncapsulation.None,
   imports: [MtAvatar],
   host: { style: 'display: contents' },
-  template: `<mt-avatar class="mt-clerk-mark" name="Clerk" kind="clerk" [size]="size()" />`,
+  template: `<mt-avatar name="Clerk" kind="clerk" [size]="size()" />`,
 })
 export class MtClerkMark {
   readonly size = input<MtAvatarSize>('sm');

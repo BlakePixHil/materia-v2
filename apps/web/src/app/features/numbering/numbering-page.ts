@@ -36,11 +36,13 @@ const emptyCodes = (): Codes => Object.fromEntries(TYPES.map((type) => [type, ''
   imports: [FormsModule, MtButton, MtNote, MtSettingsSection, MtTextField],
   host: { class: 'mt-col', style: 'gap: 24px; max-width: 760px' },
   template: `
-    <h1 class="title-l" style="margin: 0">Matter numbering</h1>
-    <p style="margin: 0; color: var(--text-secondary)">
-      How new matters are numbered. To change an existing matter’s number or link it to another system, use the matter’s
-      “…” menu.
-    </p>
+    <div class="mt-col" style="gap: 6px">
+      <h1 class="title-l" style="margin: 0">Matter numbering</h1>
+      <p style="margin: 0; color: var(--text-secondary)">
+        How new matters are numbered. To change an existing matter’s number or link it to another system, use the
+        matter’s “…” menu.
+      </p>
+    </div>
 
     @switch (org.status()) {
       @case ('loading') {

@@ -180,11 +180,11 @@ type Busy = 'explain' | 'refresh' | null;
             </p>
           }
           @if (n.insufficientData && !n.paragraphs.length) {
-            <p class="body-m">There isn’t enough recorded for {{ n.periodLabel }} yet to say what changed.</p>
+            <p class="body">There isn’t enough recorded for {{ n.periodLabel }} yet to say what changed.</p>
           }
           @for (paragraph of n.paragraphs; track $index) {
             <div class="para">
-              <p class="body-m">{{ paragraph.text }}</p>
+              <p class="body">{{ paragraph.text }}</p>
               @if (paragraph.citations.length) {
                 <ul class="cites" aria-label="Figures used">
                   @for (citation of paragraph.citations; track $index) {

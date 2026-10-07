@@ -76,7 +76,7 @@ const FILTERS: MtOption<Filter>[] = [
                 @for (row of rows(); track row.id) {
                   <tr [attr.data-status]="row.status">
                     <td>
-                      <a class="label-m" [routerLink]="['/billing/invoices', row.id]">{{ name(row) }}</a>
+                      <a class="label" [routerLink]="['/billing/invoices', row.id]">{{ name(row) }}</a>
                     </td>
                     <td>
                       {{ row.matterNumber ?? '' }}<span class="caption t-3 sub">{{ row.matterTitle ?? '' }}</span>

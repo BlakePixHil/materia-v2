@@ -132,7 +132,7 @@ const EVERYONE = '';
         @for (day of days(); track day.date) {
           <section class="day" [attr.aria-labelledby]="'time-day-' + day.date">
             <h3 class="mt-row day-head" [id]="'time-day-' + day.date">
-              <span class="label-m">{{ heading(day.date) }}</span>
+              <span class="label">{{ heading(day.date) }}</span>
               <span class="mt-ml caption t-3">{{ unitsText(day.units) }} · {{ amount(day.amountCents) }}</span>
             </h3>
             <ul class="rows" role="list">
