@@ -52,7 +52,7 @@ class ClerkPort extends FakeAuthPort {
     const clerk = { ...(settings.clerk ?? {}) };
     if (input['enabled'] !== undefined) clerk['enabled'] = input['enabled'];
     if (input['features']) clerk['features'] = { ...(clerk['features'] as object), ...(input['features'] as object) };
-    for (const field of ['monthlyBudgetCents', 'perUserDailyRequests', 'ocrDailyPages']) {
+    for (const field of ['monthlyBudgetCents', 'perUserDailyRequests', 'ocrDailyPages', 'draftingStyle']) {
       if (input[field] !== undefined) clerk[field] = input[field];
     }
     const kept = Object.fromEntries(Object.entries(clerk).filter(([, value]) => value !== null));
@@ -118,10 +118,10 @@ async function open(
     return found;
   };
   const field = (label: string) => {
-    const host = [...el.querySelectorAll('mt-text-field')].find((f) =>
+    const host = [...el.querySelectorAll('mt-text-field, mt-textarea')].find((f) =>
       f.querySelector('label, .mt-label')?.textContent?.trim().startsWith(label),
     );
-    const input = host?.querySelector<HTMLInputElement>('input');
+    const input = host?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input, textarea');
     if (!input) throw new Error(`No field "${label}"`);
     return input;
   };
@@ -284,6 +284,25 @@ describe('Settings → Clerk and AI', () => {
     expect(field('Monthly spend limit')).toBe('300');
   });
 
+  it('saves the house style Clerk drafts letters in, and goes back to the default when emptied (AI-10)', async () => {
+    const page = await open('/settings/clerk', ADMIN, { ackVersion: CLERK_DISCLOSURE_VERSION });
+    const style = page.el.querySelector<HTMLTextAreaElement>('mt-textarea textarea');
+    expect(style?.getAttribute('placeholder')).toContain('Australian English');
+    expect(page.button('Save house style').hasAttribute('disabled')).toBe(true);
+
+    await page.type('House style', 'Sign off "Kind regards".\nNo exclamation marks.');
+    await page.click('Save house style');
+    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({
+      draftingStyle: 'Sign off "Kind regards".\nNo exclamation marks.',
+    });
+    expect(page.clerk()['draftingStyle']).toBe('Sign off "Kind regards".\nNo exclamation marks.');
+
+    await page.type('House style', '  ');
+    await page.click('Save house style');
+    expect(page.calls('clerk-updateSettings').at(-1)).toEqual({ draftingStyle: null });
+    expect(page.clerk()['draftingStyle']).toBeUndefined();
+  });
+
   it('shows a lawyer what is on and the disclosure, read-only, with no key, limits or usage', async () => {
     const page = await open('/settings/clerk', LAWYER, {
       ackVersion: CLERK_DISCLOSURE_VERSION,
@@ -294,6 +313,7 @@ describe('Settings → Clerk and AI', () => {
     expect(page.text(page.page().querySelector('[data-feature="chat"]'))).toContain('On');
     expect(page.page().querySelector('[role="switch"]')).toBeNull();
     expect(page.text()).not.toContain('Anthropic API key');
+    expect(page.text()).not.toContain('House style');
     expect(page.page().querySelector('mt-clerk-usage')).toBeNull();
     expect(page.calls('clerk-getApiKeyStatus')).toHaveLength(0);
   });

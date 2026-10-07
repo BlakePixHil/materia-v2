@@ -32,8 +32,12 @@ type Facts = {
   deceased?: string;
   dateOfDeath?: string;
   executors?: string[];
+  /** Other parties by role (`client`, `beneficiary`, `other_side_solicitor`…), for drafting (AI-10). */
+  parties?: { name: string; role: string }[];
   responsibleLawyer?: string;
-  probate?: { applicationFiled?: string | null; granted?: string | null };
+  probate?: { applicationFiled?: string | null; granted?: string | null; grantType?: string };
+  willDate?: string;
+  fee?: { arrangement: string; amountCents?: number; estimateCents?: number };
   upcomingDeadlines?: { title: string; due: string }[];
   openTasks?: string[];
 };
@@ -58,6 +62,9 @@ export function evalOrg(evalCase: EvalCase, orgId: string, uid: string): Record<
   const parties: Record<string, Data> = {};
   (facts.executors ?? []).forEach((name, i) => {
     parties[`p-executor-${i + 1}`] = { contactId: contact(`c-executor-${i + 1}`, name), role: 'executor' };
+  });
+  (facts.parties ?? []).forEach((party, i) => {
+    parties[`p-${party.role}-${i + 1}`] = { contactId: contact(`c-party-${i + 1}`, party.name), role: party.role };
   });
   const events: Record<string, Data> = {};
   if (facts.probate?.applicationFiled)
@@ -104,7 +111,16 @@ export function evalOrg(evalCase: EvalCase, orgId: string, uid: string): Record<
       privileged: false,
       ...(facts.responsibleLawyer ? { responsibleUid: RESPONSIBLE_UID } : {}),
       ...(deceased ? { deceased: { contactId: deceased, dateOfDeath: facts.dateOfDeath } } : {}),
-      ...(facts.probate?.granted ? { estate: { grantDate: facts.probate.granted } } : {}),
+      ...(facts.probate?.granted || facts.probate?.grantType
+        ? {
+            estate: {
+              ...(facts.probate.granted ? { grantDate: facts.probate.granted } : {}),
+              ...(facts.probate.grantType ? { grantType: facts.probate.grantType } : {}),
+            },
+          }
+        : {}),
+      ...(facts.willDate ? { facts: { willDate: facts.willDate } } : {}),
+      ...(facts.fee ? { fee: { ...facts.fee, history: [] } } : {}),
     },
     parties,
     events,

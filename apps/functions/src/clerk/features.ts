@@ -41,6 +41,8 @@ export const CLERK_FEATURES = {
   },
   willExtraction: { flag: 'clerk.features.willExtraction', timeoutMs: 300_000, orgFeature: 'willExtract' },
   drafting: { flag: 'clerk.features.drafting', timeoutMs: 180_000, orgFeature: 'drafting' },
+  // Rewriting a passage of a draft (AI-10): a person waits on it, so it has a shorter timeout.
+  draftingRewrite: { flag: 'clerk.features.drafting', timeoutMs: 90_000, orgFeature: 'drafting' },
   timeAssist: { flag: 'clerk.features.timeAssist', timeoutMs: 60_000, orgFeature: 'timeAssist' },
   /**
    * Key dates from a migrated estate matter's file (MIG-09): `event` suggestions, run in the

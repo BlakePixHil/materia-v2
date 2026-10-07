@@ -21,6 +21,7 @@ export * from './lib/errors';
 export * from './lib/flags';
 export * from './lib/clerk';
 export * from './lib/clerk-chat';
+export * from './lib/clerk-drafts';
 export * from './lib/orgs';
 export * from './lib/search';
 export * from './lib/contacts';

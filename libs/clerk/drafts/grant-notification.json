@@ -1,0 +1,19 @@
+{
+  "id": "grant-notification",
+  "title": "Grant notification to beneficiaries",
+  "description": "Tells a beneficiary that the grant has been made and what happens next.",
+  "matterTypes": ["probate", "loa", "admin"],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "third_party",
+  "recipientRoles": ["beneficiary"],
+  "requiredFacts": [
+    { "fact": "matter.deceased.name", "label": "name of the deceased" },
+    { "fact": "matter.deceased.dateOfDeath", "label": "date of death" },
+    { "fact": "matter.estate.grantDate", "label": "date of the grant" },
+    { "fact": "matter.estate.grantType", "label": "kind of grant" },
+    { "fact": "party:executor", "label": "executors' names" }
+  ],
+  "guidance": "Write to a beneficiary of the estate. We act for the executors (or administrators), not for the beneficiary.\n\n- Say that the Supreme Court has made the grant (probate or letters of administration, as the matter facts say), its date, and who it was granted to.\n- Say briefly what happens next in general terms: the executors collect the estate's assets, pay its debts and expenses, and then distribute it under the will (or the intestacy rules).\n- Don't promise when the beneficiary will be paid or how much they will receive. Say the executors will be in touch about timing once the estate's assets and debts are known.\n- Ask the beneficiary to tell us of any change to their contact details.\n- Suggest that they may wish to get their own legal advice about their entitlement, since we can't advise them.",
+  "needsInstructions": false
+}

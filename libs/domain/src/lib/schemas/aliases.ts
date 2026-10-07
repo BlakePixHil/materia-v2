@@ -1,6 +1,7 @@
 import { Suggestion, FactCitation, ClerkThread, ClerkMessage, MatterBrief } from './clerk';
 import { Contact, Matter, MatterNumber } from './contacts-matters';
 import { Job } from './jobs';
+import { ClerkDraft } from '../clerk-drafts';
 import { DisbursementPresetsDoc } from '../disbursements';
 import { LetterheadDoc } from '../doc-templates';
 import { SignIn } from '../security';
@@ -188,6 +189,9 @@ export const ClerkThreadUpdateSchema = ClerkThread.update;
 export const ClerkMessageSchema = ClerkMessage.schema;
 export const ClerkMessageCreateSchema = ClerkMessage.create;
 export const ClerkMessageUpdateSchema = ClerkMessage.update;
+export const ClerkDraftSchema = ClerkDraft.schema;
+export const ClerkDraftCreateSchema = ClerkDraft.create;
+export const ClerkDraftUpdateSchema = ClerkDraft.update;
 export const InvoiceSchema = Invoice.schema;
 export const InvoiceCreateSchema = Invoice.create;
 export const InvoiceUpdateSchema = Invoice.update;

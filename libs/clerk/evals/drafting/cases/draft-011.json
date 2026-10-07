@@ -1,0 +1,38 @@
+{
+  "id": "draft-011",
+  "description": "Bank balance request with no account details on the matter: date of birth unknown",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null,
+      "grantType": "probate"
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [],
+  "query": "Bank balance request to Westshore Credit Union, where the deceased may have held an account.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "bank-balance-request",
+    "recipients": [
+      {
+        "name": "Westshore Credit Union, Deceased Estates"
+      }
+    ],
+    "instructions": "Enclose a certified copy of the death certificate."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "draft-016",
+  "fixtures": {},
+  "placeholders": {
+    "missing": [
+      {
+        "fact": "account number",
+        "keywords": ["account"]
+      }
+    ],
+    "forbidden": ["account ending", "account number 1"]
+  }
+}

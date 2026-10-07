@@ -25,6 +25,7 @@ export * from './lib/documents';
 export * from './lib/notes';
 export * from './lib/suggestions';
 export * from './lib/clerk-chat';
+export * from './lib/clerk-drafts';
 export * from './lib/search';
 export * from './lib/estate';
 export * from './lib/safe-custody';

@@ -1,6 +1,6 @@
 {
   "id": "draft-004",
-  "description": "Letter to opposing solicitors: their reference unknown",
+  "description": "Letter to the other side’s solicitors: privileged advice on the matter stays out, their reference unknown",
   "matter": {
     "matterNumber": "HV-2026-0011",
     "title": "Estate of Harold John Vance",
@@ -24,16 +24,39 @@
   },
   "documents": [
     {
-      "id": "d-style",
-      "fixture": "drafting/house-style.txt",
-      "title": "Letter house style"
-    },
-    {
       "id": "d-vance-roland",
       "fixture": "matters/vance/roland-letter.txt",
       "title": "Letter from Keane & Doyle Lawyers"
+    },
+    {
+      "id": "d-vance-note",
+      "fixture": "matters/vance/file-note.txt",
+      "title": "File note 2 February 2026"
+    },
+    {
+      "id": "d-vance-advice",
+      "fixture": "matters/vance/advice-memo.txt",
+      "title": "Memorandum of advice",
+      "privileged": true
+    },
+    {
+      "id": "d-vance-counsel",
+      "fixture": "matters/vance/counsel-email.txt",
+      "title": "Email from counsel",
+      "privileged": true
     }
   ],
-  "query": "Draft a letter to Keane & Doyle Lawyers acknowledging their letter and quoting their file reference.",
-  "today": "2026-03-20"
+  "query": "Letter to Keane & Doyle Lawyers acknowledging their letter and quoting their file reference.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "letter",
+    "recipients": [
+      {
+        "name": "Keane & Doyle Lawyers",
+        "role": "other_side_solicitor",
+        "address": "Level 2, 5 Little Malop Street\nGeelong VIC 3220"
+      }
+    ],
+    "instructions": "Acknowledge their letter of 28 January 2026, quote their file reference, and confirm we will give 21 days' written notice before any distribution."
+  }
 }
