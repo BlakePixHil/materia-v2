@@ -30,7 +30,7 @@ We will:
 - guard the shell with `canActivate` instead of `canMatch`, and on each `GuardsCheckStart` call every `loadComponent` in the target tree (`prefetchPagesDuringGuards`), so a navigation's chunks download while its guards wait. Redirects now run before the shell's guard, so a redirect that reads the session (Settings' landing page) awaits `AuthState.whenReady()`;
 - preload every other lazy page in the background, one at a time, from three seconds after a navigation (`DelayedPreloading`), skipped under Save-Data or 2G; a route opts out with `data: { preload: false }`;
 - construct `FeatureFlagService` at bootstrap, and apply the Remote Config values this device fetched last at once, with the fetch replacing them when it lands (the very first load still waits for it);
-- keep the initial bundle budget at 300 kB: moving Auth (with Firebase app, App Check and Functions, about 41 kB gzip) into the initial bundle saved 40 ms on a cached reload and cost 40 ms after a deploy, which doesn't pay for the budget.
+- keep the initial bundle budget at 300 kB: moving Auth (with Firebase app, App Check and Functions, about 41 kB gzip) into the initial bundle saved 40 ms on a cached reload and cost 40 ms after a deploy, which doesn't pay for the budget. Every lazy chunk stays at 150 kB, except PDF.js's library at 170 kB, which can't be split or shrunk from our side (ADR-028).
 
 ## Consequences
 
