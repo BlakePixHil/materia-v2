@@ -2006,8 +2006,10 @@ describe('notifications (FND-20)', () => {
       quietHours: { start: '20:00', end: '06:30' },
       kinds: { mention: { email: false }, deadline_escalation: { push: false } },
       taskReminderDays: 2,
+      weeklyReport: true,
     };
     await assertSucceeds(updateDoc(ref, stamped(prefs(valid), uid)));
+    await assertSucceeds(updateDoc(ref, stamped(prefs({ ...valid, weeklyReport: false }), uid)));
     // Switching email off is allowed: critical notifications still email (enforced by notify()).
     await assertSucceeds(updateDoc(ref, stamped(prefs({ ...valid, email: false }), uid)));
     await assertSucceeds(
@@ -2022,6 +2024,7 @@ describe('notifications (FND-20)', () => {
       { ...valid, taskReminderDays: 1.5 },
       { ...valid, email: 'yes' },
       { ...valid, push: 1 },
+      { ...valid, weeklyReport: 'yes' },
       { ...valid, kinds: 'all' },
       'off',
     ]) {

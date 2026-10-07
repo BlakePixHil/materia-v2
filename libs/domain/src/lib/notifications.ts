@@ -156,6 +156,8 @@ export const NotificationPrefsSchema = z.object({
   kinds: z.record(z.string().regex(/^[a-z][a-z_]{0,39}$/), ChannelPrefsSchema).optional(),
   /** Days before a task's due date that its reminder goes out, at 08:00 (CORE-11; default 1). */
   taskReminderDays: z.number().int().min(0).max(TASK_REMINDER_DAYS_MAX).optional(),
+  /** The weekly practice report on Mondays (INS-03; owners and admins; off unless chosen). */
+  weeklyReport: z.boolean().optional(),
 });
 export type NotificationPrefs = z.infer<typeof NotificationPrefsSchema>;
 
@@ -190,6 +192,7 @@ export function readNotificationPrefs(raw: unknown): NotificationPrefs {
   if (kinds.success && kinds.data) prefs.kinds = kinds.data;
   const taskDays = NotificationPrefsSchema.shape.taskReminderDays.safeParse(data['taskReminderDays']);
   if (taskDays.success && taskDays.data !== undefined) prefs.taskReminderDays = taskDays.data;
+  if (typeof data['weeklyReport'] === 'boolean') prefs.weeklyReport = data['weeklyReport'];
   return prefs;
 }
 

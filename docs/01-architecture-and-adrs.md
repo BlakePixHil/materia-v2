@@ -126,6 +126,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 **ADR-014: Heavy work goes to Cloud Run jobs or Cloud Tasks.**
 - Anything over 60 s or 1 GiB (PDF compile, court book, bulk OCR, migration) runs as a Cloud Run job or a Cloud Tasks-driven function with checkpointing.
 - No long work in triggers.
+- [ADR-055](adr/055-csv-exports-weekly-report.md) (INS-03): list exports are `csv.export` jobs from one callable, `exports-create`, written in the callable up to 5,000 rows and streamed by the `exports-run` queue beyond. Access is re-checked at the end, privileged matters go in only when a lawyer or above asks, and every export is audited. The weekly practice report is an opt-in Monday 07:00 (org time) email of figures and matter numbers only.
 
 **ADR-015: Email.**
 - Transactional email goes through Postmark via a function, with templates in the repo.

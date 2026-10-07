@@ -32,7 +32,7 @@ function databases(
 function options(clock: { t: number }, lines: string[]): DrillOptions {
   return {
     location: 'australia-southeast1',
-    backupsBucket: 'materia-v2-dev-backups',
+    exportsBucket: 'materia-v2-dev-exports',
     keep: false,
     now: () => START + clock.t,
     log: (line) => lines.push(line),
@@ -151,7 +151,7 @@ describe('drill', () => {
     expect(result.mismatches).toEqual(['matters: restored 2, live 3']);
     expect(lines).toContain('  MISMATCH matters: restored 2, live 3');
     expect(calls.map((c) => c.method)).toEqual(['GET', 'GET', 'POST', 'POST', 'POST', 'DELETE']);
-    expect(calls[3]?.body).toEqual({ inputUriPrefix: 'gs://materia-v2-dev-backups/daily/2026-10-05T14-59-00Z' });
+    expect(calls[3]?.body).toEqual({ inputUriPrefix: 'gs://materia-v2-dev-exports/daily/2026-10-05T14-59-00Z' });
   });
 
   it('clones a PITR snapshot and keeps the scratch database with --keep', async () => {

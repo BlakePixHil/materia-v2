@@ -594,27 +594,28 @@ export function centsToDecimal(value: number): string {
   return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
+/** One time entry's cells, in TIME_CSV_COLUMNS order (unescaped). */
+export function timeCsvCells(row: TimeCsvRow): (string | number)[] {
+  return [
+    row.date,
+    row.matterNumber,
+    row.matterTitle,
+    row.person,
+    row.narrative,
+    row.minutes,
+    row.units,
+    ((row.units * row.unitMinutes) / 60).toFixed(2),
+    centsToDecimal(row.rateCents),
+    centsToDecimal(row.amountCents),
+    row.billable ? 'Yes' : 'No',
+    row.status,
+    row.originalAmountCents === undefined ? '' : centsToDecimal(row.originalAmountCents),
+    row.writeDownReason ?? '',
+  ];
+}
+
 /** Time entries as CSV (CRLF lines, a header row), for the time export. */
 export function timeEntriesCsv(rows: readonly TimeCsvRow[]): string {
-  const lines = rows.map((row) =>
-    [
-      row.date,
-      row.matterNumber,
-      row.matterTitle,
-      row.person,
-      row.narrative,
-      row.minutes,
-      row.units,
-      ((row.units * row.unitMinutes) / 60).toFixed(2),
-      centsToDecimal(row.rateCents),
-      centsToDecimal(row.amountCents),
-      row.billable ? 'Yes' : 'No',
-      row.status,
-      row.originalAmountCents === undefined ? '' : centsToDecimal(row.originalAmountCents),
-      row.writeDownReason ?? '',
-    ]
-      .map(csvCell)
-      .join(','),
-  );
+  const lines = rows.map((row) => timeCsvCells(row).map(csvCell).join(','));
   return [TIME_CSV_COLUMNS.join(','), ...lines].join('\r\n');
 }
