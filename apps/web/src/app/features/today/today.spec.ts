@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 
 import { Connectivity, DATA_CLOCK } from '@materia/data-access';
+import { rollupMetrics, timeEntryMetrics } from '@materia/domain';
 
 import { DEVICE_TIME_ZONE } from './today-data';
 import {
@@ -126,9 +127,17 @@ function entryDoc(data: Seed = {}): Seed {
   };
 }
 
-/** My time this month (drafts, final, billed, written off, non-billable), last month's and a colleague's. */
+/**
+ * My time this month (drafts, final, billed, written off, non-billable), last month's and a
+ * colleague's, with the month and member figures the metrics triggers keep from them (INS-01).
+ */
 function myTime(fs: Fs): void {
-  const entry = (id: string, data: Seed) => fs.set(`${MATTER}/timeEntries/${id}`, entryDoc(data));
+  const entries: Seed[] = [];
+  const entry = (id: string, data: Seed) => {
+    const doc = entryDoc(data);
+    entries.push(doc);
+    fs.set(`${MATTER}/timeEntries/${id}`, doc);
+  };
   entry('te-draft', {});
   entry('te-final', { date: '2026-10-05', status: 'final', amountCents: 30000 });
   entry('te-billed', { status: 'billed', invoiceId: 'inv-1' });
@@ -136,6 +145,9 @@ function myTime(fs: Fs): void {
   entry('te-free', { billable: false });
   entry('te-september', { date: '2026-09-30' });
   entry('te-theirs', { uid: 'user-daniel' });
+  for (const [key, values] of rollupMetrics(entries.map((data) => timeEntryMetrics(data)))) {
+    fs.set(`orgs/${ORG}/metrics/${key}`, { values, ...meta });
+  }
 }
 
 function recentDoc(matterId: string, at: string): Seed {
@@ -287,6 +299,17 @@ describe('today', () => {
       },
     });
     expect(stats(page)[2]).toEqual(['WIP this month', '$740.00', 'Your time not yet billed']);
+  });
+
+  it('reads WIP this month from my month figures, not from every entry (SEC-07)', async () => {
+    const page = await openToday({
+      configure: (fs) =>
+        fs.set(`orgs/${ORG}/metrics/month-2026-10/byMember/${ME}`, {
+          values: { 'time.recordedCents': 125_000, 'time.billedCents': 40_000 },
+          ...meta,
+        }),
+    });
+    expect(stats(page).find(([label]) => label === 'WIP this month')?.[1]).toBe('$850.00');
   });
 
   it('shows WIP this month to a paralegal, who records time too', async () => {

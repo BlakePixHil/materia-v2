@@ -28,7 +28,7 @@ import {
   MtSkeleton,
 } from '@materia/ui';
 
-import { MONTH_ENTRY_LIMIT, TodayData } from './today-data';
+import { TodayData } from './today-data';
 import { TodayAttention, TodayDue, TodayRecent, TodayTasks } from './today-sections';
 import { timeZoneHintText, TODAY_COPY } from './today-view';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
@@ -207,13 +207,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
               <div class="mt-card mt-stat" data-stat="wip">
                 <div class="k"><mt-icon name="billing" />WIP this month</div>
                 <div class="v">{{ amount(wip.cents) }}</div>
-                <div class="f">
-                  @if (wip.truncated) {
-                    Counts your first {{ monthLimit }} entries
-                  } @else {
-                    Your time not yet billed
-                  }
-                </div>
+                <div class="f">Your time not yet billed</div>
               </div>
             }
           </div>
@@ -433,7 +427,6 @@ export class TodayPage {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   protected readonly copy = TODAY_COPY;
-  protected readonly monthLimit = MONTH_ENTRY_LIMIT;
   /** Phones get pull to refresh (MOB-02). */
   protected readonly phone = inject(PhoneLayout).phone;
   protected readonly refreshing = signal(false);
