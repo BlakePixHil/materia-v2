@@ -2,7 +2,8 @@
 # `backfill-search-tokens` after CORE-15). Runs a `materia-scripts` command from main as
 # terraform-agent, through the same Workload Identity pool as infra.yml (GitHub environment
 # infra-dev), with Application Default Credentials and `--project` set to the dev project.
-# Dev only: there is no prod input. Only `backfill-*` and `migrate-*` commands are accepted.
+# Dev only: there is no prod input. Only `backfill-*`, `migrate-*` and `demo-*` commands are
+# accepted (`demo-reset` loads the fictional demo practice: docs/runbooks/demo-practice.md).
 # Run it with dry_run first, read the log, then run it again without.
 name: dev-script
 run-name: dev-script ${{ inputs.command }}${{ inputs.dry_run && ' (dry run)' || '' }}
@@ -11,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: materia-scripts command (backfill-* or migrate-*)
+        description: materia-scripts command (backfill-*, migrate-* or demo-*)
         required: true
         type: string
       args:
@@ -37,7 +38,8 @@ jobs:
     name: ${{ inputs.command }}
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # demo-reset waits for the delete triggers and the invoice PDFs, so allow more than a backfill needs.
+    timeout-minutes: 45
     environment: infra-dev
     permissions:
       contents: read
@@ -54,8 +56,8 @@ jobs:
             echo "::error::GCP_PROJECT_DEV is not set."
             exit 1
           fi
-          if ! [[ "$COMMAND" =~ ^(backfill|migrate)-[a-z0-9-]+$ ]]; then
-            echo "::error::Only backfill-* and migrate-* commands can run here (got '$COMMAND')."
+          if ! [[ "$COMMAND" =~ ^(backfill|migrate|demo)-[a-z0-9-]+$ ]]; then
+            echo "::error::Only backfill-*, migrate-* and demo-* commands can run here (got '$COMMAND')."
             exit 1
           fi
           if [[ " $ARGS " == *" --project"* ]]; then
