@@ -148,6 +148,14 @@ describe('Claude connector (INT-07)', () => {
       allowProposals: false,
     });
     expect(resolveConnectorSettings({ enabled: 'yes' })).toEqual({ enabled: false, allowProposals: true });
+    expect(resolveConnectorSettings('on')).toEqual({ enabled: false, allowProposals: true });
+  });
+
+  it('reads the switches as the server reads them, with updatedAt still a Firestore Timestamp', () => {
+    const timestamp = { seconds: 1_791_378_000, nanoseconds: 0, toDate: () => new Date(1_791_378_000_000) };
+    expect(
+      resolveConnectorSettings({ enabled: true, allowProposals: false, updatedBy: 'u-owner', updatedAt: timestamp }),
+    ).toEqual({ enabled: true, allowProposals: false });
   });
 
   it('offers read tools to every role and proposals to roles that could make the change', () => {

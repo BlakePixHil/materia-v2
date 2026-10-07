@@ -21,8 +21,11 @@ export interface ResolvedConnectorSettings {
   allowProposals: boolean;
 }
 
+/**
+ * The two switches, from the app's converted read or the server's raw one. Only the switches are
+ * read: on the server `updatedAt` is a Firestore Timestamp, which the schema's Date would refuse.
+ */
 export function resolveConnectorSettings(raw: unknown): ResolvedConnectorSettings {
-  const parsed = OrgConnectorSettingsSchema.partial().safeParse(raw ?? {});
-  const value = parsed.success ? parsed.data : {};
-  return { enabled: value.enabled === true, allowProposals: value.allowProposals !== false };
+  const value = typeof raw === 'object' && raw !== null ? (raw as Partial<Record<string, unknown>>) : {};
+  return { enabled: value['enabled'] === true, allowProposals: value['allowProposals'] !== false };
 }
