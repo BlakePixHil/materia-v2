@@ -276,11 +276,77 @@ def phone_record():
     top = mtop("Record")
     chips = "".join(f'<button class="mt-chip"{" data-selected" if i == 0 else ""} style="min-height:44px;padding:0 12px;font-size:13px;flex:none"><span class="mono-s">{n}</span> {t}</button>' for i, (n, t) in enumerate([("WE-142", "Whitfield"), ("WE-151", "Okafor"), ("WE-118", "Chen")]))
     tiles = "".join(f'<button class="mt-card" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:16px;min-height:120px;text-align:left;font:inherit;cursor:pointer"><span style="display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--bg-selected);color:var(--icon-brand)">{icon(i)}</span><span class="tt" style="font:600 15px/20px var(--font-sans)">{t}</span><span class="caption t-3">{d}</span></button>' for i, t, d in [
-        ("timer", "Log time", "Units and a narrative"), ("compose", "Note", "A file note on the matter")])
+        ("timer", "Log time", "Units and a narrative"), ("compose", "Note", "A file note on the matter"), ("camera", "Photo document", "Scan paper pages to a PDF")])
+    # A scan saved without a connection waits here until it uploads (MOB-05).
+    waiting = ('<span class="mt-mgroup">Waiting to upload</span><div class="mt-col" style="gap:0;border:1px solid var(--border-default);border-radius:var(--radius-lg)">'
+               f'<div class="mt-mrow" style="padding:8px 8px 8px 12px"><span style="display:grid;place-items:center;width:32px;height:32px;border-radius:var(--radius-md);background:var(--bg-sunken)">{icon("document")}</span>'
+               '<div class="mt-grow"><div class="tt mt-ell">Will – Okafor.pdf</div><div class="ts mt-ell">WE-151 Okafor wills and EPAs · Waiting for a connection</div></div>' + ibtn("trash", "Delete Will – Okafor.pdf") + "</div></div>")
     body = (f'<div class="mt-mbody" style="gap:20px"><div class="mt-col" style="gap:8px"><span class="mt-mgroup">Matter</span><div class="mt-row" style="gap:8px;overflow:hidden">{chips}</div>'
             '<span class="caption t-3">For WE-142 · Estate of Margaret Whitfield.</span></div>'
-            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">{tiles}</div></div>')
+            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">{tiles}</div><div class="mt-col" style="gap:8px">{waiting}</div></div>')
     return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("record")}</div>'
+
+
+def scan_photo(w, h, quad, page="#F4F1EA"):
+    """A photo of a page on a dark desk, with the page's corners as found (MOB-05)."""
+    pts = " ".join(f"{x * w:.0f},{y * h:.0f}" for x, y in quad)
+    lines = "".join(f'<line x1="{(quad[0][0] + 0.08) * w:.0f}" y1="{(quad[0][1] + 0.12 + i * 0.05) * h:.0f}" x2="{(quad[1][0] - 0.12 - (i % 3) * 0.06) * w:.0f}" y2="{(quad[1][1] + 0.12 + i * 0.05) * h:.0f}" stroke="#8A8378" stroke-width="3"/>' for i in range(12))
+    return (f'<svg viewBox="0 0 {w} {h}" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'
+            f'<rect width="{w}" height="{h}" fill="#3B3029"/><polygon points="{pts}" fill="{page}"/>{lines}'
+            f'<polygon points="{pts}" fill="none" stroke="var(--border-focus)" stroke-width="4"/></svg>')
+
+
+def phone_scan_camera():
+    """The in-app camera: the back camera full screen, the page's edges as found, the shutter and a page count."""
+    quad = [(0.16, 0.14), (0.84, 0.17), (0.88, 0.83), (0.12, 0.8)]
+    thumb = '<span style="width:44px;height:56px;border:2px solid #fff;border-radius:var(--radius-sm);background:#F4F1EA"></span>'
+    shutter = '<button aria-label="Take photo" style="width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgb(255 255 255 / .85);box-shadow:0 0 0 2px rgb(0 0 0 / .4)"></button>'
+    top = ('<div class="mt-row" style="position:relative;justify-content:space-between;padding:12px 16px;background:rgb(0 0 0 / .45);color:#fff">'
+           + ibtn("x", "Close the camera").replace('class="mt-ibtn"', 'class="mt-ibtn" style="color:#fff"') + '<span style="font:600 15px/20px var(--font-sans)">2 pages</span></div>')
+    bottom = ('<div class="mt-row" style="position:relative;justify-content:space-between;padding:12px 16px 28px;background:rgb(0 0 0 / .45)">'
+              f'<span style="flex:1;display:flex">{thumb}</span>{shutter}<span style="flex:1;display:flex;justify-content:flex-end">' + btn("Done", "secondary") + "</span></div>")
+    view = f'<div style="position:absolute;inset:0">{scan_photo(390, 780, quad)}</div>'
+    bar = statusbar().replace('class="mt-statusbar"', 'class="mt-statusbar" style="position:relative;color:#fff"')
+    return (f'<div class="mt-phone" style="background:#000;position:relative">{bar}'
+            f'{view}<div style="position:relative;flex:1;display:flex;flex-direction:column;justify-content:space-between">{top}{bottom}</div></div>')
+
+
+def phone_scan_pages():
+    """The pages of the scan: drag into order, each straightened (or its corners to adjust), then the details and Add to matter."""
+    top = mtop("Scan a document", ibtn("chevron-left", "Back to Record"))
+    seg = '<div class="mt-seg"><button class="mt-seg-item" data-selected>Colour</button><button class="mt-seg-item">Black and white</button></div>'
+    def row(n, note, tone=None):
+        colour = {"warning": "var(--text-warning)"}.get(tone, "var(--text-tertiary)")
+        return (f'<div class="mt-row" style="gap:12px;min-height:88px;padding:8px 8px 8px 0;border-top:1px solid var(--border-subtle)">'
+                f'<span style="display:grid;place-items:center;width:44px;align-self:stretch" class="t-3">{icon("grip")}</span>'
+                '<span style="flex:none;width:52px;height:68px;border:1px solid var(--border-default);border-radius:var(--radius-sm);background:#FBFAF7;'
+                'background-image:repeating-linear-gradient(transparent 0 9px,#C9C4BA 9px 10px);background-size:70% 100%;background-repeat:no-repeat;background-position:center 8px"></span>'
+                f'<div class="mt-grow"><div style="font:600 15px/20px var(--font-sans)">Page {n}</div><div style="font:400 13px/18px var(--font-sans);color:{colour}">{note}</div></div>'
+                + ibtn("more", f"Page {n} actions") + "</div>")
+    pages = row(1, "Straightened") + row(2, "Straightened") + row(3, "Edges not found. Adjust the corners if it needs cropping.", "warning")
+    lst = f'<div class="mt-col" style="gap:0;border:1px solid var(--border-default);border-radius:var(--radius-lg);overflow:hidden;margin-top:-1px">{pages}</div>'
+    head = f'<div class="mt-row" style="gap:8px"><span class="label">Pages</span><span class="caption t-3">3 pages</span><span class="mt-ml">{seg}</span></div>'
+    add = '<div class="mt-row" style="gap:8px">' + btn("Take photos", "secondary", None, "camera").replace('class="mt-btn"', 'class="mt-btn" style="flex:1"') + btn("Choose photos", "ghost", None, "images").replace('class="mt-btn"', 'class="mt-btn" style="flex:1"') + "</div>"
+    matter = ('<div class="mt-col" style="gap:6px"><span class="label">Matter</span><div class="mt-row" style="gap:8px"><span class="mono-s t-2">WE-142</span>'
+              '<span class="mt-grow mt-ell body-s">Estate of Margaret Whitfield</span>' + btn("Change", "ghost", "sm") + "</div></div>")
+    details = ('<div class="mt-col" style="gap:12px"><span class="label">Details</span>' + matter + field("Name", "Grant of probate – Whitfield", suffix=".pdf")
+               + field("Category", "Grant", select=True) + switch(False, "Privileged") + "</div>")
+    save = ('<div style="margin:0 -16px;padding:12px 16px;border-top:1px solid var(--border-subtle);background:var(--bg-surface)">'
+            + btn("Add to matter", "primary", None, "upload").replace('class="mt-btn"', 'class="mt-btn" style="width:100%"') + "</div>")
+    body = f'<div class="mt-mbody" style="gap:16px">{head}{lst}{add}{details}{save}</div>'
+    return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("record")}</div>'
+
+
+def phone_scan_crop():
+    """Adjust corners: the page's photo in a sheet, a handle on each corner to drag (or move with the arrow keys)."""
+    quad = [(0.1, 0.12), (0.9, 0.08), (0.94, 0.9), (0.06, 0.94)]
+    handles = "".join(f'<span style="position:absolute;left:{x * 100:.0f}%;top:{y * 100:.0f}%;width:20px;height:20px;margin:-10px 0 0 -10px;border:3px solid var(--border-focus);border-radius:50%;background:var(--bg-surface);box-shadow:0 1px 4px rgb(0 0 0 / .35)"></span>' for x, y in quad)
+    frame_ = f'<div style="position:relative;width:260px;height:347px;margin:0 auto">{scan_photo(260, 347, quad)}{handles}</div>'
+    under = phone_scan_pages().replace('<div class="mt-phone">', '<div class="mt-phone" style="position:relative">', 1)
+    sheet = ('<div class="mt-overlay" style="position:absolute;inset:0"></div><div class="mt-sheet" style="gap:12px"><span class="grab"></span>'
+             '<span class="title-m">Adjust the corners of page 3</span><span class="body-s t-2">Drag each corner onto the corner of the page. The page is straightened to fit.</span>'
+             f'{frame_}<div class="mt-row" style="gap:8px">' + btn("Use the whole photo", "ghost") + '<span class="mt-ml mt-row" style="gap:8px">' + btn("Cancel", "ghost") + btn("Apply", "primary") + "</span></div></div>")
+    return under[: -len("</div>")] + sheet + "</div>"
 
 
 def phone_more():
@@ -300,10 +366,13 @@ def mobile():
              (phone_matters(), "Matters", "Search by number, title or client; recent matters, then your view."),
              (phone_matter(), "Matter", "One-tap call, log time and add a note, then the matter in sections.")],
             [(phone_matter(True), "Matter actions", "The top bar’s “…”: a note, time, and calling or emailing the client."),
-             (phone_record(), "Record", "Pick a recent matter, then log time or write a note. Voice and photo join the grid."),
-             (phone_more(), "More", "Everything the TabBar doesn’t hold, your account and this device.")]]
+             (phone_record(), "Record", "Pick a recent matter, then log time, write a note or scan a document. Voice joins the grid; a scan saved offline waits here."),
+             (phone_more(), "More", "Everything the TabBar doesn’t hold, your account and this device.")],
+            [(phone_scan_camera(), "Scan: camera", "The back camera full screen: each photo is a page, and the count goes on until Done."),
+             (phone_scan_pages(), "Scan: pages", "Each photo found and straightened on the phone. Drag into order, colour or black and white, then add to the matter as one PDF."),
+             (phone_scan_crop(), "Scan: adjust corners", "When the edges weren’t found, or were found wrong: drag a handle onto each corner of the page.")]]
     out = "".join('<div class="mt-row" style="justify-content:center;gap:56px;align-items:flex-start">' + "".join(f'<div class="mt-col" style="align-items:center;gap:0">{p}{cap(t, d)}</div>' for p, t, d in r) + "</div>" for r in rows)
-    return f'<div class="mt" style="width:1440px;min-height:2100px;display:flex;flex-direction:column;gap:56px;padding:64px 0 40px;background:var(--bg-canvas)">{out}</div>'
+    return f'<div class="mt" style="width:1440px;min-height:3150px;display:flex;flex-direction:column;gap:56px;padding:64px 0 40px;background:var(--bg-canvas)">{out}</div>'
 
 
 SCREENS = [
@@ -311,5 +380,5 @@ SCREENS = [
     ("Contacts", "One record per person across every matter: their roles, family, contact details and activity, with Clerk spotting a will that needs review.", contacts),
     ("Settings", "Clerk and AI settings: what Clerk can read, what it can do, and where its work happens. Sending, filing and billing stay with people.", settings),
     ("Onboarding", "First-run setup. Bring matters, contacts and safe-custody wills across from the current materia, with Clerk mapping old boards to matter types and stages.", onboarding),
-    ("Mobile", "Phone screens: Today, Matters, a matter and its actions, Record and More.", mobile),
+    ("Mobile", "Phone screens: Today, Matters, a matter and its actions, Record, More, and scanning a paper document (camera, pages, adjust corners).", mobile),
 ]

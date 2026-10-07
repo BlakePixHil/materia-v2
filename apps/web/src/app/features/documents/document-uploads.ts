@@ -1,7 +1,7 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
 
 import { fileSha256, injectDocumentUpload } from '@materia/data-access/repository';
-import { findVersion } from '@materia/domain';
+import { findVersion, type UploadSource } from '@materia/domain';
 
 import {
   documentStatus,
@@ -39,6 +39,8 @@ export interface UploadOptions {
   documentId?: string;
   category?: DocumentCategory;
   privileged?: boolean;
+  /** A phone scan (MOB-05). */
+  source?: UploadSource;
 }
 
 /** How many files transfer at the same time; the rest wait their turn. */
@@ -90,8 +92,13 @@ export class DocumentUploads {
   /**
    * Queues files for a matter. At most 20 are taken at once (the rest are returned as `dropped`);
    * files that can't be uploaded (type, size, empty) are listed with the reason and not sent.
+   * `keys` are the new rows, in the files' order, for following them.
    */
-  add(matterId: string, files: readonly File[], options: UploadOptions = {}): { added: number; dropped: number } {
+  add(
+    matterId: string,
+    files: readonly File[],
+    options: UploadOptions = {},
+  ): { added: number; dropped: number; keys: string[] } {
     const taken = files.slice(0, UPLOAD_BATCH_MAX);
     const items = taken.map((file): UploadItem => {
       const key = `u${++nextKey}`;
@@ -114,7 +121,7 @@ export class DocumentUploads {
     });
     this.list.update((list) => [...list, ...items]);
     this.pump();
-    return { added: items.length, dropped: files.length - taken.length };
+    return { added: items.length, dropped: files.length - taken.length, keys: items.map((item) => item.key) };
   }
 
   cancel(key: string): void {
@@ -190,6 +197,7 @@ export class DocumentUploads {
         ...(options.documentId ? { documentId: options.documentId } : {}),
         ...(options.category ? { category: options.category } : {}),
         ...(options.privileged ? { privileged: true } : {}),
+        ...(options.source ? { source: options.source } : {}),
       });
       this.patch(key, { phase: 'uploading', uploadId: planned.uploadId, sent: 0 });
       const handle = this.port.upload(planned.path, file, planned.settings, ({ sent }) => {

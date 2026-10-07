@@ -367,6 +367,7 @@ test.describe('accessibility audit at phone width @audit', () => {
     for (const url of [
       '/today',
       '/record',
+      '/record/scan',
       '/more',
       '/billing',
       '/matters',

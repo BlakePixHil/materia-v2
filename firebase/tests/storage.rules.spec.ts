@@ -191,6 +191,20 @@ describe('uploads to pending/ (CORE-12)', () => {
     await assertSucceeds(upload('lawyer', { metadata: { privileged: 'true' } }));
   });
 
+  it('lets a phone scan say it came from the camera, and no other source (MOB-05)', async () => {
+    await assertSucceeds(upload('paralegal', { metadata: { source: 'camera' } }));
+    await assertFails(upload('paralegal', { metadata: { source: 'email' } }));
+    await assertFails(upload('paralegal', { metadata: { source: 'migration' } }));
+    const storage = ctx(env, 'lawyer').storage();
+    const settings = uploadSettings({
+      uid: uidFor('lawyer'),
+      fileName: 'Scan (fictional).pdf',
+      sha256: SHA,
+      source: 'camera',
+    });
+    await assertSucceeds(uploadBytes(ref(storage, `${MATTER}/pending/scan-1`), bytes(64), settings));
+  });
+
   it('a new version targets a live, clean document the uploader can see', async () => {
     await assertSucceeds(upload('paralegal', { metadata: { documentId: 'clean' } }));
     await assertFails(upload('paralegal', { metadata: { documentId: 'privileged' } }));

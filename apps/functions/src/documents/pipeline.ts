@@ -398,7 +398,8 @@ async function beginUpload(
       scan: { status: 'pending' },
       upload,
       ingest: { status: 'pending' },
-      source: 'upload',
+      // A phone scan says so (MOB-05); anything else a person adds is an upload.
+      source: meta.source ?? 'upload',
       encrypted: false,
       accessRestricted: false,
       deletedAt: null,

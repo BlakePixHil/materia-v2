@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 
-import type { Role } from '@materia/domain';
+import { PERMISSIONS, type Role } from '@materia/domain';
 
 import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
@@ -227,11 +227,26 @@ const shellRoutes: Route[] = [
     ],
   },
   // Record (MOB-02): the phone's capture screen, the TabBar's centre button and the installed app's
-  // Record shortcut (MOB-01).
+  // Record shortcut (MOB-01). Scan a document (MOB-05) photographs a paper document into a matter.
   {
     path: 'record',
-    title: 'Record',
-    loadComponent: () => import('./features/record/record-page').then((m) => m.RecordPage),
+    data: { crumb: 'Record' },
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        title: 'Record',
+        loadComponent: () => import('./features/record/record-page').then((m) => m.RecordPage),
+      },
+      {
+        path: 'scan',
+        title: 'Scan a document',
+        data: { crumb: 'Scan a document' },
+        canActivate: [roleGuard(PERMISSIONS['document.upload'])],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/scan/scan-page').then((m) => m.ScanPage),
+      },
+    ],
   },
   // More (MOB-02): on a phone, the account and every destination the TabBar has no room for.
   {

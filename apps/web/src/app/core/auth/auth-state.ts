@@ -3,6 +3,7 @@ import { computed, DestroyRef, inject, Injectable, InjectionToken, signal } from
 import { DataLifecycle, setFirestoreCacheMode } from '@materia/data-access';
 
 import { AUTH_PORT, type AuthPersistence, type AuthSession, type SignInOutcome } from './auth-port';
+import { deleteScanQueue } from '../../features/scan/scan-db';
 
 /** The signed-in person and their active org, as the shell shows them. */
 export interface SessionUser {
@@ -179,7 +180,8 @@ export class AuthState {
 
   /**
    * Everything sign-out removes from this tab: features clean up, then any Firestore cache left in
-   * IndexedDB and per-user storage are deleted. Also run when another tab signs out.
+   * IndexedDB, scans waiting to upload and per-user storage are deleted. Also run when another tab
+   * signs out.
    */
   async cleanUp(): Promise<void> {
     for (const cleanup of this.cleanups) {
@@ -190,6 +192,8 @@ export class AuthState {
       }
     }
     await clearFirestoreCaches().catch(() => undefined);
+    // Scans waiting on this device to upload (MOB-05) are the person's documents.
+    await deleteScanQueue().catch(() => undefined);
     for (const key of USER_STORAGE_KEYS) {
       try {
         globalThis.localStorage?.removeItem(key);
