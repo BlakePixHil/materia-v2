@@ -54,7 +54,7 @@ const composer = (page: Page) => panel(page).getByRole('textbox', { name: 'Ask C
 
 async function ask(page: Page, text: string) {
   await composer(page).fill(text);
-  await composer(page).press('Control+Enter');
+  await composer(page).press('Enter');
 }
 
 test.describe('Clerk chat panel', () => {

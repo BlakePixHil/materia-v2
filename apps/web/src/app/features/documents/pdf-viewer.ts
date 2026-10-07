@@ -293,6 +293,8 @@ interface PageSlot {
       inset: 0;
       overflow: clip;
       line-height: 1;
+      letter-spacing: normal;
+      word-spacing: normal;
       text-align: initial;
       text-size-adjust: none;
       forced-color-adjust: none;
@@ -551,9 +553,9 @@ export class PdfViewer {
         cMapPacked: true,
         standardFontDataUrl: pdfAsset('standard_fonts/'),
         wasmUrl: pdfAsset('wasm/'),
+        // PDF.js 6 never compiles code from the file to draw fonts (CVE-2024-4367), so there is no
+        // `isEvalSupported` to switch off.
         enableXfa: false,
-        // Fonts are drawn without compiling code from the file (hardening, CVE-2024-4367).
-        isEvalSupported: false,
       });
       const pdf = await this.task.promise;
       if (id !== this.loadId) return void pdf.loadingTask.destroy();

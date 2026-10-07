@@ -8,6 +8,12 @@
 .mt-composer textarea.field { display: block; width: 100%; margin: 0; border: 0; outline: none; resize: none; background: transparent; color: var(--text-primary); overflow-y: auto; }
 .mt-composer textarea.field::placeholder { color: var(--text-tertiary); }
 .mt-composer:focus-within { border-color: var(--icon-ai); }
+.mt-composer textarea.field:focus-visible { box-shadow: none; }
+.mt-composer { position: relative; isolation: isolate; }
+.mt-composer::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: calc(var(--radius-lg) - 1px); background: var(--bg-surface); pointer-events: none; }
+.mt-composer::after { content: ""; position: absolute; inset: -3px; z-index: -2; border-radius: calc(var(--radius-lg) + 3px); background: conic-gradient(from var(--mt-composer-angle), transparent 0turn, var(--icon-ai) .25turn, transparent .5turn); filter: blur(6px); opacity: 0; transition: opacity var(--motion-slow) var(--ease-out); pointer-events: none; }
+.mt-composer:focus-within::after { opacity: 1; animation: mt-composer-orbit 6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .mt-composer:focus-within::after { animation: none; background: var(--icon-ai); opacity: .4; } }
 .mt-composer-hint { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-4); margin-right: var(--space-6); font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
 .mt-composer-commands { list-style: none; margin: 0; padding: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--bg-raised); box-shadow: var(--shadow-popover); }
 .mt-composer-commands li { display: flex; gap: var(--space-8); padding: var(--space-6) var(--space-8); border-radius: var(--radius-sm); cursor: pointer; font: 400 13px/18px var(--font-sans); color: var(--text-secondary); }

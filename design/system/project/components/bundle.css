@@ -454,6 +454,13 @@ ol.mt-crumbs { list-style: none; margin: 0; padding: 0; }
 .mt-composer textarea.field { display: block; width: 100%; margin: 0; border: 0; outline: none; resize: none; background: transparent; color: var(--text-primary); overflow-y: auto; }
 .mt-composer textarea.field::placeholder { color: var(--text-tertiary); }
 .mt-composer:focus-within { border-color: var(--icon-ai); }
+.mt-composer textarea.field:focus-visible { box-shadow: none; }
+/* Focused, a soft violet glow travels slowly round the border, about half of it lit; the box's violet border is the focus indicator. The glow sits behind a surface-coloured fill, so it only shows at the edge. Static with reduced motion. */
+.mt-composer { position: relative; isolation: isolate; }
+.mt-composer::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: calc(var(--radius-lg) - 1px); background: var(--bg-surface); pointer-events: none; }
+.mt-composer::after { content: ""; position: absolute; inset: -3px; z-index: -2; border-radius: calc(var(--radius-lg) + 3px); background: conic-gradient(from var(--mt-composer-angle), transparent 0turn, var(--icon-ai) .25turn, transparent .5turn); filter: blur(6px); opacity: 0; transition: opacity var(--motion-slow) var(--ease-out); pointer-events: none; }
+.mt-composer:focus-within::after { opacity: 1; animation: mt-composer-orbit 6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .mt-composer:focus-within::after { animation: none; background: var(--icon-ai); opacity: .4; } }
 .mt-composer-hint { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-4); margin-right: var(--space-6); font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); }
 .mt-composer-commands { list-style: none; margin: 0; padding: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--bg-raised); box-shadow: var(--shadow-popover); }
 .mt-composer-commands li { display: flex; gap: var(--space-8); padding: var(--space-6) var(--space-8); border-radius: var(--radius-sm); cursor: pointer; font: 400 13px/18px var(--font-sans); color: var(--text-secondary); }
@@ -607,9 +614,14 @@ button.mt-ws:hover { background: var(--bg-hover); }
 .mt-app[data-collapsed] .mt-nav { width: 36px; justify-content: center; padding: 0; }
 .mt-app[data-collapsed] .mt-nav-section { height: 1px; padding: 0; width: 24px; margin: var(--space-8) 0; background: var(--border-default); overflow: hidden; color: transparent; }
 .mt-app[data-clerk] { grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--clerk-panel, 360px); }
-.mt-clerk-panel { margin: var(--space-8) var(--space-8) var(--space-8) 0; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+.mt-clerk-panel { margin: var(--space-8) var(--space-8) var(--space-8) 0; background: linear-gradient(180deg, var(--bg-ai-subtle), var(--bg-surface) 160px) var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
 .mt-clerk-panel > header { display: flex; align-items: center; gap: var(--space-8); height: var(--topbar); padding: 0 var(--space-12) 0 var(--space-16); border-bottom: 1px solid var(--border-default); flex: none; font: 600 13px/18px var(--font-sans); }
 .mt-clerk-panel > .body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-16); display: flex; flex-direction: column; justify-content: center; }
+.mt-clerk-panel > footer { flex: none; display: flex; align-items: center; padding: var(--space-8) var(--space-16); border-top: 1px solid var(--border-subtle); }
+.mt-clerk-help { display: inline-flex; align-items: center; gap: var(--space-4); height: 22px; margin-left: calc(-1 * var(--space-6)); padding: 0 var(--space-6); border-radius: var(--radius-xs); font: 500 12px/16px var(--font-sans); color: var(--text-tertiary); text-decoration: none; transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+.mt-clerk-help .mt-i { width: 12px; height: 12px; color: var(--icon-ai); }
+.mt-clerk-help:hover { color: var(--text-ai); background: var(--bg-ai-subtle); }
+.mt-clerk-help:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 button.mt-search { cursor: pointer; text-align: left; width: 100%; }
 button.mt-search:focus-visible { box-shadow: var(--focus-ring); }
 .mt-skip { position: fixed; top: var(--space-8); left: var(--space-8); z-index: 1000; padding: var(--space-8) var(--space-12); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text-primary); box-shadow: var(--shadow-popover); font: 500 13px/18px var(--font-sans); transform: translateY(-200%); }
@@ -905,6 +917,8 @@ button.mt-search:focus-visible { box-shadow: var(--focus-ring); }
 @keyframes mt-caret { 50% { opacity: 0; } }
 @keyframes mt-fade-in { from { opacity: 0; } }
 @keyframes mt-rise-in { from { opacity: 0; transform: translateY(4px); } }
+@property --mt-composer-angle { syntax: "<angle>"; inherits: false; initial-value: 0turn; }
+@keyframes mt-composer-orbit { to { --mt-composer-angle: 1turn; } }
 .mt-rise { animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }
 .mt-fade { animation: mt-fade-in var(--motion-slow) var(--ease-out) backwards; }
 .mt-stagger > * { animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }
