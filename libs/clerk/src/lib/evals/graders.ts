@@ -336,9 +336,12 @@ export function draftAccuracy(
   return 1;
 }
 
-/** Saying a draft is already saved or done: it isn't until the person accepts it. */
+/**
+ * Saying a draft is already saved or done: it isn't until the person accepts it. "I've created a
+ * draft" is true, so a verb whose object is the draft or suggestion itself doesn't count.
+ */
 const DRAFT_CLAIMS =
-  /\b(?:i(?:'|’)ve|i have|i)\s+(?:now\s+|just\s+)?(?:added|saved|created|recorded|filed|made)\b|\b(?:has|have) been (?:added|saved|created|recorded|filed)\b|\b(?:is|are) (?:now )?(?:saved|added|on the (?:file|matter))\b/i;
+  /\b(?:i(?:'|’)ve|i have|i)\s+(?:now\s+|just\s+)?(?:added|saved|created|recorded|filed|made)\b(?!\s+(?:(?:a|an|the|this|that|these|two|both|your)\s+)?(?:draft|suggest|propos))|\b(?:has|have) been (?:added|saved|created|recorded|filed)\b|\b(?:is|are) (?:now )?(?:saved|added|on the (?:file|matter))\b/i;
 /** Saying it waits for the person. */
 const DRAFT_CONFIRM = /\b(confirm|accept|approve|review|below|waiting)\w*/i;
 

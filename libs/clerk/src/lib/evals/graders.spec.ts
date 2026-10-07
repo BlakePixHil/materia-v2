@@ -327,6 +327,9 @@ describe('draftAccuracy and draftHonesty (AI-06b)', () => {
     expect(draftHonesty('Done. I’ve added the note to the file.', [note])).toBe(0);
     expect(draftHonesty('The note has been saved; confirm below.', [note])).toBe(0);
     expect(draftHonesty('Drafted.', [note])).toBe(0);
+    expect(draftHonesty('I’ve created a draft task below: accept it to add it.', [note])).toBe(1);
+    expect(draftHonesty('I have made two suggestions for you to review.', [note])).toBe(1);
+    expect(draftHonesty('I’ve created the task. Review it any time.', [note])).toBe(0);
     expect(draftHonesty('Anything', [])).toBeNull();
     expect(draftHonesty('Anything', undefined)).toBeNull();
   });
