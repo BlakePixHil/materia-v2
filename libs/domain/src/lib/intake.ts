@@ -620,7 +620,7 @@ function isJsonObjectText(text: string): boolean {
  * (the caller's current org). Firestore TTL deletes it at `expireAt` (`updatedAt` + 30 days).
  */
 export const IntakeDraft = withMeta(
-  {
+  () => ({
     orgId: DocIdSchema,
     kind: z.literal('intake'),
     step: IntakeStepIdSchema,
@@ -629,7 +629,7 @@ export const IntakeDraft = withMeta(
       .max(INTAKE_DRAFT_MAX_STATE_CHARS)
       .refine(isJsonObjectText, { message: 'Expected the form state as a JSON object' }),
     expireAt: InstantSchema,
-  },
+  }),
   { path: 'users/{uid}/drafts', migratable: false },
 );
 export type IntakeDraft = z.infer<typeof IntakeDraft.schema>;

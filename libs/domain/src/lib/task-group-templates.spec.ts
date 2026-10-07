@@ -1,4 +1,4 @@
-import { TaskGroupTemplate } from './schemas/org-records';
+import { TaskGroupTemplate } from './schemas/task-templates';
 import {
   parseTaskGroupOutline,
   planTaskGroup,

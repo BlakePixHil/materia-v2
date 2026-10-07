@@ -22,7 +22,7 @@ import {
   type DigestItem,
   type NotificationPrefs,
 } from './notifications';
-import { Notification, NotificationPayloadSchema } from './schemas/org-records';
+import { Notification, NotificationPayloadSchema } from './schemas/notification-records';
 import { User } from './schemas/tenancy';
 import { dateOnly } from './values/date-only';
 

@@ -29,7 +29,7 @@ import {
 import { DialogService, formatDateOnly, MT_ORG_TIMEZONE, MT_TODAY, ToastService } from '@materia/ui';
 
 import type { ChecklistTemplatesDialogData, ChecklistTemplatesDialogResult } from './checklist-templates-dialog';
-import { TaskDueDialog, type TaskDueDialogData, type TaskDueDialogResult } from './task-due-dialog';
+import type { TaskDueDialogData, TaskDueDialogResult } from './task-due-dialog';
 import type { TaskGroupDialogData, TaskGroupDialogResult } from './task-group-dialog';
 import type {
   GroupTemplate,
@@ -363,12 +363,13 @@ export class TaskActions {
 
   // ---------- bulk ----------
 
-  /** Asks for a due date (or clearing it), then changes it on the tasks. */
+  /** Asks for a due date (or clearing it; the dialog loaded on demand), then changes it on the tasks. */
   async changeDueDate(entries: readonly TaskEntry[]): Promise<void> {
     const targets = entries.filter((e) => e.editable);
     if (!targets.length) return;
     const first = targets[0]?.task.dueDate;
     const same = targets.every((e) => e.task.dueDate === first);
+    const { TaskDueDialog } = await import('./task-due-dialog');
     const result = await this.dialogs.open<TaskDueDialogData, TaskDueDialogResult | undefined>(TaskDueDialog, {
       data: { count: targets.length, current: same ? (first ?? null) : null },
     }).result;

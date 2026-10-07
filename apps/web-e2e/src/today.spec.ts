@@ -119,6 +119,12 @@ async function signIn(page: Page, request: APIRequestContext, role: 'lawyer' | '
 }
 
 const region = (page: Page, name: string) => page.getByRole('region', { name });
+/**
+ * On a phone (the webkit-mobile project) the cards after My tasks are drawn as they scroll into
+ * view: scroll to them, or to Due today and this week where they're drawn straight away.
+ */
+const scrollToSideCards = (page: Page) =>
+  page.locator('[data-today-later], [data-section="due"]').first().scrollIntoViewIfNeeded(FIRST_LOAD);
 const greeting = (page: Page) =>
   page.getByRole('heading', { level: 1, name: /^Good (morning|afternoon|evening), Jordan$/ });
 
@@ -163,6 +169,7 @@ test.describe('today', () => {
     ).toBeVisible();
     await expect(attention).toContainText(`${MATTER_NUMBER} · Estate of Harold Pell`);
 
+    await scrollToSideCards(page);
     const due = region(page, 'Due today and this week');
     await expect(due.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
     await expect(due.getByRole('link', { name: 'Deadline: Send the costs disclosure update' })).toBeVisible();
@@ -234,6 +241,7 @@ test.describe('today', () => {
     await page.goto('/today');
     await expect(greeting(page)).toBeVisible();
     await expect(region(page, 'Needs attention')).toContainText('Nothing needs attention', FIRST_LOAD);
+    await scrollToSideCards(page);
     await expect(region(page, 'Due today and this week')).toContainText('Your week is clear');
     await expect(page.locator('.mt-today')).not.toContainText('!');
     await expect(page.locator('[data-section="onboarding"]')).toHaveCount(0);
@@ -263,6 +271,7 @@ test.describe('today', () => {
     // server would drop it, so wait for the server to have it first.
     await expect.poll(() => storedRecent(request, orgId, uid, 'm-pell'), FIRST_LOAD).toBe(true);
     await page.goto('/today');
+    await scrollToSideCards(page);
     await expect(region(page, 'Recent matters').getByRole('link', { name: /Estate of Harold Pell/ })).toBeVisible(
       FIRST_LOAD,
     );

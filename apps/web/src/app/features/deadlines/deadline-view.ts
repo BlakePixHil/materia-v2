@@ -4,6 +4,7 @@ import {
   ruleSetFlagKey,
   type DateOnly,
   type DeadlineStatus,
+  type EventKind,
   type FlagKey,
   type Jurisdiction,
   type RecomputeSummary,
@@ -26,6 +27,27 @@ export const DEADLINE_KIND_LABELS: Readonly<Record<string, string>> = {
 
 export function deadlineKindLabel(kind: string): string {
   return DEADLINE_KIND_LABELS[kind] ?? kind;
+}
+
+/** Matter event kinds in words ("Grant issued"), for requirement notes and template due dates. */
+export const EVENT_KIND_LABELS: Readonly<Record<EventKind, string>> = {
+  date_of_death: 'Date of death',
+  will_located: 'Will located',
+  notice_published: 'Notice of intended application published',
+  probate_filed: 'Probate application filed',
+  grant_issued: 'Grant issued',
+  statutory_notice_published: 'Statutory notice to claimants published',
+  caveat_lodged: 'Caveat lodged',
+  grant_served: 'Grant served',
+  fp_claim_filed: 'Family provision claim filed',
+  hearing: 'Hearing',
+  order_made: 'Order made',
+  offer_made: 'Offer made',
+  custom: 'Custom event',
+};
+
+export function eventKindLabel(kind: EventKind): string {
+  return EVENT_KIND_LABELS[kind] ?? kind;
 }
 
 export const DEADLINE_STATUS_LABELS: Readonly<Record<DeadlineStatus, string>> = {
