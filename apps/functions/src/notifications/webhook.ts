@@ -189,12 +189,3 @@ export const resendWebhook = onRequest(
     res.status(response.status).json(response.body);
   },
 );
-
-/**
- * `notifications-postmarkWebhook`, retired with Postmark (ADR-057). Deploys never pass `--force`, so
- * the CLI refuses to deploy a source that drops a deployed function; this stub keeps dev's deploys
- * going until the function is deleted there, then goes with the Postmark secrets. Answers 410.
- */
-export const postmarkWebhook = onRequest({ region: REGION, invoker: 'public', cors: false }, (_req, res) => {
-  res.status(410).json({ ok: false });
-});

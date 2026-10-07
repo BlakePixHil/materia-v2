@@ -23,7 +23,7 @@ We will:
 ## Consequences
 
 - The owner's setup is shorter: no account approval, and the DNS records go on a `send` subdomain and `resend._domainkey`, so an existing SPF record on the root domain is untouched.
-- Deploys never pass `--force`, so the CLI won't drop `notifications-postmarkWebhook` from dev (`docs/runbooks/deploy.md`). Until an owner deletes it there, a stub of that name answering 410 keeps dev's deploys going; the follow-up that removes the Postmark secrets removes the stub too. Prod has no functions yet.
+- Deploys never pass `--force`, so the CLI won't drop `notifications-postmarkWebhook` from dev (`docs/runbooks/deploy.md`). A stub of that name answering 410 kept dev's deploys going until the owner agreed to delete it (2026-10-07); FND-20c then removed the stub and listed the function in `apps/functions/retired-functions.txt`, which the deploy deletes first. Prod has no functions yet.
 - Resend is a US sub-processor of recipient addresses, subjects and bodies, as Postmark was. Subjects never carry matter content (ADR-030). SEC-01's sub-processor list names Resend.
 - INT-05 (inbound email to matter) uses Resend's `email.received` webhook instead of Postmark's inbound webhook.
 - The weekly practice report (ADR-055) and invoice emails (ADR-045) go out once the owner's Resend setup is done, like every other email.
