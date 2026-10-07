@@ -193,7 +193,10 @@ const SAMPLE_BODY = [
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md, 8px);
       padding: var(--space-16, 16px) var(--space-20, 20px);
-      background: var(--surface-1, #fff);
+      /* The theme's surface and text: the undefined --surface-1 fell back to white, under the dark
+         theme's light text (SEC-06, WCAG 1.4.3). */
+      background: var(--bg-surface);
+      color: var(--text-primary);
       max-height: 50vh;
       overflow: auto;
       font-family: Calibri, Carlito, var(--font-sans, sans-serif);
