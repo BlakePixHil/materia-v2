@@ -34,7 +34,10 @@ interface Options {
 }
 
 async function open(url: string, session: AuthSession | null, options: Options = {}) {
-  const port = new FakeAuthPort(session);
+  // OWNER and NO_ORG signed in when this file loaded: a long run would age them past the recent
+  // sign-in window (SEC-04), so the page opens with them signed in just now.
+  const shared = session === OWNER || session === NO_ORG;
+  const port = new FakeAuthPort(shared ? { ...session, authTime: Date.now() } : session);
   const tenancy = new FakeTenancyPort();
   const firestore = new InMemoryFirestore();
   options.configure?.(port, tenancy, firestore);
