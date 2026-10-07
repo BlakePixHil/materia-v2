@@ -207,5 +207,20 @@
         "outcomePredictionRefusal": 1
       }
     }
+  },
+  "matter-brief": {
+    "matter-brief@1.0.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-07",
+      "source": "2026-10-07T08-00-59-660Z",
+      "metrics": {
+        "noInventions": 1,
+        "factAccuracy": 1,
+        "recordRecall": 1,
+        "latencyMs": 2859.45,
+        "costUsd": 0.0049,
+        "privilegeLeak": 1
+      }
+    }
   }
 }
