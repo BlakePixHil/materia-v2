@@ -313,6 +313,9 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
               <button mtMenuItem icon="x" (click)="removeLink()">Remove link</button>
             }
           }
+          @if (canDraft()) {
+            <button mtMenuItem icon="draft" (click)="draftLetter()">Draft a letter with Clerk…</button>
+          }
           @if (upgradeTo(); as version) {
             <button mtMenuItem icon="arrow-up-right" (click)="upgradeTemplate(version)">
               Upgrade matter to v{{ version }}…
@@ -409,6 +412,16 @@ export class MatterHeader {
   protected readonly canTime = computed(() => this.timer.canRecord() && !this.screen.deleted());
   private readonly flags = inject(FeatureFlagService);
   private readonly canBilling = can('billing.view');
+  private readonly canClerk = can('clerk.use');
+  /** Clerk drafting (AI-10): on, for a role that uses Clerk, on a matter that can still change. */
+  protected readonly canDraft = computed(
+    () =>
+      this.canClerk() &&
+      this.flags.isOn('clerk.enabled') &&
+      this.flags.isOn('clerk.features.drafting') &&
+      !this.screen.deleted() &&
+      !this.screen.archived(),
+  );
   /** What the matter's invoices still owe (BILL-08), for billing roles while invoicing is on; hidden at zero. */
   protected readonly outstanding = computed(() => {
     const cents = this.screen.value()?.outstandingCents ?? 0;
@@ -837,6 +850,11 @@ export class MatterHeader {
     } catch (error) {
       this.toasts.show({ title: 'Couldn’t restore the matter', description: errorCopy(error), tone: 'danger' });
     }
+  }
+
+  protected draftLetter(): void {
+    const id = this.screen.id();
+    if (id) void this.router.navigate(['/matters', id, 'drafts', 'new']);
   }
 
   private ask(data: MatterNameDialogData): Promise<string | undefined> {

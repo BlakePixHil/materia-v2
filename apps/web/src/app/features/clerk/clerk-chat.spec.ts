@@ -134,11 +134,13 @@ describe('clerk chat view', () => {
     expect(scopeLabel('M-2026-0142', 3)).toBe('M-2026-0142 · 3 attachments');
   });
 
-  it('lists /summarise, and the commands still to come as disabled', () => {
-    expect(CHAT_COMMANDS.filter((command) => !command.disabled).map((command) => command.name)).toEqual(['summarise']);
+  it('lists /summarise and /draft, and the commands still to come as disabled', () => {
+    expect(CHAT_COMMANDS.filter((command) => !command.disabled).map((command) => command.name)).toEqual([
+      'summarise',
+      'draft',
+    ]);
     expect(CHAT_COMMANDS.filter((command) => command.disabled).map((command) => command.name)).toEqual([
       'chronology',
-      'draft',
       'timeline',
     ]);
   });
@@ -374,5 +376,24 @@ describe('Clerk chat panel', () => {
     page.panel()?.querySelector<HTMLElement>('mt-switch button, mt-switch [role="switch"]')?.click();
     await page.stable(10);
     expect(page.firestore.get(`${THREADS}/t-mine`)?.['shared']).toBe(true);
+  });
+
+  it('opens Clerk drafting from /draft with what follows as the instructions (AI-10)', async () => {
+    const page = await open({ flags: { ...FLAGS, 'clerk.features.drafting': true } });
+    await page.ask('/draft ask the bank for the balance at the date of death');
+    await page.stable(10);
+    expect(page.calls('clerk-sendMessage')).toEqual([]);
+    expect(page.router.url).toBe(
+      '/matters/m-whitfield/drafts/new?instructions=ask%20the%20bank%20for%20the%20balance%20at%20the%20date%20of%20death',
+    );
+    expect(page.panel()).toBeNull();
+  });
+
+  it('says drafting is off rather than sending /draft as a question', async () => {
+    const page = await open();
+    await page.ask('/draft a letter to the bank');
+    expect(page.calls('clerk-sendMessage')).toEqual([]);
+    expect(page.text(page.panel())).toContain('Clerk drafting isn’t turned on for your practice.');
+    expect(page.composer()?.value).toBe('/draft a letter to the bank');
   });
 });

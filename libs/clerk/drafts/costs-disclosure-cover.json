@@ -1,0 +1,18 @@
+{
+  "id": "costs-disclosure-cover",
+  "title": "Costs disclosure cover letter",
+  "description": "Covers the costs disclosure sent to the client.",
+  "matterTypes": [],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "client",
+  "recipientRoles": ["client", "executor", "administrator"],
+  "requiredFacts": [
+    {
+      "fact": "fee.arrangement",
+      "label": "fee arrangement"
+    }
+  ],
+  "guidance": "Write to our client, enclosing our costs disclosure for the matter.\n\n- Say that the costs disclosure is enclosed and that it sets out how our costs are worked out and our estimate of them.\n- Give the fixed fee, cap or estimate in one sentence, as the matter's fee facts give it; use a placeholder if they give none.\n- Say that the client may ask us about the costs at any time, and how to contact the responsible lawyer.\n- Ask the client to read it and, if the instructions say so, to sign and return the agreement.\n- Don't restate the disclosure itself, and don't add terms that aren't in the matter's fee facts or the instructions.",
+  "needsInstructions": false
+}

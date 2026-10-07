@@ -28,7 +28,15 @@ import {
   type ProposedEvent,
   type TextSpan,
 } from '@materia/clerk/evals';
-import { DomainError, can, narrativePeriodInfo, narrativePromptVars } from '@materia/domain';
+import {
+  clerkDraftType,
+  DomainError,
+  can,
+  missingDraftFacts,
+  narrativePeriodInfo,
+  narrativePromptVars,
+  type ClerkDraftRecipient,
+} from '@materia/domain';
 
 import { createLog } from '../../core/log';
 import { EVENTS_QUERY, toProposals } from '../../migration/events';
@@ -38,6 +46,7 @@ import { createChatToolbox, type ChatDraft } from '../chat/tools';
 import { createContextBuilder } from '../context/build-context';
 import { charEstimateCounter, type DocumentTextPort } from '../context/ports';
 import { MemoryContextSource } from '../context/testing';
+import { draftingVars, draftQuery, houseStyle, rewriteVars, withholdsPrivileged } from '../drafts/run';
 import type { ClerkFeature } from '../features';
 import {
   createClerkGateway,
@@ -289,6 +298,63 @@ async function runChat(
   return { result, drafts };
 }
 
+/** Clerk drafting's prompts (AI-10): a whole letter (`drafting@*`) or one passage of it (`drafting-rewrite@*`). */
+export function isDraftingPrompt(promptRef: string): boolean {
+  const id = promptRef.split('@')[0];
+  return id === 'drafting' || id === 'drafting-rewrite';
+}
+
+/**
+ * One drafting case the way `runDraft` writes a letter (or `clerk-rewriteDraft` a passage), without
+ * Firestore or streaming: production's `buildContext` (AI-03) over the case as an in-memory matter,
+ * leaving privileged material out of a letter to a third party unless the case allows it, the
+ * letter type's missing facts, and production's prompt variables (`draftingVars`, `rewriteVars`).
+ */
+async function runDrafting(
+  gateway: ClerkGateway,
+  ctx: GatewayContext,
+  evalCase: EvalCase,
+  promptRef: string,
+  root: string,
+): Promise<ClerkRunResult> {
+  const draft = evalCase.draft;
+  if (!draft) throw new Error(`Drafting case ${evalCase.id} has no draft`);
+  const type = clerkDraftType(draft.typeId);
+  if (!type) throw new Error(`Drafting case ${evalCase.id} names an unknown letter type ${draft.typeId}`);
+  const recipients = draft.recipients.map((recipient): ClerkDraftRecipient => ({
+    name: recipient.name,
+    address: recipient.address ?? null,
+    ...(recipient.role ? { role: recipient.role as ClerkDraftRecipient['role'] } : {}),
+  }));
+  const { rewrite } = draft;
+  const feature = rewrite ? 'draftingRewrite' : 'drafting';
+  const context = await createContextBuilder({
+    source: new MemoryContextSource(evalOrg(evalCase, ctx.orgId, ctx.uid)),
+    chunks: evalChunkSearch(evalCase, root),
+    documentText: evalDocumentText(evalCase, root),
+    tokens: charEstimateCounter,
+  }).buildContext({
+    ctx,
+    scope: { matterId: EVAL_MATTER },
+    feature,
+    query: rewrite
+      ? draftQuery(type, `${rewrite.instruction} ${rewrite.selection}`, [])
+      : draftQuery(type, draft.instructions, recipients),
+    withholdPrivileged: withholdsPrivileged(type, draft.includePrivileged),
+  });
+  const style = houseStyle({ draftingStyle: draft.houseStyle });
+  const vars = rewrite
+    ? rewriteVars({ type, ...rewrite, houseStyle: style })
+    : draftingVars({
+        type,
+        recipients,
+        missing: missingDraftFacts(type, context.facts ?? {}),
+        instructions: draft.instructions,
+        houseStyle: style,
+      });
+  return gateway.run({ ctx, feature, promptId: promptRef, vars, context });
+}
+
 /**
  * One Insights narrative case (INS-04) the way `clerk-explainInsights` asks: the case's months as
  * the org's month rollups, production's metrics scope (`buildContext`) for the case's periods, and
@@ -455,7 +521,8 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
       clock: { now: () => new Date(now()) },
     };
     const chat = isChatPrompt(promptRef);
-    const { gateway, results, lastError } = gatewayFor(chat ? evalDocumentText(evalCase, root) : undefined);
+    const drafting = isDraftingPrompt(promptRef);
+    const { gateway, results, lastError } = gatewayFor(chat || drafting ? evalDocumentText(evalCase, root) : undefined);
     const started = now();
     let result: ClerkRunResult;
     let drafts: DraftedItem[] | undefined;
@@ -485,6 +552,14 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
           promptRef,
           root,
         ));
+      else if (drafting)
+        result = await runDrafting(
+          gateway,
+          { ...ctx, clock: { now: () => caseNow(evalCase) } },
+          evalCase,
+          promptRef,
+          root,
+        );
       else
         result = await gateway.run({
           ctx,

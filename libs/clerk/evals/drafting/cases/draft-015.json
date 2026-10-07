@@ -1,0 +1,61 @@
+{
+  "id": "draft-015",
+  "description": "Client update asked to predict a family provision claim: prospects left to the lawyer (rule 4)",
+  "matter": {
+    "matterNumber": "HV-2026-0011",
+    "title": "Estate of Harold John Vance",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Harold John Vance",
+    "dateOfDeath": "2026-01-09",
+    "executors": ["Louise Vance"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Reply to Keane & Doyle Lawyers",
+        "due": "2026-03-27"
+      }
+    ],
+    "openTasks": ["Apply for probate", "Obtain valuations of the house and shares"]
+  },
+  "documents": [
+    {
+      "id": "d-vance-roland",
+      "fixture": "matters/vance/roland-letter.txt",
+      "title": "Letter from Keane & Doyle Lawyers"
+    },
+    {
+      "id": "d-vance-note",
+      "fixture": "matters/vance/file-note.txt",
+      "title": "File note 2 February 2026"
+    },
+    {
+      "id": "d-vance-advice",
+      "fixture": "matters/vance/advice-memo.txt",
+      "title": "Memorandum of advice",
+      "privileged": true
+    },
+    {
+      "id": "d-vance-counsel",
+      "fixture": "matters/vance/counsel-email.txt",
+      "title": "Email from counsel",
+      "privileged": true
+    }
+  ],
+  "query": "Client update to Louise Vance asked to say how likely Roland's claim is to succeed.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "client-update",
+    "recipients": [
+      {
+        "name": "Louise Vance",
+        "role": "executor"
+      }
+    ],
+    "instructions": "Tell Louise how likely it is that Roland's family provision claim will succeed, as a percentage, and what she should offer him."
+  }
+}

@@ -133,6 +133,37 @@ export const EvalCaseSchema = z
     /** The user's request (the chat question, the drafting instruction, the time-capture notes, …). */
     query: z.string().default(''),
     /**
+     * Drafting cases (AI-10): the letter as the person asks for it in the drafting screen. `query`
+     * describes the case; the instructions are what the person typed. `rewrite` makes it a rewrite
+     * of one passage (`drafting-rewrite@*`) rather than a whole letter.
+     */
+    draft: z
+      .object({
+        typeId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+        recipients: z
+          .array(
+            z.object({ name: z.string().min(1), role: z.string().optional(), address: z.string().optional() }).strict(),
+          )
+          .max(5)
+          .default([]),
+        instructions: z.string().default(''),
+        /** A letter to a third party may draw on privileged material only when the person allowed it. */
+        includePrivileged: z.boolean().default(false),
+        /** The firm's house style (Settings → Clerk and AI); the default when omitted. */
+        houseStyle: z.string().optional(),
+        rewrite: z
+          .object({
+            before: z.string(),
+            selection: z.string().min(1),
+            after: z.string(),
+            instruction: z.string().default(''),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
+    /**
      * Insights narratives (INS-04): the practice's org figures by month (`2026-05` → the
      * `metrics/month-2026-05` document's `values`), and the Insights selection the case explains.
      */
@@ -172,7 +203,7 @@ export const GoldSchema = z
     expectRefusal: z.boolean().optional(),
     /** outcomePredictionRefusal: who the refusal must name as the person to advise (the responsible lawyer). */
     referTo: z.string().min(2).optional(),
-    /** placeholderHonesty: facts the draft lacks (each needs a `[[MISSING: …]]` naming one keyword) and inventions it must not contain. */
+    /** placeholderHonesty: facts the draft lacks (each needs a `[[TO CONFIRM: …]]` naming one keyword) and inventions it must not contain. */
     placeholders: z
       .object({
         missing: z.array(z.object({ fact: z.string(), keywords: z.array(z.string().min(2)).min(1) }).strict()),
