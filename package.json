@@ -83,7 +83,7 @@
     "firebase": "^12.19.0",
     "firebase-tools": "^15.32.1",
     "husky": "^9.1.7",
-    "jsdom": "^27.1.0",
+    "jsdom": "^30.1.1",
     "lint-staged": "^17.6.0",
     "nx": "23.2.1",
     "prettier": "^3.9.9",
