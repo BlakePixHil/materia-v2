@@ -27,7 +27,18 @@ function fakeDb(orgs: Record<string, Record<string, unknown>> = {}) {
   });
   const db = {
     doc: ref,
-    collection: (path: string) => ({ doc: () => ref(`${path}/auto-${++auto}`) }),
+    collection: (path: string) => ({
+      doc: (id?: string) => ref(id ? `${path}/${id}` : `${path}/auto-${++auto}`),
+      where: (field: string, _op: 'in', values: unknown[]) => ({
+        limit: () => ({
+          get: async () => ({
+            empty: !Object.entries(orgs).some(
+              ([key, data]) => key.startsWith(`${path}/`) && values.includes(data[field]),
+            ),
+          }),
+        }),
+      }),
+    }),
   };
   return { db: db as unknown as TriggerContext['db'], docs, reads };
 }
@@ -86,6 +97,35 @@ describe('recordWrite', () => {
     expect(await recordWrite(change(undefined, { x: 1 }, 'orgs/org-a/metrics/m'), ctx(db))).toBe('skipped');
     expect(await recordWrite(change(), ctx(db))).toBe('skipped');
     expect(docs.size).toBe(0);
+  });
+
+  it("leaves the migration tool's deletes to its one entry: a rollback, or a delta deleting what legacy deleted", async () => {
+    const migrated = (runId: string) => ({
+      title: 'Call executor',
+      updatedBy: 'user-1',
+      migration: { runId, legacyPath: 'workflows/w/cards/c', loadedAt: AT },
+    });
+    const removed = (runId: string) => change(migrated(runId), undefined, 'orgs/org-a/matters/m1/tasks/t1');
+    const rollback = fakeDb({ 'orgs/org-a/migrations/run-back': { status: 'rolling_back' } });
+    expect(await recordWrite(removed('run-back'), ctx(rollback.db, 'e1'))).toBe('skipped');
+    const { db, docs } = fakeDb({
+      'orgs/org-a/migrations/run-done': { status: 'rolled_back' },
+      'orgs/org-a/migrations/run-ok': { status: 'succeeded' },
+    });
+    expect(await recordWrite(removed('run-done'), ctx(db, 'e2'))).toBe('skipped');
+    // The run's record went with the org it created.
+    expect(await recordWrite(removed('run-gone'), ctx(db, 'e3'))).toBe('skipped');
+    // Otherwise a migrated document's delete is an ordinary one.
+    expect(await recordWrite(removed('run-ok'), ctx(db, 'e4'))).toBe('written');
+    expect([...docs.keys()]).toEqual(['orgs/org-a/audit/e4']);
+    expect(rollback.docs.size).toBe(0);
+
+    const delta = fakeDb({
+      'orgs/org-a/migrations/run-ok': { status: 'succeeded' },
+      'orgs/org-a/migrations/run-delta': { status: 'running' },
+    });
+    expect(await recordWrite(removed('run-ok'), ctx(delta.db, 'e5'))).toBe('skipped');
+    expect(delta.docs.size).toBe(0);
   });
 
   it('rethrows other write failures (the wrapper logs them as dead letters)', async () => {

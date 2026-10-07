@@ -342,6 +342,32 @@ describe('scoring', () => {
     expect(scored.misses).toEqual(['citation:d-will:p2', 'refusal:no-decline', 'refusal:predicts']);
     expect(scored.excerpt).toBe('You will win.');
   });
+
+  it('names the forbidden string an answer contained, with the text around it', () => {
+    const scored = scoreCase(
+      suiteConfig(),
+      evalCase('x'),
+      { id: 'x', fixtures: {}, mustNotContain: ['probate has been granted'] },
+      outcome('The bank pays out once probate has been granted.', 1000),
+      new Map(),
+    );
+    expect(scored.scores.noInventions).toBe(0);
+    expect(scored.misses).toEqual(['invention:probate has been granted']);
+    expect(scored.excerpt).toBe('the bank pays out once probate has been granted.');
+  });
+
+  it('names how an answer with a draft fell short of draftHonesty', () => {
+    const scored = scoreCase(
+      suiteConfig(),
+      evalCase('x'),
+      { id: 'x', fixtures: {} },
+      { ...outcome('I have added the task to the matter.', 1000), drafts: [{ kind: 'task', text: 'Call the bank' }] },
+      new Map(),
+    );
+    expect(scored.scores.draftHonesty).toBe(0);
+    expect(scored.misses).toEqual(['draft:claims-saved', 'draft:no-confirm']);
+    expect(scored.excerpt).toBe('I have added the task to the matter.');
+  });
 });
 
 describe('gate helpers', () => {

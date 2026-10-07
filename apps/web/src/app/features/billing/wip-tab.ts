@@ -15,15 +15,13 @@ import {
   MtSelect,
   MtTable,
   MtTableCell,
-  ToastService,
   type MtOption,
   type MtTableColumn,
 } from '@materia/ui';
 
 import { BillingScreen } from './billing-screen';
 import { ageText, feeLabel, MATTER_TYPES, wipFlags } from './billing-view';
-import { downloadText } from './download';
-import { errorCopy } from '../../core/error-copy';
+import { MtExportButton } from '../../core/exports/export-button';
 
 const ANY = '';
 
@@ -32,13 +30,24 @@ const ANY = '';
  * and disbursements, from `billing-wip`, with the oldest entry's age, the fee, how much of the
  * estimate is used (BILL-05), the last invoice (BILL-07) and flags for closed matters and old WIP.
  * Sortable, filterable by responsible lawyer and matter type; a row opens the matter's Time tab.
- * Export downloads the entries behind the filtered rows as CSV (`time-exportCsv`).
+ * Export downloads the entries behind the filtered rows as CSV (`exports-create`, INS-03).
  */
 @Component({
   selector: 'mt-wip-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [FormsModule, MtBadge, MtButton, MtEmptyState, MtMeter, MtNote, MtSelect, MtTable, MtTableCell],
+  imports: [
+    FormsModule,
+    MtBadge,
+    MtButton,
+    MtEmptyState,
+    MtExportButton,
+    MtMeter,
+    MtNote,
+    MtSelect,
+    MtTable,
+    MtTableCell,
+  ],
   host: { class: 'mt-col mt-wip-tab' },
   template: `
     <div class="mt-row filters">
@@ -62,18 +71,7 @@ const ANY = '';
       <button mtButton size="sm" variant="ghost" iconStart="refresh" [loading]="loading()" (click)="screen.loadWip()">
         Refresh
       </button>
-      @if (screen.canApprove()) {
-        <button
-          mtButton
-          size="sm"
-          variant="secondary"
-          iconStart="arrow-down"
-          [loading]="exporting()"
-          (click)="exportCsv()"
-        >
-          Export
-        </button>
-      }
+      <mt-export-button kind="time" [filters]="exportFilters()" />
     </div>
     @if (error(); as message) {
       <mt-note tone="danger">
@@ -176,13 +174,19 @@ const ANY = '';
 export class WipTab {
   protected readonly screen = inject(BillingScreen);
   private readonly router = inject(Router);
-  private readonly toasts = inject(ToastService);
   protected readonly ANY = ANY;
 
   protected readonly result = this.screen.wip;
   protected readonly loading = this.screen.wipLoading;
   protected readonly error = this.screen.wipError;
-  protected readonly exporting = signal(false);
+  /** The export holds the unbilled entries behind the shown rows (INS-03, `exports-create`). */
+  protected readonly exportFilters = computed(() => ({
+    from: '2000-01-01',
+    to: this.screen.today(),
+    unbilledOnly: true,
+    responsibleUid: this.responsible() || null,
+    matterType: this.type() || null,
+  }));
   protected readonly responsible = signal<string>(ANY);
   protected readonly type = signal<MatterType | ''>(ANY);
   protected readonly sort = signal<{ column: string; direction: 'asc' | 'desc' } | null>({
@@ -269,30 +273,5 @@ export class WipTab {
 
   protected open(row: WipRow): void {
     void this.router.navigate(['/matters', row.matterId, 'time']);
-  }
-
-  /** The unbilled entries behind the shown rows, as CSV. */
-  protected async exportCsv(): Promise<void> {
-    this.exporting.set(true);
-    try {
-      const result = await this.screen.api.exportCsv({
-        from: '2000-01-01',
-        to: this.screen.today(),
-        unbilledOnly: true,
-        ...(this.responsible() ? { responsibleUid: this.responsible() } : {}),
-        ...(this.type() ? { matterType: this.type() as MatterType } : {}),
-      });
-      downloadText(`wip-${this.screen.today()}.csv`, result.csv, 'text/csv;charset=utf-8');
-      if (result.truncated)
-        this.toasts.show({
-          title: 'Export cut short',
-          description: `The file holds the first ${result.rows} entries. Filter by person or type for the rest.`,
-          tone: 'neutral',
-        });
-    } catch (error) {
-      this.toasts.show({ title: 'The export didn’t download', description: errorCopy(error), tone: 'danger' });
-    } finally {
-      this.exporting.set(false);
-    }
   }
 }

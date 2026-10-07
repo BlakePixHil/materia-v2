@@ -377,12 +377,12 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
     </ng-template>
   `,
   styles: `
-    /* Full-bleed: cancels the shell page's padding and the gap after the router outlet. */
+    /* Full-bleed: cancels the shell page's padding. */
     .mt-inbox {
       display: flex;
       flex: 1;
       min-height: 0;
-      margin: calc(-1 * (var(--space-24) + var(--space-20))) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
+      margin: calc(-1 * var(--space-24)) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
     }
     /* On a phone the shell page's padding is 16px all round; cancelling 32px made the Inbox wider than the screen. */
     @media (max-width: 767px) {

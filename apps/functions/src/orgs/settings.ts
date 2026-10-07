@@ -5,6 +5,7 @@ import {
   INVOICE_COUNTER,
   MemberSecurityInput,
   PERMISSIONS,
+  reviewPatch,
   UpdateOrgSettingsInput,
   type MemberSecurity,
   type OrgSettingsImpact,
@@ -139,7 +140,9 @@ export const updateSettingsDefinition = {
 
     const now = clock.now();
     const batch = db.batch();
-    batch.update(orgRef, { ...patch, updatedAt: now, updatedBy: uid, _requestId: requestId });
+    // A migrated practice renamed has its name confirmed (MIG-08's review code).
+    const reviewed = changed.includes('name') ? reviewPatch(org, ['org_name_unconfirmed'], FieldValue.delete()) : null;
+    batch.update(orgRef, { ...patch, ...reviewed, updatedAt: now, updatedBy: uid, _requestId: requestId });
     if (changed.includes('nextInvoiceNumber')) {
       batch.set(counterRef, { next: input.nextInvoiceNumber }, { merge: true });
     }

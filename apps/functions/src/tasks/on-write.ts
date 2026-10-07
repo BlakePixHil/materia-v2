@@ -12,6 +12,7 @@ import {
   taskActivityKinds,
   type TaskSyncPlan,
 } from './shared';
+import { isMigrationWrite } from '../core/migration';
 import { searchPatch } from '../core/search';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
 import { recordMatterActivity } from '../matters/denormalise';
@@ -72,8 +73,10 @@ export async function syncTask(change: TriggerChange, ctx: TriggerContext): Prom
   const now = ctx.clock.now();
   const meta = { createdAt: now, createdBy: 'system', updatedAt: now, updatedBy: 'system' };
 
+  // The migration's load (MIG-06) notifies nobody and writes no activity; the counts still follow.
+  const migrated = isMigrationWrite(before, after);
   let notified: string | null = null;
-  const recipient = live ? assignmentRecipient(before, after) : null;
+  const recipient = live && !migrated ? assignmentRecipient(before, after) : null;
   if (recipient) {
     // notify() leaves out anyone who is no longer an active member (FND-20).
     const number = matter.get('number');
@@ -93,7 +96,7 @@ export async function syncTask(change: TriggerChange, ctx: TriggerContext): Prom
     if (sent.ids.length) notified = recipient;
   }
 
-  const kinds = live ? taskActivityKinds(before, after) : [];
+  const kinds = live && !migrated ? taskActivityKinds(before, after) : [];
   for (const kind of kinds) {
     const assignee = after?.['assigneeUid'];
     const activity = Activity.schema.parse({

@@ -1095,7 +1095,7 @@ describe('Xero on an invoice (BILL-09)', () => {
     const page = await openIssued({ status: 'part_paid', payments, xero: synced() });
     const rows = [...(byTestId('payments')?.querySelectorAll('li') ?? [])];
     const fromXero = rows.find((row) => row.textContent?.includes('3 Oct 2026'));
-    expect(fromXero?.querySelector('.label-m')?.textContent?.trim()).toBe('Xero');
+    expect(fromXero?.querySelector('.label')?.textContent?.trim()).toBe('Xero');
     const badge = fromXero?.querySelector('[data-testid="payment-duplicate"]');
     expect(badge?.textContent?.trim()).toBe('Possible duplicate');
     expect(badge?.getAttribute('title')).toBe(

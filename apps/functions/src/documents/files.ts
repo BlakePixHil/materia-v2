@@ -1,3 +1,6 @@
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+
 import { getStorage } from 'firebase-admin/storage';
 
 import { adminApp } from '../core/admin';
@@ -42,6 +45,11 @@ export interface FileStore {
   read(path: string, generation?: string): Promise<Buffer | null>;
   /** Writes only if nothing is there yet; `exists` when a retry finds its own earlier write. */
   write(path: string, data: Uint8Array, options: WriteOptions): Promise<'written' | 'exists'>;
+  /**
+   * Writes the object from chunks as they come (a large CSV export, INS-03), never holding it all.
+   * Like `write`, only if nothing is there yet.
+   */
+  writeStream(path: string, chunks: AsyncIterable<Uint8Array>, options: WriteOptions): Promise<'written' | 'exists'>;
   /**
    * Deletes the object, or one generation of it. With a generation the bytes are gone for good,
    * even in the versioned production bucket (quarantined and infected files must not linger).
@@ -106,6 +114,28 @@ export function storageFiles(bucketName: string = filesBucket()): FileStore {
             },
             preconditionOpts: { ifGenerationMatch: 0 },
           });
+        return 'written';
+      } catch (error) {
+        if (status(error) === 412) return 'exists';
+        throw error;
+      }
+    },
+    async writeStream(path, chunks, options) {
+      try {
+        await pipeline(
+          Readable.from(chunks),
+          bucket()
+            .file(path)
+            .createWriteStream({
+              resumable: false,
+              contentType: options.contentType,
+              metadata: {
+                ...(options.disposition ? { contentDisposition: options.disposition } : {}),
+                ...(options.metadata ? { metadata: options.metadata } : {}),
+              },
+              preconditionOpts: { ifGenerationMatch: 0 },
+            }),
+        );
         return 'written';
       } catch (error) {
         if (status(error) === 412) return 'exists';

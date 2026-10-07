@@ -251,12 +251,12 @@ type CreditNote = WithId<CreditNoteItem>;
 
         @if (inv.payments.length) {
           <section class="mt-col" aria-labelledby="payments-title">
-            <h2 class="title-s" id="payments-title">Payments</h2>
+            <h2 class="heading" id="payments-title">Payments</h2>
             <ul class="notes" data-testid="payments">
               @for (payment of inv.payments; track payment.id) {
                 <li class="mt-card mt-col note" [class.reversed]="!!payment.reversedAt" [attr.data-kind]="payment.kind">
                   <div class="mt-row">
-                    <span class="label-m">{{ payment.kind === 'refund' ? 'Refund' : methodLabel(payment) }}</span>
+                    <span class="label">{{ payment.kind === 'refund' ? 'Refund' : methodLabel(payment) }}</span>
                     @if (possibleDuplicate(payment)) {
                       <mt-badge tone="warning" data-testid="payment-duplicate" [attr.title]="duplicateCopy"
                         >Possible duplicate</mt-badge
@@ -290,12 +290,12 @@ type CreditNote = WithId<CreditNoteItem>;
         }
 
         <section class="mt-col" aria-labelledby="credit-notes-title">
-          <h2 class="title-s" id="credit-notes-title">Credit notes</h2>
+          <h2 class="heading" id="credit-notes-title">Credit notes</h2>
           <ul class="notes" data-testid="credit-notes">
             @for (note of creditNotes.value(); track note.id) {
               <li class="mt-card mt-col note">
                 <div class="mt-row">
-                  <span class="label-m">{{ note.number }}</span>
+                  <span class="label">{{ note.number }}</span>
                   @if (xeroOn() && note.xero) {
                     <mt-xero-chip kind="creditNote" data-testid="credit-note-xero" [sync]="noteXero(note)" />
                   }

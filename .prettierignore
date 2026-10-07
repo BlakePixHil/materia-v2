@@ -21,3 +21,5 @@ pnpm-lock.yaml
 /libs/domain/src/lib/clerk-disclosure.generated.ts
 # Generated from libs/clerk/drafts by `materia-scripts clerk-prompts` (AI-10)
 /libs/domain/src/lib/clerk-draft-types.generated.ts
+# Golden transform output (MIG-03): byte-for-byte what materia-migrate transform writes.
+/tools/migration/fixtures/golden

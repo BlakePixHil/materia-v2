@@ -89,7 +89,13 @@ export class AdminApi {
   private async call<T>(url: string, init: RequestInit = {}): Promise<T> {
     const res = await this.deps.fetch(url, {
       ...init,
-      headers: { authorization: `Bearer ${await this.deps.token()}`, 'content-type': 'application/json' },
+      headers: {
+        authorization: `Bearer ${await this.deps.token()}`,
+        'content-type': 'application/json',
+        // Logging and Storage Transfer bill the caller's quota project unless told otherwise, and
+        // terraform-agent's own project (materia-v2-admin) doesn't enable those APIs.
+        ...(url.startsWith(LOGGING) || url.startsWith(TRANSFER) ? { 'x-goog-user-project': this.project } : {}),
+      },
     });
     if (!res.ok)
       throw new Error(
@@ -215,6 +221,11 @@ export class AdminApi {
       `${SCHEDULER}/projects/${this.project}/locations/${location}/jobs`,
     );
     return res.jobs ?? [];
+  }
+
+  /** Runs a Cloud Scheduler job now (`name` as schedulerJobs returns it). */
+  async runSchedulerJob(name: string): Promise<SchedulerJob> {
+    return this.call(`${SCHEDULER}/${name}:run`, { method: 'POST', body: '{}' });
   }
 
   async transferJobs(): Promise<TransferJob[]> {

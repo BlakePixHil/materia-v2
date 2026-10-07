@@ -61,9 +61,8 @@ gcloud storage rm --recursive gs://materia-v2-<env>-files/migration-quarantine/<
 
 ## After a dev rehearsal
 
-The rollback (MIG-06) deletes the run's documents. Also delete the copies, so the user's files don't stay on dev (D-15): the rehearsal org's prefix, the quarantine and the photo. Then add a row to the export runbook's [cleanup record](migration-export.md#cleanup-record).
+The rollback (MIG-06, [runbook](migration-load.md#roll-back)) deletes the run's documents and its files: the copies carrying its `migrationRunId`, its quarantine and the photo, so the user's files don't stay on dev (D-15). Check nothing is left, then add a row to the export runbook's [cleanup record](migration-export.md#cleanup-record).
 
 ```sh
-gcloud storage rm --recursive gs://materia-v2-dev-files/orgs/<rehearsal orgId>/ gs://materia-v2-dev-files/migration-quarantine/<runId>/
-gcloud storage rm gs://materia-v2-dev-files/users/<uid>/avatar.png
+gcloud storage ls gs://materia-v2-dev-files/orgs/<rehearsal orgId>/ gs://materia-v2-dev-files/migration-quarantine/<runId>/
 ```

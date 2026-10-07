@@ -18,6 +18,7 @@ import { clerkGateway } from '../../clerk/service';
 import { isDeleted } from '../../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../../core/callable';
 import type { Log } from '../../core/log';
+import { isMigrationWrite } from '../../core/migration';
 import { defineQueue } from '../../core/tasks';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../../core/trigger';
 import { matterPath } from '../../matters/shared';
@@ -76,7 +77,8 @@ export async function onIngestChangeHandler(change: TriggerChange, ctx: TriggerC
 
   const version = Number(after['version'] ?? 0);
   const wasWaiting = needsIngest(before) && Number(before?.['version'] ?? 0) === version;
-  if (needsIngest(after) && !wasWaiting) {
+  // Migrated documents are ingested by `documents-backfillIngest` after the load (MIG-09).
+  if (needsIngest(after) && !wasWaiting && !isMigrationWrite(before, after)) {
     const task: IngestTask = {
       orgId: ctx.params['orgId'] as string,
       matterId: ctx.params['matterId'] as string,

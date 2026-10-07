@@ -137,7 +137,7 @@ type Item = WithId<DisbursementItem>;
                       <tr [attr.data-status]="item.status" [attr.data-disbursement]="item.id">
                         <td class="date">{{ date(item.date) }}</td>
                         <td>
-                          <span class="label-m">{{ item.description }}</span>
+                          <span class="label">{{ item.description }}</span>
                           <span class="caption t-3 sub">
                             {{ category(item) }}{{ item.payee ? ' · ' + item.payee : '' }}
                           </span>
@@ -150,7 +150,7 @@ type Item = WithId<DisbursementItem>;
                         <td class="caption">{{ treatment(item) }}</td>
                         <td class="num">{{ money(item.amountExGstCents) }}</td>
                         <td class="num">{{ money(item.gstCents) }}</td>
-                        <td class="num label-m">{{ money(item.amountExGstCents + item.gstCents) }}</td>
+                        <td class="num label">{{ money(item.amountExGstCents + item.gstCents) }}</td>
                         <td class="end">
                           @if (item.receiptDocumentId) {
                             <a

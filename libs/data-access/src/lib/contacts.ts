@@ -2,11 +2,10 @@ import * as z from 'zod';
 
 import {
   Contact,
-  contactSearchTokens,
+  contactPassesFilters,
   Matter,
   Party,
   searchQueryToken,
-  searchWords,
   SoftDeleteShape,
   type PartyRole,
   type ReferrerIndustry,
@@ -92,32 +91,18 @@ export function contactListQuery(
 
 /**
  * Whether a loaded contact passes every filter (the ones the query couldn't carry, and every word
- * of a multi-word search). Tombstones of merged contacts never show.
+ * of a multi-word search). Tombstones of merged contacts never show. The same check decides what
+ * the list's CSV export holds (`contactPassesFilters`, INS-03).
  */
 export function contactMatchesFilters(row: ContactListItem, filters: ContactFilters = {}): boolean {
-  if (row.mergedInto || row.deletedAt) return false;
-  if (filters.kind && row.kind !== filters.kind) return false;
-  if ((filters.referrersOnly || filters.industry) && !row.isReferrer) return false;
-  if (filters.industry && row.referrerMeta?.industry !== filters.industry) return false;
-  if (filters.tag && !row.tags.includes(filters.tag)) return false;
-  if (filters.role && !row.matterRoles.includes(filters.role)) return false;
-  const words = searchWords(filters.query);
-  if (words.length && words.some((word) => word.length >= 2)) {
-    const { familyName, givenNames, preferredName, orgName, emails, phones, abn } = row;
-    const tokens = new Set(
-      contactSearchTokens({
-        ...(familyName ? { familyName } : {}),
-        ...(givenNames ? { givenNames } : {}),
-        ...(preferredName ? { preferredName } : {}),
-        ...(orgName ? { orgName } : {}),
-        ...(abn ? { abn } : {}),
-        emails,
-        phones,
-      }),
-    );
-    if (!words.filter((word) => word.length >= 2).every((word) => tokens.has(word.slice(0, 10)))) return false;
-  }
-  return true;
+  return contactPassesFilters(row, {
+    ...(filters.query ? { query: filters.query } : {}),
+    ...(filters.kind ? { kind: filters.kind } : {}),
+    ...(filters.tag ? { tag: filters.tag } : {}),
+    ...(filters.referrersOnly ? { referrersOnly: true } : {}),
+    ...(filters.industry ? { industry: filters.industry } : {}),
+    ...(filters.role ? { role: filters.role } : {}),
+  });
 }
 
 /**

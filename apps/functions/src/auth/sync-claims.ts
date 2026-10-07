@@ -2,6 +2,7 @@ import { getAuth, type Auth } from 'firebase-admin/auth';
 
 import { adminApp } from '../core/admin';
 import { defineTrigger, type TriggerDefinition } from '../core/trigger';
+import { clearFixedReviewCodes } from '../migration/clear';
 import { syncClaims } from '../orgs/claims';
 
 /**
@@ -15,11 +16,13 @@ export function syncClaimsDefinition(auth: () => Auth = () => getAuth(adminApp()
     name: 'auth-syncClaims',
     document: 'orgs/{orgId}/members/{memberUid}',
     on: 'written',
-    handler: async (_change, ctx) => {
+    handler: async (change, ctx) => {
       const uid = ctx.params['memberUid'] as string;
       const orgId = ctx.params['orgId'] as string;
       const result = await syncClaims({ db: ctx.db, auth: auth(), now: ctx.clock.now() }, uid, { alsoOrgIds: [orgId] });
       ctx.log.info('claims synced', { memberUid: uid, changed: result.changed, orgs: result.memberships.length });
+      // Budgets brought across by the migration, changed on the team page, are reviewed (MIG-08).
+      await clearFixedReviewCodes(change, ctx);
     },
   };
 }

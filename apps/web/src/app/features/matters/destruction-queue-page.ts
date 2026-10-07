@@ -72,7 +72,7 @@ type Entry = WithId<DestructionQueueItem>;
         @for (entry of pending(); track entry.id) {
           <div class="mt-row entry">
             <span class="mt-grow">
-              <span class="body-m num">{{ entry.number }}</span>
+              <span class="body num">{{ entry.number }}</span>
               {{ entry.title ?? '' }}
               <span class="caption t-3 info"
                 >{{ typeLabel(entry) }} · closed {{ day(entry.closedAt) }} · kept until
@@ -92,7 +92,7 @@ type Entry = WithId<DestructionQueueItem>;
           @for (entry of inProgress(); track entry.id) {
             <div class="mt-row entry">
               <span class="mt-grow">
-                <span class="body-m num">{{ entry.number }}</span>
+                <span class="body num">{{ entry.number }}</span>
                 <span class="caption t-3 info"
                   >Approved {{ day(entry.approvedAt) }}. The certificate appears here when done.</span
                 >
@@ -106,7 +106,7 @@ type Entry = WithId<DestructionQueueItem>;
         @for (entry of destroyed(); track entry.id) {
           <div class="mt-row entry">
             <span class="mt-grow">
-              <span class="body-m num">{{ entry.number }}</span>
+              <span class="body num">{{ entry.number }}</span>
               {{ entry.title ?? '' }}
               <span class="caption t-3 info">{{ typeLabel(entry) }} · destroyed {{ day(entry.destroyedAt) }}</span>
             </span>

@@ -146,7 +146,7 @@ export function appendLines(current: readonly ContactActivityLine[], page: reado
         <ul class="mt-contact-activity" data-testid="contact-activity">
           @for (item of items(); track item.id) {
             <li>
-              <span class="mt-contact-activity-text">
+              <span>
                 {{ item.text }}
                 @if (item.matter; as matter) {
                   <a [routerLink]="['/matters', matter.id]">{{ matter.label }}</a>

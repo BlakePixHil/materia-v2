@@ -74,7 +74,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
 
     @if (changeRows().length) {
       <section class="block" aria-labelledby="mt-md-changes">
-        <h3 class="title-s" id="mt-md-changes">Changes to review</h3>
+        <h3 class="heading" id="mt-md-changes">Changes to review</h3>
         <p class="caption t-2 hint">
           The events changed, so these dates would move. Nothing changes until a lawyer accepts.
         </p>
@@ -101,7 +101,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
       @default {
         @if (reviewRows().length) {
           <section class="block" aria-labelledby="mt-md-review">
-            <h3 class="title-s" id="mt-md-review">Needs review</h3>
+            <h3 class="heading" id="mt-md-review">Needs review</h3>
             <p class="caption t-2 hint">Already past when they were computed: decide what happened to each.</p>
             <ul class="rows">
               @for (row of reviewRows(); track row.key) {
@@ -113,7 +113,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
           </section>
         }
         <section class="block" aria-labelledby="mt-md-open">
-          <h3 class="title-s" id="mt-md-open">Open</h3>
+          <h3 class="heading" id="mt-md-open">Open</h3>
           @if (openRows().length) {
             <ul class="rows">
               @for (row of openRows(); track row.key) {
@@ -140,7 +140,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
 
     <section class="block" aria-labelledby="mt-md-events">
       <div class="head">
-        <h3 class="title-s" id="mt-md-events">Events</h3>
+        <h3 class="heading" id="mt-md-events">Events</h3>
         @if (eventRows().length) {
           <span class="mt-ml">
             <mt-segmented-control
@@ -172,7 +172,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
 
     @if (closedRows().length) {
       <details class="closed">
-        <summary class="title-s">Closed ({{ closedRows().length }})</summary>
+        <summary class="heading">Closed ({{ closedRows().length }})</summary>
         <ul class="rows">
           @for (row of closedRows(); track row.key) {
             <li>

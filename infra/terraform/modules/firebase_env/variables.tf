@@ -113,6 +113,12 @@ variable "backup_monthly_retention_days" {
   default     = 400
 }
 
+variable "export_staging_retention_days" {
+  description = "Days the exports bucket (in the database's region) keeps each nightly Firestore export after Storage Transfer has copied it to the backups bucket."
+  type        = number
+  default     = 8
+}
+
 variable "files_soft_delete_days" {
   description = "Days a deleted object in the files bucket stays in soft delete (SEC-03; 7 to 90)."
   type        = number

@@ -98,6 +98,7 @@ import {
 import { CommandRegistry, type Command } from '../../core/commands/command-registry';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { MtExportButton } from '../../core/exports/export-button';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
@@ -135,6 +136,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
     MtButton,
     MtDeadlineChip,
     MtEmptyState,
+    MtExportButton,
     MtIcon,
     MtMatterTag,
     MtNote,
@@ -154,6 +156,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
         [ngModel]="layout"
         (ngModelChange)="setLayout($event)"
       />
+      <mt-export-button kind="matters" [filters]="exportFilters()" />
       @if (destructionOn()) {
         <a mtButton variant="ghost" size="sm" iconStart="trash" routerLink="/matters/destruction">Destruction queue</a>
       }
@@ -518,14 +521,14 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
     </ng-template>
   `,
   styles: `
-    /* Full-bleed: cancels the shell page's padding and the gap after the router outlet. */
+    /* Full-bleed: cancels the shell page's padding. */
     :host {
       position: relative;
       display: flex;
       flex-direction: column;
       flex: 1;
       min-height: 0;
-      margin: calc(-1 * (var(--space-24) + var(--space-20))) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
+      margin: calc(-1 * var(--space-24)) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
     }
     .mt-matters-bar {
       display: flex;
@@ -718,6 +721,11 @@ export class MattersPage {
   protected readonly query = signal('');
   private readonly filters = computed<MatterListFilters>(() => ({ ...this.f(), query: this.query() }));
   protected readonly filtered = computed(() => hasMatterFilters(this.filters()));
+  /** What Export writes: the matters this view's filters and the search box match (INS-03). */
+  protected readonly exportFilters = computed(() => ({
+    ...cleanFilters(this.f()),
+    query: this.query().trim() || null,
+  }));
 
   // ---------- the board (CORE-04) ----------
 

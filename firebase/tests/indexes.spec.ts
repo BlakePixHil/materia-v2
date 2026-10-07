@@ -150,7 +150,7 @@ describe('firestore.indexes.json', () => {
     for (const index of matters) expect(index.fields[0]?.fieldPath).toBe('deletedAt');
   });
 
-  it('a matter’s documents list newest first, and readonly’s non-privileged list is indexed (CORE-12)', () => {
+  it('a matter’s documents list newest first, readonly’s non-privileged list and the migration review are indexed (CORE-12)', () => {
     const documents = file.indexes
       .filter((i) => i.collectionGroup === 'documents')
       .map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order ?? f.arrayConfig}`).join(',')}`);
@@ -159,6 +159,9 @@ describe('firestore.indexes.json', () => {
       // ⌘K (CORE-15): the open matter's non-privileged documents, and every document in the org.
       'COLLECTION:privileged:ASCENDING,search:CONTAINS,updatedAt:DESCENDING',
       'COLLECTION_GROUP:orgId:ASCENDING,search:CONTAINS,updatedAt:DESCENDING',
+      // The migration review (MIG-08): every document in the org with a code open, and reviewed.
+      'COLLECTION_GROUP:orgId:ASCENDING,needsReview:CONTAINS',
+      'COLLECTION_GROUP:orgId:ASCENDING,reviewed:CONTAINS',
     ]);
   });
 
@@ -199,6 +202,31 @@ describe('firestore.indexes.json', () => {
     const vector = file.indexes.find((i) => i.collectionGroup === 'chunks');
     expect(vector?.fields.map((f) => f.fieldPath)).toEqual(['orgId', 'matterId', 'embedding']);
     expect(vector?.fields.at(-1)?.vectorConfig).toEqual({ dimension: 768, flat: {} });
+  });
+
+  it('the migration finds what one run loaded through a group index on migration.runId (MIG-06)', () => {
+    const overrides = file.fieldOverrides as {
+      collectionGroup: string;
+      fieldPath: string;
+      indexes: { order?: string; arrayConfig?: string; queryScope: string }[];
+    }[];
+    const groups = [
+      'members',
+      'contacts',
+      'checklistTemplates',
+      'matters',
+      'parties',
+      'tasks',
+      'notes',
+      'activity',
+      'documents',
+    ];
+    for (const group of groups) {
+      const override = overrides.find((o) => o.collectionGroup === group && o.fieldPath === 'migration.runId');
+      expect(override?.indexes, group).toContainEqual({ order: 'ASCENDING', queryScope: 'COLLECTION_GROUP' });
+      // An override replaces the automatic indexes, so the collection ones stay.
+      expect(override?.indexes, group).toContainEqual({ order: 'ASCENDING', queryScope: 'COLLECTION' });
+    }
   });
 
   // Server-only operational collections (no client rules, default deny) with TTL policies (FND-15).

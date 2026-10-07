@@ -16,7 +16,7 @@ import { SessionPolicy } from './session-policy';
   imports: [RouterLink, MtNote],
   template: `
     @if (policy.mfaGraceUntil(); as until) {
-      <mt-note tone="warning" data-mfa-grace style="margin: 0 0 16px">
+      <mt-note tone="warning" data-mfa-grace>
         Your practice requires two-step sign-in from {{ when(until) }}.
         <a routerLink="/auth/mfa/enrol">Set it up now</a>
       </mt-note>

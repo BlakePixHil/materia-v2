@@ -12,6 +12,8 @@ export interface SettingsSection {
   roles?: readonly Role[];
   /** Shown only while this flag is on. */
   flag?: FlagKey;
+  /** Shown only once the practice has a legacy migration run (MIG-08). */
+  migrated?: boolean;
 }
 
 export const SETTINGS_ADMIN_ROLES: readonly Role[] = ['owner', 'admin'];
@@ -19,7 +21,7 @@ export const SETTINGS_ADMIN_ROLES: readonly Role[] = ['owner', 'admin'];
 /**
  * The Settings pages, in sidebar order. A new settings page adds its route under `settings` in
  * app.routes.ts and an entry here (Clerk settings, AI-13; security, SEC-04; trust account, BILL-11;
- * integrations, BILL-09 and INT-03; document templates, INT-06).
+ * integrations, BILL-09 and INT-03; document templates, INT-06; the migration import, MIG-08).
  */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   // The person's own (CORE-20).
@@ -68,9 +70,24 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   // Clerk and AI (AI-02a, AI-13): everyone; read-only below owners and admins.
   { path: 'clerk', label: 'Clerk and AI', icon: 'sparkle', group: 'Clerk' },
   { path: 'audit', label: 'Audit log', icon: 'shield', group: 'Records', roles: SETTINGS_ADMIN_ROLES },
+  // The practice brought across from the old materia (MIG-08).
+  {
+    path: 'migration',
+    label: 'Import from materia',
+    icon: 'inbox',
+    group: 'Records',
+    roles: SETTINGS_ADMIN_ROLES,
+    migrated: true,
+  },
 ];
 
-/** The sections a role sees, with flags checked by `isOn`. */
-export function visibleSections(role: Role | null, isOn: (flag: FlagKey) => boolean): SettingsSection[] {
-  return SETTINGS_SECTIONS.filter((s) => (!s.roles || (!!role && s.roles.includes(role))) && (!s.flag || isOn(s.flag)));
+/** The sections a role sees, with flags checked by `isOn`; the import once the practice was `migrated`. */
+export function visibleSections(
+  role: Role | null,
+  isOn: (flag: FlagKey) => boolean,
+  migrated = false,
+): SettingsSection[] {
+  return SETTINGS_SECTIONS.filter(
+    (s) => (!s.roles || (!!role && s.roles.includes(role))) && (!s.flag || isOn(s.flag)) && (!s.migrated || migrated),
+  );
 }

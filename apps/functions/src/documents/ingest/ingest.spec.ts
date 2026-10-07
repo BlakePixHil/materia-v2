@@ -616,6 +616,19 @@ describe('documents-onIngestChange', () => {
     expect(again.queued).toEqual([]);
   });
 
+  it('leaves documents the migration loads (MIG-06) to the ingest backfill after the load (MIG-09)', async () => {
+    const w = world();
+    await w.addDocument('d-mig', 'Will.pdf', fixture('will.pdf'));
+    const ref = w.db.doc(`${MATTER}/documents/d-mig`);
+    const migration = { runId: 'run-1', legacyPath: 'workflows/w/cards/c/attachments/a', loadedAt: new Date(0) };
+    await ref.update({ source: 'migration', migration });
+    expect((await fire(w.db, 'd-mig', undefined)).queued).toEqual([]);
+    // A later load restamps it: still not queued.
+    const loaded = await w.docData('d-mig');
+    await ref.update({ migration: { ...migration, loadedAt: new Date(1000) } });
+    expect((await fire(w.db, 'd-mig', loaded, 'event-2')).queued).toEqual([]);
+  });
+
   it('copies a privileged change to every chunk', async () => {
     const { w, ref } = await ingested();
     const before = await w.docData('d-will');

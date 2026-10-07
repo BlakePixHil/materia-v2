@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { isMigrationWrite } from '../core/migration';
+
 /**
  * The pure half of the audit log (FND-18): what kind of write happened, which fields changed, who
  * did it, and the redacted before/after that goes into `orgs/{orgId}/audit/{eventId}`.
@@ -27,6 +29,8 @@ export const EXCLUDED_COLLECTIONS = new Set([
   'integrationStatus',
   // Xero (BILL-09): which Xero contact a matter's clients are; the invoices it's used on are audited.
   'xeroContacts',
+  // Legacy migration runs (MIG-06): the tool records each run once itself (`migration.loaded`…).
+  'migrations',
 ]);
 
 /**
@@ -57,6 +61,10 @@ export const NOISE_FIELDS = new Set([
   'matterRoles',
   // Documents (AI-04): Clerk ingestion progress, written by documents-ingest.
   'ingest',
+  // The legacy migration's review (MIG-08): `migration-resolveReview` records one entry per call,
+  // and a code cleared by a trigger follows an edit that is audited itself.
+  'needsReview',
+  'reviewed',
   // Integrations (INT-01): a refresh token the provider rotated (Xero does on every refresh).
   'encryptedRefreshToken',
   'kmsKeyVersion',
@@ -222,6 +230,8 @@ export function buildWriteEntry(input: WriteInput): { entry: DocData } | { skip:
     if (changed.every((field) => NOISE_FIELDS.has(field))) return { skip: 'denormalised fields only' };
   }
   const { before, after } = input;
+  // The migration's load is audited once per run (`migration.loaded`, MIG-06), not per document.
+  if (isMigrationWrite(before, after)) return { skip: 'migration load' };
   const actorField =
     action === 'delete'
       ? (before?.['deletedBy'] ?? before?.['updatedBy'])
@@ -231,15 +241,7 @@ export function buildWriteEntry(input: WriteInput): { entry: DocData } | { skip:
   const actor = toActor(actorField);
   const latest = after ?? before ?? {};
   const requestId = typeof latest['_requestId'] === 'string' ? latest['_requestId'] : undefined;
-  const runId = (after?.['migration'] as { runId?: unknown } | undefined)?.runId;
-  const migrated = typeof runId === 'string' && (action === 'create' || changed.includes('migration'));
-  const source: AuditSource = migrated
-    ? 'migration'
-    : requestId
-      ? 'callable'
-      : actor === 'system' || actor === 'clerk'
-        ? 'trigger'
-        : 'client';
+  const source: AuditSource = requestId ? 'callable' : actor === 'system' || actor === 'clerk' ? 'trigger' : 'client';
   const actorString = typeof actor === 'string' ? actor : actor.uid;
 
   const entry: DocData = {
@@ -259,7 +261,6 @@ export function buildWriteEntry(input: WriteInput): { entry: DocData } | { skip:
   if (before) entry['before'] = redactFields(before, changed);
   if (after) entry['after'] = redactFields(after, changed);
   if (requestId) entry['requestId'] = requestId;
-  if (migrated) entry['runId'] = runId;
   return { entry };
 }
 

@@ -1,16 +1,18 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 
+import { migrationRunsRepository } from '@materia/data-access/repository';
 import { MtNavItem } from '@materia/ui';
 
-import { visibleSections, type SettingsSection } from './settings-nav';
+import { SETTINGS_ADMIN_ROLES, visibleSections, type SettingsSection } from './settings-nav';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { OrgService } from '../../core/orgs/org-service';
 
 /**
  * Settings (`/settings`, CORE-21): a sidebar of the pages the person can open, grouped as in the
  * design (You, Firm, Practice, Clerk, Records), and the page itself. Only owners and admins see
- * more than their own profile and preferences and the team.
+ * more than their own profile and preferences and the team; they see the import from the old
+ * materia once the practice has one (MIG-08).
  */
 @Component({
   selector: 'mt-settings-layout',
@@ -69,9 +71,15 @@ import { OrgService } from '../../core/orgs/org-service';
 export class SettingsLayout {
   private readonly orgs = inject(OrgService);
   private readonly flags = inject(FeatureFlagService);
+  /** Whether the practice came across from the old materia (MIG-08): the import page shows then. */
+  private readonly migrationRuns = migrationRunsRepository().watchQuery(() => {
+    const role = this.orgs.role();
+    return role && SETTINGS_ADMIN_ROLES.includes(role) ? { pageSize: 1 } : null;
+  });
 
   protected readonly groups = computed(() => {
-    const sections = visibleSections(this.orgs.role(), (flag) => this.flags.isOn(flag));
+    const migrated = this.migrationRuns.value().length > 0;
+    const sections = visibleSections(this.orgs.role(), (flag) => this.flags.isOn(flag), migrated);
     const groups: { name: string; sections: SettingsSection[] }[] = [];
     for (const section of sections) {
       const group = groups.find((g) => g.name === section.group);

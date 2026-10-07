@@ -7,11 +7,12 @@ import {
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { provideRouter, TitleStrategy } from '@angular/router';
+import { provideRouter, TitleStrategy, withPreloading } from '@angular/router';
 
 import {
   ACCESS_REVOKED_HANDLER,
   FIREBASE_SETUP,
+  FIRESTORE_SDK_LOADER,
   FirestoreClient,
   firestoreTenancyPort,
   ListenerRegistry,
@@ -25,9 +26,11 @@ import { SessionPolicy } from './core/auth/session-policy';
 import { accessRevokedHandler, SessionWatcher } from './core/auth/session-watcher';
 import { CALLABLES } from './core/data/callables';
 import { ERROR_REPORTER, GlobalErrorHandler } from './core/error-handler';
+import { FeatureFlagService } from './core/flags/feature-flags';
 import { clientErrorReporter } from './core/observability/client-error-reporter';
 import { startPerformanceMonitoring } from './core/observability/perf';
 import { OrgService } from './core/orgs/org-service';
+import { DelayedPreloading, prefetchPagesDuringGuards } from './core/routing/preloading';
 import { MateriaTitleStrategy } from './core/title-strategy';
 import { environment } from '../environments/environment';
 import { RELEASE } from '../environments/version';
@@ -37,7 +40,11 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     // Zoneless change detection (ADR-002). Do not add zone.js or libraries that depend on it.
     provideZonelessChangeDetection(),
-    provideRouter(appRoutes),
+    // Once a page is up, the other pages download in the background (one at a time), so opening
+    // them later doesn't wait for their chunks.
+    provideRouter(appRoutes, withPreloading(DelayedPreloading)),
+    // A navigation's pages download while its guards wait for Auth and the org's policy.
+    provideAppInitializer(prefetchPagesDuringGuards),
     // `Matter · M-2026-0142 · Materia` (FND-12).
     { provide: TitleStrategy, useClass: MateriaTitleStrategy },
     // A toast and a report for unexpected errors (FND-12).
@@ -65,6 +72,11 @@ export const appConfig: ApplicationConfig = {
       inject(ThemeService);
     }),
     // The data layer (FND-19): the full Firestore SDK loads lazily, on the first signed-in read.
+    // Its download starts now, while Auth restores the session, instead of after it; Firestore
+    // itself still starts on the first read.
+    provideAppInitializer(() => {
+      inject(FIRESTORE_SDK_LOADER)().catch(() => undefined);
+    }),
     {
       provide: FIREBASE_SETUP,
       useValue: {
@@ -79,6 +91,11 @@ export const appConfig: ApplicationConfig = {
     },
     // A live read refused after a role change goes to "no access" (FND-19).
     { provide: ACCESS_REVOKED_HANDLER, useFactory: accessRevokedHandler },
+    // Feature flags (FND-23) start loading now, so flagged navigation and tabs are in place when
+    // the shell draws instead of appearing after it.
+    provideAppInitializer(() => {
+      inject(FeatureFlagService);
+    }),
     // Follows users/{uid} and refreshes the token when the claims change (FND-17).
     provideAppInitializer(() => {
       inject(OrgService);

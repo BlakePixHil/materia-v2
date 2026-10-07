@@ -27,10 +27,11 @@ export interface ExportSweepResult {
 }
 
 /**
- * Deletes export files (`orgs/{orgId}/exports/{jobId}.{pdf|zip}`: document zips, safe custody
- * receipts and stocktakes, any `export` job's output; CORE-12b, CORE-17) created more than `ttlMs`
- * ago (EXPORT_TTL_DAYS). Each goes by its generation, so the bytes are gone for good rather than
- * kept as a noncurrent version of the versioned bucket. The export job that made it
+ * Deletes export files (`orgs/{orgId}/exports/{jobId}.{pdf|zip|csv}`: document zips, list CSVs,
+ * safe custody receipts and stocktakes, any `export` job's output; CORE-12b, CORE-17, INS-03)
+ * created more than `ttlMs` ago (EXPORT_TTL_DAYS). Each goes by its generation, so the bytes are
+ * gone for good rather than kept as a noncurrent version of the versioned bucket. The export job
+ * that made it
  * (`orgs/{orgId}/jobs/{jobId}`, whose `output.storagePath` names it) is deleted first, so
  * `jobs-getExportUrl` answers NOT_FOUND rather than signing a link to nothing, and a run that stops
  * between the two leaves only a file, which the next run deletes. One file's failure is logged

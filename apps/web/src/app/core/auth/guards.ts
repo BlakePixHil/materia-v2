@@ -52,9 +52,6 @@ export const orgGuard: CanActivateFn & CanMatchFn = requireSteps([
   'needsOrg',
 ]);
 
-/** The shell's routes: signed in, verified, MFA where required, with an org. */
-export const orgScopedGuard: CanMatchFn = orgGuard;
-
 /** Only these roles; others see "no access". */
 export function roleGuard(roles: readonly Role[]): CanActivateFn & CanMatchFn {
   return async () => {

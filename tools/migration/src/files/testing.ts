@@ -46,6 +46,13 @@ export function memoryStore() {
       const object = objects.get(key(bucket, name));
       return object ? facts(object) : null;
     },
+    async list(bucket, prefix) {
+      calls.push({ op: 'list', bucket, name: prefix });
+      return [...objects.values()]
+        .filter((object) => object.bucket === bucket && object.name.startsWith(prefix))
+        .sort((a, b) => (a.name < b.name ? -1 : 1))
+        .map(facts);
+    },
     async rewrite(from, to, resource) {
       calls.push({ op: 'rewrite', bucket: to.bucket, name: to.name, from: key(from.bucket, from.name) });
       const source = objects.get(key(from.bucket, from.name));
@@ -58,6 +65,10 @@ export function memoryStore() {
       if (!object) throw new Error(`No gs://${bucket}/${name}`);
       if (object.data.length > maxBytes) throw new Error('too big');
       return object.data;
+    },
+    async upload(bucket, name, bytes, resource) {
+      calls.push({ op: 'upload', bucket, name });
+      return put(bucket, name, bytes, resource);
     },
     async patchMetadata(bucket, name, metadata) {
       calls.push({ op: 'patch', bucket, name });

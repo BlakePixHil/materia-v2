@@ -9,6 +9,13 @@ const ORG = 'orgs/{orgId}';
 export const JobTypeSchema = z.enum(['pdf.render', 'pdf.merge', 'documents.zip']);
 export type JobType = z.infer<typeof JobTypeSchema>;
 
+/**
+ * Jobs functions run themselves, on a Cloud Tasks queue rather than Cloud Run (ADR-055): CSV
+ * exports of the core lists (INS-03), which read Firestore page by page.
+ */
+export const FunctionJobTypeSchema = z.enum(['csv.export']);
+export type FunctionJobType = z.infer<typeof FunctionJobTypeSchema>;
+
 export const JobStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed']);
 export type JobStatus = z.infer<typeof JobStatusSchema>;
 
@@ -112,9 +119,9 @@ export type DocumentsZipInput = z.infer<typeof DocumentsZipInputSchema>;
 export const EXPORT_TTL_DAYS = 7;
 
 /** An export file's path: `[, orgId, jobId, extension]`. */
-export const EXPORT_FILE_PATH = /^orgs\/([^/]+)\/exports\/([^/.]+)\.(pdf|zip)$/;
+export const EXPORT_FILE_PATH = /^orgs\/([^/]+)\/exports\/([^/.]+)\.(pdf|zip|csv)$/;
 
-/** An export file, `orgs/{orgId}/exports/{jobId}.{pdf|zip}`, downloaded through `jobs-getExportUrl`. */
+/** An export file, `orgs/{orgId}/exports/{jobId}.{pdf|zip|csv}`, downloaded through `jobs-getExportUrl`. */
 export const ExportTargetSchema = z.object({ kind: z.literal('export'), name: NonEmptyString.max(250) }).strict();
 
 /** Where the output goes: a new matter document, or an export file (7-day TTL, SEC-05). */
@@ -156,12 +163,14 @@ export const JobOutputSchema = z.object({
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
   pages: z.number().int().min(0),
   documentId: DocIdSchema.optional(),
+  /** A CSV export's rows, not counting the header. */
+  rows: z.number().int().min(0).optional(),
 });
 
 /** `jobs/{jobId}`: status and progress, written by functions (create) and the job (everything else). */
 export const Job = withMeta(
   {
-    type: JobTypeSchema,
+    type: z.union([JobTypeSchema, FunctionJobTypeSchema]),
     input: z.record(z.string(), z.unknown()),
     target: JobTargetSchema,
     status: JobStatusSchema,
@@ -199,16 +208,21 @@ export const Job = withMeta(
 );
 export type Job = z.infer<typeof Job.schema>;
 
-/** An export job's file type: a zip for `documents.zip`, otherwise a PDF. */
-export function exportFileType(type: JobType | string | undefined): { extension: 'zip' | 'pdf'; contentType: string } {
-  return type === 'documents.zip'
-    ? { extension: 'zip', contentType: 'application/zip' }
-    : { extension: 'pdf', contentType: 'application/pdf' };
+export type ExportExtension = 'zip' | 'pdf' | 'csv';
+
+/** An export job's file type: a zip for `documents.zip`, a CSV for `csv.export`, otherwise a PDF. */
+export function exportFileType(type: JobType | FunctionJobType | string | undefined): {
+  extension: ExportExtension;
+  contentType: string;
+} {
+  if (type === 'documents.zip') return { extension: 'zip', contentType: 'application/zip' };
+  if (type === 'csv.export') return { extension: 'csv', contentType: 'text/csv; charset=utf-8' };
+  return { extension: 'pdf', contentType: 'application/pdf' };
 }
 
 /**
- * `jobs-getExportUrl` (FND-24, CORE-17, CORE-12b): a 5-minute signed URL for an export job's PDF
- * or zip, for the member who started it, once it has succeeded.
+ * `jobs-getExportUrl` (FND-24, CORE-17, CORE-12b, INS-03): a 5-minute signed URL for an export
+ * job's PDF, zip or CSV, for the member who started it, once it has succeeded.
  */
 export const GET_EXPORT_URL_CALLABLE = 'jobs-getExportUrl';
 export const GetExportUrlInput = z.object({ jobId: DocIdSchema });

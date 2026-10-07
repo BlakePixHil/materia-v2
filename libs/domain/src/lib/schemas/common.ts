@@ -45,7 +45,10 @@ export const SoftDeleteShape = {
 /** Present on documents loaded by the legacy migration (Legacy migration plan). */
 export const MigrationMetaShape = {
   migration: z.object({ runId: NonEmptyString, legacyPath: NonEmptyString, loadedAt: InstantSchema }).optional(),
+  /** Why the record needs the person's eye (MIG-08's review queue lists it while any is open). */
   needsReview: z.array(z.string()).optional(),
+  /** Codes the person reviewed or put right, moved here from `needsReview` (MIG-08). */
+  reviewed: z.array(z.string()).optional(),
 };
 
 export const META_KEYS = ['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'] as const;

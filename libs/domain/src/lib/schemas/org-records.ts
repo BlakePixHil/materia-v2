@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 import {
+  ActorSchema,
   CentsSchema,
   DateOnlySchema,
   DocIdSchema,
@@ -468,7 +469,8 @@ export const ChecklistTemplate = withMeta(
     priority: PrioritySchema.optional(),
     dueInDays: z.number().int().min(0).max(CHECKLIST_TEMPLATE_DUE_MAX_DAYS).optional(),
   },
-  { path: `${ORG}/checklistTemplates`, softDelete: true, migratable: false },
+  // Migratable: the legacy board checklist templates load here (MIG-03).
+  { path: `${ORG}/checklistTemplates`, softDelete: true },
 );
 
 /** Limits on task group templates (CORE-08f); the name becomes a task's group (≤ 120). */
@@ -959,16 +961,26 @@ export const SafeCustody = withMeta(
   { path: `${ORG}/safeCustody`, softDelete: true, updatable: [] },
 );
 
-/** `migrations/{runId}`: migration run reports (Legacy migration plan). */
+/**
+ * `migrations/{runId}`: migration run records, written by `materia-migrate load` and `rollback`
+ * (MIG-06). While a rollback deletes a run's documents its status is `rolling_back`, which the
+ * audit trigger reads to leave those deletes out of the audit log.
+ */
 export const MigrationRun = withMeta(
   {
     runId: NonEmptyString,
     mode: z.enum(['rehearsal', 'cutover', 'delta']),
-    status: z.enum(['running', 'succeeded', 'failed', 'rolled_back']),
+    status: z.enum(['running', 'succeeded', 'failed', 'rolling_back', 'rolled_back']),
     startedAt: InstantSchema,
     finishedAt: InstantSchema.optional(),
     counts: z.record(z.string(), z.number().int().min(0)),
     warnings: z.array(z.object({ code: z.string(), path: z.string(), message: z.string() })).default([]),
+    /** The gcloud account that ran it. */
+    operator: z.string().optional(),
+    toolVersion: z.string().optional(),
+    /** When no migrated record had a review code left open (MIG-08), and who closed the last one. */
+    reviewedAt: InstantSchema.optional(),
+    reviewedBy: ActorSchema.optional(),
   },
   { path: `${ORG}/migrations`, migratable: false, updatable: [] },
 );

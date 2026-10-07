@@ -6,6 +6,7 @@ import { changedFields } from '../audit/entry';
 import { refreshMatterRoles } from '../contacts/matter-roles';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
 import { privilegeChanged, syncMatterPrivilege } from '../deadlines/privilege';
+import { clearFixedReviewCodes } from '../migration/clear';
 import { fillFromKeyFacts } from '../templates/fill-pending';
 
 type Data = Record<string, unknown>;
@@ -30,6 +31,9 @@ export const NON_ACTIVITY_FIELDS: ReadonlySet<string> = new Set([
   'deletedBy',
   'emailToken',
   'legacyBilling',
+  // The migration review (MIG-08): marking a code reviewed isn't activity on the matter.
+  'needsReview',
+  'reviewed',
 ]);
 
 /** Whether a write changed anything that counts as activity (meta fields never do). */
@@ -142,6 +146,9 @@ export const denormaliseDefinition: TriggerDefinition = {
       const written = await syncMatterPrivilege(ctx.db, ctx.params['orgId'] as string, matterId);
       ctx.log.info('privileged flag copied', { matterId, written });
     }
+    // A migrated matter renamed, or its client, stage, fee or closing changed, loses the review
+    // codes that asked for it (MIG-08).
+    await clearFixedReviewCodes(change, ctx);
   },
 };
 

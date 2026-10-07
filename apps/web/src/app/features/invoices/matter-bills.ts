@@ -62,7 +62,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
             <ul class="list">
               @for (bill of bills.value(); track bill.id) {
                 <li class="mt-row bill" [attr.data-status]="bill.status">
-                  <a class="label-m" [routerLink]="['/billing/invoices', bill.id]">{{ name(bill) }}</a>
+                  <a class="label" [routerLink]="['/billing/invoices', bill.id]">{{ name(bill) }}</a>
                   <mt-badge [tone]="tone(bill.status)">{{ status(bill) }}</mt-badge>
                   <span class="caption t-3">{{ bill.issueDate ? date(bill.issueDate) : '' }}</span>
                   <span class="num mt-ml">{{ money(bill.totalCents) }}</span>

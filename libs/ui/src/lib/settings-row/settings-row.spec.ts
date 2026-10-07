@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/angular';
 
 import { MtSettingsRow, MtSettingsSection } from './settings-row';
+import { MtSelect } from '../select/select';
 import { MtSwitch } from '../switch/switch';
 
 describe('SettingsSection and SettingsRow', () => {
@@ -21,6 +22,26 @@ describe('SettingsSection and SettingsRow', () => {
     expect(screen.getByText('Email', { selector: '[ngplabel], .mt-sr' })).toHaveClass('mt-sr');
     expect(screen.getByRole('img', { name: 'Locked' })).toBeInTheDocument();
     expect(screen.getByText('Send email').closest('mt-settings-row')).toHaveAttribute('data-locked');
+  });
+
+  it('puts lead content before the title and hides a select’s label, keeping its name', async () => {
+    const { container } = await render(
+      `<mt-settings-section title="Members">
+         <mt-settings-row title="Sam Lee">
+           <span mtRowLead data-lead>SL</span>
+           <mt-select label="Role for Sam Lee" labelHidden size="sm" [native]="true" [options]="options" />
+         </mt-settings-row>
+       </mt-settings-section>`,
+      {
+        imports: [MtSettingsSection, MtSettingsRow, MtSelect],
+        componentProperties: { options: [{ value: 'lawyer', label: 'Lawyer' }] },
+      },
+    );
+    const row = container.querySelector('mt-settings-row');
+    expect(row?.firstElementChild).toHaveAttribute('data-lead');
+    expect(screen.getByRole('combobox', { name: 'Role for Sam Lee' })).toBeInTheDocument();
+    expect(screen.getByText('Role for Sam Lee')).toHaveClass('mt-sr');
+    expect(row?.querySelector('.mt-input')).toHaveAttribute('data-size', 'sm');
   });
 
   it('keeps the title off the host, so the browser shows no tooltip over the section', async () => {

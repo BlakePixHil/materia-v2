@@ -56,6 +56,16 @@ export const TASK_TITLE_MAX = 500;
 export const TASK_GROUP_MAX = 120;
 export const TASK_CHECKLIST_MAX = 100;
 
+/**
+ * A calendar event a migrated task had in the legacy app (MIG-03), for information: the event is
+ * still in the person's calendar, so INT-02 can adopt or skip it rather than add a second one.
+ */
+export const LegacyCalendarEventSchema = z.object({
+  provider: z.string().min(1).max(40),
+  eventId: z.string().min(1).max(1024).optional(),
+});
+export type LegacyCalendarEvent = z.infer<typeof LegacyCalendarEventSchema>;
+
 /** A checklist item inside a task (CORE-08), ticked inline. */
 export const ChecklistItemSchema = z.object({ id: z.string().min(1), text: z.string().max(500), done: z.boolean() });
 export type ChecklistItem = z.infer<typeof ChecklistItemSchema>;
@@ -80,6 +90,8 @@ const taskShape = {
   reminderSentFor: DateOnlySchema.optional(),
   /** Title tokens for ⌘K (CORE-15), kept by `tasks-onWrite`/`tasks-onPersonalWrite`; empty until then. */
   search: SearchTokensSchema.default([]),
+  /** Set only on migrated tasks (MIG-03). */
+  legacyCalendar: z.array(LegacyCalendarEventSchema).max(10).optional(),
 };
 
 /**
@@ -125,6 +137,7 @@ export const Task = withMeta(
       'duePending',
       'countedOpen',
       'search',
+      'legacyCalendar',
     ],
     updatable: TASK_UPDATABLE,
   },
@@ -140,7 +153,7 @@ export const PersonalTask = withMeta(
   {
     path: 'orgs/{orgId}/members/{uid}/tasks',
     softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor', 'search'],
+    serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor', 'search', 'legacyCalendar'],
     updatable: TASK_UPDATABLE,
   },
 );
@@ -662,7 +675,10 @@ export const NoteRevision = withMeta(
   { path: `${MATTER}/notes/{noteId}/revisions`, migratable: false, updatable: [] },
 );
 
-/** `matters/{matterId}/activity/{id}`: the feed's read model, written by triggers. */
+/**
+ * `matters/{matterId}/activity/{id}`: the feed's read model, written by triggers. Migrated legacy
+ * history (MIG-03) lands here too, with the `migration` stamp.
+ */
 export const Activity = withMeta(
   {
     kind: NonEmptyString,
@@ -671,7 +687,7 @@ export const Activity = withMeta(
     at: InstantSchema,
     refs: z.record(z.string(), z.string()).default({}),
   },
-  { path: `${MATTER}/activity`, migratable: false },
+  { path: `${MATTER}/activity` },
 );
 
 /** Limits the rules enforce on client-written time entries (BILL-01). */

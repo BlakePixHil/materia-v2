@@ -16,7 +16,7 @@ import { MtBrandMark } from '@materia/ui';
   imports: [RouterOutlet, MtBrandMark],
   template: `
     <main id="main" class="mt-minimal">
-      <mt-brand-mark class="mt-minimal-brand" [size]="32" wordmark />
+      <mt-brand-mark [size]="32" wordmark />
       <div class="mt-minimal-card"><router-outlet /></div>
     </main>
   `,

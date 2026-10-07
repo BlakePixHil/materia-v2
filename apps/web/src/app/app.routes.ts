@@ -4,7 +4,7 @@ import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 import type { Role } from '@materia/domain';
 
 import { AuthState } from './core/auth/auth-state';
-import { authGuard, mfaGuard, orgScopedGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
+import { authGuard, mfaGuard, orgGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
 import { startPagePath } from './core/profile/start-page';
 import { readLayout } from './features/matters/matters-layout';
@@ -280,6 +280,12 @@ const shellRoutes: Route[] = [
     title: 'Insights',
     loadComponent: () => import('./features/insights/insights-page').then((m) => m.InsightsPage),
   },
+  // A finished CSV export (INS-03): where the export_ready notification leads.
+  {
+    path: 'exports/:jobId',
+    title: 'Export',
+    loadComponent: () => import('./features/exports/export-download-page').then((m) => m.ExportDownloadPage),
+  },
   // Where an OAuth provider sends the browser back after consent (INT-01, ADR-051).
   {
     path: 'integrations/callback/:provider',
@@ -303,8 +309,11 @@ const shellRoutes: Route[] = [
       {
         path: '',
         pathMatch: 'full',
-        redirectTo: () => {
-          const role = inject(AuthState).claims().role;
+        // Redirects run before the shell's guard, so wait for the session's role.
+        redirectTo: async () => {
+          const auth = inject(AuthState);
+          await auth.whenReady();
+          const role = auth.claims().role;
           return role === 'owner' || role === 'admin' ? 'practice' : 'team';
         },
       },
@@ -416,6 +425,28 @@ const shellRoutes: Route[] = [
         canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
         loadComponent: () => import('./features/settings/audit-log-page').then((m) => m.AuditLogPage),
       },
+      // Import from materia (MIG-08): owners and admins review what the legacy migration brought.
+      {
+        path: 'migration',
+        data: { crumb: 'Import from materia' },
+        canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            title: 'Import from materia',
+            loadComponent: () =>
+              import('./features/migration/migration-summary-page').then((m) => m.MigrationSummaryPage),
+          },
+          {
+            path: 'review',
+            title: 'Review imported records',
+            data: { crumb: 'Review' },
+            loadComponent: () =>
+              import('./features/migration/migration-review-page').then((m) => m.MigrationReviewPage),
+          },
+        ],
+      },
       // Security (SEC-04): everyone sees their own sessions; owners and admins edit the policy.
       {
         path: 'security',
@@ -506,7 +537,7 @@ export const appRoutes: Route[] = [
   {
     path: 'onboarding',
     loadComponent: minimalLayout,
-    // Signed in and verified, with MFA where required. MIG-08 adds the import step.
+    // Signed in and verified, with MFA where required. An imported practice's step is /settings/migration (MIG-08).
     canActivate: [mfaGuard],
     children: [
       {
@@ -530,9 +561,11 @@ export const appRoutes: Route[] = [
     ],
   },
   // The shell needs a signed-in, verified person with an active org (and MFA where required).
+  // canActivate rather than canMatch, so the router knows the target pages while the guard waits
+  // and their chunks download meanwhile (prefetchPagesDuringGuards).
   {
     path: '',
-    canMatch: [orgScopedGuard],
+    canActivate: [orgGuard],
     loadComponent: () => import('./shell/app-shell').then((m) => m.AppShellComponent),
     children: shellRoutes,
   },

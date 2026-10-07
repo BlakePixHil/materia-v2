@@ -33,6 +33,7 @@ Client personal information is often sensitive: health information in capacity d
 
 **App Check**
 - reCAPTCHA Enterprise. Enforced on Firestore, Storage, Functions and Vertex.
+- Tokens last 12 hours, set in the Firebase console (`infra/MANUAL.md`, [ADR-056](adr/056-startup-loads-in-parallel.md)).
 - Debug tokens are allowed only in dev.
 
 **Transport and storage encryption**
@@ -79,9 +80,10 @@ Client personal information is often sensitive: health information in capacity d
 
 **Audit log (FND-18)** (`apps/functions/src/audit/`)
 - **Capture:** two Firestore triggers record every org write. `audit-onOrgWrite` covers `orgs/{orgId}/{collection}/{docId}` and `audit-onMatterWrite` covers matter subcollections. Each write becomes one `orgs/{orgId}/audit/{eventId}` entry; the event id is the entry id, so a redelivered event adds nothing.
-- **Contents:** `at` (event time), `actor` (`updatedBy`, or `deletedBy` for deletes; `system`/`clerk` as themselves), `action` (`create`, `update`, `delete`, `soft_delete`, `restore`), `entity`, `changedFields`, and `source` (`client`, `callable` when `_requestId` is present, `trigger`, or `migration` with `runId`).
+- **Contents:** `at` (event time), `actor` (`updatedBy`, or `deletedBy` for deletes; `system`/`clerk` as themselves), `action` (`create`, `update`, `delete`, `soft_delete`, `restore`), `entity`, `changedFields`, and `source` (`client`, `callable` when `_requestId` is present, or `trigger`).
 - **Redaction:** `before`/`after` hold only the changed fields. Free text (`bodyMd`, `narrative`, `descriptionMd`, `notes`…) and any string over 280 characters become `{ len, sha256 }`; secrets (`encryptedRefreshToken`, `tokenHash`…) are dropped.
-- **Not audited:** the `audit`, `metrics`, `activity`, `chunks`, `requests` and `counters` collections, and updates that touch only denormalised fields (`nextDeadline`, `openTaskCount`, `wipCents`, `lastActivityAt`, `search`) or `order`.
+- **Not audited:** the `audit`, `metrics`, `activity`, `chunks`, `requests`, `counters` and `migrations` collections, and updates that touch only denormalised fields (`nextDeadline`, `openTaskCount`, `wipCents`, `lastActivityAt`, `search`) or `order`.
+- **Legacy migration (MIG-06):** the load's writes (those that set or restamp `migration`) and a rollback's or delta's deletes aren't audited one by one. The tool records one entry per run instead (`migration.loaded`, `migration.rolled_back`, `migration.deleted`, `source: 'migration'`, with the run id and counts).
 - **Semantic events:** callables add them with `audit(ctx, { action: 'invoice.issued', entity, summary, data })`, alongside the trigger's entry for the write.
 - **Access:** clients can neither read nor write `audit` (rules). Reads go through `audit-query`: owners and admins query the whole org and see redacted values; other members read one visible matter's entries without values.
 - **Retention:** `expireAt` is the event time plus the org's `retentionYears` (default 7), deleted by a TTL policy on `audit.expireAt`.

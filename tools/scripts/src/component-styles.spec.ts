@@ -15,6 +15,9 @@ import ts from 'typescript';
  *    used in a template whose component doesn't load that stylesheet. Angular adds a component's
  *    styles only once it renders, so the class is styled only after some other component that
  *    loads the file has rendered: a fresh load of that page shows it unstyled.
+ * 3. A class that no stylesheet defines: a made-up type style (`title-s`, `label-m`, `body-m`; the
+ *    scale is `title-l`, `title-m`, `heading`, `body`, `label`, `caption`…) or a design-system name
+ *    (`mt-stack`), so the text or layout silently falls back to the browser's defaults.
  */
 const root = path.resolve(import.meta.dirname, '../../..');
 const generated = path.join(root, 'libs/ui/src/generated/components');
@@ -47,16 +50,33 @@ function text(node: ts.Node | undefined): string | null {
   return null;
 }
 
-function texts(node: ts.Expression | undefined): string[] {
+/** Strings an expression gives, following identifiers to the file's string constants (`styles: FORM_STYLE`). */
+function texts(node: ts.Expression | undefined, constants: ReadonlyMap<string, string> = new Map()): string[] {
   if (!node) return [];
   const items = ts.isArrayLiteralExpression(node) ? [...node.elements] : [node];
-  return items.map(text).filter((value): value is string => value !== null);
+  return items
+    .map((item) => (ts.isIdentifier(item) ? (constants.get(item.text) ?? null) : text(item)))
+    .filter((value): value is string => value !== null);
+}
+
+/** The file's top-level `const NAME = '…'` and template-literal constants. */
+function stringConstants(source: ts.SourceFile): Map<string, string> {
+  const constants = new Map<string, string>();
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      const value = text(declaration.initializer);
+      if (ts.isIdentifier(declaration.name) && value !== null) constants.set(declaration.name.text, value);
+    }
+  }
+  return constants;
 }
 
 function components(): ComponentInfo[] {
   const found: ComponentInfo[] = [];
   for (const file of sourceFiles()) {
     const source = ts.createSourceFile(file, readFileSync(path.join(root, file), 'utf8'), ts.ScriptTarget.Latest, true);
+    const constants = stringConstants(source);
     const visit = (node: ts.Node): void => {
       if (
         ts.isDecorator(node) &&
@@ -64,7 +84,7 @@ function components(): ComponentInfo[] {
         node.expression.expression.getText() === 'Component'
       ) {
         const config = node.expression.arguments[0];
-        if (config && ts.isObjectLiteralExpression(config)) found.push(componentInfo(file, config));
+        if (config && ts.isObjectLiteralExpression(config)) found.push(componentInfo(file, config, constants));
       }
       ts.forEachChild(node, visit);
     };
@@ -73,7 +93,11 @@ function components(): ComponentInfo[] {
   return found;
 }
 
-function componentInfo(file: string, config: ts.ObjectLiteralExpression): ComponentInfo {
+function componentInfo(
+  file: string,
+  config: ts.ObjectLiteralExpression,
+  constants: ReadonlyMap<string, string>,
+): ComponentInfo {
   const prop = (name: string) =>
     config.properties.find(
       (p): p is ts.PropertyAssignment => ts.isPropertyAssignment(p) && p.name.getText().replace(/['"]/g, '') === name,
@@ -89,7 +113,7 @@ function componentInfo(file: string, config: ts.ObjectLiteralExpression): Compon
       if (bound?.[1]) hostClasses.push(bound[1]);
     }
   }
-  const inlineCss = texts(prop('styles')).join('\n');
+  const inlineCss = texts(prop('styles'), constants).join('\n');
   const generatedSheets = new Set<string>();
   let ownCss = inlineCss;
   for (const url of texts(prop('styleUrls') ?? prop('styleUrl'))) {
@@ -101,7 +125,7 @@ function componentInfo(file: string, config: ts.ObjectLiteralExpression): Compon
     selector: text(prop('selector')) ?? '',
     emulated: !/ViewEncapsulation\.(None|ShadowDom)/.test(prop('encapsulation')?.getText() ?? ''),
     hostClasses,
-    template: text(prop('template')) ?? '',
+    template: texts(prop('template'), constants)[0] ?? '',
     inlineCss,
     generatedSheets,
     ownCss,
@@ -147,6 +171,25 @@ function designClasses(): { owners: Map<string, Set<string>>; global: Set<string
   return { owners, global, globalCss };
 }
 
+/** Every class a template sets statically (`class="…"` and `[class.x]`), skipping interpolations. */
+function templateClasses(template: string): Set<string> {
+  const used = new Set<string>();
+  for (const match of template.matchAll(/\bclass="([^"]*)"/g)) {
+    for (const name of (match[1] ?? '').split(/\s+/)) if (/^[\w-]+$/.test(name)) used.add(name);
+  }
+  for (const match of template.matchAll(/\[class\.([\w-]+)\]/g)) used.add(match[1] ?? '');
+  return used;
+}
+
+/** The type scale's class names, from the generated tokens (`.title-l { … }`). */
+function typeScale(): Set<string> {
+  const tokens = readFileSync(path.join(root, 'libs/ui/src/generated/tokens.css'), 'utf8');
+  return new Set([...tokens.matchAll(/^\.([\w-]+)\s*\{/gm)].map((match) => match[1] ?? ''));
+}
+
+/** Names that look like a type style: a scale word with or without a size (`title-l`, `label`). */
+const TYPE_LIKE = /^(display|title|heading|body|label|caption|numeric|eyebrow|mono)(-[a-z0-9]+)?$/;
+
 describe('component styles', () => {
   const all = components();
 
@@ -185,6 +228,26 @@ describe('component styles', () => {
         if ([...sheets].some((sheet) => component.generatedSheets.has(sheet) || global.has(sheet))) continue;
         if (new RegExp(`\\.${escape(name)}(?![\\w-])`).test(component.ownCss + globalCss)) continue;
         problems.push(`${component.file}: .${name} needs ${[...sheets].join(' or ')}`);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('uses only type styles and design-system classes that some stylesheet defines', () => {
+    const { globalCss } = designClasses();
+    const scale = typeScale();
+    let shared = globalCss + readFileSync(path.join(root, 'libs/ui/src/generated/tokens.css'), 'utf8');
+    for (const sheet of readdirSync(generated)) shared += readFileSync(path.join(generated, sheet), 'utf8');
+    // Unencapsulated component styles are global once that component renders.
+    for (const component of all.filter((c) => !c.emulated)) shared += component.ownCss;
+    const problems: string[] = [];
+    for (const component of all) {
+      for (const name of templateClasses(component.template)) {
+        const typeLike = TYPE_LIKE.test(name);
+        if (!typeLike && !name.startsWith('mt-')) continue;
+        if (typeLike && scale.has(name)) continue;
+        if (new RegExp(`\\.${escape(name)}(?![\\w-])`).test(shared + component.ownCss)) continue;
+        problems.push(`${component.file}: .${name} isn't defined anywhere`);
       }
     }
     expect(problems).toEqual([]);
