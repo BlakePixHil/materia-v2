@@ -175,13 +175,15 @@ export class OffboardDialog {
     const name = this.data.displayName;
     const takers = this.kinds().map((k) => {
       const to = this.data.people.find((person) => person.uid === this.reassign()[k.kind])?.displayName ?? '';
-      return `${plural(p[k.kind], k.one, k.many)} go to ${to}.`;
+      return `${plural(p[k.kind], k.one, k.many)} ${p[k.kind] === 1 ? 'goes' : 'go'} to ${to}.`;
     });
     return [
       ...takers,
       ...(p.timer ? [`Their running timer is stopped and saved as draft time.`] : []),
       ...(p.integrations
-        ? [`${plural(p.integrations, 'connection', 'connections')} (Microsoft, Google) are disconnected.`]
+        ? [
+            `${plural(p.integrations, 'connection', 'connections')} (Microsoft, Google) ${p.integrations === 1 ? 'is' : 'are'} disconnected.`,
+          ]
         : []),
       `${name} loses access to the practice straight away. Their records and history stay.`,
     ];

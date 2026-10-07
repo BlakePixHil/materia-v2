@@ -481,7 +481,8 @@ describe('team page', () => {
     expect(overlay.text()).toContain('Their 2 personal tasks');
     expect(overlay.text()).toContain('3 open tasks go to Jordan Price.');
     expect(overlay.text()).toContain('Their running timer is stopped and saved as draft time.');
-    expect(overlay.text()).toContain('1 connection (Microsoft, Google) are disconnected.');
+    expect(overlay.text()).toContain('1 matter they’re responsible for goes to Jordan Price.');
+    expect(overlay.text()).toContain('1 connection (Microsoft, Google) is disconnected.');
     await overlay.click('Remove Sam Lee', page.stable);
     expect(page.port.calls.at(-1)).toMatchObject({
       name: 'orgs-offboardMember',
