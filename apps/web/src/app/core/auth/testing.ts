@@ -156,6 +156,13 @@ export class FakeAuthPort implements AuthPort {
     return { kind: 'signedIn' };
   }
 
+  /** How many times a screen got the Google pop-up ready. */
+  popupsPrepared = 0;
+
+  async preparePopups(): Promise<void> {
+    this.popupsPrepared++;
+  }
+
   async refreshClaims(): Promise<void> {
     this.fail();
     if (this.session) this.emit({ ...this.session });
