@@ -60,7 +60,6 @@ async function openPdf(data: Buffer): Promise<OpenResult> {
   try {
     doc = await pdfjs.getDocument({
       data: new Uint8Array(data),
-      isEvalSupported: false,
       disableFontFace: true,
       useSystemFonts: false,
       stopAtErrors: false,
@@ -101,7 +100,7 @@ async function openPdf(data: Buffer): Promise<OpenResult> {
         return { kind: 'pdf', base64: Buffer.from(await single.save()).toString('base64') };
       },
       async close() {
-        await doc.destroy();
+        await doc.loadingTask.destroy();
       },
     },
   };
