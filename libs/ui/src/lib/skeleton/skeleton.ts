@@ -36,11 +36,7 @@ const COUNT: Record<MtSkeletonVariant, number> = { rows: 4, lines: 3, cards: 3, 
   selector: 'mt-skeleton',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  styleUrls: [
-    '../../generated/components/skel.css',
-    '../../generated/components/skeleton.css',
-    '../../generated/components/layout.css',
-  ],
+  styleUrls: ['../../generated/components/skel.css', '../../generated/components/skeleton.css'],
   host: {
     class: 'mt-skeleton',
     '[attr.role]': "label() ? 'status' : null",

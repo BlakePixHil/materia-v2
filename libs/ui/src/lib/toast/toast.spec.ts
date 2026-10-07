@@ -130,4 +130,29 @@ describe('ToastService', () => {
     await flush();
     expect(toastTitles()).toEqual([]);
   });
+
+  it('fades a dismissed toast out before removing it when motion is allowed', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === '(prefers-reduced-motion: no-preference)',
+      media: query,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const { service, flush } = await setup();
+      const ref = service.show({ title: 'Saved', duration: 0 });
+      service.show({ title: 'Archived', duration: 0 });
+      await flush();
+      ref.dismiss();
+      await flush();
+      const leaving = document.querySelector('.mt-toast.mt-leave');
+      expect(leaving).toHaveTextContent('Saved');
+      expect(leaving).toHaveAttribute('inert');
+      expect(service.visible().map((t) => t.title)).toEqual(['Archived']);
+      await vi.advanceTimersByTimeAsync(150);
+      await flush();
+      expect(toastTitles()).toEqual(['Archived']);
+    } finally {
+      window.matchMedia = original;
+    }
+  });
 });

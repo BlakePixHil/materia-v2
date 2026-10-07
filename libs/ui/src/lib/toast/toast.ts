@@ -43,11 +43,15 @@ interface ToastRecord extends Required<Pick<MtToastOptions, 'title' | 'tone' | '
   remaining: number;
   startedAt: number | null;
   timer: ReturnType<typeof setTimeout> | null;
+  /** Dismissed and fading out. */
+  leaving?: boolean;
 }
 
 /** At most this many toasts are on screen; the rest wait their turn. */
 export const MT_TOAST_MAX_VISIBLE = 3;
 export const MT_TOAST_DEFAULT_DURATION = 5000;
+/** How long a dismissed toast takes to fade out (`--motion-base`). */
+const LEAVE_MS = 150;
 
 const TONE_ICON: Record<MtToastTone, MtIconName | null> = {
   neutral: null,
@@ -68,7 +72,7 @@ const TONE_ICON: Record<MtToastTone, MtIconName | null> = {
  * - Screen readers hear each toast through a polite live region; `danger` toasts use an assertive one.
  * - Toasts never take focus. Press F6 to move focus to the newest toast's action (F6 or Escape again
  *   returns to where you were).
- * - They rise in and fade out (`mt-leave`, via `animate.leave`); instantly with reduced motion.
+ * - They rise in and fade out (`mt-leave`); instantly with reduced motion.
  *
  * Built on Angular rather than ng-primitives' toast, which has no queue limit, assertive tone or F6.
  */
@@ -78,12 +82,16 @@ export class ToastService {
   private readonly injector = inject(EnvironmentInjector);
   private readonly document = inject(DOCUMENT);
   private readonly all = signal<ToastRecord[]>([]);
+  /** Dismissed toasts still fading out. CSS rather than `animate.leave`, which adds about 2.4 kB to the first load. */
+  private readonly leaving = signal<ToastRecord[]>([]);
   private nextId = 0;
   private paused = false;
   private outletAttached = false;
 
   /** The toasts on screen, oldest first. */
   readonly visible = computed(() => this.all().slice(0, MT_TOAST_MAX_VISIBLE));
+  /** @internal What the outlet draws: the visible toasts and those fading out, oldest first. */
+  readonly rendered = computed(() => [...this.visible(), ...this.leaving()].sort((a, b) => a.id - b.id));
   /** The latest announcement, per politeness level. */
   readonly politeMessage = signal('');
   readonly assertiveMessage = signal('');
@@ -109,8 +117,15 @@ export class ToastService {
 
   dismiss(id: number): void {
     const record = this.all().find((t) => t.id === id);
-    if (record?.timer) clearTimeout(record.timer);
-    this.all.update((list) => list.filter((t) => t.id !== id));
+    if (!record) return;
+    if (record.timer) clearTimeout(record.timer);
+    const shown = this.visible().includes(record);
+    this.all.update((list) => list.filter((t) => t !== record));
+    if (shown && this.animates()) {
+      record.leaving = true;
+      this.leaving.update((list) => [...list, record]);
+      setTimeout(() => this.leaving.update((list) => list.filter((t) => t !== record)), LEAVE_MS);
+    }
     this.sync();
   }
 
@@ -158,6 +173,11 @@ export class ToastService {
     }
   }
 
+  /** Fade out only when the browser reports no reduced-motion preference. */
+  private animates(): boolean {
+    return this.document.defaultView?.matchMedia?.('(prefers-reduced-motion: no-preference)').matches ?? false;
+  }
+
   /** @internal An outlet placed in a template registers itself, so the service doesn't add a second. */
   registerOutlet(): void {
     this.outletAttached = true;
@@ -193,8 +213,13 @@ export class ToastService {
       (focusout)="onFocusOut($event)"
       (keydown.escape)="returnFocus()"
     >
-      @for (toast of toasts.visible(); track toast.id) {
-        <div class="mt-toast" [attr.data-tone]="toast.tone === 'neutral' ? null : toast.tone" animate.leave="mt-leave">
+      @for (toast of toasts.rendered(); track toast.id) {
+        <div
+          class="mt-toast"
+          [class.mt-leave]="toast.leaving"
+          [attr.inert]="toast.leaving ? '' : null"
+          [attr.data-tone]="toast.tone === 'neutral' ? null : toast.tone"
+        >
           @if (icon(toast.tone); as name) {
             <span class="ic"><mt-icon [name]="name" /></span>
           }
@@ -245,7 +270,9 @@ export class MtToastOutlet {
         return;
       }
       this.returnTo = this.document.activeElement instanceof HTMLElement ? this.document.activeElement : null;
-      const actions = section.querySelectorAll<HTMLElement>('[data-toast-action], button');
+      const actions = section.querySelectorAll<HTMLElement>(
+        '.mt-toast:not(.mt-leave) [data-toast-action], .mt-toast:not(.mt-leave) button',
+      );
       (actions[0] ?? section).focus();
     };
     this.document.addEventListener('keydown', onKeydown);
