@@ -14,6 +14,11 @@ export interface FirebaseSetup {
   emulatorUserToken?: { sub: string; [claim: string]: unknown };
   /** Overrides the cache choice (tests); by default the sign-in's shared-computer option decides. */
   cacheMode?: () => FirestoreCacheMode;
+  /**
+   * Resolves when Firestore may start: the web app waits for Auth to confirm the session it drew
+   * the screen from (MAT-177), so Firestore never starts as an unknown user.
+   */
+  ready?: () => Promise<void>;
 }
 
 export const FIREBASE_SETUP = new InjectionToken<FirebaseSetup>('FIREBASE_SETUP');

@@ -3,6 +3,7 @@ import { computed, DestroyRef, inject, Injectable, InjectionToken, Injector, sig
 import { DataLifecycle, setFirestoreCacheMode } from '@materia/data-access';
 
 import { AUTH_PORT, type AuthPersistence, type AuthSession, type SignInOutcome } from './auth-port';
+import { forgetCachedSession } from './session-cache';
 import { deleteScanQueue } from '../../features/scan/scan-db';
 
 /** The signed-in person and their active org, as the shell shows them. */
@@ -94,10 +95,19 @@ export class AuthState {
   private readonly port = inject(AUTH_PORT);
   private readonly cleanups = inject(SIGN_OUT_CLEANUP);
   private readonly sessionSignal = signal<AuthSession | null | undefined>(undefined);
+  private readonly confirmedSignal = signal(false);
   private readonly readyWaiters: (() => void)[] = [];
+  private readonly confirmWaiters: (() => void)[] = [];
 
-  /** `undefined` while loading, `null` when signed out. */
+  /**
+   * The session this device saw last, which this tab was drawn from until Auth answered (MAT-177),
+   * or null. The session watcher checks Auth's answer against it.
+   */
+  readonly cached: AuthSession | null = this.port.cachedSession();
+  /** `undefined` while loading, `null` when signed out; the cached session until Auth answers. */
   readonly session = this.sessionSignal.asReadonly();
+  /** Whether Auth has answered: until then `session` is the cached one, and Firestore waits. */
+  readonly confirmed = this.confirmedSignal.asReadonly();
   /** Whether the org requires MFA. SEC-04 sets it from the org's security policy. */
   readonly mfaRequired = signal(false);
   readonly status = computed(() => statusOf(this.sessionSignal(), this.mfaRequired()));
@@ -120,20 +130,31 @@ export class AuthState {
   readonly orgScoped = computed(() => !!this.activeOrgId());
 
   constructor() {
+    // A returning person's shell and page are drawn from the session this device saw last, while
+    // Auth restores and confirms it (ADR-056, MAT-177).
+    if (this.cached) this.sessionSignal.set(this.cached);
     const stop = this.port.watch((session) => {
       this.sessionSignal.set(session);
+      this.confirmedSignal.set(true);
       // Stays set until the next sign-in, so the session ending (which the port may report after
       // signOut resolves) still reads as this tab's own sign-out.
       if (session) this.signingOut.set(false);
       for (const resolve of this.readyWaiters.splice(0)) resolve();
+      for (const resolve of this.confirmWaiters.splice(0)) resolve();
     });
     inject(DestroyRef).onDestroy(stop);
   }
 
-  /** Resolves once the first session state is known. */
+  /** Resolves once the first session state is known: the cached session, or Auth's answer. */
   whenReady(): Promise<void> {
     if (this.sessionSignal() !== undefined) return Promise.resolve();
     return new Promise((resolve) => this.readyWaiters.push(resolve));
+  }
+
+  /** Resolves once Auth has answered, which anything signed in to Firebase waits for (Firestore). */
+  whenConfirmed(): Promise<void> {
+    if (this.confirmedSignal()) return Promise.resolve();
+    return new Promise((resolve) => this.confirmWaiters.push(resolve));
   }
 
   signInWithPassword(email: string, password: string, persistence: AuthPersistence = 'local'): Promise<SignInOutcome> {
@@ -202,6 +223,7 @@ export class AuthState {
       }
     }
     await clearFirestoreCaches().catch(() => undefined);
+    forgetCachedSession();
     // Scans waiting on this device to upload (MOB-05) are the person's documents.
     await deleteScanQueue().catch(() => undefined);
     for (const key of USER_STORAGE_KEYS) {

@@ -68,6 +68,18 @@ describe('FirestoreClient', () => {
     expect(calls).toEqual(['init:memory:true', 'emulator:127.0.0.1:8080']);
   });
 
+  it('starts only once the app says it may: Auth has confirmed the session (MAT-177)', async () => {
+    let confirm: () => void = () => undefined;
+    const confirmed = new Promise<void>((resolve) => (confirm = resolve));
+    const { client, calls } = setup(fakeSdk(), { ready: () => confirmed });
+    const started = client.get();
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(calls).toEqual([]);
+    confirm();
+    await started;
+    expect(calls).toEqual(['init:persistent(multi-tab):true']);
+  });
+
   it('fails clearly without FIREBASE_SETUP', async () => {
     TestBed.configureTestingModule({ providers: [{ provide: FIRESTORE_SDK_LOADER, useValue: async () => ({}) }] });
     await expect(TestBed.inject(FirestoreClient).get()).rejects.toThrow('FIREBASE_SETUP');

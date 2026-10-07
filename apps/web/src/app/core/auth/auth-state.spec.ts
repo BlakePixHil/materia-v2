@@ -7,7 +7,7 @@ import { AUTH_PORT, AuthFlowError, lazyFirebaseAuthPort, type AuthPort } from '.
 import { AuthState, clearFirestoreCaches, SIGN_OUT_CLEANUP, statusOf } from './auth-state';
 import { authErrorCode } from './firebase-auth-port';
 import { authGuard, mfaGuard, orgGuard, roleGuard, signedOutGuard, STATUS_ROUTES, unverifiedGuard } from './guards';
-import { FakeAuthPort, testSession } from './testing';
+import { FakeAuthPort, SlowAuthPort, testSession } from './testing';
 import { PushDevices } from '../push/push-devices';
 
 function setup(port = new FakeAuthPort(), cleanups: (() => void)[] = []) {
@@ -35,6 +35,26 @@ describe('statusOf', () => {
 });
 
 describe('AuthState', () => {
+  it('draws a returning person from the cached session until Auth answers (MAT-177)', async () => {
+    const port = new SlowAuthPort(testSession({ displayName: 'Jordan Price-Hale' }));
+    port.cached = testSession();
+    const { auth } = setup(port);
+    expect(auth.cached).toBe(port.cached);
+    expect(auth.status()).toBe('ready');
+    expect(auth.user()?.displayName).toBe('Jordan Price');
+    expect(auth.confirmed()).toBe(false);
+    await auth.whenReady();
+    let confirmed = false;
+    void auth.whenConfirmed().then(() => (confirmed = true));
+    await Promise.resolve();
+    expect(confirmed).toBe(false);
+
+    port.answer();
+    await auth.whenConfirmed();
+    expect(auth.confirmed()).toBe(true);
+    expect(auth.user()?.displayName).toBe('Jordan Price-Hale');
+  });
+
   it('is loading until the port reports, then follows session changes', async () => {
     const { auth, port } = setup();
     expect(auth.status()).toBe('loading');

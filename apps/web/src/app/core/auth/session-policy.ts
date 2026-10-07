@@ -5,6 +5,7 @@ import { OrgContext, TENANCY_PORT, type SessionSecurity } from '@materia/data-ac
 import { mfaEnforced, sessionExpired, sessionRevoked, type ResolvedSecurity } from '@materia/domain';
 
 import { AuthState } from './auth-state';
+import { readCachedSecurity, saveCachedSecurity } from './session-cache';
 
 /** Why the app ended a session itself (SEC-04); the signed-out page explains each. */
 export type SessionEndReason = 'idle' | 'expired' | 'revoked' | 'mfa';
@@ -95,7 +96,16 @@ export class SessionPolicy {
       const target = this.target();
       this.context.generation();
       const key = target && `${target.uid}/${target.orgId}`;
-      if (key !== followed) this.security.set(undefined);
+      if (key !== followed) {
+        // A start-up drawn from the cached session uses the policy this device saw last with it
+        // (MAT-177), so the guards and banners needn't wait for Firestore; the listener corrects it.
+        const cached = target && this.auth.cached ? readCachedSecurity(target.uid, target.orgId) : null;
+        this.security.set(cached ?? undefined);
+        if (cached) {
+          untracked(() => this.syncMfaRequired());
+          this.release();
+        }
+      }
       followed = key;
       const port = this.port;
       if (!target || !port?.watchSecurity) {
@@ -108,6 +118,7 @@ export class SessionPolicy {
         watch(target.orgId, target.uid, (security) =>
           untracked(() => {
             this.security.set(security);
+            if (security) saveCachedSecurity(target.uid, target.orgId, security);
             // Before the guards waiting on it go on, not when the effect below next runs.
             this.syncMfaRequired();
             this.release();
