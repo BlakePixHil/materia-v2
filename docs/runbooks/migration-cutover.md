@@ -26,7 +26,7 @@ How Tristan Burke's legacy data moves into Materia v2 for real: rehearsals on de
 | 4 | Import the account | `auth-import --target materia-v2-<env> --profile <profile>` | [migration-auth-import.md](migration-auth-import.md) |
 | 5 | Load | `load --run <runId> --env <env>` | [migration-load.md](migration-load.md#load) |
 | 6 | Verify | `verify --run <runId> --env <env>` | [migration-load.md](migration-load.md#verify) |
-| 7 | Clerk reads the files, and Insights gets its history | An owner approves in Settings → Clerk and AI; `pnpm materia-scripts backfill-metrics` | `migration-enrichment.md` (MIG-09) |
+| 7 | Clerk reads the files, and Insights gets its history | An owner approves in Settings → Clerk and AI; `pnpm materia-scripts backfill-metrics` | [migration-enrichment.md](migration-enrichment.md) (MIG-09) |
 | 8 | Review | Tristan, in Settings → Import from materia | [D-22](../migration/decisions.md#d-22-in-app-review-new) |
 
 The profile is `tools/migration/profiles/tristan-burke.json`. Exit codes, stops and re-runs are in each step's runbook: every step can be run again and picks up where it stopped.
@@ -132,7 +132,7 @@ Run them one at a time and read each one's output before the next; the step runb
    ```
 
    In Cloud Shell, ⋮ → Download saves it; an agent attaches it to the ticket. It holds counts and legacy paths, no names or content.
-2. **Clerk and Insights:** follow `migration-enrichment.md` (MIG-09). Tristan approves Clerk reading the files only if he wants to see it on dev: it sends his documents to the AI provider. Insights' history comes from `backfill-metrics`, which agents can run on dev through the `dev-script` workflow.
+2. **Clerk and Insights:** follow the [enrichment runbook](migration-enrichment.md) (MIG-09). Tristan approves Clerk reading the files only if he wants to see it on dev: it sends his documents to the AI provider. Insights' history comes from `backfill-metrics`, which agents can run on dev through the `dev-script` workflow.
 3. **Check the review queue:** Settings → Import from materia shows the run, and its open items match the transform report's `needsReview` totals.
 4. **Tristan reviews.** He signs in to https://materia-v2-dev.web.app with Google and works through the review queue (the Today card "Check your import", or Settings → Import from materia). He sets the practice's real name in Settings → Practice: legacy holds the app's name (D-09). Keep the review to a week or less.
 5. **Record his feedback** as Linear tickets related to MAT-101, one per problem, without client details.
@@ -255,7 +255,7 @@ gcloud config set project materia-v2-prod
    Verify must pass. Attach `verify/verify-report.md` to MAT-101. A failure that a second load and verify don't fix is a [rollback](#rollback).
 6. **If Tristan edited legacy after the export:** a delta (`export --since <the manifest's readTime>`, `transform --base-run $RUN`, `copy-files`, `delta --confirm-prod`, verify), as the [load runbook](migration-load.md#delta-cutover) says.
 7. **Remove the legacy bucket grant** from step 2.
-8. **Clerk and Insights:** `migration-enrichment.md` (MIG-09). Tristan, or Blake for him, approves the cost. Then `backfill-metrics --project materia-v2-prod --org <orgId> --from earliest` from Cloud Shell (the `dev-script` workflow is dev only).
+8. **Clerk and Insights:** the [enrichment runbook](migration-enrichment.md) (MIG-09). Tristan, or Blake for him, approves the cost. Then `backfill-metrics --project materia-v2-prod --org <orgId> --from earliest` from Cloud Shell (the `dev-script` workflow is dev only).
 9. **Tristan signs in** to prod with Google. His row in Authentication › Users shows the legacy uid and a sign-in time. He sets up his authenticator app when asked.
 10. **Smoke checklist,** with him:
     - [ ] The number of matters (open and closed) matches the verify report's.
