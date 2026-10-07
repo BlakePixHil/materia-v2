@@ -137,6 +137,8 @@ After each drill, add a row:
 | Date | Source | Snapshot age (RPO) | Restore time | Counts | Run |
 | ---- | ------ | ------------------ | ------------ | ------ | --- |
 | 2026-10-07 (dev) | backup | 690 min (daily backup of 11:14 UTC) | 793 s, plus 38 s to verify | ✅ 1,150 documents in 38 groups, within the snapshot minute | [37541934598](https://github.com/BlakePixHil/materia-v2/actions/runs/37541934598) |
+| 2026-10-07 (dev) | export | 11 min (export run by hand at 00:18 UTC) | 46 s, plus 27 s to verify | ✅ 2,529 documents in 37 groups, exact | [37552119233](https://github.com/BlakePixHil/materia-v2/actions/runs/37552119233) |
+| 2026-10-07 (dev) | pitr | 2 min (clone of 00:42 UTC) | 899 s, plus 27 s to verify | ✅ 2,529 documents in 37 groups, exact | [37553458893](https://github.com/BlakePixHil/materia-v2/actions/runs/37553458893) |
 
 ## Retention and destruction
 
