@@ -34,6 +34,8 @@ Actions minutes are billed, and most of them go to CI. CI's `gate` job (`.github
 
 Daytime merges deploy at most once every two hours, because every dev deploy rebuilds all functions, which is most of the Google Cloud bill. `deploy-dev`'s preflight skips a push when the last dev deploy started less than two hours ago (`.github/scripts/last-dev-deploy.sh`; release commits are never held back). The Claude routine "Dev deploy catch-up" dispatches `ci` with `catchup: true` hourly from 08:00 to 21:00 Melbourne: once two hours have passed it runs the fast checks against everything since the last dev deploy, and deploy-dev follows. By hand: `gh workflow run ci.yml --ref main -f catchup=true`, or dispatch `deploy-dev` to deploy right away.
 
+To hold every dev deploy, for example while a migration rehearsal runs on dev, open an issue with the label `dev-deploy-hold` (`gh api repos/BlakePixHil/materia-v2/issues -f title="Hold dev deploys: <why>" -f body="<who lifts it, and when>" -f "labels[]=dev-deploy-hold"`). While it's open, `deploy-dev` deploys nothing (merges, catch-up and morning runs, and manual dispatches alike) and the morning and catch-up runs skip. Close the issue to lift the hold, then dispatch `deploy-dev` on `main` to bring dev up to date.
+
 ### Release versions
 
 `/health` shows the version, the commit SHA and the environment. The `system-ping` callable returns the same version and SHA (`MATERIA_RELEASE_VERSION` / `MATERIA_RELEASE_SHA`, written to `dist/apps/functions/.env` by `pnpm materia-scripts stamp`). The version is `v` plus `.release-please-manifest.json`, so a dev build between releases shows the last released version: the SHA tells builds apart. Previews show `pr-<number>`.
