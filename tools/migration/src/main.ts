@@ -3,6 +3,7 @@ import { authImportCommand } from './auth-import.ts';
 import { copyFilesCommand } from './copy-files.ts';
 import { exportCommand } from './export.ts';
 import { deltaCommand, loadCommand, rollbackCommand, verifyCommand } from './load-commands.ts';
+import { preflightCommand } from './preflight.ts';
 import { transformCommand } from './transform.ts';
 
 /**
@@ -21,6 +22,7 @@ const STEPS = {
   verify: 'MIG-06: compare what was loaded with the run, field by field (verify-report.md)',
   rollback: 'MIG-06: delete everything one run loaded',
   delta: 'MIG-06: apply a delta run, and what legacy deleted since',
+  preflight: 'MIG-07: check the accounts can do every step, before any real data moves',
 } as const;
 
 type Step = keyof typeof STEPS;
@@ -36,6 +38,7 @@ const COMMANDS: Partial<Record<Step, (argv: string[]) => Promise<number>>> = {
   verify: (argv) => verifyCommand(argv),
   rollback: (argv) => rollbackCommand(argv),
   delta: (argv) => deltaCommand(argv),
+  preflight: (argv) => preflightCommand(argv),
 };
 
 export function usage(): string {
