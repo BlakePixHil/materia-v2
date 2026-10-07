@@ -12,7 +12,8 @@
 # (`terraform output -raw web_app_config`). FIREBASE_WEB_CONFIG_PROD is optional here; without it
 # the release has no prod bundle and cannot be promoted.
 name: deploy-dev
-run-name: deploy-dev ${{ github.event.workflow_run.head_sha || github.sha }}
+# A hosting-only dispatch says so in its name: last-dev-deploy.sh doesn't count it as a dev deploy.
+run-name: deploy-dev ${{ inputs.hosting-only && 'hosting-only ' || '' }}${{ github.event.workflow_run.head_sha || github.sha }}
 
 on:
   workflow_run:
