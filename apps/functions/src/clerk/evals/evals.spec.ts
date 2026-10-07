@@ -11,7 +11,7 @@ import {
   type EvalCase,
 } from '@materia/clerk/evals';
 
-import { main, parseArgs, selectSuites } from './cli';
+import { fakeModel, main, parseArgs, selectSuites } from './cli';
 import {
   caseDocuments,
   caseVariables,
@@ -237,6 +237,24 @@ describe('citations and the judge', () => {
       },
     };
   }
+
+  it('offers a file’s key dates through production’s checks, leaving out what the matter records', async () => {
+    const events = loadSuite('events-from-file');
+    const evalCase = events.cases.find((c) => c.id === 'evf-005') as EvalCase;
+    const outcome = await createEvalExecutor({ model: fakeModel(), apiKey: 'k', modelId: 'claude-sonnet-5-5' })({
+      suite: events.config,
+      evalCase,
+      promptRef: events.config.promptId,
+      feature: 'eventsExtraction',
+      run: 1,
+    });
+    // The fake lists the filing too (its note states it); the matter already records it, so it isn't offered.
+    expect((outcome.parsed as { events: { kind: string }[] }).events.map((e) => e.kind)).toEqual([
+      'probate_filed',
+      'caveat_lodged',
+    ]);
+    expect(outcome.proposedEvents).toEqual([{ kind: 'caveat_lodged', date: '2026-03-03' }]);
+  });
 
   it('splits the reply into cited and uncited spans', () => {
     expect(textSpans(content)).toEqual([

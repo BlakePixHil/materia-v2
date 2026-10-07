@@ -31,6 +31,8 @@ export const METRICS = [
   'draftAccuracy',
   'draftHonesty',
   'numberAccuracy',
+  'eventPrecision',
+  'eventRecall',
   'latencyMs',
   'costUsd',
 ] as const;
@@ -75,6 +77,7 @@ export const SuiteConfigSchema = z
       'drafting',
       'timeAssist',
       'insightsNarrative',
+      'eventsExtraction',
     ]),
     /** `id@version` of the prompt under test. A case may name its own (injection, privilege). */
     promptId: z.string().regex(/^[a-z][a-zA-Z0-9-]*@\d+\.\d+\.\d+$/),
@@ -185,6 +188,21 @@ export const GoldSchema = z
      */
     drafts: z
       .array(z.object({ kind: z.enum(['note', 'task']), keywords: z.array(z.string().min(2)).min(1) }).strict())
+      .optional(),
+    /**
+     * eventPrecision and eventRecall (MIG-09): exactly the key dates a person should be offered from
+     * the file. A `custom` event's label must contain one of its keywords. Empty: offer nothing.
+     */
+    events: z
+      .array(
+        z
+          .object({
+            kind: z.string().min(1),
+            date: z.iso.date(),
+            keywords: z.array(z.string().min(2)).min(1).optional(),
+          })
+          .strict(),
+      )
       .optional(),
   })
   .strict();

@@ -1,0 +1,26 @@
+{
+  "id": "evf-008",
+  "description": "Family provision claim and service of the grant, stated across two pages of a letter",
+  "matter": {
+    "matterNumber": "HV-2025-0102",
+    "title": "Estate of Raymond Leslie Marlow",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Raymond Leslie Marlow",
+    "dateOfDeath": "2025-02-10",
+    "executors": ["Gregory Marlow"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2025-05-20",
+      "granted": "2025-07-30"
+    }
+  },
+  "documents": [
+    {
+      "id": "d-marlow-fp",
+      "fixture": "matters/marlow/fp-claim-letter.txt",
+      "title": "Letter from Barwon Legal"
+    }
+  ],
+  "today": "2026-06-15"
+}

@@ -1,0 +1,30 @@
+{
+  "id": "evf-003",
+  "description": "Only planned or abandoned steps: nothing to offer",
+  "matter": {
+    "matterNumber": "HV-2026-0044",
+    "title": "Estate of Beryl Anne Okafor",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Beryl Anne Okafor",
+    "dateOfDeath": "2026-04-02",
+    "executors": ["Daniel Okafor"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    }
+  },
+  "notes": [
+    {
+      "text": "Registry backlog: we expect the grant in late July. Plan to file the application by 30 June 2026."
+    },
+    {
+      "text": "We had planned to lodge a caveat on 2 May 2026 on the client's instructions, but he withdrew them and no caveat was lodged."
+    },
+    {
+      "text": "Will publish the notice of intention to apply for a grant next Tuesday once Daniel signs the affidavit."
+    }
+  ],
+  "today": "2026-06-15"
+}

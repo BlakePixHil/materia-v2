@@ -1,0 +1,19 @@
+{
+  "id": "evf-011",
+  "description": "An empty file: nothing to offer",
+  "matter": {
+    "matterNumber": "HV-2026-0066",
+    "title": "Estate of Norman Keith Barlow",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Norman Keith Barlow",
+    "dateOfDeath": "2026-05-01",
+    "executors": ["Susan Barlow"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    }
+  },
+  "today": "2026-06-15"
+}
