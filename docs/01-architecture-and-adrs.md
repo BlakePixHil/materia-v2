@@ -127,6 +127,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - Anything over 60 s or 1 GiB (PDF compile, court book, bulk OCR, migration) runs as a Cloud Run job or a Cloud Tasks-driven function with checkpointing.
 - No long work in triggers.
 - [ADR-055](adr/055-csv-exports-weekly-report.md) (INS-03): list exports are `csv.export` jobs from one callable, `exports-create`, written in the callable up to 5,000 rows and streamed by the `exports-run` queue beyond. Access is re-checked at the end, privileged matters go in only when a lawyer or above asks, and every export is audited. The weekly practice report is an opt-in Monday 07:00 (org time) email of figures and matter numbers only.
+- [ADR-058](adr/058-org-export-and-deletion.md) (SEC-05): the owner's full export is an `org.export` job on the `exports-runOrgFull` queue, written as self-contained zips of at most 10 GB (JSON Lines per collection with generated JSON Schemas, the files, a README and a SHA-256 manifest), checkpointed per part. Deleting a practice makes it read-only for 30 days (an allow-list in the callable wrapper and `validMeta()` in the rules), then `orgs-purge` takes it apart a stage per task behind a server-only tombstone that makes triggers and tasks skip it, verifies nothing is left and emails a certificate. A legal hold or a running export blocks it.
 
 **ADR-015: Email.**
 - Transactional email goes through Resend via a function, with templates in the repo.

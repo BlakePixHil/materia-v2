@@ -26,6 +26,7 @@ const GLYPHS: Record<NotificationKind, readonly [MtIconName, NotificationTone]> 
   document_infected: ['shield', 'overdue'],
   integration_error: ['alert', 'overdue'],
   export_ready: ['arrow-down', null],
+  org_deletion: ['alert', 'overdue'],
   safe_custody: ['archive', 'overdue'],
   invite: ['mail', null],
   invite_accepted: ['user-plus', null],

@@ -2,12 +2,32 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { ORG_TIMEZONES, TERMS_VERSION, termsAskedIn, type Jurisdiction } from '@materia/domain';
-import { MtButton, MtCheckbox, MtNote, MtSelect, MtTextField, type MtOption } from '@materia/ui';
+import {
+  DELETE_ACCOUNT_CALLABLE,
+  DELETE_ACCOUNT_CONFIRMATION,
+  ORG_TIMEZONES,
+  TERMS_VERSION,
+  termsAskedIn,
+  type DeleteAccountInput,
+  type Jurisdiction,
+} from '@materia/domain';
+import {
+  DialogService,
+  MtButton,
+  MtCheckbox,
+  MtNote,
+  MtSelect,
+  MtTextField,
+  ToastService,
+  type MtOption,
+} from '@materia/ui';
 
 import { environment } from '../../../environments/environment';
+import { AuthState } from '../../core/auth/auth-state';
+import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService, pendingInvite } from '../../core/orgs/org-service';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 
 const JURISDICTIONS: MtOption<Jurisdiction>[] = [
   { value: 'VIC', label: 'Victoria' },
@@ -31,12 +51,13 @@ const TIMEZONES: MtOption<string>[] = ORG_TIMEZONES.map((zone) => ({
  * once the terms are signed off, `termsAskedIn`). Someone with an invite
  * waiting (they signed up from the link) is offered it first. A practice brought across from the
  * old materia never comes here (its owner already has one): its import step is Settings → Import
- * from materia, offered from Today (MIG-08, D-22).
+ * from materia, offered from Today (MIG-08, D-22). Someone in no practice who doesn't want an account
+ * any more deletes it here (`auth-deleteAccount`, SEC-05), typing DELETE.
  */
 @Component({
   selector: 'mt-onboarding-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, MtButton, MtCheckbox, MtNote, MtSelect, MtTextField],
+  imports: [ReactiveFormsModule, RouterLink, MtButton, MtCheckbox, MtNeedsConnection, MtNote, MtSelect, MtTextField],
   template: `
     <header class="mt-auth-head">
       <h1 class="title-m">Set up your practice</h1>
@@ -93,6 +114,11 @@ const TIMEZONES: MtOption<string>[] = ORG_TIMEZONES.map((zone) => ({
       }
       <button mtButton variant="primary" type="submit" class="mt-auth-wide" [loading]="busy()">Create practice</button>
     </form>
+    <p class="mt-auth-foot">
+      <button type="button" class="mt-auth-link" mtNeedsConnection [disabled]="deleting()" (click)="deleteAccount()">
+        Delete my account
+      </button>
+    </p>
   `,
   styles: `
     .terms {
@@ -113,6 +139,10 @@ const TIMEZONES: MtOption<string>[] = ORG_TIMEZONES.map((zone) => ({
 export class OnboardingPage {
   private readonly orgs = inject(OrgService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthState);
+  private readonly callables = inject(CALLABLES);
+  private readonly dialogs = inject(DialogService);
+  private readonly toasts = inject(ToastService);
 
   protected readonly jurisdictions = JURISDICTIONS;
   protected readonly timezones = TIMEZONES;
@@ -120,6 +150,7 @@ export class OnboardingPage {
   /** Whether this practice's owner accepts the terms here (SEC-01; prod waits for the sign-off). */
   protected readonly askTerms = termsAskedIn(environment.name);
   protected readonly busy = signal(false);
+  protected readonly deleting = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly form = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(120)] }),
@@ -159,6 +190,37 @@ export class OnboardingPage {
       this.error.set(errorCopy(error));
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  /**
+   * Deletes the account (sign-in, profile and photo) after the person types DELETE, confirming it's
+   * them when their sign-in is old, then signs out. Refused while they still belong to a practice.
+   */
+  protected async deleteAccount(): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: 'Delete your account?',
+      body:
+        'Your sign-in, profile and photo are deleted for good. You aren’t in any practice, so nothing else changes. ' +
+        `Type ${DELETE_ACCOUNT_CONFIRMATION} to confirm.`,
+      confirmLabel: 'Delete account',
+      tone: 'danger',
+      typedConfirmation: DELETE_ACCOUNT_CONFIRMATION,
+    });
+    if (!confirmed) return;
+    this.deleting.set(true);
+    this.error.set(null);
+    try {
+      await this.callables.call<DeleteAccountInput, { deleted: true }>(DELETE_ACCOUNT_CALLABLE, {
+        confirmation: DELETE_ACCOUNT_CONFIRMATION,
+      });
+      await this.auth.signOut().catch(() => undefined);
+      this.toasts.show({ title: 'Your account is deleted', tone: 'success' });
+      await this.router.navigateByUrl('/auth/sign-in');
+    } catch (error) {
+      this.error.set(errorCopy(error));
+    } finally {
+      this.deleting.set(false);
     }
   }
 }

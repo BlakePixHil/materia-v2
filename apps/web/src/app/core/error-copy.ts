@@ -60,6 +60,12 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   INTEGRATION_NOT_CONFIGURED: 'This integration isn’t set up for Materia yet. Ask your practice admin.',
   INTEGRATION_REJECTED: 'The connection wasn’t allowed. Try again, or ask your IT administrator to approve Materia.',
   INTEGRATION_RECONNECT_REQUIRED: 'This connection has stopped working. Connect it again from Settings.',
+  ORG_READ_ONLY:
+    'This practice is scheduled for deletion, so it’s read-only. An owner can cancel the deletion in Settings → Data and deletion.',
+  LEGAL_HOLD:
+    'A legal hold is in place, so the practice can’t be deleted. Release the hold on the practice and its matters first.',
+  EXPORT_RUNNING: 'A full export of the practice is still being made. Wait until it’s ready, then try again.',
+  ACCOUNT_HAS_ORGS: 'Your account still belongs to a practice. Leave it, or delete it, before deleting your account.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
 

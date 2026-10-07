@@ -51,6 +51,7 @@ All commands below need owner credentials (or `terraform-agent`) and `--project 
 The script refuses:
 
 - a **destroyed matter** (CORE-19: a `destructionCertificates/dc-{matterId}` or a tombstone in the live database). Destruction is permanent; a restore must never bring it back;
+- any matter of a **deleted practice** (SEC-05: a `deletedOrgs/{orgId}` tombstone in the live database). The practice and everything in it stay deleted;
 - to write while a **migration run** is `running` in the org (`orgs/{orgId}/migrations`). Wait for it, or roll it back, then restore. The report lists document counts, so compare them with the run's counts if a migration touched the matter.
 
 Data outside the matter's subtree (contacts, org-level tasks, the matter's search tokens in other documents) isn't restored. Restore contacts the same way by hand if needed, or ask for a script.
@@ -107,7 +108,7 @@ A restored object must match its document's `sha256`; `documents-getDownloadUrl`
 For damage across the database. Firestore can't rename a database, so the restore is built in a scratch database, checked, then copied into a fresh `(default)`. Target: under 4 hours.
 
 1. **Stop writes.** Tell the firm's users. Pause the scheduled jobs: `gcloud scheduler jobs list --location=australia-southeast1`, then `gcloud scheduler jobs pause <job>` for each (`firebase-schedule-…`).
-2. **Keep the evidence.** Export the damaged database: `gcloud firestore export gs://<project>-exports/incident-<date> --project <project>`, then copy it somewhere it outlives the exports bucket's 8 days: `gcloud storage cp -r gs://<project>-exports/incident-<date> gs://<project>-backups/`. List the destruction certificates (`destructionCertificates` collection group) in it: they are needed in step 7.
+2. **Keep the evidence.** Export the damaged database: `gcloud firestore export gs://<project>-exports/incident-<date> --project <project>`, then copy it somewhere it outlives the exports bucket's 8 days: `gcloud storage cp -r gs://<project>-exports/incident-<date> gs://<project>-backups/`. List the destruction certificates (`destructionCertificates` collection group) and the deleted practices (`deletedOrgs`) in it: they are needed in step 7.
 3. **Build the restore** in a scratch database (see [Scratch database](#scratch-database)): a PITR clone for damage in the last 7 days, otherwise the newest good backup or export.
 4. **Check it.** Spot-check matters in the console (select the database), and compare counts: `materia-scripts restore-matter … --from-database <scratch>` dry runs show per-matter differences.
 5. **Switch.**
@@ -117,7 +118,7 @@ For damage across the database. Firestore can't rename a database, so the restor
    4. Recreate it with Terraform (Actions → infra → Run workflow; dev also applies on any infra merge): PITR, delete protection and the backup schedules come back with it. Then import: `gcloud firestore import gs://<project>-exports/restores/<date>`.
    5. Redeploy indexes and rules (Actions → deploy-dev, or the prod release), and re-run the backfills that rebuild derived fields (`materia-scripts backfill-search-tokens` and `backfill-matter-roles` through the `dev-script` workflow on dev).
 6. **Resume** the scheduled jobs (`gcloud scheduler jobs resume <job>`) and check the app (`/health`, Today, a matter, a document preview).
-7. **Re-apply destructions.** A restore from before a destruction brings that matter back. For each certificate from step 2 whose matter is back without a tombstone, copy `destructionCertificates/dc-{matterId}` and `destructionQueue/{matterId}` from the step 2 export (or the scratch copy) and run the destruction again (CORE-19's `matters-destroy` resumes from its stage and leaves the tombstone). The certificate PDFs live in Storage and are unaffected.
+7. **Re-apply destructions.** A restore from before a destruction brings that matter back. For each certificate from step 2 whose matter is back without a tombstone, copy `destructionCertificates/dc-{matterId}` and `destructionQueue/{matterId}` from the step 2 export (or the scratch copy) and run the destruction again (CORE-19's `matters-destroy` resumes from its stage and leaves the tombstone). The certificate PDFs live in Storage and are unaffected. For each practice in `deletedOrgs` from step 2 whose `orgs/{orgId}` is back, copy its tombstone back, set `status: 'purging'` and `stage: 'marked'` on it, and queue its deletion again (`orgs-purge` with `{orgId}`; see [org deletion](org-deletion.md)): the purge deletes it again, keeps the existing certificate and emails it to the owners again.
 8. **Record** the times (stop, restore built, switched, resumed) and the restore point on the incident's Linear ticket, and delete the scratch database once the owner is happy.
 
 Restores overlapping a migration run: check `orgs/{orgId}/migrations` for runs after the restore point and re-run them by run id (MIG CLI) after the switch.
@@ -142,4 +143,4 @@ After each drill, add a row:
 
 ## Retention and destruction
 
-Destroying a matter (CORE-19) deletes its live data and files. The copies in backups expire on their own: PITR after 7 days, daily backups and exports after 7 and 35 days, weekly backups after 14 weeks, monthly exports after 400 days, soft-deleted and non-current files after 30 and 90 days, and the files copy's replaced versions after 35 days. The destruction certificate says so. Never restore a destroyed matter (the script refuses), and re-apply destructions after a full restore (step 7).
+Destroying a matter (CORE-19) deletes its live data and files. The copies in backups expire on their own: PITR after 7 days, daily backups and exports after 7 and 35 days, weekly backups after 14 weeks, monthly exports after 400 days, soft-deleted and non-current files after 30 and 90 days, and the files copy's replaced versions after 35 days. The destruction certificate says so. Never restore a destroyed matter (the script refuses), and re-apply destructions after a full restore (step 7). The same holds for a deleted practice (SEC-05, [org deletion](org-deletion.md)): its certificate states when the backups expire, the script refuses its matters, and step 7 deletes it again.

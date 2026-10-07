@@ -42,8 +42,9 @@ export interface TenancyPort {
   invites(orgId: string): Promise<PendingInvite[]>;
   /**
    * The org's security policy and this member's `sessionsValidAfter` (SEC-04), plus the terms version
-   * the org has accepted (SEC-01, from the same org document), now and on every change; null when
-   * they can't be read. Both documents stay readable whatever the policy says.
+   * the org has accepted (SEC-01) and its scheduled deletion (SEC-05), both from the same org
+   * document, now and on every change; null when they can't be read. Both documents stay readable
+   * whatever the policy says.
    */
   watchSecurity?(orgId: string, uid: string, callback: (security: SessionSecurity | null) => void): () => void;
 }
@@ -55,6 +56,8 @@ export interface SessionSecurity {
   validAfter: Date | null;
   /** The terms of service version the org's owner accepted (SEC-01), null before any. */
   termsAcceptedVersion?: string | null;
+  /** When the practice is to be deleted (SEC-05): until then it is read-only. Null or absent: not scheduled. */
+  deletionScheduledAt?: Date | null;
 }
 
 const asDate = (value: unknown): Date | undefined =>
@@ -155,13 +158,14 @@ export function firestoreTenancyPort(source: FirestoreSource, registry: Listener
       let policy: ResolvedSecurity | undefined;
       let validAfter: Date | null | undefined;
       let termsAcceptedVersion: string | null = null;
+      let deletionScheduledAt: Date | null = null;
       let last: string | undefined;
       const emit = () => {
         if (stopped || policy === undefined || validAfter === undefined) return;
-        const key = JSON.stringify([policy, validAfter, termsAcceptedVersion]);
+        const key = JSON.stringify([policy, validAfter, termsAcceptedVersion, deletionScheduledAt]);
         if (key === last) return;
         last = key;
-        callback({ policy, validAfter, termsAcceptedVersion });
+        callback({ policy, validAfter, termsAcceptedVersion, deletionScheduledAt });
       };
       source.get().then(
         ({ sdk, db }) => {
@@ -174,6 +178,7 @@ export function firestoreTenancyPort(source: FirestoreSource, registry: Listener
                 policy = toResolvedSecurity(org?.['security']);
                 const terms = org?.['termsAcceptedVersion'];
                 termsAcceptedVersion = typeof terms === 'string' ? terms : null;
+                deletionScheduledAt = asDate(org?.['deletionScheduledAt']) ?? null;
                 emit();
               },
               () => !stopped && callback(null),

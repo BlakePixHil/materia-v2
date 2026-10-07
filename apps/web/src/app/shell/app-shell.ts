@@ -53,6 +53,7 @@ import { FeatureFlagService } from '../core/flags/feature-flags';
 import { PhoneLayout } from '../core/layout/phone-layout';
 import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
+import { MtDeletionBanner } from '../core/orgs/deletion-banner';
 import { OrgService } from '../core/orgs/org-service';
 import { PinnedMatters } from '../core/pins/pinned-matters';
 import { UserPrefsService } from '../core/profile/user-prefs';
@@ -109,7 +110,8 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
     .mt-page > router-outlet {
       display: none;
     }
-    .mt-page > mt-mfa-grace-banner {
+    .mt-page > mt-mfa-grace-banner,
+    .mt-page > mt-deletion-banner {
       display: contents;
     }
     @media (max-width: 767px) {
@@ -145,6 +147,7 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
     MtButton,
     MtBrandMark,
     MtClerkMark,
+    MtDeletionBanner,
     MtIcon,
     MtIconButton,
     MtKbd,
@@ -368,6 +371,7 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
         <mt-offline-banner />
         <div class="mt-page">
           <mt-mfa-grace-banner />
+          <mt-deletion-banner />
           @if (timer.forgotten(); as flag) {
             <mt-note tone="warning" data-testid="timer-forgotten">
               {{ forgottenText() }}

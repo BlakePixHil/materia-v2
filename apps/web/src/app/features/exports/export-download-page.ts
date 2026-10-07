@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
-import { DomainError, GET_EXPORT_URL_CALLABLE, type GetExportUrlResult } from '@materia/domain';
+import { DomainError, GET_EXPORT_URL_CALLABLE, type GetExportUrlInput, type GetExportUrlResult } from '@materia/domain';
 import { MtButton, MtEmptyState } from '@materia/ui';
 
 import { CALLABLES } from '../../core/data/callables';
@@ -20,8 +20,19 @@ export function exportDownloadErrorCopy(error: unknown): string {
 }
 
 /**
+ * A split export's title from a part's file name: "Fictional Legal export 2026-10-07 part 1 of
+ * 3.zip" (`jobs-getExportUrl`), or "… (part 1 of 3).zip" (`orgExportFileName`) → "Fictional Legal
+ * export 2026-10-07".
+ */
+export function exportTitle(fileName: string): string {
+  return fileName.replace(/ (?:\(part \d+(?: of \d+)?\)|part \d+ of \d+)\.[a-z0-9]+$/i, '');
+}
+
+/**
  * `/exports/:jobId` (INS-03): where an `export_ready` notification leads. Fetches a fresh
- * 5-minute link for the CSV and starts the download; "Download again" asks for another.
+ * 5-minute link for the file and starts the download; "Download again" asks for another. A full
+ * export of the practice split into several zips (SEC-05) starts the first and lists every part,
+ * each fetched with its own link.
  */
 @Component({
   selector: 'mt-export-download-page',
@@ -39,18 +50,38 @@ export function exportDownloadErrorCopy(error: unknown): string {
           {{ fileName() ? 'Your download has started.' : 'Getting your download ready…' }}
         </p>
         @if (fileName()) {
-          <div class="mt-row" style="gap: 8px">
-            <button
-              mtButton
-              mtNeedsConnection
-              variant="secondary"
-              iconStart="arrow-down"
-              [loading]="busy()"
-              (click)="start()"
-            >
-              Download again
-            </button>
-          </div>
+          @if (parts() > 1) {
+            <p style="margin: 0; color: var(--text-secondary)" data-export-parts>
+              This export is in {{ parts() }} zip files. Download each one, then unzip them all into the same folder.
+            </p>
+            <div class="mt-col" style="gap: 8px; align-items: flex-start">
+              @for (part of partNumbers(); track part) {
+                <button
+                  mtButton
+                  mtNeedsConnection
+                  variant="secondary"
+                  iconStart="arrow-down"
+                  [loading]="busy() === part"
+                  (click)="start(part)"
+                >
+                  Download part {{ part }} of {{ parts() }}
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="mt-row" style="gap: 8px">
+              <button
+                mtButton
+                mtNeedsConnection
+                variant="secondary"
+                iconStart="arrow-down"
+                [loading]="busy() === 1"
+                (click)="start()"
+              >
+                Download again
+              </button>
+            </div>
+          }
         }
       }
     </div>
@@ -63,24 +94,28 @@ export class ExportDownloadPage {
 
   protected readonly fileName = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
-  protected readonly busy = signal(false);
+  /** The part being fetched, or null. */
+  protected readonly busy = signal<number | null>(null);
+  protected readonly parts = signal(1);
+  protected readonly partNumbers = computed(() => Array.from({ length: this.parts() }, (_, i) => i + 1));
 
   constructor() {
     void this.start();
   }
 
-  protected async start(): Promise<void> {
-    this.busy.set(true);
+  protected async start(part = 1): Promise<void> {
+    this.busy.set(part);
     try {
-      const result = await this.callables.call<{ jobId: string }, GetExportUrlResult>(GET_EXPORT_URL_CALLABLE, {
-        jobId: this.jobId,
-      });
-      this.fileName.set(result.fileName);
+      const input: GetExportUrlInput = part > 1 ? { jobId: this.jobId, part } : { jobId: this.jobId };
+      const result = await this.callables.call<GetExportUrlInput, GetExportUrlResult>(GET_EXPORT_URL_CALLABLE, input);
+      if (part === 1 || !this.fileName())
+        this.fileName.set(result.parts && result.parts > 1 ? exportTitle(result.fileName) : result.fileName);
+      this.parts.set(result.parts ?? 1);
       this.download(result.url);
     } catch (error) {
       this.error.set(exportDownloadErrorCopy(error));
     } finally {
-      this.busy.set(false);
+      this.busy.set(null);
     }
   }
 }

@@ -352,6 +352,14 @@ describe('processUpload', () => {
     expect(w.files.objects.size).toBe(0);
   });
 
+  it('refuses uploads while the practice waits to be deleted (SEC-05)', async () => {
+    const w = world();
+    await w.db.doc(`orgs/${ORG}`).set({ deletionScheduledAt: new Date('2026-11-06T00:00:00Z') }, { merge: true });
+    const event = w.upload(fakePdf('d'));
+    expect(await processUpload(event, w.deps())).toMatchObject({ outcome: 'not_allowed', reason: 'not_allowed' });
+    expect(w.files.objects.size).toBe(0);
+  });
+
   it('refuses a new-document upload whose id names an existing document', async () => {
     const w = world();
     // A document that didn't come from an upload with this id (generated, migrated or seeded).

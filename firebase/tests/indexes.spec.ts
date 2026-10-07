@@ -130,6 +130,15 @@ describe('firestore.indexes.json', () => {
     );
   });
 
+  it('offboarding finds what a member leaves behind: open tasks and deadlines by assignee (SEC-05)', () => {
+    const groups = file.indexes
+      .filter((i) => i.queryScope === 'COLLECTION_GROUP')
+      .map((i) => `${i.collectionGroup}:${i.fields.map((f) => f.fieldPath).join(',')}`);
+    expect(groups).toEqual(
+      expect.arrayContaining(['tasks:orgId,assigneeUid,status', 'deadlines:orgId,assigneeUid,status']),
+    );
+  });
+
   it('a matter’s conflict checks are listed newest first (CORE-02)', () => {
     const checks = file.indexes.filter((i) => i.collectionGroup === 'conflictChecks');
     expect(checks.map((i) => i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(','))).toEqual([

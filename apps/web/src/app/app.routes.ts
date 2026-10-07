@@ -9,7 +9,7 @@ import { flagGuard } from './core/flags/flag';
 import { acceptTermsGuard, termsGuard } from './core/legal/terms';
 import { startPagePath } from './core/profile/start-page';
 import { readLayout } from './features/matters/matters-layout';
-import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
+import { SETTINGS_ADMIN_ROLES, SETTINGS_OWNER_ROLES } from './features/settings/settings-nav';
 import { unsavedChangesGuard } from './features/settings/unsaved-changes';
 import { MATTER_TABS } from './pages/matter-tabs';
 import type { PlaceholderData } from './pages/placeholder';
@@ -482,6 +482,14 @@ const shellRoutes: Route[] = [
         title: 'Security',
         data: { crumb: 'Security' },
         loadComponent: () => import('./features/security/security-page').then((m) => m.SecurityPage),
+      },
+      // Data and deletion (SEC-05): owners export everything and delete the practice.
+      {
+        path: 'data',
+        title: 'Data and deletion',
+        data: { crumb: 'Data and deletion' },
+        canActivate: [roleGuard(SETTINGS_OWNER_ROLES)],
+        loadComponent: () => import('./features/settings/data-deletion-page').then((m) => m.DataDeletionPage),
       },
       // Settings pages still to come land on the team page.
       { path: '**', redirectTo: 'team' },

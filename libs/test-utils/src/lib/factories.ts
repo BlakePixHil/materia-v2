@@ -1048,6 +1048,26 @@ export const makeDestructionCertificate = (o: Partial<D.DestructionCertificate> 
     o,
   );
 
+export const makeDeletedOrg = (o: Partial<D.DeletedOrg> = {}) =>
+  build(
+    D.DeletedOrg,
+    {
+      orgId: TEST_ORG_ID,
+      name: 'Fictional Test Legal',
+      status: 'deleted',
+      stage: 'certificate',
+      requestedBy: TEST_UID,
+      requestedAt: FIXED_INSTANT,
+      scheduledFor: FIXED_INSTANT,
+      purgeStartedAt: FIXED_INSTANT,
+      deletedAt: FIXED_INSTANT,
+      certificateId: 'odc-0123456789ab',
+      ownerUids: [TEST_UID],
+      counts: { records: 120, files: 4, integrations: 0, members: 2 },
+    },
+    o,
+  );
+
 export const makeRecentMatter = (o: Partial<D.RecentMatter> = {}) =>
   build(
     D.RecentMatter,
@@ -1130,4 +1150,5 @@ export const ENTITY_FACTORIES = {
   RecentMatter: [D.RecentMatter, makeRecentMatter],
   DestructionRequest: [D.DestructionRequest, makeDestructionRequest],
   DestructionCertificate: [D.DestructionCertificate, makeDestructionCertificate],
+  DeletedOrg: [D.DeletedOrg, makeDeletedOrg],
 } as const;
