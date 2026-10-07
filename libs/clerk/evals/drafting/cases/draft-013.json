@@ -1,0 +1,37 @@
+{
+  "id": "draft-013",
+  "description": "Larke v Nugus request to the will’s drafting solicitors: the will’s date unknown",
+  "matter": {
+    "matterNumber": "HV-2026-0019",
+    "title": "Roland Vance: Estate of Harold John Vance",
+    "type": "contest",
+    "status": "active",
+    "deceased": "Harold John Vance",
+    "dateOfDeath": "2026-01-09",
+    "responsibleLawyer": "Jordan Price",
+    "parties": [
+      {
+        "name": "Roland Vance",
+        "role": "client"
+      },
+      {
+        "name": "Louise Vance",
+        "role": "executor"
+      }
+    ],
+    "openTasks": ["Request the will file from the drafting solicitors"]
+  },
+  "documents": [],
+  "query": "Larke v Nugus request to Bannister & Ruse Solicitors, who prepared Harold Vance's will.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "larke-v-nugus",
+    "recipients": [
+      {
+        "name": "Bannister & Ruse Solicitors",
+        "address": "21 Yarra Street\nGeelong VIC 3220"
+      }
+    ],
+    "instructions": "Roland is Harold's son."
+  }
+}

@@ -18,7 +18,8 @@ import {
  * collection names and counts only, never document contents.
  *
  * It refuses a matter that was destroyed (CORE-19: a `destructionCertificates/dc-{matterId}` or a
- * tombstone in the target), so a restore never brings destroyed data back, and refuses to write
+ * tombstone in the target) or whose practice was deleted (SEC-05: `deletedOrgs/{orgId}`), so a
+ * restore never brings destroyed data back, and refuses to write
  * while a migration run is in progress in the org (Legacy migration plan; coordinate by run id).
  * The restore is audited as `matter.restored` with a run id; the audit trigger also records each
  * document it writes.
@@ -78,6 +79,12 @@ export async function restoreMatter(
   const matterPath = `orgs/${opts.orgId}/matters/${opts.matterId}`;
   const { log } = opts;
 
+  // A deleted practice (SEC-05, ADR-058) stays deleted: its tombstone outlives everything else.
+  if (await target.get(`deletedOrgs/${opts.orgId}`)) {
+    throw new RestoreRefused(
+      `Practice ${opts.orgId} was deleted (SEC-05); restoring any of it would bring deleted data back. Nothing was written.`,
+    );
+  }
   const certificate = await target.get(`orgs/${opts.orgId}/destructionCertificates/dc-${opts.matterId}`);
   const live = await target.get(matterPath);
   if (certificate || live?.['destroyedAt'] || live?.['certificateId']) {

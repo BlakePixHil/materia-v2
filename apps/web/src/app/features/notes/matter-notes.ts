@@ -52,6 +52,7 @@ import {
   type NoteRecord,
   versionOf,
 } from './note-view';
+import { onIntent } from '../../core/commands/intents';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
@@ -354,6 +355,12 @@ export class MatterNotes {
   private readonly fragment = toSignal(inject(ActivatedRoute).fragment, { initialValue: null });
 
   constructor() {
+    // "Note" from the phone's Record tab or the matter's actions (MOB-02): the editor, ready to write.
+    onIntent(
+      'add-note',
+      () => afterNextRender(() => this.composer()?.focus(), { injector: this.injector }),
+      () => this.canAdd() && !!this.composer(),
+    );
     const shortcuts = inject(ShortcutService);
     const cleanups = [
       shortcuts.register({

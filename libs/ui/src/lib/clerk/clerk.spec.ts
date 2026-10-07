@@ -204,6 +204,20 @@ describe('MtClerkBrief', () => {
     await render(MtClerkBrief, { inputs: { items: [] } });
     expect(screen.getByText('Nothing needs you right now.')).toBeInTheDocument();
   });
+
+  it('shows a brief Clerk didn’t write as the plain card, without the Clerk mark', async () => {
+    const { container } = await render(MtClerkBrief, { inputs: { label: 'Matter brief', items: [], plain: true } });
+    const card = screen.getByRole('region', { name: 'Matter brief' });
+    expect(card).toHaveAttribute('data-plain');
+    expect(container.querySelector('mt-clerk-mark')).toBeNull();
+  });
+
+  it('titles the card with a level-2 heading, so it sits in order under the page’s h1', async () => {
+    await render(MtClerkBrief, { inputs: { title: '1 item overdue and 4 due in the next 14 days.', items: [] } });
+    expect(
+      screen.getByRole('heading', { level: 2, name: '1 item overdue and 4 due in the next 14 days.' }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('MtClerkWorking', () => {

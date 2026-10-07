@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Timestamp } from 'firebase-admin/firestore';
 
-import type { Role } from '@materia/domain';
+import { TERMS_VERSION, type Role } from '@materia/domain';
 
 import { mergeClaims, syncClaims } from './claims';
 import { createOrgDefinition } from './create-org';
@@ -21,6 +21,7 @@ import {
 } from './members';
 import { appUrl, colourFor, hashToken, initialsOf, invitePath, newInviteToken } from './shared';
 import { switchActiveOrgDefinition } from './switch';
+import { acceptTermsDefinition } from './terms';
 import { memoryAuth, memoryFirestore, type FakeUser } from './testing';
 import { clearRetentionCache } from '../audit/retention';
 import { syncClaimsDefinition } from '../auth/sync-claims';
@@ -228,6 +229,85 @@ describe('orgs-createOrg', () => {
         w.userCtx('unverified', { name: 'X', primaryJurisdiction: 'VIC', timezone: 'Australia/Melbourne' }),
       ),
     ).rejects.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+  });
+
+  it('records the terms the owner ticked (SEC-01), and refuses an outdated version', async () => {
+    const w = world();
+    const input = {
+      name: 'Fictional Harbour Law',
+      primaryJurisdiction: 'VIC',
+      timezone: 'Australia/Melbourne',
+    } as const;
+    await expect(
+      createOrgDefinition.handler(w.userCtx('invitee', { ...input, acceptTermsVersion: '0.0' })),
+    ).rejects.toMatchObject({ code: 'FAILED_PRECONDITION', details: { reason: 'terms_outdated' } });
+    const { orgId } = await createOrgDefinition.handler(
+      w.userCtx('invitee', { ...input, acceptTermsVersion: TERMS_VERSION }),
+    );
+    const org = w.doc(`orgs/${orgId}`) as Record<string, Timestamp | string>;
+    expect(org['termsAcceptedVersion']).toBe(TERMS_VERSION);
+    expect(org['termsAcceptedBy']).toBe('invitee');
+    expect((org['termsAcceptedAt'] as Timestamp).toDate()).toEqual(w.clock.now());
+    const audits = [...w.docs.entries()].filter(([path]) => path.startsWith(`orgs/${orgId}/audit/`));
+    expect(audits.map(([, entry]) => entry['action']).sort()).toEqual(['org.created', 'org.terms_accepted']);
+  });
+
+  it('leaves the terms for the owner to accept later when they weren’t ticked', async () => {
+    const w = world();
+    const { orgId } = await createOrgDefinition.handler(
+      w.userCtx('invitee', {
+        name: 'Fictional Harbour Law',
+        primaryJurisdiction: 'VIC',
+        timezone: 'Australia/Melbourne',
+      }),
+    );
+    expect(w.doc(`orgs/${orgId}`)).not.toHaveProperty('termsAcceptedVersion');
+  });
+});
+
+describe('orgs-acceptTerms (SEC-01)', () => {
+  it('is for owners only', () => {
+    expect(acceptTermsDefinition.roles).toEqual(['owner']);
+    expect(acceptTermsDefinition.idempotent).toBe(true);
+  });
+
+  it('records the current version, when and who on the org, and audits it once', async () => {
+    const w = world();
+    const result = await acceptTermsDefinition.handler(w.orgCtx('owner', 'owner', { version: TERMS_VERSION }));
+    expect(result).toEqual({ version: TERMS_VERSION, recorded: true });
+    const org = w.doc(`orgs/${ORG}`) as Record<string, unknown>;
+    expect(org).toMatchObject({ termsAcceptedVersion: TERMS_VERSION, termsAcceptedBy: 'owner', updatedBy: 'owner' });
+    expect((org['termsAcceptedAt'] as Timestamp).toDate()).toEqual(w.clock.now());
+    const audits = () =>
+      [...w.docs.entries()].filter(([path]) => path.startsWith(`orgs/${ORG}/audit/`)).map(([, entry]) => entry);
+    expect(audits()).toHaveLength(1);
+    expect(audits()[0]).toMatchObject({
+      action: 'org.terms_accepted',
+      entity: { path: `orgs/${ORG}/members/owner` },
+      summary: `Terms of service version ${TERMS_VERSION} accepted`,
+    });
+
+    // Accepting again writes nothing more.
+    w.clock.advance(60_000);
+    const again = await acceptTermsDefinition.handler(w.orgCtx('owner', 'owner', { version: TERMS_VERSION }));
+    expect(again).toEqual({ version: TERMS_VERSION, recorded: false });
+    expect((w.doc(`orgs/${ORG}`)?.['termsAcceptedAt'] as Timestamp).toDate()).toEqual(
+      new Date(w.clock.now().getTime() - 60_000),
+    );
+    expect(audits()).toHaveLength(1);
+  });
+
+  it('refuses a version that isn’t current, and an org that doesn’t exist', async () => {
+    const w = world();
+    await expect(acceptTermsDefinition.handler(w.orgCtx('owner', 'owner', { version: '0.0' }))).rejects.toMatchObject({
+      code: 'FAILED_PRECONDITION',
+      details: { reason: 'terms_outdated', current: TERMS_VERSION },
+    });
+    expect(w.doc(`orgs/${ORG}`)).not.toHaveProperty('termsAcceptedVersion');
+    w.docs.delete(`orgs/${ORG}`);
+    await expect(
+      acceptTermsDefinition.handler(w.orgCtx('owner', 'owner', { version: TERMS_VERSION })),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });
 

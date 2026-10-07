@@ -81,7 +81,7 @@ Start an assessment **immediately** when any of these happen:
 - credentials, tokens or keys were exposed (rotate them first: Secret Manager, then redeploy);
 - a backup or export was accessible publicly.
 
-Steps: contain (roll back, revoke, rotate), preserve evidence (export the relevant logs to the backups bucket), record what data and which people may be affected, then follow the practice's NDB response plan (SEC-01, MAT-111) and the [Security, privacy & compliance](../09-security-privacy-compliance.md) doc. The privacy officer decides whether it's notifiable.
+Steps: contain (roll back, revoke, rotate), preserve evidence (export the relevant logs to the backups bucket), record what data and which people may be affected, then follow the [data breach response plan](data-breach.md) (SEC-01) and the [Security, privacy & compliance](../09-security-privacy-compliance.md) doc. The privacy officer decides whether it's notifiable, and each affected firm is told within the time the [data processing addendum](../compliance/dpa.md) sets.
 
 ## Testing the alert path
 

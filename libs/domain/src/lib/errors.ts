@@ -98,6 +98,17 @@ export const ERROR_CODES = {
   INTEGRATION_REJECTED: 'failed-precondition',
   /** The provider no longer accepts the connection, revoked or expired (INT-01): connect it again. */
   INTEGRATION_RECONNECT_REQUIRED: 'failed-precondition',
+  /**
+   * The practice is scheduled for deletion (SEC-05): it is read-only until an owner cancels, so
+   * changes are refused. Reads, exports and cancelling still work.
+   */
+  ORG_READ_ONLY: 'failed-precondition',
+  /** A legal hold (on the practice or one of its matters) stops the practice being deleted (SEC-05). */
+  LEGAL_HOLD: 'failed-precondition',
+  /** A full export of the practice is still being written: deletion waits for it (SEC-05). */
+  EXPORT_RUNNING: 'failed-precondition',
+  /** The account still belongs to a practice: leave or delete it first (SEC-05). */
+  ACCOUNT_HAS_ORGS: 'failed-precondition',
   INTERNAL: 'internal',
 } as const;
 

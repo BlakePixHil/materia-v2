@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 import {
+  BRIEF_ITEM_KINDS,
   DeadlineProposalSchema,
   DocumentCategorySchema,
   EventProposalSchema,
@@ -205,6 +206,27 @@ export const EventsFromFileOutput = z.object({
 });
 export type EventsFromFileOutput = z.infer<typeof EventsFromFileOutput>;
 
+/**
+ * A matter brief (AI-06c, `matter-brief@1`): a headline and up to five items, each about what
+ * changed, what's due or the next step, citing the records it is about by the refs
+ * `<matter_facts kind="brief">` gives them (`deadline:abc`). `checkBrief` then drops any item that
+ * cites nothing in the facts or writes a number or date that isn't in what it cites. The caps are
+ * generous (the API doesn't enforce them); the callable keeps at most five items.
+ */
+export const MatterBriefOutput = z.object({
+  headline: z.string().max(600).describe('One sentence that states the conclusion'),
+  items: z
+    .array(
+      z.object({
+        kind: z.enum(BRIEF_ITEM_KINDS),
+        text: z.string().max(1000),
+        refs: z.array(z.string()).max(10).describe('The refs of the records the item is about, as the facts give them'),
+      }),
+    )
+    .max(10),
+});
+export type MatterBriefOutput = z.infer<typeof MatterBriefOutput>;
+
 export const OUTPUT_SCHEMAS = {
   hello: HelloOutput,
   willExtraction: WillExtractionOutput,
@@ -214,6 +236,7 @@ export const OUTPUT_SCHEMAS = {
   chatProposals: ChatProposalsOutput,
   insightsNarrative: InsightsNarrativeOutput,
   eventsFromFile: EventsFromFileOutput,
+  matterBrief: MatterBriefOutput,
 } as const satisfies Record<string, z.ZodType>;
 
 export type OutputSchemaName = keyof typeof OUTPUT_SCHEMAS;

@@ -230,7 +230,7 @@ export const FACT_CITATIONS_MAX = 20;
  * read, like the suggestion. The document id is the fact's id.
  */
 export const FactCitation = withMeta(
-  {
+  () => ({
     factId: KeyFactIdSchema,
     /** The value the citations support: an ISO date, cents, or text, as the matter stores it. */
     value: z.union([z.string().max(KEY_FACT_TEXT_MAX), z.number().int()]),
@@ -238,10 +238,95 @@ export const FactCitation = withMeta(
     /** The accepted suggestion the citations came from. */
     suggestionId: DocIdSchema,
     privileged: z.boolean().default(false),
-  },
+  }),
   { path: `${MATTER}/factCitations`, updatable: [], migratable: false },
 );
 export type FactCitation = z.infer<typeof FactCitation.schema>;
+
+/** The most items a matter brief shows (AI-06c). */
+export const MATTER_BRIEF_MAX_ITEMS = 5;
+/** The longest item and headline a matter brief keeps. */
+export const MATTER_BRIEF_TEXT_MAX = 400;
+export const MATTER_BRIEF_HEADLINE_MAX = 200;
+/** Records one item may cite. */
+export const MATTER_BRIEF_REFS_MAX = 5;
+
+/** What a brief item is about: what changed, what's due, or the suggested next step. */
+export const BRIEF_ITEM_KINDS = ['due', 'changed', 'next'] as const;
+export type BriefItemKind = (typeof BRIEF_ITEM_KINDS)[number];
+/** The records a brief item can cite; `activity` is a feed line about no record of these kinds. */
+export const BRIEF_REF_KINDS = ['deadline', 'task', 'document', 'note', 'suggestion', 'activity'] as const;
+export type BriefRefKind = (typeof BRIEF_REF_KINDS)[number];
+/**
+ * Why a brief was built from the template rather than written by Clerk: Clerk is off for the org
+ * or the feature (`off`), the person who opened the matter can't use Clerk (`role`), Clerk's reply
+ * failed or didn't pass the checks (`failed`), a limit was reached (`limit`), or there was nothing
+ * to summarise (`quiet`).
+ */
+export const BRIEF_TEMPLATE_REASONS = ['off', 'role', 'failed', 'limit', 'quiet'] as const;
+export type BriefTemplateReason = (typeof BRIEF_TEMPLATE_REASONS)[number];
+
+/** A record a brief item cites: the chip's label and where it links. */
+export const BriefRefSchema = z.object({
+  kind: z.enum(BRIEF_REF_KINDS),
+  id: DocIdSchema,
+  label: z.string().min(1).max(200),
+});
+export type BriefRef = z.infer<typeof BriefRefSchema>;
+
+export const BriefItemSchema = z.object({
+  kind: z.enum(BRIEF_ITEM_KINDS),
+  text: NonEmptyString.max(MATTER_BRIEF_TEXT_MAX),
+  /** `danger` when it cites something overdue, `warning` when due within three days or critical. */
+  tone: z.enum(['danger', 'warning']).optional(),
+  refs: z.array(BriefRefSchema).min(1).max(MATTER_BRIEF_REFS_MAX),
+  /** The newest change it cites (a feed line, a document added): "new since your last visit". */
+  at: InstantSchema.optional(),
+});
+export type BriefItem = z.infer<typeof BriefItemSchema>;
+
+/** What the brief was built from, for its footer ("Read 4 deadlines, 6 tasks…"). */
+export const BriefReadSchema = z.object({
+  deadlines: z.number().int().min(0),
+  tasks: z.number().int().min(0),
+  changes: z.number().int().min(0),
+  documents: z.number().int().min(0),
+  suggestions: z.number().int().min(0),
+});
+export type BriefRead = z.infer<typeof BriefReadSchema>;
+
+/**
+ * `matters/{matterId}/briefs/latest` (AI-06c, ADR-059): the matter's brief on Overview, shared by
+ * everyone who can read the matter. Written only by `clerk-matterBrief`, from facts every reader of
+ * the matter may see (privileged documents and suggestions only on a privileged matter, no budget,
+ * no document text), either by Clerk (`source: 'clerk'`) or from the template (`source:
+ * 'template'`, with its `reason`). `privileged` follows the matter, and then needs
+ * `privileged.view` to read, like the matter itself. `factsHash` is what it was built from (today
+ * included); `refreshes` counts the day's Refresh presses; `pendingUntil` holds off a second
+ * generation while one runs, and `retryAfter` a retry after Clerk failed or a limit was reached.
+ */
+export const MatterBrief = withMeta(
+  () => ({
+    source: z.enum(['clerk', 'template']),
+    reason: z.enum(BRIEF_TEMPLATE_REASONS).optional(),
+    headline: NonEmptyString.max(MATTER_BRIEF_HEADLINE_MAX),
+    items: z.array(BriefItemSchema).max(MATTER_BRIEF_MAX_ITEMS),
+    read: BriefReadSchema,
+    /** The org's day it was built for. */
+    day: DateOnlySchema,
+    factsHash: z.string().min(1).max(64),
+    privileged: z.boolean().default(false),
+    promptRef: z.string().max(80).optional(),
+    model: z.string().max(80).optional(),
+    generatedAt: InstantSchema,
+    generatedBy: ActorSchema,
+    refreshes: z.object({ day: DateOnlySchema, count: z.number().int().min(0) }).optional(),
+    pendingUntil: InstantSchema.optional(),
+    retryAfter: InstantSchema.optional(),
+  }),
+  { path: `${MATTER}/briefs`, updatable: [], migratable: false },
+);
+export type MatterBrief = z.infer<typeof MatterBrief.schema>;
 
 /**
  * `orgs/{orgId}/clerkThreads/{threadId}` (AI-06, ADR-044): one Clerk conversation about one matter.
@@ -252,7 +337,7 @@ export type FactCitation = z.infer<typeof FactCitation.schema>;
  * the context budget.
  */
 export const ClerkThread = withMeta(
-  {
+  () => ({
     title: z.string().max(200),
     ownerUid: DocIdSchema,
     matterId: DocIdSchema.nullable(),
@@ -260,7 +345,7 @@ export const ClerkThread = withMeta(
     shared: z.boolean().default(false),
     privileged: z.boolean().default(false),
     continuedFrom: DocIdSchema.optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/clerkThreads',
     softDelete: true,
@@ -287,7 +372,19 @@ export const ContextManifestSchema = z.object({
   /** Matter records in the facts block; `at` is the record's `updatedAt` (ISO 8601) when known. */
   records: z.array(
     z.object({
-      kind: z.enum(['matter', 'party', 'event', 'deadline', 'task', 'note', 'metrics', 'trust']),
+      kind: z.enum([
+        'matter',
+        'party',
+        'event',
+        'deadline',
+        'task',
+        'note',
+        'metrics',
+        'trust',
+        'activity',
+        'document',
+        'suggestion',
+      ]),
       id: DocIdSchema,
       at: z.string().optional(),
     }),
@@ -344,7 +441,7 @@ export const ClerkToolCallSchema = z.object({
 });
 
 export const ClerkMessage = withMeta(
-  {
+  () => ({
     role: z.enum(['user', 'assistant']),
     content: z.array(ContentBlockSchema),
     citations: z.array(CitationSchema).default([]),
@@ -382,7 +479,7 @@ export const ClerkMessage = withMeta(
     feedback: ClerkFeedbackSchema.optional(),
     /** Why an answer failed (`status: error`): an error code, and the switch for CLERK_DISABLED. */
     error: z.object({ code: z.string().max(60), switch: z.string().max(100).optional() }).optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/clerkThreads/{threadId}/messages',
     migratable: false,

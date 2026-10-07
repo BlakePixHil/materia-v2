@@ -96,7 +96,21 @@ service cloud.firestore {
       return changedKeys().hasOnly(fields);
     }
     function validMeta() {
-      return request.resource.data.updatedBy == uid() && request.resource.data.updatedAt == request.time;
+      return request.resource.data.updatedBy == uid() && request.resource.data.updatedAt == request.time
+        && notBeingDeleted();
+    }
+    // A practice waiting to be deleted (SEC-05, its `deletionScheduledAt`) is read-only, as the
+    // callables refuse changes (apps/functions/src/core/read-only.ts). Every client write stamps
+    // validMeta(), so the check sits here, costing reads nothing (can() is at the 1000-expression
+    // limit on Clerk's message lists). The practice comes from the request path
+    // (/databases/{db}/documents/orgs/{orgId}/…); its document is the one sessionOk() read. A
+    // person's own notifications and member document (their profile, personal tasks) stay
+    // writable; that is checked last, so it costs nothing until a deletion is scheduled (on the org
+    // document itself `path[5]` is an error, which denies, as wanted).
+    function notBeingDeleted() {
+      return request.path[3] != 'orgs'
+        || get(/databases/$(database)/documents/orgs/$(request.path[4])).data.get('deletionScheduledAt', null) == null
+        || request.path[5] in ['notifications', 'members'];
     }
     // An update that touches only whitelisted fields (plus updatedAt/updatedBy) and stamps meta.
     function clientUpdate(fields) {
@@ -337,6 +351,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
     }
 
+    // A deleted practice's tombstone and certificate record (SEC-05): server-only.
+    match /deletedOrgs/{orgId} {
+      allow read, write: if false;
+    }
+
     // ---------- users ----------
     match /users/{userId} {
       // Notification preferences (FND-20), when present, hold sensible values, and never switch off
@@ -357,12 +376,23 @@ service cloud.firestore {
           && n.get('weeklyReport', false) is bool
         );
       }
+      // Pinned matters (CORE-23), when changed: only the current org's list, at most 10 ids.
+      function pinsOk() {
+        let before = resource.data.get('pinnedMatterIds', {});
+        let after = request.resource.data.get('pinnedMatterIds', {});
+        return after == before || (
+          after is map
+          && after.diff(before).affectedKeys().hasOnly([claimOrg()])
+          && after.get(claimOrg(), []) is list && after.get(claimOrg(), []).size() <= 10
+        );
+      }
       allow read: if isSignedIn() && uid() == userId;
       allow update: if isSignedIn() && uid() == userId && clientUpdate(fieldsUser())
-        && notificationPrefsOk(request.resource.data);
+        && notificationPrefsOk(request.resource.data) && pinsOk();
 
-      // Push devices (FND-20): `{token, platform, lastSeenAt}`, private to their user, registered,
-      // refreshed and removed by the client. Functions prune tokens FCM reports gone.
+      // Push devices (FND-20, MOB-04): `{token, platform, label, lastSeenAt}`, private to their
+      // user, registered, refreshed and removed by the client. Functions prune tokens FCM reports
+      // gone and devices unseen for 60 days.
       match /devices/{deviceId} {
         function isDeviceOwner() {
           return isSignedIn() && uid() == userId;
@@ -370,6 +400,7 @@ service cloud.firestore {
         function validDevice(data) {
           return data.token is string && data.token.size() > 0 && data.token.size() <= 4096
             && data.platform in ['web', 'ios', 'android']
+            && data.label is string && data.label.size() > 0 && data.label.size() <= 80
             && data.lastSeenAt is timestamp;
         }
         function deviceKeys() {
@@ -762,6 +793,15 @@ service cloud.firestore {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
         }
 
+        // The matter's brief on Overview (AI-06c, ADR-059): written only by clerk-matterBrief, from
+        // facts every reader of the matter may see. Its `privileged` follows the matter's, and the
+        // matter is checked too, so a brief never outlives a change to the matter's privilege. The
+        // Overview listens before the first brief exists, so a missing one reads as missing.
+        match /briefs/{briefId} {
+          allow read: if inOrg(orgId) && (resource == null || visible(orgId, resource.data))
+            && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data);
+        }
+
         // Where Clerk found a key fact's value (CORE-06a, ADR-049): written by suggestions-accept
         // and deleted by matters-denormalise once the fact changes; server-only writes. Readable by
         // whoever can read the matter, and a privileged one (from a privileged suggestion or cited
@@ -868,6 +908,26 @@ service cloud.firestore {
           allow read: if inOrg(orgId);
           allow update: if editable(orgId, 'matter.edit', fieldsCourtBook()) && matterWritable();
         }
+
+        // Clerk's draft letters (AI-10, ADR-050): private to the person who asked for one, and a
+        // privileged draft (Clerk drew on privileged material, rule 6) needs privileged.view, so a
+        // list must prove `ownerUid == uid()` and `privileged == false` for a role without it.
+        // clerk-startDraft creates them and clerk-runDraft writes Clerk's text. The owner edits the
+        // body and who wrote what once Clerk has finished, asks a running draft to stop, or deletes
+        // it; saving goes through clerk-saveDraft.
+        match /clerkDrafts/{draftId} {
+          function draftEditOk() {
+            return (unchanged(['bodyMd', 'provenance']) || resource.data.status != 'drafting')
+              && (unchanged(['stopRequested'])
+                || resource.data.status == 'drafting' && request.resource.data.stopRequested == true)
+              && request.resource.data.bodyMd is string && request.resource.data.bodyMd.size() <= 50000
+              && request.resource.data.provenance is list && request.resource.data.provenance.size() <= 2000;
+          }
+          allow read: if can(orgId, 'clerk.use') && resource.data.ownerUid == uid() && visible(orgId, resource.data);
+          allow update: if can(orgId, 'clerk.use') && resource.data.ownerUid == uid() && matterWritable()
+            && (clientUpdate(fieldsClerkDraft()) && draftEditOk() || softDelete());
+        }
+
         // What each record has added to the practice metrics (INS-01, ADR-048): functions only.
         match /metrics/{ledgerId} {
           allow read, write: if false;
@@ -1061,10 +1121,11 @@ service cloud.firestore {
         allow read, write: if false;
       }
       // The client-readable mirror of an OAuth connection (INT-01, ADR-051), with nothing secret: a
-      // practice connection (`uid` null) is read by its members, a person's own only by them.
-      // Written only by the token vault.
+      // practice connection (`uid` null) is read by its members, a person's own only by them. One
+      // never made reads as missing, not refused: Settings → Integrations watches `xero` before it
+      // exists. Written only by the token vault.
       match /integrationStatus/{integrationId} {
-        allow read: if inOrg(orgId) && (resource.data.uid == null || resource.data.uid == uid());
+        allow read: if inOrg(orgId) && (resource == null || resource.data.uid == null || resource.data.uid == uid());
       }
       // OAuth connect attempts (INT-01): the state's hash and the PKCE verifier. Server-only.
       match /integrationStates/{stateId} {
@@ -1198,6 +1259,7 @@ service cloud.firestore {
     function fieldsChecklistTemplate() { return ['name', 'items', 'priority', 'dueInDays']; }
     function fieldsChronologyEntry() { return ['date', 'datePrecision', 'title', 'detail', 'sources', 'disputed', 'issueIds']; }
     function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'docVersion', 'ordinal', 'privileged', 'ocr', 'embedding']; }
+    function fieldsClerkDraft() { return ['bodyMd', 'provenance', 'stopRequested']; }
     function fieldsClerkMessage() { return ['stopRequested']; }
     function fieldsClerkThread() { return ['title', 'shared']; }
     function fieldsConflictCheck() { return []; }
@@ -1209,9 +1271,10 @@ service cloud.firestore {
     function fieldsCreditNote() { return []; }
     function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt']; }
     function fieldsDeadlineChange() { return []; }
+    function fieldsDeletedOrg() { return []; }
     function fieldsDestructionCertificate() { return []; }
     function fieldsDestructionRequest() { return []; }
-    function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
+    function fieldsDevice() { return ['token', 'platform', 'label', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'paymentReference', 'notes', 'needsValueReview']; }
@@ -1231,6 +1294,7 @@ service cloud.firestore {
     function fieldsLetterheadDoc() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'reference', 'amountCents', 'status', 'notes']; }
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged', 'referrerContactId', 'referralSource', 'boardOrder']; }
+    function fieldsMatterBrief() { return []; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }
     function fieldsMatterEvent() { return []; }
     function fieldsMatterNumber() { return []; }
@@ -1247,7 +1311,7 @@ service cloud.firestore {
     function fieldsNoteRevision() { return []; }
     function fieldsNotification() { return ['readAt', 'hiddenAt']; }
     function fieldsOffer() { return ['kind', 'by', 'madeOn', 'expiresOn', 'amountCents', 'termsMd', 'status', 'deadlineId', 'privileged']; }
-    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'settings', 'xero', 'termsAcceptedVersion']; }
+    function fieldsOrg() { return ['acn', 'practiceType', 'matterNumberFormat', 'matterTypeCodes', 'feeDefaults', 'fy', 'destructionKeepsTitle', 'plan', 'settings', 'xero']; }
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
@@ -1263,7 +1327,7 @@ service cloud.firestore {
     function fieldsTimeEntry() { return ['date', 'minutes', 'units', 'rateCents', 'amountCents', 'narrative', 'billable', 'taskId']; }
     function fieldsTimer() { return ['taskId', 'startedAt', 'accumulatedMs', 'running', 'narrativeDraft', 'lastHeartbeatAt', 'clientStarted', 'needsReview', 'forgottenSeenAt']; }
     function fieldsTrustSnapshot() { return []; }
-    function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl']; }
+    function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl', 'pinnedMatterIds']; }
     function fieldsXeroContactLink() { return []; }
     // </generated:rules-sync>
 

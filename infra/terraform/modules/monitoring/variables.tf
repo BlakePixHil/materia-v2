@@ -57,6 +57,7 @@ variable "scheduled_jobs" {
     "billing-debtorsNightly"     = 86400
     "metrics-recompute"          = 86400
     "costs-disclosureNightly"    = 86400
+    "orgs-purgeDeletedOrgs"      = 86400
     "matters-queueDestruction"   = 2678400 # monthly: alerts when a run fails, not when one is missed
   }
 }

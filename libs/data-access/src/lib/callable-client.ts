@@ -2,7 +2,7 @@ import { computed, signal, type Signal } from '@angular/core';
 
 import type { DomainError } from '@materia/domain';
 
-import { isTransient, toDomainError } from './errors';
+import { isTransient, offlineError, toDomainError } from './errors';
 
 /** How callables reach Functions (the web app's auth port) and how claims are refreshed. */
 export interface CallableTransport {
@@ -30,6 +30,8 @@ export interface CallableClientOptions {
   delay?: (ms: number) => Promise<void>;
   /** Automatic retries of a transient failure, for idempotent calls only. */
   retries?: number;
+  /** Whether the browser is online. Offline, calls fail at once with `offlineError()` (ADR-020). */
+  online?: () => boolean;
 }
 
 /** A callable bound to one logical action: retrying it re-uses the request id until it succeeds. */
@@ -56,13 +58,16 @@ const BACKOFF_MS = [250, 1000, 3000];
  * - `REAUTH_REQUIRED` (a sensitive action needs a recent sign-in, SEC-04) asks the person to
  *   confirm it's them, then retries once; cancelling rejects with the error.
  * - Transient failures (`UNAVAILABLE`, `REQUEST_IN_PROGRESS`) retry with backoff, idempotent only.
- * Callables need a connection (ADR-020): offline they fail with `UNAVAILABLE`.
+ * Callables need a connection (ADR-020): offline, a call fails at once with `offlineError()` (no
+ * retries, which would only delay the "Needs connection" message), and a retry stops when the
+ * connection drops.
  */
 export class CallableClient {
   private readonly inFlight = signal(0);
   private readonly newId: () => string;
   private readonly delay: (ms: number) => Promise<void>;
   private readonly retries: number;
+  private readonly online: () => boolean;
 
   /** True while any call is in flight. */
   readonly busy = computed(() => this.inFlight() > 0);
@@ -74,9 +79,11 @@ export class CallableClient {
     this.newId = options.newId ?? (() => crypto.randomUUID());
     this.delay = options.delay ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.retries = options.retries ?? BACKOFF_MS.length;
+    this.online = options.online ?? (() => true);
   }
 
   async call<I extends object, O>(name: string, input: I, options: CallOptions = {}): Promise<O> {
+    if (!this.online()) throw offlineError();
     const requestId = options.idempotent ? (options.requestId ?? this.newId()) : undefined;
     const payload = requestId ? { ...input, requestId } : input;
     let refreshed = false;
@@ -102,6 +109,8 @@ export class CallableClient {
           }
           if (requestId && isTransient(error) && attempt < this.retries) {
             await this.delay(BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)] ?? 1000);
+            // The connection dropped: the request id is kept for the person's retry once it's back.
+            if (!this.online()) throw offlineError();
             attempt++;
             continue;
           }

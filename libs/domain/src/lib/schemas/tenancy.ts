@@ -4,6 +4,7 @@ import { OrgClerkSettingsSchema } from '../clerk-settings';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
 import { BoardWipLimitsSchema } from '../matter-board';
 import { NotificationPrefsSchema } from '../notifications';
+import { PinnedMatterIdsSchema } from '../pins';
 import { OrgSecuritySchema } from '../security';
 import { XeroSettingsSchema } from '../xero';
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
@@ -48,7 +49,7 @@ export type FeeDefaults = z.infer<typeof FeeDefaultsSchema>;
 
 /** `orgs/{orgId}`: the firm. */
 export const Org = withMeta(
-  {
+  () => ({
     name: NonEmptyString,
     /** Optional at onboarding (FND-17); set later in org settings. */
     abn: z
@@ -136,10 +137,24 @@ export const Org = withMeta(
     xero: XeroSettingsSchema.optional(),
     /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */
     flags: z.record(z.string(), z.union([z.boolean(), z.string(), z.number()])).optional(),
+    /** A hold on the whole practice (set by Materia support, SEC-05): it can't be deleted while on. */
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: z.string(), at: InstantSchema }).optional(),
+    /**
+     * Set by `orgs-requestDeletion` (SEC-05, ADR-058) to 30 days on: until then the practice is
+     * read-only and an owner can cancel; after it the daily job deletes it. Cleared by a cancel.
+     */
     deletionScheduledAt: InstantSchema.optional(),
+    /** Who asked for the deletion, and when. */
+    deletionRequestedBy: DocIdSchema.optional(),
+    deletionRequestedAt: InstantSchema.optional(),
+    /**
+     * The terms of service and DPA version the org's owner accepted for it (SEC-01, `TERMS_VERSION`),
+     * when and by whom. Written only by `orgs-acceptTerms` and `orgs-createOrg`.
+     */
     termsAcceptedVersion: z.string().optional(),
-  },
+    termsAcceptedAt: InstantSchema.optional(),
+    termsAcceptedBy: DocIdSchema.optional(),
+  }),
   {
     path: 'orgs',
     // The practice details and billing settings change only through `orgs-updateSettings` (CORE-21),
@@ -148,6 +163,8 @@ export const Org = withMeta(
       'security',
       'legalHold',
       'deletionScheduledAt',
+      'deletionRequestedBy',
+      'deletionRequestedAt',
       'flags',
       'name',
       'abn',
@@ -158,13 +175,16 @@ export const Org = withMeta(
       'retentionYears',
       'billing',
       'trust',
+      'termsAcceptedVersion',
+      'termsAcceptedAt',
+      'termsAcceptedBy',
     ],
   },
 );
 
 /** `orgs/{orgId}/members/{uid}`. */
 export const Member = withMeta(
-  {
+  () => ({
     role: RoleSchema,
     status: MemberStatusSchema,
     /** Lower-case sign-in email, shown in the team list to tell apart members with the same name (FND-17). */
@@ -186,7 +206,7 @@ export const Member = withMeta(
      * compare the token's `auth_time`. Set by `security-revokeSessions`.
      */
     sessionsValidAfter: InstantSchema.optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/members',
     // Role and status change only through the orgs-* callables, which keep the last-owner invariant
@@ -197,7 +217,7 @@ export const Member = withMeta(
 
 /** `orgs/{orgId}/invites/{inviteId}`. The raw token is never stored, only its hash. */
 export const Invite = withMeta(
-  {
+  () => ({
     email: z.email().transform((value) => value.toLowerCase()),
     role: RoleSchema,
     tokenHash: z.string().min(32),
@@ -207,7 +227,7 @@ export const Invite = withMeta(
     /** Who accepted it and when (FND-17); accepting again is a no-op for them. */
     acceptedBy: DocIdSchema.optional(),
     acceptedAt: InstantSchema.optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/invites',
     serverOwned: ['tokenHash', 'status', 'invitedBy', 'expiresAt', 'acceptedBy', 'acceptedAt'],
@@ -217,7 +237,7 @@ export const Invite = withMeta(
 
 /** `users/{uid}`: profile and preferences (user-scoped, not org-scoped). */
 export const User = withMeta(
-  {
+  () => ({
     email: z.email().transform((value) => value.toLowerCase()),
     displayName: NonEmptyString,
     firstName: z.string(),
@@ -247,6 +267,11 @@ export const User = withMeta(
      */
     avatarUrl: z.url().max(2048).optional(),
     /**
+     * The matters pinned to the sidebar (CORE-23), per org, in pinning order (at most 10 each).
+     * Written by their owner, one org at a time (the rules allow only the current org's list).
+     */
+    pinnedMatterIds: PinnedMatterIdsSchema.optional(),
+    /**
      * Set by the Resend bounce and complaint webhook (FND-20, ADR-057): mail to this address
      * bounced hard or was reported as spam, so nothing more is emailed to it.
      */
@@ -258,25 +283,28 @@ export const User = withMeta(
       })
       .optional(),
     legacy: z.object({ uid: z.string(), migratedAt: InstantSchema }).optional(),
-  },
+  }),
   {
     path: 'users',
     // The active org changes only through `orgs-switchActiveOrg`, which also sets the claims.
     serverOwned: ['orgIds', 'activeOrgId', 'claimsVersion', 'memberships', 'emailDeliverability', 'legacy'],
-    updatable: ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl'],
+    updatable: ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl', 'pinnedMatterIds'],
   },
 );
 
 /**
  * `users/{uid}/devices/{deviceId}`: a push token (FCM) for one browser or phone (FND-20, MOB-04).
- * Written by its owner; `notifications-deliver` deletes a token FCM reports as invalid.
+ * Written by its owner, whose app refreshes `lastSeenAt` at most daily; `notifications-deliver`
+ * deletes a token FCM reports as invalid, and a device unseen for `PUSH_DEVICE_STALE_DAYS`.
  */
 export const Device = withMeta(
-  {
+  () => ({
     token: z.string().min(1).max(4096),
     platform: z.enum(['web', 'ios', 'android']),
+    /** What Settings calls it: `Chrome on macOS`, `Safari on iPhone`. */
+    label: z.string().min(1).max(80),
     lastSeenAt: InstantSchema,
-  },
+  }),
   { path: 'users/{uid}/devices', migratable: false },
 );
 export type Device = z.infer<typeof Device.schema>;

@@ -11,4 +11,5 @@
 .mt-tl[data-state="done"] .tt { color: var(--text-secondary); }
 .mt-tl .rule { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); margin-top: 2px; }
 .mt-tl .rule code { font: 500 11px/14px var(--font-mono); color: var(--text-secondary); }
+@media (max-width: 767px) { .mt-tl .tt > a { display: block; padding-block: 13px; margin-block: -13px; } .mt-tl .rule { pointer-events: none; } }
 .mt-tl[data-kind="clerk"] .node { background: var(--bg-ai-subtle); border-color: transparent; color: var(--icon-ai); }

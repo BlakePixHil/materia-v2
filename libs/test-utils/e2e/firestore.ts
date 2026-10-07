@@ -1,6 +1,6 @@
 import { expect, type APIRequestContext } from '@playwright/test';
 
-import { EMULATOR_PROJECT, FIRESTORE_EMULATOR } from './auth';
+import { acceptedTermsFields, EMULATOR_PROJECT, FIRESTORE_EMULATOR } from './auth';
 
 const ADMIN = { Authorization: 'Bearer owner' };
 
@@ -30,9 +30,18 @@ export function toFirestoreRestFields(data: Record<string, unknown>): Record<str
 }
 
 /**
+ * An org document (`orgs/{orgId}`) records the current terms as accepted (SEC-01) unless the data
+ * says otherwise (has `termsAcceptedVersion`, even undefined), so replacing it doesn't send its
+ * owners to accept them first.
+ */
+function withTerms(path: string, data: Record<string, unknown>): Record<string, unknown> {
+  return /^orgs\/[^/]+$/.test(path) && !('termsAcceptedVersion' in data) ? { ...acceptedTermsFields(), ...data } : data;
+}
+
+/**
  * Writes (replaces) a document through the Firestore emulator's admin access, bypassing the rules
  * and triggers' callables: for seeding fictional records an e2e test needs, such as a matter and a
- * party (with the server-owned `orgId` and `matterId`).
+ * party (with the server-owned `orgId` and `matterId`). An org document keeps the terms accepted.
  */
 export async function setEmulatorDocument(
   request: APIRequestContext,
@@ -41,7 +50,7 @@ export async function setEmulatorDocument(
 ): Promise<void> {
   const response = await request.patch(
     `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/${path}`,
-    { headers: ADMIN, data: { fields: toFirestoreRestFields(data) } },
+    { headers: ADMIN, data: { fields: toFirestoreRestFields(withTerms(path, data)) } },
   );
   expect(response.ok(), await response.text()).toBe(true);
 }
@@ -52,7 +61,8 @@ const COMMIT_LIMIT = 500;
 /**
  * Writes (replaces) many documents through the Firestore emulator's admin access, in commits of up
  * to 500: for seeding a large fictional practice, such as 500 matters for a list's performance
- * check. Rules and the request-per-document cost of `setEmulatorDocument` are both skipped.
+ * check. Rules and the request-per-document cost of `setEmulatorDocument` are both skipped. Org
+ * documents keep the terms accepted, as there.
  */
 export async function setEmulatorDocuments(
   request: APIRequestContext,
@@ -61,7 +71,7 @@ export async function setEmulatorDocuments(
   const root = `projects/${EMULATOR_PROJECT}/databases/(default)/documents`;
   for (let start = 0; start < documents.length; start += COMMIT_LIMIT) {
     const writes = documents.slice(start, start + COMMIT_LIMIT).map(({ path, data }) => ({
-      update: { name: `${root}/${path}`, fields: toFirestoreRestFields(data) },
+      update: { name: `${root}/${path}`, fields: toFirestoreRestFields(withTerms(path, data)) },
     }));
     const response = await request.post(`${FIRESTORE_EMULATOR}/v1/${root}:commit`, {
       headers: ADMIN,

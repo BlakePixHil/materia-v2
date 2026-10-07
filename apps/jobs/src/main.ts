@@ -6,7 +6,8 @@ import type { JobFiles, JobStore } from './core/types';
 import { PDF_HANDLERS } from './pdf/index';
 
 /**
- * Cloud Run jobs entry point (ADR-014). Each image runs `node main.js <job>`; LIT-10 adds the court
+ * Cloud Run jobs entry point (ADR-014). Each image runs `node main.js <job>`, or with no argument
+ * the job Cloud Run names in `CLOUD_RUN_JOB` (the deployed job `pdf`); LIT-10 adds the court
  * book. A job execution gets its job document from `JOB_ORG_ID` and `JOB_ID`, set by the function
  * that dispatched it (container overrides). `--local <dir>` runs against a folder instead of Google
  * Cloud (tests, and trying the image by hand).
@@ -27,7 +28,9 @@ export function exitCode(outcome: RunOutcome): number {
 }
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env): Promise<number> {
-  const job = resolveJob(argv[0]);
+  // Cloud Run starts the image with no arguments (the job is deployed without --args) and names
+  // the job in CLOUD_RUN_JOB, so the Cloud Run job `pdf` runs the pdf job.
+  const job = resolveJob(argv[0] ?? env['CLOUD_RUN_JOB']);
   if (!job) {
     console.error(`Usage: node main.js <${JOBS.join('|')}> [--local <dir>]`);
     return 1;

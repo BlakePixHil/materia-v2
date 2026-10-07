@@ -1,5 +1,7 @@
 const set = vi.hoisted(() => vi.fn(async () => undefined));
-const doc = vi.hoisted(() => vi.fn(() => ({ set })));
+// `get` answers the purge guard's look for a deletion tombstone (SEC-05): there is none.
+const get = vi.hoisted(() => vi.fn(async () => ({ exists: false })));
+const doc = vi.hoisted(() => vi.fn(() => ({ set, get })));
 vi.mock('../core/admin', () => ({ adminDb: () => ({ doc }), adminApp: () => ({}) }));
 
 import { recordEcho } from './record-echo';
@@ -11,6 +13,7 @@ describe('system-recordEcho', () => {
     await recordEcho.run({ data: { orgId: 'org-a', requestId: REQUEST_ID }, id: 't1', retryCount: 0 } as never);
     expect(doc).toHaveBeenCalledWith(`systemTasks/echo-${REQUEST_ID}`);
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'org-a', requestId: REQUEST_ID }));
+    expect(doc).toHaveBeenCalledWith('deletedOrgs/org-a');
   });
 
   it('rejects an invalid payload', async () => {

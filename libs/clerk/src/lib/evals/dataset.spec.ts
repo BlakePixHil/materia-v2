@@ -22,6 +22,7 @@ const FEATURE_SUITES = [
   'drafting',
   'events-from-file',
   'insights-narrative',
+  'matter-brief',
   'time-assist',
   'will-extraction',
 ];

@@ -1,0 +1,40 @@
+# ADR-050: Clerk drafts letters into an editable draft, and only a person files them on the letterhead
+
+- **Status:** Accepted
+- **Date:** 2026-10-06
+- **Ticket:** [AI-10](https://linear.app/materia-web/issue/MAT-75)
+- **Builds on:** [ADR-034: Clerk context assembly](034-clerk-context-assembly.md), [ADR-037: Clerk suggestions engine](037-clerk-suggestions-engine.md), [ADR-043: Citations](043-citations.md), [ADR-044: Clerk chat panel](044-clerk-chat-panel.md), [ADR-047: Document templates](047-document-templates-and-docx-merge.md)
+
+## Context
+
+Lawyers write the same routine letters on every estate: to the bank for balances, to creditors, to beneficiaries once the grant issues, cover letters for the costs disclosure. AI-10 has Clerk draft them from the matter. A letter is long, takes a minute to write, and is edited heavily before it goes anywhere, so it doesn't fit a suggestion card (ADR-037) or a chat answer (ADR-044). It must never be sent by Clerk, must not leak privileged material to a third party, must not predict outcomes to a client (rule 4), and must mark every fact it couldn't find rather than invent one. The firm also needs a record of how much of a filed letter Clerk wrote.
+
+## Decision
+
+- **A draft is its own record, owned by the person who asked.** `orgs/{orgId}/matters/{matterId}/clerkDrafts/{draftId}` (`ClerkDraft` in `libs/domain/src/lib/clerk-drafts.ts`) holds the type, recipients, instructions, status (`drafting`, `ready`, `stopped`, `error`, `saved`), the body, what Clerk wrote (`generatedMd`), the provenance runs, the verified citations, the facts the matter lacked and whether it drew on privileged material. Only its owner reads it. The owner may change `bodyMd` and `provenance` once Clerk has finished, set `stopRequested` while it drafts, and soft-delete it (rules `draftEditOk`). Everything else is written by Functions.
+- **Letter types are data, not code.** `libs/clerk/drafts/*.json` lists the nine types (eight from the ticket, plus "Letter from your instructions"): title, the matter types it fits, audience (client or third party), the party roles it writes to, the facts it needs (`requiredFacts`), and guidance for the prompt. `pnpm materia-scripts clerk-prompts` compiles them into `CLERK_DRAFT_TYPES`. The guidance is a starting point until a practitioner reviews it (AI-10a).
+- **Drafting runs on the server, streaming into the draft.** `clerk-startDraft` checks Clerk is on (`checkClerkAvailable(…, 'drafting')`), the matter is writable and the type fits it, resolves recipients from the matter's parties (or a typed name and address), creates the draft as `drafting` and queues `clerk-runDraft`. The task builds the matter context (feature `drafting`), works out which of the type's facts the matter lacks, and runs `drafting@1.0.0` (medium effort) through the gateway with a sink that writes the text to `bodyMd` as it arrives and stops when the owner sets `stopRequested`. A redelivered task fails the draft instead of calling the model twice; a `runId` guard stops an older queued run from overwriting a redraft.
+- **Missing facts are placeholders.** The prompt is told which of the type's facts aren't on the matter and must write `[[TO CONFIRM: …]]` for each one it needs, and for any other fact it can't source. The editor highlights them and lists them beside the letter; the docx merge prints them highlighted (ADR-047); saving with placeholders left asks first. A recipient without an address gets a placeholder in the letterhead's address block.
+- **Privileged material stays out of third-party letters by default.** For a letter to anyone but the client, `buildContext` withholds privileged documents and notes unless the person ticked "Let Clerk use privileged material" when starting. A draft that drew on privileged material is `privileged`; saving such a letter to a third party needs a second confirmation (`confirmPrivileged`, else `FAILED_PRECONDITION` with reason `privileged_confirmation`) and files it as privileged.
+- **Client letters never predict outcomes.** The prompt (and the client-update guidance) puts a `[[TO CONFIRM: advice on prospects from the responsible lawyer]]` placeholder where a prediction would go.
+- **The house style is a setting.** Settings → Clerk and AI → "House style for letters" (`settings.clerk.draftingStyle`, at most 2,000 characters) is passed to the prompt; empty means the default (Australian English, plain English, dates like "6 October 2026").
+- **Rewrite is a separate, synchronous call.** Selecting text and choosing Rewrite calls `clerk-rewriteDraft` with the selection, up to 4,000 characters either side and an optional instruction, under the `draftingRewrite` feature (`drafting-rewrite@1.0.0`). The editor splices the result in and counts it as Clerk's.
+- **Provenance is kept for audit, never printed.** `provenance` is a list of runs (`{origin: 'clerk' | 'person', length}`) over `bodyMd`. Typing updates it by diff (`editProvenance`), a rewrite splices a Clerk run in (`spliceProvenance`). Saving fits it to the saved text and writes Clerk's and the person's characters, the rewrites and the placeholders left to the `clerk.draft_saved` audit entry. The letter itself carries no marker.
+- **Saving files a document; nothing sends.** `clerk-saveDraft` (`document.upload`) merges the body into the type's template (the firm's letterhead, `system-letterhead`) through `generateDocument` with `source: 'clerk_draft'`, category correspondence and tag `clerk-draft`, then opens the document's preview. The Documents tab labels it "Draft — not sent". There is no send path.
+- **Entry points:** the matter's ⋯ menu ("Draft a letter with Clerk…") and ⌘J `/draft …` (the rest becomes the instructions). `/matters/:id/drafts/new?type=…&instructions=…` prefills the form. Starting from a suggestion card is a follow-up (AI-10b): no Clerk feature proposes letters yet, and that link is the hook it will use. The flag is `clerk.features.drafting` (Remote Config, client and server), with the org's "Draft documents" switch.
+- **Evals:** the drafting suite runs production's `buildContext`, `draftingVars` and `rewriteVars` over 16 fictional cases covering every type, a third-party letter on a matter with privileged advice (canaries), a client letter asked to predict a claim (rule 4) and a rewrite. Graders: `placeholderHonesty` (now `[[TO CONFIRM: …]]`), `noInventions`, `privilegeLeak` and `outcomePredictionRefusal` (a prospects placeholder counts as declining).
+
+## Consequences
+
+- A letter is never lost when the person navigates away: it keeps drafting on the server and the drafts list on the start page reopens it.
+- Drafts are private to their owner until saved; once filed, the document follows the matter's document permissions.
+- The provenance diff is per character and approximate for edits that move text around. It is an audit signal, not a legal record of authorship.
+- A new letter type is a JSON file and a regenerate, with an eval case.
+- The LLM-judge rubric for drafts is still descoped; placeholder honesty, inventions, privilege and refusal are graded mechanically.
+
+## Alternatives considered
+
+- **Drafting in the chat panel.** Chat answers are short and read-only; a letter needs an editor, a side panel of sources and placeholders, and a saved state. `/draft` opens the drafting screen instead.
+- **Streaming to the browser over a callable.** The draft would be lost if the tab closed, and the callable's timeout would cap the letter. Firestore streaming (as the chat does) survives both.
+- **Recording provenance as spans in the text.** Markers in the body would leak into the letter or need stripping at every step. Runs beside the text never print.
+- **Letting Clerk see privileged material for every letter.** A third-party letter is exactly where a leak does harm, so it is opt-in per draft and confirmed again on save.

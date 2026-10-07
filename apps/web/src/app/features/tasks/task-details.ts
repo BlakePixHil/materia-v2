@@ -98,6 +98,32 @@ function itemId(existing: readonly ChecklistItem[]): string {
           </datalist>
         </label>
       }
+      @if (reorderable() && entry().editable) {
+        <!-- Moving without dragging (WCAG 2.5.7, SEC-06): the same move as Alt+↑/↓ and the handle. -->
+        <span class="field caption t-2" role="group" [attr.aria-label]="'Order of ' + entry().task.title">
+          Order
+          <button
+            mtButton
+            variant="ghost"
+            size="sm"
+            data-move="-1"
+            [attr.aria-label]="'Move up: ' + entry().task.title"
+            (click)="move.emit(-1)"
+          >
+            Move up
+          </button>
+          <button
+            mtButton
+            variant="ghost"
+            size="sm"
+            data-move="1"
+            [attr.aria-label]="'Move down: ' + entry().task.title"
+            (click)="move.emit(1)"
+          >
+            Move down
+          </button>
+        </span>
+      }
     </div>
     @if (items().length) {
       <ul class="items" [attr.aria-label]="'Checklist for ' + entry().task.title">
@@ -289,6 +315,10 @@ export class TaskDetails {
   readonly groups = input<readonly string[] | null>(null);
   /** The new group, or `null` to take the task out of its group. */
   readonly group = output<string | null>();
+  /** The list can be reordered: Move up and Move down are shown (the way to reorder without dragging). */
+  readonly reorderable = input(false);
+  /** Move up (-1) or down (1) within its section. */
+  readonly move = output<-1 | 1>();
 
   private readonly timeZone = inject(MT_ORG_TIMEZONE);
   private readonly injector = inject(Injector);

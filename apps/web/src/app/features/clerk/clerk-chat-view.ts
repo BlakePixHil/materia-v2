@@ -7,7 +7,7 @@ import {
   type ErrorCode,
 } from '@materia/domain';
 import type { ComposerCommand } from '@materia/ui';
-import type { ClerkMessageState } from '@materia/ui/markdown';
+import { inlineText, parseMarkdown, type ClerkMessageState } from '@materia/ui/markdown';
 
 import { errorCodeOf, errorCopy } from '../../core/error-copy';
 
@@ -103,4 +103,52 @@ export function streamingAnswer(messages: readonly ChatMessage[]): ChatMessage |
 /** The answers Retry may be offered on: the newest message, when it's a finished answer. */
 export function retryable(messages: readonly ChatMessage[], message: ChatMessage): boolean {
   return message.role === 'assistant' && message.status !== 'streaming' && messages.at(-1)?.id === message.id;
+}
+
+/** The longest finished answer read out whole; a longer one is cut at a word (SEC-06). */
+export const SPOKEN_ANSWER_MAX = 600;
+
+/** An answer as screen readers hear it: plain sentences, without Markdown or citation markers. */
+export function spokenText(markdown: string): string {
+  return (
+    parseMarkdown(markdown)
+      .map((block) => {
+        switch (block.type) {
+          case 'code':
+            return block.text;
+          case 'list':
+            return block.items.map((item) => inlineText(item)).join('; ');
+          default:
+            return inlineText(block.children);
+        }
+      })
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      // A dropped citation marker leaves a space before the full stop.
+      .replace(/ ([.,;:!?])/g, '$1')
+      .trim()
+  );
+}
+
+/**
+ * What screen readers hear once an answer stops streaming (SEC-06). The conversation isn't a live
+ * region while Clerk writes, so the answer isn't read out token by token; when it finishes it is
+ * announced once, politely. A failed answer says nothing here: its own alert says why.
+ */
+export function answerAnnouncement(message: Pick<ClerkMessage, 'status' | 'content'>): string | null {
+  switch (message.status) {
+    case 'streaming':
+    case 'error':
+    case 'invalid_output':
+      return null;
+    case 'stopped':
+      return 'Clerk stopped. This answer is incomplete.';
+    case 'refused':
+      return 'Clerk declined to answer this.';
+  }
+  const text = spokenText(messageText(message));
+  if (!text) return 'Clerk answered.';
+  if (text.length <= SPOKEN_ANSWER_MAX) return `Clerk answered: ${text}`;
+  const cut = text.slice(0, SPOKEN_ANSWER_MAX).replace(/\s+\S*$/, '');
+  return `Clerk answered: ${cut}… The rest is in the conversation.`;
 }

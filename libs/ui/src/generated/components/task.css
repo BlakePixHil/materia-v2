@@ -9,3 +9,16 @@
 .mt-task-title { all: unset; display: block; max-width: 100%; box-sizing: border-box; cursor: pointer; border-radius: var(--radius-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mt-task-title:focus-visible { box-shadow: var(--focus-ring); }
 .mt-task-edit { width: 100%; box-sizing: border-box; margin: -2px 0; padding: 1px var(--space-4); border: 1px solid var(--border-focus); border-radius: var(--radius-xs); background: var(--bg-surface); outline: none; box-shadow: var(--focus-ring); }
+.mt-task-snooze { opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
+.mt-task:is(:hover, :focus-within) .mt-task-snooze { opacity: 1; }
+@media (hover: none) { .mt-task .mt-task-snooze { opacity: 1; } }
+.mt-task[data-swipeable] { position: relative; overflow: hidden; touch-action: pan-y; }
+.mt-task[data-swipe] > *, .mt-task[data-dragging] > * { transform: translateX(var(--mt-swipe, 0px)); }
+.mt-task[data-swipeable]:not([data-dragging]) > * { transition: transform var(--motion-base) var(--ease-out); }
+.mt-task[data-swipe="done"] { background: var(--bg-success-subtle); }
+.mt-task[data-swipe="snooze"] { background: var(--bg-warning-subtle); }
+.mt-task[data-swipe]::before { position: absolute; top: 50%; transform: translateY(-50%); font: 600 13px/18px var(--font-sans); }
+.mt-task[data-swipe="done"]::before { content: "Done"; left: var(--space-16); color: var(--text-success); }
+.mt-task[data-swipe="snooze"]::before { content: "Tomorrow"; right: var(--space-16); color: var(--text-warning); }
+@media (prefers-reduced-motion: reduce) { .mt-task[data-swipeable] > * { transition: none; } }
+@media (max-width: 767px) { .mt-task { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-content: center; column-gap: var(--space-12); row-gap: var(--space-2); min-height: 56px; } .mt-task > .mt-check { grid-row: 1 / span 2; } .mt-task > .mt-grow { grid-column: 2; grid-row: 1; align-self: end; } .mt-task > mt-deadline-chip, .mt-task > .mt-deadline { grid-column: 2; grid-row: 2; justify-self: start; align-self: start; } .mt-task > mt-avatar, .mt-task > .mt-avatar { grid-column: 3; grid-row: 1 / span 2; } .mt-task > .mt-task-snooze { grid-column: 4; grid-row: 1 / span 2; } .mt-task > mt-matter-tag, .mt-task > .mt-tag, .mt-task > mt-priority-icon { display: none; } .mt-task .mt-check, .mt-task .mt-check:is([data-checked], [data-indeterminate], [data-disabled]), .mt-task .mt-check[data-checked][data-hover] { position: relative; width: 44px; height: 44px; margin: 0 -14px 0 -8px; border: 0; border-radius: var(--radius-sm); background: none; } .mt-task .mt-check::before { content: ""; position: absolute; inset: 13px; border: 1px solid var(--border-control); border-radius: var(--radius-xs); background: var(--bg-surface); transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); } .mt-task .mt-check .mt-i { position: relative; } .mt-task .mt-check:is([data-checked], [data-indeterminate])::before { background: var(--bg-brand); border-color: var(--bg-brand); } .mt-task .mt-check[data-disabled]::before { background: var(--bg-disabled); border-color: var(--border-default); } .mt-task .mt-task-title { padding-block: 12px; margin-block: -12px; } .mt-task .mt-grow .ts { pointer-events: none; } }

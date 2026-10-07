@@ -98,6 +98,14 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'clerk.features.matterBrief': defineFlag({
+    key: 'clerk.features.matterBrief',
+    description: 'The Clerk brief on a matter’s Overview (the template brief shows while it is off).',
+    owner: 'AI-06c',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'clerk.features.intakePrefill': defineFlag({
     key: 'clerk.features.intakePrefill',
     description: 'The "Prefill from email or notes" button on the New matter form (shown disabled while off).',

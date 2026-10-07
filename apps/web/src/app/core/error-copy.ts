@@ -1,3 +1,4 @@
+import { isOfflineError } from '@materia/data-access';
 import { DomainError, isErrorCode, ORG_CLERK_FEATURES, type ErrorCode } from '@materia/domain';
 
 /**
@@ -59,8 +60,23 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   INTEGRATION_NOT_CONFIGURED: 'This integration isn’t set up for Materia yet. Ask your practice admin.',
   INTEGRATION_REJECTED: 'The connection wasn’t allowed. Try again, or ask your IT administrator to approve Materia.',
   INTEGRATION_RECONNECT_REQUIRED: 'This connection has stopped working. Connect it again from Settings.',
+  ORG_READ_ONLY:
+    'This practice is scheduled for deletion, so it’s read-only. An owner can cancel the deletion in Settings → Data and deletion.',
+  LEGAL_HOLD:
+    'A legal hold is in place, so the practice can’t be deleted. Release the hold on the practice and its matters first.',
+  EXPORT_RUNNING: 'A full export of the practice is still being made. Wait until it’s ready, then try again.',
+  ACCOUNT_HAS_ORGS: 'Your account still belongs to a practice. Leave it, or delete it, before deleting your account.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
+
+/**
+ * A callable tried offline (MOB-01, ADR-020): it never left the browser. `short` labels a button
+ * that needs the connection; `long` is the message.
+ */
+export const NEEDS_CONNECTION_COPY = {
+  short: 'Needs connection',
+  long: 'Needs connection. Try again when you’re back online.',
+} as const;
 
 /** The error code of a `DomainError` (from the data layer) or a raw callable error (`details.code`), or INTERNAL. */
 export function errorCodeOf(error: unknown): ErrorCode {
@@ -136,10 +152,17 @@ function clerkCopy(code: ErrorCode, details: Record<string, unknown>): string | 
   return undefined;
 }
 
+/** The terms changed while the page that showed them was open (SEC-01, `terms_outdated`). */
+export const TERMS_OUTDATED_COPY =
+  'The terms have been updated since this page opened. Reload to read the current terms.';
+
 /** User-facing copy for any error thrown by a callable. */
 export function errorCopy(error: unknown): string {
+  if (isOfflineError(error)) return NEEDS_CONNECTION_COPY.long;
   const code = errorCodeOf(error);
   const details = (error as { details?: unknown } | null)?.details;
+  if (code === 'FAILED_PRECONDITION' && (details as { reason?: unknown } | null)?.reason === 'terms_outdated')
+    return TERMS_OUTDATED_COPY;
   const specific =
     details && typeof details === 'object' ? clerkCopy(code, details as Record<string, unknown>) : undefined;
   return specific ?? ERROR_COPY[code];

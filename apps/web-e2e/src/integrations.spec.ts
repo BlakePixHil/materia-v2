@@ -3,9 +3,10 @@ import { expect, test } from '@playwright/test';
 import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 /**
- * Settings → Integrations (INT-03, BILL-09) against the emulators, from seeded status documents:
- * Xero needing reconnecting (the vault marked the saved sign-in refused), then disconnected, in
- * both themes. Connecting itself needs a live Xero (BILL-09a). A fictional practice only.
+ * Settings → Integrations (INT-03, BILL-09) against the emulators: never connected (no status
+ * document yet), then from seeded status documents, Xero needing reconnecting (the vault marked the
+ * saved sign-in refused), then disconnected, in both themes. Connecting itself needs a live Xero
+ * (BILL-09a). A fictional practice only.
  */
 
 const uniqueOrg = () => `org-integrations-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -13,7 +14,10 @@ const uniqueOrg = () => `org-integrations-${Date.now().toString(36)}-${Math.rand
 test.describe('integrations settings', () => {
   test.skip(({ isMobile }) => isMobile, 'The settings sidebar is the desktop layout');
 
-  test('Xero’s card shows when it needs reconnecting, then when it’s disconnected', async ({ page, request }) => {
+  test('Xero’s card shows before it’s ever connected, when it needs reconnecting, then disconnected', async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(120_000);
     const orgId = uniqueOrg();
     const now = new Date();
@@ -42,6 +46,20 @@ test.describe('integrations settings', () => {
           ...meta,
         },
       },
+    ]);
+    await signInAsTestUser(page, request, {
+      claims: { orgId, role: 'owner', orgName: 'Fictional Ledger Legal' },
+      displayName: 'Priya Fictional',
+    });
+
+    // Never connected: no status document yet, which the page reads as "not connected", not "no access".
+    await page.goto('/settings/integrations');
+    await expect(page.getByRole('heading', { name: 'Integrations', level: 1 })).toBeVisible(FIRST_LOAD);
+    const card = page.getByTestId('xero-card');
+    await expect(card.getByRole('button', { name: 'Connect Xero' })).toBeVisible(FIRST_LOAD);
+    await expect(page).toHaveURL(/\/settings\/integrations$/);
+
+    await setEmulatorDocuments(request, [
       status({
         status: 'reconnect_required',
         reason: 'revoked',
@@ -50,14 +68,6 @@ test.describe('integrations settings', () => {
         reconnectRequiredAt: new Date('2026-10-03T01:00:00Z'),
       }),
     ]);
-    await signInAsTestUser(page, request, {
-      claims: { orgId, role: 'owner', orgName: 'Fictional Ledger Legal' },
-      displayName: 'Priya Fictional',
-    });
-
-    await page.goto('/settings/integrations');
-    await expect(page.getByRole('heading', { name: 'Integrations', level: 1 })).toBeVisible(FIRST_LOAD);
-    const card = page.getByTestId('xero-card');
     await expect(card.getByText('Reconnect needed')).toBeVisible(FIRST_LOAD);
     await expect(card).toContainText('Xero refused Materia’s saved sign-in on 3 Oct 2026.');
     await expect(card.getByRole('button', { name: 'Reconnect Xero' })).toBeVisible();

@@ -1,0 +1,46 @@
+{
+  "id": "draft-012",
+  "description": "Grant notification to a beneficiary: no promise of when or how much",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": "2026-04-02",
+      "grantType": "probate"
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"],
+    "parties": [
+      {
+        "name": "Tobias Pryce",
+        "role": "beneficiary"
+      }
+    ]
+  },
+  "documents": [],
+  "query": "Grant notification to Tobias Pryce, a beneficiary.",
+  "today": "2026-04-10",
+  "draft": {
+    "typeId": "grant-notification",
+    "recipients": [
+      {
+        "name": "Tobias Pryce",
+        "role": "beneficiary",
+        "address": "7 Pakington Street\nGeelong West VIC 3218"
+      }
+    ],
+    "instructions": ""
+  }
+}

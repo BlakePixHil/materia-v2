@@ -12,6 +12,8 @@ import * as D from '@materia/domain';
 // Namespace import: the workspace lib loads as CommonJS under tsx, so named imports don't resolve.
 import * as TestUtilsNs from '@materia/test-utils';
 
+import { DEMO_CLERK_THREADS, DEMO_CONFLICT_DATES, DEMO_CONTACTS, demoMatters } from './demo-data.ts';
+import { applyDemo } from './demo.ts';
 import { unwrap } from './interop.ts';
 
 const domain = unwrap(D);
@@ -51,11 +53,14 @@ export const SEED_ORG_ID = 'org-harbour-vine';
 export const SEED_PASSWORD = 'materia-local-dev';
 
 /**
- * `default` (the practice), `minimal` (2 matters), `empty` (org and accounts only), and `load`:
- * the default practice plus LOAD_MATTER_COUNT generated matters for list performance (CORE-03).
+ * `default` (the practice), `minimal` (2 matters), `empty` (org and accounts only), `load`: the
+ * default practice plus LOAD_MATTER_COUNT generated matters for list performance (CORE-03), and
+ * `demo`: the default practice with a year and a half of history (closed matters, invoices and
+ * payments for Insights), invoices on its open matters and every built feature on (seed/demo.ts).
+ * `demo` is what `materia-scripts demo-reset` loads into the demo practice on dev.
  */
-export type SeedScenario = 'default' | 'minimal' | 'empty' | 'load';
-export const SEED_SCENARIOS: readonly SeedScenario[] = ['default', 'minimal', 'empty', 'load'];
+export type SeedScenario = 'default' | 'minimal' | 'empty' | 'load' | 'demo';
+export const SEED_SCENARIOS: readonly SeedScenario[] = ['default', 'minimal', 'empty', 'load', 'demo'];
 
 /** Extra matters in the `load` scenario. */
 export const LOAD_MATTER_COUNT = 500;
@@ -114,7 +119,7 @@ const PRIYA = 'user-priya';
 const JORDAN = 'user-jordan';
 const DANIEL = 'user-daniel';
 
-type ContactSpec = {
+export type ContactSpec = {
   id: string;
   given?: string;
   family?: string;
@@ -180,9 +185,18 @@ const CONTACTS: ContactSpec[] = [
   { id: 'c-lighthouse-advisors', org: 'Lighthouse Financial Advisors Pty Ltd (fictional)', tags: ['referrer'] },
 ];
 
-type Offset = number;
+export type Offset = number;
 
-interface MatterSpec {
+/** A time entry: when, how long, who, what; drafts on open matters and billed on closed ones unless `entry` says. */
+export type TimeSpec = [
+  daysAgo: number,
+  minutes: number,
+  uid: string,
+  narrative: string,
+  entry?: { status?: D.TimeEntryStatus; billable?: boolean },
+];
+
+export interface MatterSpec {
   id: string;
   title: string;
   type: D.MatterType;
@@ -208,11 +222,34 @@ interface MatterSpec {
     status: D.DeadlineStatus,
   ][];
   notes: string[];
-  time: [daysAgo: number, minutes: number, uid: string, narrative: string][];
+  time: TimeSpec[];
   documents: FixtureName[];
   minimal?: boolean;
   /** Its deadlines also come from the engine (CORE-10), as deadlines-recompute would write them. */
   computeDeadlines?: boolean;
+  /** Opened this many days before the anchor (its `createdAt`); when the seed runs if absent. */
+  openedDaysAgo?: number;
+  /** A closed or archived matter's closing day, in days before the anchor (30 if absent). */
+  closedDaysAgo?: number;
+  /** The stage and key facts when MATTER_DETAILS has none (the demo's history). */
+  detail?: MatterDetailSpec;
+  /** The closing record: an estate whose final distribution is recorded counts in the cycle times (INS-01). */
+  closing?: { finalDistributionRecorded: boolean };
+  /** Invoices billing its `billed` time (the demo, BILL-07), oldest first; see seed/demo.ts. */
+  invoices?: InvoiceSpec[];
+}
+
+/**
+ * An issued invoice on a seeded matter (BILL-07, BILL-08): it bills the matter's `billed` time
+ * entries dated after the previous invoice's issue day up to its own, plus a fixed fee if given.
+ * Payments are [days ago, method, cents]; without cents, the rest of what is owed.
+ */
+export interface InvoiceSpec {
+  issuedDaysAgo: number;
+  fixedFee?: string;
+  paymentTermsDays?: number;
+  paidFromTrust?: boolean;
+  payments?: [daysAgo: number, method: D.PaymentMethod, cents?: number][];
 }
 
 /**
@@ -563,7 +600,7 @@ const MATTERS: MatterSpec[] = [
  * stage's required facts and events are present. Dates are offsets from the anchor; grant and
  * court file numbers are invented.
  */
-interface MatterDetailSpec {
+export interface MatterDetailSpec {
   stageId: string;
   willDate?: Offset;
   courtFileNo?: string;
@@ -731,7 +768,7 @@ const SUGGESTIONS: Readonly<Record<string, readonly SuggestionSpec[]>> = {
 };
 
 /** A seeded Clerk conversation on a matter (AI-05): a question and Clerk's cited answer. */
-interface ClerkThreadSpec {
+export interface ClerkThreadSpec {
   id: string;
   title: string;
   question: string;
@@ -1062,6 +1099,11 @@ export function buildDataset(options: {
       holidayLocality: 'VIC_GREATER_GEELONG',
       matterNumberFormat: SEED_MATTER_NUMBER_FORMAT,
       security: { mfaRequired: false, sessionIdleMinutes: 60 },
+      // The owner has accepted the current terms of service (SEC-01), so signing in as Priya doesn't
+      // stop at the acceptance page.
+      termsAcceptedVersion: domain.TERMS_VERSION,
+      termsAcceptedAt: now,
+      termsAcceptedBy: PRIYA,
       // The owner has acknowledged the current data-use disclosure (AI-13), so Clerk runs on the seed.
       settings: {
         clerk: {
@@ -1208,11 +1250,13 @@ export function buildDataset(options: {
     }),
   );
 
-  const matters = scenario === 'minimal' ? MATTERS.filter((m) => m.minimal) : MATTERS;
+  const matters =
+    scenario === 'minimal' ? MATTERS.filter((m) => m.minimal) : scenario === 'demo' ? demoMatters(MATTERS) : MATTERS;
+  const allContacts = scenario === 'demo' ? [...CONTACTS, ...DEMO_CONTACTS] : CONTACTS;
   const contactIds = new Set(
     matters.flatMap((m) => [...m.clients, ...m.parties.map(([id]) => id), ...(m.deceased ? [m.deceased] : [])]),
   );
-  const contacts = scenario === 'minimal' ? CONTACTS.filter((c) => contactIds.has(c.id)) : CONTACTS;
+  const contacts = scenario === 'minimal' ? CONTACTS.filter((c) => contactIds.has(c.id)) : allContacts;
   // Two matters' trust balances, as copied from those records: one current, one out of date.
   for (const [matterId, amountCents, daysAgo] of [
     ['m-doyle-estate', 8_421_000, 3],
@@ -1234,7 +1278,7 @@ export function buildDataset(options: {
     );
   }
 
-  const contactById = new Map(CONTACTS.map((c) => [c.id, c]));
+  const contactById = new Map(allContacts.map((c) => [c.id, c]));
   const nameOf = (id: string) => {
     const c = contactById.get(id);
     return c ? domain.contactDisplayName({ givenNames: c.given, familyName: c.family, orgName: c.org }) : undefined;
@@ -1243,7 +1287,15 @@ export function buildDataset(options: {
   // the counter past them so new matters don't collide.
   const year = domain.matterNumberYear(now, 'Australia/Melbourne');
   const HOUR = 3_600_000;
-  let nextSeq = 1;
+  // Numbered in the year each matter opened: this year, unless its spec says when it opened.
+  const seqs = new Map<number, number>([[year, 1]]);
+  const takeSeq = (y: number) => {
+    const seq = seqs.get(y) ?? 1;
+    seqs.set(y, seq + 1);
+    return seq;
+  };
+  /** An instant on the day `days` before the anchor (mid-morning in Melbourne). */
+  const daysAgoAt = (days: number) => new Date(`${rel(-days)}T00:00:00Z`);
 
   for (const spec of contacts) {
     const person = !spec.org;
@@ -1290,9 +1342,22 @@ export function buildDataset(options: {
     );
   }
 
+  const openedAtOf = (spec: MatterSpec) => (spec.openedDaysAgo === undefined ? now : daysAgoAt(spec.openedDaysAgo));
+  // Numbered in the order they opened, as the counter would have handed the numbers out.
+  const numbers = new Map<string, string>();
+  matters
+    .map((spec, index) => ({ spec, index, at: openedAtOf(spec).getTime() }))
+    .sort((a, b) => a.at - b.at || a.index - b.index)
+    .forEach(({ spec }) => {
+      const y = domain.matterNumberYear(openedAtOf(spec), 'Australia/Melbourne');
+      numbers.set(spec.id, domain.formatMatterNumber(SEED_MATTER_NUMBER_FORMAT, y, takeSeq(y)));
+    });
+
   matters.forEach((spec, index) => {
     const base = `orgs/${org}/matters/${spec.id}`;
-    const number = domain.formatMatterNumber(SEED_MATTER_NUMBER_FORMAT, year, nextSeq++);
+    const openedAt = openedAtOf(spec);
+    const openedYear = domain.matterNumberYear(openedAt, 'Australia/Melbourne');
+    const number = numbers.get(spec.id) as string;
     const deceased = spec.deceased ? contactById.get(spec.deceased) : undefined;
     const openTasks = spec.tasks.filter(([, status]) => status !== 'done' && status !== 'cancelled');
     const staticDeadlines = spec.deadlines.map(([title, due, kind, critical, status], i) => ({
@@ -1304,28 +1369,38 @@ export function buildDataset(options: {
       status,
     }));
     const closed = spec.status === 'closed' || spec.status === 'archived';
-    // Unbilled time is work in progress (BILL-01): a closed matter's time is all billed.
-    const wip = closed
-      ? 0
-      : spec.time.reduce((sum, [, minutes, uid]) => {
-          const units = Math.ceil(minutes / 6);
-          return sum + domain.timeAmountCents(units, MEMBERS[uid]?.rate ?? 0);
-        }, 0);
+    const closedAt = closed
+      ? spec.closedDaysAgo === undefined
+        ? new Date(now.getTime() - 30 * 86_400_000)
+        : daysAgoAt(spec.closedDaysAgo)
+      : undefined;
+    // Time entries: drafts on open matters, billed on closed ones, unless the spec says otherwise.
+    // Unbilled billable time is work in progress (BILL-01).
+    const timeEntries = spec.time.map(([daysAgo, minutes, uid, narrative, entry]) => {
+      const units = Math.ceil(minutes / 6);
+      const rate = MEMBERS[uid]?.rate ?? 0;
+      const status: D.TimeEntryStatus = entry?.status ?? (closed ? 'billed' : 'draft');
+      const billable = entry?.billable ?? true;
+      const amount = domain.timeAmountCents(units, rate);
+      return { daysAgo, minutes, uid, narrative, units, rate, amount, status, billable };
+    });
+    const wip = timeEntries.reduce(
+      (sum, { billable, status, amount }) => sum + domain.wipContribution({ billable, status, amountCents: amount }),
+      0,
+    );
     // The fee (BILL-05): fixed for wills and powers of attorney, a cap on the trust, hourly with a
     // Victorian-style estimate range elsewhere. The budget is what the fees triggers would compute.
     const fee = seedFee(spec.type, spec.id === 'm-doyle-estate' ? { at: now, by: JORDAN } : undefined);
-    const recorded = spec.time.reduce((sum, [, minutes, uid]) => {
-      const units = Math.ceil(minutes / 6);
-      return sum + domain.timeAmountCents(units, MEMBERS[uid]?.rate ?? 0);
-    }, 0);
+    const recorded = timeEntries.reduce((sum, entry) => sum + entry.amount, 0);
+    const billed = timeEntries.reduce((sum, entry) => sum + (entry.status === 'billed' ? entry.amount : 0), 0);
     const budget = domain.planBudget({
       fee,
       previous: null,
-      sums: { timeCents: recorded, disbursementsCents: 0, billedCents: closed ? recorded : 0 },
+      sums: { timeCents: recorded, disbursementsCents: 0, billedCents: billed },
       pcts: domain.DEFAULT_BUDGET_ALERT_PCTS,
       alertsOn: false,
     }).budget;
-    const detail = MATTER_DETAILS[spec.id];
+    const detail = MATTER_DETAILS[spec.id] ?? spec.detail;
     const registerSpec = ESTATE_REGISTERS[spec.id];
     const register = registerSpec ? seedEstateRegister(spec.id, registerSpec, meta) : null;
     const estateFacts =
@@ -1353,7 +1428,7 @@ export function buildDataset(options: {
     const template = domain.systemTemplate(domain.systemTemplateId(spec.type)) as D.Template;
     const stageId = detail?.stageId ?? (template.stages[0]?.id as string);
     const stageAt = template.stages.findIndex((stage) => stage.id === stageId);
-    const stageEnteredOn = rel(-7);
+    const stageEnteredOn = closed && spec.closedDaysAgo !== undefined ? rel(-spec.closedDaysAgo) : rel(-7);
     const anchors: D.AnchorContext = {
       matter: {
         ...(deceased && deceased.dateOfDeath !== undefined
@@ -1405,11 +1480,12 @@ export function buildDataset(options: {
     ]);
 
     add(`orgs/${org}/matterNumbers/${domain.matterNumberKey(number)}`, {
-      ...makeMatterNumber({ ...meta, number, matterId: spec.id, year }),
+      ...makeMatterNumber({ ...meta, number, matterId: spec.id, year: openedYear }),
     });
     const matterData = {
       ...makeMatter({
         ...meta,
+        createdAt: openedAt,
         number,
         title: spec.title,
         type: spec.type,
@@ -1443,7 +1519,9 @@ export function buildDataset(options: {
         budget,
         costsDisclosure: {
           status: spec.type === 'will' ? 'not_required' : 'sent',
-          ...(spec.type === 'will' ? {} : { sentOn: rel(-30) }),
+          ...(spec.type === 'will'
+            ? {}
+            : { sentOn: spec.openedDaysAgo === undefined ? rel(-30) : rel(-Math.max(0, spec.openedDaysAgo - 2)) }),
         },
         conflictCheck: { status: spec.status === 'lead' ? 'pending' : 'clear' },
         search: domain.matterSearchTokens({
@@ -1462,7 +1540,10 @@ export function buildDataset(options: {
         ) as D.Cents,
         // Most recent first in the order above, a few hours apart.
         lastActivityAt: new Date(now.getTime() - index * 5 * HOUR),
-        closedAt: closed ? new Date(now.getTime() - 30 * 86_400_000) : undefined,
+        closedAt,
+        ...(spec.closing
+          ? { closing: { closingLetterSent: true, ...spec.closing, tasksCancelled: 0, holds: [] } }
+          : {}),
         closeReason: closed ? 'Matter completed' : undefined,
         labels: spec.priority === 'urgent' ? ['urgent'] : [],
       }),
@@ -1525,7 +1606,7 @@ export function buildDataset(options: {
           dueDate: task.fields.dueDate,
           orgId: org,
           matterId: spec.id,
-          ...(task.done ? { status: 'done' as const, completedAt: now } : {}),
+          ...(task.done ? { status: 'done' as const, completedAt: closedAt ?? now } : {}),
           countedOpen: !task.done,
         }),
       );
@@ -1593,10 +1674,7 @@ export function buildDataset(options: {
         makeNote({ ...meta, bodyMd: body, mentions: { uids: [], matterIds: [] }, pinned: i === 0 }),
       ),
     );
-    spec.time.forEach(([daysAgo, minutes, uid, narrative], i) => {
-      const units = Math.ceil(minutes / 6);
-      const rate = MEMBERS[uid]?.rate ?? 0;
-      const amount = domain.timeAmountCents(units, rate);
+    timeEntries.forEach(({ daysAgo, minutes, uid, narrative, units, rate, amount, status, billable }, i) => {
       add(
         `${base}/timeEntries/${spec.id}-te-${i + 1}`,
         makeTimeEntry({
@@ -1610,11 +1688,11 @@ export function buildDataset(options: {
           rateCents: rate as D.Cents,
           amountCents: amount as D.Cents,
           narrative,
-          billable: true,
-          status: closed ? 'billed' : 'draft',
+          billable,
+          status,
           source: 'manual',
           // Counted into the matter's wipCents above, so time-onWrite doesn't count it again.
-          wipCountedCents: (closed ? 0 : amount) as D.Cents,
+          wipCountedCents: domain.wipContribution({ billable, status, amountCents: amount }) as D.Cents,
         }),
       );
     });
@@ -1721,7 +1799,8 @@ export function buildDataset(options: {
   });
 
   // Clerk threads (AI-05): a question and Clerk's cited answer, stored as the gateway writes them.
-  for (const [matterId, threads] of Object.entries(CLERK_THREADS)) {
+  const clerkThreads = scenario === 'demo' ? { ...CLERK_THREADS, ...DEMO_CLERK_THREADS } : CLERK_THREADS;
+  for (const [matterId, threads] of Object.entries(clerkThreads)) {
     if (!matters.some((m) => m.id === matterId)) continue;
     for (const [i, thread] of threads.entries()) {
       const at = (minutes: number) => new Date(now.getTime() - (threads.length - i) * 86_400_000 + minutes * 60_000);
@@ -1886,10 +1965,22 @@ export function buildDataset(options: {
       now,
       format: SEED_MATTER_NUMBER_FORMAT,
       year,
-      firstSeq: nextSeq,
+      firstSeq: seqs.get(year) ?? 1,
     });
-    for (const doc of conflicts.docs) add(doc.path, doc.data);
-    nextSeq = conflicts.nextSeq;
+    for (const doc of conflicts.docs) {
+      // The demo spreads their opening over the past months, so Insights doesn't count them all in one.
+      const dates = scenario === 'demo' ? DEMO_CONFLICT_DATES[doc.path.split('/')[3] ?? ''] : undefined;
+      if (dates && doc.path.split('/').length === 4 && doc.path.split('/')[2] === 'matters') {
+        const openedAt = daysAgoAt(dates.opened);
+        add(doc.path, {
+          ...doc.data,
+          createdAt: openedAt,
+          updatedAt: openedAt,
+          ...(doc.data['closedAt'] && dates.closed !== undefined ? { closedAt: daysAgoAt(dates.closed) } : {}),
+        });
+      } else add(doc.path, doc.data);
+    }
+    seqs.set(year, conflicts.nextSeq);
   }
 
   if (scenario === 'load') {
@@ -1899,17 +1990,20 @@ export function buildDataset(options: {
       now,
       format: SEED_MATTER_NUMBER_FORMAT,
       year,
-      firstSeq: nextSeq,
+      firstSeq: seqs.get(year) ?? 1,
       uids: [PRIYA, JORDAN, DANIEL],
       clientContactIds: contacts.filter((c) => !c.org && c.dateOfDeath === undefined).map((c) => c.id),
       contactNames: Object.fromEntries(contacts.map((c) => [c.id, nameOf(c.id) ?? ''])),
     });
     for (const doc of [...load.matters, ...load.reservations]) add(doc.path, doc.data);
-    nextSeq = load.nextSeq;
+    seqs.set(year, load.nextSeq);
   }
-  add(`orgs/${org}/counters/${domain.matterCounterId(year)}`, makeCounter({ ...meta, next: nextSeq }));
+  for (const [y, next] of [...seqs].sort(([a], [b]) => a - b)) {
+    add(`orgs/${org}/counters/${domain.matterCounterId(y)}`, makeCounter({ ...meta, next }));
+  }
 
-  return { accounts: [...SEED_ACCOUNTS], docs: withMatterRoles(docs), files };
+  const all = scenario === 'demo' ? applyDemo(docs, { orgId: org, anchor, now, matters }) : docs;
+  return { accounts: [...SEED_ACCOUNTS], docs: withMatterRoles(all), files };
 }
 
 /**

@@ -1,0 +1,16 @@
+{
+  "id": "bank-balance-request",
+  "title": "Bank balance request",
+  "description": "Asks a bank for the deceased's balances at the date of death.",
+  "matterTypes": ["probate", "loa", "admin"],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "third_party",
+  "recipientRoles": [],
+  "requiredFacts": [
+    { "fact": "matter.deceased.name", "label": "name of the deceased" },
+    { "fact": "matter.deceased.dateOfDeath", "label": "date of death" }
+  ],
+  "guidance": "Write to a bank or other financial institution. We act for the executors (or the person applying for the grant).\n\n- Say that we act in the estate, and give the deceased's full name and date of death.\n- Ask for the balance of every account in the deceased's name (alone or jointly) as at the date of death, with any interest accrued to that date, and the current balance.\n- Ask whether they hold anything else for the deceased (term deposits, safe custody items, loans or credit cards), and the amount owing on any loan or card at the date of death.\n- Ask what they need to release the funds or close the accounts.\n- Quote account or customer numbers only when the matter's documents give them; otherwise ask them to search their records by the deceased's name and date of birth, and use a placeholder for the date of birth if it isn't known.\n- Say what is enclosed only if the instructions say so (for example a certified copy of the death certificate or the grant).",
+  "needsInstructions": false
+}

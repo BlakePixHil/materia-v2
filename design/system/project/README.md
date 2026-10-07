@@ -106,7 +106,13 @@ Charts answer one question each and use one hue: `icon-brand` bars and lines on 
 
 ### Mobile
 
-Phones get the same tokens at the same sizes, with 44px minimum touch targets and 15px body text. Navigation is a five-item TabBar (Today, Matters, Record, Clerk, Inbox). Record is the raised centre action: speak a time entry or file note and Clerk drafts it for you to save. Short tasks open in a BottomSheet, with the primary action full-width at the bottom. Each matter leads with its next statutory step.
+Phones (under 768px) get the same tokens at the same sizes, with 15px body text and 16px in fields (so iOS doesn't zoom). Every control is at least 44px each way: `--control-sm` and `--control-md` become 44px and `--control-lg` 48px, and rows (`mt-mrow`) are 56px.
+
+- **Navigation.** A five-item TabBar: Today, Matters, Record, Inbox and More. Record is the raised centre action. More holds everything else (My tasks, Deadlines, Contacts, Safe custody, Time & billing, Insights, Settings), your account, the theme and Sign out; pages reached from it keep More current. The top bar shows the screen's title, a back link where there is one, and your avatar (to More) on tab roots. Both bars respect the safe areas (`viewport-fit=cover`), and the TabBar never moves while a screen loads.
+- **Lists.** Phone lists are rows, not tables: Matters is a search field (number, title or client), Recent, then your view. A matter opens on its actions (Call the client, Log time, Add note) and then its sections (Key facts, Deadlines and Tasks open; Documents and Notes closed), each with See all. The top bar's “…” opens the matter's actions as a BottomSheet, including calling or emailing the client.
+- **Sheets.** Every Dialog becomes a BottomSheet: full width, from the bottom, the primary action within thumb reach, and lifted above the on-screen keyboard (`--mt-keyboard-inset`).
+- **Gestures.** Swipe a task right to finish it and left to snooze it to tomorrow, both with Undo; vertical scrolling and mouse drags are left alone. Pull down at the top of Today, Matters or Inbox to refresh. Documents zoom with a pinch, the zoom buttons, or + and −; Share sends the file itself through the phone's share sheet.
+- Each matter leads with its next statutory step.
 
 ### Tablet
 

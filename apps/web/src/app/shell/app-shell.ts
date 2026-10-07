@@ -7,6 +7,7 @@ import {
   DOCUMENT,
   effect,
   inject,
+  Injector,
   signal,
   untracked,
   viewChild,
@@ -17,7 +18,6 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { NgpPopover, NgpPopoverTrigger } from 'ng-primitives/popover';
 import { filter, map } from 'rxjs';
 
-import { DataLifecycle } from '@materia/data-access';
 import { UNREAD_BADGE_LIMIT } from '@materia/data-access/repository';
 import { can, type Action } from '@materia/domain';
 import {
@@ -37,25 +37,30 @@ import {
   MtNavItem,
   MtNote,
   MtTabBar,
-  ThemeService,
-  ToastService,
+  type MtTabBarItem,
 } from '@materia/ui';
 
 import { MtLoadingBar } from './loading-bar';
-import { NAV_ITEMS, type NavEntry, SETTINGS_ITEM, TAB_BAR_ITEMS } from './nav';
+import { NAV_ITEMS, type NavEntry, SETTINGS_ITEM, TAB_BAR_ITEMS, TAB_ROOTS } from './nav';
 import { PageHeader } from './page-header';
 import { ShortcutsDialog } from './shortcuts-dialog';
+import { AccountActions } from '../core/account/account-actions';
 import { AuthState } from '../core/auth/auth-state';
 import { MtMfaGraceBanner } from '../core/auth/mfa-grace-banner';
 import { ClerkPanel } from '../core/clerk/clerk-panel';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
-import { intentUrl } from '../core/commands/intents';
-import { errorCopy } from '../core/error-copy';
+import { intentUrl, onIntent } from '../core/commands/intents';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { PhoneLayout } from '../core/layout/phone-layout';
 import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
-import { OfflineError, OrgService } from '../core/orgs/org-service';
+import { MtDeletionBanner } from '../core/orgs/deletion-banner';
+import { OrgService } from '../core/orgs/org-service';
+import { PinnedMatters } from '../core/pins/pinned-matters';
 import { UserPrefsService } from '../core/profile/user-prefs';
+import { InstallPrompt, INSTALL_COPY } from '../core/pwa/install-prompt';
+import { MtOfflineBanner } from '../core/pwa/offline-banner';
+import { MtPendingSync } from '../core/pwa/pending-sync';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { clockLabel } from '../core/timer/clock-label';
 import { TimerStore, type TimerTarget } from '../core/timer/timer-store';
@@ -65,14 +70,18 @@ import { ClerkChatPanel } from '../features/clerk/clerk-chat-panel';
 
 /** Where the collapsed-sidebar choice is kept, per user. */
 export const SIDEBAR_STORAGE_PREFIX = 'materia.shell.sidebar-collapsed.';
-
-/** Phones get the TabBar instead of the sidebar (MOB-02 refines this). */
-export const MOBILE_QUERY = '(max-width: 767px)';
+/** Where the collapsed-Pinned-section choice is kept, per user (CORE-23). */
+export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
+/** How long after the shell opens this device's push registration is refreshed (MOB-04). */
+const PUSH_REFRESH_DELAY_MS = 8000;
 
 /**
  * The app shell (FND-12): sidebar, inset main panel with the header (breadcrumbs, page actions and
- * the loading bar), and the Clerk panel (its chat, AI-06, loads the first time it opens). Under 768px
- * the TabBar replaces the sidebar.
+ * the loading bar), and the Clerk panel (its chat, AI-06, loads the first time it opens).
+ *
+ * Under 768px (MOB-02) the TabBar replaces the sidebar, and the header is compact: a back button to
+ * the page above (or my avatar, which opens More, on a tab's own page) and the page's name, cut short
+ * when it doesn't fit. It sticks to the top, clear of the notch.
  *
  * Registers the global shortcuts (⌘K, [, ⌘J, ?, `g` + key) and the built-in commands.
  */
@@ -92,16 +101,20 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     '../../../../../libs/ui/src/generated/components/clerk.css',
     '../../../../../libs/ui/src/generated/components/skip.css',
     '../../../../../libs/ui/src/generated/components/loading.css',
+    '../../../../../libs/ui/src/generated/components/nav.css',
   ],
   // On a phone the page's actions in the top bar show just their icons (the label stays for screen
-  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page.
+  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page. When
+  // they still don't fit (Time & billing's, or a 320 px screen), they wrap onto a second row and the
+  // bar grows to hold it (app.css) rather than scrolling the page sideways (WCAG 1.4.10, SEC-06).
   styles: `
     /* The page column spaces banners and the routed page. The outlet element and an empty banner take
        no room, so a page starts at the column's padding instead of two gaps further down. */
     .mt-page > router-outlet {
       display: none;
     }
-    .mt-page > mt-mfa-grace-banner {
+    .mt-page > mt-mfa-grace-banner,
+    .mt-page > mt-deletion-banner {
       display: contents;
     }
     @media (max-width: 767px) {
@@ -117,8 +130,14 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         clip: rect(0 0 0 0);
         white-space: nowrap;
       }
-      .mt-topbar .mt-btn mt-kbd {
+      /* The key caps, not the mt-kbd host: its inline display: contents outranks a stylesheet rule. */
+      .mt-topbar .mt-btn .mt-kbd {
         display: none;
+      }
+      .mt-topbar > .mt-ml {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
       }
     }
   `,
@@ -131,6 +150,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtButton,
     MtBrandMark,
     MtClerkMark,
+    MtDeletionBanner,
     MtIcon,
     MtIconButton,
     MtKbd,
@@ -143,6 +163,8 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtNavItem,
     MtNote,
     MtNotificationsPopover,
+    MtOfflineBanner,
+    MtPendingSync,
     MtTabBar,
     MtTimerWidget,
     NgpPopover,
@@ -224,9 +246,36 @@ export const MOBILE_QUERY = '(max-width: 767px)';
                 [label]="item.label"
                 [icon]="item.icon"
                 [collapsed]="collapsed()"
+                [inactive]="item.id === 'matters' && pinnedOpen()"
               ></a>
             }
           </nav>
+          <!-- Pinned matters (CORE-23): mine, in pinning order; not in the rail, where ⌘K reaches them. -->
+          @if (!collapsed() && pinned().length) {
+            <button
+              type="button"
+              class="mt-nav-section"
+              data-toggle
+              aria-controls="pinned-nav"
+              [attr.aria-expanded]="pinsOpen()"
+              (click)="togglePins()"
+            >
+              Pinned<span class="mt-nav-chev" aria-hidden="true"><mt-icon name="chevron-down" [size]="14" /></span>
+            </button>
+            <div class="mt-nav-group" [attr.data-closed]="pinsOpen() ? null : ''">
+              <nav id="pinned-nav" aria-label="Pinned matters" class="mt-col" style="gap: 1px">
+                @for (pin of pinned(); track pin.id) {
+                  <a
+                    mtNavItem
+                    class="mt-fade"
+                    [routerLink]="['/matters', pin.id]"
+                    [label]="pin.title"
+                    [dot]="'var(--matter-' + pin.type + ')'"
+                  ></a>
+                }
+              </nav>
+            </div>
+          }
           <div
             class="mt-col"
             style="margin-top: auto; gap: 6px; padding-top: 16px"
@@ -285,8 +334,21 @@ export const MOBILE_QUERY = '(max-width: 767px)';
       <main class="mt-main" id="main" tabindex="-1">
         <mt-loading-bar />
         <div class="mt-topbar">
-          <mt-breadcrumb [items]="crumbs()" />
+          @if (mobile()) {
+            @if (back(); as up) {
+              <a mtIconButton icon="chevron-left" data-back [routerLink]="up.link" [label]="'Back to ' + up.label"></a>
+            } @else {
+              <a class="mt-topbar-me" routerLink="/more" [attr.aria-label]="'More, and your account: ' + userName()">
+                <mt-avatar [name]="userName()" [colorKey]="userId()" [src]="avatarUrl()" size="sm" />
+              </a>
+            }
+            <span class="mt-topbar-title mt-ell" [class.mono]="!!pageTitle()?.ref">{{ pageTitle()?.label }}</span>
+          } @else {
+            <mt-breadcrumb [items]="crumbs()" />
+          }
           <div class="mt-ml mt-row" style="gap: 6px">
+            <!-- Changes saved on this device that haven't synced yet (MOB-01). -->
+            <mt-pending-sync />
             <!-- The global timer (BILL-02): on every page. -->
             <mt-timer-widget [compact]="mobile()" [currentMatter]="currentMatter()" />
             @if (header.actions(); as actions) {
@@ -308,8 +370,11 @@ export const MOBILE_QUERY = '(max-width: 767px)';
             }
           </div>
         </div>
+        <!-- You're offline (MOB-01). -->
+        <mt-offline-banner />
         <div class="mt-page">
           <mt-mfa-grace-banner />
+          <mt-deletion-banner />
           @if (timer.forgotten(); as flag) {
             <mt-note tone="warning" data-testid="timer-forgotten">
               {{ forgottenText() }}
@@ -404,6 +469,9 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         <a mtMenuItem icon="settings" routerLink="/settings">Settings</a>
         <button mtMenuItem icon="moon" (click)="toggleTheme()">{{ themeLabel() }}</button>
         <button mtMenuItem icon="keyboard" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
+        @if (install.available()) {
+          <button mtMenuItem icon="download" (click)="installApp()">{{ installLabel }}</button>
+        }
         <mt-menu-separator />
         <button mtMenuItem icon="log-out" (click)="signOut()">Sign out</button>
       </mt-menu>
@@ -416,16 +484,18 @@ export class AppShellComponent {
   private readonly shortcuts = inject(ShortcutService);
   private readonly commands = inject(CommandRegistry);
   private readonly dialogs = inject(DialogService);
-  private readonly theme = inject(ThemeService);
   /** The person's profile and preferences (CORE-20): applies their theme and density as they load. */
   private readonly userPrefs = inject(UserPrefsService);
   private readonly document = inject(DOCUMENT);
   private readonly orgs = inject(OrgService);
-  private readonly toasts = inject(ToastService);
-  private readonly data = inject(DataLifecycle);
+  /** Sign out, switch org and theme: the same from the user menu and the phone's More tab. */
+  private readonly account = inject(AccountActions);
   protected readonly header = inject(PageHeader);
   /** Unread in-app notifications (FND-20). */
   protected readonly notifications = inject(NotificationsStore);
+  /** "Install Materia" (MOB-01). */
+  protected readonly install = inject(InstallPrompt);
+  protected readonly installLabel = INSTALL_COPY.menuItem;
   protected readonly bell = viewChild(NgpPopoverTrigger);
   /** The bell's name says how many are unread (CORE-22). */
   protected readonly bellLabel = computed(() => {
@@ -437,9 +507,16 @@ export class AppShellComponent {
   protected readonly orgChoices = this.orgs.orgs;
 
   protected readonly settings = SETTINGS_ITEM;
-  protected readonly tabBarItems = computed(() =>
-    TAB_BAR_ITEMS.map((item) => (item.link === '/inbox' ? { ...item, count: this.notifications.count() } : item)),
-  );
+  protected readonly tabBarItems = computed((): MtTabBarItem[] => {
+    const path = this.path();
+    const underTab = TAB_ROOTS.some((root) => path === root || path.startsWith(root + '/'));
+    return TAB_BAR_ITEMS.map((item) => {
+      if (item.link === '/inbox') return { ...item, count: this.notifications.count() };
+      // Pages reached from More (Contacts, Settings…) keep More current.
+      if (item.link === '/more') return { ...item, active: !underTab };
+      return item;
+    });
+  });
   private readonly flags = inject(FeatureFlagService);
   /** Settings → Templates (CORE-07): owners and admins, while matter templates are on. */
   /** Matter numbering settings (CORE-21a): owners and admins. */
@@ -462,16 +539,19 @@ export class AppShellComponent {
   );
   protected readonly avatarUrl = computed(() => this.userPrefs.profile.value()?.avatarUrl ?? null);
   protected readonly orgName = computed(() => this.auth.user()?.orgName ?? 'Materia');
-  protected readonly themeLabel = computed(() =>
-    this.theme.resolved() === 'dark' ? 'Use light theme' : 'Use dark theme',
-  );
+  protected readonly themeLabel = this.account.themeLabel;
 
   readonly collapsed = signal(false);
+  /** Whether the Pinned section is expanded (remembered per user). */
+  readonly pinsOpen = signal(true);
+  private readonly pins = inject(PinnedMatters);
+  protected readonly pinned = this.pins.items;
   private readonly clerk = inject(ClerkPanel);
   readonly clerkOpen = this.clerk.open;
   /** The page's subject Clerk is asked about (a matter), if any. */
   protected readonly clerkScope = this.clerk.scope;
-  readonly mobile = signal(false);
+  /** Phone-sized: the TabBar and the compact header (MOB-02). */
+  readonly mobile = inject(PhoneLayout).phone;
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -483,11 +563,21 @@ export class AppShellComponent {
   private readonly matterRefs = inject(MatterRefs);
   /** The global timer (BILL-02). */
   protected readonly timer = inject(TimerStore);
+  /** The id of the matter open behind the shell, if any. */
+  private readonly openMatterId = computed(() => {
+    const id = /^\/matters\/([^/?#]+)/.exec(this.url())?.[1];
+    return !id || id === 'new' || id === 'board' || id === 'destruction' ? null : id;
+  });
+  /** One of my pinned matters is open: its sidebar item is the current page, not Matters (CORE-23). */
+  protected readonly pinnedOpen = computed(() => {
+    const id = this.openMatterId();
+    return !!id && !this.collapsed() && this.pinned().some((pin) => pin.id === id);
+  });
   /** The matter open behind the shell (its number once the matter screen has it), for the timer. */
   protected readonly currentMatter = computed<TimerTarget | null>(
     () => {
-      const id = /^\/matters\/([^/?#]+)/.exec(this.url())?.[1];
-      if (!id || id === 'new' || id === 'board') return null;
+      const id = this.openMatterId();
+      if (!id) return null;
       const number = this.matterRefs.all()[id];
       return number ? { matterId: id, matterNumber: number } : null;
     },
@@ -507,6 +597,28 @@ export class AppShellComponent {
     this.url();
     return routeCrumbs(this.router.routerState.snapshot.root, (id) => this.matterRefs.label(id));
   });
+  /** The URL's path, without the query or fragment. */
+  private readonly path = computed(() => this.url().split(/[?#]/)[0] ?? '');
+  /** The phone header's crumbs: a matter's Overview is the matter itself (its number, back to Matters). */
+  private readonly phoneCrumbs = computed(() => {
+    const crumbs = this.crumbs();
+    const matter = crumbs.at(-2);
+    return matter?.ref && this.path() === `${matter.link}/overview` ? crumbs.slice(0, -1) : crumbs;
+  });
+  /** The phone header's title: the page's own crumb. */
+  protected readonly pageTitle = computed(() => this.phoneCrumbs().at(-1) ?? null);
+  /**
+   * Where the phone header's back button goes: the page above in the crumbs, or More for a page
+   * reached from it. A tab's own page has none (my avatar opens More instead).
+   */
+  protected readonly back = computed((): { label: string; link: string } | null => {
+    const crumbs = this.phoneCrumbs();
+    const parent = crumbs.at(-2);
+    if (parent) return { label: parent.label, link: parent.link };
+    const path = this.path();
+    if (path === '/more' || TAB_ROOTS.includes(path) || path === '/') return null;
+    return { label: 'More', link: '/more' };
+  });
 
   private paletteOpen = false;
   private shortcutsOpen = false;
@@ -515,22 +627,38 @@ export class AppShellComponent {
   constructor() {
     const destroyRef = inject(DestroyRef);
 
-    // Restore the collapsed choice for whoever is signed in.
+    // Restore the collapsed choices for whoever is signed in.
     effect(() => {
-      const key = SIDEBAR_STORAGE_PREFIX + this.userId();
-      untracked(() => this.collapsed.set(readFlag(key)));
+      const uid = this.userId();
+      untracked(() => {
+        this.collapsed.set(readFlag(SIDEBAR_STORAGE_PREFIX + uid));
+        this.pinsOpen.set(!readFlag(PINS_STORAGE_PREFIX + uid));
+      });
     });
-
-    const media = this.document.defaultView?.matchMedia?.(MOBILE_QUERY);
-    if (media) {
-      this.mobile.set(media.matches);
-      const onChange = (event: MediaQueryListEvent) => this.mobile.set(event.matches);
-      media.addEventListener('change', onChange);
-      destroyRef.onDestroy(() => media.removeEventListener('change', onChange));
-    }
 
     const cleanups = [...this.registerShortcuts(), ...this.registerCommands()];
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+
+    // This device's push registration (MOB-04) keeps its token and last-seen date fresh, once the
+    // first page has settled. Loaded then, so push stays off the start-up path.
+    const injector = inject(Injector);
+    const refresh = setTimeout(
+      () =>
+        void import('../core/push/push-devices')
+          .then(({ PushDevices }) => injector.get(PushDevices).refresh())
+          .catch(() => undefined),
+      PUSH_REFRESH_DELAY_MS,
+    );
+    destroyRef.onDestroy(() => clearTimeout(refresh));
+
+    // The installed app's "New time entry" shortcut (MOB-01) opens quick time entry over Today.
+    onIntent(
+      'new-time-entry',
+      () => {
+        if (this.canRecordTime()) void this.openQuickTime();
+      },
+      () => this.orgs.role() !== null,
+    );
   }
 
   toggleSidebar(): void {
@@ -538,50 +666,28 @@ export class AppShellComponent {
     writeFlag(SIDEBAR_STORAGE_PREFIX + this.userId(), this.collapsed());
   }
 
+  /** Expands or collapses the Pinned section. */
+  togglePins(): void {
+    this.pinsOpen.update((value) => !value);
+    writeFlag(PINS_STORAGE_PREFIX + this.userId(), !this.pinsOpen());
+  }
+
   toggleClerk(): void {
     this.clerk.toggle();
   }
 
-  /**
-   * Signs out (clearing cached data) and returns to sign-in. Edits made offline that haven't
-   * reached the server yet would be lost, so the person can choose to wait for them (FND-19).
-   */
-  async signOut(): Promise<void> {
-    if (await this.data.hasUnsyncedChanges()) {
-      const discard = await this.dialogs.confirm({
-        title: 'You have unsynced changes',
-        body: 'Some changes you made offline haven’t reached Materia yet. If you sign out now, they’re lost.',
-        confirmLabel: 'Sign out anyway',
-        cancelLabel: 'Wait for them to sync',
-        tone: 'danger',
-      });
-      if (!discard) {
-        void this.data
-          .waitForSync()
-          .then(() => this.toasts.show({ title: 'Your changes are synced', tone: 'success' }));
-        return;
-      }
-    }
-    await this.auth.signOut();
-    await this.router.navigateByUrl('/auth/sign-in');
+  /** Signs out, after a warning when changes made offline haven't synced (FND-19). */
+  signOut(): Promise<void> {
+    return this.account.signOut();
   }
 
   /** Switches the active org; the page then reloads on Today (FND-17). Blocked while offline. */
-  async switchOrg(orgId: string, active: boolean): Promise<void> {
-    if (active) return;
-    try {
-      await this.orgs.switchOrg(orgId);
-    } catch (error) {
-      this.toasts.show({
-        title: error instanceof OfflineError ? error.message : errorCopy(error),
-        tone: 'danger',
-      });
-    }
+  switchOrg(orgId: string, active: boolean): Promise<void> {
+    return this.account.switchOrg(orgId, active);
   }
 
   toggleTheme(): void {
-    // Saved to the profile too, so it follows the person to other tabs and devices (CORE-20).
-    void this.userPrefs.save({ theme: this.theme.resolved() === 'dark' ? 'light' : 'dark' }).catch(() => undefined);
+    this.account.toggleTheme();
   }
 
   /** Opens the ⌘K palette on top of whatever is open; focus returns to the opener on close. */
@@ -612,6 +718,11 @@ export class AppShellComponent {
     } finally {
       this.quickTimeOpen = false;
     }
+  }
+
+  /** The browser's install prompt, or on iOS the Add to Home Screen steps (MOB-01). */
+  async installApp(): Promise<void> {
+    await this.install.install();
   }
 
   async openShortcuts(): Promise<void> {
@@ -822,6 +933,15 @@ export class AppShellComponent {
         shortcut: '[',
         when: () => !this.mobile(),
         run: () => this.toggleSidebar(),
+      },
+      {
+        id: 'app.install',
+        title: INSTALL_COPY.menuItem,
+        group: 'General',
+        icon: 'download',
+        keywords: ['app', 'home screen', 'desktop', 'dock', 'pwa', 'add'],
+        when: () => this.install.available(),
+        run: () => void this.installApp(),
       },
       {
         id: 'shortcuts.open',

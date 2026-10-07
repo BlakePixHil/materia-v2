@@ -13,6 +13,7 @@ import { formatAud, MtBadge, MtButton, MtIcon, MtNote, ToastService, type MtBadg
 import { dateText, LIVE_INVOICE_STATUSES } from './invoices-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 
 /**
  * A document's Xero copy in the chosen Xero organisation (BILL-09): one sent to another
@@ -90,20 +91,24 @@ export class XeroChip {
 @Component({
   selector: 'mt-invoice-xero',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MtButton, MtNote],
+  imports: [MtButton, MtNeedsConnection, MtNote],
   template: `
     @let state = sync();
     @if (state?.status === 'failed' || state?.status === 'conflict') {
       <mt-note tone="danger" data-testid="invoice-xero-error">
         Not in Xero. {{ problem() }}
         @if (canSend()) {
-          <button mtButton variant="secondary" size="sm" [loading]="sending()" (click)="send()">Try again</button>
+          <button mtButton mtNeedsConnection variant="secondary" size="sm" [loading]="sending()" (click)="send()">
+            Try again
+          </button>
         }
       </mt-note>
     } @else if (!state && unsentLive() && canSend()) {
       <mt-note data-testid="invoice-xero-unsent">
         This invoice isn’t in Xero.
-        <button mtButton variant="secondary" size="sm" [loading]="sending()" (click)="send()">Send to Xero</button>
+        <button mtButton mtNeedsConnection variant="secondary" size="sm" [loading]="sending()" (click)="send()">
+          Send to Xero
+        </button>
       </mt-note>
     }
     @if (unrecorded().length) {

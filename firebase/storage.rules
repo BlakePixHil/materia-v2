@@ -47,13 +47,14 @@ service firebase.storage {
     // The upload contract (CORE-12, ADR-028; `uploadSettings` in libs/domain): an allow-listed
     // extension uploaded with exactly its content type, the uploader's own uid, the client's
     // SHA-256 (documents-onUpload checks it, and the content by its magic bytes), and optionally
-    // the document to add a version to, a category and the privileged flag (lawyers and above).
+    // the document to add a version to, a category, the privileged flag (lawyers and above) and
+    // `source: 'camera'` for a phone scan (MOB-05).
     function validUpload(orgId, matterId) {
       let meta = request.resource.metadata;
       let parts = meta.fileName.lower().split('[.]');
       let ext = parts[parts.size() - 1];
       return meta.keys().hasAll(['uploaderUid', 'fileName', 'sha256'])
-        && meta.keys().hasOnly(['uploaderUid', 'fileName', 'sha256', 'documentId', 'category', 'privileged'])
+        && meta.keys().hasOnly(['uploaderUid', 'fileName', 'sha256', 'documentId', 'category', 'privileged', 'source'])
         && meta.uploaderUid == request.auth.uid
         && meta.fileName.size() <= 255 && parts.size() > 1
         && ext in uploadTypes()
@@ -61,6 +62,7 @@ service firebase.storage {
         && meta.sha256.matches('^[0-9a-f]{64}$')
         && (!('category' in meta) || meta.category in ['will', 'codicil', 'death_certificate', 'grant', 'affidavit', 'correspondence', 'court_document', 'order', 'financial', 'id', 'other'])
         && (!('privileged' in meta) || meta.privileged == 'false' || meta.privileged == 'true' && can(orgId, 'privileged.view'))
+        && (!('source' in meta) || meta.source == 'camera')
         && (!('documentId' in meta) || versionTargetOk(orgId, matterId, meta.documentId));
     }
 

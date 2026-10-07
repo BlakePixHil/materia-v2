@@ -104,6 +104,37 @@ function chatStep(request: ClerkModelRequest): FakeStep | undefined {
   return undefined;
 }
 
+/** The letter the fake writes for Clerk drafting (AI-10): fictional, with one placeholder. */
+export const FAKE_DRAFT_PARAGRAPHS = [
+  'Dear Sir or Madam',
+  'We act for the executor of the estate of the late person named in this matter (fictional letter from the fake Clerk model).',
+  'Please let us know the balance of each account held in the deceased’s name as at [[TO CONFIRM: date of death]].',
+  'Thank you for your help.',
+] as const;
+
+/** The passage the fake writes for a rewrite (AI-10). */
+export const FAKE_REWRITE =
+  'Please tell us the balance of each account as at the date of death (rewritten by the fake Clerk model).';
+
+/**
+ * Clerk drafting's script (AI-10): a short letter with one placeholder, slowly with `[fake:slow]`
+ * in the instructions (stop, navigating away), or a refusal with `[fake:refuse]`; a rewrite
+ * returns `FAKE_REWRITE`.
+ */
+function draftStep(request: ClerkModelRequest): FakeStep | undefined {
+  if (request.system.includes('## Rewriting part of a letter')) return { chunks: [FAKE_REWRITE] };
+  if (!request.system.includes('## Drafting a letter')) return undefined;
+  const asked = turnText(request.messages[request.messages.length - 1]);
+  if (asked.includes('[fake:refuse]')) return { chunks: ['I can’t draft that letter.'], stopReason: 'refusal' };
+  const letter = FAKE_DRAFT_PARAGRAPHS.join('\n\n');
+  if (asked.includes('[fake:slow]'))
+    return {
+      chunks: letter.split(/(?<= )/).concat(Array.from({ length: 60 }, (_, i) => ` more${i + 1}`)),
+      delayMs: 100,
+    };
+  return { chunks: FAKE_DRAFT_PARAGRAPHS.map((paragraph, i) => (i ? `\n\n${paragraph}` : paragraph)) };
+}
+
 /**
  * An Insights narrative (INS-04) the number check accepts: one paragraph per figure (at most two)
  * that writes the current period's value as `<org_metrics>` gives it, citing it. With no figures,
@@ -136,6 +167,50 @@ export function narrativeStep(request: ClerkModelRequest): FakeStep {
         insufficientData: true,
       };
   return { chunks: [JSON.stringify(output)] };
+}
+
+/**
+ * A matter brief (AI-06c) the checks accept: an item for the first overdue and the first upcoming
+ * deadline, the newest document added and the first open suggestion (or undated task), each
+ * worded from the facts `<matter_facts kind="brief">` gives and citing its ref.
+ */
+export function matterBriefStep(request: ClerkModelRequest): FakeStep {
+  const text = request.messages.map(turnText).join('\n');
+  const json = /<matter_facts [^>]*kind="brief"[^>]*>\n([\s\S]*?)\n<\/matter_facts>/.exec(text)?.[1];
+  type Row = {
+    ref?: string;
+    title?: string;
+    due?: string;
+    name?: string;
+    type?: string;
+    added?: string;
+    text?: string;
+  };
+  let facts: Record<string, Row[] | undefined> = {};
+  try {
+    facts = json ? JSON.parse(json) : {};
+  } catch {
+    facts = {};
+  }
+  const first = (key: string) => facts[key]?.[0];
+  const items: { kind: string; text: string; refs: string[] }[] = [];
+  const overdue = first('overdueDeadlines');
+  if (overdue?.ref)
+    items.push({ kind: 'due', text: `${overdue.title} was due ${overdue.due} (fake Clerk).`, refs: [overdue.ref] });
+  const upcoming = first('upcomingDeadlines');
+  if (upcoming?.ref)
+    items.push({ kind: 'due', text: `${upcoming.title} is due ${upcoming.due} (fake Clerk).`, refs: [upcoming.ref] });
+  const doc = first('documentsAdded');
+  if (doc?.ref)
+    items.push({
+      kind: 'changed',
+      text: `${doc.name} (${doc.type}) was added ${doc.added} (fake Clerk).`,
+      refs: [doc.ref],
+    });
+  const next = first('suggestions') ?? first('undatedTasks');
+  if (next?.ref) items.push({ kind: 'next', text: `Next: ${next.text ?? next.title} (fake Clerk).`, refs: [next.ref] });
+  const headline = items.length ? 'Here is where this matter stands (fake Clerk).' : 'Nothing needs you (fake Clerk).';
+  return { chunks: [JSON.stringify({ headline, items })] };
 }
 
 /** Words that tell the fake model which key date a sentence states (fictional files only). */
@@ -190,6 +265,9 @@ export function eventsStep(request: ClerkModelRequest): FakeStep {
 function defaultStep(request: ClerkModelRequest): FakeStep {
   if (request.output?.name === 'insightsNarrative') return narrativeStep(request);
   if (request.output?.name === 'eventsFromFile') return eventsStep(request);
+  if (request.output?.name === 'matterBrief') return matterBriefStep(request);
+  const draft = draftStep(request);
+  if (draft) return draft;
   const chat = chatStep(request);
   if (chat) return chat;
   const sample = request.output ? SAMPLE_OUTPUT[request.output.name] : undefined;

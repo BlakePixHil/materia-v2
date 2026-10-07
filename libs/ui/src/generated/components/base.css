@@ -12,6 +12,7 @@ html, body { background: var(--bg-surface); }
 .mt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 :where(a) { color: var(--text-brand); text-decoration-thickness: 1px; text-underline-offset: 2px; transition: text-decoration-color var(--motion-fast) var(--ease-out); }
 :where(a):hover { text-decoration-thickness: 2px; }
+@media (max-width: 767px) { :root { --control-sm: 44px; --control-md: 44px; --control-lg: 48px; } }
 @keyframes mt-toast-out { to { opacity: 0; transform: scale(.96); } }
 @keyframes mt-toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes mt-toast-in-top { from { opacity: 0; transform: translateY(-8px); } }

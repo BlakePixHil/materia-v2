@@ -1,6 +1,6 @@
 {
   "id": "draft-003",
-  "description": "Letter to the valuer: inspection time unknown",
+  "description": "Letter from instructions to the valuer: inspection time unknown",
   "matter": {
     "matterNumber": "HV-2026-0007",
     "title": "Estate of Gwendolyn May Pryce",
@@ -12,7 +12,8 @@
     "responsibleLawyer": "Jordan Price",
     "probate": {
       "applicationFiled": "2026-02-12",
-      "granted": null
+      "granted": null,
+      "grantType": "probate"
     },
     "upcomingDeadlines": [
       {
@@ -24,16 +25,21 @@
   },
   "documents": [
     {
-      "id": "d-style",
-      "fixture": "drafting/house-style.txt",
-      "title": "Letter house style"
-    },
-    {
-      "id": "d-pryce-val",
+      "id": "d-pryce-valuation",
       "fixture": "matters/pryce/valuation-letter.txt",
-      "title": "Valuation letter, Corio Bay Valuers"
+      "title": "Valuation from Corio Bay Valuers"
     }
   ],
-  "query": "Draft a letter to the valuer asking for an updated valuation and confirming the inspection time.",
-  "today": "2026-03-20"
+  "query": "Letter to the valuer asking for an updated valuation and confirming the inspection time.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "letter",
+    "recipients": [
+      {
+        "name": "Martin Cooke, Corio Bay Valuers Pty Ltd",
+        "address": "88 Mercer Street\nGeelong VIC 3220"
+      }
+    ],
+    "instructions": "Ask for an updated valuation of 19 Weddell Road for the sale, and confirm the time of the new inspection."
+  }
 }

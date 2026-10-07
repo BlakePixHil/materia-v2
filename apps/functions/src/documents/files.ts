@@ -32,6 +32,11 @@ export interface WriteOptions {
   /** `Content-Disposition`, so even a direct download is an attachment. */
   disposition?: string;
   metadata?: Record<string, string>;
+  /**
+   * `writeStream` only: a resumable upload, which survives a dropped connection (the full export's
+   * multi-gigabyte zips, SEC-05). Small files go up in one request.
+   */
+  resumable?: boolean;
 }
 
 /**
@@ -127,7 +132,7 @@ export function storageFiles(bucketName: string = filesBucket()): FileStore {
           bucket()
             .file(path)
             .createWriteStream({
-              resumable: false,
+              resumable: options.resumable ?? false,
               contentType: options.contentType,
               metadata: {
                 ...(options.disposition ? { contentDisposition: options.disposition } : {}),

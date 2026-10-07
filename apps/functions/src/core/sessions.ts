@@ -18,6 +18,11 @@ export interface SessionPolicy {
   policy: ResolvedSecurity;
   /** The member's `sessionsValidAfter`: sign-ins before it were signed out everywhere. */
   validAfter: Date | null;
+  /**
+   * When the practice is to be deleted (SEC-05): until then it is read-only, and only the callables
+   * in `READ_ONLY_CALLABLES` run (core/read-only.ts). Absent or null when it isn't.
+   */
+  deletionScheduledAt?: Date | null;
 }
 
 export type SessionLookup = (orgId: string, uid: string) => Promise<SessionPolicy>;
@@ -39,9 +44,10 @@ export function readSecurity(raw: unknown): Partial<OrgSecurity> | undefined {
 }
 
 /**
- * Reads the org's security policy and the member's `sessionsValidAfter`, cached 60 s per instance
- * like the member lookup: a policy change or a "sign out everywhere" reaches callables within a
- * minute (the rules apply it at once).
+ * Reads the org's security policy, its deletion date (SEC-05) and the member's
+ * `sessionsValidAfter`, cached 60 s per instance like the member lookup: a policy change, a
+ * deletion request or a "sign out everywhere" reaches callables within a minute (the rules apply
+ * it at once).
  */
 export function cachedSessionLookup(db: () => Firestore, clock: Clock): SessionLookup & { clear(): void } {
   const cache = new Map<string, { value: SessionPolicy; until: number }>();
@@ -57,6 +63,7 @@ export function cachedSessionLookup(db: () => Firestore, clock: Clock): SessionL
     const value: SessionPolicy = {
       policy: resolveSecurity(readSecurity(org.get('security'))),
       validAfter: toDate(member.get('sessionsValidAfter')) ?? null,
+      deletionScheduledAt: toDate(org.get('deletionScheduledAt')) ?? null,
     };
     cache.set(key, { value, until: now + TTL_MS });
     return value;

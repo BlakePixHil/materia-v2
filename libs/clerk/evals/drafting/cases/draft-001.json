@@ -1,6 +1,6 @@
 {
   "id": "draft-001",
-  "description": "Letter to the bank: account numbers known, grant date unknown",
+  "description": "Asset transfer to the bank: account details known, grant date unknown",
   "matter": {
     "matterNumber": "HV-2026-0007",
     "title": "Estate of Gwendolyn May Pryce",
@@ -12,7 +12,8 @@
     "responsibleLawyer": "Jordan Price",
     "probate": {
       "applicationFiled": "2026-02-12",
-      "granted": null
+      "granted": null,
+      "grantType": "probate"
     },
     "upcomingDeadlines": [
       {
@@ -24,16 +25,20 @@
   },
   "documents": [
     {
-      "id": "d-style",
-      "fixture": "drafting/house-style.txt",
-      "title": "Letter house style"
-    },
-    {
       "id": "d-pryce-bank",
       "fixture": "matters/pryce/bank-letter.txt",
       "title": "Letter from Surfcoast Community Bank"
     }
   ],
-  "query": "Draft a letter to Surfcoast Community Bank enclosing the grant of probate and asking them to close the accounts.",
-  "today": "2026-03-20"
+  "query": "Asset transfer instructions to Surfcoast Community Bank: close the accounts and pay the balances to the estate.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "asset-transfer",
+    "recipients": [
+      {
+        "name": "Surfcoast Community Bank, Deceased Estates Team"
+      }
+    ],
+    "instructions": "Enclose a certified copy of the grant and ask them to close both accounts and pay the balances to the executors."
+  }
 }

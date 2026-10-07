@@ -92,8 +92,9 @@ export interface Row {
 
 /**
  * The reads `buildContext` makes, all inside one org (Firestore in production, in memory in unit
- * tests). It never lists a matter's documents: documents are read by id only (attachments and
- * retrieval hits), so a matter with thousands of documents costs no more than one with three.
+ * tests). It never lists a matter's documents for their text: documents are read by id only
+ * (attachments and retrieval hits), so a matter with thousands of documents costs no more than one
+ * with three. The matter brief (AI-06c) reads only the newest few documents' names and categories.
  */
 export interface ContextSource {
   /**
@@ -122,6 +123,14 @@ export interface ContextSource {
   recentNotes(orgId: string, matterId: string, options: { allowPrivileged: boolean; limit: number }): Promise<Row[]>;
   /** Documents of this matter by id; ids that don't exist under the matter are left out. */
   documents(orgId: string, matterId: string, ids: readonly string[]): Promise<Row[]>;
+  /**
+   * The matter brief's reads (AI-06c), newest first and capped: the activity feed's lines, the
+   * documents added (metadata only, privileged ones included: the brief's facts leave them out
+   * unless the matter is privileged), and the open suggestions.
+   */
+  recentActivity(orgId: string, matterId: string, options: { limit: number }): Promise<Row[]>;
+  recentDocuments(orgId: string, matterId: string, options: { limit: number }): Promise<Row[]>;
+  openSuggestions(orgId: string, matterId: string, options: { limit: number }): Promise<Row[]>;
   /**
    * The month rollups (`metrics/month-YYYY-MM`) for these months (`2026-05`), each with its counter
    * shards added into `values` (ADR-048). Months with neither a document nor shards are left out.

@@ -11,6 +11,9 @@ This register lists cross-cutting edge cases. When a ticket touches one of these
 - The last owner tries to leave or demote themselves: block it. There must always be ≥ 1 owner.
 - SSO and password accounts share an email: account linking flow. Microsoft personal versus work accounts.
 - A user signs in on a new device while MFA is enforced and they have no MFA enrolled: forced enrolment, with recovery codes.
+- A practice is scheduled for deletion (SEC-05). It is read-only for 30 days: callables outside an allow-list, client writes, uploads and new members are refused, and every page says why. An export still being written, or a legal hold on the practice or any matter, refuses the request; a hold placed during the grace period stops the deletion when it falls due. A member of two practices keeps the other one, and their claims are recomputed. A migration rollback is refused once deletion is requested. After the tombstone is written, late triggers and queued tasks skip the practice instead of writing into it.
+- A member leaves (SEC-05). Their open tasks, deadlines and responsible matters go to someone active and not read-only, who can see privileged matters when any of it is privileged. Their personal tasks are exported to the admin or deleted, a running timer becomes draft time and their connections are revoked. While the practice waits to be deleted, removal only takes access away.
+- A full export is larger than 10 GB (SEC-05): it is split into complete zips, each downloadable on its own, with one `manifest.json` (in the last) covering every part.
 
 ## Dates & time
 

@@ -12,8 +12,10 @@ import {
   RECENT_ENRICHMENTS_QUERY,
 } from '@materia/data-access/repository';
 import {
+  CLERK_DEFAULT_DRAFTING_STYLE,
   CLERK_DISCLOSURE_VERSION,
   CLERK_DISCLOSURES,
+  CLERK_DRAFTING_STYLE_MAX,
   clerkAcknowledged,
   clerkMeteringPeriod,
   DEFAULT_CLERK_MODEL,
@@ -44,6 +46,7 @@ import {
   MtSettingsRow,
   MtSettingsSection,
   MtSwitch,
+  MtTextarea,
   MtTextField,
   ToastService,
   type MtOption,
@@ -69,6 +72,7 @@ function parseCount(text: string, min: number, max: number): number | null | und
  * - acknowledge the data-use disclosure (Clerk stays off until they do, and again for a new version);
  * - turn Clerk on or off for the practice and per feature (saved at once);
  * - set the monthly spend limit, the per-person daily request limit and the daily scanned-page limit (AI-04);
+ * - set the house style Clerk drafts letters in (AI-10);
  * - save the firm's Anthropic API key and choose the model (AI-02a);
  * - see this month's usage and cost.
  * Everyone else sees which features are on and the disclosure, read-only. Every change goes
@@ -89,6 +93,7 @@ function parseCount(text: string, min: number, max: number): number | null | und
     MtSettingsRow,
     MtSettingsSection,
     MtSwitch,
+    MtTextarea,
     MtTextField,
     RouterLink,
   ],
@@ -306,6 +311,36 @@ function parseCount(text: string, min: number, max: number): number | null | und
                 </div>
               </form>
             </div>
+          </mt-settings-section>
+
+          <mt-settings-section
+            title="House style for letters"
+            description="How Clerk writes the letters it drafts: spelling, tone, how to set out dates and money. Leave it empty for the default shown."
+            [headingLevel]="2"
+          >
+            <form class="mt-col" style="gap: 12px" (submit)="$event.preventDefault(); saveStyle()">
+              <mt-textarea
+                name="clerk-drafting-style"
+                label="House style"
+                [rows]="6"
+                [maxLength]="styleMax"
+                [placeholder]="defaultStyle"
+                description="One rule per line works best. Clerk always writes in Australian English and never sends anything."
+                [ngModel]="styleText()"
+                (ngModelChange)="styleText.set($event ?? '')"
+              />
+              <div>
+                <button
+                  mtButton
+                  variant="secondary"
+                  type="submit"
+                  [loading]="saving() === 'style'"
+                  [disabled]="!styleChanged()"
+                >
+                  Save house style
+                </button>
+              </div>
+            </form>
           </mt-settings-section>
 
           <mt-settings-section
@@ -594,6 +629,14 @@ export class ClerkSettingsPage {
         this.ocrPages() !== (this.settings()?.ocrDailyPages ?? null)),
   );
 
+  // ---------- house style (AI-10) ----------
+  protected readonly styleMax = CLERK_DRAFTING_STYLE_MAX;
+  protected readonly defaultStyle = CLERK_DEFAULT_DRAFTING_STYLE;
+  protected readonly styleText = signal('');
+  protected readonly styleChanged = computed(
+    () => this.loaded() && this.styleText().trim() !== (this.settings()?.draftingStyle ?? '').trim(),
+  );
+
   // ---------- key and model (AI-02a) ----------
   protected readonly status = signal<ClerkKeyStatus | null>(null);
   protected readonly keyLoadError = signal<string | null>(null);
@@ -654,6 +697,18 @@ export class ClerkSettingsPage {
         this.ocrText.set(filled.ocr);
       });
     });
+    // So does the house style, unless the person has typed a change of their own.
+    let styled: string | null = null;
+    effect(() => {
+      if (!this.loaded()) return;
+      const style = this.settings()?.draftingStyle ?? '';
+      untracked(() => {
+        const typed = styled !== null && this.styleText() !== styled;
+        if (typed && this.styleChanged()) return;
+        styled = style;
+        this.styleText.set(style);
+      });
+    });
     effect(() => {
       if (this.canConfigure()) untracked(() => void this.loadKey());
     });
@@ -696,6 +751,14 @@ export class ClerkSettingsPage {
   protected async acknowledge(): Promise<void> {
     if (await this.update({ acknowledgeVersion: CLERK_DISCLOSURE_VERSION }, 'ack'))
       this.toasts.show({ title: 'Disclosure acknowledged. Clerk is on for your practice.', tone: 'success' });
+  }
+
+  /** Saves the house style; empty goes back to the default. */
+  protected async saveStyle(): Promise<void> {
+    if (!this.styleChanged()) return;
+    const style = this.styleText().trim();
+    if (await this.update({ draftingStyle: style || null }, 'style'))
+      this.toasts.show({ title: style ? 'House style saved' : 'Back to the default house style', tone: 'success' });
   }
 
   protected async saveLimits(): Promise<void> {

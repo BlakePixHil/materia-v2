@@ -35,6 +35,8 @@ async function personPage(browser: Browser, request: Parameters<typeof createTes
 
 async function createPractice(page: Page, name: string) {
   await page.getByLabel('Practice name').fill(name);
+  // The owner accepts the terms for the practice as it's created (SEC-01).
+  await page.getByRole('checkbox', { name: /I accept the terms of service/ }).click();
   await page.getByRole('button', { name: 'Create practice' }).click();
   await expect(page).toHaveURL(/\/today$/, SERVER);
   await expect(sidebar(page).getByRole('button', { name: 'Switch organisation' })).toContainText(name);

@@ -109,6 +109,10 @@ export interface MentionInput {
  * the body is generic: never the note's text or the matter's title, either of which may be
  * privileged. One notification per note and member (`mention-{noteId}-{uid}`), so a retry rewrites
  * it rather than sending another.
+ *
+ * Members are notified all at once, and their deliveries queued all at once: each `notify` reads
+ * the member's documents and recent count (outside the transaction; it only writes in it), and a
+ * team-wide mention used to wait for them one member after another (SEC-07).
  */
 export async function notifyMentions(ctx: NotifyContext, input: MentionInput): Promise<MentionOutcome> {
   const { tx, matterId, noteId, matter, author, privileged, people } = input;
@@ -117,32 +121,30 @@ export async function notifyMentions(ctx: NotifyContext, input: MentionInput): P
   const unreachable = recipients.filter((uid) => !reachable.includes(uid));
   const authorName = people.get(author)?.displayName ?? 'A colleague';
   const number = typeof matter['number'] === 'string' && matter['number'] ? matter['number'] : 'a matter';
-  const notified: string[] = [];
-  const dispatches: (() => Promise<void>)[] = [];
-  for (const uid of reachable) {
-    const sent = await notify(
-      ctx,
-      {
-        kind: 'mention',
-        noteId,
-        matterId,
-        recipients: [uid],
-        title: `${authorName} mentioned you on ${number}`,
-        body: 'You were mentioned in a matter note. Open it to read it.',
-        link: `/matters/${matterId}/notes#note-${noteId}`,
-        key: `mention-${noteId}-${uid}`,
-        actor: author,
-      },
-      { tx },
-    );
-    if (sent.ids.length || sent.collapsed.length) notified.push(uid);
-    dispatches.push(sent.dispatch);
-  }
+  const sends = await Promise.all(
+    reachable.map((uid) =>
+      notify(
+        ctx,
+        {
+          kind: 'mention',
+          noteId,
+          matterId,
+          recipients: [uid],
+          title: `${authorName} mentioned you on ${number}`,
+          body: 'You were mentioned in a matter note. Open it to read it.',
+          link: `/matters/${matterId}/notes#note-${noteId}`,
+          key: `mention-${noteId}-${uid}`,
+          actor: author,
+        },
+        { tx },
+      ),
+    ),
+  );
   return {
-    notified,
+    notified: reachable.filter((_, i) => !!(sends[i]?.ids.length || sends[i]?.collapsed.length)),
     unreachable,
     dispatch: async () => {
-      for (const dispatch of dispatches) await dispatch();
+      await Promise.all(sends.map((sent) => sent.dispatch()));
     },
   };
 }

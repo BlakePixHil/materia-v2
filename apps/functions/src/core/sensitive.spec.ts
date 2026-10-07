@@ -8,12 +8,15 @@ import { auditExportDefinition } from '../audit/query';
 import { setApiKeyDefinition } from '../clerk/keys';
 import { exportInventoryDefinition } from '../estate/export';
 import { createExportDefinition } from '../exports/create';
+import { orgExportDefinition } from '../exports/org-full';
+import { requestDeletionDefinition } from '../orgs/deletion';
 import {
   changeRoleDefinition,
   removeMemberDefinition,
   suspendMemberDefinition,
   transferOwnershipDefinition,
 } from '../orgs/members';
+import { offboardMemberDefinition } from '../orgs/offboarding';
 import { memoryFirestore } from '../orgs/testing';
 import { FakeClock, fakePorts } from '../ports/fakes';
 import { confirmDestructionDefinition } from '../safe-custody/confirm-destruction';
@@ -88,6 +91,9 @@ const SENSITIVE: [string, CallableDefinition<never, unknown>, Record<string, unk
     { mfaRequired: true, sessionIdleMinutes: 30, maxSessionDays: 14, mfaGraceHours: 24 },
   ],
   ['remote sign-out', revokeSessionsDefinition as never, { uid: 'lawyer-1' }],
+  ['export: the whole practice (SEC-05)', orgExportDefinition() as never, { acknowledgePrivileged: true }],
+  ['practice deletion (SEC-05)', requestDeletionDefinition as never, { confirmation: 'Fictional Legal' }],
+  ['offboarding (SEC-05)', offboardMemberDefinition() as never, { uid: 'lawyer-1', personalTasks: 'delete' }],
 ];
 
 describe('re-authentication for sensitive actions (SEC-04)', () => {
