@@ -66,6 +66,9 @@ describe('legal-docs (SEC-01)', () => {
     // The terms' version has a module of its own, so the app's terms check loads without the registry.
     expect(registry).not.toContain('TERMS_VERSION');
     expect(readFileSync(path.join(root, TERMS_VERSION_FILE), 'utf8')).toContain('export const TERMS_VERSION = "0.1";');
+    expect(readFileSync(path.join(root, TERMS_VERSION_FILE), 'utf8')).toContain(
+      `export const TERMS_STATUS: 'draft' | 'final' = "draft";`,
+    );
     expect(registry.indexOf('"terms"')).toBeLessThan(registry.indexOf('"dpa"'));
     const content = readFileSync(path.join(root, CONTENT_FILE), 'utf8');
     // No title or draft notice (the app shows its own), links to published documents rewritten.

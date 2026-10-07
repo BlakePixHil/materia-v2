@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { ORG_TIMEZONES, TERMS_VERSION, type Jurisdiction } from '@materia/domain';
+import { ORG_TIMEZONES, TERMS_VERSION, termsAskedIn, type Jurisdiction } from '@materia/domain';
 import { MtButton, MtCheckbox, MtNote, MtSelect, MtTextField, type MtOption } from '@materia/ui';
 
+import { environment } from '../../../environments/environment';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService, pendingInvite } from '../../core/orgs/org-service';
 
@@ -26,7 +27,8 @@ const TIMEZONES: MtOption<string>[] = ORG_TIMEZONES.map((zone) => ({
 
 /**
  * Onboarding (FND-17): create the practice, which makes you its owner, accepting the terms of
- * service and DPA for it (SEC-01: recorded on the org, so its owner isn't asked again). Someone with an invite
+ * service and DPA for it (SEC-01: recorded on the org, so its owner isn't asked again; in prod only
+ * once the terms are signed off, `termsAskedIn`). Someone with an invite
  * waiting (they signed up from the link) is offered it first. A practice brought across from the
  * old materia never comes here (its owner already has one): its import step is Settings → Import
  * from materia, offered from Today (MIG-08, D-22).
@@ -65,25 +67,27 @@ const TIMEZONES: MtOption<string>[] = ORG_TIMEZONES.map((zone) => ({
         required
       />
       <mt-select label="Time zone" formControlName="timezone" [options]="timezones" [native]="true" required />
-      <div class="terms">
-        <p>
-          Read the
-          <a routerLink="/legal/terms" target="_blank"
-            >terms of service<span class="mt-sr"> (opens in a new tab)</span></a
-          >, including the
-          <a routerLink="/legal/dpa" target="_blank"
-            >data processing addendum<span class="mt-sr"> (opens in a new tab)</span></a
-          >, and the
-          <a routerLink="/legal/privacy" target="_blank"
-            >privacy policy<span class="mt-sr"> (opens in a new tab)</span></a
-          >.
-        </p>
-        <mt-checkbox
-          formControlName="acceptTerms"
-          required
-          label="I accept the terms of service and data processing addendum on behalf of my practice."
-        />
-      </div>
+      @if (askTerms) {
+        <div class="terms">
+          <p>
+            Read the
+            <a routerLink="/legal/terms" target="_blank"
+              >terms of service<span class="mt-sr"> (opens in a new tab)</span></a
+            >, including the
+            <a routerLink="/legal/dpa" target="_blank"
+              >data processing addendum<span class="mt-sr"> (opens in a new tab)</span></a
+            >, and the
+            <a routerLink="/legal/privacy" target="_blank"
+              >privacy policy<span class="mt-sr"> (opens in a new tab)</span></a
+            >.
+          </p>
+          <mt-checkbox
+            formControlName="acceptTerms"
+            required
+            label="I accept the terms of service and data processing addendum on behalf of my practice."
+          />
+        </div>
+      }
       @if (error(); as message) {
         <mt-note tone="danger">{{ message }}</mt-note>
       }
@@ -113,6 +117,8 @@ export class OnboardingPage {
   protected readonly jurisdictions = JURISDICTIONS;
   protected readonly timezones = TIMEZONES;
   protected readonly invite = pendingInvite();
+  /** Whether this practice's owner accepts the terms here (SEC-01; prod waits for the sign-off). */
+  protected readonly askTerms = termsAskedIn(environment.name);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly form = new FormGroup({
@@ -120,7 +126,10 @@ export class OnboardingPage {
     abn: new FormControl('', { nonNullable: true, validators: [Validators.pattern(/^\s*(\d\s*){11}$/)] }),
     primaryJurisdiction: new FormControl<Jurisdiction>('VIC', { nonNullable: true, validators: [Validators.required] }),
     timezone: new FormControl<string>('Australia/Melbourne', { nonNullable: true, validators: [Validators.required] }),
-    acceptTerms: new FormControl(false, { nonNullable: true, validators: [Validators.requiredTrue] }),
+    acceptTerms: new FormControl(false, {
+      nonNullable: true,
+      validators: this.askTerms ? [Validators.requiredTrue] : [],
+    }),
   });
 
   protected invitePath(path: string): string {
@@ -143,7 +152,7 @@ export class OnboardingPage {
         ...(abn.trim() ? { abn } : {}),
         primaryJurisdiction,
         timezone: timezone as (typeof ORG_TIMEZONES)[number],
-        acceptTermsVersion: TERMS_VERSION,
+        ...(this.askTerms ? { acceptTermsVersion: TERMS_VERSION } : {}),
       });
       await this.router.navigateByUrl('/today');
     } catch (error) {

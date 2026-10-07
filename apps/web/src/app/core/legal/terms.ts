@@ -1,8 +1,9 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Router, type CanActivateFn, type UrlTree } from '@angular/router';
 
-import { TERMS_VERSION, termsAcceptanceNeeded } from '@materia/domain';
+import { TERMS_VERSION, termsAcceptanceNeeded, termsAskedIn } from '@materia/domain';
 
+import { environment } from '../../../environments/environment';
 import { AuthState } from '../auth/auth-state';
 import { SessionPolicy } from '../auth/session-policy';
 
@@ -20,6 +21,7 @@ export function termsReturnUrl(value: string | null | undefined): string | null 
  * owners, while their org hasn't accepted `TERMS_VERSION`. Admins and everyone else are never
  * blocked. The accepted version comes from the org document `SessionPolicy` already follows, so the
  * check adds no read. An acceptance made in this tab counts at once, before that listener catches up.
+ * In prod nobody is asked until the terms are signed off (`termsAskedIn`).
  */
 @Injectable({ providedIn: 'root' })
 export class TermsState {
@@ -29,6 +31,7 @@ export class TermsState {
 
   /** False while the org document is loading or can't be read: the app doesn't block on it. */
   readonly needed = computed(() => {
+    if (!termsAskedIn(environment.name)) return false;
     const security = this.policy.security();
     // `undefined` is "not known" (loading, or a port that doesn't report it).
     if (!security || security.termsAcceptedVersion === undefined) return false;

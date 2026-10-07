@@ -1,7 +1,7 @@
 import { AcceptTermsInput, LEGAL_DOCUMENTS, legalDocument } from './legal';
 import { CreateOrgInput } from './orgs';
 import { Org } from './schemas/tenancy';
-import { TERMS_VERSION, termsAcceptanceNeeded } from './terms';
+import { TERMS_STATUS, TERMS_VERSION, termsAcceptanceNeeded, termsAskedIn } from './terms';
 import { isDateOnly } from './values/date-only';
 
 describe('the legal documents registry (SEC-01)', () => {
@@ -25,6 +25,16 @@ describe('the legal documents registry (SEC-01)', () => {
   it('versions the terms and the DPA together, as the version owners accept', () => {
     expect(legalDocument('terms')?.version).toBe(TERMS_VERSION);
     expect(legalDocument('dpa')?.version).toBe(TERMS_VERSION);
+    expect(legalDocument('terms')?.status).toBe(TERMS_STATUS);
+  });
+
+  it('asks owners to accept draft terms only outside prod, and signed-off terms everywhere', () => {
+    for (const env of ['local', 'e2e', 'dev']) {
+      expect(termsAskedIn(env, 'draft')).toBe(true);
+      expect(termsAskedIn(env, 'final')).toBe(true);
+    }
+    expect(termsAskedIn('prod', 'draft')).toBe(false);
+    expect(termsAskedIn('prod', 'final')).toBe(true);
   });
 
   it('finds a document by its path, and nothing for an unknown one', () => {
