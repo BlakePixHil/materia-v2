@@ -70,7 +70,7 @@ jobs:
             exit 0
           fi
           if [ -n "$CI_RUN_ID" ]; then
-            build=""$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name == "build")][0].conclusion')"
+            build="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name == "build")][0].conclusion')"
             if [ "$build" != "success" ]; then
               echo "::notice::Dev deploy skipped: CI didn't build this commit (quiet hours or docs-only). CI's morning run deploys it, or dispatch deploy-dev."
               echo "ready=false" >> "$GITHUB_OUTPUT"
