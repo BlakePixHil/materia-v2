@@ -65,7 +65,7 @@
     "@swc/helpers": "~0.5.18",
     "@testing-library/angular": "19.5.0",
     "@testing-library/dom": "^10.4.2",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/user-event": "^14.6.7",
     "@types/mailparser": "^3.9.0",
     "@types/node": "^22.0.0",
