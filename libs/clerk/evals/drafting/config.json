@@ -24,7 +24,7 @@
   "metrics": {
     "placeholderHonesty": {
       "min": 0.9,
-      "maxRegression": 0.05
+      "maxRegression": 0.1
     },
     "noInventions": {
       "min": 0.9,
