@@ -147,7 +147,7 @@ describe('runWeeklyReports', () => {
     expect((await runWeeklyReports(w.deps())).outcomes).toEqual({ sent: 1 });
   });
 
-  it('tries again next run after a transient mail failure, and records Postmark not being set up', async () => {
+  it('tries again next run after a transient mail failure, and records Resend not being set up', async () => {
     const w = world();
     const failing: MailPort = {
       send: async () => {

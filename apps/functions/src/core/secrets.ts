@@ -5,10 +5,10 @@ import { defineSecret } from 'firebase-functions/params';
  * ones a function needs in `defineCallable({ secrets: [...] })` and read them with `.value()` inside
  * the handler. Never read secrets from `process.env`.
  */
-/** Postmark server token (FND-20). Until it has a real value, email is recorded as `not_configured`. */
-export const POSTMARK_TOKEN = defineSecret('POSTMARK_TOKEN');
-/** The password Postmark's bounce and spam webhook sends with basic auth (FND-20). */
-export const POSTMARK_WEBHOOK_SECRET = defineSecret('POSTMARK_WEBHOOK_SECRET');
+/** Resend API key (FND-20, ADR-057). Until it has a real value, email is recorded as `not_configured`. */
+export const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+/** The signing secret (`whsec_…`) of Resend's bounce and complaint webhook (FND-20, ADR-057). */
+export const RESEND_WEBHOOK_SECRET = defineSecret('RESEND_WEBHOOK_SECRET');
 /** The Xero app's OAuth client (INT-01, BILL-09). Until set, connecting Xero answers not configured. */
 export const XERO_CLIENT_ID = defineSecret('XERO_CLIENT_ID');
 export const XERO_CLIENT_SECRET = defineSecret('XERO_CLIENT_SECRET');

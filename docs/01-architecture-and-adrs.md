@@ -129,9 +129,10 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - [ADR-055](adr/055-csv-exports-weekly-report.md) (INS-03): list exports are `csv.export` jobs from one callable, `exports-create`, written in the callable up to 5,000 rows and streamed by the `exports-run` queue beyond. Access is re-checked at the end, privileged matters go in only when a lawyer or above asks, and every export is audited. The weekly practice report is an opt-in Monday 07:00 (org time) email of figures and matter numbers only.
 
 **ADR-015: Email.**
-- Transactional email goes through Postmark via a function, with templates in the repo.
-- Inbound email-to-matter uses Postmark inbound webhooks.
+- Transactional email goes through Resend via a function, with templates in the repo.
+- Inbound email-to-matter uses Resend's inbound webhook (`email.received`).
 - The provider is swappable behind `MailPort`.
+- [ADR-057](adr/057-resend-email.md) (FND-20b): Resend replaces Postmark (Blake, 2026-10-07): cheaper, and simpler to set up. Mail goes through Resend's HTTP API with no SDK, and its Svix-signed webhook (`notifications-resendWebhook`) marks hard-bounced, suppressed and complaining addresses undeliverable. The key and signing secret are `RESEND_API_KEY` and `RESEND_WEBHOOK_SECRET`.
 
 **ADR-016: Feature flags.**
 - Remote Config, read through `FeatureFlagService`.

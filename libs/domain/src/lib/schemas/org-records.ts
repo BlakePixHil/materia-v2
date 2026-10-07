@@ -610,7 +610,7 @@ export const NotificationDeliverySchema = z.object({
   at: InstantSchema,
   /** The Cloud Tasks attempt (0 for the first). */
   attempt: z.number().int().min(0),
-  /** The provider's message id (Postmark, FCM); never content. */
+  /** The provider's message id (Resend, FCM); never content. */
   providerId: z.string().max(300).optional(),
   /** The device a push went to (`users/{uid}/devices/{deviceId}`). */
   deviceId: DocIdSchema.optional(),
