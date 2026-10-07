@@ -55,6 +55,7 @@ An agent runs the steps as `terraform-agent` (Owner on dev and prod), once Blake
 - Set `NODE_USE_ENV_PROXY=1` behind the session's proxy, and `export MIG_ENV=dev PROFILE=tools/migration/profiles/tristan-burke.json`.
 - Application Default Credentials must be `terraform-agent` too, for the load, verify and rollback.
 - The scanner's ID token names the `clamav` service, since a service account's token must.
+- The session's network must allow `*.run.app`, where the `clamav` scanner is served (set for the project's cloud environment on 2026-10-07). Otherwise copy-files leaves every file unscanned in quarantine and exits 5; run it again once the scanner is reachable.
 - **The command log:** append each command and its output to a log in the session's scratch space (never the repo or project files), and attach it to MAT-101 at the end of the session.
 - The tools hold what they move in memory; nothing of Tristan's is written to the session's disk.
 
@@ -132,7 +133,7 @@ Run them one at a time and read each one's output before the next; the step runb
    ```
 
    In Cloud Shell, ⋮ → Download saves it; an agent attaches it to the ticket. It holds counts and legacy paths, no names or content.
-2. **Clerk and Insights:** follow the [enrichment runbook](migration-enrichment.md) (MIG-09). Tristan approves Clerk reading the files only if he wants to see it on dev: it sends his documents to the AI provider. Insights' history comes from `backfill-metrics`, which agents can run on dev through the `dev-script` workflow.
+2. **Clerk and Insights:** follow the [enrichment runbook](migration-enrichment.md) (MIG-09). Tristan approves Clerk reading the files only if he wants to see it on dev: it sends his documents to the AI provider. Insights' history comes from `backfill-metrics --org <orgId> --from earliest`, run from the same session: the `dev-script` workflow runs on a CI runner, which D-23 keeps away from real data.
 3. **Check the review queue:** Settings → Import from materia shows the run, and its open items match the transform report's `needsReview` totals.
 4. **Tristan reviews.** He signs in to https://materia-v2-dev.web.app with Google and works through the review queue (the Today card "Check your import", or Settings → Import from materia). He sets the practice's real name in Settings → Practice: legacy holds the app's name (D-09). Keep the review to a week or less.
 5. **Record his feedback** as Linear tickets related to MAT-101, one per problem, without client details.
@@ -148,16 +149,16 @@ Run them one at a time and read each one's output before the next; the step runb
 
 | Phase | Rehearsal 1 | Rehearsal 2 | T-1 |
 | -- | -- | -- | -- |
-| export | | | |
-| transform | | | |
-| copy-files | | | |
-| auth-import | | | |
-| load | | | |
-| verify | | | |
-| Clerk reads the files | | | |
-| **total** | | | |
+| export | 49 s | | |
+| transform | 38 s | | |
+| copy-files | 2 min 24 s | | |
+| auth-import | 9 s | | |
+| load | 48 s | | |
+| verify | 1 min 14 s | | |
+| Clerk reads the files | not run | | |
+| **total** | **6 min 2 s** | | |
 
-The cutover window is rehearsal 2's total, plus an hour for the smoke checklist, plus the same again in reserve.
+Rehearsal 1 (2026-10-07, run by an agent) is the steps alone; waits between them are left out. The cutover window is rehearsal 2's total, plus an hour for the smoke checklist, plus the same again in reserve.
 
 ## Clean up a dev rehearsal
 
@@ -255,7 +256,7 @@ gcloud config set project materia-v2-prod
    Verify must pass. Attach `verify/verify-report.md` to MAT-101. A failure that a second load and verify don't fix is a [rollback](#rollback).
 6. **If Tristan edited legacy after the export:** a delta (`export --since <the manifest's readTime>`, `transform --base-run $RUN`, `copy-files`, `delta --confirm-prod`, verify), as the [load runbook](migration-load.md#delta-cutover) says.
 7. **Remove the legacy bucket grant** from step 2.
-8. **Clerk and Insights:** the [enrichment runbook](migration-enrichment.md) (MIG-09). Tristan, or Blake for him, approves the cost. Then `backfill-metrics --project materia-v2-prod --org <orgId> --from earliest` from Cloud Shell (the `dev-script` workflow is dev only).
+8. **Clerk and Insights:** the [enrichment runbook](migration-enrichment.md) (MIG-09). Tristan, or Blake for him, approves the cost. Then `backfill-metrics --project materia-v2-prod --org <orgId> --from earliest` from Cloud Shell, never the `dev-script` workflow (D-23).
 9. **Tristan signs in** to prod with Google. His row in Authentication › Users shows the legacy uid and a sign-in time. He sets up his authenticator app when asked.
 10. **Smoke checklist,** with him:
     - [ ] The number of matters (open and closed) matches the verify report's.
