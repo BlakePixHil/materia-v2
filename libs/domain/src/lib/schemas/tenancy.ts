@@ -137,8 +137,16 @@ export const Org = withMeta(
     xero: XeroSettingsSchema.optional(),
     /** Per-org feature flag overrides (FND-23), written only by `flags-setOrgOverride`. */
     flags: z.record(z.string(), z.union([z.boolean(), z.string(), z.number()])).optional(),
+    /** A hold on the whole practice (set by Materia support, SEC-05): it can't be deleted while on. */
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: z.string(), at: InstantSchema }).optional(),
+    /**
+     * Set by `orgs-requestDeletion` (SEC-05, ADR-058) to 30 days on: until then the practice is
+     * read-only and an owner can cancel; after it the daily job deletes it. Cleared by a cancel.
+     */
     deletionScheduledAt: InstantSchema.optional(),
+    /** Who asked for the deletion, and when. */
+    deletionRequestedBy: DocIdSchema.optional(),
+    deletionRequestedAt: InstantSchema.optional(),
     /**
      * The terms of service and DPA version the org's owner accepted for it (SEC-01, `TERMS_VERSION`),
      * when and by whom. Written only by `orgs-acceptTerms` and `orgs-createOrg`.
@@ -155,6 +163,8 @@ export const Org = withMeta(
       'security',
       'legalHold',
       'deletionScheduledAt',
+      'deletionRequestedBy',
+      'deletionRequestedAt',
       'flags',
       'name',
       'abn',

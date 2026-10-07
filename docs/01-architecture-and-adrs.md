@@ -127,6 +127,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - Anything over 60 s or 1 GiB (PDF compile, court book, bulk OCR, migration) runs as a Cloud Run job or a Cloud Tasks-driven function with checkpointing.
 - No long work in triggers.
 - [ADR-055](adr/055-csv-exports-weekly-report.md) (INS-03): list exports are `csv.export` jobs from one callable, `exports-create`, written in the callable up to 5,000 rows and streamed by the `exports-run` queue beyond. Access is re-checked at the end, privileged matters go in only when a lawyer or above asks, and every export is audited. The weekly practice report is an opt-in Monday 07:00 (org time) email of figures and matter numbers only.
+- [ADR-058](adr/058-org-export-and-deletion.md) (SEC-05): the owner's full export is an `org.export` job on the `exports-runOrgFull` queue, written as self-contained zips of at most 10 GB (JSON Lines per collection with generated JSON Schemas, the files, a README and a SHA-256 manifest), checkpointed per part. Deleting a practice makes it read-only for 30 days (an allow-list in the callable wrapper and `validMeta()` in the rules), then `orgs-purge` takes it apart a stage per task behind a server-only tombstone that makes triggers and tasks skip it, verifies nothing is left and emails a certificate. A legal hold or a running export blocks it.
 
 **ADR-015: Email.**
 - Transactional email goes through Resend via a function, with templates in the repo.
@@ -174,6 +175,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - Firestore `persistentLocalCache` with a multi-tab manager, plus the Angular service worker for the shell.
 - Offline writes are allowed only for client-direct write paths. Callables show "needs connection".
 - [ADR-060](adr/060-installable-app-updates-and-offline-indicators.md) (MOB-01): `sw.js` wraps the Angular service worker, sends API and `/__/` requests straight to the network and gives navigations a 4-second timeout. No API response is cached by the worker. A new version offers a Reload toast and reloads every tab together; `system-ping` returns `minClientVersion`, and a client older than `CLIENT_COMPAT_VERSION` asks to reload, with a chance to save first. A banner shows offline, a "Pending sync" chip counts unsynced documents, and callable buttons read "Needs connection" offline.
+- [ADR-063](adr/063-scanning-paper-on-a-phone.md) (MOB-05): a phone scan finds and straightens each page in the browser (the largest bright region's corners, then a homography), with no library, and writes the PDF itself. Corners can be dragged when the page isn't found. Every scan is kept in IndexedDB (`materia-scans`) until its upload is sent, so one saved offline uploads on reconnect; signing out warns and deletes the queue. Uploads carry `source: 'camera'`.
 
 **ADR-035: Trust money is shown, never kept** ([ADR-035](adr/035-trust-accounting.md), BILL-10).
 - Materia never keeps trust records: no receipts, payments, transfers, running balance or "available" amount. The trust ledger stays in the firm's trust software.

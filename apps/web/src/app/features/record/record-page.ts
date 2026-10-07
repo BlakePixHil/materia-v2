@@ -1,19 +1,34 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, ViewEncapsulation } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  Injector,
+  signal,
+  ViewEncapsulation,
+} from '@angular/core';
 import { Router } from '@angular/router';
 
 import { can } from '@materia/data-access';
-import { DialogService, MtEmptyState, MtIcon, MtSkeleton } from '@materia/ui';
+import { DialogService, MtButton, MtEmptyState, MtIcon, MtIconButton, MtSkeleton } from '@materia/ui';
 
 import { intentUrl } from '../../core/commands/intents';
 import { recentMatters, type RecentMatter } from '../../core/matters/recent-matters';
 import { pickMatter } from '../../core/timer/timer-dialogs';
+import { anyScansWaiting, type QueuedScan } from '../scan/scan-db';
+import type { ScanQueue, ScanState } from '../scan/scan-queue';
 import type { TimeQuickEntryData } from '../time/time-quick-entry';
+
+type RecordTile = 'time' | 'note' | 'scan';
 
 /**
  * Record (`/record`, MOB-02): the phone's capture screen, the TabBar's centre button and the
  * installed app's "Record" shortcut. Big targets for "Log time" (BILL-01's quick entry, a sheet on a
- * phone) and "Note" (the matter's Notes tab, ready to write), on a recent matter picked from the chips
- * or any matter chosen as you go. Voice (MOB-03) and Photo document (MOB-05) join the grid as they ship.
+ * phone), "Note" (the matter's Notes tab, ready to write) and "Photo document" (Scan a document,
+ * MOB-05), on a recent matter picked from the chips or any matter chosen as you go. Scans saved
+ * without a connection are listed under them until they upload. Voice (MOB-03) joins the grid when
+ * it ships.
  */
 @Component({
   selector: 'mt-record-page',
@@ -23,7 +38,7 @@ import type { TimeQuickEntryData } from '../time/time-quick-entry';
     '../../../../../../libs/ui/src/generated/components/chip.css',
     '../../../../../../libs/ui/src/generated/components/mgroup.css',
   ],
-  imports: [MtEmptyState, MtIcon, MtSkeleton],
+  imports: [MtButton, MtEmptyState, MtIcon, MtIconButton, MtSkeleton],
   host: { class: 'mt-record' },
   template: `
     <h1 class="mt-sr">Record</h1>
@@ -64,9 +79,41 @@ import type { TimeQuickEntryData } from '../time/time-quick-entry';
       <mt-empty-state
         icon="lock"
         title="Nothing to record here"
-        description="Your role can’t log time or write file notes. Ask an owner or admin if you need to."
+        description="Your role can’t log time, write file notes or add documents. Ask an owner or admin if you need to."
         [headingLevel]="2"
       />
+    }
+
+    @if (queue(); as scans) {
+      @if (scans.waiting().length) {
+        <section class="waiting" aria-labelledby="record-waiting" data-testid="scans-waiting">
+          <h2 class="mt-mgroup" id="record-waiting">Waiting to upload</h2>
+          <ul class="scans">
+            @for (scan of scans.waiting(); track scan.id) {
+              @let state = scans.stateOf(scan);
+              <li class="scan">
+                <span class="doc"><mt-icon name="document" [size]="16" /></span>
+                <span class="text">
+                  <span class="tt mt-ell">{{ scan.fileName }}</span>
+                  <span class="ts" [attr.data-failed]="state.kind === 'failed' ? '' : null">
+                    {{ scan.matterLabel }} · {{ stateText(state) }}
+                  </span>
+                </span>
+                @if (state.kind === 'failed') {
+                  <button mtButton size="sm" variant="secondary" (click)="scans.retry()">Try again</button>
+                }
+                <button
+                  mtIconButton
+                  icon="trash"
+                  size="sm"
+                  [label]="'Delete ' + scan.fileName"
+                  (click)="discard(scans, scan)"
+                ></button>
+              </li>
+            }
+          </ul>
+        </section>
+      }
     }
   `,
   styles: `
@@ -156,6 +203,55 @@ import type { TimeQuickEntryData } from '../time/time-quick-entry';
       font: 400 13px/18px var(--font-sans);
       color: var(--text-tertiary);
     }
+    .mt-record .waiting {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .mt-record .scans {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      background: var(--bg-surface);
+    }
+    .mt-record .scan {
+      display: flex;
+      align-items: center;
+      gap: var(--space-12);
+      min-height: 56px;
+      padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12);
+    }
+    .mt-record .scan + .scan {
+      border-top: 1px solid var(--border-subtle);
+    }
+    .mt-record .scan .doc {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-md);
+      background: var(--bg-sunken);
+      color: var(--icon-default);
+    }
+    .mt-record .scan .text {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+    }
+    .mt-record .scan .tt {
+      font: 500 14px/20px var(--font-sans);
+    }
+    .mt-record .scan .ts {
+      font: 400 12px/16px var(--font-sans);
+      color: var(--text-tertiary);
+    }
+    .mt-record .scan .ts[data-failed] {
+      color: var(--text-danger);
+    }
     @media (prefers-reduced-motion: reduce) {
       .mt-record .tile:active {
         transform: none;
@@ -169,6 +265,9 @@ export class RecordPage {
   protected readonly recents = recentMatters();
   private readonly canTime = can('time.record');
   private readonly canNote = can('note.write');
+  private readonly canScan = can('document.upload');
+  /** The scan queue, loaded only when a scan is waiting on this device (MOB-05). */
+  protected readonly queue = signal<ScanQueue | null>(null);
 
   /** The recent matter picked from the chips, if any. */
   protected readonly chosen = signal<RecentMatter | null>(null);
@@ -186,19 +285,50 @@ export class RecordPage {
     ...(this.canNote()
       ? [{ id: 'note', label: 'Note', detail: 'A file note on the matter', icon: 'compose' } as const]
       : []),
+    ...(this.canScan()
+      ? [{ id: 'scan', label: 'Photo document', detail: 'Scan paper pages to a PDF', icon: 'camera' } as const]
+      : []),
   ]);
   private busy = false;
+
+  constructor() {
+    const injector = inject(Injector);
+    let destroyed = false;
+    inject(DestroyRef).onDestroy(() => (destroyed = true));
+    void (async () => {
+      if (!(await anyScansWaiting())) return;
+      const { ScanQueue } = await import('../scan/scan-queue');
+      if (!destroyed) this.queue.set(injector.get(ScanQueue));
+    })().catch(() => undefined);
+  }
+
+  protected stateText(state: ScanState): string {
+    if (state.kind === 'offline') return 'Waiting for a connection';
+    if (state.kind === 'uploading') return 'Uploading…';
+    return state.error ?? 'Didn’t upload';
+  }
+
+  protected async discard(queue: ScanQueue, scan: QueuedScan): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: 'Delete this scan?',
+      body: `${scan.fileName} hasn’t reached Materia. Deleting it removes it from this device, and it can’t be recovered.`,
+      confirmLabel: 'Delete scan',
+      tone: 'danger',
+    });
+    if (confirmed) await queue.discard(scan.id);
+  }
 
   protected choose(matter: RecentMatter): void {
     this.chosen.update((current) => (current?.id === matter.id ? null : matter));
   }
 
-  protected async run(id: 'time' | 'note'): Promise<void> {
+  protected async run(id: RecordTile): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     try {
       if (id === 'time') await this.logTime();
-      else await this.addNote();
+      else if (id === 'note') await this.addNote();
+      else await this.scan();
     } finally {
       this.busy = false;
     }
@@ -209,6 +339,12 @@ export class RecordPage {
     const { TimeQuickEntry } = await import('../time/time-quick-entry');
     await this.dialogs.open<TimeQuickEntryData>(TimeQuickEntry, { data: { matterId: this.chosen()?.id ?? null } })
       .result;
+  }
+
+  /** Scan a document (MOB-05), for the chosen matter if there is one (otherwise chosen there). */
+  private async scan(): Promise<void> {
+    const matter = this.chosen()?.id;
+    await this.router.navigate(['/record/scan'], matter ? { queryParams: { matter } } : {});
   }
 
   /** The matter's Notes tab with the editor focused, after asking which matter when none is chosen. */

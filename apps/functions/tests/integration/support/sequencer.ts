@@ -32,6 +32,7 @@ const SECONDS: Record<string, number> = {
   contacts: 100,
   'costs-disclosure': 6,
   'csv-exports': 9,
+  'data-rights': 25,
   deadlines: 35,
   disbursements: 28,
   'doc-templates': 5,

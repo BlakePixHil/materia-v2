@@ -62,6 +62,15 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
   },
 
+  // A deleted practice's tombstone (SEC-05): server-only.
+  {
+    collection: 'deletedOrgs',
+    docPath: 'deletedOrgs/org-deleted',
+    entity: 'DeletedOrg',
+    read: 'none',
+    update: 'none',
+  },
+
   { collection: 'users', docPath: `users/${OWNER}`, entity: 'User', read: 'owner', update: 'owner' },
   // MFA recovery code hashes and sign-in stamps: server-only, even for their owner (FND-16).
   {
