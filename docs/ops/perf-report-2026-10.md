@@ -13,7 +13,7 @@ Raw outputs (Lighthouse HTML and JSON, `vitals.json`, `reads.json`, k6 summaries
 | Firestore reads, Matters list | set from measurement: 200 | 165: met, but 63 of them are an N+1 to remove in "Denormalise client names onto matters" (then about 100) |
 | Firestore reads, Deadlines | 200 since SEC-07c (800 before) | 153: **met** since "Window the Deadlines page and denormalise matter fields onto deadlines" (SEC-07c). It was 688 here, and about 1,050 at the target scale |
 | LCP ≤ 2.5 s on a mid-tier phone | Today, Matters, matter, Deadlines | **Not met** on any screen (8.0–13.2 s simulated; Deadlines 9.3 s since SEC-07c); exception until "Trim the signed-in critical path for LCP on mid-tier phones" |
-| INP ≤ 200 ms | same | **Met** on Today, Matters and a matter (24–80 ms), and on Deadlines since SEC-07c (136 ms; it was 2.7–3.2 s) |
+| INP ≤ 200 ms | same | **Met** on Today, Matters and a matter (24–80 ms), and on Deadlines since SEC-07c (104–136 ms; it was 2.7–3.2 s) |
 | CLS ≤ 0.1 | same | **Met** on Today, Matters and a matter (0–0.04), after fixing a shift on the phone's Matters list. Today stays held at 0.25 because its rows' late lookups can still shift it (Today lookups ticket). Deadlines **met** since SEC-07c (0; it was 0.273) |
 | Hot callables, p95 < 1 s at 10× peak, no errors | six flows | **Met** for `matters-createMatter` (512 ms), `deadlines-recompute` (397 ms) and `clerk-sendMessage` (322 ms), with no errors. The notification fan-out (1.45 s, no errors), invoicing and search are exceptions: the emulator can't run them at 10× peak, so they move to the perf-project ticket |
 | Write hot spots | review | Reviewed: 8 unqueried timestamps exempted from indexing; Clerk metering moved to blind increments; the counters measured (one transaction per org stays) |
@@ -131,9 +131,11 @@ Six runs of the CI step on the shared machine, on `main` at `ee6d4e1` with MOB-0
 | Matters list (phone) | 10.3–10.7 s | 2.1–2.3 s | 4.5–4.7 s | 284–339 ms | 0 (0.286 before the fix) | 40 ms | LCP 12.5 s |
 | A matter (phone Overview) | 9.5–9.8 s | 1.0–1.2 s | 5.2–5.3 s | 189–336 ms | 0.04 | 40–80 ms | LCP 12 s |
 | Deadlines, before SEC-07c | 13.0–13.2 s | 2.8–3.0 s | 4.7 s | 3.3–3.8 s | 0.273 | 2.7–3.2 s | LCP 15 s, CLS 0.35, INP 4 s |
-| Deadlines, since SEC-07c | 9.3 s | 1.9 s | 4.9 s | 1.8 s | 0 | 136 ms | LCP 11.5 s |
+| Deadlines, since SEC-07c | 9.3 s | 1.7–1.9 s | 4.8–4.9 s | 1.6–1.8 s | 0 | 104–136 ms | LCP 11.5 s |
 
 Two more runs after merging MOB-02b (#300), which draws a phone's Today cards below My tasks only as they scroll into view: Today's LCP was 7.7 s and its FCP 4.6 s. The other screens were close to the figures above (a matter's INP 48–96 ms), all within their ceilings.
+
+The "since SEC-07c" row is two runs of the CI step on that ticket's branch, with Deadlines' INP and CLS exceptions removed.
 
 "Observed LCP" is the unthrottled time on the test machine; Lighthouse's simulated LCP is the budgeted figure.
 
@@ -163,12 +165,12 @@ The budgets are held at 11 s on Today, 12 s on a matter and 12.5 s on Matters (1
 - Toggling a filter re-rendered the whole list, which was the INP. The profile of the "Mine" toggle shows about 630 ms in the Firestore SDK applying the 136 matter reads' events, and 195 ms in ng-primitives' hover measurement. The hover measurement is on hover-capable devices only.
 - The Deadlines follow-up above fixes both.
 
-**Fixed in SEC-07c** (`apps/web/src/app/features/deadlines/deadlines-page.ts`): CLS 0.273 → 0 and INP 2.7–3.2 s → 136 ms.
+**Fixed in SEC-07c** (`apps/web/src/app/features/deadlines/deadlines-page.ts`): CLS 0.273 → 0 and INP 2.7–3.2 s → 104–136 ms.
 
 - The rows carry their matter's copy, so each is drawn whole and nothing grows after it.
 - The list draws one page of 100 and the next as it scrolls into view, and the screen keeps its skeleton until the alerts offer ("Get deadline alerts on this device") knows whether to show: drawn as soon as the list was, it pushed the rows down by its own height (CLS 0.112).
 - Filters hide rows rather than redraw the list, and a row whose deadline and matter haven't changed keeps its view model, so a snapshot redraws only what changed.
-- Rows off screen skip rendering (`content-visibility: auto`). Rows a filter hides use `content-visibility: hidden` rather than `display: none`: ng-primitives watches the size of every button for its hover state, and each button that went to 0 × 0 ran that watcher, which then read its style: two style reads per hidden row on every toggle. That took INP from 176–192 ms to 136 ms.
+- Rows off screen skip rendering (`content-visibility: auto`). Rows a filter hides use `content-visibility: hidden` rather than `display: none`: ng-primitives watches the size of every button for its hover state, and each button that went to 0 × 0 ran that watcher, which then read its style: two style reads per hidden row on every toggle. That took INP from 176–192 ms to 104–136 ms.
 
 **Today's CLS depends on timing.** Today draws its sections together once every source has answered, or after 2.5 s at most, so that nothing moves as each answer lands. Its rows wait for their matters (the 28 lookups above). On the emulators those lookups sometimes land just after the 2.5 s, and then each row appears as its matter does and pushes the rest down. On the desktop layout CLS was 0 in four of seven runs and 0.128–0.225 in the others; on the phone it was 0 in all six. A slow phone network could still do the same in the field. The Today lookups follow-up removes the lookups and so the wait; until then Today's CLS is held at 0.25.
 
@@ -263,7 +265,7 @@ The exemptions are proven by `firebase/tests/indexes.spec.ts`. They deploy with 
 | Ticket | What it fixes | Budget held at until then |
 | -- | -- | -- |
 | [SEC-07b](https://linear.app/materia-web/issue/MAT-177): Trim the signed-in critical path for LCP on mid-tier phones | LCP on every signed-in screen (≈ 750 kB of JavaScript plus the guards' waits before first paint) | LCP ≤ 11 s on Today, 12 s on a matter, 12.5 s on Matters, 11.5 s on Deadlines |
-| [SEC-07c](https://linear.app/materia-web/issue/MAT-178): Window the Deadlines page and denormalise matter fields onto deadlines | Deadlines reads (688 here and about 1,050 at the target scale → about 200), INP (2.7–3.2 s) and CLS (0.273) | **Done**: reads 153 (budget 200), INP 136 ms, CLS 0. Its LCP is SEC-07b's |
+| [SEC-07c](https://linear.app/materia-web/issue/MAT-178): Window the Deadlines page and denormalise matter fields onto deadlines | Deadlines reads (688 here and about 1,050 at the target scale → about 200), INP (2.7–3.2 s) and CLS (0.273) | **Done**: reads 153 (budget 200), INP 104–136 ms, CLS 0. Its LCP is SEC-07b's |
 | [SEC-07d](https://linear.app/materia-web/issue/MAT-179): Denormalise client names onto matters | Matters list reads (165 → about 100) | reads ≤ 200 |
 | [SEC-07e](https://linear.app/materia-web/issue/MAT-180): Denormalise matter number and title onto deadline and task rows (Today lookups) | Today's per-row matter reads (28), and its CLS (0–0.225): rows appear as their matters arrive, when that is after Today's 2.5 s limit for drawing its sections together | CLS ≤ 0.25 (reads within budget already) |
 | [SEC-07f](https://linear.app/materia-web/issue/MAT-181): Load-test numbering, invoicing, search and the notification fan-out on a perf project | What the emulator can't measure: counter contention at 5 a second, and invoicing, search and the note fan-out at 10× peak | `attempts` logged in production |
