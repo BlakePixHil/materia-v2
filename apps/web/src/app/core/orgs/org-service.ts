@@ -203,10 +203,6 @@ export class OrgService {
     return this.call('orgs-changeRole', { uid, role });
   }
 
-  removeMember(uid: string): Promise<unknown> {
-    return this.call('orgs-removeMember', { uid });
-  }
-
   /** Pauses a member's access, or with `suspended: false` reinstates them. */
   suspendMember(uid: string, suspended: boolean): Promise<unknown> {
     return this.call('orgs-suspendMember', { uid, suspended });

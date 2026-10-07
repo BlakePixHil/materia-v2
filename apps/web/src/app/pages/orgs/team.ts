@@ -14,6 +14,7 @@ import {
   withRateChange,
   type Action,
   type MemberSecurity,
+  type OffboardMemberResult,
   type Role,
 } from '@materia/domain';
 import {
@@ -39,6 +40,7 @@ import {
   type MemberSettingsDialogData,
   type MemberSettingsDialogResult,
 } from './member-settings-dialog';
+import { OffboardDialog, type OffboardDialogData } from './offboard-dialog';
 import { AuthState } from '../../core/auth/auth-state';
 import { injectRecentLogin } from '../../core/auth/reauth-dialog';
 import { errorCopy } from '../../core/error-copy';
@@ -77,7 +79,8 @@ const ROLE_LABELS: Record<Role, string> = {
  * Settings → Team and roles (`/settings/team`, FND-17, CORE-21): members and pending invites.
  * Everyone sees who is in the practice. Owners and admins also see each member's MFA status and last
  * activity (from Auth, `orgs-memberSecurity`), rate and this year's budget; they invite, change
- * roles, set rates, budgets and supervisors, suspend, reinstate and remove people. Only owners grant
+ * roles, set rates, budgets and supervisors, suspend, reinstate and remove people (handing on their
+ * work first, SEC-05). Only owners grant
  * the owner role or transfer ownership (FND-17); suspending, reinstating and transferring ask the
  * person to confirm it's them when their sign-in is more than a few minutes old.
  * The role explainer is generated from the permission matrix in `libs/domain`.
@@ -231,11 +234,9 @@ const ROLE_LABELS: Record<Role, string> = {
                   Transfer ownership…
                 </button>
               }
-              @if (confirming() === member.uid) {
-                <button mtButton variant="danger" size="sm" (click)="remove(member)">Confirm removal</button>
-              } @else {
-                <button mtButton size="sm" (click)="confirming.set(member.uid)">Remove</button>
-              }
+              <button mtButton size="sm" (click)="remove(member)" [attr.aria-label]="'Remove ' + member.displayName">
+                Remove…
+              </button>
             } @else {
               <span>{{ roleLabel(member.role) }}</span>
             }
@@ -334,7 +335,6 @@ export class TeamPage {
   protected readonly invites = signal<PendingInvite[]>([]);
   protected readonly inviting = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly confirming = signal<string | null>(null);
   protected readonly me = computed(() => this.auth.user()?.uid ?? null);
   protected readonly manage = this.orgs.canManageMembers;
   /** Roles the caller may hand out: owners grant any role, admins every role but owner. */
@@ -506,9 +506,34 @@ export class TeamPage {
     void this.run(() => this.orgs.changeRole(member.uid, role), `${member.displayName} is now ${ROLE_LABELS[role]}`);
   }
 
-  protected remove(member: TeamMember): void {
-    this.confirming.set(null);
-    void this.run(() => this.orgs.removeMember(member.uid), `${member.displayName} removed`);
+  /**
+   * Removing someone hands on their work first (SEC-05): the offboarding wizard asks who takes
+   * their open tasks, deadlines and matters and what happens to their personal tasks, then removes
+   * them. The member list updates itself.
+   */
+  protected async remove(member: TeamMember): Promise<void> {
+    const handle = this.dialogs.open<OffboardDialogData, OffboardMemberResult>(OffboardDialog, {
+      data: {
+        uid: member.uid,
+        displayName: member.displayName,
+        people: this.team().map((m) => ({ uid: m.uid, displayName: m.displayName, role: m.role, status: m.status })),
+      },
+      closeOnOutsideClick: false,
+    });
+    const result = await handle.result;
+    if (!result) return;
+    const moved = result.moved.tasks + result.moved.deadlines + result.moved.matters;
+    this.toasts.show({
+      title: `${member.displayName} removed`,
+      description: [
+        moved ? `${moved} ${moved === 1 ? 'item' : 'items'} handed on.` : '',
+        result.personalTasks.exportJobId ? 'Their personal tasks are in your notifications to download.' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      tone: 'success',
+    });
+    await this.reload();
   }
 
   protected async suspend(member: TeamMember): Promise<void> {

@@ -4,7 +4,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 
 import { DomainError } from '@materia/domain';
 
-import { ExportDownloadPage, exportDownloadErrorCopy } from './export-download-page';
+import { ExportDownloadPage, exportDownloadErrorCopy, exportTitle } from './export-download-page';
 import { CALLABLES } from '../../core/data/callables';
 import { EXPORT_DOWNLOAD } from '../../core/exports/export-button';
 
@@ -60,6 +60,28 @@ describe('ExportDownloadPage', () => {
     expect(page.downloads).toHaveLength(2);
   });
 
+  it('lists every part of a split full export, each fetched with its own link (SEC-05)', async () => {
+    let part = 1;
+    const page = await open(async () => ({
+      url: `https://storage.example.test/full-${part}.zip`,
+      expiresAt: '2026-10-06T00:05:00Z',
+      fileName: `Harbour & Vine Legal export part ${part} of 3.zip`,
+      parts: 3,
+    }));
+    expect(page.downloads).toEqual(['https://storage.example.test/full-1.zip']);
+    expect(page.text()).toContain('Harbour & Vine Legal export');
+    expect(page.text()).not.toContain('part 1 of 3.zip');
+    expect(page.el().querySelector('[data-export-parts]')?.textContent).toContain('This export is in 3 zip files.');
+    expect(page.text()).not.toContain('Download again');
+
+    part = 2;
+    [...page.el().querySelectorAll('button')].find((b) => b.textContent?.includes('Download part 2 of 3'))?.click();
+    await page.stable();
+    expect(page.calls.at(-1)).toEqual({ name: 'jobs-getExportUrl', data: { jobId: 'job-1', part: 2 } });
+    expect(page.downloads.at(-1)).toBe('https://storage.example.test/full-2.zip');
+    expect(page.text()).toContain('Download part 3 of 3');
+  });
+
   it('explains an export that has expired or isn’t yours', async () => {
     const page = await open(async () => {
       throw new DomainError('NOT_FOUND', 'gone');
@@ -67,6 +89,13 @@ describe('ExportDownloadPage', () => {
     expect(page.downloads).toEqual([]);
     expect(page.text()).toContain('Can’t download this export');
     expect(page.text()).toContain('Exports are kept for 7 days');
+  });
+});
+
+describe('exportTitle', () => {
+  it('drops the part from a split export’s file name', () => {
+    expect(exportTitle('Harbour & Vine Legal export part 1 of 3.zip')).toBe('Harbour & Vine Legal export');
+    expect(exportTitle('Contacts 2026-10-06.csv')).toBe('Contacts 2026-10-06.csv');
   });
 });
 
