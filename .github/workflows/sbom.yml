@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || 'main' }}
       # Pinned release with its tarball checksum committed here.
@@ -60,7 +60,7 @@ jobs:
             if (sbom.bomFormat !== "CycloneDX" || count < 100) { console.error("The SBOM looks incomplete."); process.exit(1); }
           '
           echo "SBOM for $VERSION: $(node -p 'JSON.parse(require("fs").readFileSync("sbom.cdx.json","utf8")).components.length') components." >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: sbom-${{ inputs.tag || 'main' }}
           path: sbom.cdx.json
