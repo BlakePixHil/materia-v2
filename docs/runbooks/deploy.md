@@ -17,7 +17,7 @@ MVP mode has two environments, **dev** (`materia-v2-dev`) and **prod** (`materia
 | `deploy-prod.yml` | `v*` tag, or a manual dispatch with a tag | Finds the successful `deploy-dev` run for the tagged commit, waits for approval in the `production` environment, then promotes that run's artifact to prod with `deploy.yml` (no rebuild) |
 | `infra.yml` | PRs and pushes touching `infra/terraform/`, or a manual dispatch | `terraform plan` comment on PRs (dev and prod); apply to dev on merge; apply to prod by dispatch, after approval |
 
-Deploys queue rather than run in parallel (concurrency groups `deploy-dev` and `deploy-prod`, no cancelling). CI on main doesn't cancel itself either: when merges land back to back, the running main CI finishes and deploys, and only the newest waiting merge runs after it. A failure stops the run and marks it red. Nothing retries automatically.
+Deploys queue rather than run in parallel (concurrency groups `deploy-dev` and `deploy-prod`, no cancelling). CI on main doesn't cancel itself either: when merges land back to back, the running main CI finishes and deploys, and only the newest waiting merge runs after it. A failure stops the run and marks it red. The one automatic retry is in deploy.yml's functions step: functions that fail to update, typically on the regional Cloud Run CPU quota ("Quota exceeded for total allowable CPU per project per region") while every function rolls a new revision at once, are redeployed on their own up to twice, a minute apart. Nothing else retries.
 
 ### Quiet hours and Actions minutes
 
