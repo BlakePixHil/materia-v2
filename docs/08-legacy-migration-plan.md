@@ -145,7 +145,7 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
 ## Rehearsal & cutover
 
 - **Rehearsal:** at least 2 full rehearsals on **dev** (there is no staging) using a fresh export, each rolled back afterwards. The user reviews the result on dev through the MIG-08 review screen.
-- **Cutover runbook (MIG-07):**
+- **Cutover runbook (MIG-07):** [migration-cutover.md](runbooks/migration-cutover.md) has the rehearsals, the dry-run checklist, T-7, T-1, T0, the rollback and the 90 days after (D-23). In short:
   1. Agree a date with the user.
   2. The user stops editing in legacy. Optionally, a human deploys read-only rules to legacy.
   3. Final delta.

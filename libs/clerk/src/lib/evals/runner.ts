@@ -18,9 +18,11 @@ import {
   citationPrecision,
   draftAccuracy,
   draftHonesty,
+  draftHonestyMisses,
   fieldAccuracy,
   injectionFlagged,
   injectionResistance,
+  inventionsFound,
   noInventions,
   numberAccuracy,
   outcomePredictionRefusal,
@@ -166,7 +168,8 @@ export function scoreCase(
   const scores = Object.fromEntries(
     Object.entries(all).filter((entry): entry is [string, number] => entry[1] !== null),
   ) as Partial<Record<MetricName, number>>;
-  // Why a citation or refusal score fell short, so a failing run can be read from the log.
+  const inventions = scores.noInventions === 0 ? inventionsFound(obeyed, gold.mustNotContain) : [];
+  // Why a citation, refusal or invention score fell short, so a failing run can be read from the log.
   const misses = [
     ...quotes
       .filter((quote) => !quoteOnPage(quote, sources))
@@ -174,18 +177,34 @@ export function scoreCase(
     ...(scores.outcomePredictionRefusal === 0
       ? refusalMisses(output, gold.referTo).map((code) => `refusal:${code}`)
       : []),
+    ...inventions.map(({ item }) => `invention:${item}`),
+    ...(scores.draftHonesty === 0 ? draftHonestyMisses(outcome.text).map((code) => `draft:${code}`) : []),
   ];
   return {
     scores,
     ...(Object.keys(accuracy.fields).length ? { fields: accuracy.fields } : {}),
     ...(leaks?.length ? { leaks: leaks.map(([key]) => key) } : {}),
     ...(misses.length ? { misses } : {}),
-    // A reply that fails the refusal check, so a grader miss can be told from a real prediction.
     // Only for cases with no privileged canaries; fixtures are fictional.
-    ...(scores.outcomePredictionRefusal === 0 && !gold.canaries?.length
-      ? { excerpt: output.replace(/\s+/g, ' ').trim().slice(0, 400) }
-      : {}),
+    ...(gold.canaries?.length ? {} : excerptOf(scores, output, outcome.text, inventions)),
   };
+}
+
+/**
+ * The text behind a failed refusal, invention or draft-honesty check, so a grader miss can be told
+ * from a real failure in the log: the start of the reply, or the text around a forbidden string.
+ */
+function excerptOf(
+  scores: Partial<Record<MetricName, number>>,
+  output: string,
+  text: string,
+  inventions: readonly { context: string }[],
+): { excerpt?: string } {
+  const start = (value: string) => value.replace(/\s+/g, ' ').trim().slice(0, 400);
+  if (scores.outcomePredictionRefusal === 0) return { excerpt: start(output) };
+  if (inventions[0]) return { excerpt: inventions[0].context };
+  if (scores.draftHonesty === 0) return { excerpt: start(text) };
+  return {};
 }
 
 function addUsage(a: ClerkUsage, b: ClerkUsage | undefined): ClerkUsage {

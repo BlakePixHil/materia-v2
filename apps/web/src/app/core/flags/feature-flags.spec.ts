@@ -65,6 +65,22 @@ describe('FeatureFlagService', () => {
     expect(flags.all().every((f) => f.source === 'default')).toBe(true);
   });
 
+  it('applies the cached Remote Config values at once, then a newer fetch when it lands', async () => {
+    let fetched!: (values: Record<string, boolean>) => void;
+    const { flags } = setup({
+      remote: async (updated) => {
+        fetched = (values) => updated?.(values);
+        return { 'litigation.enabled': true };
+      },
+      org: async () => ({}),
+    });
+    await flags.ready();
+    expect(flags.isOn('litigation.enabled')).toBe(true);
+    fetched({ 'litigation.enabled': false, 'billing.invoicing': true });
+    expect(flags.isOn('litigation.enabled')).toBe(false);
+    expect(flags.isOn('billing.invoicing')).toBe(true);
+  });
+
   it('falls back to defaults when Remote Config and the org document fail', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { flags } = setup({

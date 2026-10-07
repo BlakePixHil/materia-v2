@@ -33,6 +33,7 @@ Client personal information is often sensitive: health information in capacity d
 
 **App Check**
 - reCAPTCHA Enterprise. Enforced on Firestore, Storage, Functions and Vertex.
+- Tokens last 12 hours, set in the Firebase console (`infra/MANUAL.md`, [ADR-056](adr/056-startup-loads-in-parallel.md)).
 - Debug tokens are allowed only in dev.
 
 **Transport and storage encryption**
