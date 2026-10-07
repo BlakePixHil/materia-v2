@@ -363,9 +363,11 @@ test.describe('accessibility audit at phone width @audit', () => {
     test.setTimeout(240_000);
     const audit = new Audit(page);
     await signInToAuditPractice(page, request, 'lawyer');
-    // The TabBar's Record goes to Time & billing until MOB-03 builds the Record screen.
+    // The TabBar's destinations (MOB-02), then the pages a phone reaches from them.
     for (const url of [
       '/today',
+      '/record',
+      '/more',
       '/billing',
       '/matters',
       `/matters/${MATTER}/overview`,

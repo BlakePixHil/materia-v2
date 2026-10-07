@@ -15,6 +15,7 @@ import {
   sidewaysScroll,
   signInToAuditPractice,
   tabTo,
+  topBarSpill,
   ZONE,
 } from './support/audit';
 
@@ -193,12 +194,21 @@ test.describe('accessibility (WCAG 2.2 AA)', () => {
         await page.goto(url);
         await settled(page);
         expect(await sidewaysScroll(page), `${url} at ${width} px`).toEqual({ overflow: 0, culprits: [] });
+        expect(await topBarSpill(page), `${url}'s top bar at ${width} px`).toBe(0);
       }
     };
     await check('/auth/sign-in');
     await signInToAuditPractice(page, request, 'owner');
     // Data tables scroll inside their own container (allowed by 1.4.10); the page itself never does.
-    for (const url of ['/today', '/matters', `/matters/${MATTER}/overview`, '/deadlines', '/settings/profile']) {
+    // Time & billing has the most top-bar actions: on a phone they take a second row.
+    for (const url of [
+      '/today',
+      '/matters',
+      `/matters/${MATTER}/overview`,
+      '/deadlines',
+      '/billing',
+      '/settings/profile',
+    ]) {
       await check(url);
     }
   });
@@ -390,9 +400,9 @@ test.describe('accessibility at phone width (WCAG 2.2 AA)', () => {
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
     }
-    // Record (the TabBar's middle button) opens Time & billing until MOB-03 builds the Record screen.
+    // Record, the TabBar's raised middle button (MOB-02).
     await page.locator('.mt-app-tabbar').getByRole('link', { name: 'Record' }).click();
-    await expect(page).toHaveURL(/\/billing$/);
+    await expect(page).toHaveURL(/\/record$/);
     await settled(page);
     await expectNoA11yViolationsInThemes(page);
     expect(await sidewaysScroll(page)).toEqual({ overflow: 0, culprits: [] });

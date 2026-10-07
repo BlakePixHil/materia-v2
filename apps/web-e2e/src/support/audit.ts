@@ -526,6 +526,22 @@ export async function sidewaysScroll(page: Page): Promise<{ overflow: number; cu
 }
 
 /**
+ * How far the top bar's contents reach below the bar (0 when they fit). When a phone's top bar wraps
+ * its actions onto a second row, the bar must grow to hold them, not let them cover the page.
+ */
+export async function topBarSpill(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const bar = document.querySelector('.mt-topbar');
+    if (!bar) return 0;
+    const bottom = bar.getBoundingClientRect().bottom;
+    const contents = [...bar.querySelectorAll('*')]
+      .map((el) => el.getBoundingClientRect())
+      .filter((box) => box.width > 0 && box.height > 0);
+    return Math.max(0, Math.round(Math.max(bottom, ...contents.map((box) => box.bottom)) - bottom));
+  });
+}
+
+/**
  * The contrast ratio of an element's text on its own opaque background (WCAG 1.4.3), for text axe
  * doesn't measure: text hidden from screen readers but still seen (a calendar's day numbers), or a
  * badge drawn over an icon (axe leaves overlapping text for a person to review).
