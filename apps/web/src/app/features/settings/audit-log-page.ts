@@ -9,12 +9,13 @@ import {
   MtButton,
   MtDialog,
   MtNote,
+  type MtOption,
   MtSelect,
+  MtSkeleton,
   MtTable,
+  type MtTableColumn,
   MtTextField,
   ToastService,
-  type MtOption,
-  type MtTableColumn,
 } from '@materia/ui';
 
 import { SettingsApi, type AuditEntryView, type AuditFilters } from './settings-api';
@@ -178,7 +179,7 @@ export class AuditEntryDialog {
 @Component({
   selector: 'mt-audit-log-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtNote, MtSelect, MtTable, MtTextField],
+  imports: [FormsModule, MtButton, MtNote, MtSelect, MtSkeleton, MtTable, MtTextField],
   host: { class: 'mt-col', style: 'gap: 20px' },
   template: `
     <div class="mt-row" style="gap: 12px; align-items: flex-end; flex-wrap: wrap">
@@ -249,7 +250,7 @@ export class AuditEntryDialog {
     }
 
     @if (loading() && !entries().length) {
-      <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading the audit log…</p>
+      <mt-skeleton framed label="Loading the audit log…" [count]="6" />
     } @else if (!entries().length && !error()) {
       <p style="margin: 0; color: var(--text-tertiary)">No entries match these filters.</p>
     } @else {

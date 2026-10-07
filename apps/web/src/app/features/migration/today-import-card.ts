@@ -19,6 +19,8 @@ import { CALLABLES } from '../../core/data/callables';
   selector: 'mt-today-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, MtButton, MtProgress],
+  // The card is the column's item, so the host takes no gap in Today's column when there's no card.
+  host: { style: 'display: contents' },
   template: `
     @if (review(); as r) {
       @if (pending() && r.open) {

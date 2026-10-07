@@ -32,15 +32,16 @@ import {
   MT_TODAY,
   MtButton,
   MtIntegrationCard,
+  type MtIntegrationStatus,
   MtNote,
+  type MtOption,
   MtSelect,
   MtSettingsRow,
   MtSettingsSection,
+  MtSkeleton,
   MtSwitch,
   MtTextField,
   ToastService,
-  type MtIntegrationStatus,
-  type MtOption,
 } from '@materia/ui';
 
 import { injectRecentLogin } from '../../core/auth/reauth-dialog';
@@ -105,6 +106,7 @@ const XERO_PITCH = 'Send issued invoices and credit notes to Xero, and bring pay
     MtSelect,
     MtSettingsRow,
     MtSettingsSection,
+    MtSkeleton,
     MtSwitch,
     MtTextField,
   ],
@@ -120,12 +122,12 @@ const XERO_PITCH = 'Send issued invoices and credit notes to Xero, and bring pay
     @if (loadError(); as message) {
       <mt-note tone="danger">{{ message }}</mt-note>
     } @else if (!loaded()) {
-      <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading settings…</p>
+      <mt-skeleton variant="cards" label="Loading settings…" [count]="2" />
     }
 
     <!-- Shown once the org has loaded, so nothing typed is overwritten when the settings arrive. -->
     @if (org.value() && loaded()) {
-      <section class="mt-col" style="gap: 16px" aria-label="Xero" data-testid="xero">
+      <section class="mt-col mt-fade" style="gap: 16px" aria-label="Xero" data-testid="xero">
         <mt-integration-card
           name="Xero"
           [description]="pitch"

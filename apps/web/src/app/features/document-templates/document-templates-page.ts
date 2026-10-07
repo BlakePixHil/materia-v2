@@ -24,6 +24,7 @@ import {
   MtNote,
   MtSettingsRow,
   MtSettingsSection,
+  MtSkeleton,
   ToastService,
 } from '@materia/ui';
 
@@ -62,6 +63,7 @@ type Template = WithId<DocTemplateItem>;
     MtNote,
     MtSettingsRow,
     MtSettingsSection,
+    MtSkeleton,
     LetterheadSettings,
     TemplateFields,
   ],
@@ -90,7 +92,7 @@ type Template = WithId<DocTemplateItem>;
       </div>
       @switch (templates.status()) {
         @case ('loading') {
-          <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading templates…</p>
+          <mt-skeleton variant="fields" framed label="Loading templates…" />
         }
         @case ('error') {
           <mt-note tone="danger">

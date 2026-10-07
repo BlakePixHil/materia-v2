@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, ViewEncapsulation } from '@angular/core';
 
 import { forMatter, MATTER_ACTIVITY_QUERY, matterActivityRepository } from '@materia/data-access/repository';
-import { MtButton, MtEmptyState, MtNote } from '@materia/ui';
+import { MtButton, MtEmptyState, MtNote, MtSkeleton } from '@materia/ui';
 import { MtTimeline } from '@materia/ui/timeline';
 
 import { MatterScreen } from './matter-screen';
@@ -18,7 +18,7 @@ import { activityItem } from '../notes/note-view';
   selector: 'mt-matter-activity',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [MtButton, MtEmptyState, MtNote, MtTimeline],
+  imports: [MtButton, MtEmptyState, MtNote, MtSkeleton, MtTimeline],
   host: { class: 'mt-matter-activity' },
   template: `
     <div class="mt-row head">
@@ -26,7 +26,7 @@ import { activityItem } from '../notes/note-view';
     </div>
     @switch (activity.status()) {
       @case ('loading') {
-        <p class="caption t-3" role="status">Loading activity…</p>
+        <mt-skeleton label="Loading activity…" />
       }
       @case ('error') {
         <mt-note tone="danger">

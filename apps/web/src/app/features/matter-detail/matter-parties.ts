@@ -18,7 +18,7 @@ import {
   type WithId,
 } from '@materia/data-access/repository';
 import { contactDisplayName } from '@materia/domain';
-import { DialogService, MtButton, MtEmptyState, MtIconButton, MtNote, ToastService } from '@materia/ui';
+import { DialogService, MtButton, MtEmptyState, MtIconButton, MtNote, MtSkeleton, ToastService } from '@materia/ui';
 
 import { MatterScreen } from './matter-screen';
 import { groupParties, partyRoleLabel } from './matter-view';
@@ -38,7 +38,7 @@ type PartyRow = WithId<MatterParty>;
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['../../../../../../libs/ui/src/generated/components/card.css'],
-  imports: [MtButton, MtEmptyState, MtIconButton, MtNote],
+  imports: [MtButton, MtEmptyState, MtIconButton, MtNote, MtSkeleton],
   host: { class: 'mt-matter-parties' },
   template: `
     <div class="mt-row head">
@@ -51,7 +51,7 @@ type PartyRow = WithId<MatterParty>;
     </div>
     @switch (parties.status()) {
       @case ('loading') {
-        <p class="caption t-3" role="status">Loading parties…</p>
+        <mt-skeleton label="Loading parties…" [count]="3" />
       }
       @case ('error') {
         <mt-note tone="danger">

@@ -22,13 +22,14 @@ import {
   MtButton,
   MtKbd,
   MtNote,
+  type MtOption,
   MtSegmentedControl,
   MtSelect,
   MtSettingsRow,
   MtSettingsSection,
+  MtSkeleton,
   MtSwitch,
   ToastService,
-  type MtOption,
 } from '@materia/ui';
 
 import { NotificationMatrix } from './notification-matrix';
@@ -95,6 +96,7 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
     MtSelect,
     MtSettingsRow,
     MtSettingsSection,
+    MtSkeleton,
     MtSwitch,
     NotificationMatrix,
   ],
@@ -275,7 +277,7 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
     >
       @switch (devices.status()) {
         @case ('loading') {
-          <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading devices…</p>
+          <mt-skeleton variant="fields" framed label="Loading devices…" [count]="2" />
         }
         @case ('error') {
           <mt-note tone="danger">Couldn’t load your devices.</mt-note>

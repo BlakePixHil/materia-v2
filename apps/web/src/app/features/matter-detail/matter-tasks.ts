@@ -16,7 +16,15 @@ import { FormsModule } from '@angular/forms';
 import { can } from '@materia/data-access';
 import { forMatter, MATTER_TASKS_QUERY, matterTaskRepository } from '@materia/data-access/repository';
 import { isOpenTask, type Priority, type TaskStatus } from '@materia/domain';
-import { MtButton, MtEmptyState, MtNote, MtSegmentedControl, ToastService, type MtOption } from '@materia/ui';
+import {
+  MtButton,
+  MtEmptyState,
+  MtNote,
+  type MtOption,
+  MtSegmentedControl,
+  MtSkeleton,
+  ToastService,
+} from '@materia/ui';
 
 import { MatterScreen } from './matter-screen';
 import { duePendingText } from './matter-view';
@@ -60,7 +68,17 @@ function storedGroupBy(): GroupBy {
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   providers: [TaskActions],
-  imports: [FormsModule, MtButton, MtEmptyState, MtNote, MtSegmentedControl, TaskList, TaskQuickAdd, TasksBulkBar],
+  imports: [
+    FormsModule,
+    MtButton,
+    MtEmptyState,
+    MtNote,
+    MtSegmentedControl,
+    MtSkeleton,
+    TaskList,
+    TaskQuickAdd,
+    TasksBulkBar,
+  ],
   host: { class: 'mt-matter-tasks' },
   template: `
     <div class="mt-row head">
@@ -104,7 +122,7 @@ function storedGroupBy(): GroupBy {
     }
     @switch (tasks.status()) {
       @case ('loading') {
-        <p class="caption t-3" role="status">Loading tasks…</p>
+        <mt-skeleton label="Loading tasks…" />
       }
       @case ('error') {
         <mt-note tone="danger">

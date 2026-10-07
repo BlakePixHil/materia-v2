@@ -41,6 +41,7 @@ export * from './lib/estate-stepper/estate-stepper';
 export * from './lib/time-entry/time-entry';
 export * from './lib/person-header/person-header';
 export * from './lib/settings-row/settings-row';
+export * from './lib/skeleton/skeleton';
 export * from './lib/integration-card/integration-card';
 export * from './lib/step-list/step-list';
 export * from './lib/choice-card/choice-card';
