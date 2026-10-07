@@ -123,6 +123,38 @@ describe('MtDialog and DialogService', () => {
     await waitFor(() => expect(fixture.componentInstance.answer).toBe(true));
   });
 
+  describe('a body that scrolls (WCAG 2.1.1)', () => {
+    /** Opens the shortcut sheet with a body `height` px tall in 300 px (jsdom has no layout). */
+    async function openSheet(height: number): Promise<HTMLElement> {
+      vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains('mt-dialog-b') ? height : 0;
+      });
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains('mt-dialog-b') ? 300 : 0;
+      });
+      await render(
+        `<button type="button" [mtDialogTrigger]="tpl">Open</button>
+         <ng-template #tpl><mt-dialog title="Keyboard shortcuts" size="lg"><p>⌘K opens the palette.</p></mt-dialog></ng-template>`,
+        { imports: [MtDialog, MtDialogTrigger] },
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+      return screen.findByRole('dialog', { name: 'Keyboard shortcuts' });
+    }
+
+    it('takes focus as a region named for the dialog, so the keyboard can scroll it', async () => {
+      const dialog = await openSheet(900);
+      const body = await within(dialog).findByRole('region', { name: 'Keyboard shortcuts' });
+      expect(body).toHaveClass('mt-dialog-b');
+      expect(body).toHaveAttribute('tabindex', '0');
+    });
+
+    it('is no extra Tab stop when its content fits', async () => {
+      const dialog = await openSheet(200);
+      expect(within(dialog).queryByRole('region')).toBeNull();
+      expect(dialog.querySelector('.mt-dialog-b')).not.toHaveAttribute('tabindex');
+    });
+  });
+
   it('opens a template dialog from a trigger and closes it with the close button', async () => {
     await render(
       `<button type="button" [mtDialogTrigger]="tpl">Open</button>

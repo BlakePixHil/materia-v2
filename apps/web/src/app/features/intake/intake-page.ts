@@ -317,6 +317,7 @@ export class IntakePage {
   private readonly flags = inject(FeatureFlagService);
   private readonly today = inject(MT_TODAY);
   private readonly document = inject(DOCUMENT);
+  private readonly shortcuts = inject(ShortcutService);
   private readonly autosaveMs = inject(INTAKE_AUTOSAVE_MS);
   private readonly contacts = contactsRepository();
   private readonly drafts = new IntakeDrafts(intakeDraftsRepository(), () => this.context.requireOrgId());
@@ -392,7 +393,7 @@ export class IntakePage {
     });
 
     // Esc when focus is outside the page (on the body): the page's own handler covers the rest.
-    const release = inject(ShortcutService).register({
+    const release = this.shortcuts.register({
       combo: 'esc',
       description: 'Close the new matter',
       group: 'New matter',
@@ -667,7 +668,8 @@ export class IntakePage {
   protected onKeydown(event: KeyboardEvent): void {
     if (event.defaultPrevented || event.isComposing || this.phase() !== 'form') return;
     if (event.key === 'Escape') {
-      if (this.dialogOpen()) return;
+      // An Escape that closed a dialog (a new contact, say) isn't also a request to leave.
+      if (this.dialogOpen() || this.shortcuts.closedOverlay(event)) return;
       event.preventDefault();
       void this.close();
       return;

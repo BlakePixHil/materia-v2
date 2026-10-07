@@ -416,6 +416,10 @@ jobs:
           E2E_CHROMIUM_ONLY: ${{ matrix.browser == 'chromium' && '1' || '' }}
           E2E_PROJECT: ${{ matrix.browser == 'chromium' && 'chromium' || 'webkit-mobile' }}
           E2E_LOAD: ${{ matrix.browser == 'chromium' && format('&& pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=chromium-load --no-deps --shard={0}/2', matrix.shard) || '' }}
+          # The exhaustive accessibility audit (a11y-audit.spec.ts, tagged @audit: every route in both
+          # themes, 7 to 9 minutes of test time) runs in the morning run and dispatches; PRs run the
+          # faster checks in a11y.spec.ts (SEC-06).
+          E2E_GREP: ${{ github.event_name == 'pull_request' && '--grep-invert @audit' || '' }}
         # The browser projects are named so they shard on their own: with no --project, chromium-load's
         # dependency on them put every test in shard 1 and none in shard 2. The load test then runs
         # after its shard's browser tests (--no-deps; a shard without it exits at once).
@@ -423,7 +427,7 @@ jobs:
           pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting
           --project demo-materia --config firebase.e2e.json
           "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=$E2E_PROJECT --shard=${{ matrix.shard }}/2
-          $E2E_LOAD"
+          $E2E_GREP $E2E_LOAD"
       - name: Upload the Playwright report
         if: failure()
         uses: actions/upload-artifact@v4

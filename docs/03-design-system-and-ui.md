@@ -263,6 +263,9 @@ Every screen above is designed. DES-01 (pass four) added the settings sub-pages,
 - **Mobile:** below 768px use the TabBar and BottomSheet patterns. Hit targets are at least 44px.
 - **Accessibility:**
   - Pairs meet AA. One exception: white on brand-500 is 4.47:1, so labels on it are ≥13px medium; use brand-600 #2459E6 if strict AA is required.
-  - Focus rings are always visible.
-  - Dialogs trap focus.
-  - Toasts use `aria-live`.
+  - Focus rings are always visible. In forced colours (Windows contrast themes) the box-shadow ring is dropped, so `base.css` draws a `Highlight` outline instead.
+  - Dialogs trap focus. An Escape that closes a dialog or menu goes no further: `ShortcutService.closedOverlay(event)` tells a page's own Escape handling to ignore it.
+  - Toasts use `aria-live`. Streaming text is never a live region: Clerk's conversation is `aria-live="off"` and a status line announces the finished answer once.
+  - Anything that can be dragged can also be moved with a single click or tap (WCAG 2.5.7): the board's Move menu, a task's Move up and Move down.
+  - Page actions in the top bar wrap at phone width rather than widening the page (WCAG 1.4.10).
+  - The audit and the screen reader checklist are in `docs/accessibility/` (SEC-06).

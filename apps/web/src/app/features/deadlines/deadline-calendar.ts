@@ -129,8 +129,10 @@ type CalendarRow = DeadlineLike & { row: DeadlineRowVm };
       background: var(--bg-sunken);
       color: var(--text-tertiary);
     }
+    /* brand-600, not brand-500: white 12px text on #346CFC is 4.47:1, under AA; on #2459E6 it is
+       5.76:1 (the brand book's strict-AA alternative; SEC-06). */
     .mt-deadline-calendar td[aria-current='date'] .num {
-      background: var(--bg-brand);
+      background: var(--bg-brand-hover);
       color: var(--text-on-brand);
       border-radius: var(--radius-full);
       padding: 0 6px;
