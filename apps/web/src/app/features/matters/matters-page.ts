@@ -521,14 +521,14 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
     </ng-template>
   `,
   styles: `
-    /* Full-bleed: cancels the shell page's padding and the gap after the router outlet. */
+    /* Full-bleed: cancels the shell page's padding. */
     :host {
       position: relative;
       display: flex;
       flex-direction: column;
       flex: 1;
       min-height: 0;
-      margin: calc(-1 * (var(--space-24) + var(--space-20))) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
+      margin: calc(-1 * var(--space-24)) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
     }
     .mt-matters-bar {
       display: flex;

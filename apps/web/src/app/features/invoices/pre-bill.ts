@@ -215,7 +215,7 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
 
         <section class="mt-col block" aria-labelledby="pb-time">
           <div class="mt-row block-head">
-            <h2 class="title-s" id="pb-time">Time</h2>
+            <h2 class="heading" id="pb-time">Time</h2>
             <span class="caption t-3 mt-ml">{{ build().available.entries.length }} billable</span>
           </div>
           @if (build().unapprovedEntries) {
@@ -259,7 +259,7 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
 
         <section class="mt-col block" aria-labelledby="pb-disbursements">
           <div class="mt-row block-head">
-            <h2 class="title-s" id="pb-disbursements">Disbursements</h2>
+            <h2 class="heading" id="pb-disbursements">Disbursements</h2>
             <span class="caption t-3 mt-ml">{{ build().available.disbursements.length }} unbilled</span>
           </div>
           <ul class="items" data-testid="pre-bill-disbursements">
@@ -285,7 +285,7 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
         </section>
 
         <section class="mt-col block" aria-labelledby="pb-extra">
-          <h2 class="title-s" id="pb-extra">Fixed fees and discounts</h2>
+          <h2 class="heading" id="pb-extra">Fixed fees and discounts</h2>
           @for (line of form().extraLines; track $index; let i = $index) {
             <div class="mt-row extra" [attr.data-kind]="line.kind">
               <mt-text-field

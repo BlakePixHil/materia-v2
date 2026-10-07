@@ -33,7 +33,7 @@ Logs carry counts, ids and error types only, never document text or names.
    - **the practice's month is nearly used** (80% of its token budget or spend limit): resume next month, or after raising the limit;
    - **Clerk or Suggestions is off, or the key is missing:** fix it, then resume.
 6. **When it's done**, the approver and the owners get "Clerk has read the migrated files" with the counts. The key dates wait in the Inbox and each matter's suggestions. Accepting a date records it, and the matter's deadlines are worked out from it; ones already past are flagged for review.
-7. **Documents it couldn't read** are flagged `MIG_W_DOCUMENT_UNREADABLE` and listed in the migration review queue (MIG-08, Settings → Migration → Review).
+7. **Documents it couldn't read** are flagged `MIG_W_DOCUMENT_UNREADABLE` and listed in the migration review queue (MIG-08, Settings → Import from materia → Review, filtered by "Clerk can’t read it").
 8. **Restate the historical figures** so Insights shows the months before the move, legacy billing counted by its billing dates:
 
    ```sh

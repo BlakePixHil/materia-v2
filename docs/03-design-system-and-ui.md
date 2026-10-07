@@ -73,8 +73,8 @@ Import them from `@materia/ui`. Each one composes ng-primitives, wears the `mt-*
 | -- | -- |
 | `button[mtButton]`, `a[mtButton]` | `variant` (`primary`, `secondary`, `ghost`, `danger`, `clerk`), `size`, `iconStart`, `iconEnd`, `kbd`, `loading`. `type="button"` unless you set `type="submit"` |
 | `button[mtIconButton]` | Required `icon` and `label` (accessible name and tooltip) |
-| `<mt-text-field>`, `<mt-textarea>` | `label`, `description`, `error`, `errorMessages`, `optional`, `required`; text field: `type`, `iconStart`, `suffix`, `[mtPrefix]`/`[mtSuffix]` slots; textarea: `autoGrow` (12 lines), `maxLength` with a count |
-| `<mt-select>` | `options` (`MtOption` or `MtOptionGroup`), `placeholder`; type-ahead; a native `<select>` below 768px (`native` forces it) |
+| `<mt-text-field>`, `<mt-textarea>` | `label`, `labelHidden` (kept for screen readers), `description`, `error`, `errorMessages`, `optional`, `required`; text field: `size` (`sm` in tables and settings rows), `type`, `iconStart`, `suffix`, `[mtPrefix]`/`[mtSuffix]` slots; textarea: `autoGrow` (12 lines), `maxLength` with a count |
+| `<mt-select>` | `options` (`MtOption` or `MtOptionGroup`), `placeholder`, `labelHidden`, `size`; type-ahead; a native `<select>` below 768px (`native` forces it) |
 | `<mt-checkbox>`, `<mt-switch>` | `label`, `description`; checkbox: `indeterminate` |
 | `<mt-radio-group>`, `<mt-segmented-control>` | `options`, `label`; radio: `orientation` |
 | `<mt-search-field>` | `label` (accessible name), `variant` (`global` or `filter`), `shortcut`, debounced `queryChange` |
@@ -138,7 +138,7 @@ These are pure: inputs in, outputs out, no data access. Each takes a view-model 
 | `<mt-estate-stepper [stages] current completed interactive (stageSelect)>` | The matter's stages from its template |
 | `<mt-timeline [items] grouped hasMore loading (loadMore)>` | History or deadlines, grouped by day in the org timezone; kinds note, activity, document, email, clerk, deadline |
 | `<mt-time-entry [entry] (accept)>` | A recorded entry (actions projected) or a captured one (Accept) |
-| `<mt-person-header>`, `<mt-settings-section>` + `<mt-settings-row>` (put a `<mt-switch labelHidden>` inside), `<mt-integration-card>` (`status`: connected, reconnect, error with its `error` in full, disconnected or unavailable; `meta` for who it's connected as or why it needs reconnecting), `<mt-step-list>`, `<mt-choice-cards>` (a form control) | People, settings and onboarding |
+| `<mt-person-header>`, `<mt-settings-section>` + `<mt-settings-row>` (put a `<mt-switch labelHidden>` or `<mt-select labelHidden size="sm">` inside; `mtRowLead` content, such as an avatar, goes before the title; fields and notes in a section sit 12px apart, consecutive rows join), `<mt-integration-card>` (`status`: connected, reconnect, error with its `error` in full, disconnected or unavailable; `meta` for who it's connected as or why it needs reconnecting), `<mt-step-list>`, `<mt-choice-cards>` (a form control) | People, settings and onboarding |
 
 Formatting pipes, all `en-AU` and the org timezone (`MT_ORG_TIMEZONE`, default `Australia/Melbourne`): `aud` (cents → `$1,234.50`, credit `-$12.00`, null `—`), `units` (minutes → `0.4`, or `0h 24m` with `'hm'`), `dateOnly` (`3 Oct 2026`) and `relativeDate`. Provide `MT_TODAY` for a fixed date in tests and stories. Note that `en-AU` abbreviates some months as `June`, `July` and `Sept`.
 

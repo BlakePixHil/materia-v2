@@ -408,6 +408,28 @@ const shellRoutes: Route[] = [
         canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
         loadComponent: () => import('./features/settings/audit-log-page').then((m) => m.AuditLogPage),
       },
+      // Import from materia (MIG-08): owners and admins review what the legacy migration brought.
+      {
+        path: 'migration',
+        data: { crumb: 'Import from materia' },
+        canActivate: [roleGuard(SETTINGS_ADMIN_ROLES)],
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            title: 'Import from materia',
+            loadComponent: () =>
+              import('./features/migration/migration-summary-page').then((m) => m.MigrationSummaryPage),
+          },
+          {
+            path: 'review',
+            title: 'Review imported records',
+            data: { crumb: 'Review' },
+            loadComponent: () =>
+              import('./features/migration/migration-review-page').then((m) => m.MigrationReviewPage),
+          },
+        ],
+      },
       // Security (SEC-04): everyone sees their own sessions; owners and admins edit the policy.
       {
         path: 'security',
@@ -498,7 +520,7 @@ export const appRoutes: Route[] = [
   {
     path: 'onboarding',
     loadComponent: minimalLayout,
-    // Signed in and verified, with MFA where required. MIG-08 adds the import step.
+    // Signed in and verified, with MFA where required. An imported practice's step is /settings/migration (MIG-08).
     canActivate: [mfaGuard],
     children: [
       {

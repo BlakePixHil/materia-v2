@@ -39,8 +39,9 @@ export class MtSettingsSection {
 
 /**
  * SettingsRow (`mt-settings-row`): one setting: a title, a description and its control (projected,
- * usually a Switch with `labelHidden` and the same label, or a Select). `locked` shows a shield and is
- * for settings the org can't change ("Clerk never sends, files or bills anything").
+ * usually a Switch or Select with `labelHidden` and the same label). `locked` shows a shield and is
+ * for settings the org can't change ("Clerk never sends, files or bills anything"). Content marked
+ * `mtRowLead` (a person's avatar) goes before the title.
  */
 @Component({
   selector: 'mt-settings-row',
@@ -50,6 +51,7 @@ export class MtSettingsSection {
   imports: [MtIcon],
   host: { class: 'mt-setting', '[attr.data-locked]': 'locked() ? "" : null', '[attr.title]': 'null' },
   template: `
+    <ng-content select="[mtRowLead]" />
     <div class="tx">
       <div class="tt">
         {{ title() }}

@@ -35,7 +35,7 @@ export type MtTextFieldType = 'text' | 'email' | 'tel' | 'url' | 'password' | 'n
     @if (label(); as text) {
       <!-- ngpLabel sets "for" to the input's id at runtime. -->
       <!-- eslint-disable-next-line @angular-eslint/template/label-has-associated-control -->
-      <label ngpLabel class="mt-label">
+      <label ngpLabel class="mt-label" [class.mt-sr]="labelHidden()">
         {{ text }}
         @if (optional()) {
           <span class="mt-opt">Optional</span>

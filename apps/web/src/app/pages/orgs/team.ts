@@ -169,8 +169,8 @@ const ROLE_LABELS: Record<Role, string> = {
           [description]="describe(member)"
           [attr.data-member]="member.email ?? member.uid"
         >
+          <mt-avatar mtRowLead [name]="member.displayName" [colorKey]="member.uid" />
           <div class="mt-row" style="gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end">
-            <mt-avatar [name]="member.displayName" [colorKey]="member.uid" size="sm" />
             @if (manage()) {
               <button
                 mtButton
@@ -183,6 +183,9 @@ const ROLE_LABELS: Record<Role, string> = {
             }
             @if (canEdit(member)) {
               <mt-select
+                style="width: 132px"
+                labelHidden
+                size="sm"
                 [label]="'Role for ' + member.displayName"
                 [options]="grantable()"
                 [native]="true"

@@ -71,7 +71,7 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
 | `billable {status, billingText, billingTotal, applyTrust, postType, paymentTerms, billingDate, notes}` | `legacyBilling` (read-only on the matter) | **Not turned into v2 invoices**, which would break gapless numbering. Insights can include `billingTotal` by `billingDate` as historical billed |
 | `dueDate` (always `''`), `hoursEstimate`, `actualHours` | dropped | Unused in legacy |
 | `createdOn` / `updatedOn` | `createdAt` / `updatedAt` | ISO → Timestamp. Invalid → load time + a warning |
-| — | `migration: {runId, legacyPath}`, `needsReview?: string[]` | on every migrated document |
+| — | `migration: {runId, legacyPath}`, `needsReview?: string[]` | on every migrated document. The person works through `needsReview` in Settings → Import from materia, and each code moves to `reviewed` (MIG-08, D-22) |
 
 ## Hazards (must be handled and tested)
 
@@ -152,7 +152,7 @@ These facts come from a code audit of the legacy repo. MIG-01's `audit` step che
   3. Final delta.
   4. Verify.
   5. Switch the user's bookmark or domain.
-  6. The user signs in to v2 and works through the review queue.
+  6. The user signs in to v2 and works through the review queue (Today's "Check your import" card, or Settings → Import from materia; D-22).
 - **After cutover:**
   - Legacy stays readable for 90 days. The bucket export is then archived to coldline for the retention period, and the legacy project is decommissioned by a separate human-approved ticket.
   - The user reconnects their calendar. Legacy calendar events are listed so they can delete them or let v2 adopt them.

@@ -5,6 +5,7 @@ import {
   can,
   enrichmentEstimateText,
   MIG_W_DOCUMENT_UNREADABLE,
+  reviewedCodes,
   suggestedAllowanceCents,
   UNREADABLE_SKIP_REASONS,
   type DocumentIngest,
@@ -328,6 +329,16 @@ function unreadable(ingest: DocumentIngest | undefined): boolean {
   return ingest.status === 'skipped' && UNREADABLE_SKIP_REASONS.has(ingest.reason as IngestSkipReason);
 }
 
+/**
+ * Lists the document in the MIG-08 review queue, unless a person has already marked that code
+ * reviewed: a later run reading it again doesn't re-open it (D-22). Returns whether it was listed.
+ */
+async function flagUnreadable(ref: DocumentReference): Promise<boolean> {
+  if (reviewedCodes((await ref.get()).data()).includes(MIG_W_DOCUMENT_UNREADABLE)) return false;
+  await ref.update({ needsReview: FieldValue.arrayUnion(MIG_W_DOCUMENT_UNREADABLE) });
+  return true;
+}
+
 async function ingestStep(step: Step): Promise<StepOutcome> {
   const { deps, task, record, writer } = step;
   const gateway = meter(step);
@@ -383,10 +394,7 @@ async function ingestStep(step: Step): Promise<StepOutcome> {
         const ingest = (await ref.get()).get('ingest') as DocumentIngest | undefined;
         if (ingest?.status === 'done') progress.read++;
         else progress.skipped++;
-        if (unreadable(ingest)) {
-          await ref.update({ needsReview: FieldValue.arrayUnion(MIG_W_DOCUMENT_UNREADABLE) });
-          flagged++;
-        }
+        if (unreadable(ingest) && (await flagUnreadable(ref))) flagged++;
       } catch (error) {
         const reason = pauseReason(error);
         if (reason) return pause(step, reason, state());
@@ -397,8 +405,7 @@ async function ingestStep(step: Step): Promise<StepOutcome> {
           return 'continued';
         }
         await markIngestFailed(deps.db, ingestTask, error, deps.clock.now());
-        await ref.update({ needsReview: FieldValue.arrayUnion(MIG_W_DOCUMENT_UNREADABLE) });
-        flagged++;
+        if (await flagUnreadable(ref)) flagged++;
         progress.failed++;
       }
     }

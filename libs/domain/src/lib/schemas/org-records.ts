@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 import {
+  ActorSchema,
   CentsSchema,
   DateOnlySchema,
   DocIdSchema,
@@ -977,6 +978,9 @@ export const MigrationRun = withMeta(
     /** The gcloud account that ran it. */
     operator: z.string().optional(),
     toolVersion: z.string().optional(),
+    /** When no migrated record had a review code left open (MIG-08), and who closed the last one. */
+    reviewedAt: InstantSchema.optional(),
+    reviewedBy: ActorSchema.optional(),
   },
   { path: `${ORG}/migrations`, migratable: false, updatable: [] },
 );

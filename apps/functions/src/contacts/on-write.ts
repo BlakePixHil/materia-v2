@@ -2,6 +2,7 @@ import type { Contact } from '@materia/domain';
 
 import { staleDerived } from './shared';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
+import { clearFixedReviewCodes } from '../migration/clear';
 
 /**
  * Keeps a contact's server-owned `search`, `dedupeKey` and `sortName` in step with its fields
@@ -31,7 +32,11 @@ export const onWriteDefinition: TriggerDefinition = {
   name: 'contacts-onWrite',
   document: 'orgs/{orgId}/contacts/{contactId}',
   on: 'written',
-  handler: async (change, ctx) => void (await maintainDerived(change, ctx)),
+  handler: async (change, ctx) => {
+    await maintainDerived(change, ctx);
+    // A migrated referrer named, or a contact merged or deleted, loses its review codes (MIG-08).
+    await clearFixedReviewCodes(change, ctx);
+  },
 };
 
 /** `contacts-onWrite`. */

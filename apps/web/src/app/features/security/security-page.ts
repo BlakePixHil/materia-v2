@@ -119,6 +119,8 @@ function withCurrent<T extends number>(list: MtOption<T>[], value: T, label: (va
           @if (canEdit()) {
             <mt-select
               name="mfaGraceHours"
+              labelHidden
+              size="sm"
               label="Grace period"
               [native]="true"
               [disabled]="saving()"
@@ -138,6 +140,8 @@ function withCurrent<T extends number>(list: MtOption<T>[], value: T, label: (va
         @if (canEdit()) {
           <mt-select
             name="sessionIdleMinutes"
+            labelHidden
+            size="sm"
             label="Sign out after inactivity"
             [native]="true"
             [disabled]="saving()"
@@ -153,6 +157,8 @@ function withCurrent<T extends number>(list: MtOption<T>[], value: T, label: (va
         @if (canEdit()) {
           <mt-select
             name="maxSessionDays"
+            labelHidden
+            size="sm"
             label="Sign in again after"
             [native]="true"
             [disabled]="saving()"
@@ -219,11 +225,13 @@ function withCurrent<T extends number>(list: MtOption<T>[], value: T, label: (va
         [headingLevel]="2"
       >
         <mt-settings-row title="Sign a person out everywhere">
-          <div class="mt-row" style="gap: 8px; flex-wrap: wrap">
+          <div class="mt-row" style="gap: 8px; flex-wrap: wrap; align-items: center">
             <mt-select
               style="min-width: 200px"
               name="member"
               label="Person"
+              labelHidden
+              size="sm"
               placeholder="Choose person"
               [native]="true"
               [options]="memberOptions()"

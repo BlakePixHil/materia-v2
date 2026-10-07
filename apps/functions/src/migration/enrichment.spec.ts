@@ -448,6 +448,19 @@ describe('reading the run', () => {
     );
   });
 
+  it('leaves a document someone already marked reviewed out of the review queue (D-22)', async () => {
+    const w = world();
+    await estimated(w);
+    await w.db.doc(`${M}/${ESTATE}/documents/d-3-locked`).update({ reviewed: [MIG_W_DOCUMENT_UNREADABLE] });
+    await w.decide({ decision: 'approve', allowanceCents: 2_500 });
+    expect((await w.drain()).at(-1)).toBe('done');
+
+    const locked = w.doc(`${M}/${ESTATE}/documents/d-3-locked`);
+    expect(locked?.['needsReview']).toBeUndefined();
+    expect(locked?.['reviewed']).toEqual([MIG_W_DOCUMENT_UNREADABLE]);
+    expect(await w.record()).toMatchObject({ status: 'done', unreadable: 0 });
+  });
+
   it('an accepted key date records the event, whose deadlines are computed, past ones flagged', async () => {
     const w = world();
     await estimated(w);

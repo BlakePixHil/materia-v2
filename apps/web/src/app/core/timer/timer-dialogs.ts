@@ -144,9 +144,9 @@ type PickedMatter = WithId<MatterDetail>;
     <mt-dialog size="md" title="Save timer" [description]="description()">
       <div class="mt-col" style="gap: var(--space-12)">
         <div class="mt-row summary" data-testid="timer-summary">
-          <span class="label-m">{{ number() }}</span>
+          <span class="label">{{ number() }}</span>
           <span class="t-2">{{ elapsedText() }}</span>
-          <span class="mt-ml label-m" data-testid="timer-units">{{ unitsText() }} h</span>
+          <span class="mt-ml label" data-testid="timer-units">{{ unitsText() }} h</span>
           @if (amountText(); as amount) {
             <span class="caption t-3">{{ amount }}</span>
           }
