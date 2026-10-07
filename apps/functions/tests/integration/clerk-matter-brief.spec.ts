@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type App } from 'firebase-admin/app';
 import { FieldPath, FieldValue, getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
 
@@ -62,7 +60,7 @@ function brief(mode: MatterBriefMode, role: Role = 'lawyer') {
   return runCallable(
     matterBriefDefinition as unknown as CallableDefinition<never, MatterBriefResult>,
     {
-      data: { requestId: randomUUID(), matterId: MATTER, mode },
+      data: { matterId: MATTER, mode },
       auth: { uid: uidOf(role), token: { orgId: ORG, role } },
     },
     deps,
