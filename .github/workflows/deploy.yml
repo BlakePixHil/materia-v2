@@ -3,8 +3,9 @@
 # here from the release's bundles), in a fixed order, then runs the @smoke Playwright tests against
 # the deployed site. Order: Firestore indexes → rules (Firestore and Storage) → Cloud Run jobs →
 # Cloud Run services (ClamAV, previews) → functions (codebase `core`) → hosting. A failure stops the
-# run loudly. The only automatic retry is for functions that fail to update (up to two more
-# attempts of just those, for the regional CPU quota); docs/runbooks/deploy.md covers partial deploys.
+# run loudly. The only automatic retry is for functions that fail to update (two more attempts of
+# just those, 5 and 10 minutes later, for the regional CPU quota); docs/runbooks/deploy.md covers
+# partial deploys.
 #
 # Settings come from variables named <NAME>_<DEV|PROD> (repository or environment variables):
 # GCP_PROJECT_*, GCP_WIF_PROVIDER_* and GCP_DEPLOYER_SA_*. No JSON keys anywhere.
@@ -33,6 +34,11 @@ on:
         description: Web bundle inside the artifact (web-dev or web-prod).
         required: true
         type: string
+      hosting-only:
+        description: Deploy only hosting (and run the smoke tests), skipping indexes, rules, jobs, services and functions.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -41,7 +47,7 @@ jobs:
   deploy:
     name: deploy (${{ inputs.environment }})
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60 # includes up to 15 minutes of functions retry waits
     environment:
       name: ${{ inputs.environment }}
       url: https://${{ vars[format('GCP_PROJECT_{0}', inputs.suffix)] }}.web.app
@@ -112,9 +118,11 @@ jobs:
       # --non-interactive makes the CLI fail instead of prompting (for example before deleting a
       # function). Functions are never deployed with --force.
       - name: Deploy Firestore indexes
+        if: ${{ !inputs.hosting-only }}
         run: pnpm exec firebase deploy --only firestore:indexes --project "$PROJECT" --config firebase.json --non-interactive
 
       - name: Deploy Firestore and Storage rules
+        if: ${{ !inputs.hosting-only }}
         run: pnpm exec firebase deploy --only firestore:rules,storage --project "$PROJECT" --config firebase.json --non-interactive
 
       # Functions start job executions, so the job is updated first (ADR-014, FND-24). The image is
@@ -122,6 +130,7 @@ jobs:
       # environment's Artifact Registry (scanned on push) and deployed as the job `pdf`. Releases
       # from before FND-24 carry no jobs bundle and skip this step.
       - name: Deploy Cloud Run jobs
+        if: ${{ !inputs.hosting-only }}
         env:
           SHA: ${{ inputs.sha }}
         run: |
@@ -153,6 +162,7 @@ jobs:
       # bundle into the `services` repository; the scanner's build pulls the day's signatures.
       # Releases from before CORE-12a carry no bundle and skip this step.
       - name: Deploy Cloud Run services
+        if: ${{ !inputs.hosting-only }}
         env:
           SHA: ${{ inputs.sha }}
         run: |
@@ -167,6 +177,7 @@ jobs:
       # that doesn't exist leaves its URL empty: uploads then stay "Scanning delayed" (fail closed)
       # and Office/HEIC files have no preview.
       - name: Point the functions at the document services
+        if: ${{ !inputs.hosting-only }}
         run: |
           url() { gcloud run services describe "$1" --project "$PROJECT" --region "$REGION" --format 'value(status.url)' 2>/dev/null || true; }
           clamav="$(url clamav)"
@@ -178,13 +189,16 @@ jobs:
 
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
-      # A full deploy rolls every function at once, and on dev a few new revisions can fail their
-      # health check on the regional Cloud Run CPU quota ("Quota exceeded for total allowable CPU per
-      # project per region") while the old revisions are still up. So the functions that failed are
-      # redeployed on their own, up to twice, a minute apart; a failure with no function list (a
-      # build error, say) fails straight away. Inline rather than a script because the checkout is
+      # A full deploy rolls every function at once: each new revision starts an instance (1 vCPU)
+      # for its health check, and instances stay up to 15 minutes after they go idle. So on dev some
+      # new revisions can fail on the regional Cloud Run CPU quota ("Quota exceeded for total
+      # allowable CPU per project per region"), more so when deploys run back to back. The functions
+      # that failed are redeployed on their own, after 5 and then 10 minutes so the burst's idle
+      # instances can drain; a failure with no function list (a build error, say) fails straight
+      # away. Inline rather than a script because the checkout is
       # the release's commit, which may predate any script.
       - name: Deploy functions (codebase core)
+        if: ${{ !inputs.hosting-only }}
         run: |
           set -o pipefail
           only=functions:core
@@ -205,9 +219,10 @@ jobs:
               echo "::error::These functions still failed after three attempts: $failed"
               exit 1
             fi
-            echo "::warning::Functions deploy attempt $attempt failed for: $failed. Retrying just those in a minute."
+            wait=$((attempt * 5))
+            echo "::warning::Functions deploy attempt $attempt failed for: $failed. Retrying just those in $wait minutes."
             only="$(echo "$failed" | tr ' ' '\n' | sed 's/^/functions:core:/' | paste -sd,)"
-            sleep 60
+            sleep $((wait * 60))
           done
 
       # Hidden sourcemaps (FND-21) are never served: they go to the private sourcemaps bucket for
@@ -240,7 +255,9 @@ jobs:
           FUNCTIONS_URL: https://${{ env.REGION }}-${{ env.PROJECT }}.cloudfunctions.net
           EXPECTED_SHA: ${{ inputs.sha }}
           CI: 'true'
-        run: pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --grep @smoke --project=chromium
+          # A hosting-only deploy leaves the functions on an earlier release, so their sha won't match.
+          SKIP_FUNCTIONS: ${{ inputs.hosting-only && 'system-ping' || '' }}
+        run: pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --grep @smoke --project=chromium ${SKIP_FUNCTIONS:+--grep-invert "$SKIP_FUNCTIONS"}
 
       - name: Upload the Playwright report
         if: failure()
