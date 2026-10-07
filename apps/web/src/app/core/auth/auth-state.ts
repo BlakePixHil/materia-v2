@@ -1,4 +1,4 @@
-import { computed, DestroyRef, inject, Injectable, InjectionToken, signal } from '@angular/core';
+import { computed, DestroyRef, inject, Injectable, InjectionToken, Injector, signal } from '@angular/core';
 
 import { DataLifecycle, setFirestoreCacheMode } from '@materia/data-access';
 
@@ -38,7 +38,17 @@ export type SignOutCleanup = () => void | Promise<void>;
 export const SIGN_OUT_CLEANUP = new InjectionToken<SignOutCleanup[]>('SIGN_OUT_CLEANUP', {
   factory: () => {
     const data = inject(DataLifecycle);
-    return [() => data.signOut()];
+    const injector = inject(Injector);
+    // This browser's push device first (MOB-04): deleting it needs Firestore, which the data layer
+    // closes. Loaded only now, so push stays off the start-up path; signing out never waits on it failing.
+    // A browser without push can't have a device, so it skips the load.
+    const push = async () => {
+      if (!('PushManager' in globalThis)) return;
+      await import('../push/push-devices')
+        .then(({ PushDevices }) => injector.get(PushDevices).signOut())
+        .catch(() => undefined);
+    };
+    return [push, () => data.signOut()];
   },
 });
 

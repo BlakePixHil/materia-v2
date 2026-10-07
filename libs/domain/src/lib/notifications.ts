@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 import { DEFAULT_ORG_TIMEZONE } from './constants';
+import { DocIdSchema } from './schemas/common';
 import {
   NOTIFICATION_CHANNELS,
   NotificationPayloadSchema,
@@ -123,6 +124,22 @@ export const NOTIFICATION_BURST_WINDOW_MS = 60_000;
 export function burstSummaryId(uid: string, now: Date): string {
   return `burst-${uid}-${now.toISOString().slice(0, 16).replace(/[-T:]/g, '')}`;
 }
+
+// ---------- push on a device (MOB-04) ----------
+
+/** A device that hasn't opened Materia for this many days gets no more pushes and is deleted. */
+export const PUSH_DEVICE_STALE_DAYS = 60;
+
+/**
+ * What every push says under its title. Lock screens are public, so a push never carries the
+ * notification's body (deadline and task titles can name clients); titles name the matter by
+ * number at most (`Deadline in 3 days: M-2026-0142`).
+ */
+export const PUSH_BODY = 'Open Materia to see it.';
+
+/** `notifications-testPush` (MOB-04): one of the caller's own devices. */
+export const TestPushInput = z.object({ deviceId: DocIdSchema });
+export type TestPushInput = z.infer<typeof TestPushInput>;
 
 // ---------- preferences: users/{uid}.prefs.notifications ----------
 

@@ -390,8 +390,9 @@ service cloud.firestore {
       allow update: if isSignedIn() && uid() == userId && clientUpdate(fieldsUser())
         && notificationPrefsOk(request.resource.data) && pinsOk();
 
-      // Push devices (FND-20): `{token, platform, lastSeenAt}`, private to their user, registered,
-      // refreshed and removed by the client. Functions prune tokens FCM reports gone.
+      // Push devices (FND-20, MOB-04): `{token, platform, label, lastSeenAt}`, private to their
+      // user, registered, refreshed and removed by the client. Functions prune tokens FCM reports
+      // gone and devices unseen for 60 days.
       match /devices/{deviceId} {
         function isDeviceOwner() {
           return isSignedIn() && uid() == userId;
@@ -399,6 +400,7 @@ service cloud.firestore {
         function validDevice(data) {
           return data.token is string && data.token.size() > 0 && data.token.size() <= 4096
             && data.platform in ['web', 'ios', 'android']
+            && data.label is string && data.label.size() > 0 && data.label.size() <= 80
             && data.lastSeenAt is timestamp;
         }
         function deviceKeys() {
@@ -1272,7 +1274,7 @@ service cloud.firestore {
     function fieldsDeletedOrg() { return []; }
     function fieldsDestructionCertificate() { return []; }
     function fieldsDestructionRequest() { return []; }
-    function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
+    function fieldsDevice() { return ['token', 'platform', 'label', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'paymentReference', 'notes', 'needsValueReview']; }
