@@ -3,14 +3,13 @@ import { provideRouter, Router } from '@angular/router';
 
 import { ToastService } from '@materia/ui';
 
-import { AUTH_PORT } from './auth-port';
+import { AUTH_PORT, type AuthSession } from './auth-port';
 import { AuthState, SIGN_OUT_CLEANUP } from './auth-state';
 import { ACCESS_REVOKED_SETTLE_MS, accessRevokedHandler, SessionWatcher } from './session-watcher';
 import { FakeAuthPort, testSession } from './testing';
 import { PAGE_LOAD } from '../orgs/org-service';
 
-function setup() {
-  const port = new FakeAuthPort();
+function setup(port = new FakeAuthPort()) {
   const cleanup = vi.fn();
   const load = vi.fn();
   TestBed.configureTestingModule({
@@ -54,6 +53,43 @@ describe('SessionWatcher', () => {
     expect(cleanup).toHaveBeenCalledOnce();
     expect(navigate).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
+  });
+
+  describe('a start-up drawn from the cached session (MAT-177)', () => {
+    function cachedSetup(answer: AuthSession | null) {
+      const port = new FakeAuthPort(answer);
+      port.cached = testSession();
+      return setup(port);
+    }
+
+    it('cleans up and goes to sign-in, without a toast, when the session ended while closed', async () => {
+      const { cleanup, navigate, toast } = cachedSetup(null);
+      await settle();
+      expect(cleanup).toHaveBeenCalledOnce();
+      expect(String(navigate.mock.calls[0]?.[0])).toBe('/auth/sign-in');
+      expect(toast).not.toHaveBeenCalled();
+    });
+
+    it('reloads on Today when Auth answers for someone else', async () => {
+      const { load, cleanup } = cachedSetup(testSession({ uid: 'someone-else' }));
+      await settle();
+      expect(load).toHaveBeenCalledWith('/today');
+      expect(cleanup).not.toHaveBeenCalled();
+    });
+
+    it('reloads the page, so its guards decide again, when the role or org changed', async () => {
+      const { load } = cachedSetup(testSession({ claims: { orgId: 'org-harbour-vine', role: 'readonly' } }));
+      await settle();
+      expect(load).toHaveBeenCalledWith('/');
+    });
+
+    it('carries on when Auth confirms it', async () => {
+      const { load, navigate, cleanup } = cachedSetup(testSession({ displayName: 'Jordan Price-Hale' }));
+      await settle();
+      expect(load).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(cleanup).not.toHaveBeenCalled();
+    });
   });
 
   it('reloads on Today when someone else signs in from another tab', async () => {

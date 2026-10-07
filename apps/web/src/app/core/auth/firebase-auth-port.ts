@@ -49,6 +49,7 @@ import {
   type AuthSession,
   type SignInOutcome,
 } from './auth-port';
+import { readCachedSession, saveCachedSession } from './session-cache';
 import { environment } from '../../../environments/environment';
 import { firebaseApp } from '../firebase-app';
 
@@ -191,6 +192,8 @@ export function createFirebaseAuthPort(): AuthPort {
 
   const publish = async (user: User | null) => {
     current = user ? await toSession(user) : null;
+    // Before the listeners: a start-up drawn from the old one reloads on this one (MAT-177).
+    saveCachedSession(current);
     for (const listener of listeners) listener(current);
   };
   const preparePopups = () => popups?.latest?.prepare(auth) ?? Promise.resolve();
@@ -260,6 +263,7 @@ export function createFirebaseAuthPort(): AuthPort {
   };
 
   return {
+    cachedSession: readCachedSession,
     watch(callback) {
       listeners.add(callback);
       if (current !== undefined) callback(current);

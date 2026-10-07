@@ -104,9 +104,12 @@ export class FeatureFlagService {
   private loadOrg(orgId: string | null): Promise<void> {
     if (this.orgLoad.orgId === orgId) return this.orgLoad.done;
     this.org.set({});
+    // The org may come from the cached session (MAT-177): its document is read signed in, once
+    // Auth has confirmed it.
     const done = orgId
-      ? this.source
-          .org(orgId)
+      ? this.auth
+          .whenConfirmed()
+          .then(() => (this.auth.activeOrgId() === orgId ? this.source.org(orgId) : this.org()))
           .then((values) => {
             if (this.auth.activeOrgId() === orgId) this.org.set(values);
           })

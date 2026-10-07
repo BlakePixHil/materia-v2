@@ -9,6 +9,7 @@ import { AUTH_PORT, type AuthSession } from './auth-port';
 import { AuthState } from './auth-state';
 import { mfaGuard } from './guards';
 import { ActivityHolds, IDLE_BROADCAST, IDLE_CHANNEL, IdleTimeout } from './idle-timeout';
+import { forgetCachedSession, readCachedSecurity, saveCachedSecurity } from './session-cache';
 import { POLICY_WAIT_MS, SESSION_NOW, SessionPolicy } from './session-policy';
 import { FakeAuthPort, testSession } from './testing';
 import { FakeTenancyPort } from '../orgs/testing';
@@ -58,6 +59,8 @@ class FakeChannel {
 
 interface Setup {
   session?: AuthSession;
+  /** Starts from the cached session (MAT-177), as a returning person's tab does. */
+  cached?: boolean;
   security?: Partial<OrgSecurity> | null;
   validAfter?: Date | null;
 }
@@ -70,6 +73,7 @@ function security(raw: Partial<OrgSecurity> | null, validAfter: Date | null = nu
 function setup(options: Setup = {}) {
   const clock = { now: NOW };
   const auth = new FakeAuthPort(options.session ?? testSession({ authTime: NOW - MINUTE }));
+  if (options.cached) auth.cached = auth.session;
   const tenancy = new FakeTenancyPort();
   tenancy.security_ = options.security === undefined ? undefined : security(options.security, options.validAfter);
   const channels = new FakeChannels();
@@ -128,6 +132,27 @@ describe('SessionPolicy (SEC-04)', () => {
     t.tenancy.emitSecurity(security({ mfaRequired: true }));
     const result = await (decision as Promise<unknown>);
     expect(String(result)).toContain('/auth/mfa/enrol');
+  });
+
+  it('decides from the policy this device saw last until the live one arrives (MAT-177)', async () => {
+    const enforced: SessionSecurity = {
+      policy: resolveSecurity({ mfaRequired: true, sessionIdleMinutes: 60, mfaEnforceAfter: new Date(NOW - 1) }),
+      validAfter: null,
+    };
+    saveCachedSecurity('user-jordan', 'org-harbour-vine', enforced);
+    try {
+      const t = setup({ cached: true });
+      await settle();
+      const decision = await TestBed.runInInjectionContext(() => mfaGuard({} as never, { url: '/today' } as never));
+      expect(String(decision)).toContain('/auth/mfa/enrol');
+
+      t.tenancy.emitSecurity(security({}));
+      await settle();
+      expect(t.state.mfaRequired()).toBe(false);
+      expect(readCachedSecurity('user-jordan', 'org-harbour-vine')?.policy.mfaRequired).toBe(false);
+    } finally {
+      forgetCachedSession();
+    }
   });
 
   it('lets the guards go on when the policy never arrives', async () => {
