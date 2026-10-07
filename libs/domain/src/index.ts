@@ -67,6 +67,7 @@ export * from './lib/invoices';
 export * from './lib/metrics';
 export * from './lib/insights';
 export * from './lib/insights-narrative';
+export * from './lib/matter-brief';
 export * from './lib/payments';
 export * from './lib/integrations';
 export * from './lib/xero';

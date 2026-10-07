@@ -33,6 +33,8 @@ export const METRICS = [
   'numberAccuracy',
   'eventPrecision',
   'eventRecall',
+  'factAccuracy',
+  'recordRecall',
   'latencyMs',
   'costUsd',
 ] as const;
@@ -78,6 +80,7 @@ export const SuiteConfigSchema = z
       'timeAssist',
       'insightsNarrative',
       'eventsExtraction',
+      'matterBrief',
     ]),
     /** `id@version` of the prompt under test. A case may name its own (injection, privilege). */
     promptId: z.string().regex(/^[a-z][a-zA-Z0-9-]*@\d+\.\d+\.\d+$/),
@@ -110,6 +113,80 @@ export const CaseDocumentSchema = z
   })
   .strict();
 export type CaseDocument = z.infer<typeof CaseDocumentSchema>;
+
+const RecordId = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/);
+
+/** A matter brief case's records (AI-06c), fictional, with instants as ISO strings. */
+export const BriefRowsSchema = z
+  .object({
+    matterPrivileged: z.boolean().default(false),
+    deadlines: z
+      .array(
+        z
+          .object({
+            id: RecordId,
+            title: z.string().min(1),
+            dueDate: z.iso.date().optional(),
+            status: z.string().default('upcoming'),
+            critical: z.boolean().default(false),
+          })
+          .strict(),
+      )
+      .default([]),
+    tasks: z
+      .array(
+        z
+          .object({
+            id: RecordId,
+            title: z.string().min(1),
+            dueDate: z.iso.date().optional(),
+            status: z.string().default('todo'),
+          })
+          .strict(),
+      )
+      .default([]),
+    activity: z
+      .array(
+        z
+          .object({
+            id: RecordId,
+            kind: z.string().min(1),
+            summary: z.string().min(1),
+            at: z.iso.datetime(),
+            refs: z.record(z.string(), z.string()).default({}),
+          })
+          .strict(),
+      )
+      .default([]),
+    documents: z
+      .array(
+        z
+          .object({
+            id: RecordId,
+            name: z.string().min(1),
+            category: z.string().min(1),
+            createdAt: z.iso.datetime(),
+            privileged: z.boolean().default(false),
+          })
+          .strict(),
+      )
+      .default([]),
+    suggestions: z
+      .array(
+        z
+          .object({
+            id: RecordId,
+            kind: z.string().min(1),
+            payload: z.record(z.string(), z.unknown()),
+            status: z.string().default('proposed'),
+            privileged: z.boolean().default(false),
+          })
+          .strict(),
+      )
+      .default([]),
+  })
+  .strict();
+export type BriefRows = z.infer<typeof BriefRowsSchema>;
 
 export const EvalCaseSchema = z
   .object({
@@ -178,6 +255,11 @@ export const EvalCaseSchema = z
       })
       .strict()
       .optional(),
+    /**
+     * The matter brief (AI-06c): the matter's records as Firestore keeps them, which production's
+     * facts builder (`matterBriefFacts`, through `buildContext`) turns into what Clerk is given.
+     */
+    brief: BriefRowsSchema.optional(),
     tags: z.array(z.string()).default([]),
   })
   .strict();
@@ -235,6 +317,11 @@ export const GoldSchema = z
           .strict(),
       )
       .optional(),
+    /**
+     * recordRecall (AI-06c): the records (`deadline:dl-1`, `task:t-2`) a matter brief must cite in
+     * an item the checks keep, the ones a person most needs to see.
+     */
+    briefRefs: z.array(z.string().regex(/^[a-z]+:[a-zA-Z0-9][a-zA-Z0-9_-]*$/)).optional(),
   })
   .strict();
 export type Gold = z.infer<typeof GoldSchema>;

@@ -207,6 +207,7 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md) and "Clerk suggestions (AI-07
 | Suggestions engine | AI-07 | `suggestions` per kind | medium |
 | Document classification on ingest | AI-04 | category + title + date | low |
 | Will extraction | AI-08 | testator, date, executors, beneficiaries, gifts, guardians, trusts, attestation red flags | high |
+| Matter brief (Overview) | AI-06c | up to 5 ClerkBrief items, each citing a record | low |
 | Daily brief | AI-09 | ClerkBrief items, each citing a record | low |
 | Drafting | AI-10 | a letter draft (Markdown → docx) | medium |
 | Time capture assist | AI-11 | time-entry suggestions | low |
@@ -235,6 +236,18 @@ See [ADR-054](adr/054-insights-narratives.md). Code: `libs/domain/src/lib/insigh
   It must also cite only figures it was given. `verifiedNarrative` drops the rest and counts them as `omitted`. Logs carry counts only, never the text.
 - **Cache:** `orgs/{orgId}/insightsNarratives/{narrativeKey}` (server-only) holds the checked paragraphs, `figuresHash`, `promptRef`, `model`, `generatedAt`, the months and `generatedBy`, kept for 24 hours. A different hash makes the kept one `stale`. With no figures in either period the answer is `insufficientData` with no call and nothing kept.
 - **UI:** the "What changed" card under the Stats on Insights. Chips (label and value) pick out the hero, a Stat or a chart, and the bar for a matter type or deadline result. Refresh waits out the 10 minutes. The card is hidden for read-only members and when the practice has turned the feature off.
+
+## Matter brief (AI-06c)
+
+See [ADR-059](adr/059-matter-brief.md). Code: `libs/domain/src/lib/matter-brief.ts` (facts, template, checks), `apps/functions/src/clerk/matter-brief.ts` (callable), `apps/functions/src/clerk/context/brief-facts.ts`, `apps/web/src/app/features/matter-detail/matter-brief.ts` (card).
+
+- **Callable:** `clerk-matterBrief({matterId, mode: 'open'|'refresh'})` (roles with `matter.view`) returns `{brief, outcome: 'kept'|'rebuilt'|'pending'}`. `brief` is `{source: 'clerk'|'template', reason?, headline, items[{kind, text, tone?, refs[{kind, id, label}], at?}], read, day, privileged, generatedAt, pending, refreshesLeft}`. `open` rebuilds it when the facts' hash or the day changed, it is 24 hours old, or the matter's privilege changed; `refresh` rebuilds it now, 3 a day per matter (RATE_LIMITED after).
+- **Switches:** the template is written for everyone; Clerk writes it only when `gateway.assertOn(ctx, 'matterBrief')` passes: role `clerk.use`, `clerk.enabled`, `clerk.features.matterBrief` (server-enforced, off in prod), the practice's Clerk switch and its "Matter brief" toggle (`settings.clerk.features.matterBrief`), and the acknowledgement. A background feature: no per-person rate limit; the monthly budget and an org cap of 300 briefs a day (`counters/clerk-matter-briefs`) apply.
+- **Facts:** `CONTEXT_POLICIES.matterBrief` (`facts: 'brief'`, 8k tokens, matter scope only) sends `<matter_facts kind="brief">`: overdue and next-14-day deadlines and tasks, a few undated tasks, feed lines and documents added in the last 14 days (names and categories, never text), open suggestions. Privileged documents and suggestions only on a privileged matter.
+- **Prompt:** `matter-brief@1.0.0` (low effort, 1,500 output tokens), output `matterBrief`: `{headline, items[{kind: 'due'|'changed'|'next', text, refs[]}]}`.
+- **Checks:** `checkBrief` keeps at most 5 items whose refs are in the facts and whose numbers and dates are in the facts they cite (or the windows and counts); a headline that fails is replaced by the template's. Nothing kept means the template, with a 30-minute wait before opening the matter asks again. The log line `matter brief` carries counts, `costMicros` and tokens, never text.
+- **UI:** top of the Overview's left column. "Clerk brief" (Clerk's) or "Matter brief" (the template, the plain card); sources open the record's tab, a document's page or the "Clerk suggests…" card; "New since your last visit" from this device's last Overview visit; Refresh and "Ask a follow-up" (⌘J, not on phones) for roles that can use Clerk.
+- **Evals:** the `matter-brief` suite (10 cases), graded by `factAccuracy`, `recordRecall`, `privilegeLeak` and `noInventions`.
 
 ## Evals (AI-12)
 

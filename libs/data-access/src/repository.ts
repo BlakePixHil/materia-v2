@@ -41,6 +41,7 @@ export * from './lib/invoices';
 export * from './lib/payments';
 export * from './lib/insights';
 export * from './lib/insights-narrative';
+export * from './lib/matter-brief';
 export * from './lib/doc-templates';
 export * from './lib/testing/in-memory-firestore';
 export * from './lib/testing/in-memory-timer';

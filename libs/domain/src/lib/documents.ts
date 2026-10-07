@@ -25,6 +25,21 @@ export const SCAN_MAX_ATTEMPTS = 8;
 /** Documents per `documents-bulkUpdate` call. */
 export const DOCUMENT_BULK_MAX = 500;
 
+/** Each category as the documents list names it (also how a matter brief describes a document). */
+export const DOCUMENT_CATEGORY_LABELS: Readonly<Record<z.infer<typeof DocumentCategorySchema>, string>> = {
+  will: 'Will',
+  codicil: 'Codicil',
+  death_certificate: 'Death certificate',
+  grant: 'Grant',
+  affidavit: 'Affidavit',
+  correspondence: 'Correspondence',
+  court_document: 'Court document',
+  order: 'Order',
+  financial: 'Financial',
+  id: 'Identity document',
+  other: 'Other',
+};
+
 /** What the UI shows for a soft-deleted document wherever it is cited (citations, court books). */
 export const REMOVED_DOCUMENT_LABEL = 'Removed document';
 /** What the UI shows while the scanner is timing out or down (`upload.status: 'delayed'`). */

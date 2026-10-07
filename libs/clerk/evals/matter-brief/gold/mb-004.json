@@ -1,0 +1,5 @@
+{
+  "id": "mb-004",
+  "briefRefs": ["task:t-call"],
+  "mustNotContain": ["was lodged", "withdrawn"]
+}

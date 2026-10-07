@@ -418,6 +418,31 @@ export const makeFactCitation = (o: Partial<D.FactCitation> = {}) =>
     o,
   );
 
+/** A matter's brief on Overview (AI-06c), as the template writes it. */
+export const makeMatterBrief = (o: Partial<D.MatterBrief> = {}) =>
+  build(
+    D.MatterBrief,
+    {
+      source: 'template',
+      reason: 'off',
+      headline: 'Nothing overdue; 1 item due in the next 14 days.',
+      items: [
+        {
+          kind: 'due',
+          text: 'Deadline “Apply for probate” is due Fri 16 Oct.',
+          refs: [{ kind: 'deadline', id: 'deadline-test-1', label: 'Apply for probate' }],
+        },
+      ],
+      read: { deadlines: 1, tasks: 0, changes: 0, documents: 0, suggestions: 0 },
+      day: d('2026-10-01'),
+      factsHash: '0123456789abcd',
+      privileged: false,
+      generatedAt: FIXED_INSTANT,
+      generatedBy: TEST_UID,
+    },
+    o,
+  );
+
 export const makeClerkThread = (o: Partial<D.ClerkThread> = {}) =>
   build(D.ClerkThread, { title: 'Grant timeline', ownerUid: TEST_UID, matterId: TEST_MATTER_ID }, o);
 
@@ -1059,6 +1084,7 @@ export const ENTITY_FACTORIES = {
   Distribution: [D.Distribution, makeDistribution],
   Suggestion: [D.Suggestion, makeSuggestion],
   FactCitation: [D.FactCitation, makeFactCitation],
+  MatterBrief: [D.MatterBrief, makeMatterBrief],
   ClerkThread: [D.ClerkThread, makeClerkThread],
   ClerkMessage: [D.ClerkMessage, makeClerkMessage],
   ClerkDraft: [D.ClerkDraft, makeClerkDraft],

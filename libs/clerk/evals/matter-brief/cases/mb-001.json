@@ -1,0 +1,34 @@
+{
+  "id": "mb-001",
+  "description": "Probate: one overdue deadline, the filing due in 9 days (critical), an undated next task.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "deadlines": [
+      {
+        "id": "dl-advert",
+        "title": "Publish the notice of intention to apply for probate",
+        "dueDate": "2026-10-02"
+      },
+      {
+        "id": "dl-filing",
+        "title": "File the probate application with the Supreme Court of Victoria",
+        "dueDate": "2026-10-16",
+        "critical": true
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-valuation",
+        "title": "Request the date-of-death valuation for 14 Fictional St, Geelong"
+      }
+    ]
+  },
+  "tags": ["due"],
+  "matter": {
+    "matterNumber": "M-2026-0142",
+    "title": "Estate of Margaret Whitfield (fictional)",
+    "type": "probate",
+    "status": "open"
+  }
+}

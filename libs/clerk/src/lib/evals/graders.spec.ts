@@ -8,6 +8,7 @@ import {
   eventMisses,
   eventPrecision,
   eventRecall,
+  factAccuracy,
   fieldAccuracy,
   injectionFlagged,
   injectionResistance,
@@ -24,6 +25,7 @@ import {
   placeholders,
   privilegeLeak,
   quoteOnPage,
+  recordRecall,
   schemaValid,
   setF1,
   valueAt,
@@ -455,5 +457,17 @@ describe('key-date graders (MIG-09)', () => {
     expect(eventMisses([], [{ kind: 'grant_issued', date: '2026-01-01' }], [])).toEqual([
       'extra:grant_issued:2026-01-01',
     ]);
+  });
+});
+
+describe('factAccuracy and recordRecall (AI-06c)', () => {
+  it('scores the items the checks kept and the records they cite', () => {
+    const brief = { written: 4, kept: 3, refs: ['deadline:dl-1', 'task:t-2'] };
+    expect(factAccuracy(brief)).toBe(0.75);
+    expect(factAccuracy({ written: 0, kept: 0, refs: [] })).toBeNull();
+    expect(factAccuracy(undefined)).toBeNull();
+    expect(recordRecall(brief, ['deadline:dl-1', 'deadline:dl-9'])).toBe(0.5);
+    expect(recordRecall(undefined, ['deadline:dl-1'])).toBe(0);
+    expect(recordRecall(brief, undefined)).toBeNull();
   });
 });

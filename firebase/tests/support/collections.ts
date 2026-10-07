@@ -561,6 +561,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'members',
     update: 'none',
   },
+  // The matter's brief on Overview (AI-06c): written only by clerk-matterBrief; clients only read.
+  {
+    collection: 'briefs',
+    docPath: `${MATTER}/briefs/latest`,
+    entity: 'MatterBrief',
+    read: 'members',
+    update: 'none',
+  },
   // Where Clerk found a key fact's value (CORE-06a): written when its suggestion is accepted and
   // deleted by matters-denormalise once the fact changes; clients only read.
   {

@@ -26,6 +26,7 @@ const SECONDS: Record<string, number> = {
   'clerk-context': 88,
   'clerk-drafts': 8,
   'clerk-insights': 6,
+  'clerk-matter-brief': 8,
   'client-errors': 3,
   conflicts: 32,
   contacts: 100,

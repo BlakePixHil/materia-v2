@@ -772,6 +772,15 @@ service cloud.firestore {
           allow read: if inOrg(orgId) && visible(orgId, resource.data);
         }
 
+        // The matter's brief on Overview (AI-06c, ADR-059): written only by clerk-matterBrief, from
+        // facts every reader of the matter may see. Its `privileged` follows the matter's, and the
+        // matter is checked too, so a brief never outlives a change to the matter's privilege. The
+        // Overview listens before the first brief exists, so a missing one reads as missing.
+        match /briefs/{briefId} {
+          allow read: if inOrg(orgId) && (resource == null || visible(orgId, resource.data))
+            && visible(orgId, get(/databases/$(database)/documents/orgs/$(orgId)/matters/$(matterId)).data);
+        }
+
         // Where Clerk found a key fact's value (CORE-06a, ADR-049): written by suggestions-accept
         // and deleted by matters-denormalise once the fact changes; server-only writes. Readable by
         // whoever can read the matter, and a privileged one (from a privileged suggestion or cited
@@ -1262,6 +1271,7 @@ service cloud.firestore {
     function fieldsLetterheadDoc() { return []; }
     function fieldsLiability() { return ['class', 'creditor', 'reference', 'amountCents', 'status', 'notes']; }
     function fieldsMatter() { return ['title', 'responsibleUid', 'teamUids', 'labels', 'priority', 'externalRef', 'externalUrl', 'estate', 'deceased', 'facts', 'privileged', 'referrerContactId', 'referralSource', 'boardOrder']; }
+    function fieldsMatterBrief() { return []; }
     function fieldsMatterDocument() { return ['name', 'category', 'privileged', 'accessRestricted', 'tags', 'notes']; }
     function fieldsMatterEvent() { return []; }
     function fieldsMatterNumber() { return []; }

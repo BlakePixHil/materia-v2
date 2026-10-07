@@ -1,0 +1,39 @@
+{
+  "id": "mb-006",
+  "description": "The next step is Clerk’s open suggestion.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "tasks": [
+      {
+        "id": "t-letters",
+        "title": "Send the executor’s acceptance letter"
+      }
+    ],
+    "suggestions": [
+      {
+        "id": "s-westpac",
+        "kind": "task",
+        "payload": {
+          "title": "Write to Westpac to freeze the deceased’s accounts",
+          "priority": "high"
+        }
+      }
+    ],
+    "activity": [
+      {
+        "id": "a-open",
+        "kind": "matter.created",
+        "summary": "Jordan Lee opened the matter",
+        "at": "2026-10-06T03:00:00.000Z"
+      }
+    ]
+  },
+  "tags": ["next"],
+  "matter": {
+    "matterNumber": "M-2026-0142",
+    "title": "Estate of Margaret Whitfield (fictional)",
+    "type": "probate",
+    "status": "open"
+  }
+}

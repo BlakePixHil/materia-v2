@@ -1,0 +1,49 @@
+{
+  "id": "mb-003",
+  "description": "Privileged advice and a privileged suggestion on a non-privileged matter stay out of the shared brief.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "deadlines": [
+      {
+        "id": "dl-claim",
+        "title": "Family provision claim period ends (6 months from the grant)",
+        "dueDate": "2026-10-19",
+        "critical": true
+      }
+    ],
+    "documents": [
+      {
+        "id": "doc-advice",
+        "name": "Counsel’s advice on the Hallett family provision claim.pdf",
+        "category": "other",
+        "createdAt": "2026-10-04T03:00:00.000Z",
+        "privileged": true
+      },
+      {
+        "id": "doc-letter",
+        "name": "Letter from Hallett Lawyers (fictional).pdf",
+        "category": "correspondence",
+        "createdAt": "2026-10-03T03:00:00.000Z"
+      }
+    ],
+    "suggestions": [
+      {
+        "id": "s-settle",
+        "kind": "note",
+        "payload": {
+          "bodyMd": "Settlement range discussed with counsel: $40k to $60k",
+          "pinned": false
+        },
+        "privileged": true
+      }
+    ]
+  },
+  "tags": ["privilege"],
+  "matter": {
+    "matterNumber": "M-2026-0142",
+    "title": "Estate of Margaret Whitfield (fictional)",
+    "type": "probate",
+    "status": "open"
+  }
+}

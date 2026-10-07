@@ -27,12 +27,13 @@ describe('matter screen listeners', () => {
 
     await page.router.navigateByUrl('/matters/m-whitfield/overview');
     await page.stable();
-    // Overview: pinned notes (CORE-13), deadlines, tasks, activity and key fact citations (CORE-06a).
-    expect(page.firestore.listenerCount).toBe(base + 5);
+    // Overview: its brief (AI-06c), pinned notes (CORE-13), deadlines, tasks, activity and key fact
+    // citations (CORE-06a).
+    expect(page.firestore.listenerCount).toBe(base + 6);
 
     await page.router.navigateByUrl('/matters/m-whitfield/parties');
     await page.stable();
-    // Parties: the parties only; the overview's five are gone.
+    // Parties: the parties only; the overview's six are gone.
     expect(page.firestore.listenerCount).toBe(base + 1);
 
     // Tasks (CORE-08): the matter's tasks only.
@@ -63,7 +64,7 @@ describe('matter screen listeners', () => {
     const onParties = page.firestore.listenerCount;
     await page.router.navigateByUrl('/matters/m-whitfield/overview');
     await page.stable();
-    expect(page.firestore.listenerCount).toBe(onParties + 4);
+    expect(page.firestore.listenerCount).toBe(onParties + 5);
     // Back (the browser's button, through the router's Location): the tab comes back with its listener.
     // (A bootstrapped app listens for popstate from its initial navigation; a test sets it up here.)
     page.router.initialNavigation();

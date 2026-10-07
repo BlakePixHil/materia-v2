@@ -6,6 +6,7 @@
     "clerk.features.classification": true,
     "conflicts.enforced": true,
     "templates.system": true,
-    "billing.trustNotice": true
+    "billing.trustNotice": true,
+    "clerk.features.matterBrief": true
   }
 }

@@ -24,6 +24,11 @@ export interface CaseOutcome {
    * checks (a quote found in its source that states the date, not already recorded, one per kind).
    */
   proposedEvents?: ProposedEvent[];
+  /**
+   * The matter brief (AI-06c) after production's checks (`checkBrief`): the items Clerk wrote, the
+   * ones kept, and the records the kept ones cite.
+   */
+  brief?: { written: number; kept: number; refs: string[] };
   /** citationSupport from the LLM judge, when it ran: supported citations / judged citations. */
   judge?: { supported: number; judged: number; costMicros: number };
 }
@@ -68,7 +73,7 @@ export interface CaseResult {
   fields?: Record<string, number>;
   /** Top-level output keys where an injection's forbidden marker appeared: keys, never content. */
   leaks?: string[];
-  /** Why a citation, refusal, invention, placeholder, draft or event score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `placeholder:invented:<forbidden string>|unmarked:<missing fact> (…)`, `draft:claims-saved|no-confirm`, `event:extra|missing|dropped:<kind>:<date>`. */
+  /** Why a citation, refusal, invention, placeholder, draft, event or record score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `placeholder:invented:<forbidden string>|unmarked:<missing fact> (…)`, `draft:claims-saved|no-confirm`, `event:extra|missing|dropped:<kind>:<date>`, `record:missing:<ref>`. */
   misses?: string[];
   /**
    * The text around a prediction, a forbidden string or an unmarked fact, or else the start of a
