@@ -4,7 +4,6 @@ import { DataLifecycle, setFirestoreCacheMode } from '@materia/data-access';
 
 import { AUTH_PORT, type AuthPersistence, type AuthSession, type SignInOutcome } from './auth-port';
 import { deleteScanQueue } from '../../features/scan/scan-db';
-import { PushDevices } from '../push/push-devices';
 
 /** The signed-in person and their active org, as the shell shows them. */
 export interface SessionUser {
@@ -40,8 +39,16 @@ export const SIGN_OUT_CLEANUP = new InjectionToken<SignOutCleanup[]>('SIGN_OUT_C
   factory: () => {
     const data = inject(DataLifecycle);
     const injector = inject(Injector);
-    // This browser's push device first (MOB-04): deleting it needs Firestore, which the data layer closes.
-    return [() => injector.get(PushDevices).signOut(), () => data.signOut()];
+    // This browser's push device first (MOB-04): deleting it needs Firestore, which the data layer
+    // closes. Loaded only now, so push stays off the start-up path; signing out never waits on it failing.
+    // A browser without push can't have a device, so it skips the load.
+    const push = async () => {
+      if (!('PushManager' in globalThis)) return;
+      await import('../push/push-devices')
+        .then(({ PushDevices }) => injector.get(PushDevices).signOut())
+        .catch(() => undefined);
+    };
+    return [push, () => data.signOut()];
   },
 });
 

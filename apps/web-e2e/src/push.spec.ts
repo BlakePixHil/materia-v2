@@ -20,7 +20,9 @@ import { matterDoc, seedClient, uniqueOrg } from './support/matters';
  * there. Fictional data only.
  */
 
-test.use({ permissions: ['notifications'] });
+// Playwright's default headless Chromium (the headless shell) reports `Notification.permission` as
+// denied whatever is granted; full Chromium in headless mode reports the grant, as a browser does.
+test.use({ channel: 'chromium', permissions: ['notifications'] });
 
 const DOCS = `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents`;
 const ADMIN = { Authorization: 'Bearer owner' };

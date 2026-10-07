@@ -7,6 +7,7 @@ import {
   DOCUMENT,
   effect,
   inject,
+  Injector,
   signal,
   untracked,
   viewChild,
@@ -57,7 +58,6 @@ import { MtDeletionBanner } from '../core/orgs/deletion-banner';
 import { OrgService } from '../core/orgs/org-service';
 import { PinnedMatters } from '../core/pins/pinned-matters';
 import { UserPrefsService } from '../core/profile/user-prefs';
-import { PushDevices } from '../core/push/push-devices';
 import { InstallPrompt, INSTALL_COPY } from '../core/pwa/install-prompt';
 import { MtOfflineBanner } from '../core/pwa/offline-banner';
 import { MtPendingSync } from '../core/pwa/pending-sync';
@@ -640,9 +640,15 @@ export class AppShellComponent {
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
 
     // This device's push registration (MOB-04) keeps its token and last-seen date fresh, once the
-    // first page has settled.
-    const push = inject(PushDevices);
-    const refresh = setTimeout(() => void push.refresh().catch(() => undefined), PUSH_REFRESH_DELAY_MS);
+    // first page has settled. Loaded then, so push stays off the start-up path.
+    const injector = inject(Injector);
+    const refresh = setTimeout(
+      () =>
+        void import('../core/push/push-devices')
+          .then(({ PushDevices }) => injector.get(PushDevices).refresh())
+          .catch(() => undefined),
+      PUSH_REFRESH_DELAY_MS,
+    );
     destroyRef.onDestroy(() => clearTimeout(refresh));
 
     // The installed app's "New time entry" shortcut (MOB-01) opens quick time entry over Today.
