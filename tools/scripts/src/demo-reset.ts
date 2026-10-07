@@ -1,5 +1,5 @@
 /**
- * `materia-scripts demo-reset --project <id> [--dry-run] [--verify] [--remove]`
+ * `materia-scripts demo-reset --project <id> [--dry-run] [--verify | --remove | --pdfs]`
  *
  * Loads the demo practice: the fictional Harbour & Vine Legal (`seed --scenario=demo`: a year and
  * a half of matters, time, invoices and payments, Clerk threads and suggestions, every built
@@ -20,7 +20,8 @@
  *
  * `--dry-run` reads only and reports what it would do. `--verify` changes nothing and checks the
  * demo is complete: every document present and schema-valid, the accounts' claims right. `--remove`
- * deletes the demo (the org, its files, the accounts) and leaves the secret.
+ * deletes the demo (the org, its files, the accounts) and leaves the secret. On dev, `--verify` also
+ * reports the invoice PDFs and their jobs, and `--pdfs` starts again the renders that didn't finish.
  * Logs counts and ids only. Never prod: any other project is refused.
  */
 import { randomInt } from 'node:crypto';
@@ -109,6 +110,7 @@ export interface DemoArgs {
   dryRun: boolean;
   verify: boolean;
   remove: boolean;
+  pdfs: boolean;
 }
 
 export function parseDemoArgs(argv: string[]): DemoArgs {
@@ -119,19 +121,23 @@ export function parseDemoArgs(argv: string[]): DemoArgs {
       'dry-run': { type: 'boolean', default: false },
       verify: { type: 'boolean', default: false },
       remove: { type: 'boolean', default: false },
+      pdfs: { type: 'boolean', default: false },
     },
     strict: true,
   });
-  if (values.verify && values.remove) throw new Error('Pass --verify or --remove, not both.');
+  if ([values.verify, values.remove, values.pdfs].filter(Boolean).length > 1)
+    throw new Error('Pass one of --verify, --remove and --pdfs, not more.');
   return {
     project: values.project ?? process.env['GCLOUD_PROJECT'],
     dryRun: values['dry-run'],
     verify: values.verify,
     remove: values.remove,
+    pdfs: values.pdfs,
   };
 }
 
 const ORG_PATH = `orgs/${SEED_ORG_ID}`;
+const INVOICE_PATH = /^orgs\/[^/]+\/invoices\/[^/]+$/;
 const DEMO_UIDS = SEED_ACCOUNTS.map((account) => account.uid);
 
 /**
@@ -356,19 +362,11 @@ async function writeAll(db: Firestore, docs: readonly SeedDoc[], batchSize: numb
   }
 }
 
-/** Starts the queued invoice PDF renders a few at a time and waits for their invoices. */
-async function renderPdfs(
-  db: Firestore,
-  project: string,
-  docs: readonly SeedDoc[],
-): Promise<{ ready: number; failed: number }> {
-  const jobs = docs
-    .filter((doc) => doc.path.startsWith(`${ORG_PATH}/jobs/`))
-    .map((doc) => doc.path.split('/').at(-1) as string);
-  const invoices = docs.filter((doc) => /^orgs\/[^/]+\/invoices\/[^/]+$/.test(doc.path));
-  for (let i = 0; i < jobs.length; i += 4) {
+/** Starts the `pdf` job for each job document; one that can't start is left failed and retryable. */
+async function startRenders(db: Firestore, project: string, renders: readonly { jobId: string; invoice: string }[]) {
+  for (let i = 0; i < renders.length; i += 4) {
     await Promise.all(
-      jobs.slice(i, i + 4).map(async (jobId) => {
+      renders.slice(i, i + 4).map(async ({ jobId, invoice }) => {
         const ref = db.doc(`${ORG_PATH}/jobs/${jobId}`);
         try {
           await ref.update({ executionId: await startPdfJob(project, jobId) });
@@ -381,14 +379,99 @@ async function renderPdfs(
             finishedAt: now,
             updatedAt: now,
           });
-          const invoice = invoices.find((doc) => doc.data['pdfJobId'] === jobId);
-          if (invoice) await db.doc(invoice.path).update({ pdfStatus: 'failed', updatedAt: now, updatedBy: 'system' });
+          await db.doc(invoice).update({ pdfStatus: 'failed', updatedAt: now, updatedBy: 'system' });
         }
       }),
     );
     await sleep(5_000);
   }
-  const deadline = Date.now() + 12 * 60_000;
+}
+
+/**
+ * Where the invoice PDFs are: invoices by `pdfStatus`, their jobs by status, and the first few
+ * that haven't succeeded (status, attempts, execution, heartbeat, error code). Ids and codes only.
+ */
+export async function pdfReport(db: Firestore, now = new Date()): Promise<string[]> {
+  const [invoices, jobs] = await Promise.all([
+    db.collection(`${ORG_PATH}/invoices`).get(),
+    db.collection(`${ORG_PATH}/jobs`).get(),
+  ]);
+  const tally = (values: unknown[]) => {
+    const counts = new Map<string, number>();
+    for (const value of values) counts.set(String(value), (counts.get(String(value)) ?? 0) + 1);
+    return [...counts].map(([key, n]) => `${n} ${key}`).join(', ') || 'none';
+  };
+  const lines = [
+    `Invoice PDFs: ${tally(invoices.docs.map((doc) => doc.get('pdfStatus')))}.`,
+    `PDF jobs: ${tally(jobs.docs.map((doc) => doc.get('status')))}.`,
+  ];
+  const at = (value: unknown) => (value as { toDate?: () => Date } | undefined)?.toDate?.();
+  for (const doc of jobs.docs.filter((job) => job.get('status') !== 'succeeded').slice(0, 5)) {
+    const heartbeat = at(doc.get('heartbeatAt'));
+    const error = doc.get('error') as { code?: string; message?: string } | undefined;
+    lines.push(
+      [
+        `  ${doc.id}: ${String(doc.get('status'))}, attempts ${String(doc.get('attempts'))}`,
+        doc.get('executionId') ? `execution ${String(doc.get('executionId'))}` : 'no execution',
+        heartbeat ? `heartbeat ${Math.round((now.getTime() - heartbeat.getTime()) / 1000)} s ago` : 'no heartbeat',
+        error ? `${error.code ?? 'error'}: ${error.message ?? ''}` : '',
+      ]
+        .filter(Boolean)
+        .join(', '),
+    );
+  }
+  return lines;
+}
+
+/**
+ * Starts again the renders of invoices whose PDF isn't ready, when their job can run again
+ * (queued, failed and retryable, or running with a stale heartbeat; the job's claim decides).
+ */
+async function restartPdfs(db: Firestore, project: string): Promise<number> {
+  const invoices = await db.collection(`${ORG_PATH}/invoices`).get();
+  const renders: { jobId: string; invoice: string }[] = [];
+  for (const invoice of invoices.docs) {
+    const jobId = invoice.get('pdfJobId') as string | undefined;
+    if (invoice.get('pdfStatus') === 'ready' || !jobId) continue;
+    const job = await db.doc(`${ORG_PATH}/jobs/${jobId}`).get();
+    const status = job.get('status') as string | undefined;
+    const heartbeat = (job.get('heartbeatAt') as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+    const runnable =
+      status === 'queued' ||
+      (status === 'failed' && (job.get('error') as { retryable?: boolean } | undefined)?.retryable === true) ||
+      (status === 'running' && Date.now() - heartbeat > 2 * 60_000);
+    if (!job.exists || !runnable) continue;
+    if (invoice.get('pdfStatus') !== 'pending')
+      await invoice.ref.update({ pdfStatus: 'pending', updatedAt: new Date(), updatedBy: 'system' });
+    renders.push({ jobId, invoice: invoice.ref.path });
+  }
+  await startRenders(db, project, renders);
+  return renders.length;
+}
+
+/** Starts the queued invoice PDF renders a few at a time and waits for their invoices. */
+async function renderPdfs(
+  db: Firestore,
+  project: string,
+  docs: readonly SeedDoc[],
+): Promise<{ ready: number; failed: number }> {
+  const invoices = docs.filter((doc) => INVOICE_PATH.test(doc.path));
+  await startRenders(
+    db,
+    project,
+    docs
+      .filter((doc) => doc.path.startsWith(`${ORG_PATH}/jobs/`))
+      .map((doc) => {
+        const jobId = doc.path.split('/').at(-1) as string;
+        const invoice = invoices.find((inv) => inv.data['pdfJobId'] === jobId);
+        return { jobId, invoice: invoice?.path ?? `${ORG_PATH}/invoices/${jobId}` };
+      }),
+  );
+  return waitForPdfs(db);
+}
+
+async function waitForPdfs(db: Firestore, minutes = 12): Promise<{ ready: number; failed: number }> {
+  const deadline = Date.now() + minutes * 60_000;
   for (;;) {
     const snap = await db.collection(`${ORG_PATH}/invoices`).get();
     const pending = snap.docs.filter((doc) => doc.get('pdfStatus') === 'pending').length;
@@ -479,6 +562,19 @@ export async function main(argv: string[] = []): Promise<void> {
       const problems = await verify(app, target, docs, password);
       if (problems.length) throw new Error(`The demo practice is incomplete:\n  ${problems.slice(0, 50).join('\n  ')}`);
       log('The demo practice is complete.');
+      if (dev) log((await pdfReport(db)).join('\n'));
+      return;
+    }
+
+    if (args.pdfs) {
+      if (!dev) throw new DemoGuardError('--pdfs is for dev: the emulators have no PDF job.');
+      if (args.dryRun) {
+        log((await pdfReport(db)).join('\n'));
+        return;
+      }
+      log(`Started ${await restartPdfs(db, target.projectId)} invoice PDF renders again.`);
+      await waitForPdfs(db, 6);
+      log((await pdfReport(db)).join('\n'));
       return;
     }
 
@@ -533,7 +629,9 @@ export async function main(argv: string[] = []): Promise<void> {
 
     if (dev) {
       const pdfs = await renderPdfs(db, target.projectId, docs);
-      log(`Invoice PDFs: ${pdfs.ready} ready, ${pdfs.failed} failed (failed ones offer a retry on the invoice).`);
+      if (pdfs.ready === docs.filter((doc) => INVOICE_PATH.test(doc.path)).length)
+        log(`Invoice PDFs: all ${pdfs.ready} ready.`);
+      else log((await pdfReport(db)).join('\n'));
       // Let the metrics sync triggers finish before restating from the records.
       await sleep(60_000);
     }

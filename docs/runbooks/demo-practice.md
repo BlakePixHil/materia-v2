@@ -28,7 +28,8 @@ Actions → **dev-script** → Run workflow on `main`:
 
 Don't run it while a `deploy-dev` run is in progress: both use the Cloud Run CPU quota. Anything changed during a demo is gone after a reset.
 
-- `args: --verify` (dry run off) checks it without changing anything.
+- `args: --verify` (dry run off) checks it without changing anything, and reports where the invoice PDFs are (invoices by PDF status, their jobs by status, and the first few jobs that haven't finished).
+- `args: --pdfs` (dry run off) starts again the invoice PDF renders that didn't finish, waits a few minutes and reports; with dry run on it only reports.
 - `args: --remove` deletes the demo (org, files, accounts); the secret stays.
 
 Locally: `pnpm materia-scripts demo-reset --project demo-materia` with the emulators running (the seed password). `nx run scripts:test-seed` runs it twice and verifies it.
