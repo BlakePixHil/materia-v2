@@ -70,6 +70,17 @@ function brief(mode: MatterBriefMode, role: Role = 'lawyer') {
 const refsOf = (result: MatterBriefResult) =>
   result.brief.items.flatMap((item) => item.refs.map((ref) => `${ref.kind}:${ref.id}`));
 
+/** The seeded records whose writes become feed lines (activity-onAudit), which the facts read. */
+const FEED_IDS = ['dl-overdue', 'dl-filing', 'doc-will', 'doc-advice'];
+
+async function feedIds(): Promise<string[]> {
+  const lines = await db.collection(`${matterPath}/activity`).get();
+  return lines.docs.flatMap((line) => {
+    const refs = (line.get('refs') ?? {}) as Record<string, unknown>;
+    return [refs['deadlineId'], refs['documentId']].filter((id): id is string => typeof id === 'string');
+  });
+}
+
 async function setFeature(on: boolean): Promise<void> {
   await db.doc(`orgs/${ORG}`).update(new FieldPath('flags', 'clerk.features.matterBrief'), on);
   clearFlagCaches();
@@ -145,6 +156,13 @@ beforeAll(async () => {
     ...meta,
     createdAt: now,
   });
+  // The seed's feed lines land a moment after its writes, and a new line changes the facts (and
+  // so rebuilds the brief): wait for all four before the tests compare briefs.
+  const deadline = Date.now() + 45_000;
+  for (let seen = await feedIds(); !FEED_IDS.every((id) => seen.includes(id)); seen = await feedIds()) {
+    if (Date.now() > deadline) throw new Error(`Feed lines for ${FEED_IDS.join(', ')} never arrived`);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
 });
 
 afterAll(async () => {
