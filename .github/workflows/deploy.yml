@@ -73,14 +73,14 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.sha }}
 
       - uses: ./.github/actions/setup
 
       - name: Download the release artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-${{ inputs.sha }}
           path: dist/release
@@ -261,7 +261,7 @@ jobs:
 
       - name: Upload the Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-report-${{ inputs.environment }}
           path: dist/.playwright/apps/web-e2e

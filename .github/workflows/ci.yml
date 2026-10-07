@@ -82,7 +82,7 @@ jobs:
       mode: ${{ steps.decide.outputs.mode }}
       base: ${{ steps.decide.outputs.base }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: .github/scripts
       - id: decide
@@ -109,7 +109,7 @@ jobs:
       jobs: ${{ steps.filter.outputs.jobs }}
       doc-services: ${{ steps.filter.outputs.doc-services }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -133,7 +133,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.mode != 'skip'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -154,7 +154,7 @@ jobs:
     needs: gate
     if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -169,7 +169,7 @@ jobs:
     needs: gate
     if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -179,7 +179,7 @@ jobs:
       - run: pnpm nx affected -t test --base="$NX_BASE" --head="$NX_HEAD" --coverage
       - name: Upload coverage summaries
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-summary
           path: coverage/**/coverage-summary.json
@@ -193,7 +193,7 @@ jobs:
     needs: gate
     if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -210,7 +210,7 @@ jobs:
       # FND-14: rules coverage (fails below 90% of expressions inside test-rules) and its report.
       - name: Upload the rules coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rules-coverage
           path: dist/rules-coverage
@@ -226,7 +226,7 @@ jobs:
     needs: gate
     if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -256,7 +256,7 @@ jobs:
     needs: [gate, changes]
     if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.jobs == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - name: Install qpdf
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qpdf
@@ -285,7 +285,7 @@ jobs:
     needs: [gate, changes]
     if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.doc-services == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - name: Build the bundle and the images
         run: |
@@ -311,7 +311,7 @@ jobs:
     needs: [gate, changes]
     if: contains(fromJSON('["full", "main"]'), needs.gate.outputs.mode)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -328,7 +328,7 @@ jobs:
           fi
       - name: Upload bundle report
         if: always() && hashFiles('bundle-report.json') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bundle-report
           path: bundle-report.json
@@ -341,7 +341,7 @@ jobs:
           pnpm -s materia-scripts csp check --html dist/apps/web/browser/index.html
       - name: Upload the e2e web app
         if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.e2e == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-e2e-dist
           path: dist/apps/web/browser
@@ -363,7 +363,7 @@ jobs:
         browser: ${{ fromJSON(github.event_name == 'pull_request' && '["chromium"]' || '["chromium", "webkit"]') }}
         shard: [1, 2]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -371,7 +371,7 @@ jobs:
           base: ${{ needs.gate.outputs.base }}
           java: 'true'
       - name: Download the e2e web app
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: web-e2e-dist
           path: dist/apps/web/browser
@@ -382,7 +382,7 @@ jobs:
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Cache Playwright browsers
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
@@ -426,7 +426,7 @@ jobs:
           $E2E_LOAD"
       - name: Upload the Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ matrix.browser }}-${{ matrix.shard }}
           path: dist/.playwright/apps/web-e2e
@@ -443,7 +443,7 @@ jobs:
       TFLINT_VERSION: 0.55.0
       CHECKOV_VERSION: 3.3.22
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Terraform (checksum-verified)
         run: |
           cd "$RUNNER_TEMP"
@@ -489,7 +489,7 @@ jobs:
     env:
       GITLEAKS_VERSION: 8.24.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -521,13 +521,13 @@ jobs:
           if [ -n "$code_files" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; else echo "code=false" >> "$GITHUB_OUTPUT"; echo "Docs-only change: skipping CodeQL."; fi
       - name: CodeQL init
         if: steps.scope.outputs.code == 'true'
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           queries: security-extended
       - name: CodeQL analyze
         if: steps.scope.outputs.code == 'true'
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           # Uploading needs GitHub Advanced Security on private repos; the gate below works without it.
           upload: never
@@ -554,7 +554,7 @@ jobs:
           '
       - name: Upload CodeQL SARIF
         if: always() && steps.scope.outputs.code == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: codeql-sarif
           path: sarif-results
@@ -572,10 +572,10 @@ jobs:
       actions: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - name: Download this run's reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: reports
           pattern: '{coverage-summary,bundle-report}'
@@ -603,7 +603,7 @@ jobs:
       - name: Post or update the PR comment
         # Fork PRs get a read-only token; the job summary above still shows the report.
         continue-on-error: true
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -623,7 +623,7 @@ jobs:
     needs: [gate, changes]
     if: needs.gate.outputs.mode == 'full' && needs.changes.outputs.storybook == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
@@ -636,7 +636,7 @@ jobs:
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Cache Playwright browsers
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
