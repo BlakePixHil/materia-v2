@@ -46,4 +46,12 @@ describe('bundle-size', () => {
     await expect(main(['--dist', dist])).rejects.toThrow('Bundle budget exceeded');
     log.mockRestore();
   });
+
+  it('fails a bundle that still carries the development-only reads counter', () => {
+    const dist = fixtureDist(1000);
+    writeFileSync(path.join(dist, 'chunk-dev.js'), 'globalThis.__materiaReads = {};');
+    expect(analyseBundle(dist).violations).toEqual([
+      'chunk-dev.js contains the development-only __materiaReads (build it with the production define)',
+    ]);
+  });
 });
