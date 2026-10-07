@@ -64,13 +64,13 @@ test.describe('push notifications', () => {
     await expect(page.getByText('No devices get push notifications yet.')).toBeVisible();
 
     await thisDevice.getByRole('button', { name: 'Turn on' }).click();
-    await expect(page.getByText('Deadline alerts are on for this device')).toBeVisible(FIRST_LOAD);
+    await expect(page.getByText('Deadline alerts are on for this device', { exact: true })).toBeVisible(FIRST_LOAD);
     await expect(thisDevice).toHaveAttribute('data-push', 'on');
     const device = page.locator('[data-device][data-this]');
     await expect(device).toContainText('(this device)');
 
     await device.getByRole('button', { name: 'Send a test' }).click();
-    await expect(page.getByText('Test sent')).toBeVisible(FIRST_CALL);
+    await expect(page.getByText('Test sent', { exact: true })).toBeVisible(FIRST_CALL);
     const sent = await pushOutbox(request, orgId);
     expect(sent).toHaveLength(1);
     expect(sent[0]?.['title']?.stringValue).toBe('Test from Materia');
@@ -78,7 +78,7 @@ test.describe('push notifications', () => {
     expect(sent[0]?.['token']?.stringValue).toMatch(/^emulator-/);
 
     await thisDevice.getByRole('button', { name: 'Turn off' }).click();
-    await expect(page.getByText('This device won’t get push notifications')).toBeVisible(FIRST_LOAD);
+    await expect(page.getByText('This device won’t get push notifications', { exact: true })).toBeVisible(FIRST_LOAD);
     await expect(thisDevice).toHaveAttribute('data-push', 'off');
     await expect(page.locator('[data-device]')).toHaveCount(0);
   });
@@ -124,12 +124,12 @@ test.describe('push notifications', () => {
     await expect(offer).toContainText('Get deadline alerts on this device', FIRST_LOAD);
     await expect(offer).toHaveAttribute('data-state', 'off');
     await offer.getByRole('button', { name: 'Turn on alerts' }).click();
-    await expect(page.getByText('Deadline alerts are on for this device')).toBeVisible(FIRST_LOAD);
+    await expect(page.getByText('Deadline alerts are on for this device', { exact: true })).toBeVisible(FIRST_LOAD);
     await expect(offer).toHaveCount(0);
 
     // Answered: it doesn't come back.
     await page.reload();
-    await expect(page.getByText('File the caveat')).toBeVisible(FIRST_LOAD);
+    await expect(page.locator('[data-deadline="d-caveat"]')).toContainText('File the caveat', FIRST_LOAD);
     await expect(offer).toHaveCount(0);
   });
 
