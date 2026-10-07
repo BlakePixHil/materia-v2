@@ -4,15 +4,32 @@ import { Router } from '@angular/router';
 import type { DomainError } from '@materia/domain';
 import { ToastService } from '@materia/ui';
 
+import type { AuthSession } from './auth-port';
 import { AuthState } from './auth-state';
+import { STATUS_ROUTES } from './guards';
 import { SessionPolicy } from './session-policy';
 import { PAGE_LOAD } from '../orgs/org-service';
+
+/** Whether Auth's answer lets the person into different places than the cached session did. */
+function accessChanged(cached: AuthSession, live: AuthSession): boolean {
+  return (
+    live.claims.orgId !== cached.claims.orgId ||
+    live.claims.role !== cached.claims.role ||
+    live.emailVerified !== cached.emailVerified ||
+    live.mfaEnrolled !== cached.mfaEnrolled
+  );
+}
 
 /**
  * Follows the session across tabs (FND-19). Identity Platform shares the sign-in between tabs, so
  * when another tab signs out this one sees the session end: it runs the same clean-up as a local
  * sign-out (listeners, stores, the Firestore cache) and goes to sign-in. If someone else signs in
  * from another tab, the page reloads so nothing of the previous person stays on screen.
+ *
+ * A start-up drawn from the cached session (MAT-177) is checked against Auth's first answer: a
+ * session that ended while the app was closed cleans up and goes to sign-in, another person
+ * reloads on Today, and a changed org, role, email verification or second factor reloads the page
+ * so its guards decide again.
  */
 @Injectable({ providedIn: 'root' })
 export class SessionWatcher {
@@ -21,15 +38,26 @@ export class SessionWatcher {
   private readonly toasts = inject(ToastService);
   private readonly load = inject(PAGE_LOAD);
   private previous: string | null | undefined;
+  private cacheChecked = false;
 
   constructor() {
     effect(() => {
       const session = this.auth.session();
       if (session === undefined) return;
+      const confirmed = this.auth.confirmed();
       const uid = session?.uid ?? null;
       const previous = this.previous;
       this.previous = uid;
-      if (!previous || previous === uid || untracked(this.auth.signingOut)) return;
+      const cached = confirmed && !this.cacheChecked ? this.auth.cached : null;
+      if (confirmed) this.cacheChecked = true;
+      if (untracked(this.auth.signingOut)) return;
+      if (cached) {
+        if (!session) void this.sessionEnded();
+        else if (session.uid !== cached.uid) this.load('/today');
+        else if (accessChanged(cached, session)) this.load(untracked(() => this.router.url));
+        return;
+      }
+      if (!previous || previous === uid) return;
       if (uid) {
         this.load('/today');
         return;
@@ -42,6 +70,17 @@ export class SessionWatcher {
     await this.auth.cleanUp();
     await this.router.navigateByUrl('/auth/sign-in');
     this.toasts.show({ title: 'You signed out in another tab', tone: 'neutral' });
+  }
+
+  /** The cached session ended while the app was closed (signed out elsewhere, or revoked). */
+  private async sessionEnded(): Promise<void> {
+    const returnUrl = this.router.url;
+    await this.auth.cleanUp();
+    await this.router.navigateByUrl(
+      this.router.createUrlTree([STATUS_ROUTES.signedOut], {
+        queryParams: returnUrl && returnUrl !== '/' ? { returnUrl } : {},
+      }),
+    );
   }
 }
 

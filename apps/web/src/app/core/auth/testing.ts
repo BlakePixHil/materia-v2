@@ -51,6 +51,13 @@ export class FakeAuthPort implements AuthPort {
 
   constructor(public session: AuthSession | null = testSession()) {}
 
+  /** What `cachedSession` returns: the session a start-up is drawn from (MAT-177). */
+  cached: AuthSession | null = null;
+
+  cachedSession(): AuthSession | null {
+    return this.cached;
+  }
+
   emit(session: AuthSession | null): void {
     this.session = session;
     for (const listener of this.listeners) listener(session);
@@ -176,6 +183,19 @@ export class FakeAuthPort implements AuthPort {
 
   async signOut(): Promise<void> {
     this.emit(null);
+  }
+}
+
+/**
+ * A FakeAuthPort whose first answer waits for the test (`answer()`), as Auth's waits for the
+ * network: for a start-up drawn from the cached session (MAT-177).
+ */
+export class SlowAuthPort extends FakeAuthPort {
+  answer: () => void = () => undefined;
+
+  override watch(callback: (session: AuthSession | null) => void): () => void {
+    this.answer = () => callback(this.session);
+    return () => undefined;
   }
 }
 

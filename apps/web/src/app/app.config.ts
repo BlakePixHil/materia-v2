@@ -26,6 +26,7 @@ import {
 import { ThemeService } from '@materia/ui';
 
 import { appRoutes } from './app.routes';
+import { AuthState } from './core/auth/auth-state';
 import { IdleTimeout } from './core/auth/idle-timeout';
 import { SessionPolicy } from './core/auth/session-policy';
 import { accessRevokedHandler, SessionWatcher } from './core/auth/session-watcher';
@@ -118,9 +119,16 @@ export const appConfig: ApplicationConfig = {
       : []),
     {
       provide: FIREBASE_SETUP,
-      useValue: {
-        app: () => import('./core/firebase-app').then((m) => m.firebaseApp()),
-        useEmulators: environment.useEmulators,
+      useFactory: () => {
+        // Looked up on first use: AuthState's sign-out clean-up depends on the data layer.
+        const injector = inject(Injector);
+        return {
+          app: () => import('./core/firebase-app').then((m) => m.firebaseApp()),
+          useEmulators: environment.useEmulators,
+          // The shell may be drawn from the cached session (MAT-177); Firestore starts once Auth
+          // has confirmed it, signed in, not as an unknown user.
+          ready: () => injector.get(AuthState).whenConfirmed(),
+        };
       },
     },
     // Tenancy reads (FND-17): a live users/{uid} listener, tracked by the listener registry.

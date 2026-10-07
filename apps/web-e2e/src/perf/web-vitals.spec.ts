@@ -36,15 +36,17 @@ type Metric = keyof typeof VITALS_BUDGETS;
  * goes. Measured at seed-large scale 0.05 on the Hosting emulator (HTTP/1.1, gzip).
  */
 export const VITALS_EXCEPTIONS: Partial<Record<ScreenName, Partial<Record<Metric, number>>>> = {
-  // SEC-07b (MAT-177), "Trim the signed-in critical path for LCP on mid-tier phones": about
-  // 750 kB of compressed JavaScript and the org policy read come before the first paint of any
-  // signed-in screen. Measured on the phone layouts over six runs: Today 8.0–9.0 s simulated, the
-  // Matters list 10.3–10.7 s and a matter 9.5–9.8 s (0.8–2.3 s unthrottled).
+  // LCP, measured ceilings (SEC-07b, MAT-177): the start-up no longer waits for Auth or the org
+  // policy (the shell is drawn from the cached session and policy), but the Hosting emulator serves
+  // about 100 requests before the first paint over HTTP/1.1 with gzip, which Lighthouse simulates
+  // as six connections on slow 4G: 4.6–5.4 s to first paint. Measured on the phone layouts: Today
+  // 7.7–7.8 s simulated (0.9 s unthrottled), the Matters list 10.7 s and a matter 9.6–10.1 s. The
+  // CDN (HTTP/2, Brotli) is measured on dev: docs/ops/perf-report-2026-10.md.
   // Today's CLS, SEC-07e (MAT-180), "Denormalise matter number and title onto deadline and task
   // rows (Today lookups)": Today draws its sections once every source has answered, or after 2.5 s.
   // On the emulators its rows' matter lookups can land just after that, and each row appears when
   // its matter does. Measured 0.128–0.225 in three of seven runs on the desktop layout; 0 since.
-  today: { lcpMs: 11_000, cls: 0.25 },
+  today: { lcpMs: 10_000, cls: 0.25 },
   matters: { lcpMs: 12_500 },
   matter: { lcpMs: 12_000 },
   // SEC-07c (MAT-178), "Window the Deadlines page and denormalise matter fields onto deadlines":

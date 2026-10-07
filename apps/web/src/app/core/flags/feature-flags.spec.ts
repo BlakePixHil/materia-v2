@@ -13,7 +13,7 @@ import { flagGuard, MtFlag } from './flag';
 import { fakeFlagSource } from './testing';
 import { FlagsDevPage } from '../../dev/flags-page';
 import { AUTH_PORT } from '../auth/auth-port';
-import { FakeAuthPort, testSession } from '../auth/testing';
+import { FakeAuthPort, SlowAuthPort, testSession } from '../auth/testing';
 
 const settle = () => new Promise((resolve) => setTimeout(resolve));
 
@@ -79,6 +79,30 @@ describe('FeatureFlagService', () => {
     fetched({ 'litigation.enabled': false, 'billing.invoicing': true });
     expect(flags.isOn('litigation.enabled')).toBe(false);
     expect(flags.isOn('billing.invoicing')).toBe(true);
+  });
+
+  it('reads the org’s overrides once Auth confirms a start-up drawn from the cached session (MAT-177)', async () => {
+    const port = new SlowAuthPort(testSession({ claims: { orgId: 'org-other', role: 'owner' } }));
+    port.cached = testSession();
+    const read: string[] = [];
+    const { flags } = setup(
+      {
+        remote: async () => ({}),
+        org: async (orgId) => {
+          read.push(orgId);
+          return { 'litigation.enabled': orgId === 'org-other' };
+        },
+      },
+      port,
+    );
+    await settle();
+    expect(read).toEqual([]);
+
+    port.answer();
+    await flags.ready();
+    await settle();
+    expect(read).toEqual(['org-other']);
+    expect(flags.isOn('litigation.enabled')).toBe(true);
   });
 
   it('falls back to defaults when Remote Config and the org document fail', async () => {

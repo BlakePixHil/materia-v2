@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 import {
   createTestAccount,
   expectNoA11yViolations,
+  FIRST_CALL,
   setEmulatorDocuments,
   signInAsTestUser,
   signInThroughUi,
@@ -114,7 +115,14 @@ test.describe('session security', () => {
     await page.goto('/settings/security');
     await expect(page.getByRole('heading', { name: 'Security', level: 1 })).toBeVisible();
     await expectNoA11yViolations(page);
+    // The run's first security-updatePolicy call waits for the Functions emulator to start its worker.
+    const saved = page.waitForResponse(
+      (r) => r.url().endsWith('/security-updatePolicy') && r.request().method() === 'POST',
+      FIRST_CALL,
+    );
     await page.getByLabel('Sign out after inactivity').selectOption({ label: '2 hours' });
+    const answer = await saved;
+    expect(answer.ok(), `${answer.status()} ${await answer.text().catch(() => '')}`).toBe(true);
     await expect(page.getByText('Security settings saved').first()).toBeVisible();
     await expect(page.getByText('This device')).toBeVisible({ timeout: 20_000 });
 

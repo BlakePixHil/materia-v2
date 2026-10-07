@@ -6,7 +6,10 @@ import {
   lockedChannels,
   notificationMatrix,
   ProfileInput,
+  markTourSeen,
+  readTourPrefs,
   readUserPrefs,
+  TOUR_SEEN_MAX,
   setKindChannel,
   squareCrop,
 } from './profile';
@@ -67,6 +70,7 @@ describe('readUserPrefs', () => {
       shortcuts: true,
       notifications: DEFAULT_NOTIFICATION_PREFS,
       startPage: 'today',
+      tours: { auto: false, seen: [] },
     });
     expect(
       readUserPrefs({ theme: 'neon', density: 'compact', startPage: 'matters', timezone: 'Australia/Perth' }),
@@ -76,6 +80,27 @@ describe('readUserPrefs', () => {
       startPage: 'matters',
       timezone: 'Australia/Perth',
     });
+  });
+});
+
+describe('tour preferences (CORE-24)', () => {
+  it('reads defensively, dropping bad ids and duplicates', () => {
+    expect(readTourPrefs(undefined)).toEqual({ auto: false, seen: [] });
+    expect(readTourPrefs({ auto: 'yes', seen: 'welcome' })).toEqual({ auto: false, seen: [] });
+    expect(readTourPrefs({ auto: true, seen: ['welcome', 'Today!', 7, 'today', 'welcome'] })).toEqual({
+      auto: true,
+      seen: ['welcome', 'today'],
+    });
+  });
+
+  it('marks a tour seen once, newest last, keeping at most the newest 40', () => {
+    const once = markTourSeen({ auto: true, seen: ['welcome', 'today'] }, 'welcome');
+    expect(once).toEqual({ auto: true, seen: ['today', 'welcome'] });
+    const many = Array.from({ length: TOUR_SEEN_MAX }, (_, i) => `tour-${i}`);
+    const next = markTourSeen({ auto: false, seen: many }, 'matters');
+    expect(next.seen).toHaveLength(TOUR_SEEN_MAX);
+    expect(next.seen[0]).toBe('tour-1');
+    expect(next.seen.at(-1)).toBe('matters');
   });
 });
 

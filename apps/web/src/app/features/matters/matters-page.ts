@@ -164,6 +164,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
       <!-- A phone has the list only: the board, exports and the destruction queue stay on bigger screens. -->
       @if (!phone()) {
         <mt-segmented-control
+          data-tour="matters-layout"
           label="Matters layout"
           [options]="layoutOptions"
           [ngModel]="layout"
@@ -177,7 +178,16 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
         }
       }
       @if (canCreate()) {
-        <a mtButton variant="primary" size="sm" iconStart="plus" kbd="c" routerLink="/matters/new">New matter</a>
+        <a
+          mtButton
+          variant="primary"
+          size="sm"
+          iconStart="plus"
+          kbd="c"
+          routerLink="/matters/new"
+          data-tour="new-matter"
+          >New matter</a
+        >
       }
     </ng-template>
     <h1 class="mt-sr">Matters</h1>
