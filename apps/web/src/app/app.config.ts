@@ -53,7 +53,6 @@ async function resumeScans(injector: Injector): Promise<void> {
  * in deployed ones, where the bundler drops the reads counter below.
  */
 declare const MATERIA_READS_COUNTER: boolean | undefined;
-const READS_COUNTER = typeof MATERIA_READS_COUNTER !== 'undefined' && MATERIA_READS_COUNTER;
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -103,8 +102,9 @@ export const appConfig: ApplicationConfig = {
       inject(FIRESTORE_SDK_LOADER)().catch(() => undefined);
     }),
     // SEC-07: development and e2e builds count Firestore reads per screen (`window.__materiaReads`,
-    // read by apps/web-e2e/src/perf); deployed builds load the SDK as it is.
-    ...(READS_COUNTER
+    // read by apps/web-e2e/src/perf); deployed builds load the SDK as it is. The test stays inline:
+    // behind a module constant the minifier kept the counter in once the providers above changed.
+    ...(typeof MATERIA_READS_COUNTER !== 'undefined' && MATERIA_READS_COUNTER
       ? [
           {
             provide: FIRESTORE_SDK_LOADER,
