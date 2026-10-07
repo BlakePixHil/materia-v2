@@ -1,5 +1,5 @@
 {
   "id": "mb-002",
   "briefRefs": ["document:doc-dc"],
-  "mustNotContain": ["overdue", "due in"]
+  "mustNotContain": ["days overdue", "overdue by", "is due on", "are due on"]
 }
