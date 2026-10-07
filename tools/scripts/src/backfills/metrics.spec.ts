@@ -366,7 +366,9 @@ describe('backfillMetrics on a migrated practice', () => {
     const log: string[] = [];
     await backfillMetrics(store, { from: '2025-07', now: NOW, log: (line) => log.push(line) });
     expect(log).toEqual([
-      expect.stringMatching(/^org-legacy \(from 2025-07-01\): 12 records, \d+ ledgers, \d+ documents and 1 shards written$/),
+      expect.stringMatching(
+        /^org-legacy \(from 2025-07-01\): 12 records, \d+ ledgers, \d+ documents and 1 shards written$/,
+      ),
       expect.stringMatching(/^org-other \(from 2025-07-01\): 0 records/),
     ]);
     expect(log.join('\n')).not.toMatch(/Bellarine|Ellis/);

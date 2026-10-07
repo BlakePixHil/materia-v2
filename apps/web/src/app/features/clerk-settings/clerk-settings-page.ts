@@ -540,8 +540,8 @@ export class ClerkSettingsPage {
 
   protected readonly org = orgClerkSettingsRepository().watch(() => this.context.orgId());
   /** Clerk reading migration runs (MIG-09): owners and admins approve the cost here. */
-  private readonly enrichmentRuns = migrationEnrichmentsRepository().watchQuery(
-    () => (this.canConfigure() && this.context.orgId() ? RECENT_ENRICHMENTS_QUERY : null),
+  private readonly enrichmentRuns = migrationEnrichmentsRepository().watchQuery(() =>
+    this.canConfigure() && this.context.orgId() ? RECENT_ENRICHMENTS_QUERY : null,
   );
   protected readonly enrichments = computed(() =>
     this.enrichmentRuns.value().filter((enrichment) => enrichment.status !== 'cancelled'),

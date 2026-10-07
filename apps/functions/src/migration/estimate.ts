@@ -7,8 +7,8 @@ import { documentRef } from './shared';
 import { isDeleted } from '../contacts/shared';
 import { CLOSED_STATUSES } from '../deadlines/shared';
 import type { FileStore } from '../documents/files';
-import { CHECKPOINT_PAGES } from '../documents/ingest/pipeline';
 import { openSource } from '../documents/ingest/extract';
+import { CHECKPOINT_PAGES } from '../documents/ingest/pipeline';
 import { isClean, versionsOf } from '../documents/shared';
 import { matterPath } from '../matters/shared';
 

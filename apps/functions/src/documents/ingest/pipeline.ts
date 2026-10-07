@@ -191,7 +191,8 @@ export async function ingestDocument(task: IngestTask, deps: IngestDeps): Promis
       if (now() - started > budget) {
         await save(state);
         if (deps.continueLater) await deps.continueLater(task, checkpoint.nextPage);
-        else await deps.tasks.enqueue(INGEST_QUEUE, task, { dedupeKey: ingestTaskKey(task, `p${checkpoint.nextPage}`) });
+        else
+          await deps.tasks.enqueue(INGEST_QUEUE, task, { dedupeKey: ingestTaskKey(task, `p${checkpoint.nextPage}`) });
         log.info('ingest continues in a new task', { ...ids, nextPage: checkpoint.nextPage });
         return 'continued';
       }

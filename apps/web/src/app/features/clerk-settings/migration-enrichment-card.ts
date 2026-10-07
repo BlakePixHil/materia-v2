@@ -78,7 +78,9 @@ const plural = (count: number, one: string, many = `${one}s`) =>
           @if (e.status === 'paused' && e.pausedFor) {
             <mt-note tone="warning" data-state="paused">Clerk stopped reading. {{ pausedText(e.pausedFor) }}</mt-note>
           } @else if (e.status === 'declined') {
-            <p class="body" style="margin: 0" data-state="declined">You chose not to, for now. Approve it whenever you’re ready.</p>
+            <p class="body" style="margin: 0" data-state="declined">
+              You chose not to, for now. Approve it whenever you’re ready.
+            </p>
           }
           @if (e.estimate; as estimate) {
             <p class="body" style="margin: 0" data-estimate>
@@ -86,8 +88,8 @@ const plural = (count: number, one: string, many = `${one}s`) =>
             </p>
             <p class="caption t-3" style="margin: 0">
               It reads every migrated document so Clerk can search and cite it, reading scans by OCR, then each open
-              estate matter’s notes and documents for its key dates, which it suggests for review. Nothing changes
-              until a person accepts a suggestion. The practice’s monthly limit still applies.
+              estate matter’s notes and documents for its key dates, which it suggests for review. Nothing changes until
+              a person accepts a suggestion. The practice’s monthly limit still applies.
             </p>
           }
           @if (canApprove()) {
@@ -102,7 +104,13 @@ const plural = (count: number, one: string, many = `${one}s`) =>
                 [ngModel]="allowanceText()"
                 (ngModelChange)="editAllowance($event ?? '')"
               />
-              <button mtButton variant="primary" type="submit" [loading]="saving() === 'approve'" [disabled]="!!allowanceProblem()">
+              <button
+                mtButton
+                variant="primary"
+                type="submit"
+                [loading]="saving() === 'approve'"
+                [disabled]="!!allowanceProblem()"
+              >
                 {{ e.status === 'paused' ? 'Resume' : 'Approve' }}
               </button>
               @if (e.status === 'awaiting_approval') {
@@ -173,8 +181,12 @@ export class MigrationEnrichmentCard {
     const unreadable = e.unreadable ?? 0;
     return [
       `Clerk read ${plural(read, 'document')} and found ${plural(events, 'key date')}.`,
-      waiting ? `${plural(waiting, 'suggestion is', 'suggestions are')} waiting for review.` : 'Nothing is waiting for review.',
-      unreadable ? `${plural(unreadable, 'document')} couldn’t be read and ${unreadable === 1 ? 'is' : 'are'} listed for migration review.` : '',
+      waiting
+        ? `${plural(waiting, 'suggestion is', 'suggestions are')} waiting for review.`
+        : 'Nothing is waiting for review.',
+      unreadable
+        ? `${plural(unreadable, 'document')} couldn’t be read and ${unreadable === 1 ? 'is' : 'are'} listed for migration review.`
+        : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -190,7 +202,10 @@ export class MigrationEnrichmentCard {
     const resuming = this.enrichment().status === 'paused';
     if (await this.decide({ decision: 'approve', allowanceCents }, 'approve')) {
       this.edited.set(null);
-      this.toasts.show({ title: resuming ? 'Clerk is reading again' : 'Clerk will read the migrated files', tone: 'success' });
+      this.toasts.show({
+        title: resuming ? 'Clerk is reading again' : 'Clerk will read the migrated files',
+        tone: 'success',
+      });
     }
   }
 
@@ -205,7 +220,11 @@ export class MigrationEnrichmentCard {
   ): Promise<boolean> {
     this.saving.set(what);
     try {
-      await this.callables.call('migration-decideEnrichment', { runId: this.enrichment().runId, ...input }, { idempotent: true });
+      await this.callables.call(
+        'migration-decideEnrichment',
+        { runId: this.enrichment().runId, ...input },
+        { idempotent: true },
+      );
       return true;
     } catch (error) {
       this.toasts.show({ title: 'That didn’t save', description: errorCopy(error), tone: 'danger' });

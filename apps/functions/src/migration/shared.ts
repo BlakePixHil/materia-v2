@@ -3,8 +3,9 @@ import * as z from 'zod';
 
 import { DocIdSchema, MigrationEnrichment, type MigrationEnrichmentPause } from '@materia/domain';
 
+import type { ClerkGateway } from '../clerk/gateway';
+import { withDates } from '../core/dates';
 import type { Log } from '../core/log';
-import { withDates } from '../docs/store';
 import type { FileStore } from '../documents/files';
 import type { Clock, Ports } from '../ports';
 
@@ -46,6 +47,8 @@ export interface EnrichDeps {
   clock: Clock;
   log: Log;
   files: FileStore;
+  /** The Clerk gateway (default: the container's, as callables use it). */
+  gateway?: ClerkGateway;
   /** Milliseconds, for the step's time budget (tests advance it). */
   now?: () => number;
   stepBudgetMs?: number;

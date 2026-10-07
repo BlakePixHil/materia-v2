@@ -140,7 +140,8 @@ export async function toProposals(
 ): Promise<SuggestionProposal[]> {
   const notes = new Set(input.manifest.records.filter((r) => r.kind === 'note').map((r) => r.id));
   const versions = new Map<string, number>();
-  for (const source of [...input.manifest.documents, ...input.manifest.chunks]) versions.set(source.documentId, source.version);
+  for (const source of [...input.manifest.documents, ...input.manifest.chunks])
+    versions.set(source.documentId, source.version);
 
   const kindCounts = new Map<string, number>();
   for (const event of events) kindCounts.set(event.kind, (kindCounts.get(event.kind) ?? 0) + 1);
@@ -160,7 +161,10 @@ export async function toProposals(
       const read = await deps.text.pages({ orgId, matterId, documentId, version }).catch(() => []);
       const byPage: string[] = [];
       for (const { page, text } of read) byPage[page - 1] = text;
-      pages.set(key, Array.from(byPage, (text) => text ?? ''));
+      pages.set(
+        key,
+        Array.from(byPage, (text) => text ?? ''),
+      );
     }
     return pages.get(key) ?? [];
   };

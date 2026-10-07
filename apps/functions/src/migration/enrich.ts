@@ -92,7 +92,8 @@ function stepWriter(deps: EnrichDeps, task: EnrichTask, ref: DocumentReference) 
   const write = async (patch: Data, bump: boolean) => {
     await deps.db.runTransaction(async (tx) => {
       const current = await tx.get(ref);
-      if (!current.exists || current.get('seq') !== task.seq || !ACTIVE.has(current.get('status'))) throw new StaleStep();
+      if (!current.exists || current.get('seq') !== task.seq || !ACTIVE.has(current.get('status')))
+        throw new StaleStep();
       tx.update(ref, {
         ...patch,
         ...(bump ? { seq: task.seq + 1 } : {}),
@@ -174,11 +175,17 @@ async function approvers(step: Step, extra: (string | undefined)[] = []): Promis
     .where('role', 'in', ['owner', 'admin'])
     .get();
   return [
-    ...new Set([...extra, ...snap.docs.map((doc) => doc.id)].filter((uid): uid is string => typeof uid === 'string' && !!uid)),
+    ...new Set(
+      [...extra, ...snap.docs.map((doc) => doc.id)].filter((uid): uid is string => typeof uid === 'string' && !!uid),
+    ),
   ];
 }
 
-async function tell(step: Step, recipients: string[], message: { title: string; body: string; link: string; key: string }) {
+async function tell(
+  step: Step,
+  recipients: string[],
+  message: { title: string; body: string; link: string; key: string },
+) {
   const { deps, task } = step;
   try {
     await notify(
@@ -251,7 +258,15 @@ async function estimateStep(step: Step): Promise<StepOutcome> {
   estimate = { ...estimate, model, costCents: estimateCostCents(estimate, model) };
   if (!documents.length && !matters.length) {
     await writer.handoff(
-      { status: 'done', phase: 'finish', cursor: 0, estimate, suggestionsWaiting: 0, unreadable: 0, finishedAt: deps.clock.now() },
+      {
+        status: 'done',
+        phase: 'finish',
+        cursor: 0,
+        estimate,
+        suggestionsWaiting: 0,
+        unreadable: 0,
+        finishedAt: deps.clock.now(),
+      },
       null,
     );
     deps.log.info('migration enrichment: nothing to read', { runId: task.runId });
@@ -259,7 +274,14 @@ async function estimateStep(step: Step): Promise<StepOutcome> {
   }
   const suggested = suggestedAllowanceCents(estimate.costCents);
   await writer.handoff(
-    { status: 'awaiting_approval', phase: 'ingest', cursor: 0, attempts: 0, estimate, suggestedAllowanceCents: suggested },
+    {
+      status: 'awaiting_approval',
+      phase: 'ingest',
+      cursor: 0,
+      attempts: 0,
+      estimate,
+      suggestedAllowanceCents: suggested,
+    },
     null,
   );
   deps.log.info('migration enrichment estimated', { runId: task.runId, ...estimate });
@@ -289,7 +311,7 @@ async function pause(step: Step, reason: MigrationEnrichmentPause, patch: Data):
 
 function meter(step: Step): MeteredGateway {
   const { deps, record } = step;
-  return meteredGateway(clerkGateway({ db: deps.db, ports: deps.ports, clock: deps.clock }), {
+  return meteredGateway(deps.gateway ?? clerkGateway({ db: deps.db, ports: deps.ports, clock: deps.clock }), {
     spentMicros: record.spentMicros,
     allowanceMicros: (record.allowanceCents ?? 0) * 10_000,
   });
@@ -492,7 +514,12 @@ async function finishStep(step: Step): Promise<StepOutcome> {
     null,
   );
   const { read, events } = record.progress;
-  deps.log.info('migration enrichment done', { runId: task.runId, ...record.progress, waiting, unreadable: unreadableCount });
+  deps.log.info('migration enrichment done', {
+    runId: task.runId,
+    ...record.progress,
+    waiting,
+    unreadable: unreadableCount,
+  });
   const documents = `${read.toLocaleString('en-AU')} ${read === 1 ? 'document' : 'documents'} read`;
   const dates = `${events.toLocaleString('en-AU')} key ${events === 1 ? 'date' : 'dates'} found`;
   const review = `${waiting.toLocaleString('en-AU')} ${waiting === 1 ? 'suggestion is' : 'suggestions are'} waiting for review`;

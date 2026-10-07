@@ -51,9 +51,12 @@ export function canApproveEnrichment(enrichment: Pick<MigrationEnrichment, 'stat
 }
 
 /** Documents done (read, passed over or failed) out of those to read, and matters read out of those to read. */
-export function enrichmentProgress(
-  enrichment: Pick<MigrationEnrichment, 'documents' | 'matters' | 'progress'>,
-): { documentsDone: number; documents: number; mattersDone: number; matters: number } {
+export function enrichmentProgress(enrichment: Pick<MigrationEnrichment, 'documents' | 'matters' | 'progress'>): {
+  documentsDone: number;
+  documents: number;
+  mattersDone: number;
+  matters: number;
+} {
   const { read, skipped, failed, mattersRead } = enrichment.progress;
   return {
     documentsDone: Math.min(enrichment.documents.length, read + skipped + failed),
@@ -76,7 +79,8 @@ export function awaitsMigrationEnrichment(doc: Record<string, unknown> | undefin
 }
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const MONTH = '(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\\.?';
+const MONTH =
+  '(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\\.?';
 const ORDINAL = '(?:st|nd|rd|th)?';
 const DATE_PATTERNS: { re: RegExp; ymd: (m: RegExpExecArray) => [string, string, string] }[] = [
   { re: /\b(\d{4})-(\d{2})-(\d{2})\b/g, ymd: (m) => [m[1] ?? '', m[2] ?? '', m[3] ?? ''] },

@@ -32,7 +32,8 @@ export function pauseReason(error: unknown): MigrationEnrichmentPause | null {
   if (!(error instanceof DomainError)) return null;
   if (error.code === 'CLERK_BUDGET_EXCEEDED') return 'budget';
   if (error.code === 'CLERK_KEY_INVALID') return 'clerk_off';
-  if (error.code === 'CLERK_DISABLED' && PAUSING_SWITCHES.has(String(error.details?.['switch'] ?? ''))) return 'clerk_off';
+  if (error.code === 'CLERK_DISABLED' && PAUSING_SWITCHES.has(String(error.details?.['switch'] ?? '')))
+    return 'clerk_off';
   return null;
 }
 
@@ -43,7 +44,10 @@ export type MeteredGateway = ClerkGateway & { spentMicros(): number };
  * finds Clerk off or the org's budget used ends the run's step (`IngestInterrupted`, which ingestion
  * passes through and keeps its checkpoint for). One call can take the spend past the allowance.
  */
-export function meteredGateway(gateway: ClerkGateway, start: { spentMicros: number; allowanceMicros: number }): MeteredGateway {
+export function meteredGateway(
+  gateway: ClerkGateway,
+  start: { spentMicros: number; allowanceMicros: number },
+): MeteredGateway {
   let spent = start.spentMicros;
   async function run<TOutput>(input: ClerkRunInput<TOutput>) {
     if (spent >= start.allowanceMicros) throw new IngestInterrupted('allowance');
@@ -65,5 +69,8 @@ export async function orgBudgetNearlyUsed(db: Firestore, orgId: string, at: Date
   const store = firestoreClerkStore(db);
   const [settings, used] = await Promise.all([store.orgSettings(orgId), store.periodUsage(orgId, meteringPeriod(at))]);
   if (used.tokens >= (settings.monthlyTokenBudget ?? DEFAULT_MONTHLY_TOKEN_BUDGET) * ORG_BUDGET_SHARE) return true;
-  return settings.monthlyBudgetCents !== undefined && used.costMicros >= settings.monthlyBudgetCents * 10_000 * ORG_BUDGET_SHARE;
+  return (
+    settings.monthlyBudgetCents !== undefined &&
+    used.costMicros >= settings.monthlyBudgetCents * 10_000 * ORG_BUDGET_SHARE
+  );
 }

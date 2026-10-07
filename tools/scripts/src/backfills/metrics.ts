@@ -188,9 +188,7 @@ export async function backfillOrgMetrics(
     return { fresh, stages, previousStages };
   });
   const start =
-    fromMonth === FROM_EARLIEST
-      ? (earliestDay(contributions.map((c) => c.fresh)) ?? today).slice(0, 7)
-      : fromMonth;
+    fromMonth === FROM_EARLIEST ? (earliestDay(contributions.map((c) => c.fresh)) ?? today).slice(0, 7) : fromMonth;
   const from = restateFrom(start, fyStartMonth);
   const fromOn = (day: D.DateOnly) => day >= from;
   const before = (day: D.DateOnly) => day < from;
