@@ -99,7 +99,7 @@ Client personal information is often sensitive: health information in capacity d
 
 **Supply chain and security assurance (SEC-02)**
 - **Threat model:** [docs/security/threat-model.md](security/threat-model.md), STRIDE per element, reviewed quarterly. **Pentest:** [docs/security/pentest-plan.md](security/pentest-plan.md), before GA, with a 7-day (critical) and 30-day (high) remediation SLA.
-- **Dependencies:** Dependabot (`.github/dependabot.yml`) groups npm and Actions updates weekly; every update waits for review. `pnpm audit --prod --audit-level=high` gates every PR.
+- **Dependencies:** Dependabot (`.github/dependabot.yml`) groups npm and Actions updates weekly. The dev-patch group (patch updates of development dependencies) merges itself once `ci` passes (`dependabot-automerge.yml`, which checks the author, branch, tested commit and that only `package.json` and `pnpm-lock.yaml` change); every other update waits for review. `pnpm audit --prod --audit-level=high` gates every PR.
 - **Code:** CodeQL with the `security-extended` queries, daily in the morning run; high-severity findings fail it.
 - **Secrets:** gitleaks on every change, with custom rules (`.gitleaks.toml`) for Google service account keys (JSON and base64), Anthropic and Resend keys; `.github/scripts/gitleaks-selftest.sh` proves the rules still fire.
 - **Containers:** the jobs, scanner and preview images are scanned with Trivy in CI whenever they change (`.github/actions/trivy`); fixable high and critical findings fail the change. This replaces Artifact Registry's on-push scanning, which is off because it was billed per image on every deploy. The images run `apt-get upgrade` and ship without npm.

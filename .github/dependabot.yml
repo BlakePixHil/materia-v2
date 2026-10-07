@@ -1,5 +1,6 @@
 # Dependency updates (SEC-02): grouped and weekly, so a week's updates arrive as a few pull requests
-# (each runs CI, which costs Actions minutes). Every update waits for review before it merges.
+# (each runs CI, which costs Actions minutes). The dev-patch group merges itself once CI passes
+# (dependabot-automerge.yml, Blake 2026-10-07); every other update waits for review.
 # Security updates (GitHub's Dependabot alerts) still arrive as soon as they're published.
 version: 2
 
