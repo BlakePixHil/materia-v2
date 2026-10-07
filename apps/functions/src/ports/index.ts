@@ -53,6 +53,10 @@ export interface PushMessage {
   body: string;
   /** An app path (`/matters/m1`). */
   link: string;
+  /** The org the link belongs to: a tap in another org offers to switch (MOB-04). */
+  orgId?: string;
+  /** A later push with the same tag replaces this one on the device (the notification id). */
+  tag?: string;
 }
 export type PushResult =
   | { ok: true; id: string }
