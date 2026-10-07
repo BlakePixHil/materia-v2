@@ -21,7 +21,8 @@
  * `--dry-run` reads only and reports what it would do. `--verify` changes nothing and checks the
  * demo is complete: every document present and schema-valid, the accounts' claims right. `--remove`
  * deletes the demo (the org, its files, the accounts) and leaves the secret. On dev, `--verify` also
- * reports the invoice PDFs and their jobs, and `--pdfs` starts again the renders that didn't finish.
+ * reports the invoice PDFs and their jobs (with Cloud Run's view of a render that never started),
+ * and `--pdfs` starts again the renders that didn't finish.
  * Logs counts and ids only. Never prod: any other project is refused.
  */
 import { randomInt } from 'node:crypto';
@@ -184,6 +185,7 @@ export function generatePassword(): string {
 
 const SECRET_MANAGER = 'https://secretmanager.googleapis.com/v1';
 const CLOUD_RUN = 'https://run.googleapis.com/v2';
+const LOGGING = 'https://logging.googleapis.com/v2';
 const REGION = 'australia-southeast1';
 
 /**
@@ -424,6 +426,61 @@ export async function pdfReport(db: Firestore, now = new Date()): Promise<string
 }
 
 /**
+ * What Cloud Run says about the first PDF job that never started (queued, with an execution): the
+ * execution's task counts and unmet conditions, and its last log lines (the job logs ids and codes).
+ */
+async function stuckPdfDiagnosis(db: Firestore, project: string): Promise<string[]> {
+  const stuck = await db.collection(`${ORG_PATH}/jobs`).where('status', '==', 'queued').limit(5).get();
+  const executionId = stuck.docs.map((doc) => doc.get('executionId') as string | undefined).find(Boolean);
+  if (!executionId) return [];
+  const lines: string[] = [];
+  const execution = await call(
+    project,
+    `${CLOUD_RUN}/projects/${project}/locations/${REGION}/jobs/pdf/executions/${executionId}`,
+  );
+  if (execution.ok) {
+    const body = (await execution.json()) as {
+      runningCount?: number;
+      succeededCount?: number;
+      failedCount?: number;
+      cancelledCount?: number;
+      conditions?: { type?: string; state?: string; reason?: string; executionReason?: string; message?: string }[];
+    };
+    lines.push(
+      `Execution ${executionId}: ${body.runningCount ?? 0} running, ${body.succeededCount ?? 0} succeeded, ${body.failedCount ?? 0} failed, ${body.cancelledCount ?? 0} cancelled.`,
+    );
+    for (const condition of body.conditions ?? []) {
+      if (condition.state === 'CONDITION_SUCCEEDED') continue;
+      const reason = condition.reason ?? condition.executionReason;
+      lines.push(
+        `  ${condition.type ?? '?'}: ${condition.state ?? '?'}${reason ? ` (${reason})` : ''}${condition.message ? ` ${condition.message.slice(0, 300)}` : ''}`,
+      );
+    }
+  } else lines.push(`Execution ${executionId}: Cloud Run answered ${execution.status}.`);
+  const logs = await call(project, `${LOGGING}/entries:list`, {
+    method: 'POST',
+    body: JSON.stringify({
+      resourceNames: [`projects/${project}`],
+      filter: `resource.type="cloud_run_job" AND labels."run.googleapis.com/execution_name"="${executionId}"`,
+      orderBy: 'timestamp desc',
+      pageSize: 15,
+    }),
+  });
+  if (logs.ok) {
+    const body = (await logs.json()) as {
+      entries?: { severity?: string; textPayload?: string; jsonPayload?: Record<string, unknown> }[];
+    };
+    const entries = (body.entries ?? []).reverse();
+    lines.push(`  ${entries.length} log lines:`);
+    for (const entry of entries)
+      lines.push(
+        `    ${entry.severity ?? ''} ${(entry.textPayload ?? JSON.stringify(entry.jsonPayload ?? {})).slice(0, 300)}`,
+      );
+  } else lines.push(`  Cloud Logging answered ${logs.status}.`);
+  return lines;
+}
+
+/**
  * Starts again the renders of invoices whose PDF isn't ready, when their job can run again
  * (queued, failed and retryable, or running with a stale heartbeat; the job's claim decides).
  */
@@ -562,19 +619,19 @@ export async function main(argv: string[] = []): Promise<void> {
       const problems = await verify(app, target, docs, password);
       if (problems.length) throw new Error(`The demo practice is incomplete:\n  ${problems.slice(0, 50).join('\n  ')}`);
       log('The demo practice is complete.');
-      if (dev) log((await pdfReport(db)).join('\n'));
+      if (dev) log([...(await pdfReport(db)), ...(await stuckPdfDiagnosis(db, target.projectId))].join('\n'));
       return;
     }
 
     if (args.pdfs) {
       if (!dev) throw new DemoGuardError('--pdfs is for dev: the emulators have no PDF job.');
       if (args.dryRun) {
-        log((await pdfReport(db)).join('\n'));
+        log([...(await pdfReport(db)), ...(await stuckPdfDiagnosis(db, target.projectId))].join('\n'));
         return;
       }
       log(`Started ${await restartPdfs(db, target.projectId)} invoice PDF renders again.`);
       await waitForPdfs(db, 6);
-      log((await pdfReport(db)).join('\n'));
+      log([...(await pdfReport(db)), ...(await stuckPdfDiagnosis(db, target.projectId))].join('\n'));
       return;
     }
 
@@ -631,7 +688,7 @@ export async function main(argv: string[] = []): Promise<void> {
       const pdfs = await renderPdfs(db, target.projectId, docs);
       if (pdfs.ready === docs.filter((doc) => INVOICE_PATH.test(doc.path)).length)
         log(`Invoice PDFs: all ${pdfs.ready} ready.`);
-      else log((await pdfReport(db)).join('\n'));
+      else log([...(await pdfReport(db)), ...(await stuckPdfDiagnosis(db, target.projectId))].join('\n'));
       // Let the metrics sync triggers finish before restating from the records.
       await sleep(60_000);
     }
