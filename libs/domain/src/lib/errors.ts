@@ -98,6 +98,10 @@ export const ERROR_CODES = {
   INTEGRATION_REJECTED: 'failed-precondition',
   /** The provider no longer accepts the connection, revoked or expired (INT-01): connect it again. */
   INTEGRATION_RECONNECT_REQUIRED: 'failed-precondition',
+  /** The practice hasn't turned the Claude connector on, or turned it off (INT-07): an owner or admin turns it on. */
+  CONNECTOR_OFF: 'failed-precondition',
+  /** A Claude connection request names a client, redirect or resource Materia doesn't accept (INT-07). */
+  CONNECTOR_REQUEST_INVALID: 'invalid-argument',
   /**
    * The practice is scheduled for deletion (SEC-05): it is read-only until an owner cancels, so
    * changes are refused. Reads, exports and cancelling still work.

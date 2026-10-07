@@ -630,6 +630,42 @@ describe('org settings (CORE-21)', () => {
     );
   });
 
+  it('the Claude connector switch changes only through connector-setPractice, even for owners (INT-07)', async () => {
+    await seed(specFor('orgs'));
+    const owner = uidFor('owner');
+    const ref = doc(db(env, 'owner'), ORG_DOC);
+    await assertFails(updateDoc(ref, stamped({ 'settings.connector.enabled': true }, owner)));
+    await assertFails(
+      updateDoc(
+        ref,
+        stamped(
+          { settings: { referrals: { thankYouTask: true }, connector: { enabled: true, allowProposals: true } } },
+          owner,
+        ),
+      ),
+    );
+    await assertSucceeds(updateDoc(ref, stamped({ settings: { referrals: { thankYouTask: true } } }, owner)));
+  });
+
+  it('a Claude connection is read by its person and by owners and admins, by query too (INT-07)', async () => {
+    await seedAdmin(env, async (firestore) => {
+      await setDoc(doc(firestore, `orgs/${ORG}/connectorConnections/mine`), {
+        ...seedData(specFor('connectorConnections')),
+        uid: uidFor('paralegal'),
+      });
+    });
+    const paralegal = db(env, 'paralegal');
+    await assertSucceeds(getDoc(doc(paralegal, `orgs/${ORG}/connectorConnections/mine`)));
+    await assertSucceeds(
+      getDocs(
+        query(collection(paralegal, `orgs/${ORG}/connectorConnections`), where('uid', '==', uidFor('paralegal'))),
+      ),
+    );
+    await assertFails(getDocs(collection(paralegal, `orgs/${ORG}/connectorConnections`)));
+    await assertSucceeds(getDocs(collection(db(env, 'admin'), `orgs/${ORG}/connectorConnections`)));
+    await assertFails(getDoc(doc(db(env, 'readonly'), `orgs/${ORG}/connectorConnections/mine`)));
+  });
+
   it('the terms acceptance is recorded only by orgs-acceptTerms and orgs-createOrg, even for owners (SEC-01)', async () => {
     await seed(specFor('orgs'));
     const owner = uidFor('owner');

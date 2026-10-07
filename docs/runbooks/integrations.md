@@ -42,6 +42,19 @@ How invoices reach Xero and payments come back: [ADR-053](../adr/053-xero-sync.m
 - **Payments aren't coming across:** check the `xero-pullPayments` logs and `integrationStatus/xero.sync.paymentsCheckedAt` (shown in Settings as "Payments last checked"). The job skips an org quietly while its connection needs reconnecting.
 - **Logs:** `xero push failed` (with `kind`, `code`, `retry`), `xero rate limited; rescheduled`, `xero payments skipped`, `xero payments failed`. None carries a token, an amount or a client's name.
 
+## Claude connector (INT-07)
+
+People use Materia from their own Claude or Claude Code over MCP ([ADR-064](../adr/064-claude-connector.md)). Behind `integrations.claudeConnector` (server-enforced; on in dev through `infra/remote-config/dev.json`, off in prod until the data wording is reviewed with the legal pages, SEC-01a). Nothing to provision: `connector-api` and the Hosting rewrites deploy with everything else. While the flag is off the metadata still answers, but the consent page says Claude can't connect and every MCP request and refresh is refused.
+
+- **Turn it on for a practice:** an owner or admin turns on "Let people connect Claude" in Settings → Claude connector, and "Let Claude suggest changes" if they want suggestions. Turning the first switch off ends every connection at once.
+- **Connect:** the page shows the address, `https://<env-domain>/mcp`. In Claude: Settings → Connectors → Add custom connector, paste it, then Connect, sign in to Materia and Allow. In Claude Code: `claude mcp add --transport http materia https://<env-domain>/mcp`, then `/mcp`.
+- **Check the server:** `curl -s https://<env-domain>/.well-known/oauth-authorization-server` returns JSON whose `issuer` is the app's origin. HTML instead means the Hosting rewrites didn't deploy. `curl -si -X POST https://<env-domain>/mcp` returns 401 with a `WWW-Authenticate: Bearer resource_metadata=…` header.
+- **"Claude can't connect yet" on the consent page:** the flag is off for the practice, or its switch is. **"This connection request isn't valid":** the client id or redirect URI isn't one of the pinned ones in `CONNECTOR_CLIENTS` (libs/domain `connector.ts`). If Claude has changed its client metadata document or redirect URIs, update the pinned copy there.
+- **Claude asks to connect again:** every request re-checks the person, and a refusal returns 401 `invalid_token` with the reason in `error_description`: disconnected, access ended or paused, signed out everywhere, past the practice's session length, now needs two-step sign-in, the practice's switch, or the flag. The connection's `revokeReason` (`disconnected`, `member_removed`, `practice_off`, `refresh_reuse`) says why one ended. `refresh_reuse` means a refresh token was used twice, which can mean a stolen token: check the audit log for that person's `connector.*` entries.
+- **End someone's access now:** Settings → Claude connector → Everyone's connections → Disconnect, or remove the member. Their next request is refused; no token has to expire.
+- **Audit:** `connector.connected`, `connector.disconnected`, `connector.practice_enabled`, `connector.practice_disabled` and `connector.tool_used` (tool, matter, count, refused), never what was asked or returned. Tokens are stored only as SHA-256 hashes in `connectorGrants` and expire by TTL.
+- **Add another client** (another MCP app): add it to `CONNECTOR_CLIENTS` with its client id and its published redirect URIs, and say what it is in the consent copy. Never fetch a client's metadata at request time.
+
 ## Key rotation
 
 The `oauth-tokens` KMS key rotates every 90 days. Cloud KMS finds the key version from the ciphertext, so stored tokens keep decrypting. `kmsKeyVersion` records which version encrypted each one. A token re-encrypts with the newest version whenever the provider rotates it.

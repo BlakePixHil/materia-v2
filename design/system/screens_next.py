@@ -96,12 +96,12 @@ def contacts():
 
 # ------------------------------------------------------------------ Settings
 def settings_sidebar(active="Clerk and AI"):
-    # Sidebar order follows the app's SETTINGS_SECTIONS (CORE-21); Account, Trust, Rule sets, Integrations and Security are designed ahead (DES-01).
+    # Sidebar order follows the app's SETTINGS_SECTIONS (CORE-21); Account, Trust, Rule sets, Integrations and Security are designed ahead (DES-01); Claude connector is INT-07.
     groups = [("Account", [("Profile", "user"), ("Preferences", "settings"), ("Notifications", "bell")]),
               ("Firm", [("Practice", "matters"), ("Team and roles", "contacts"), ("Billing and rates", "billing"), ("Trust account", "lock")]),
               ("Practice", [("Matter numbering", "list"), ("Matter templates", "board"), ("Rule sets", "scale")]),
               ("Clerk", [("Clerk and AI", "sparkle")]),
-              ("Connections", [("Integrations", "link"), ("Security", "shield")]),
+              ("Connections", [("Integrations", "link"), ("Claude connector", "share"), ("Security", "shield")]),
               ("Records", [("Audit log", "eye")])]
     h = ['<aside class="mt-sidebar">', '<a class="mt-nav" href="#" onclick="return false" style="margin-bottom:6px">' + icon("chevron-left") + '<span>Back to materia</span></a>']
     for g, items in groups:

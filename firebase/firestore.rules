@@ -579,9 +579,11 @@ service cloud.firestore {
       allow read: if memberOf(orgId);
       // Clerk's settings (`settings.clerk`: switches, limits, the disclosure acknowledgement) change
       // only through the audited clerk-* callables (AI-02a, AI-13), even when a client rewrites
-      // another part of `settings` (referrals, CORE-18).
+      // another part of `settings` (referrals, CORE-18); the Claude connector's switch
+      // (`settings.connector`, INT-07) only through `connector-setPractice`, which ends connections.
       allow update: if can(orgId, 'org.settings') && isActiveMember(orgId) && clientUpdate(fieldsOrg())
-        && request.resource.data.get('settings', {}).get('clerk', null) == resource.data.get('settings', {}).get('clerk', null);
+        && request.resource.data.get('settings', {}).get('clerk', null) == resource.data.get('settings', {}).get('clerk', null)
+        && request.resource.data.get('settings', {}).get('connector', null) == resource.data.get('settings', {}).get('connector', null);
 
       match /members/{memberUid} {
         // Their own member document likewise (its `sessionsValidAfter`); everyone else's needs inOrg.
@@ -1129,6 +1131,16 @@ service cloud.firestore {
       match /integrationStates/{stateId} {
         allow read, write: if false;
       }
+      // Claude connections (INT-07, ADR-064), with nothing secret: a person reads their own, owners
+      // and admins every one (Settings → Claude connector). Written only by functions.
+      match /connectorConnections/{connectionId} {
+        allow read: if inOrg(orgId)
+          && (resource.data.uid == uid() || can(orgId, 'org.settings') && isActiveMember(orgId));
+      }
+      // The Claude connector's codes and tokens, by hash (INT-07). Server-only.
+      match /connectorGrants/{grantId} {
+        allow read, write: if false;
+      }
       // Which Xero contact a matter's clients are invoiced as (BILL-09). Server-only.
       match /xeroContacts/{linkId} {
         allow read, write: if false;
@@ -1261,6 +1273,8 @@ service cloud.firestore {
     function fieldsClerkMessage() { return ['stopRequested']; }
     function fieldsClerkThread() { return ['title', 'shared']; }
     function fieldsConflictCheck() { return []; }
+    function fieldsConnectorConnection() { return []; }
+    function fieldsConnectorGrant() { return []; }
     function fieldsContact() { return ['kind', 'givenNames', 'familyName', 'preferredName', 'dateOfBirth', 'dateOfDeath', 'orgName', 'abn', 'emails', 'phones', 'addresses', 'tags', 'isReferrer', 'referrerMeta', 'notes']; }
     function fieldsCounter() { return []; }
     function fieldsCourtBook() { return ['title', 'tabs', 'status']; }

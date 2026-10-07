@@ -198,6 +198,7 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md) and "Clerk suggestions (AI-07
 - **Acceptance rates:** these are counted in the monthly Clerk metrics doc (`metrics/clerk-{YYYY-MM}`) per kind and per `promptId@promptVersion`. Use `suggestionAcceptanceRates(values)` to compare prompt versions (AI-12).
 - **UI:** `mt-suggestion` (`@materia/ui/suggestion`) is the presentational card. `mt-suggestion-card` (web, `features/suggestions`) adds Accept, inline Edit with field errors, Dismiss with a reason and the stale review, and the AI-06 panel and the Inbox should reuse it. The matter Overview's "Clerk suggests…" lists open suggestions by kind, with "Accept all N …" and a "Show expired" switch.
 - **Expiry:** suggestions are open for 14 days, after which the hourly `suggestions-expire` marks them `expired`.
+- **From Claude (INT-07, [ADR-064](adr/064-claude-connector.md)):** the Claude connector's `propose_task`, `propose_note` and `propose_time_entry` tools call `proposeSuggestions` with `promptId: 'connector.claude'` and `requestedBy {uid, name}`, so the card says "Suggested in Claude by …" and acceptance rates count apart from Clerk's. They need `clerk.features.suggestions` on, like Clerk's, but run no model and use none of the practice's Clerk budget or key: the person's own Claude wrote the proposal.
 
 ## Features → tickets
 

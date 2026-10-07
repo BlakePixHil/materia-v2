@@ -451,6 +451,24 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'none',
     update: 'none',
   },
+  // Claude connections (INT-07): the person's own, and every one for owners and admins.
+  {
+    collection: 'connectorConnections',
+    docPath: `orgs/${ORG}/connectorConnections/connection-1`,
+    entity: 'ConnectorConnection',
+    seed: { uid: OWNER },
+    read: ['owner', 'admin', 'lawyer'],
+    update: 'none',
+  },
+  // The Claude connector's codes and tokens (INT-07): server-only.
+  {
+    collection: 'connectorGrants',
+    docPath: `orgs/${ORG}/connectorGrants/${'b'.repeat(64)}`,
+    entity: 'ConnectorGrant',
+    seed: { uid: OWNER },
+    read: 'none',
+    update: 'none',
+  },
   // Which Xero contact a matter's clients are invoiced as (BILL-09): server-only.
   {
     collection: 'xeroContacts',
