@@ -10,9 +10,9 @@ html, body { background: var(--bg-surface); }
 .mt-i[data-size="sm"] { width: var(--icon-sm); height: var(--icon-sm); }
 .mt-i[data-size="lg"] { width: 20px; height: 20px; }
 .mt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-:where(a) { color: var(--text-brand); text-decoration-thickness: 1px; text-underline-offset: 2px; transition: text-decoration-color 120ms ease; }
+:where(a) { color: var(--text-brand); text-decoration-thickness: 1px; text-underline-offset: 2px; transition: text-decoration-color var(--motion-fast) var(--ease-out); }
 :where(a):hover { text-decoration-thickness: 2px; }
-@keyframes mt-pop-in { from { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes mt-toast-out { to { opacity: 0; transform: scale(.96); } }
 @keyframes mt-toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes mt-toast-in-top { from { opacity: 0; transform: translateY(-8px); } }
 @keyframes mt-loading { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
@@ -20,4 +20,15 @@ html, body { background: var(--bg-surface); }
 @keyframes mt-pulse { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 @keyframes mt-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes mt-caret { 50% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .mt-working .dots i, .mt-shimmer, .mt-btn[data-loading] .mt-i:first-child { animation: none; } .mt-shimmer { color: var(--text-ai); background: none; } * { transition: none !important; } }
+@keyframes mt-fade-in { from { opacity: 0; } }
+@keyframes mt-rise-in { from { opacity: 0; transform: translateY(4px); } }
+.mt-rise { animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }
+.mt-fade { animation: mt-fade-in var(--motion-slow) var(--ease-out) backwards; }
+.mt-stagger > * { animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards; }
+.mt-stagger > :nth-child(2) { animation-delay: 30ms; }
+.mt-stagger > :nth-child(3) { animation-delay: 60ms; }
+.mt-stagger > :nth-child(4) { animation-delay: 90ms; }
+.mt-stagger > :nth-child(5) { animation-delay: 120ms; }
+.mt-stagger > :nth-child(n+6) { animation-delay: 150ms; }
+:where(.mt-nav, .mt-tab, .mt-seg-item, .mt-chip, .mt-choice-card, .mt-cite, .mt-matter-card, .mt-notif, .mt-task, .mt-ws, .mt-integration, .mt-table td) { transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .mt-working .dots i, .mt-shimmer, .mt-btn[data-loading] .mt-i:first-child, .mt-rise, .mt-fade, .mt-stagger > * { animation: none; } .mt-shimmer { color: var(--text-ai); background: none; } * { transition: none !important; } }

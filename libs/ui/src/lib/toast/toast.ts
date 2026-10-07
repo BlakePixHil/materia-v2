@@ -68,6 +68,7 @@ const TONE_ICON: Record<MtToastTone, MtIconName | null> = {
  * - Screen readers hear each toast through a polite live region; `danger` toasts use an assertive one.
  * - Toasts never take focus. Press F6 to move focus to the newest toast's action (F6 or Escape again
  *   returns to where you were).
+ * - They rise in and fade out (`mt-leave`, via `animate.leave`); instantly with reduced motion.
  *
  * Built on Angular rather than ng-primitives' toast, which has no queue limit, assertive tone or F6.
  */
@@ -193,7 +194,7 @@ export class ToastService {
       (keydown.escape)="returnFocus()"
     >
       @for (toast of toasts.visible(); track toast.id) {
-        <div class="mt-toast" [attr.data-tone]="toast.tone === 'neutral' ? null : toast.tone">
+        <div class="mt-toast" [attr.data-tone]="toast.tone === 'neutral' ? null : toast.tone" animate.leave="mt-leave">
           @if (icon(toast.tone); as name) {
             <span class="ic"><mt-icon [name]="name" /></span>
           }

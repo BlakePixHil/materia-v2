@@ -1,6 +1,6 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-app). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-app { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100%; background: var(--bg-canvas); }
-.mt-app[data-shell] { height: 100dvh; min-height: 0; transition: grid-template-columns .16s ease-out; }
+.mt-app[data-shell] { height: 100dvh; min-height: 0; transition: grid-template-columns var(--motion-slow) var(--ease-in-out); }
 .mt-app[data-shell] .mt-sidebar { overflow-y: auto; }
 .mt-app[data-shell] .mt-main { position: relative; }
 .mt-app[data-shell] .mt-page { overflow-y: auto; }

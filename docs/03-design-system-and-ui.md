@@ -18,6 +18,7 @@
 - Matter-type tokens: `matter-will`, `matter-poa`, `matter-probate`, `matter-loa`, `matter-admin`, `matter-fp`, `matter-contest` (rose) and `matter-trust`.
 - Light and dark themes are first-class. They are set with `[data-theme]` on `<html>`, plus `prefers-color-scheme`.
 - Layout: a 240px sidebar, the main panel inset, keyboard-first.
+- Motion: quick and quiet (brand book, Motion). Tokens `motion-fast` 120ms, `motion-base` 150ms, `motion-slow` 200ms and the curves `ease-out` (arriving), `ease-in` (leaving), `ease-in-out` (moving). Nothing bounces, and `prefers-reduced-motion` makes everything instant.
 
 ## Using it in Angular
 
@@ -99,6 +100,10 @@ Validation: once a control is touched and invalid, its first error shows under i
 
 Overlays portal into one container and stack by the `layer-*` tokens (dropdown 1000, overlay 1100, modal 1200, popover 1300, toast 1400, tooltip 1500). Animations stop under `prefers-reduced-motion`.
 
+Overlay motion is CSS keyed to the `data-enter` and `data-exit` attributes ng-primitives sets on each overlay root (menus, selects, popovers, tooltips, and the dialog's scrim and panel): the resting state without `data-enter` is the hidden one, so the first frame never flashes, and ng-primitives waits for the exit transition before removing the element. An exiting overlay takes no clicks. Toasts leave with Angular's `animate.leave="mt-leave"`. Unit tests run with animations off (TestBed's default) and e2e runs with reduced motion (`playwright.config.mts`), so an exiting overlay never overlaps the next step.
+
+**Motion utilities** (generated `base.css`, global): `mt-rise` (rise 4px and fade in), `mt-fade` (fade in), and `mt-stagger` on a list (its children rise in 30ms apart, capped at 150ms). Use `mt-fade` for content that replaces a skeleton and for long or virtual tables (rows must not re-animate as they scroll in); use `mt-stagger` for short lists and card columns tracked by id. The routed page in the shell, and each nested routed view, rises in on arrival (`libs/ui/src/styles/base.css`).
+
 ```ts
 // Dialogs: typed data in, typed result out.
 const dialogs = inject(DialogService);
@@ -131,6 +136,7 @@ These are pure: inputs in, outputs out, no data access. Each takes a view-model 
 | `<mt-progress value max label tone size>`, `<mt-meter value target label tone>` | Completion; a value against a target (the tick) |
 | `<mt-stat label value unit icon>` with `<mt-sparkline values label>` or `<mt-delta value direction good>` in its footer | Headline numbers |
 | `<mt-empty-state title description icon>`, `<mt-note tone>` | Empty lists (say why, give the next step); inline callouts |
+| `<mt-skeleton label variant count framed>` | First-load state in the shape of the content: `rows` (default), `lines`, `cards`, `fields`. Fades in after 150ms so fast loads never flash it; `label` ("Loading matters…") is a polite status, and `label=""` makes extra skeletons in one region decorative |
 | `<mt-table>` | See below |
 | `<mt-task-row [task] editable (done) (titleChange) (open)>` | A task: the checkbox emits `done`; with `editable` the title edits in place (Enter saves, Escape cancels) |
 | `<mt-matter-card [matter] (open)>` | Board card. Drag behaviour is added by the board (CORE-04) |
@@ -252,7 +258,7 @@ Every screen above is designed. DES-01 (pass four) added the settings sub-pages,
   - `⌘K` opens the palette and `⌘J` opens Clerk.
   - `c` creates in context and `?` opens the shortcut sheet.
   - Shortcuts are registered through `ShortcutService`, so they are discoverable in the palette.
-- **Empty states and errors:** every list has an EmptyState with a primary action, a skeleton loading state, and an error state with retry.
+- **Empty states and errors:** every list has an EmptyState with a primary action, a skeleton loading state (`<mt-skeleton>`, not "Loading…" text), and an error state with retry.
 - **Charts:** single hue, no dual axes, bars at most 24px with a 4px rounded data end, hover tooltips, and a table view toggle.
 - **Mobile:** below 768px use the TabBar and BottomSheet patterns. Hit targets are at least 44px.
 - **Accessibility:**

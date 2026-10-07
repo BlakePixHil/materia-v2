@@ -1,8 +1,13 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-modal). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-modal-root { position: fixed; inset: 0; z-index: var(--layer-overlay); display: grid; place-items: center; padding: var(--space-16); overflow-y: auto; }
 .mt-modal-root[data-placement="top"] { place-items: start center; padding-top: 12vh; }
-.mt-modal-root[data-enter] > * { animation: mt-pop-in .14s ease-out; }
-@media (prefers-reduced-motion: reduce) { .mt-modal-root[data-enter] > * { animation: none; } }
+.mt-modal-root { transition: opacity var(--motion-slow) var(--ease-out); }
+.mt-modal-root:not([data-enter]) { opacity: 0; }
+.mt-modal-root[data-exit] { transition-duration: var(--motion-base); transition-timing-function: var(--ease-in); pointer-events: none; }
+.mt-modal-root > * { transition: opacity var(--motion-slow) var(--ease-out), transform var(--motion-slow) var(--ease-out); }
+.mt-modal-root > :not([data-enter]) { opacity: 0; transform: translateY(8px) scale(.98); }
+.mt-modal-root[data-exit] > * { transition-duration: var(--motion-base); transition-timing-function: var(--ease-in); }
 .mt-modal-root[data-sheet] { padding: 0; }
-.mt-modal-root .mt-sheet { max-height: 90dvh; overflow-y: auto; padding-bottom: calc(var(--space-20) + env(safe-area-inset-bottom, 0px)); transition: transform .2s ease-out, height .2s ease-out; touch-action: none; }
+.mt-modal-root .mt-sheet { max-height: 90dvh; overflow-y: auto; padding-bottom: calc(var(--space-20) + env(safe-area-inset-bottom, 0px)); transition: transform var(--motion-slow) var(--ease-out), height var(--motion-slow) var(--ease-in-out); touch-action: none; }
+.mt-modal-root > .mt-sheet:not([data-enter]) { opacity: 1; transform: translateY(100%); }
 @media (prefers-reduced-motion: reduce) { .mt-modal-root .mt-sheet { transition: none; } }
