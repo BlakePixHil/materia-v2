@@ -55,6 +55,7 @@ import { FeatureFlagService } from '../core/flags/feature-flags';
 import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
 import { OfflineError, OrgService } from '../core/orgs/org-service';
+import { PinnedMatters } from '../core/pins/pinned-matters';
 import { UserPrefsService } from '../core/profile/user-prefs';
 import { InstallPrompt, INSTALL_COPY } from '../core/pwa/install-prompt';
 import { MtOfflineBanner } from '../core/pwa/offline-banner';
@@ -68,6 +69,8 @@ import { ClerkChatPanel } from '../features/clerk/clerk-chat-panel';
 
 /** Where the collapsed-sidebar choice is kept, per user. */
 export const SIDEBAR_STORAGE_PREFIX = 'materia.shell.sidebar-collapsed.';
+/** Where the collapsed-Pinned-section choice is kept, per user (CORE-23). */
+export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
 
 /** Phones get the TabBar instead of the sidebar (MOB-02 refines this). */
 export const MOBILE_QUERY = '(max-width: 767px)';
@@ -95,6 +98,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     '../../../../../libs/ui/src/generated/components/clerk.css',
     '../../../../../libs/ui/src/generated/components/skip.css',
     '../../../../../libs/ui/src/generated/components/loading.css',
+    '../../../../../libs/ui/src/generated/components/nav.css',
   ],
   // On a phone the page's actions in the top bar show just their icons (the label stays for screen
   // readers) and no shortcut hints, so the bar fits the screen instead of widening the page.
@@ -229,9 +233,36 @@ export const MOBILE_QUERY = '(max-width: 767px)';
                 [label]="item.label"
                 [icon]="item.icon"
                 [collapsed]="collapsed()"
+                [inactive]="item.id === 'matters' && pinnedOpen()"
               ></a>
             }
           </nav>
+          <!-- Pinned matters (CORE-23): mine, in pinning order; not in the rail, where ⌘K reaches them. -->
+          @if (!collapsed() && pinned().length) {
+            <button
+              type="button"
+              class="mt-nav-section"
+              data-toggle
+              aria-controls="pinned-nav"
+              [attr.aria-expanded]="pinsOpen()"
+              (click)="togglePins()"
+            >
+              Pinned<span class="mt-nav-chev" aria-hidden="true"><mt-icon name="chevron-down" [size]="14" /></span>
+            </button>
+            <div class="mt-nav-group" [attr.data-closed]="pinsOpen() ? null : ''">
+              <nav id="pinned-nav" aria-label="Pinned matters" class="mt-col" style="gap: 1px">
+                @for (pin of pinned(); track pin.id) {
+                  <a
+                    mtNavItem
+                    class="mt-fade"
+                    [routerLink]="['/matters', pin.id]"
+                    [label]="pin.title"
+                    [dot]="'var(--matter-' + pin.type + ')'"
+                  ></a>
+                }
+              </nav>
+            </div>
+          }
           <div
             class="mt-col"
             style="margin-top: auto; gap: 6px; padding-top: 16px"
@@ -482,6 +513,10 @@ export class AppShellComponent {
   );
 
   readonly collapsed = signal(false);
+  /** Whether the Pinned section is expanded (remembered per user). */
+  readonly pinsOpen = signal(true);
+  private readonly pins = inject(PinnedMatters);
+  protected readonly pinned = this.pins.items;
   private readonly clerk = inject(ClerkPanel);
   readonly clerkOpen = this.clerk.open;
   /** The page's subject Clerk is asked about (a matter), if any. */
@@ -498,11 +533,21 @@ export class AppShellComponent {
   private readonly matterRefs = inject(MatterRefs);
   /** The global timer (BILL-02). */
   protected readonly timer = inject(TimerStore);
+  /** The id of the matter open behind the shell, if any. */
+  private readonly openMatterId = computed(() => {
+    const id = /^\/matters\/([^/?#]+)/.exec(this.url())?.[1];
+    return !id || id === 'new' || id === 'board' || id === 'destruction' ? null : id;
+  });
+  /** One of my pinned matters is open: its sidebar item is the current page, not Matters (CORE-23). */
+  protected readonly pinnedOpen = computed(() => {
+    const id = this.openMatterId();
+    return !!id && !this.collapsed() && this.pinned().some((pin) => pin.id === id);
+  });
   /** The matter open behind the shell (its number once the matter screen has it), for the timer. */
   protected readonly currentMatter = computed<TimerTarget | null>(
     () => {
-      const id = /^\/matters\/([^/?#]+)/.exec(this.url())?.[1];
-      if (!id || id === 'new' || id === 'board') return null;
+      const id = this.openMatterId();
+      if (!id) return null;
       const number = this.matterRefs.all()[id];
       return number ? { matterId: id, matterNumber: number } : null;
     },
@@ -530,10 +575,13 @@ export class AppShellComponent {
   constructor() {
     const destroyRef = inject(DestroyRef);
 
-    // Restore the collapsed choice for whoever is signed in.
+    // Restore the collapsed choices for whoever is signed in.
     effect(() => {
-      const key = SIDEBAR_STORAGE_PREFIX + this.userId();
-      untracked(() => this.collapsed.set(readFlag(key)));
+      const uid = this.userId();
+      untracked(() => {
+        this.collapsed.set(readFlag(SIDEBAR_STORAGE_PREFIX + uid));
+        this.pinsOpen.set(!readFlag(PINS_STORAGE_PREFIX + uid));
+      });
     });
 
     const media = this.document.defaultView?.matchMedia?.(MOBILE_QUERY);
@@ -560,6 +608,12 @@ export class AppShellComponent {
   toggleSidebar(): void {
     this.collapsed.update((value) => !value);
     writeFlag(SIDEBAR_STORAGE_PREFIX + this.userId(), this.collapsed());
+  }
+
+  /** Expands or collapses the Pinned section. */
+  togglePins(): void {
+    this.pinsOpen.update((value) => !value);
+    writeFlag(PINS_STORAGE_PREFIX + this.userId(), !this.pinsOpen());
   }
 
   toggleClerk(): void {

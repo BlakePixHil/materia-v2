@@ -357,9 +357,19 @@ service cloud.firestore {
           && n.get('weeklyReport', false) is bool
         );
       }
+      // Pinned matters (CORE-23), when changed: only the current org's list, at most 10 ids.
+      function pinsOk() {
+        let before = resource.data.get('pinnedMatterIds', {});
+        let after = request.resource.data.get('pinnedMatterIds', {});
+        return after == before || (
+          after is map
+          && after.diff(before).affectedKeys().hasOnly([claimOrg()])
+          && after.get(claimOrg(), []) is list && after.get(claimOrg(), []).size() <= 10
+        );
+      }
       allow read: if isSignedIn() && uid() == userId;
       allow update: if isSignedIn() && uid() == userId && clientUpdate(fieldsUser())
-        && notificationPrefsOk(request.resource.data);
+        && notificationPrefsOk(request.resource.data) && pinsOk();
 
       // Push devices (FND-20): `{token, platform, lastSeenAt}`, private to their user, registered,
       // refreshed and removed by the client. Functions prune tokens FCM reports gone.
@@ -868,6 +878,26 @@ service cloud.firestore {
           allow read: if inOrg(orgId);
           allow update: if editable(orgId, 'matter.edit', fieldsCourtBook()) && matterWritable();
         }
+
+        // Clerk's draft letters (AI-10, ADR-050): private to the person who asked for one, and a
+        // privileged draft (Clerk drew on privileged material, rule 6) needs privileged.view, so a
+        // list must prove `ownerUid == uid()` and `privileged == false` for a role without it.
+        // clerk-startDraft creates them and clerk-runDraft writes Clerk's text. The owner edits the
+        // body and who wrote what once Clerk has finished, asks a running draft to stop, or deletes
+        // it; saving goes through clerk-saveDraft.
+        match /clerkDrafts/{draftId} {
+          function draftEditOk() {
+            return (unchanged(['bodyMd', 'provenance']) || resource.data.status != 'drafting')
+              && (unchanged(['stopRequested'])
+                || resource.data.status == 'drafting' && request.resource.data.stopRequested == true)
+              && request.resource.data.bodyMd is string && request.resource.data.bodyMd.size() <= 50000
+              && request.resource.data.provenance is list && request.resource.data.provenance.size() <= 2000;
+          }
+          allow read: if can(orgId, 'clerk.use') && resource.data.ownerUid == uid() && visible(orgId, resource.data);
+          allow update: if can(orgId, 'clerk.use') && resource.data.ownerUid == uid() && matterWritable()
+            && (clientUpdate(fieldsClerkDraft()) && draftEditOk() || softDelete());
+        }
+
         // What each record has added to the practice metrics (INS-01, ADR-048): functions only.
         match /metrics/{ledgerId} {
           allow read, write: if false;
@@ -1198,6 +1228,7 @@ service cloud.firestore {
     function fieldsChecklistTemplate() { return ['name', 'items', 'priority', 'dueInDays']; }
     function fieldsChronologyEntry() { return ['date', 'datePrecision', 'title', 'detail', 'sources', 'disputed', 'issueIds']; }
     function fieldsChunk() { return ['orgId', 'matterId', 'text', 'page', 'docVersion', 'ordinal', 'privileged', 'ocr', 'embedding']; }
+    function fieldsClerkDraft() { return ['bodyMd', 'provenance', 'stopRequested']; }
     function fieldsClerkMessage() { return ['stopRequested']; }
     function fieldsClerkThread() { return ['title', 'shared']; }
     function fieldsConflictCheck() { return []; }
@@ -1263,7 +1294,7 @@ service cloud.firestore {
     function fieldsTimeEntry() { return ['date', 'minutes', 'units', 'rateCents', 'amountCents', 'narrative', 'billable', 'taskId']; }
     function fieldsTimer() { return ['taskId', 'startedAt', 'accumulatedMs', 'running', 'narrativeDraft', 'lastHeartbeatAt', 'clientStarted', 'needsReview', 'forgottenSeenAt']; }
     function fieldsTrustSnapshot() { return []; }
-    function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl']; }
+    function fieldsUser() { return ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl', 'pinnedMatterIds']; }
     function fieldsXeroContactLink() { return []; }
     // </generated:rules-sync>
 

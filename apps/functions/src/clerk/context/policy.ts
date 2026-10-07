@@ -29,6 +29,7 @@ export const CONTEXT_POLICIES = {
   brief: { budgetTokens: 24_000, scopes: ['matter'] },
   willExtraction: { budgetTokens: 120_000, scopes: ['matter'] },
   drafting: { budgetTokens: 40_000, scopes: ['matter'] },
+  draftingRewrite: { budgetTokens: 24_000, scopes: ['matter'] },
   timeAssist: { budgetTokens: 12_000, scopes: ['matter'] },
   /** A migrated matter's notes and the excerpts its key dates are likely in (MIG-09). */
   eventsExtraction: { budgetTokens: 40_000, scopes: ['matter'] },

@@ -108,6 +108,39 @@ describe('the eval executor', () => {
     expect(JSON.stringify(model.requests[1]?.messages.slice(-1))).toContain('waiting below your answer');
   });
 
+  it('drafts letters as production does (AI-10): privileged material stays out of a third-party letter', async () => {
+    const drafting = loadSuite('drafting');
+    const run = async (id: string) => {
+      const evalCase = drafting.cases.find((c) => c.id === id) as EvalCase;
+      const model = new FakeClerkModel();
+      const outcome = await createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' })({
+        suite: drafting.config,
+        evalCase,
+        promptRef: evalCase.promptId ?? drafting.config.promptId,
+        feature: drafting.config.feature,
+        run: 1,
+      });
+      return { outcome, sent: JSON.stringify(model.requests[0]) };
+    };
+    const canaries = drafting.gold.get('draft-004')?.canaries ?? [];
+    expect(canaries.length).toBeGreaterThan(0);
+
+    const third = await run('draft-004');
+    expect(third.outcome.status).toBe('done');
+    expect(third.outcome.text).toContain('[[TO CONFIRM:');
+    expect(third.sent).toContain('## Drafting a letter');
+    expect(third.sent).toContain('Keane & Doyle Lawyers (other side solicitor on the matter)');
+    expect(third.sent).toContain('Australian English');
+    for (const canary of canaries) expect(third.sent).not.toContain(canary);
+    // The control: a letter to the client may draw on the same privileged advice.
+    expect((await run('draft-015')).sent).toContain(canaries[0]);
+
+    expect((await run('draft-008')).sent).toContain('Not on the matter: fee arrangement');
+    const rewrite = await run('draft-016');
+    expect(rewrite.sent).toContain('## Rewriting part of a letter');
+    expect(rewrite.sent).toContain('Firmer, and quote her account number');
+  });
+
   it('forces the model under test, with no availability fallbacks', async () => {
     const model = new FakeClerkModel([{ error: new ClerkModelError('overloaded') }], () => ({
       error: new ClerkModelError('overloaded'),

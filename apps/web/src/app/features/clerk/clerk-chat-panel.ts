@@ -11,6 +11,7 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 
 import { can, OrgContext } from '@materia/data-access';
 import {
@@ -28,6 +29,7 @@ import {
   CLERK_CHAT_ATTACHMENTS_MAX,
   CLERK_FEEDBACK_REASON_LABELS,
   CLERK_FEEDBACK_REASONS,
+  parseDraftCommand,
   type CitationInput,
   type ClerkFeedbackReason,
 } from '@materia/domain';
@@ -395,7 +397,7 @@ import { CitationViewer } from '../citations/citation-viewer';
         }
         <mt-composer
           [scope]="composerScope()"
-          [commands]="commands"
+          [commands]="commands()"
           [streaming]="!!streaming()"
           [disabled]="composerOff()"
           [(value)]="draft"
@@ -428,9 +430,9 @@ export class ClerkChatPanel {
   private readonly flags = inject(FeatureFlagService);
   private readonly toasts = inject(ToastService);
   private readonly api = clerkChatCallables(inject(CALLABLES));
+  private readonly router = inject(Router);
   protected readonly sources = inject(CitationSources);
 
-  protected readonly commands = CHAT_COMMANDS;
   protected readonly reasons = CLERK_FEEDBACK_REASONS;
   protected readonly manualPath = MANUAL_PATH;
   protected readonly attachmentsMax = CLERK_CHAT_ATTACHMENTS_MAX;
@@ -451,6 +453,15 @@ export class ClerkChatPanel {
         switch: this.flags.isOn('clerk.enabled') ? 'clerk.features.chat' : 'clerk.enabled',
       },
     }),
+  );
+  private readonly draftingOn = computed(
+    () => this.flags.isOn('clerk.enabled') && this.flags.isOn('clerk.features.drafting'),
+  );
+  /** The `/` commands; `/draft` (AI-10) only while drafting is on. */
+  protected readonly commands = computed(() =>
+    CHAT_COMMANDS.map((command) =>
+      command.name === 'draft' && !this.draftingOn() ? { ...command, disabled: true } : command,
+    ),
   );
   private readonly active = computed(() => !!this.matterId() && !!this.uid() && this.canUse());
 
@@ -610,6 +621,11 @@ export class ClerkChatPanel {
   protected async send(text: string): Promise<void> {
     const matterId = this.matterId();
     if (!matterId || this.sending()) return;
+    const draft = parseDraftCommand(text);
+    if (draft) {
+      await this.openDrafting(matterId, draft.instructions, text);
+      return;
+    }
     this.sending.set(true);
     this.sendError.set(null);
     this.notice.set(null);
@@ -635,6 +651,20 @@ export class ClerkChatPanel {
     } finally {
       this.sending.set(false);
     }
+  }
+
+  /** `/draft …` opens Clerk drafting on the matter (AI-10), with the rest as its instructions. */
+  private async openDrafting(matterId: string, instructions: string, text: string): Promise<void> {
+    if (!this.draftingOn()) {
+      if (!this.draft()) this.draft.set(text);
+      this.notice.set('Clerk drafting isn’t turned on for your practice.');
+      return;
+    }
+    this.notice.set(null);
+    this.panel.close();
+    await this.router.navigate(['/matters', matterId, 'drafts', 'new'], {
+      queryParams: instructions ? { instructions } : {},
+    });
   }
 
   protected async stop(): Promise<void> {

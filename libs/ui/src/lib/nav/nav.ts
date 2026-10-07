@@ -56,8 +56,14 @@ export class MtNavItem {
   /** Shown as is up to 99, then "99+". */
   readonly count = input<number>();
   readonly collapsed = input(false, { transform: booleanAttribute });
+  /**
+   * Not shown as the current page even when the route matches: Matters while one of its matters is
+   * open from the sidebar's Pinned section (CORE-23), so only one item reads as current.
+   */
+  readonly inactive = input(false, { transform: booleanAttribute });
 
-  protected readonly active = routerLinkActiveSignal();
+  private readonly routeActive = routerLinkActiveSignal();
+  protected readonly active = computed(() => this.routeActive() && !this.inactive());
 
   constructor() {
     mtTooltipBinding(

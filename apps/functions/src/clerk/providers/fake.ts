@@ -104,6 +104,37 @@ function chatStep(request: ClerkModelRequest): FakeStep | undefined {
   return undefined;
 }
 
+/** The letter the fake writes for Clerk drafting (AI-10): fictional, with one placeholder. */
+export const FAKE_DRAFT_PARAGRAPHS = [
+  'Dear Sir or Madam',
+  'We act for the executor of the estate of the late person named in this matter (fictional letter from the fake Clerk model).',
+  'Please let us know the balance of each account held in the deceased’s name as at [[TO CONFIRM: date of death]].',
+  'Thank you for your help.',
+] as const;
+
+/** The passage the fake writes for a rewrite (AI-10). */
+export const FAKE_REWRITE =
+  'Please tell us the balance of each account as at the date of death (rewritten by the fake Clerk model).';
+
+/**
+ * Clerk drafting's script (AI-10): a short letter with one placeholder, slowly with `[fake:slow]`
+ * in the instructions (stop, navigating away), or a refusal with `[fake:refuse]`; a rewrite
+ * returns `FAKE_REWRITE`.
+ */
+function draftStep(request: ClerkModelRequest): FakeStep | undefined {
+  if (request.system.includes('## Rewriting part of a letter')) return { chunks: [FAKE_REWRITE] };
+  if (!request.system.includes('## Drafting a letter')) return undefined;
+  const asked = turnText(request.messages[request.messages.length - 1]);
+  if (asked.includes('[fake:refuse]')) return { chunks: ['I can’t draft that letter.'], stopReason: 'refusal' };
+  const letter = FAKE_DRAFT_PARAGRAPHS.join('\n\n');
+  if (asked.includes('[fake:slow]'))
+    return {
+      chunks: letter.split(/(?<= )/).concat(Array.from({ length: 60 }, (_, i) => ` more${i + 1}`)),
+      delayMs: 100,
+    };
+  return { chunks: FAKE_DRAFT_PARAGRAPHS.map((paragraph, i) => (i ? `\n\n${paragraph}` : paragraph)) };
+}
+
 /**
  * An Insights narrative (INS-04) the number check accepts: one paragraph per figure (at most two)
  * that writes the current period's value as `<org_metrics>` gives it, citing it. With no figures,
@@ -190,6 +221,8 @@ export function eventsStep(request: ClerkModelRequest): FakeStep {
 function defaultStep(request: ClerkModelRequest): FakeStep {
   if (request.output?.name === 'insightsNarrative') return narrativeStep(request);
   if (request.output?.name === 'eventsFromFile') return eventsStep(request);
+  const draft = draftStep(request);
+  if (draft) return draft;
   const chat = chatStep(request);
   if (chat) return chat;
   const sample = request.output ? SAMPLE_OUTPUT[request.output.name] : undefined;

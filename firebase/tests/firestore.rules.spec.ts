@@ -453,6 +453,31 @@ describe('field-level rules', () => {
     );
   });
 
+  it('a Clerk draft is its owner’s: edited once Clerk has finished, stopped while drafting (AI-10)', async () => {
+    const DRAFTS = `${MATTER}/clerkDrafts`;
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, `${DRAFTS}/running`), { ...seedData(specFor('clerkDrafts')), status: 'drafting' });
+      await setDoc(doc(f, `${DRAFTS}/ready`), seedData(specFor('clerkDrafts')));
+      await setDoc(doc(f, `${DRAFTS}/priv`), { ...seedData(specFor('clerkDrafts')), privileged: true });
+    });
+    const mine = (id: string) => doc(db(env, 'lawyer'), `${DRAFTS}/${id}`);
+    // While Clerk writes it, the owner can only ask it to stop.
+    await assertFails(updateDoc(mine('running'), stamped({ bodyMd: 'Mine now' }, OWNER_UID)));
+    await assertSucceeds(updateDoc(mine('running'), stamped({ stopRequested: true }, OWNER_UID)));
+    await assertFails(updateDoc(mine('ready'), stamped({ stopRequested: true }, OWNER_UID)));
+    // Once it's ready: the body and who wrote what, never the status, recipients or privilege.
+    await assertSucceeds(
+      updateDoc(mine('ready'), stamped({ bodyMd: 'Edited', provenance: [{ origin: 'person', length: 6 }] }, OWNER_UID)),
+    );
+    for (const change of [{ status: 'saved' }, { privileged: true }, { recipients: [] }, { documentIds: ['d1'] }])
+      await assertFails(updateDoc(mine('ready'), stamped(change, OWNER_UID)));
+    await assertFails(updateDoc(mine('ready'), stamped({ bodyMd: 'x'.repeat(50_001) }, OWNER_UID)));
+    // A privileged draft needs privileged.view, and a list must prove whose drafts it reads.
+    await assertSucceeds(getDoc(mine('priv')));
+    await assertFails(getDocs(collection(db(env, 'lawyer'), DRAFTS)));
+    await assertSucceeds(getDocs(query(collection(db(env, 'lawyer'), DRAFTS), where('ownerUid', '==', OWNER_UID))));
+  });
+
   it('notifications and personal tasks belong to one member', async () => {
     await assertFails(getDoc(doc(db(env, 'admin'), `orgs/${ORG}/notifications/notification-1`)));
     await assertFails(getDoc(doc(db(env, 'owner'), `orgs/${ORG}/members/${OWNER_UID}/tasks/task-1`)));
@@ -730,6 +755,41 @@ describe('profile (CORE-20)', () => {
           uid,
         ),
       ),
+    );
+  });
+});
+
+describe('pinned matters (CORE-23)', () => {
+  const tenIds = Array.from({ length: 10 }, (_, i) => `matter-${i + 1}`);
+
+  it('a person pins up to ten matters in their current org, and nobody else writes their pins', async () => {
+    const uid = uidFor('lawyer');
+    const elsewhere = { [OTHER_ORG]: ['matter-9'] };
+    for (const who of [uid, uidFor('paralegal')]) {
+      await seedAdmin(env, (f) =>
+        setDoc(doc(f, `users/${who}`), { ...seedData(specFor('users')), pinnedMatterIds: elsewhere }),
+      );
+    }
+    const ref = doc(db(env, 'lawyer'), `users/${uid}`);
+    const pins = (ids: unknown, extra: Record<string, unknown> = {}) =>
+      stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ids, ...extra } }, uid);
+
+    await assertSucceeds(updateDoc(ref, pins(['matter-1', 'matter-2'])));
+    await assertSucceeds(updateDoc(ref, pins(tenIds)));
+    await assertSucceeds(updateDoc(ref, pins(tenIds.slice(1))));
+    await assertFails(updateDoc(ref, pins([...tenIds, 'matter-11'])));
+    await assertFails(updateDoc(ref, pins('matter-1')));
+    // Only the current org's list changes: another org's stays as it was.
+    await assertFails(updateDoc(ref, pins(['matter-1'], { [OTHER_ORG]: ['matter-1'] })));
+    await assertFails(updateDoc(ref, stamped({ pinnedMatterIds: { [ORG]: ['matter-1'] } }, uid)));
+    await assertFails(updateDoc(ref, stamped({ pinnedMatterIds: 'matter-1' }, uid)));
+    // Unpinning the last one drops the org's list.
+    await assertSucceeds(updateDoc(ref, stamped({ pinnedMatterIds: elsewhere }, uid)));
+    // Another person's pins are theirs alone.
+    const other = doc(db(env, 'lawyer'), `users/${uidFor('paralegal')}`);
+    await assertFails(updateDoc(other, stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ['matter-1'] } }, uid)));
+    await assertFails(
+      updateDoc(other, stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ['matter-1'] } }, uidFor('paralegal'))),
     );
   });
 });
