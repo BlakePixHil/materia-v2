@@ -141,15 +141,14 @@ export class PushOffer {
   private readonly setup = inject(PushSetup);
   private readonly installer = inject(InstallPrompt);
   private readonly dismissed = signal(answered());
-  private readonly loaded = signal(false);
 
   protected readonly state = computed(() => this.devices.status());
   protected readonly shown = computed(
-    () => this.loaded() && !this.dismissed() && (this.state() === 'off' || this.state() === 'install'),
+    () => this.devices.loaded() && !this.dismissed() && (this.state() === 'off' || this.state() === 'install'),
   );
 
   constructor() {
-    void this.devices.load().then(() => this.loaded.set(true));
+    void this.devices.load();
   }
 
   protected async turnOn(): Promise<void> {

@@ -5,6 +5,7 @@ import { contactNames, matterPath, matterSearch, searchContactIds } from './shar
 import { changedFields } from '../audit/entry';
 import { refreshMatterRoles } from '../contacts/matter-roles';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
+import { matterCopyChanged, syncDeadlineMatterCopies } from '../deadlines/matter-copy';
 import { privilegeChanged, syncMatterPrivilege } from '../deadlines/privilege';
 import { clearFixedReviewCodes } from '../migration/clear';
 import { fillFromKeyFacts } from '../templates/fill-pending';
@@ -145,6 +146,12 @@ export const denormaliseDefinition: TriggerDefinition = {
       const matterId = ctx.params['matterId'] as string;
       const written = await syncMatterPrivilege(ctx.db, ctx.params['orgId'] as string, matterId);
       ctx.log.info('privileged flag copied', { matterId, written });
+    }
+    // Its deadlines carry a copy of its number, title, people and jurisdiction (SEC-07c).
+    if (matterCopyChanged(change.before?.data(), change.after?.data())) {
+      const matterId = ctx.params['matterId'] as string;
+      const written = await syncDeadlineMatterCopies(ctx.db, ctx.params['orgId'] as string, matterId);
+      ctx.log.info('matter copied to deadlines', { matterId, written });
     }
     // A migrated matter renamed, or its client, stage, fee or closing changed, loses the review
     // codes that asked for it (MIG-08).

@@ -54,6 +54,8 @@ export const NOISE_FIELDS = new Set([
   // Deadlines (CORE-10): the recompute's serial number, and the missed check's question.
   'recomputeVersion',
   'missedCheck',
+  // Deadlines (SEC-07c): the copy of their matter's number, title, people and jurisdiction.
+  'matter',
   'wipCents',
   'disbursementWipCents',
   // Time entries (BILL-01): what time-onWrite has counted into the matter's wipCents.

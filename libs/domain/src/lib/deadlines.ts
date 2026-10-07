@@ -5,6 +5,7 @@ import { DocIdSchema } from './schemas/common';
 import {
   DeadlineKindSchema,
   EventKindSchema,
+  JurisdictionSchema,
   type DeadlineStatus,
   type Jurisdiction,
   type Role,
@@ -17,6 +18,7 @@ import {
   type DeadlineChangeCause,
   type DeadlineChangeKind,
   type DeadlineChangeStatus,
+  type DeadlineMatterCopy,
 } from './schemas/matter-records';
 import { endOfWeek } from './tasks';
 import { addDays, compareDates, DateOnlySchema, type DateOnly } from './values/date-only';
@@ -394,6 +396,44 @@ export interface DeadlineMatterInfo {
   teamUids?: readonly string[] | undefined;
 }
 
+/**
+ * A deadline's copy of its matter (`Deadline.matter`, SEC-07c), from the matter's fields. Null for
+ * a record without a number and title, which leaves any copy as it is.
+ */
+export function deadlineMatterCopy(matter: Readonly<Record<string, unknown>>): DeadlineMatterCopy | null {
+  const { number, title, responsibleUid, teamUids } = matter;
+  if (typeof number !== 'string' || !number.trim() || typeof title !== 'string' || !title.trim()) return null;
+  const jurisdiction = JurisdictionSchema.safeParse(matter['jurisdiction']);
+  return {
+    number,
+    title,
+    ...(jurisdiction.success ? { jurisdiction: jurisdiction.data } : {}),
+    ...(typeof responsibleUid === 'string' && responsibleUid ? { responsibleUid } : {}),
+    teamUids: Array.isArray(teamUids)
+      ? teamUids.filter((uid): uid is string => typeof uid === 'string' && uid.length > 0)
+      : [],
+  };
+}
+
+/**
+ * Whether a deadline's stored copy already says what `copy` says (field by field: Firestore doesn't
+ * keep a map's key order). True when `copy` is null, since nothing would be written.
+ */
+export function matterCopyIsCurrent(stored: unknown, copy: DeadlineMatterCopy | null): boolean {
+  if (!copy) return true;
+  if (!stored || typeof stored !== 'object') return false;
+  const known = stored as Record<string, unknown>;
+  const team = Array.isArray(known['teamUids']) ? (known['teamUids'] as unknown[]) : [];
+  return (
+    known['number'] === copy.number &&
+    known['title'] === copy.title &&
+    (known['jurisdiction'] ?? undefined) === copy.jurisdiction &&
+    (known['responsibleUid'] ?? undefined) === copy.responsibleUid &&
+    team.length === copy.teamUids.length &&
+    team.every((uid, i) => uid === copy.teamUids[i])
+  );
+}
+
 export interface DeadlineFilters {
   /** Assigned to this member. */
   mine?: boolean;
@@ -450,22 +490,36 @@ export interface CalendarDay<T> {
   deadlines: T[];
 }
 
+/** Monday 1 to Sunday 7. */
+function isoWeekday(date: DateOnly): number {
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
 /**
- * A month view (Monday-first weeks, padded with neighbouring days to whole weeks) with each day's
- * live deadlines sorted by `compareDeadlines`. `month` is `YYYY-MM`.
+ * The days a month view shows, first and last included: the Monday on or before the 1st to the
+ * Sunday on or after the month's last day. `month` is `YYYY-MM`.
+ */
+export function monthCalendarRange(month: string): { from: DateOnly; to: DateOnly } {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error(`Expected YYYY-MM, got ${month}`);
+  const first = `${month}-01` as DateOnly;
+  const [year, monthNumber] = month.split('-').map(Number) as [number, number];
+  const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const last = addDays(first, days - 1);
+  return { from: addDays(first, 1 - isoWeekday(first)), to: addDays(last, 7 - isoWeekday(last)) };
+}
+
+/**
+ * A month view (Monday-first weeks, padded with neighbouring days to whole weeks; the days of
+ * `monthCalendarRange`) with each day's live deadlines sorted by `compareDeadlines`. `month` is
+ * `YYYY-MM`.
  */
 export function monthCalendar<T extends DeadlineLike>(
   month: string,
   rows: readonly T[],
   todayDate: DateOnly,
 ): CalendarDay<T>[][] {
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error(`Expected YYYY-MM, got ${month}`);
-  const first = `${month}-01` as DateOnly;
-  const weekdayOf = (date: DateOnly) => {
-    const day = new Date(`${date}T00:00:00Z`).getUTCDay();
-    return day === 0 ? 7 : day;
-  };
-  const start = addDays(first, 1 - weekdayOf(first));
+  const start = monthCalendarRange(month).from;
   const byDate = new Map<string, T[]>();
   for (const row of [...rows].sort(compareDeadlines)) {
     if (!row.dueDate || !isLive(row)) continue;

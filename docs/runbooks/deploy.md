@@ -59,6 +59,11 @@ Previews deploy hosting only. The preview app calls the dev project's functions,
 3. Merge the release PR that release-please opened (`chore(main): release X.Y.Z`). `release.yml` tags `vX.Y.Z` and starts `deploy-prod`.
 4. In **Actions → deploy-prod**, wait for "find the dev-tested release". It waits up to 45 minutes for the release commit's dev deploy. Then **Review deployments → production → Approve**.
 5. When the run is green, open <https://materia-v2-prod.web.app/health> and check the version and SHA.
+6. Run the backfills the release brings, against prod (`--project materia-v2-prod`), once its functions are live. Each is idempotent, so running one again is safe. On dev, the `dev-script` workflow runs them after the dev deploy.
+
+   | Backfill | From | What it fills |
+   | --- | --- | --- |
+   | `backfill-deadline-matters` | SEC-07c | Each deadline's copy of its matter's number, title, people and jurisdiction. Until it runs, the Deadlines screen reads older deadlines' matters one by one, as it did before. |
 
 A tag on a commit with no successful `deploy-dev` run, or one whose artifact has expired after 90 days, is refused.
 

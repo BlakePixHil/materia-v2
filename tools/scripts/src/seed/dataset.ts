@@ -1611,6 +1611,8 @@ export function buildDataset(options: {
         }),
       );
     }
+    // Each deadline's copy of its matter (SEC-07c), as the deadline writers stamp it.
+    const matterCopy = domain.deadlineMatterCopy(matterData) ?? undefined;
     spec.deadlines.forEach(([title, due, kind, critical, status], i) =>
       add(
         `${base}/deadlines/${spec.id}-dl-${i + 1}`,
@@ -1629,6 +1631,7 @@ export function buildDataset(options: {
           reminders: [{ offsetDays: -7 }, { offsetDays: -1 }],
           pastOnCreation: false,
           privileged: matterData.privileged,
+          matter: matterCopy,
         }),
       ),
     );
@@ -1645,6 +1648,7 @@ export function buildDataset(options: {
           assigneeUid: spec.responsible,
           ...(task ? { taskId: task.id } : {}),
           privileged: matterData.privileged,
+          matter: matterCopy,
         }),
       );
     }

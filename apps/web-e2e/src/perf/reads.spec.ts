@@ -35,12 +35,11 @@ export const READ_BUDGETS = {
   /** The ticket's. Measured 63, 50 of them the firm's members (fewer when that listener resumes). */
   matter: 100,
   /**
-   * Measured 688: the firm-wide list reads up to 500 upcoming deadlines live, the firm's 50
-   * members, then each deadline's matter (136 here: an N+1 of up to 500 at the target scale, so
-   * about 1,050 there). Exception until SEC-07c (MAT-178), "Window the Deadlines page and
-   * denormalise matter fields onto deadlines", lands; the target is then 200.
+   * The ticket's (SEC-07c, MAT-178). Measured 153: the first 100 upcoming deadlines (plus one, to
+   * know there are more), the review queue, the firm's 50 members and the deadline changes. Each
+   * deadline carries a copy of its matter, so no matter is read, at any scale (688 before).
    */
-  deadlines: 800,
+  deadlines: 200,
 } as const;
 
 type Screen = keyof typeof READ_BUDGETS;

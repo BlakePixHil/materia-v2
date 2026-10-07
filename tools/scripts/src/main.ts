@@ -24,6 +24,7 @@ const COMMANDS = {
   'backfill-matter-roles':
     'Give every contact its roles in live matters for the contacts filter (CORE-01a; idempotent)',
   'backfill-deadline-privilege': 'Copy each matter’s privileged flag to its events, deadlines and proposals (CORE-10b)',
+  'backfill-deadline-matters': 'Copy each matter’s number, title, people and jurisdiction to its deadlines (SEC-07c)',
   'search-load': 'Time the ⌘K search against the emulator with 5,000 matters (CORE-15)',
   'decode-stack': 'Deobfuscate a web stack trace with the private sourcemaps (FND-21)',
   'restore-matter': 'Restore one matter from a PITR time or a restored database (SEC-03; dry run unless --apply)',
@@ -80,6 +81,7 @@ export async function run(argv: string[]): Promise<number> {
       'backfill-metrics': () => import('./backfills/metrics.ts'),
       'backfill-matter-roles': () => import('./backfills/matter-roles.ts'),
       'backfill-deadline-privilege': () => import('./backfills/deadline-privilege.ts'),
+      'backfill-deadline-matters': () => import('./backfills/deadline-matters.ts'),
       'search-load': () => import('./search-load.ts'),
       'decode-stack': () => import('./decode-stack.ts'),
       'restore-matter': () => import('./backups/restore-matter.ts'),

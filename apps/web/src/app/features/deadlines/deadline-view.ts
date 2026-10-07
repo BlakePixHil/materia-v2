@@ -210,6 +210,26 @@ export interface ChangeRowVm {
   matter?: DeadlineMatterRef | undefined;
 }
 
+/**
+ * Whether two values read from Firestore hold the same data: primitives, dates, arrays and plain
+ * objects, compared by value (a key set to undefined is the same as a missing one).
+ */
+export function sameData(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => sameData(x, b[i]));
+  }
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) if (!sameData(left[key], right[key])) return false;
+  return true;
+}
+
 /** Closed deadlines (the matter tab lists them apart). */
 export function isClosedDeadline(status: DeadlineStatus): boolean {
   return status === 'done' || status === 'waived' || status === 'missed' || status === 'superseded';

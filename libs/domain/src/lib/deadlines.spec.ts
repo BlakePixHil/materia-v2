@@ -11,6 +11,7 @@ import {
   deadlineFlags,
   deadlineGroup,
   deadlineMatchesFilters,
+  deadlineMatterCopy,
   deadlinePath,
   deadlineTraceText,
   deadlineTraceView,
@@ -18,8 +19,10 @@ import {
   isUrgentChange,
   ManualDeadlineCreateInput,
   ManualDeadlineUpdateInput,
+  matterCopyIsCurrent,
   matterEventPath,
   monthCalendar,
+  monthCalendarRange,
   needsReview,
   nextDeadlineOf,
   OverrideDeadlineInput,
@@ -157,6 +160,62 @@ describe('filters', () => {
     expect(deadlineMatchesFilters(mine, { jurisdictions: ['VIC'] }, { uid: 'u-jordan' })).toBe(false);
   });
 
+  it('copies a matter onto its deadlines, and knows when a copy is current (SEC-07c)', () => {
+    const matter = {
+      number: 'M-2026-0142',
+      title: 'Estate of Margaret Whitfield',
+      jurisdiction: 'VIC',
+      responsibleUid: 'u-priya',
+      teamUids: ['u-priya', 'u-jordan'],
+      status: 'active',
+    };
+    const copy = deadlineMatterCopy(matter);
+    expect(copy).toEqual({
+      number: 'M-2026-0142',
+      title: 'Estate of Margaret Whitfield',
+      jurisdiction: 'VIC',
+      responsibleUid: 'u-priya',
+      teamUids: ['u-priya', 'u-jordan'],
+    });
+    // The copy is what the filters need.
+    expect(
+      deadlineMatchesFilters(row('t', '2026-10-09'), { team: true }, { uid: 'u-jordan', matter: copy ?? undefined }),
+    ).toBe(true);
+    expect(Deadline.schema.shape.matter.parse(copy)).toEqual(copy);
+    expect(
+      deadlineMatterCopy({ number: 'M-1', title: 'A matter', jurisdiction: 'XX', teamUids: [1, '', 'u-a'] }),
+    ).toEqual({
+      number: 'M-1',
+      title: 'A matter',
+      teamUids: ['u-a'],
+    });
+    expect(deadlineMatterCopy({ title: 'No number' })).toBeNull();
+    expect(deadlineMatterCopy({ number: 'M-1', title: '  ' })).toBeNull();
+
+    // Field by field, whatever order the stored map's keys come back in.
+    const stored = {
+      teamUids: ['u-priya', 'u-jordan'],
+      title: matter.title,
+      number: matter.number,
+      responsibleUid: 'u-priya',
+      jurisdiction: 'VIC',
+    };
+    expect(matterCopyIsCurrent(stored, copy)).toBe(true);
+    expect(matterCopyIsCurrent(undefined, copy)).toBe(false);
+    expect(matterCopyIsCurrent({ ...stored, title: 'Renamed' }, copy)).toBe(false);
+    expect(matterCopyIsCurrent({ ...stored, teamUids: ['u-jordan', 'u-priya'] }, copy)).toBe(false);
+    expect(matterCopyIsCurrent({ ...stored, responsibleUid: undefined }, copy)).toBe(false);
+    expect(matterCopyIsCurrent({ ...stored, jurisdiction: null }, copy)).toBe(false);
+    expect(
+      matterCopyIsCurrent(
+        { number: 'M-1', title: 'A matter', teamUids: [], jurisdiction: null },
+        deadlineMatterCopy({ number: 'M-1', title: 'A matter' }),
+      ),
+    ).toBe(true);
+    // Nothing to copy: nothing to write.
+    expect(matterCopyIsCurrent(undefined, null)).toBe(true);
+  });
+
   it('finds the review queue and the flags', () => {
     expect(needsReview(row('p', '2026-01-01', { pastOnCreation: true }))).toBe(true);
     expect(needsReview(row('p', '2026-01-01', { pastOnCreation: true, status: 'done' }))).toBe(false);
@@ -195,6 +254,20 @@ describe('monthCalendar', () => {
     expect(monthCalendar('2026-06', [], TODAY)[0]?.[0]?.date).toBe('2026-06-01');
     expect(monthCalendar('2026-05', [], TODAY).at(-1)?.at(-1)?.date).toBe('2026-05-31');
     expect(() => monthCalendar('2026-13', [], TODAY)).toThrow('YYYY-MM');
+  });
+
+  it('knows the days a month view shows, for the calendar’s query (SEC-07c)', () => {
+    expect(monthCalendarRange('2026-10')).toEqual({ from: '2026-09-28', to: '2026-11-01' });
+    expect(monthCalendarRange('2026-06')).toEqual({ from: '2026-06-01', to: '2026-07-05' });
+    expect(monthCalendarRange('2026-05')).toEqual({ from: '2026-04-27', to: '2026-05-31' });
+    // February in a leap year, across a year's end.
+    expect(monthCalendarRange('2028-02')).toEqual({ from: '2028-01-31', to: '2028-03-05' });
+    expect(monthCalendarRange('2026-12')).toEqual({ from: '2026-11-30', to: '2027-01-03' });
+    for (const month of ['2026-10', '2026-06', '2026-05', '2028-02']) {
+      const weeks = monthCalendar(month, [], TODAY);
+      expect({ from: weeks[0]?.[0]?.date, to: weeks.at(-1)?.at(-1)?.date }).toEqual(monthCalendarRange(month));
+    }
+    expect(() => monthCalendarRange('2026-1')).toThrow('YYYY-MM');
   });
 });
 
