@@ -5,9 +5,9 @@ import type { SessionPolicy } from './sessions';
 /**
  * The callables that still run while a practice waits to be deleted (SEC-05, ADR-058): reads,
  * exports and downloads (so the practice can take its data away), cancelling or confirming the
- * deletion, placing a legal hold (which stops it), and taking access away (a member, a connection,
- * a key). Everything else is refused with ORG_READ_ONLY by the callable wrapper; the web app shows
- * why.
+ * deletion, placing a legal hold (which stops it), accepting new terms (without which an owner
+ * can't reach the cancel), and taking access away (a member, a connection, a key). Everything else
+ * is refused with ORG_READ_ONLY by the callable wrapper; the web app shows why.
  */
 export const READ_ONLY_CALLABLES: ReadonlySet<string> = new Set([
   // Reading
@@ -39,6 +39,9 @@ export const READ_ONLY_CALLABLES: ReadonlySet<string> = new Set([
   ORG_DELETION_CALLABLES.request,
   ORG_DELETION_CALLABLES.cancel,
   'matters-setLegalHold',
+  // An owner accepting new terms of service (SEC-01), which the app asks for before anything else,
+  // the cancel included.
+  'orgs-acceptTerms',
   // Taking access away
   'clerk-removeApiKey',
   'integrations-disconnect',

@@ -43,6 +43,7 @@ import {
 import { OffboardDialog, type OffboardDialogData } from './offboard-dialog';
 import { AuthState } from '../../core/auth/auth-state';
 import { injectRecentLogin } from '../../core/auth/reauth-dialog';
+import { SessionPolicy } from '../../core/auth/session-policy';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService } from '../../core/orgs/org-service';
 import { MtNeedsConnection } from '../../core/pwa/needs-connection';
@@ -234,7 +235,13 @@ const ROLE_LABELS: Record<Role, string> = {
                   Transfer ownership…
                 </button>
               }
-              <button mtButton size="sm" (click)="remove(member)" [attr.aria-label]="'Remove ' + member.displayName">
+              <button
+                mtButton
+                mtNeedsConnection
+                size="sm"
+                (click)="remove(member)"
+                [attr.aria-label]="'Remove ' + member.displayName"
+              >
                 Remove…
               </button>
             } @else {
@@ -284,6 +291,7 @@ const ROLE_LABELS: Record<Role, string> = {
 export class TeamPage {
   private readonly orgs = inject(OrgService);
   private readonly auth = inject(AuthState);
+  private readonly session = inject(SessionPolicy);
   private readonly toasts = inject(ToastService);
   private readonly dialogs = inject(DialogService);
   private readonly api = inject(SettingsApi);
@@ -509,9 +517,20 @@ export class TeamPage {
   /**
    * Removing someone hands on their work first (SEC-05): the offboarding wizard asks who takes
    * their open tasks, deadlines and matters and what happens to their personal tasks, then removes
-   * them. The member list updates itself.
+   * them. The member list updates itself. While the practice waits to be deleted it is read-only:
+   * removing someone then only takes their access away.
    */
   protected async remove(member: TeamMember): Promise<void> {
+    if (this.session.deletionScheduledAt()) {
+      const confirmed = await this.dialogs.confirm({
+        title: `Remove ${member.displayName}?`,
+        body: 'The practice is waiting to be deleted, so nothing of theirs is handed on: they just lose access to it.',
+        confirmLabel: 'Remove',
+        tone: 'danger',
+      });
+      if (confirmed) await this.run(() => this.orgs.removeMember(member.uid), `${member.displayName} removed`);
+      return;
+    }
     const handle = this.dialogs.open<OffboardDialogData, OffboardMemberResult>(OffboardDialog, {
       data: {
         uid: member.uid,

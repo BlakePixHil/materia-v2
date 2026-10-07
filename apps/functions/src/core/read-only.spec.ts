@@ -69,6 +69,7 @@ describe('read-only while a deletion is scheduled', () => {
       'matters-setLegalHold',
       'orgs-removeMember',
       'orgs-offboardingPlan',
+      'orgs-acceptTerms',
     ]) {
       expect(READ_ONLY_CALLABLES.has(name), name).toBe(true);
       expect(() => assertWritable(name, scheduled), name).not.toThrow();

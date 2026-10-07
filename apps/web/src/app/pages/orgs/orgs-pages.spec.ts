@@ -4,7 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { OrgContext } from '@materia/data-access';
 import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
-import { TERMS_VERSION } from '@materia/domain';
+import { resolveSecurity, TERMS_VERSION } from '@materia/domain';
 import { MT_KEYBOARD_PLATFORM } from '@materia/ui';
 
 import { App } from '../../app';
@@ -516,6 +516,26 @@ describe('team page', () => {
     await overlay.click('Next', page.stable);
     await overlay.click('Remove Sam Lee', page.stable);
     expect(overlay.text()).toContain('A practice needs at least one owner');
+  });
+
+  it('only takes access away while the practice waits to be deleted (SEC-05)', async () => {
+    const page = await open('/settings/team', OWNER, {
+      configure: (port, tenancy, firestore) => {
+        seedMembers(firestore);
+        tenancy.security_ = {
+          policy: resolveSecurity(undefined),
+          validAfter: null,
+          deletionScheduledAt: new Date('2026-11-06T02:00:00Z'),
+        };
+        port.callResults['orgs-removeMember'] = { ok: true };
+      },
+    });
+    await page.click('Remove');
+    expect(overlay.text()).toContain('nothing of theirs is handed on');
+    await overlay.click('Remove', page.stable);
+    expect(page.port.calls.map((c) => c.name)).not.toContain('orgs-offboardingPlan');
+    expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-removeMember', data: { uid: 'u-sam-1' } });
+    expect(document.body.textContent).toContain('Sam Lee removed');
   });
 
   it('is read-only for roles without members.manage', async () => {

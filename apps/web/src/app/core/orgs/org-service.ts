@@ -203,6 +203,14 @@ export class OrgService {
     return this.call('orgs-changeRole', { uid, role });
   }
 
+  /**
+   * Takes a member's access away and nothing else. The team page hands their work on first
+   * (`orgs-offboardMember`, SEC-05); this is for a practice waiting to be deleted, which is read-only.
+   */
+  removeMember(uid: string): Promise<unknown> {
+    return this.call('orgs-removeMember', { uid });
+  }
+
   /** Pauses a member's access, or with `suspended: false` reinstates them. */
   suspendMember(uid: string, suspended: boolean): Promise<unknown> {
     return this.call('orgs-suspendMember', { uid, suspended });
