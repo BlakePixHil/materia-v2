@@ -47,6 +47,11 @@ export const CreateOrgInput = z.object({
     .optional(),
   primaryJurisdiction: JurisdictionSchema,
   timezone: z.enum(ORG_TIMEZONES).default(DEFAULT_ORG_TIMEZONE),
+  /**
+   * The terms of service version (`TERMS_VERSION`, SEC-01) the creating owner ticked to accept on the
+   * practice's behalf. Recorded on the org; without it the owner is asked before using the app.
+   */
+  acceptTermsVersion: z.string().trim().min(1).max(20).optional(),
 });
 
 export const InviteMemberInput = z.object({ requestId: RequestId, email: Email, role: RoleSchema });

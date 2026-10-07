@@ -14,6 +14,7 @@ import {
   withRateChange,
   type Action,
   type MemberSecurity,
+  type OffboardMemberResult,
   type Role,
 } from '@materia/domain';
 import {
@@ -39,10 +40,14 @@ import {
   type MemberSettingsDialogData,
   type MemberSettingsDialogResult,
 } from './member-settings-dialog';
+import { OffboardDialog, type OffboardDialogData } from './offboard-dialog';
 import { AuthState } from '../../core/auth/auth-state';
 import { injectRecentLogin } from '../../core/auth/reauth-dialog';
+import { SessionPolicy } from '../../core/auth/session-policy';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService } from '../../core/orgs/org-service';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
+import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { SettingsApi } from '../../features/settings/settings-api';
 
 /** One row of the role explainer: an action and whether each role may do it. */
@@ -75,7 +80,8 @@ const ROLE_LABELS: Record<Role, string> = {
  * Settings → Team and roles (`/settings/team`, FND-17, CORE-21): members and pending invites.
  * Everyone sees who is in the practice. Owners and admins also see each member's MFA status and last
  * activity (from Auth, `orgs-memberSecurity`), rate and this year's budget; they invite, change
- * roles, set rates, budgets and supervisors, suspend, reinstate and remove people. Only owners grant
+ * roles, set rates, budgets and supervisors, suspend, reinstate and remove people (handing on their
+ * work first, SEC-05). Only owners grant
  * the owner role or transfer ownership (FND-17); suspending, reinstating and transferring ask the
  * person to confirm it's them when their sign-in is more than a few minutes old.
  * The role explainer is generated from the permission matrix in `libs/domain`.
@@ -87,10 +93,12 @@ const ROLE_LABELS: Record<Role, string> = {
   selector: 'mt-team-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    MtPageOfflineNote,
     FormsModule,
     ReactiveFormsModule,
     MtAvatar,
     MtButton,
+    MtNeedsConnection,
     MtNote,
     MtSelect,
     MtSettingsRow,
@@ -111,7 +119,11 @@ const ROLE_LABELS: Record<Role, string> = {
     <h1 class="title-l" style="margin: 0">Team and roles</h1>
 
     @if (manage()) {
-      <mt-settings-section title="Invite someone" description="They’ll get an email with a link that works for 7 days.">
+      <mt-settings-section
+        title="Invite someone"
+        description="They’ll get an email with a link that works for 7 days."
+        [headingLevel]="2"
+      >
         <form
           class="mt-row"
           style="gap: 8px; align-items: flex-end; flex-wrap: wrap"
@@ -127,7 +139,7 @@ const ROLE_LABELS: Record<Role, string> = {
             required
           />
           <mt-select label="Role" formControlName="role" [options]="grantable()" [native]="true" />
-          <button mtButton variant="primary" type="submit" [loading]="inviting()">Send invite</button>
+          <button mtButton mtNeedsConnection variant="primary" type="submit" [loading]="inviting()">Send invite</button>
         </form>
       </mt-settings-section>
     }
@@ -145,7 +157,7 @@ const ROLE_LABELS: Record<Role, string> = {
           </mt-note>
         }
         @case ('offline') {
-          <mt-note tone="info" role="status">
+          <mt-note tone="info" role="status" mtPageOfflineNote>
             {{
               team().length
                 ? 'You’re offline. This is the team as it was when you were last connected.'
@@ -223,11 +235,15 @@ const ROLE_LABELS: Record<Role, string> = {
                   Transfer ownership…
                 </button>
               }
-              @if (confirming() === member.uid) {
-                <button mtButton variant="danger" size="sm" (click)="remove(member)">Confirm removal</button>
-              } @else {
-                <button mtButton size="sm" (click)="confirming.set(member.uid)">Remove</button>
-              }
+              <button
+                mtButton
+                mtNeedsConnection
+                size="sm"
+                (click)="remove(member)"
+                [attr.aria-label]="'Remove ' + member.displayName"
+              >
+                Remove…
+              </button>
             } @else {
               <span>{{ roleLabel(member.role) }}</span>
             }
@@ -263,8 +279,8 @@ const ROLE_LABELS: Record<Role, string> = {
         @for (invite of invites(); track invite.id) {
           <mt-settings-row [title]="invite.email" [description]="describeInvite(invite)">
             <div class="mt-row" style="gap: 8px">
-              <button mtButton size="sm" (click)="resend(invite)">Resend</button>
-              <button mtButton size="sm" (click)="revoke(invite)">Revoke</button>
+              <button mtButton mtNeedsConnection size="sm" (click)="resend(invite)">Resend</button>
+              <button mtButton mtNeedsConnection size="sm" (click)="revoke(invite)">Revoke</button>
             </div>
           </mt-settings-row>
         }
@@ -275,6 +291,7 @@ const ROLE_LABELS: Record<Role, string> = {
 export class TeamPage {
   private readonly orgs = inject(OrgService);
   private readonly auth = inject(AuthState);
+  private readonly session = inject(SessionPolicy);
   private readonly toasts = inject(ToastService);
   private readonly dialogs = inject(DialogService);
   private readonly api = inject(SettingsApi);
@@ -326,7 +343,6 @@ export class TeamPage {
   protected readonly invites = signal<PendingInvite[]>([]);
   protected readonly inviting = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly confirming = signal<string | null>(null);
   protected readonly me = computed(() => this.auth.user()?.uid ?? null);
   protected readonly manage = this.orgs.canManageMembers;
   /** Roles the caller may hand out: owners grant any role, admins every role but owner. */
@@ -498,9 +514,45 @@ export class TeamPage {
     void this.run(() => this.orgs.changeRole(member.uid, role), `${member.displayName} is now ${ROLE_LABELS[role]}`);
   }
 
-  protected remove(member: TeamMember): void {
-    this.confirming.set(null);
-    void this.run(() => this.orgs.removeMember(member.uid), `${member.displayName} removed`);
+  /**
+   * Removing someone hands on their work first (SEC-05): the offboarding wizard asks who takes
+   * their open tasks, deadlines and matters and what happens to their personal tasks, then removes
+   * them. The member list updates itself. While the practice waits to be deleted it is read-only:
+   * removing someone then only takes their access away.
+   */
+  protected async remove(member: TeamMember): Promise<void> {
+    if (this.session.deletionScheduledAt()) {
+      const confirmed = await this.dialogs.confirm({
+        title: `Remove ${member.displayName}?`,
+        body: 'The practice is waiting to be deleted, so nothing of theirs is handed on: they just lose access to it.',
+        confirmLabel: 'Remove',
+        tone: 'danger',
+      });
+      if (confirmed) await this.run(() => this.orgs.removeMember(member.uid), `${member.displayName} removed`);
+      return;
+    }
+    const handle = this.dialogs.open<OffboardDialogData, OffboardMemberResult>(OffboardDialog, {
+      data: {
+        uid: member.uid,
+        displayName: member.displayName,
+        people: this.team().map((m) => ({ uid: m.uid, displayName: m.displayName, role: m.role, status: m.status })),
+      },
+      closeOnOutsideClick: false,
+    });
+    const result = await handle.result;
+    if (!result) return;
+    const moved = result.moved.tasks + result.moved.deadlines + result.moved.matters;
+    this.toasts.show({
+      title: `${member.displayName} removed`,
+      description: [
+        moved ? `${moved} ${moved === 1 ? 'item' : 'items'} handed on.` : '',
+        result.personalTasks.exportJobId ? 'Their personal tasks are in your notifications to download.' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      tone: 'success',
+    });
+    await this.reload();
   }
 
   protected async suspend(member: TeamMember): Promise<void> {

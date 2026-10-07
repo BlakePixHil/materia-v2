@@ -1,0 +1,13 @@
+{
+  "id": "client-update",
+  "title": "Client update",
+  "description": "Tells the client where the matter stands and what happens next.",
+  "matterTypes": [],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "client",
+  "recipientRoles": ["client", "executor", "administrator"],
+  "requiredFacts": [{ "fact": "matter.responsibleLawyer.name", "label": "responsible lawyer" }],
+  "guidance": "Write to our client about their matter, as the responsible lawyer.\n\n- Say what has happened recently, from the matter's events, notes and documents.\n- Say what happens next: the upcoming deadlines and open tasks that matter to the client, with their dates.\n- Say clearly what we need from the client, if anything, and by when.\n- Plain, warm and brief. No outcome predictions: if the instructions ask for advice on prospects, leave a placeholder for the responsible lawyer's advice.",
+  "needsInstructions": false
+}

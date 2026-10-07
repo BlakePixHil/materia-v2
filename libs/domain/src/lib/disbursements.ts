@@ -202,10 +202,10 @@ export const DisbursementPresetsSchema = z
 /** `orgs/{orgId}/settings/disbursementPresets`; owners and admins write it directly. */
 export const DISBURSEMENT_PRESETS_DOC = 'disbursementPresets';
 /** The presets document (the only client-readable document in `settings`). */
-export const DisbursementPresetsDoc = withMeta(
-  { presets: DisbursementPresetsSchema },
-  { path: 'orgs/{orgId}/settings', migratable: false },
-);
+export const DisbursementPresetsDoc = withMeta(() => ({ presets: DisbursementPresetsSchema }), {
+  path: 'orgs/{orgId}/settings',
+  migratable: false,
+});
 export const disbursementPresetsPath = (orgId: string) => `orgs/${orgId}/settings/${DISBURSEMENT_PRESETS_DOC}`;
 
 /**

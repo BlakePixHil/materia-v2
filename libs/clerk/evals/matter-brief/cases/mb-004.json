@@ -1,0 +1,32 @@
+{
+  "id": "mb-004",
+  "description": "A privileged matter: its privileged advice is part of the brief.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "matterPrivileged": true,
+    "documents": [
+      {
+        "id": "doc-advice",
+        "name": "Advice on the Belmont caveat (fictional).pdf",
+        "category": "other",
+        "createdAt": "2026-10-05T03:00:00.000Z",
+        "privileged": true
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-call",
+        "title": "Call the client about the caveat advice",
+        "dueDate": "2026-10-09"
+      }
+    ]
+  },
+  "tags": ["privilege"],
+  "matter": {
+    "matterNumber": "M-2026-0142",
+    "title": "Estate of Colin Belmont (fictional)",
+    "type": "probate",
+    "status": "open"
+  }
+}

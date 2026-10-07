@@ -1,0 +1,17 @@
+{
+  "id": "asset-transfer",
+  "title": "Asset transfer instructions",
+  "description": "Instructs an institution to transfer or sell an estate asset under the grant.",
+  "matterTypes": ["probate", "loa", "admin"],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "third_party",
+  "recipientRoles": [],
+  "requiredFacts": [
+    { "fact": "matter.deceased.name", "label": "name of the deceased" },
+    { "fact": "matter.estate.grantDate", "label": "date of the grant" },
+    { "fact": "party:executor", "label": "executors' names" }
+  ],
+  "guidance": "Write to an institution that holds an estate asset (a share registry, a bank, a super fund, a vehicle registry). We act for the executors (or administrators).\n\n- Identify the deceased, the grant and its date, and the asset, using only details the matter's documents give (holder or account number, description, quantity). Use a placeholder for any detail that isn't in them.\n- Say what the executors instruct: to transfer the asset to a named person, or to sell it and pay the proceeds to the estate, exactly as the lawyer's instructions say. If the instructions don't say which, use a placeholder.\n- List what is enclosed only if the instructions say so (for example a certified copy of the grant or a signed transfer form), and ask for any forms they need.\n- Ask them to confirm when it is done.",
+  "needsInstructions": false
+}

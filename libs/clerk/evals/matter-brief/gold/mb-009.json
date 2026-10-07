@@ -1,0 +1,5 @@
+{
+  "id": "mb-009",
+  "briefRefs": ["deadline:dl-settlement", "task:t-s32"],
+  "mustNotContain": ["has settled", "purchase price", "A$"]
+}

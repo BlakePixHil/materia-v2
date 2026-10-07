@@ -170,10 +170,11 @@ export class OrgService {
   }
 
   /**
-   * Switches the active org, then loads Today as a fresh page: listeners, stores and caches from
-   * the previous org are gone, so nothing from it stays on screen. Needs the network.
+   * Switches the active org, then loads Today (or `to`, an app path) as a fresh page: listeners,
+   * stores and caches from the previous org are gone, so nothing from it stays on screen. Needs
+   * the network.
    */
-  async switchOrg(orgId: string): Promise<void> {
+  async switchOrg(orgId: string, to = '/today'): Promise<void> {
     if (!this.online()) throw new OfflineError();
     await this.call('orgs-switchActiveOrg', { orgId });
     for (const cleanup of this.cleanups) {
@@ -184,7 +185,7 @@ export class OrgService {
       }
     }
     await this.auth.refreshClaims();
-    this.load('/today');
+    this.load(to);
   }
 
   inviteMember(email: string, role: Role): Promise<{ inviteId: string; emailed: boolean }> {
@@ -203,6 +204,10 @@ export class OrgService {
     return this.call('orgs-changeRole', { uid, role });
   }
 
+  /**
+   * Takes a member's access away and nothing else. The team page hands their work on first
+   * (`orgs-offboardMember`, SEC-05); this is for a practice waiting to be deleted, which is read-only.
+   */
   removeMember(uid: string): Promise<unknown> {
     return this.call('orgs-removeMember', { uid });
   }

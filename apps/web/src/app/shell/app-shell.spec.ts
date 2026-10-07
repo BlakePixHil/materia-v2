@@ -128,7 +128,7 @@ describe('AppShellComponent', () => {
     await settle();
     await fixture.whenStable();
     const counts = [...el.querySelectorAll('.mt-tabbar a')].map((a) => a.querySelector('.mt-nav-count')?.textContent);
-    expect(counts).toEqual([undefined, undefined, undefined, undefined, '1']);
+    expect(counts).toEqual([undefined, undefined, undefined, '1', undefined]);
   });
 
   it('ignores [ while typing in a field', async () => {
@@ -234,14 +234,77 @@ describe('AppShellComponent', () => {
     expect(localStorage.getItem('materia.commands.recent')).toBeNull();
   });
 
+  it('offers “Install Materia” in ⌘K once the browser can install it (MOB-01)', async () => {
+    const { el, fixture } = await setup();
+    const registry = TestBed.inject(CommandRegistry);
+    expect(registry.get('app.install')?.when?.()).toBe(false);
+
+    const prompt = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: vi.fn(async () => undefined),
+      userChoice: Promise.resolve({ outcome: 'accepted' }),
+    });
+    window.dispatchEvent(prompt);
+    await fixture.whenStable();
+    expect(registry.get('app.install')?.when?.()).toBe(true);
+    expect(registry.get('app.install')?.title).toBe('Install Materia');
+    registry.get('app.install')?.run();
+    await vi.waitFor(() => expect(prompt.prompt).toHaveBeenCalledOnce());
+    expect(el.textContent).not.toContain('Install Materia');
+  });
+
+  it('opens quick time entry from the installed app’s “New time entry” shortcut (MOB-01)', async () => {
+    const quickTime = vi.spyOn(AppShellComponent.prototype, 'openQuickTime').mockResolvedValue();
+    try {
+      const { router } = await setup('/today?do=new-time-entry');
+      await vi.waitFor(() => expect(quickTime).toHaveBeenCalledOnce());
+      expect(router.url).toBe('/today');
+    } finally {
+      quickTime.mockRestore();
+    }
+  });
+
+  it('opens the Record page from the installed app’s “Record” shortcut (MOB-02)', async () => {
+    const { router, el } = await setup('/record', { mobile: true });
+    expect(router.url).toBe('/record');
+    await vi.waitFor(() => expect(el.querySelector('mt-record-page')).not.toBeNull());
+    const record = el.querySelector('.mt-tabbar a[href="/record"]');
+    expect(record?.getAttribute('aria-current')).toBe('page');
+  });
+
   it('shows the TabBar instead of the sidebar on phones', async () => {
     const { el } = await setup('/today', { mobile: true });
     expect(el.querySelector('.mt-sidebar')).toBeNull();
     const tabs = [...el.querySelectorAll('.mt-tabbar a')].map(
       (a) => a.textContent?.trim() || a.getAttribute('aria-label'),
     );
-    expect(tabs).toEqual(['Today', 'Matters', 'Record', 'Deadlines', 'Inbox']);
+    expect(tabs).toEqual(['Today', 'Matters', 'Record', 'Inbox', 'More']);
     expect(TestBed.inject(CommandRegistry).get('sidebar.toggle')?.when?.()).toBe(false);
+  });
+
+  it('shows the page’s title in a phone’s top bar, with my avatar opening More (MOB-02)', async () => {
+    const { el } = await setup('/today', { mobile: true });
+    expect(el.querySelector('.mt-topbar mt-breadcrumb')).toBeNull();
+    expect(el.querySelector('.mt-topbar-title')?.textContent?.trim()).toBe('Today');
+    const me = el.querySelector<HTMLAnchorElement>('.mt-topbar-me');
+    expect(me?.getAttribute('href')).toBe('/more');
+    expect(me?.getAttribute('aria-label')).toMatch(/^More, and your account: /);
+    expect(el.querySelector('.mt-topbar [data-back]')).toBeNull();
+  });
+
+  it('marks More as the active tab on pages the TabBar doesn’t have, with Back in the top bar (MOB-02)', async () => {
+    const { el } = await setup('/contacts', { mobile: true });
+    const active = [...el.querySelectorAll('.mt-tabbar a[data-active]')].map((a) => a.textContent?.trim());
+    expect(active).toEqual(['More']);
+    const back = el.querySelector<HTMLAnchorElement>('.mt-topbar [data-back]');
+    expect(back?.getAttribute('href')).toBe('/more');
+    expect(back?.getAttribute('aria-label')).toBe('Back to More');
+    expect(el.querySelector('.mt-topbar-me')).toBeNull();
+  });
+
+  it('keeps the breadcrumb on bigger screens', async () => {
+    const { el } = await setup('/today');
+    expect(el.querySelector('.mt-topbar mt-breadcrumb')).not.toBeNull();
+    expect(el.querySelector('.mt-topbar-title')).toBeNull();
   });
 });
 

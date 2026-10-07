@@ -411,6 +411,30 @@ describe('matters board', () => {
     expect(document.activeElement?.textContent?.trim()).toBe('Harriet and Paul Okafor');
   });
 
+  it('reorders within a column from the Move menu too, so nothing needs a drag (WCAG 2.5.7)', async () => {
+    const page = await open('/matters/board?view=all-open', LAWYER, {
+      configure: (_port, fs) => {
+        fs.set(`${MATTERS}/m-whitfield`, { ...fs.get(`${MATTERS}/m-whitfield`), boardOrder: ORDER_STEP });
+        fs.set(`${MATTERS}/m-okafor`, { ...fs.get(`${MATTERS}/m-okafor`), boardOrder: 2 * ORDER_STEP });
+        fs.set(`${MATTERS}/m-chen`, { ...fs.get(`${MATTERS}/m-chen`), boardOrder: 3 * ORDER_STEP });
+      },
+    });
+    await page.moveWithMenu('Estate of Margaret Whitfield', 'Move down');
+    expect(page.cards('Open')).toEqual([
+      'Harriet and Paul Okafor',
+      'Estate of Margaret Whitfield',
+      'Estate of Robert Chen',
+    ]);
+    expect(page.live()).toBe('Moved M-2026-0142 to Open, 2 of 3.');
+    // The first card can't go up, nor the last down.
+    await page.moveWithMenu('Harriet and Paul Okafor', 'Move down');
+    expect(page.cards('Open')[0]).toBe('Estate of Margaret Whitfield');
+    await page.focus('Estate of Margaret Whitfield');
+    await page.press('m');
+    expect(page.menuItem('Move up')?.hasAttribute('data-disabled')).toBe(true);
+    expect(page.menuItem('Move down')?.hasAttribute('data-disabled')).toBe(false);
+  });
+
   it('flashes a card someone else moved', async () => {
     const page = await open('/matters/board?view=all-open');
     page.firestore.set(`${MATTERS}/m-chen`, { ...page.firestore.get(`${MATTERS}/m-chen`), status: 'on_hold' });

@@ -1,6 +1,7 @@
 import { DomainError } from '@materia/domain';
 
 import { CallableClient, type CallableTransport } from './callable-client';
+import { isOfflineError } from './errors';
 
 /** A transport that fails with the queued errors, then succeeds; it records every payload. */
 function transport(...failures: unknown[]) {
@@ -119,6 +120,25 @@ describe('CallableClient', () => {
     expect(t.calls.at(-1)?.data['requestId']).toBe('req-2');
     archive.reset();
     expect(archive.requestId()).toBeNull();
+  });
+
+  it('fails at once offline, sending nothing, and stops retrying when the connection drops', async () => {
+    let online = false;
+    const t = transport(unavailable);
+    const client = new CallableClient(t.port, { ...options, online: () => online });
+    const error = await client.call('invoices-approve', { invoiceId: 'i1' }, { idempotent: true }).catch((e) => e);
+    expect(isOfflineError(error)).toBe(true);
+    expect(t.calls).toEqual([]);
+
+    // Online, the first attempt fails; the connection drops during the backoff.
+    online = true;
+    const dropping = new CallableClient(t.port, {
+      ...options,
+      online: () => online,
+      delay: async () => void (online = false),
+    });
+    await expect(dropping.call('x', {}, { idempotent: true })).rejects.toSatisfy(isOfflineError);
+    expect(t.calls).toHaveLength(1);
   });
 
   it('defaults to random UUIDs and real backoff', async () => {

@@ -1,0 +1,14 @@
+{
+  "id": "draft-013",
+  "fixtures": {},
+  "placeholders": {
+    "missing": [
+      {
+        "fact": "date of the will",
+        "keywords": ["will", "date"]
+      }
+    ],
+    "forbidden": ["16 May 2019", "dated 2019"]
+  },
+  "mustNotContain": ["[2015]", "NSWSC", "suspicious circumstances"]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "fp-letter-of-demand",
+  "title": "Letter of demand (family provision)",
+  "description": "Puts the executors on notice of our client's family provision claim.",
+  "matterTypes": ["fp"],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "third_party",
+  "recipientRoles": ["other_side_solicitor", "executor", "administrator"],
+  "requiredFacts": [
+    { "fact": "matter.deceased.name", "label": "name of the deceased" },
+    { "fact": "matter.deceased.dateOfDeath", "label": "date of death" },
+    { "fact": "party:client", "label": "our client" }
+  ],
+  "guidance": "Write to the executors of the estate, or their solicitors. We act for a person who claims that the deceased's will doesn't make adequate provision for them.\n\n- Say who we act for and their relationship to the deceased, as the matter facts or instructions say.\n- Say that our client intends to apply to the court for further provision from the estate (a family provision claim), unless the matter can be resolved.\n- Ask the executors not to distribute the estate while the claim is outstanding, and to confirm that they won't.\n- Ask for a copy of the will and the grant, and a statement of the estate's assets and liabilities.\n- Don't state the amount or share our client seeks, any deadline for the claim, or any legal reference, unless the instructions or the matter's documents give them; use a placeholder where the letter needs one.\n- Keep the tone firm and courteous. Don't predict the outcome of the claim.",
+  "needsInstructions": false
+}

@@ -1,6 +1,6 @@
 {
   "id": "draft-006",
-  "description": "Advertisement wording: publication date unknown",
+  "description": "Letter from instructions to a newspaper: publication date unknown",
   "matter": {
     "matterNumber": "HV-2026-0007",
     "title": "Estate of Gwendolyn May Pryce",
@@ -12,7 +12,8 @@
     "responsibleLawyer": "Jordan Price",
     "probate": {
       "applicationFiled": "2026-02-12",
-      "granted": null
+      "granted": null,
+      "grantType": "probate"
     },
     "upcomingDeadlines": [
       {
@@ -22,13 +23,16 @@
     ],
     "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
   },
-  "documents": [
-    {
-      "id": "d-style",
-      "fixture": "drafting/house-style.txt",
-      "title": "Letter house style"
-    }
-  ],
-  "query": "Draft the notice to creditors for the estate, including the date of publication.",
-  "today": "2026-03-20"
+  "documents": [],
+  "query": "Letter to the Geelong Advertiser asking it to publish the notice to creditors on a given date.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "letter",
+    "recipients": [
+      {
+        "name": "Geelong Advertiser, Public Notices"
+      }
+    ],
+    "instructions": "Ask them to publish the estate's notice to creditors, and give the date we want it published."
+  }
 }

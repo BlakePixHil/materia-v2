@@ -21,6 +21,7 @@ export { CLERK_DISCLOSURE_VERSION, CLERK_DISCLOSURES } from './clerk-disclosure.
 export const ORG_CLERK_FEATURE_KEYS = [
   'chat',
   'brief',
+  'matterBrief',
   'suggestions',
   'classification',
   'willExtract',
@@ -48,6 +49,11 @@ export const ORG_CLERK_FEATURES: readonly OrgClerkFeatureInfo[] = [
     description: 'Questions about a matter or the practice, answered with citations.',
   },
   { key: 'brief', label: 'Morning brief', description: 'A summary of what needs you, on Today.' },
+  {
+    key: 'matterBrief',
+    label: 'Matter brief',
+    description: 'What changed, what’s due and a next step, at the top of each matter’s Overview.',
+  },
   {
     key: 'suggestions',
     label: 'Suggest tasks and deadlines',
@@ -99,6 +105,8 @@ export const OrgClerkSettingsSchema = z.object({
     .optional(),
   /** Pages per day Clerk may OCR for the org (AI-04); DEFAULT_OCR_DAILY_PAGES when unset, 0 stops OCR. */
   ocrDailyPages: z.number().int().min(0).max(MAX_OCR_DAILY_PAGES).optional(),
+  /** How Clerk's letters should read (AI-10): the firm's house style; a plain default applies when unset. */
+  draftingStyle: z.string().max(2_000).optional(),
   /** Who acknowledged the data-use disclosure, when, and which version of it. */
   acknowledgedAt: InstantSchema.optional(),
   acknowledgedBy: z.string().optional(),
@@ -126,6 +134,8 @@ export const UpdateClerkSettingsInput = z
     perUserDailyRequests: z.number().int().min(1).max(MAX_DAILY_REQUESTS).nullable().optional(),
     /** `null` goes back to the default (DEFAULT_OCR_DAILY_PAGES). */
     ocrDailyPages: z.number().int().min(0).max(MAX_OCR_DAILY_PAGES).nullable().optional(),
+    /** The firm's house style for Clerk's letters (AI-10); `null` or blank goes back to the default. */
+    draftingStyle: z.string().trim().max(2_000).nullable().optional(),
     /** Acknowledges this version of the disclosure; it must be the current one. */
     acknowledgeVersion: z.number().int().min(1).optional(),
   })

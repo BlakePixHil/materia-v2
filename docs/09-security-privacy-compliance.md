@@ -16,7 +16,7 @@ Client personal information is often sensitive: health information in capacity d
   - Trust money: out of scope for v1. Materia never keeps trust records; it may only show a labelled balance snapshot ([ADR-035](adr/035-trust-accounting.md)).
   - **(sign-off)**
 - **Privilege.** Privilege is never waived by the system: no automatic sharing, and privileged flags carry through exports, AI outputs and emails.
-- **Data residency.** Primary data stays in `australia-southeast1`, backups in `australia-southeast2`. AI processing follows ADR-011a. Sub-processors are listed in the privacy policy.
+- **Data residency.** Primary data stays in `australia-southeast1`, backups in `australia-southeast2`. AI processing follows ADR-011a. Sub-processors are listed in the [sub-processor list](compliance/subprocessors.md), which the privacy policy links to.
 
 ## Controls
 
@@ -75,7 +75,7 @@ Client personal information is often sensitive: health information in capacity d
 - **Enforcement:** one check in three places. Every callable (`defineCallable`, `core/sessions.ts`), the Firestore rules (`sessionOk()` inside `inOrg()`) and the client (`SessionPolicy`) refuse a sign-in that is older than `maxSessionDays` (the token's `auth_time`), from before the member's `sessionsValidAfter`, or without a second factor (`firebase.sign_in_second_factor`) once MFA is enforced. The org document and the member's own document stay readable so the app can say why. Storage rules check `sessionsValidAfter` only; MFA and session length reach files through the Firestore reads and callables that lead to them.
 - **Client:** past the grace period a member without MFA is sent to set it up; during it a banner shows the deadline. A sign-in the policy refuses signs out to `/auth/signed-out?reason=expired|revoked|mfa`.
 - **Inactivity:** `IdleTimeout` counts from the last click, key, scroll or touch in any tab (a BroadcastChannel shares activity and the sign-out), warns a minute before `sessionIdleMinutes`, then signs every tab out ("Signed out due to inactivity"). Uploads and recordings hold it off (`ActivityHolds`).
-- **Re-authentication:** callables declare `recentLoginMinutes: 5` for sensitive actions (role changes, suspension, removal, ownership transfer, policy changes, signing people out, the time-entry CSV and estate inventory exports; the audit-log export, Clerk keys and safe-custody releases check it in their handlers). The client's callable client answers `REAUTH_REQUIRED` with "Confirm it's you" (password, Google popup, then the authenticator code) and retries once.
+- **Re-authentication:** callables declare `recentLoginMinutes: 5` for sensitive actions (role changes, suspension, removal and offboarding, ownership transfer, policy changes, signing people out, the time-entry CSV and estate inventory exports, the full export, requesting a practice's deletion and deleting an account; the audit-log export, Clerk keys and safe-custody releases check it in their handlers). The client's callable client answers `REAUTH_REQUIRED` with "Confirm it's you" (password, Google popup, then the authenticator code) and retries once.
 - **Sessions:** `users/{uid}/signIns` logs each sign-in (time, provider, a coarse device and browser from the user agent, whether a second factor was enrolled; never the IP address or the raw user agent), read only by its owner and deleted by TTL after 90 days. "Sign out everywhere else" and an admin's "Sign out" (`security-revokeSessions`) stamp `sessionsValidAfter` and revoke the refresh tokens. Admins can't sign out an owner.
 
 **Audit log (FND-18)** (`apps/functions/src/audit/`)
@@ -99,7 +99,7 @@ Client personal information is often sensitive: health information in capacity d
 
 **Supply chain and security assurance (SEC-02)**
 - **Threat model:** [docs/security/threat-model.md](security/threat-model.md), STRIDE per element, reviewed quarterly. **Pentest:** [docs/security/pentest-plan.md](security/pentest-plan.md), before GA, with a 7-day (critical) and 30-day (high) remediation SLA.
-- **Dependencies:** Dependabot (`.github/dependabot.yml`) groups npm and Actions updates weekly; every update waits for review. `pnpm audit --prod --audit-level=high` gates every PR.
+- **Dependencies:** Dependabot (`.github/dependabot.yml`) groups npm and Actions updates weekly. The dev-patch group (patch updates of development dependencies) merges itself once `ci` passes (`dependabot-automerge.yml`, which checks the author, branch, tested commit and that only `package.json` and `pnpm-lock.yaml` change); every other update waits for review. `pnpm audit --prod --audit-level=high` gates every PR.
 - **Code:** CodeQL with the `security-extended` queries, daily in the morning run; high-severity findings fail it.
 - **Secrets:** gitleaks on every change, with custom rules (`.gitleaks.toml`) for Google service account keys (JSON and base64), Anthropic and Resend keys; `.github/scripts/gitleaks-selftest.sh` proves the rules still fire.
 - **Containers:** the jobs, scanner and preview images are scanned with Trivy in CI whenever they change (`.github/actions/trivy`); fixable high and critical findings fail the change. This replaces Artifact Registry's on-push scanning, which is off because it was billed per image on every deploy. The images run `apt-get upgrade` and ship without npm.
@@ -112,10 +112,36 @@ Client personal information is often sensitive: health information in capacity d
 **AI**
 - See *Clerk (AI) architecture & guardrails*: scoping, privilege handling, injection defence, no prompt or completion text in logs, and a provider data-retention setting.
 
-**Data rights**
-- Org export as a zip of JSON plus files, owner only.
-- Member removal.
-- Org deletion: a 30-day grace period, then purge, except records under legal hold or retention. A deletion certificate is produced.
+**Data rights** (SEC-05, [ADR-058](adr/058-org-export-and-deletion.md); what Materia keeps and for how long: the [retention policy](compliance/retention-policy.md); operations: the [org deletion runbook](runbooks/org-deletion.md))
+- **Full export** (Settings → Data and deletion, owners only, recent sign-in): `exports-orgFull`, after the owner confirms they understand it includes privileged material. Every record as `data/{collection}.jsonl` with `schemas/{collection}.schema.json` (generated from libs/domain), the documents under `files/` (the current version, or every version), the practice's other files, `README.md`, and `manifest.json` with each file's SHA-256. Over 10 GB it is split into self-contained zips. Kept 7 days behind 5-minute signed links, announced by `export_ready`, audited (`export.created`, `export.org_completed`). OAuth tokens, invites, export jobs and Clerk's search chunks are left out.
+- **Member offboarding** (Settings → Team and roles → Remove…): a wizard hands the leaver's open tasks, upcoming deadlines and responsible matters to people who can take them (privileged work only to those who can see privileged matters), exports their personal tasks to the admin as a CSV or deletes them, saves a running timer as draft time and revokes their connections, then removes them (`orgs-offboardMember`, audited `member.offboarded`). Their records and history stay.
+- **Org deletion** (owners only, recent sign-in, typing the practice's name): `orgs-requestDeletion` schedules it 30 days on and tells every member. Until then the practice is **read-only**: the callable wrapper refuses everything outside an allow-list (`ORG_READ_ONLY`), the rules refuse client writes, uploads and new members are refused, and every page shows a banner. Any owner cancels (`orgs-cancelDeletion`). A **legal hold** on the practice or any matter, or a full export still being written, refuses the request; a hold placed during the grace period stops the deletion when it falls due (`org.deletion_blocked`).
+- **Purge:** `orgs-purgeDeletedOrgs` (daily) queues due practices on `orgs-purge`, which writes the tombstone `deletedOrgs/{orgId}` (server-only; from then on triggers and queued tasks skip the practice), revokes and deletes connections, deletes every stored file and version, the org document and everything under it (the audit log included), releases the members (claims recomputed; other practices' memberships stay), verifies nothing is left and emails the owners a **certificate of deletion** (PDF). The tombstone keeps only `{orgId, name, deletedAt, certificateId}` and the counts. Backups are not edited; the certificate says when they expire (every copy within about 13 months), and a restore never brings the practice back ([restore runbook](runbooks/restore.md)).
+- **Account deletion:** someone in no practice deletes their own account from the onboarding page (`auth-deleteAccount`, typing DELETE).
+
+## Legal documents and terms acceptance (SEC-01)
+
+The privacy and legal documents are Markdown in [`docs/compliance/`](compliance/). Each is a **draft** until a lawyer or privacy professional signs it off (SEC-01a) **(sign-off)**. Square brackets mark placeholders, such as the operator's legal name, ABN, address and contact emails.
+
+| Document | Source | In the app |
+|---|---|---|
+| Privacy policy | [privacy-policy.md](compliance/privacy-policy.md) | `/legal/privacy` |
+| Collection notice (APP 5), with wording firms can adapt for their clients | [collection-notice.md](compliance/collection-notice.md) | `/legal/collection-notice` |
+| Terms of service | [terms-of-service.md](compliance/terms-of-service.md) | `/legal/terms` |
+| Data processing addendum, part of the terms (breach notice to firms within [72] hours) | [dpa.md](compliance/dpa.md) | `/legal/dpa` |
+| Sub-processor list | [subprocessors.md](compliance/subprocessors.md) | `/legal/subprocessors` |
+| Retention and deletion policy | [retention-policy.md](compliance/retention-policy.md) | `/legal/retention` |
+| Accessibility statement (SEC-06; draft until the screen reader audit, SEC-06a) | [accessibility-statement.md](compliance/accessibility-statement.md) | `/legal/accessibility` |
+| Privacy impact assessment (internal) | [pia.md](compliance/pia.md) | Not published |
+| Data breach response plan (internal) | [runbooks/data-breach.md](runbooks/data-breach.md) | Not published |
+
+**One source.** A published document has front-matter (`key`, `title`, `summary`, `version`, `effective`, `status`, `order`). `pnpm materia-scripts legal-docs` compiles them into the registry (`libs/domain/src/lib/legal-documents.generated.ts`, behind `LEGAL_DOCUMENTS` in `legal.ts`), the terms' version (`terms-version.generated.ts`, behind `TERMS_VERSION` in `terms.ts`, kept apart so the app's terms check doesn't put the registry in the initial bundle) and the web app's text (`apps/web/src/app/features/legal/legal-content.generated.ts`). The scripts unit test fails while the generated files are out of date, and the CI gate treats `docs/compliance/` as code, so a change to a document runs the tests and deploys. The pages under `/legal` are public and lazy-loaded, use the minimal layout, and show each document's version, effective date and, while `status: draft`, a "Draft — not yet reviewed" notice. A new document is one more Markdown file with front-matter, as the accessibility statement (SEC-06) is. Links between published documents (`[DPA](dpa.md)`) become `/legal/...` links; a link to anything else in the repository fails the compile.
+
+To change a document: edit its Markdown, raise `version` and set `effective`, run `pnpm materia-scripts legal-docs`, and commit the generated files with it. Once signed off, set `status: final` and remove the draft notice from the top of the Markdown.
+
+**Terms acceptance.** The terms of service and the DPA are one agreement, versioned together (`TERMS_VERSION`, the compile refuses different versions). The org's owner accepts it on the practice's behalf: by ticking the box when creating the practice (`orgs-createOrg` with `acceptTermsVersion`), or on `/accept-terms`, where `termsGuard` sends an owner whose org hasn't accepted the current version, after org selection and before the app. `orgs-acceptTerms` (owner only, idempotent) records `termsAcceptedVersion`, `termsAcceptedAt` and `termsAcceptedBy` on the org and audits `org.terms_accepted`; the fields are server-owned, so the rules refuse them from clients. Admins, lawyers, paralegals and read-only members are never blocked. The check reads the org document `SessionPolicy` already follows, so it adds no read, and it doesn't block when that document can't be read. Raising the terms' version asks every owner again on their next visit. **Until the terms are signed off (`status: final`), prod asks nobody**: `termsAskedIn` (libs/domain `terms.ts`) asks owners outside prod only, so dev and e2e exercise the flow while no one in prod accepts unreviewed terms. Setting `status: final` (SEC-01a) turns it on in prod, and every existing owner is asked once.
+
+**Breaches.** The [data breach response plan](runbooks/data-breach.md) covers containment, the NDB assessment (30 days), notifying firms (the DPA's [72] hours), the OAIC and individuals, and the review. [Incident response](runbooks/incident-response.md) says when to open it.
 
 ## Threat model highlights (the full model: [docs/security/threat-model.md](security/threat-model.md))
 

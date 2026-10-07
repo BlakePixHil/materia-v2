@@ -216,6 +216,13 @@ describe('the upload contract', () => {
       category: 'will',
       privileged: 'true',
     });
+    // A phone scan (MOB-05) says so; no other source can be claimed.
+    expect(
+      uploadSettings({ uid: 'u-1', fileName: 'Scan 7 Oct 2026.pdf', sha256: SHA, source: 'camera' }).customMetadata,
+    ).toEqual({ uploaderUid: 'u-1', fileName: 'Scan 7 Oct 2026.pdf', sha256: SHA, source: 'camera' });
+    expect(() =>
+      uploadSettings({ uid: 'u-1', fileName: 'a.pdf', sha256: SHA, source: 'email' as unknown as 'camera' }),
+    ).toThrow();
     expect(() => uploadSettings({ uid: 'u-1', fileName: 'tool.exe', sha256: SHA })).toThrow(/not accepted/);
     expect(() => uploadSettings({ uid: 'u-1', fileName: 'a.pdf', sha256: 'nope' })).toThrow();
   });

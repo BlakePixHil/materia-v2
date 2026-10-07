@@ -1,7 +1,14 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import * as z from 'zod';
 
-import { DocIdSchema, NOTIFICATION_KINDS, type NotificationDelivery, type NotificationKind } from '@materia/domain';
+import {
+  DocIdSchema,
+  NOTIFICATION_KINDS,
+  PUSH_BODY,
+  PUSH_DEVICE_STALE_DAYS,
+  type NotificationDelivery,
+  type NotificationKind,
+} from '@materia/domain';
 
 import { DELIVER_QUEUE } from './notify';
 import type { Log } from '../core/log';
@@ -58,7 +65,9 @@ const kindLabel = (kind: unknown) => {
  *   meanwhile isn't emailed or pushed (`read`), unless it is critical;
  * - email goes through the MailPort to the account's address (`no_address`, `undeliverable` after a
  *   hard bounce or complaint, `not_configured` until Resend has a key);
- * - push goes to each of the person's devices; a token FCM reports gone deletes the device;
+ * - push goes to each of the person's devices with the title only (`PUSH_BODY` under it: lock
+ *   screens are public, MOB-04); a token FCM reports gone deletes the device, and so does
+ *   `PUSH_DEVICE_STALE_DAYS` without the app opening on it;
  * - a transient failure is recorded and retried with backoff, up to `DELIVERY_MAX_ATTEMPTS`.
  *
  * Running it again is safe: a channel already delivered, or a device already pushed to, is skipped.
@@ -144,18 +153,25 @@ export async function deliverNotification(task: DeliveryTaskInput, deps: Deliver
     }
   }
 
-  // Push: every device the person has registered.
-  const devices = await db.collection(`users/${uid}/devices`).get();
-  if (devices.empty) return finish({ channel: 'push', status: 'skipped', reason: 'no_devices' });
+  // Push: every device the person has registered and used lately; the rest are deleted.
+  const registered = await db.collection(`users/${uid}/devices`).get();
+  const staleBefore = ports.clock.now().getTime() - PUSH_DEVICE_STALE_DAYS * 86_400_000;
+  const devices = registered.docs.filter((device) => seenAt(device.get('lastSeenAt')) >= staleBefore);
+  const stale = registered.docs.filter((device) => !devices.includes(device));
+  await Promise.all(stale.map((device) => device.ref.delete()));
+  if (!devices.length) {
+    return finish({ channel: 'push', status: 'skipped', reason: stale.length ? 'inactive_devices' : 'no_devices' });
+  }
   const pushed = new Set(previous.filter((entry) => entry.status === 'sent').map((entry) => entry.deviceId));
+  const message = { title, body: PUSH_BODY, link, orgId: task.orgId, tag: task.notificationId };
   const entries: Entry[] = [];
   let retry = false;
-  for (const device of devices.docs) {
+  for (const device of devices) {
     if (pushed.has(device.id)) continue;
     const token = device.get('token');
     const result =
       typeof token === 'string' && token
-        ? await ports.push.send(token, { title, body, link })
+        ? await ports.push.send(token, message)
         : ({ ok: false, reason: 'invalid_token' } as const);
     if (result.ok) {
       entries.push({ channel: 'push', status: 'sent', deviceId: device.id, providerId: result.id });
@@ -171,13 +187,20 @@ export async function deliverNotification(task: DeliveryTaskInput, deps: Deliver
     ...ids,
     // The notification_delivery_failures log metric counts status "failed" (FND-21).
     status: sent ? 'sent' : 'failed',
-    devices: devices.size,
+    devices: devices.length,
     sent,
-    pruned: entries.filter((entry) => entry.reason === 'invalid_token').length,
+    pruned: entries.filter((entry) => entry.reason === 'invalid_token').length + stale.length,
     attempt,
   });
   if (retry && !lastAttempt) throw new RetryDelivery();
   return sent ? { status: 'sent' } : { status: 'failed', reason: retry ? 'transient' : 'no_device_reached' };
+}
+
+/** Milliseconds since the epoch of a stored instant (a Timestamp, or a Date in tests); 0 if absent. */
+function seenAt(value: unknown): number {
+  if (value instanceof Date) return value.getTime();
+  const toMillis = (value as { toMillis?: () => number } | null)?.toMillis;
+  return typeof toMillis === 'function' ? toMillis.call(value) : 0;
 }
 
 /** `notifications-deliver` (FND-20): the Cloud Tasks queue behind `notify()`. */

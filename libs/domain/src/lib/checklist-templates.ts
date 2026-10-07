@@ -5,7 +5,7 @@ import {
   CHECKLIST_TEMPLATE_ITEM_MAX,
   CHECKLIST_TEMPLATE_ITEMS_MAX,
   CHECKLIST_TEMPLATE_NAME_MAX,
-} from './schemas/org-records';
+} from './schemas/task-templates';
 import { addDays, type DateOnly } from './values/date-only';
 import { newId } from './values/ids';
 

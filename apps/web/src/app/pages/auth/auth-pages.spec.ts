@@ -300,6 +300,17 @@ describe('MFA enrolment and recovery', () => {
     await page.type('Password', 'password');
     await page.submit();
     expect(page.text()).toContain('Set up your authenticator');
+    expect(page.port.popupsPrepared).toBe(0);
+  });
+
+  it('gets the Google pop-up ready when a Google account must sign in again', async () => {
+    const page = await open(
+      '/auth/mfa/enrol',
+      testSession({ providerIds: ['google.com'], authTime: Date.now() - 60 * 60_000 }),
+    );
+    await page.stable();
+    expect(page.text()).toContain('Sign in with Google again');
+    expect(page.port.popupsPrepared).toBe(1);
   });
 
   it('uses a recovery code, signs out and asks to sign in again', async () => {

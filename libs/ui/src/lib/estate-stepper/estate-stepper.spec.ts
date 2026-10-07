@@ -66,4 +66,36 @@ describe('EstateStepper', () => {
       await screen.findByText('Client recorded. Only a lawyer can move a matter back', {}, { timeout: 2000 }),
     ).toBeInTheDocument();
   });
+
+  const LOCKED = [...STAGES, { id: 'grant', title: 'Grant', locked: 'Only a lawyer can skip ahead' }];
+
+  it('is a track with the current stage named under it when compact (phones, MOB-02)', async () => {
+    const { container } = await render(MtEstateStepper, {
+      inputs: { stages: LOCKED, current: 'notice', compact: true },
+    });
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Matter stages' })).toHaveTextContent('Stage 2 of 4 · Notice period');
+    const bars = [...container.querySelectorAll('.mt-stepper-bars i')].map((bar) => bar.getAttribute('data-state'));
+    expect(bars).toEqual(['done', 'current', null, null]);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('moves the stage from a menu when compact and interactive', async () => {
+    const select = vi.fn();
+    await render(MtEstateStepper, {
+      inputs: { stages: LOCKED, current: 'notice', compact: true, interactive: true },
+      on: { stageSelect: select },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Stage 2 of 4 · Notice period. Change stage' }));
+    expect(await screen.findByRole('menu', { name: 'Move the matter to' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Notice period' })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('menuitem', { name: /^Grant/ })).toHaveTextContent('Only a lawyer can skip ahead');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Filing' }));
+    expect(select).toHaveBeenCalledWith(STAGES[2]);
+  });
+
+  it('says when a compact stepper has no stage yet', async () => {
+    await render(MtEstateStepper, { inputs: { stages: STAGES, current: null, compact: true } });
+    expect(screen.getByRole('group', { name: 'Matter stages' })).toHaveTextContent('No stage yet');
+  });
 });

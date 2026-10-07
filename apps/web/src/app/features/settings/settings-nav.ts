@@ -17,11 +17,14 @@ export interface SettingsSection {
 }
 
 export const SETTINGS_ADMIN_ROLES: readonly Role[] = ['owner', 'admin'];
+/** Exporting everything and deleting the practice are owners' alone (SEC-05). */
+export const SETTINGS_OWNER_ROLES: readonly Role[] = ['owner'];
 
 /**
  * The Settings pages, in sidebar order. A new settings page adds its route under `settings` in
  * app.routes.ts and an entry here (Clerk settings, AI-13; security, SEC-04; trust account, BILL-11;
- * integrations, BILL-09 and INT-03; document templates, INT-06; the migration import, MIG-08).
+ * integrations, BILL-09 and INT-03; document templates, INT-06; the migration import, MIG-08; data and
+ * deletion, SEC-05).
  */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   // The person's own (CORE-20).
@@ -70,6 +73,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   // Clerk and AI (AI-02a, AI-13): everyone; read-only below owners and admins.
   { path: 'clerk', label: 'Clerk and AI', icon: 'sparkle', group: 'Clerk' },
   { path: 'audit', label: 'Audit log', icon: 'shield', group: 'Records', roles: SETTINGS_ADMIN_ROLES },
+  // Export everything, or delete the practice (SEC-05): owners only; everyone sees the shell's banner.
+  { path: 'data', label: 'Data and deletion', icon: 'archive', group: 'Records', roles: SETTINGS_OWNER_ROLES },
   // The practice brought across from the old materia (MIG-08).
   {
     path: 'migration',

@@ -1,9 +1,10 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 import { suggestionBasis, suggestionBasisParts } from '@materia/domain';
 import { expectNoA11yViolations, setEmulatorDocuments, setOrgFlags, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { phone } from './support/phone';
 
 /**
  * The Inbox (CORE-22) against the emulators: filters, keyboard triage, archive, the bell, and
@@ -132,6 +133,25 @@ async function signInWithSuggestion(page: Page, request: APIRequestContext) {
 const rows = (page: Page) => page.locator('.mt-inbox mt-notification-row');
 const row = (page: Page, title: string) => rows(page).filter({ hasText: title });
 
+/** A switch as drawn: its target, the track that shows inside its clear border, the thumb and its label. */
+function switchShape(toggle: Locator) {
+  return toggle.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    const top = box.top + parseFloat(style.borderTopWidth);
+    const bottom = box.bottom - parseFloat(style.borderBottomWidth);
+    const thumb = el.querySelector('.mt-switch-thumb')?.getBoundingClientRect();
+    const label = document.getElementById(el.getAttribute('aria-labelledby') ?? '')?.getBoundingClientRect();
+    return {
+      target: Math.round(box.height),
+      track: Math.round(bottom - top),
+      clip: style.backgroundClip,
+      thumbInTrack: !!thumb && thumb.top >= top - 0.5 && thumb.bottom <= bottom + 0.5,
+      labelOffCentre: label ? Math.abs((label.top + label.bottom) / 2 - (top + bottom) / 2) : Infinity,
+    };
+  });
+}
+
 test.describe('inbox', () => {
   test('filters, triages from the keyboard and archives', async ({ page, request }) => {
     test.setTimeout(90_000);
@@ -237,5 +257,35 @@ test.describe('inbox', () => {
     await expect(notice).toContainText('You accepted it', LIVE);
     await expect(notice).not.toHaveAttribute('data-unread', '');
     await expect(page).toHaveURL(/\/inbox$/);
+  });
+});
+
+test.describe('inbox on a phone', () => {
+  test.use(phone('iPhone 12'));
+
+  test('the filters sit below the top bar and Unread only is a phone-sized switch', async ({ page, request }) => {
+    test.setTimeout(60_000);
+    await signIn(page, request);
+    await page.goto('/inbox');
+    await expect(rows(page)).toHaveCount(4, LIVE);
+
+    // The Inbox cancels the page's 16px padding and no more, so its filters start below the sticky top
+    // bar rather than under it.
+    const bar = await page.locator('.mt-topbar').boundingBox();
+    const filters = await page.getByRole('group', { name: 'Filters' }).boundingBox();
+    expect(filters?.y).toBeGreaterThanOrEqual((bar?.y ?? 0) + (bar?.height ?? 0) - 0.5);
+
+    // A 44px target whose clear border shows an iOS-sized 31px track, on or off, with the thumb inside
+    // it and the label level with it. The track used to fill the whole target, a near circle.
+    const toggle = page.getByRole('switch', { name: 'Unread only' });
+    const off = await switchShape(toggle);
+    expect(off).toMatchObject({ target: 44, clip: 'padding-box', thumbInTrack: true });
+    expect(off.track).toBeGreaterThanOrEqual(30);
+    expect(off.track).toBeLessThanOrEqual(32);
+    expect(off.labelOffCentre).toBeLessThan(2);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(await switchShape(toggle)).toEqual(off);
+    await expectNoA11yViolations(page);
   });
 });

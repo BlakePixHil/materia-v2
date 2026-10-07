@@ -1,0 +1,6 @@
+{
+  "id": "mb-003",
+  "briefRefs": ["deadline:dl-claim"],
+  "canaries": ["Counsel’s advice on the Hallett", "Settlement range discussed"],
+  "mustNotContain": ["$40k", "counsel"]
+}

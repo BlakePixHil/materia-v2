@@ -15,17 +15,10 @@ import {
   RECENT_ACTIVITY_QUERY,
 } from '@materia/data-access/repository';
 import { deadlineTraceText, STATUTORY_DISABLED_MESSAGE } from '@materia/domain';
-import {
-  formatRelativeDate,
-  MT_TODAY,
-  MtClerkMark,
-  type MtDateInput,
-  MtDeadlineChip,
-  MtEmptyState,
-  MtSkeleton,
-} from '@materia/ui';
+import { formatRelativeDate, MT_TODAY, type MtDateInput, MtDeadlineChip, MtSkeleton } from '@materia/ui';
 import { MtMarkdown } from '@materia/ui/markdown';
 
+import { MatterBrief } from './matter-brief';
 import { MatterKeyFacts } from './matter-key-facts';
 import { MatterScreen } from './matter-screen';
 import { duePendingText, effectiveDue, nextDeadlines, sortOpenTasks } from './matter-view';
@@ -45,13 +38,13 @@ import { MatterTrust } from '../trust/matter-trust';
 const TASKS_SHOWN = 5;
 
 /**
- * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then its key facts, the trust
- * balance for billing roles (BILL-11, flagged), the fee and costs disclosure panels (BILL-05 and
- * BILL-06, flagged), the next five deadlines, open tasks, the three latest activity lines, "Clerk
- * suggests…" (AI-07) and the Clerk brief (AI-06 fills it). Sources Clerk cited (on key facts and
+ * A matter's Overview tab (CORE-06): pinned notes on top (CORE-13), then the matter's brief
+ * (AI-06c), its key facts, the trust balance for billing roles (BILL-11, flagged), the fee and costs
+ * disclosure panels (BILL-05 and BILL-06, flagged), the next five deadlines, open tasks, the three
+ * latest activity lines and "Clerk suggests…" (AI-07). Sources Clerk cited (on key facts and
  * suggestions) open in one citation viewer (AI-05), a lazy chunk.
- * Listens to the matter's pinned notes, deadlines, tasks, activity and key fact citations only
- * while this tab is shown.
+ * Listens to the matter's pinned notes, brief, deadlines, tasks, activity and key fact citations
+ * only while this tab is shown.
  */
 @Component({
   selector: 'mt-matter-overview',
@@ -61,14 +54,13 @@ const TASKS_SHOWN = 5;
   imports: [
     RouterLink,
     CitationViewer,
+    MatterBrief,
     MatterDisclosurePanel,
     MatterFeePanel,
     MatterKeyFacts,
     MatterSuggestions,
     MatterTrust,
-    MtClerkMark,
     MtDeadlineChip,
-    MtEmptyState,
     MtMarkdown,
     MtSkeleton,
   ],
@@ -93,6 +85,8 @@ const TASKS_SHOWN = 5;
       </section>
     }
     <div class="mt-col col">
+      <!-- What's due, what changed and the next step (AI-06c): Clerk's, or the matter's own summary. -->
+      <mt-matter-brief />
       <section class="mt-card" data-pad aria-labelledby="mt-ov-facts">
         <div class="mt-card-h"><h2 class="mt-card-title" id="mt-ov-facts">Key facts</h2></div>
         <mt-matter-key-facts />
@@ -115,18 +109,6 @@ const TASKS_SHOWN = 5;
           <mt-matter-suggestions />
         }
       }
-      <section class="mt-card" data-pad aria-labelledby="mt-ov-brief">
-        <div class="mt-card-h">
-          <mt-clerk-mark size="xs" />
-          <h2 class="mt-card-title" id="mt-ov-brief">Clerk brief</h2>
-        </div>
-        <mt-empty-state
-          icon="sparkle"
-          title="Coming in AI-06"
-          description="Clerk’s summary of this matter: what changed, what’s due and what to do next."
-          [headingLevel]="3"
-        />
-      </section>
     </div>
     <div class="mt-col col">
       <mt-matter-trust />

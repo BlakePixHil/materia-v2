@@ -65,6 +65,7 @@ import { dateText, extraLineForm, extraLinesFrom, invoiceSourcesFrom, type Extra
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 import { writeDownTime } from '../billing/write-down';
 import { formatEntryDate, parseEntryDate } from '../time/time-view';
 
@@ -135,6 +136,7 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
     MtCheckbox,
     MtEmptyState,
     MtIconButton,
+    MtNeedsConnection,
     MtNote,
     MtSegmentedControl,
     MtTextarea,
@@ -162,7 +164,15 @@ const GROUPINGS: MtOption<'itemised' | 'summary'>[] = [
           >
             Save
           </button>
-          <button mtButton variant="primary" size="sm" [loading]="issuing()" [disabled]="!issuable()" (click)="issue()">
+          <button
+            mtButton
+            mtNeedsConnection
+            variant="primary"
+            size="sm"
+            [loading]="issuing()"
+            [disabled]="!issuable()"
+            (click)="issue()"
+          >
             Issue invoice
           </button>
         }

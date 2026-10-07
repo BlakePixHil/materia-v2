@@ -663,10 +663,11 @@ export type LetterheadDetails = z.infer<typeof LetterheadDetailsSchema>;
 
 /** `orgs/{orgId}/settings/letterhead`: every member reads it; `docs-saveLetterhead` writes it. */
 export const LetterheadDoc = {
-  ...withMeta(
-    { ...LetterheadDetailsSchema.shape },
-    { path: 'orgs/{orgId}/settings', migratable: false, updatable: [] },
-  ),
+  ...withMeta(() => ({ ...LetterheadDetailsSchema.shape }), {
+    path: 'orgs/{orgId}/settings',
+    migratable: false,
+    updatable: [],
+  }),
   /** Its one document id, so the seed tells it apart from the other settings documents. */
   docId: LETTERHEAD_DOC,
 };

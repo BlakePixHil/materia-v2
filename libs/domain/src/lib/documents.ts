@@ -25,6 +25,21 @@ export const SCAN_MAX_ATTEMPTS = 8;
 /** Documents per `documents-bulkUpdate` call. */
 export const DOCUMENT_BULK_MAX = 500;
 
+/** Each category as the documents list names it (also how a matter brief describes a document). */
+export const DOCUMENT_CATEGORY_LABELS: Readonly<Record<z.infer<typeof DocumentCategorySchema>, string>> = {
+  will: 'Will',
+  codicil: 'Codicil',
+  death_certificate: 'Death certificate',
+  grant: 'Grant',
+  affidavit: 'Affidavit',
+  correspondence: 'Correspondence',
+  court_document: 'Court document',
+  order: 'Order',
+  financial: 'Financial',
+  id: 'Identity document',
+  other: 'Other',
+};
+
 /** What the UI shows for a soft-deleted document wherever it is cited (citations, court books). */
 export const REMOVED_DOCUMENT_LABEL = 'Removed document';
 /** What the UI shows while the scanner is timing out or down (`upload.status: 'delayed'`). */
@@ -230,7 +245,8 @@ export function renditionPath(
  * the original name (its extension on the allow-list); `sha256` the client's hash of the bytes
  * (lower-case hex), which the server checks. Optional: `documentId` makes the upload a new version
  * of that document; `category` (a `DocumentCategory`) and `privileged` (`'true'`, lawyers and
- * above) set a new document's metadata.
+ * above) set a new document's metadata; `source: 'camera'` marks a new document as scanned with a
+ * phone's camera (MOB-05). Without it a new document's source is `upload`.
  */
 export const UPLOAD_METADATA_KEYS = [
   'uploaderUid',
@@ -239,7 +255,12 @@ export const UPLOAD_METADATA_KEYS = [
   'documentId',
   'category',
   'privileged',
+  'source',
 ] as const;
+
+/** The upload sources a client may claim: only a camera scan; the server sets every other source. */
+export const UploadSourceSchema = z.enum(['camera']);
+export type UploadSource = z.infer<typeof UploadSourceSchema>;
 
 export const UploadMetadataSchema = z
   .object({
@@ -249,6 +270,7 @@ export const UploadMetadataSchema = z
     documentId: DocIdSchema.optional(),
     category: DocumentCategorySchema.optional(),
     privileged: z.enum(['true', 'false']).optional(),
+    source: UploadSourceSchema.optional(),
   })
   .strict();
 export type UploadMetadata = z.infer<typeof UploadMetadataSchema>;
@@ -261,6 +283,8 @@ export interface UploadRequest {
   documentId?: string;
   category?: z.infer<typeof DocumentCategorySchema>;
   privileged?: boolean;
+  /** A camera scan (MOB-05). */
+  source?: UploadSource;
 }
 
 /**
@@ -280,6 +304,7 @@ export function uploadSettings(request: UploadRequest): {
     ...(request.documentId ? { documentId: request.documentId } : {}),
     ...(request.category ? { category: request.category } : {}),
     ...(request.privileged ? { privileged: 'true' } : {}),
+    ...(request.source ? { source: request.source } : {}),
   });
   return { contentType, customMetadata: metadata as Record<string, string> };
 }

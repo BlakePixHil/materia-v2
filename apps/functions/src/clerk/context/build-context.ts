@@ -12,6 +12,8 @@ import {
   today,
   type ContextManifest,
   type ContextTruncation,
+  type DateOnly,
+  type MatterBriefFactSet,
   type MetricValues,
   type NarrativeFigure,
   type NarrativePeriodInfo,
@@ -21,6 +23,7 @@ import {
 import type { ClerkContentBlock } from '../../ports';
 import type { ClerkFeature } from '../features';
 import type { GatewayChunk, GatewayContext, GatewayDocument } from '../gateway';
+import { readMatterBriefFacts } from './brief-facts';
 import { matterFacts, isoOf, recordOf } from './facts';
 import { escapeFraming, openTag, safeJson, truncateText, wrap } from './framing';
 import {
@@ -54,6 +57,12 @@ export interface BuildContextInput {
   attachments?: readonly string[];
   /** The person's question: retrieval runs on it when present. */
   query?: string;
+  /**
+   * Leave privileged documents, excerpts and notes out even for a role that may see them: a letter
+   * to a third party (AI-10) draws on them only when the person says so. A privileged matter stays
+   * privileged as a whole.
+   */
+  withholdPrivileged?: boolean;
 }
 
 /**
@@ -69,8 +78,12 @@ export interface ClerkContext {
   searchResults: GatewayChunk[];
   manifest: ContextManifest;
   truncated: ContextTruncation | null;
+  /** The matter facts block's JSON (`{matter, fee, parties, …}`), for features that check facts (AI-10). */
+  facts?: Record<string, unknown>;
   /** The metrics scope's figures, exactly as `<org_metrics>` gives them (for checking the reply). */
   figures?: NarrativeFigure[];
+  /** The matter brief's facts (policy `facts: 'brief'`), for checking the reply (AI-06c). */
+  brief?: MatterBriefFactSet;
 }
 
 export interface ContextDeps {
@@ -180,7 +193,8 @@ export function createContextBuilder(deps: ContextDeps) {
     if (!member || member.status !== 'active' || !can(member.role, 'clerk.use')) throw revoked();
     const role: Role = member.role;
     // Privileged material needs privileged.view in the request's role and the current one.
-    const allowPrivileged = can(ctx.role, 'privileged.view') && can(role, 'privileged.view');
+    const allowPrivileged =
+      !input.withholdPrivileged && can(ctx.role, 'privileged.view') && can(role, 'privileged.view');
 
     const timeZone = (await deps.source.orgTimeZone(ctx.orgId)) ?? DEFAULT_ORG_TIMEZONE;
     const todayIso = today(timeZone, ctx.clock.now());
@@ -207,6 +221,8 @@ export function createContextBuilder(deps: ContextDeps) {
     if (!visibleTo(role)) throw revoked();
     const matterRow = matter as Row;
     const matterPrivileged = matterRow.data['privileged'] === true;
+    if (policy.facts === 'brief')
+      return briefContext(input, { matterId, matterPrivileged, role, system, todayIso, timeZone });
 
     const query = input.query?.trim() ?? '';
     // Trust balances (BILL-11) only for billing roles, in the request's role and the current one.
@@ -461,6 +477,72 @@ export function createContextBuilder(deps: ContextDeps) {
       searchResults: finalChunks,
       manifest,
       truncated,
+      facts: facts.json,
+    };
+  }
+
+  /**
+   * The matter brief's facts (AI-06c): deadlines, tasks, the feed's lines, the names and categories
+   * of documents added and the open suggestions, as `matterBriefFacts` writes them, inside
+   * `<matter_facts kind="brief">`. No notes, document text or retrieval. The facts are the ones
+   * every reader of the matter may see (the brief is shared), so privileged records are in them
+   * only on a privileged matter, which only privileged.view roles reach (checked above).
+   */
+  async function briefContext(
+    input: BuildContextInput,
+    at: {
+      matterId: string;
+      matterPrivileged: boolean;
+      role: Role;
+      system: string;
+      todayIso: DateOnly;
+      timeZone: string;
+    },
+  ): Promise<ClerkContext> {
+    const { ctx, feature } = input;
+    if (input.attachments?.length)
+      throw new DomainError('INVALID_ARGUMENT', 'The matter brief takes no attachments', { feature });
+    const brief = await readMatterBriefFacts(deps.source, {
+      orgId: ctx.orgId,
+      matterId: at.matterId,
+      matterPrivileged: at.matterPrivileged,
+      today: at.todayIso,
+      now: ctx.clock.now(),
+      timeZone: at.timeZone,
+    });
+    const text = wrap('matter_facts', safeJson(brief.facts), { matter: at.matterId, kind: 'brief' });
+    const [used = 0] = await deps.tokens.count([at.system + text]);
+    const manifest: ContextManifest = {
+      scope: { kind: 'matter', matterId: at.matterId },
+      feature,
+      role: at.role,
+      privileged: at.matterPrivileged,
+      records: [...brief.refs.values()].map((info) => ({ kind: info.kind, id: info.id })),
+      documents: [],
+      chunks: [],
+      processing: 0,
+      notices: [],
+      truncated: null,
+      tokens: { used, budget: policies[feature].budgetTokens, exact: deps.tokens.exact },
+    };
+    ctx.log.info('clerk context', {
+      feature,
+      scope: 'matter',
+      matterId: at.matterId,
+      facts: 'brief',
+      records: manifest.records.length,
+      privileged: at.matterPrivileged,
+      tokens: used,
+      budget: policies[feature].budgetTokens,
+    });
+    return {
+      system: at.system,
+      contextBlocks: { stable: [{ type: 'text', text, cache: true }], volatile: [] },
+      documents: [],
+      searchResults: [],
+      manifest,
+      truncated: null,
+      brief,
     };
   }
 

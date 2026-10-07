@@ -107,6 +107,20 @@ describe('clerk-updateSettings', () => {
     });
   });
 
+  it('sets the house style for Clerk’s letters, and clears it with null or a blank (AI-10)', async () => {
+    const w = world();
+    const style = 'Australian English. Sign off with "Kind regards". Fictional style.';
+    expect((await w.call({ draftingStyle: `  ${style}  ` })).changed).toEqual(['draftingStyle']);
+    expect(w.clerk()).toMatchObject({ draftingStyle: style });
+    expect((await w.call({ draftingStyle: style })).changed).toEqual([]);
+    expect((await w.call({ draftingStyle: ' ' })).changed).toEqual(['draftingStyle']);
+    expect(w.clerk()).not.toHaveProperty('draftingStyle');
+    expect((await w.call({ draftingStyle: null })).changed).toEqual([]);
+    expect((await errorOf(w.call({ draftingStyle: 'x'.repeat(2_001) })))?.details).toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
+  });
+
   it('records who acknowledged which version of the disclosure, and refuses an old version', async () => {
     const w = world();
     expect((await w.call({ acknowledgeVersion: CLERK_DISCLOSURE_VERSION }, 'owner')).changed).toEqual([

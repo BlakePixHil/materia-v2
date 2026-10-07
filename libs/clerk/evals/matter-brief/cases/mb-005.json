@@ -1,0 +1,85 @@
+{
+  "id": "mb-005",
+  "description": "A busy matter: more due than five lines can hold; the overdue and critical ones come first.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "deadlines": [
+      {
+        "id": "dl-notice",
+        "title": "Serve the notice to creditors",
+        "dueDate": "2026-10-01"
+      },
+      {
+        "id": "dl-assets",
+        "title": "Send the inventory of assets and liabilities to the executor",
+        "dueDate": "2026-10-12"
+      },
+      {
+        "id": "dl-filing",
+        "title": "File the probate application",
+        "dueDate": "2026-10-14",
+        "critical": true
+      },
+      {
+        "id": "dl-tax",
+        "title": "Lodge the date-of-death tax return",
+        "dueDate": "2026-10-20"
+      },
+      {
+        "id": "dl-later",
+        "title": "Distribute the residuary estate",
+        "dueDate": "2027-03-01"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-bank",
+        "title": "Write to the bank for the account balances",
+        "dueDate": "2026-10-03"
+      },
+      {
+        "id": "t-super",
+        "title": "Claim the superannuation death benefit",
+        "dueDate": "2026-10-05"
+      },
+      {
+        "id": "t-shares",
+        "title": "Get the share holding statements",
+        "dueDate": "2026-10-10"
+      },
+      {
+        "id": "t-car",
+        "title": "Sell the car"
+      }
+    ],
+    "activity": [
+      {
+        "id": "a-note",
+        "kind": "note.created",
+        "summary": "Jordan Lee added a note",
+        "at": "2026-10-06T03:00:00.000Z",
+        "refs": {
+          "noteId": "n-1"
+        }
+      }
+    ],
+    "suggestions": [
+      {
+        "id": "s-task",
+        "kind": "task",
+        "payload": {
+          "title": "Ask the executor for the car’s registration papers",
+          "priority": "medium"
+        }
+      }
+    ]
+  },
+  "tags": ["due", "limits"],
+  "matter": {
+    "matterNumber": "M-2026-0142",
+    "title": "Estate of Margaret Whitfield (fictional)",
+    "type": "probate",
+    "status": "open"
+  }
+}

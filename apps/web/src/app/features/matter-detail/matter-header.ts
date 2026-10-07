@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -50,6 +51,8 @@ import { LONG_TITLE, matterErrorCopy, statusChoices, statusLabel, type StatusCho
 import type { ReferralChoice, ReferralDialogData } from './referral-dialog';
 import { errorCodeOf, errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { PhoneLayout } from '../../core/layout/phone-layout';
+import { PinnedMatters } from '../../core/pins/pinned-matters';
 import { TimerStore } from '../../core/timer/timer-store';
 import { CONFLICT_STATUS_TONES, conflictBadgeText } from '../conflicts/conflict-view';
 import { MatterNameDialog, type MatterNameDialogData } from '../matters/matter-name-dialog';
@@ -58,7 +61,7 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
 /**
  * The matter screen's header (CORE-06): number, type, conflict status (CORE-02), the title (edited
  * inline), status, the amount its invoices still owe (BILL-08), responsible lawyer, team, labels,
- * the privileged flag and the "…" menu. Edit controls show only to roles that may use them, and
+ * the privileged flag and the "…" menu (which also pins the matter to the sidebar, CORE-23). Edit controls show only to roles that may use them, and
  * never on a deleted matter.
  */
 @Component({
@@ -68,6 +71,7 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
   styleUrls: ['../../../../../../libs/ui/src/generated/components/chip.css'],
   imports: [
     FormsModule,
+    NgTemplateOutlet,
     RouterLink,
     MT_MENU,
     MtAvatar,
@@ -116,8 +120,8 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
           <a mtButton variant="secondary" size="sm" iconStart="search" routerLink="conflicts">Conflict check</a>
         }
         <span class="mt-ml mt-row actions">
-          @if (canTime()) {
-            <!-- The global timer (BILL-02): Shift+T anywhere on the matter. -->
+          @if (canTime() && !phone()) {
+            <!-- The global timer (BILL-02): Shift+T anywhere on the matter. A phone's top bar has it. -->
             <button mtButton variant="secondary" size="sm" iconStart="timer" kbd="shift+t" (click)="toggleTimer(m)">
               {{ timerLabel() }}
             </button>
@@ -180,87 +184,101 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
         <p class="caption t-3 updated" role="status">{{ text }}</p>
       }
 
-      <div class="mt-row mt-wrap people">
-        <span class="field">
-          <span class="caption t-3">Responsible</span>
-          @if (screen.editable()) {
-            <button
-              type="button"
-              class="mt-chip"
-              [mtMenuTrigger]="responsibleMenu"
-              aria-label="Change responsible lawyer"
-            >
-              <mt-avatar [name]="responsibleName()" [colorKey]="m.responsibleUid" size="xs" />{{ responsibleName()
-              }}<mt-icon name="chevron-down" />
-            </button>
-          } @else {
-            <span class="mt-row person"
-              ><mt-avatar [name]="responsibleName()" [colorKey]="m.responsibleUid" size="xs" />{{
-                responsibleName()
-              }}</span
-            >
-          }
-        </span>
-        <span class="field">
-          <span class="caption t-3">Team</span>
-          @if (team().length) {
-            <mt-avatar-group [people]="team()" size="xs" [max]="4" />
-          } @else {
-            <span class="caption t-3">No one yet</span>
-          }
-          @if (screen.editable()) {
-            <button mtIconButton icon="user-plus" size="sm" label="Change team" [mtMenuTrigger]="teamMenu"></button>
-          }
-        </span>
-        <span class="field labels" role="group" aria-label="Labels">
-          <span class="caption t-3">Labels</span>
-          @for (label of m.labels; track label) {
-            <span class="mt-chip label"
-              >{{ label }}
-              @if (screen.editable()) {
-                <button
-                  mtIconButton
-                  icon="x"
-                  size="sm"
-                  [label]="'Remove label ' + label"
-                  [tooltip]="false"
-                  (click)="removeLabel(label)"
-                ></button>
-              }
-            </span>
-          } @empty {
-            @if (!screen.editable()) {
-              <span class="caption t-3">None</span>
-            }
-          }
-          @if (screen.editable()) {
-            <button mtButton variant="ghost" size="sm" iconStart="plus" (click)="addLabel()">Label</button>
-          }
-        </span>
-        <span class="field" data-testid="matter-referral">
-          <span class="caption t-3">Referred by</span>
-          @if (m.referrerContactId) {
-            <a class="mt-chip" [routerLink]="['/contacts']" [queryParams]="{ contact: m.referrerContactId }">{{
-              referral()
-            }}</a>
-          } @else {
-            <span [class]="referral() ? 'person' : 'caption t-3'">{{ referral() ?? 'Not recorded' }}</span>
-          }
-          @if (screen.editable()) {
-            <button mtIconButton icon="compose" size="sm" label="Change referral" (click)="editReferral()"></button>
-          }
-        </span>
-        @if (screen.canPrivileged()) {
+      @if (phone()) {
+        <!-- A phone (MOB-02) folds who and what away, under who's responsible. -->
+        <details class="people-more">
+          <summary>
+            <span class="caption t-3">Details</span>&ngsp;<span class="who mt-ell">{{ responsibleName() }}</span>
+            <mt-icon class="chev" name="chevron-down" />
+          </summary>
+          <ng-container [ngTemplateOutlet]="peopleRow" />
+        </details>
+      } @else {
+        <ng-container [ngTemplateOutlet]="peopleRow" />
+      }
+      <ng-template #peopleRow>
+        <div class="mt-row mt-wrap people">
           <span class="field">
-            <mt-switch
-              label="Privileged"
-              [disabled]="!screen.editable() || busy()"
-              [ngModel]="m.privileged"
-              (ngModelChange)="setPrivileged($event)"
-            />
+            <span class="caption t-3">Responsible</span>
+            @if (screen.editable()) {
+              <button
+                type="button"
+                class="mt-chip"
+                [mtMenuTrigger]="responsibleMenu"
+                aria-label="Change responsible lawyer"
+              >
+                <mt-avatar [name]="responsibleName()" [colorKey]="m.responsibleUid" size="xs" />{{ responsibleName()
+                }}<mt-icon name="chevron-down" />
+              </button>
+            } @else {
+              <span class="mt-row person"
+                ><mt-avatar [name]="responsibleName()" [colorKey]="m.responsibleUid" size="xs" />{{
+                  responsibleName()
+                }}</span
+              >
+            }
           </span>
-        }
-      </div>
+          <span class="field">
+            <span class="caption t-3">Team</span>
+            @if (team().length) {
+              <mt-avatar-group [people]="team()" size="xs" [max]="4" />
+            } @else {
+              <span class="caption t-3">No one yet</span>
+            }
+            @if (screen.editable()) {
+              <button mtIconButton icon="user-plus" size="sm" label="Change team" [mtMenuTrigger]="teamMenu"></button>
+            }
+          </span>
+          <span class="field labels" role="group" aria-label="Labels">
+            <span class="caption t-3">Labels</span>
+            @for (label of m.labels; track label) {
+              <span class="mt-chip label"
+                >{{ label }}
+                @if (screen.editable()) {
+                  <button
+                    mtIconButton
+                    icon="x"
+                    size="sm"
+                    [label]="'Remove label ' + label"
+                    [tooltip]="false"
+                    (click)="removeLabel(label)"
+                  ></button>
+                }
+              </span>
+            } @empty {
+              @if (!screen.editable()) {
+                <span class="caption t-3">None</span>
+              }
+            }
+            @if (screen.editable()) {
+              <button mtButton variant="ghost" size="sm" iconStart="plus" (click)="addLabel()">Label</button>
+            }
+          </span>
+          <span class="field" data-testid="matter-referral">
+            <span class="caption t-3">Referred by</span>
+            @if (m.referrerContactId) {
+              <a class="mt-chip" [routerLink]="['/contacts']" [queryParams]="{ contact: m.referrerContactId }">{{
+                referral()
+              }}</a>
+            } @else {
+              <span [class]="referral() ? 'person' : 'caption t-3'">{{ referral() ?? 'Not recorded' }}</span>
+            }
+            @if (screen.editable()) {
+              <button mtIconButton icon="compose" size="sm" label="Change referral" (click)="editReferral()"></button>
+            }
+          </span>
+          @if (screen.canPrivileged()) {
+            <span class="field">
+              <mt-switch
+                label="Privileged"
+                [disabled]="!screen.editable() || busy()"
+                [ngModel]="m.privileged"
+                (ngModelChange)="setPrivileged($event)"
+              />
+            </span>
+          }
+        </div>
+      </ng-template>
 
       <ng-template #statusMenu>
         <mt-menu aria-label="Change status to">
@@ -304,6 +322,11 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
         <mt-menu aria-label="Matter actions">
           <button mtMenuItem icon="copy" kbd="y" (click)="copyNumber()">Copy matter number</button>
           <button mtMenuItem icon="external" (click)="openInNewTab()">Open in new tab</button>
+          @if (!screen.deleted()) {
+            <button mtMenuItem [icon]="pinned() ? 'pin-off' : 'pin'" (click)="togglePin()">
+              {{ pinned() ? 'Unpin matter' : 'Pin matter' }}
+            </button>
+          }
           @if (canRenumber()) {
             <button mtMenuItem icon="compose" (click)="renumber()">Change matter number…</button>
           }
@@ -312,6 +335,9 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
             @if (m.externalUrl) {
               <button mtMenuItem icon="x" (click)="removeLink()">Remove link</button>
             }
+          }
+          @if (canDraft()) {
+            <button mtMenuItem icon="draft" (click)="draftLetter()">Draft a letter with Clerk…</button>
           }
           @if (upgradeTo(); as version) {
             <button mtMenuItem icon="arrow-up-right" (click)="upgradeTemplate(version)">
@@ -400,15 +426,64 @@ import { changeStatusErrorCopy } from '../matters/matters-view';
       cursor: default;
       padding-inline-end: 3px;
     }
+    .mt-matter-head .people-more summary {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      min-height: 44px;
+      list-style: none;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      outline: none;
+    }
+    .mt-matter-head .people-more summary::-webkit-details-marker {
+      display: none;
+    }
+    .mt-matter-head .people-more summary:focus-visible {
+      box-shadow: var(--focus-ring);
+    }
+    .mt-matter-head .people-more .who {
+      min-width: 0;
+      font: 500 13px/18px var(--font-sans);
+      color: var(--text-secondary);
+    }
+    .mt-matter-head .people-more .chev {
+      flex: none;
+      color: var(--icon-muted);
+      transition: transform var(--motion-fast) var(--ease-out);
+    }
+    .mt-matter-head .people-more[open] .chev {
+      transform: rotate(180deg);
+    }
+    .mt-matter-head .people-more .people {
+      padding-bottom: var(--space-8);
+    }
   `,
 })
 export class MatterHeader {
   protected readonly screen = inject(MatterScreen);
+  protected readonly phone = inject(PhoneLayout).phone;
   private readonly timer = inject(TimerStore);
   /** The timer (BILL-02) can start here: a live matter and a role that records time. */
   protected readonly canTime = computed(() => this.timer.canRecord() && !this.screen.deleted());
   private readonly flags = inject(FeatureFlagService);
+  private readonly pins = inject(PinnedMatters);
+  /** Whether I've pinned this matter to the sidebar (CORE-23). */
+  readonly pinned = computed(() => {
+    const id = this.screen.value()?.id;
+    return !!id && this.pins.isPinned(id);
+  });
   private readonly canBilling = can('billing.view');
+  private readonly canClerk = can('clerk.use');
+  /** Clerk drafting (AI-10): on, for a role that uses Clerk, on a matter that can still change. */
+  protected readonly canDraft = computed(
+    () =>
+      this.canClerk() &&
+      this.flags.isOn('clerk.enabled') &&
+      this.flags.isOn('clerk.features.drafting') &&
+      !this.screen.deleted() &&
+      !this.screen.archived(),
+  );
   /** What the matter's invoices still owe (BILL-08), for billing roles while invoicing is on; hidden at zero. */
   protected readonly outstanding = computed(() => {
     const cents = this.screen.value()?.outstandingCents ?? 0;
@@ -798,6 +873,12 @@ export class MatterHeader {
     }
   }
 
+  /** Pins the matter to my sidebar, or unpins it (the "…" menu, or ⌘K; CORE-23). */
+  togglePin(): void {
+    const matter = this.screen.value();
+    if (matter && !this.screen.deleted()) void this.pins.toggle({ id: matter.id, number: matter.number });
+  }
+
   protected openInNewTab(): void {
     globalThis.open?.(globalThis.location?.href ?? '/', '_blank', 'noopener');
   }
@@ -837,6 +918,11 @@ export class MatterHeader {
     } catch (error) {
       this.toasts.show({ title: 'Couldn’t restore the matter', description: errorCopy(error), tone: 'danger' });
     }
+  }
+
+  protected draftLetter(): void {
+    const id = this.screen.id();
+    if (id) void this.router.navigate(['/matters', id, 'drafts', 'new']);
   }
 
   private ask(data: MatterNameDialogData): Promise<string | undefined> {

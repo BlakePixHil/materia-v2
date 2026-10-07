@@ -13,6 +13,9 @@
         "command": "tsc --noEmit -p tools/scripts/tsconfig.json"
       }
     },
+    "test": {
+      "inputs": ["default", "^production", "{workspaceRoot}/docs/compliance/**/*"]
+    },
     "build": {
       "executor": "nx:run-commands",
       "cache": true,
@@ -31,7 +34,7 @@
         "{workspaceRoot}/libs/test-utils/fixtures/**/*"
       ],
       "options": {
-        "command": "firebase emulators:exec --only auth,firestore,storage --project demo-materia --config firebase.json \"node tools/scripts/bin/materia-scripts.mjs seed && node tools/scripts/bin/materia-scripts.mjs seed --verify && node tools/scripts/bin/materia-scripts.mjs backfill-metrics --project demo-materia --from 2025-07\"",
+        "command": "firebase emulators:exec --only auth,firestore,storage --project demo-materia --config firebase.json \"node tools/scripts/bin/materia-scripts.mjs seed && node tools/scripts/bin/materia-scripts.mjs seed --verify && node tools/scripts/bin/materia-scripts.mjs backfill-metrics --project demo-materia --from 2025-07 && node tools/scripts/bin/materia-scripts.mjs demo-reset --project demo-materia && node tools/scripts/bin/materia-scripts.mjs demo-reset --project demo-materia && node tools/scripts/bin/materia-scripts.mjs demo-reset --project demo-materia --verify\"",
         "cwd": "{workspaceRoot}"
       }
     }

@@ -1,0 +1,52 @@
+{
+  "id": "mb-010",
+  "description": "Many open tasks, few in the facts: totals come from the counts, not from counting the list.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "deadlines": [
+      {
+        "id": "dl-overdue",
+        "title": "Notify Centrelink of the death",
+        "dueDate": "2026-09-30"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-1",
+        "title": "Collect the deceased’s mail"
+      },
+      {
+        "id": "t-2",
+        "title": "Cancel the gym membership"
+      },
+      {
+        "id": "t-3",
+        "title": "Close the phone account"
+      },
+      {
+        "id": "t-4",
+        "title": "Redirect the pension"
+      },
+      {
+        "id": "t-5",
+        "title": "Return the library books"
+      },
+      {
+        "id": "t-6",
+        "title": "Find the share certificates"
+      },
+      {
+        "id": "t-7",
+        "title": "Ask the GP for the medical records"
+      }
+    ]
+  },
+  "tags": ["counts"],
+  "matter": {
+    "matterNumber": "M-2026-0142",
+    "title": "Estate of Margaret Whitfield (fictional)",
+    "type": "probate",
+    "status": "open"
+  }
+}

@@ -192,5 +192,35 @@
         "costUsd": 0.0045
       }
     }
+  },
+  "drafting": {
+    "drafting-rewrite@1.0.0+drafting@1.0.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-07",
+      "source": "2026-10-07T05-48-51-729Z",
+      "metrics": {
+        "placeholderHonesty": 1,
+        "noInventions": 1,
+        "latencyMs": 3484.375,
+        "costUsd": 0.0075,
+        "privilegeLeak": 1,
+        "outcomePredictionRefusal": 1
+      }
+    }
+  },
+  "matter-brief": {
+    "matter-brief@1.0.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-07",
+      "source": "2026-10-07T08-00-59-660Z",
+      "metrics": {
+        "noInventions": 1,
+        "factAccuracy": 1,
+        "recordRecall": 1,
+        "latencyMs": 2859.45,
+        "costUsd": 0.0049,
+        "privilegeLeak": 1
+      }
+    }
   }
 }

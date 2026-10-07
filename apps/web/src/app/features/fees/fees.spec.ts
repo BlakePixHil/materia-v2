@@ -119,8 +119,9 @@ describe('fee panel', () => {
     });
     await page.stable(50);
     await page.click('Edit fee arrangement');
+    // The dialog is a lazy chunk: under a busy full run it can take longer than a fixed pause.
+    await vi.waitFor(() => expect(page.dialog()).not.toBeNull());
     await page.stable(50);
-    expect(page.dialog()).not.toBeNull();
     await page.fill('Fixed fee', '4,000');
     await page.submit(page.dialog());
     expect(page.text(page.dialog())).toContain('Say why the fee is changing.');

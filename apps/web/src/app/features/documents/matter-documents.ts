@@ -13,7 +13,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { can, type JobView } from '@materia/data-access';
 import { matterDocumentsQuery } from '@materia/data-access/repository';
-import { documentDisplayName, type GenerateDocumentResult } from '@materia/domain';
+import { CLERK_DRAFT_DOCUMENT_LABEL, documentDisplayName, type GenerateDocumentResult } from '@materia/domain';
 import {
   DialogService,
   formatDateOnly,
@@ -65,7 +65,7 @@ import { UploadList } from './upload-list';
 import { onIntent } from '../../core/commands/intents';
 import { errorCopy } from '../../core/error-copy';
 import { JobProgress } from '../../core/jobs/job-progress';
-import { MOBILE_QUERY } from '../../shell/app-shell';
+import { MOBILE_QUERY } from '../../core/layout/phone-layout';
 import { missingText } from '../document-templates/document-templates-view';
 import type { GenerateDocumentData } from '../document-templates/generate-document-dialog';
 import { MatterScreen } from '../matter-detail/matter-screen';
@@ -292,6 +292,9 @@ function storedLayout(): Layout {
                 @if (row.privileged) {
                   <mt-icon name="shield" class="priv" aria-label="Privileged" role="img" />
                 }
+                @if (row.source === 'clerk_draft') {
+                  <mt-badge>{{ clerkDraftLabel }}</mt-badge>
+                }
                 @if (status(row); as s) {
                   @if (s.kind !== 'ready') {
                     <mt-badge [tone]="s.tone">{{ s.label }}</mt-badge>
@@ -322,6 +325,9 @@ function storedLayout(): Layout {
                 <span class="tags">
                   @if (doc.privileged) {
                     <mt-badge tone="brand">Privileged</mt-badge>
+                  }
+                  @if (doc.source === 'clerk_draft') {
+                    <mt-badge>{{ clerkDraftLabel }}</mt-badge>
                   }
                   @if (status(doc); as s) {
                     @if (s.kind !== 'ready') {
@@ -446,6 +452,8 @@ export class MatterDocuments {
   /** Every role that sees the matter can download a selection as a zip (CORE-12b). */
   protected readonly canDownload = computed(() => !this.screen.deleted());
   protected readonly canPrivileged = can('privileged.view');
+  /** A letter Clerk drafted (AI-10) is saved, never sent: the list says so. */
+  protected readonly clerkDraftLabel = CLERK_DRAFT_DOCUMENT_LABEL;
   private readonly uploadAllowed = can('document.upload');
   private readonly deleteAllowed = can('document.delete');
   protected readonly selectable = computed(() => this.canDownload() || this.canUpload() || this.canDelete());

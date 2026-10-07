@@ -152,6 +152,12 @@ def nav(label, ic, count=None, active=False, dot=None, hover=False):
     return f'<a class="mt-nav" href="#" onclick="return false"{a}{h}{cur}>{lead}<span class="mt-ell">{label}</span>{c}</a>'
 
 
+def nav_toggle(label, closed=False):
+    """A sidebar section label that collapses its items (Pinned): a chevron shows on hover and focus, and turns while closed."""
+    return (f'<button class="mt-nav-section" data-toggle aria-expanded="{"false" if closed else "true"}">{label}'
+            f'<span class="mt-nav-chev">{icon("chevron-down")}</span></button>')
+
+
 def menu_item(label, ic=None, hint=None, highlighted=False, tone=None, disabled=False, selected=False):
     h = " data-highlighted" if highlighted else ""
     t = f' data-tone="{tone}"' if tone else ""

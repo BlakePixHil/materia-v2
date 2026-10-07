@@ -5,15 +5,21 @@ import { provideRouter, Router, TitleStrategy } from '@angular/router';
 import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
 import {
+  briefRefreshesLeft,
   can,
   clientContactIdsFrom,
   confirmationMatches,
   contactSearchTokens,
   DEFAULT_MATTER_STAGES,
   evaluateClosing,
+  matterBriefFacts,
+  type MatterBriefSources,
+  type MatterBriefView,
   matterSearchTokens,
   parseMentions,
   partyDocId,
+  resolveBriefItem,
+  templateBrief,
   unbilledWipCents,
   unmetStageRequirements,
   type DateOnly,
@@ -49,6 +55,12 @@ export const LAWYER = testSession();
 export const ADMIN = testSession({ uid: PRIYA, email: 'owner@harbourvine.example', ...claims('admin') });
 export const PARALEGAL = testSession(claims('paralegal'));
 export const READONLY = testSession(claims('readonly'));
+/**
+ * The sessions above signed in when this file loaded. Specs share it, so a long run can open a page
+ * past the recent sign-in window (SEC-04) and get "Confirm it’s you" instead of the action: each page
+ * opens with them signed in just now. A session made in a spec keeps its own `authTime`.
+ */
+const SHARED_SESSIONS: ReadonlySet<AuthSession> = new Set([LAWYER, ADMIN, PARALEGAL, READONLY]);
 
 type Seed = Record<string, unknown>;
 const settle = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -242,6 +254,78 @@ export function serverCallables(): Record<string, FakeCallable> {
       fs.set(path, { ...party, deletedAt: new Date() });
       return { matterId: data['matterId'], partyId: data['partyId'], clientContactIds: clientIds(fs) };
     },
+  };
+}
+
+/** The rows a fake `clerk-matterBrief` builds the brief from (the harness seeds none by default). */
+export type BriefRows = Partial<Omit<MatterBriefSources, 'today' | 'now' | 'timeZone' | 'matterPrivileged'>>;
+
+export const BRIEF = `${MATTER}/briefs/latest`;
+export const BRIEF_NOW = new Date('2026-10-04T00:30:00Z');
+
+/**
+ * `clerk-matterBrief` (AI-06c) as the server runs it with Clerk off: the template brief from
+ * `rows`, written to `briefs/latest`, three refreshes a day. `clerk` replaces the template with
+ * Clerk's brief (headline and items as given).
+ */
+export function briefServerCallable(
+  rows: BriefRows = {},
+  clerk?: Pick<MatterBriefView, 'headline' | 'items'>,
+): FakeCallable {
+  return (data, fs) => {
+    const kept = fs.get(BRIEF) as Seed | undefined;
+    const keptRefreshes = kept?.['refreshes'] as { day: string; count: number } | undefined;
+    if (data['mode'] === 'refresh' && briefRefreshesLeft(keptRefreshes, TODAY) === 0)
+      throw { code: 'functions/resource-exhausted', details: { code: 'RATE_LIMITED' } };
+    const set = matterBriefFacts({
+      today: TODAY,
+      now: BRIEF_NOW,
+      timeZone: 'Australia/Melbourne',
+      matterPrivileged: false,
+      deadlines: [],
+      tasks: [],
+      activity: [],
+      documents: [],
+      suggestions: [],
+      ...rows,
+    });
+    const drafted = templateBrief(set);
+    const items = clerk
+      ? clerk.items.map(({ at, ...item }) => ({ ...item, ...(at ? { at: new Date(at) } : {}) }))
+      : drafted.items.flatMap((item) => resolveBriefItem(item, set) ?? []);
+    const refreshes =
+      data['mode'] === 'refresh'
+        ? { day: TODAY, count: (keptRefreshes?.day === TODAY ? keptRefreshes.count : 0) + 1 }
+        : keptRefreshes;
+    const generatedAt = new Date(BRIEF_NOW.getTime() + (refreshes?.count ?? 0) * 60_000);
+    const brief = {
+      source: clerk ? 'clerk' : 'template',
+      ...(clerk ? {} : { reason: set.quiet ? 'quiet' : 'off' }),
+      headline: clerk?.headline ?? drafted.headline,
+      items,
+      read: set.read,
+      day: TODAY,
+      factsHash: set.hash,
+      privileged: false,
+      generatedAt,
+      generatedBy: ME,
+      ...(refreshes ? { refreshes } : {}),
+      ...meta,
+    };
+    fs.set(BRIEF, brief);
+    const view: MatterBriefView = {
+      source: brief.source as MatterBriefView['source'],
+      ...(clerk ? {} : { reason: set.quiet ? 'quiet' : 'off' }),
+      headline: brief.headline,
+      items: items.map(({ at, ...item }) => ({ ...item, ...(at ? { at: at.toISOString() } : {}) })),
+      read: set.read,
+      day: TODAY,
+      privileged: false,
+      generatedAt: generatedAt.toISOString(),
+      pending: false,
+      refreshesLeft: briefRefreshesLeft(refreshes, TODAY),
+    };
+    return { brief: view, outcome: 'rebuilt' };
   };
 }
 
@@ -511,14 +595,16 @@ export const TEMPLATES_ON = { 'templates.system': true };
 
 /** Renders the app at `url` with the fictional practice seeded. */
 export async function openMatter(url = '/matters/m-whitfield/overview', options: OpenOptions = {}) {
-  const port = new FakeAuthPort(options.session ?? LAWYER);
+  const session = options.session ?? LAWYER;
+  const port = new FakeAuthPort(SHARED_SESSIONS.has(session) ? { ...session, authTime: Date.now() } : session);
   const firestore = new InMemoryFirestore();
   seed(firestore, options.matter);
   options.configure?.(firestore, port);
-  const callables = {
+  const callables: Record<string, FakeCallable> = {
     ...serverCallables(),
     ...deadlineServerCallables(),
     ...noteServerCallables(),
+    'clerk-matterBrief': briefServerCallable(),
     ...options.callables,
   };
   port.call = async <T>(name: string, data: unknown): Promise<T> => {
@@ -565,6 +651,13 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
     await stable();
   };
   const dialog = () => body.querySelector<HTMLElement>('.mt-dialog');
+  /** The open dialog, waiting for one that loads as it opens (`import()`) rather than for a fixed time. */
+  const openedDialog = async () => {
+    for (let i = 0; i < 40 && !dialog(); i++) await stable(25);
+    const found = dialog();
+    if (!found) throw new Error('No dialog opened');
+    return found;
+  };
   /** Types into the field labelled `label` (an input, select or textarea under it). */
   const fill = async (label: string, value: string, root: ParentNode = body) => {
     const host = [...root.querySelectorAll('mt-text-field, mt-select, mt-search-field, mt-textarea')].find(
@@ -599,6 +692,7 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
     buttons,
     click,
     dialog,
+    openedDialog,
     fill,
     submit,
     press,

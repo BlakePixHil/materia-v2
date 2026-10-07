@@ -13,6 +13,7 @@ import { REGION } from '../config';
 import type { Clock, Ports } from '../ports';
 import { adminDb } from './admin';
 import { createLog, errorReportFields, functionsSink, type Log, type LogSink } from './log';
+import { cachedPurgeLookup, type PurgeLookup } from './purge-guard';
 import { ports, systemClock } from '../ports/container';
 
 const GUARD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -49,6 +50,8 @@ export interface TriggerDeps {
   clock: Clock;
   ports: () => Ports;
   sink: LogSink;
+  /** Whether the event's practice is being deleted (SEC-05); unit tests may omit it. */
+  purging?: PurgeLookup;
 }
 
 /** The parts of a Firestore event the wrapper reads. */
@@ -62,7 +65,8 @@ export interface TriggerEvent {
 
 /**
  * Runs a trigger handler once per event id: `eventGuards/{fn}-{eventId}` is created first, so a
- * redelivered event is skipped. The guard is per function because every trigger on the same write
+ * redelivered event is skipped. An event in a practice being deleted (its `deletedOrgs` tombstone
+ * exists, SEC-05) is skipped before that. The guard is per function because every trigger on the same write
  * gets the same event id (a document write runs `documents-onWrite`, `documents-onIngestChange`
  * and `audit-onMatterWrite`); a guard on the id alone let the first of them skip the others.
  * Retries are off; a failure is logged as a dead letter (with ids only) and not rethrown.
@@ -71,9 +75,14 @@ export async function runTrigger(
   def: TriggerDefinition,
   event: TriggerEvent,
   deps: TriggerDeps,
-): Promise<'ran' | 'duplicate' | 'failed'> {
+): Promise<'ran' | 'duplicate' | 'failed' | 'purging'> {
   const log = createLog({ fn: def.name, eventId: event.id, orgId: event.params['orgId'] ?? null }, deps.sink);
   const db = deps.db();
+  const orgId = event.params['orgId'];
+  if (orgId && deps.purging && (await deps.purging(orgId))) {
+    log.info('skipped: the practice is being deleted');
+    return 'purging';
+  }
   try {
     await db.doc(eventGuardPath(def.name, event.id)).create({
       fn: def.name,
@@ -112,7 +121,17 @@ export async function runTrigger(
 /** The idempotency guard of one function's run for one event. */
 export const eventGuardPath = (fn: string, eventId: string) => `eventGuards/${fn}-${eventId}`;
 
-const triggerDeps = (): TriggerDeps => ({ db: adminDb, clock: systemClock, ports, sink: functionsSink });
+let purging: PurgeLookup | undefined;
+/** One tombstone lookup per instance, shared by its triggers and queues. */
+export const purgeLookup = (): PurgeLookup => (purging ??= cachedPurgeLookup(adminDb, systemClock));
+
+const triggerDeps = (): TriggerDeps => ({
+  db: adminDb,
+  clock: systemClock,
+  ports,
+  sink: functionsSink,
+  purging: purgeLookup(),
+});
 
 type AnyEvent = FirestoreEvent<Change<DocumentSnapshot> | DocumentSnapshot | undefined, Record<string, string>>;
 

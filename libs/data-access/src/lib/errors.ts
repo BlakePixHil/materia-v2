@@ -54,3 +54,16 @@ export function toDomainError(error: unknown, source: ErrorSource = 'read'): Dom
 export function isTransient(error: DomainError): boolean {
   return error.code === 'UNAVAILABLE' || error.code === 'REQUEST_IN_PROGRESS';
 }
+
+/**
+ * A callable that wasn't sent because the browser is offline: callables need a connection (ADR-020).
+ * Feature code shows "Needs connection" for it (`isOfflineError`).
+ */
+export function offlineError(): DomainError {
+  return new DomainError('UNAVAILABLE', 'Not sent: the browser is offline', { offline: true });
+}
+
+/** True for `offlineError()`: the call never left the browser. */
+export function isOfflineError(error: unknown): boolean {
+  return error instanceof DomainError && error.code === 'UNAVAILABLE' && error.details?.['offline'] === true;
+}

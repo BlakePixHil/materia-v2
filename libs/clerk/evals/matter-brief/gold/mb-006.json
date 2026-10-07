@@ -1,0 +1,5 @@
+{
+  "id": "mb-006",
+  "briefRefs": ["suggestion:s-westpac"],
+  "mustNotContain": ["are frozen", "were frozen", "been frozen", "has been written"]
+}

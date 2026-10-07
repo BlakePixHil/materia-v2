@@ -1,3 +1,12 @@
 {
-  "flags": {}
+  "flags": {
+    "billing.costsDisclosure": true,
+    "integrations.xero": true,
+    "clerk.features.suggestions": true,
+    "clerk.features.classification": true,
+    "conflicts.enforced": true,
+    "templates.system": true,
+    "billing.trustNotice": true,
+    "clerk.features.matterBrief": true
+  }
 }

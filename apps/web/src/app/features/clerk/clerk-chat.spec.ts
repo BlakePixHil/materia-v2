@@ -2,6 +2,7 @@ import type { InMemoryFirestore } from '@materia/data-access/repository';
 import { DomainError } from '@materia/domain';
 
 import {
+  answerAnnouncement,
   answerError,
   CHAT_COMMANDS,
   MANUAL_PATH,
@@ -9,6 +10,8 @@ import {
   messageState,
   retryable,
   scopeLabel,
+  spokenText,
+  SPOKEN_ANSWER_MAX,
   workingLabel,
   type ChatMessage,
 } from './clerk-chat-view';
@@ -134,11 +137,13 @@ describe('clerk chat view', () => {
     expect(scopeLabel('M-2026-0142', 3)).toBe('M-2026-0142 · 3 attachments');
   });
 
-  it('lists /summarise, and the commands still to come as disabled', () => {
-    expect(CHAT_COMMANDS.filter((command) => !command.disabled).map((command) => command.name)).toEqual(['summarise']);
+  it('lists /summarise and /draft, and the commands still to come as disabled', () => {
+    expect(CHAT_COMMANDS.filter((command) => !command.disabled).map((command) => command.name)).toEqual([
+      'summarise',
+      'draft',
+    ]);
     expect(CHAT_COMMANDS.filter((command) => command.disabled).map((command) => command.name)).toEqual([
       'chronology',
-      'draft',
       'timeline',
     ]);
   });
@@ -155,6 +160,24 @@ describe('clerk chat view', () => {
     expect(answerError(message({ status: 'error', error: { code: 'CLERK_RATE_LIMITED' } }))).toContain(
       'asked Clerk a lot',
     );
+  });
+
+  it('announces a finished answer once, as plain text, and says nothing while it streams (SEC-06)', () => {
+    const said = (text: string, status = 'done') =>
+      answerAnnouncement({ status, content: [{ type: 'text', text }] } as unknown as ChatMessage);
+    expect(said('Avery', 'streaming')).toBeNull();
+    expect(said('**Avery Quill** is the executor [1].')).toBe('Clerk answered: Avery Quill is the executor.');
+    expect(spokenText('Two things:\n\n- the grant\n- the [advert](https://example.test)')).toBe(
+      'Two things: the grant; the advert',
+    );
+    expect(said('')).toBe('Clerk answered.');
+    expect(said('Avery', 'stopped')).toBe('Clerk stopped. This answer is incomplete.');
+    expect(said('', 'refused')).toBe('Clerk declined to answer this.');
+    // A failed answer's own alert says why.
+    expect(said('', 'error')).toBeNull();
+    const long = said('word '.repeat(400));
+    expect(long?.length).toBeLessThan(SPOKEN_ANSWER_MAX + 80);
+    expect(long).toMatch(/word… The rest is in the conversation\.$/);
   });
 
   it('offers Retry on the newest finished answer only', () => {
@@ -189,8 +212,15 @@ describe('Clerk chat panel', () => {
       content: [{ type: 'text', text: 'Avery Quill is the executor.' }],
     });
     expect(page.panel()?.querySelector('mt-clerk-working')).toBeNull();
+    // The conversation isn't read out as it streams; the finished answer is announced once (SEC-06).
+    const log = page.panel()?.querySelector('[role="log"]');
+    const announcement = () => page.text(page.panel()?.querySelector('[data-clerk-announcement]'));
+    expect(log?.getAttribute('aria-live')).toBe('off');
+    expect(page.panel()?.querySelector('mt-clerk-message')?.getAttribute('aria-busy')).toBe('true');
+    expect(announcement()).toBe('');
     await page.answer(path, { status: 'done' });
     expect(page.text(page.panel()?.querySelector('mt-clerk-message'))).toContain('Avery Quill is the executor.');
+    expect(announcement()).toBe('Clerk answered: Avery Quill is the executor.');
     expect(page.buttons('Copy', page.panel() ?? undefined)).toHaveLength(1);
     expect(page.buttons('Retry', page.panel() ?? undefined)).toHaveLength(1);
   });
@@ -374,5 +404,24 @@ describe('Clerk chat panel', () => {
     page.panel()?.querySelector<HTMLElement>('mt-switch button, mt-switch [role="switch"]')?.click();
     await page.stable(10);
     expect(page.firestore.get(`${THREADS}/t-mine`)?.['shared']).toBe(true);
+  });
+
+  it('opens Clerk drafting from /draft with what follows as the instructions (AI-10)', async () => {
+    const page = await open({ flags: { ...FLAGS, 'clerk.features.drafting': true } });
+    await page.ask('/draft ask the bank for the balance at the date of death');
+    await page.stable(10);
+    expect(page.calls('clerk-sendMessage')).toEqual([]);
+    expect(page.router.url).toBe(
+      '/matters/m-whitfield/drafts/new?instructions=ask%20the%20bank%20for%20the%20balance%20at%20the%20date%20of%20death',
+    );
+    expect(page.panel()).toBeNull();
+  });
+
+  it('says drafting is off rather than sending /draft as a question', async () => {
+    const page = await open();
+    await page.ask('/draft a letter to the bank');
+    expect(page.calls('clerk-sendMessage')).toEqual([]);
+    expect(page.text(page.panel())).toContain('Clerk drafting isn’t turned on for your practice.');
+    expect(page.composer()?.value).toBe('/draft a letter to the bank');
   });
 });

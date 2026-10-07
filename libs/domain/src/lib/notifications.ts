@@ -1,13 +1,14 @@
 import * as z from 'zod';
 
 import { DEFAULT_ORG_TIMEZONE } from './constants';
+import { DocIdSchema } from './schemas/common';
 import {
   NOTIFICATION_CHANNELS,
   NotificationPayloadSchema,
   type NotificationChannel,
   type NotificationKind,
   type NotificationPriority,
-} from './schemas/org-records';
+} from './schemas/notification-records';
 import type { DateOnly } from './values/date-only';
 
 /*
@@ -52,6 +53,8 @@ export const NOTIFICATION_KINDS = {
   document_infected: { label: 'Infected uploads removed', channels: ['inapp', 'email'], priority: 'high' },
   integration_error: { label: 'Integration problems', channels: ['inapp', 'email'], priority: 'high' },
   export_ready: { label: 'Exports ready', channels: ['inapp', 'email'], priority: 'normal' },
+  // SEC-05: the practice will be deleted (or no longer will). High and emailed: everyone must hear.
+  org_deletion: { label: 'Practice deletion notices', channels: ['inapp', 'email'], priority: 'high' },
   // CORE-17: a testator whose original will is in safe custody has died. High and emailed.
   safe_custody: { label: 'Safe custody wills', channels: ['inapp', 'email'], priority: 'high' },
   budget_alert: { label: 'Budget alerts', channels: ['inapp'], priority: 'normal' },
@@ -101,6 +104,7 @@ export const INBOX_FILTER_OF = {
   document_infected: 'system',
   integration_error: 'system',
   export_ready: 'system',
+  org_deletion: 'system',
   safe_custody: 'system',
   budget_alert: 'system',
   costs_disclosure: 'system',
@@ -120,6 +124,22 @@ export const NOTIFICATION_BURST_WINDOW_MS = 60_000;
 export function burstSummaryId(uid: string, now: Date): string {
   return `burst-${uid}-${now.toISOString().slice(0, 16).replace(/[-T:]/g, '')}`;
 }
+
+// ---------- push on a device (MOB-04) ----------
+
+/** A device that hasn't opened Materia for this many days gets no more pushes and is deleted. */
+export const PUSH_DEVICE_STALE_DAYS = 60;
+
+/**
+ * What every push says under its title. Lock screens are public, so a push never carries the
+ * notification's body (deadline and task titles can name clients); titles name the matter by
+ * number at most (`Deadline in 3 days: M-2026-0142`).
+ */
+export const PUSH_BODY = 'Open Materia to see it.';
+
+/** `notifications-testPush` (MOB-04): one of the caller's own devices. */
+export const TestPushInput = z.object({ deviceId: DocIdSchema });
+export type TestPushInput = z.infer<typeof TestPushInput>;
 
 // ---------- preferences: users/{uid}.prefs.notifications ----------
 

@@ -96,6 +96,22 @@ describe('MtButton', () => {
     expect(button.style.width).toBe('');
   });
 
+  it('measures nothing until it loads, so a long list of buttons forces no layouts (SEC-07)', async () => {
+    const measured = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get');
+    try {
+      await render(
+        `@for (n of rows; track n) {
+          <button mtButton size="sm" iconStart="check">Mark done</button>
+        }`,
+        { imports: [MtButton], componentProperties: { rows: Array.from({ length: 20 }, (_, n) => n) } },
+      );
+      expect(screen.getAllByRole('button', { name: 'Mark done' })).toHaveLength(20);
+      expect(measured).not.toHaveBeenCalled();
+    } finally {
+      measured.mockRestore();
+    }
+  });
+
   it('shows a platform-aware shortcut and sets aria-keyshortcuts', async () => {
     await render(`<button mtButton kbd="mod+enter">Save</button>`, {
       imports: [MtButton],
