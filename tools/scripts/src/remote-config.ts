@@ -66,10 +66,18 @@ export interface RcDeps {
   token: () => Promise<string>;
 }
 
-async function call(deps: RcDeps, url: string, init: RequestInit = {}): Promise<Response> {
+/**
+ * Remote Config bills quota to the caller's project, which for terraform-agent is the admin
+ * project (where the API is off), so every call names the target project instead.
+ */
+async function call(deps: RcDeps, project: string, url: string, init: RequestInit = {}): Promise<Response> {
   return deps.fetch(url, {
     ...init,
-    headers: { authorization: `Bearer ${await deps.token()}`, ...(init.headers as Record<string, string>) },
+    headers: {
+      authorization: `Bearer ${await deps.token()}`,
+      'x-goog-user-project': project,
+      ...(init.headers as Record<string, string>),
+    },
   });
 }
 
@@ -80,7 +88,7 @@ async function failure(response: Response, what: string): Promise<Error> {
 
 export async function getTemplate(deps: RcDeps, project: string, side: Side): Promise<RcTemplate> {
   const url = `${API}/projects/${project}/namespaces/${NAMESPACES[side]}/remoteConfig`;
-  const response = await call(deps, url);
+  const response = await call(deps, project, url);
   // A server template nobody has published yet.
   if (response.status === 404) return { etag: '*' };
   if (!response.ok) throw await failure(response, `Reading the ${side} template`);
@@ -100,7 +108,7 @@ export async function publishTemplate(
   const body: Record<string, unknown> = { ...template };
   delete body['etag'];
   delete body['version'];
-  const response = await call(deps, url, {
+  const response = await call(deps, project, url, {
     method: 'PUT',
     headers: { 'content-type': 'application/json; charset=utf-8', 'if-match': template.etag },
     body: JSON.stringify(body),

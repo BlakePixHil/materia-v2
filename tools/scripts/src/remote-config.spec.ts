@@ -26,6 +26,7 @@ function fakeRemoteConfig(initial: Partial<Record<'firebase' | 'firebase-server'
     const namespace = url.pathname.split('/')[5] as string;
     const headers = init.headers as Record<string, string>;
     expect(headers['authorization']).toBe('Bearer t0ken');
+    expect(headers['x-goog-user-project']).toBe(url.pathname.split('/')[3]);
     const entry = store.get(namespace);
     if ((init.method ?? 'GET') === 'GET') {
       if (!entry) return new Response('{"error":{"status":"NOT_FOUND"}}', { status: 404 });
