@@ -7,6 +7,7 @@ import { assertSessionAllowed, cachedSessionLookup, type SessionPolicy } from '.
 import { auditExportDefinition } from '../audit/query';
 import { setApiKeyDefinition } from '../clerk/keys';
 import { exportInventoryDefinition } from '../estate/export';
+import { createExportDefinition } from '../exports/create';
 import {
   changeRoleDefinition,
   removeMemberDefinition,
@@ -63,6 +64,7 @@ const SENSITIVE: [string, CallableDefinition<never, unknown>, Record<string, unk
   ['export: audit log CSV', auditExportDefinition as never, {}],
   ['export: time entries CSV', timeExportDefinition as never, { from: '2026-10-01', to: '2026-10-31' }],
   ['export: estate inventory PDF', exportInventoryDefinition as never, { matterId: 'm1' }],
+  ['export: list CSV (contacts)', createExportDefinition() as never, { kind: 'contacts' }],
   ['role change', changeRoleDefinition as never, { uid: 'lawyer-1', role: 'admin' }],
   ['suspension', suspendMemberDefinition as never, { uid: 'lawyer-1', suspended: true }],
   ['removal', removeMemberDefinition as never, { uid: 'lawyer-1' }],

@@ -52,6 +52,7 @@ const ACTION_OPTIONS: MtOption<string>[] = [
   { value: 'matter.status_changed', label: 'Matter status changed' },
   { value: 'matter.renumbered', label: 'Matter renumbered' },
   { value: 'audit.exported', label: 'Audit log exported' },
+  { value: 'export.created', label: 'List exported' },
 ];
 
 const actionLabel = (action: string) => ACTION_OPTIONS.find((o) => o.value === action)?.label ?? action;

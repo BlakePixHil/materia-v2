@@ -6,6 +6,7 @@ import {
   GET_EXPORT_URL_CALLABLE,
   GetExportUrlInput,
   ROLES,
+  type ExportExtension,
   type GetExportUrlResult,
 } from '@materia/domain';
 
@@ -13,7 +14,7 @@ import { defineCallable, type CallableDefinition } from '../core/callable';
 import { filesBucket } from '../documents/files';
 
 /** An export's file name from the job's target name: letters, digits, spaces and dashes. */
-export function exportFileName(name: unknown, extension: 'pdf' | 'zip' = 'pdf'): string {
+export function exportFileName(name: unknown, extension: ExportExtension = 'pdf'): string {
   const base = String(name ?? 'Export')
     .replace(/[^\p{L}\p{N} _-]+/gu, ' ')
     .replace(/\s+/g, ' ')
@@ -22,9 +23,10 @@ export function exportFileName(name: unknown, extension: 'pdf' | 'zip' = 'pdf'):
 }
 
 /**
- * `jobs-getExportUrl` (FND-24, CORE-17, CORE-12b; any member): a signed URL for an export job's
- * file (`orgs/{orgId}/exports/{jobId}.pdf`, or `.zip` for `documents.zip`; `jobs-sweepExports`
- * deletes the file and the job after 7 days), valid for 5 minutes and served as an attachment.
+ * `jobs-getExportUrl` (FND-24, CORE-17, CORE-12b, INS-03; any member): a signed URL for an export
+ * job's file (`orgs/{orgId}/exports/{jobId}.pdf`, `.zip` for `documents.zip`, `.csv` for a list
+ * export; `jobs-sweepExports` deletes the file and the job after 7 days), valid for 5 minutes and
+ * served as an attachment.
  * Only the member who started the job may fetch it, and only once it succeeded: anyone else's job,
  * or one that isn't an export, is NOT_FOUND; one still running FAILED_PRECONDITION `not_ready`.
  */

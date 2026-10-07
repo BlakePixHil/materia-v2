@@ -235,6 +235,12 @@ jobs:
       # FND-15: the callable wrapper and Cloud Tasks, through the auth, firestore and functions
       # emulators (builds functions first).
       - run: pnpm nx affected -t test-integration --base="$NX_BASE" --head="$NX_HEAD"
+        env:
+          # The same worker cap as e2e (see there). Uncapped, integration shard 1 filled the 7 GB
+          # runner, the Firestore emulator was killed and the shard hit its 6-minute limit; capped, it
+          # peaked at 4.3 GB (measured on 2 CPUs in a 7 GiB cgroup).
+          FUNCTIONS_EMULATOR_MAX_WORKERS: '20'
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
       # FND-06: seed the emulators with the fictional practice, then validate every seeded document
       # against its domain schema and sign in as each test account.
       - run: pnpm nx affected -t test-seed --base="$NX_BASE" --head="$NX_HEAD"

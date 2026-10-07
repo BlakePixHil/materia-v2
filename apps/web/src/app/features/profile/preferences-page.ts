@@ -11,6 +11,7 @@ import {
   timeZoneOptions,
   today,
   toDisplay,
+  WEEKLY_REPORT_ROLES,
   type DensityPref,
   type NotificationPrefs,
   type StartPage,
@@ -226,6 +227,20 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
           (ngModelChange)="saveNotifications({ digestHour: +$event })"
         />
       }
+      @if (reportOptIn()) {
+        <mt-settings-row
+          title="Weekly practice report"
+          description="Mondays at 7am, the practice’s time: last week’s figures, the matters with the most work in progress and how many critical deadlines are due."
+        >
+          <mt-switch
+            name="weeklyReport"
+            label="Weekly practice report"
+            labelHidden
+            [ngModel]="notifications().weeklyReport === true"
+            (ngModelChange)="saveNotifications({ weeklyReport: $event })"
+          />
+        </mt-settings-row>
+      }
       <mt-select
         name="timezone"
         label="Time zone"
@@ -327,6 +342,11 @@ export class PreferencesPage {
   protected readonly quietHours = computed(() => {
     const quiet = this.notifications().quietHours;
     return quiet === undefined ? DEFAULT_QUIET_HOURS : quiet;
+  });
+  /** Owners and admins may have the weekly practice report (INS-03). */
+  protected readonly reportOptIn = computed(() => {
+    const role = this.context.role();
+    return !!role && WEEKLY_REPORT_ROLES.includes(role);
   });
   private readonly orgZone = computed(() => this.org.value()?.timezone || DEFAULT_ORG_TIMEZONE);
   protected readonly timeZones = computed<MtOption<string>[]>(() => [
