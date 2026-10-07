@@ -44,6 +44,9 @@ describe('the full export', () => {
       'Harbour & Vine Legal export 2026-10-07.zip',
     );
     expect(orgExportFileName('A/B: "Legal"', '2026-10-07', 2, 3)).toBe('A B Legal export 2026-10-07 (part 2 of 3).zip');
+    expect(orgExportFileName('Fictional Legal', '2026-10-07', 2)).toBe(
+      'Fictional Legal export 2026-10-07 (part 2).zip',
+    );
     expect(orgExportPartPath('o1', 'j1', 1)).toBe('orgs/o1/exports/j1.zip');
     expect(orgExportPartPath('o1', 'j1', 3)).toBe('orgs/o1/exports/j1.part-3.zip');
     // The export sweep recognises every part, with its org and job.
@@ -154,12 +157,13 @@ describe('offboarding and account deletion', () => {
   it('validates the offboarding choices', () => {
     const requestId = crypto.randomUUID();
     expect(
-      OffboardMemberInput.safeParse({ requestId, uid: 'u2', reassign: { tasks: 'u3' }, personalTasks: 'transfer' })
+      OffboardMemberInput.safeParse({ requestId, uid: 'u2', reassign: { tasks: 'u3' }, personalTasks: 'export' })
         .success,
     ).toBe(true);
-    expect(OffboardMemberInput.safeParse({ requestId, uid: 'u2', reassign: {}, personalTasks: 'export' }).success).toBe(
-      false,
-    );
+    expect(OffboardMemberInput.parse({ requestId, uid: 'u2', personalTasks: 'delete' }).reassign).toEqual({});
+    expect(
+      OffboardMemberInput.safeParse({ requestId, uid: 'u2', reassign: {}, personalTasks: 'transfer' }).success,
+    ).toBe(false);
     expect(DeleteAccountInput.safeParse({ confirmation: 'DELETE' }).success).toBe(true);
   });
 });

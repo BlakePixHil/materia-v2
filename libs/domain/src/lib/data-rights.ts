@@ -76,14 +76,18 @@ export function exportDataFileName(collection: string, file = 1): string {
   return file === 1 ? `data/${collection}.jsonl` : `data/${collection}.${file}.jsonl`;
 }
 
-/** A part's download name: "Harbour & Vine Legal export 2026-10-07.zip", or "(part 2 of 3)". */
-export function orgExportFileName(orgName: string, day: string, part: number, parts: number): string {
+/**
+ * A part's download name: "Harbour & Vine Legal export 2026-10-07.zip", "(part 2 of 3)", or
+ * "(part 2)" while the number of parts isn't known yet.
+ */
+export function orgExportFileName(orgName: string, day: string, part: number, parts?: number): string {
   const base =
     `${orgName} export ${day}`
       .replace(/[^\p{L}\p{N} &_-]+/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim() || 'Export';
-  return parts > 1 ? `${base} (part ${part} of ${parts}).zip` : `${base}.zip`;
+  if (parts !== undefined) return parts > 1 ? `${base} (part ${part} of ${parts}).zip` : `${base}.zip`;
+  return part > 1 ? `${base} (part ${part}).zip` : `${base}.zip`;
 }
 
 /** Where a part is kept for 7 days: `orgs/{orgId}/exports/{jobId}.zip`, then `{jobId}.part-2.zip`… */
@@ -283,12 +287,16 @@ export const DeletedOrg = withMeta(
     status: z.enum(['purging', 'deleted']),
     stage: OrgPurgeStageSchema,
     requestedBy: DocIdSchema,
+    /** Their name, for the certificate (their member document goes with the practice). */
+    requestedByName: z.string().max(200).optional(),
     requestedAt: InstantSchema,
     scheduledFor: InstantSchema,
     purgeStartedAt: InstantSchema,
     deletedAt: InstantSchema.optional(),
     certificateId: NonEmptyString,
     certificate: z.object({ storagePath: NonEmptyString, sha256: z.string().regex(/^[0-9a-f]{64}$/) }).optional(),
+    /** The practice's time zone, for the certificate's dates. */
+    timeZone: z.string().min(1).max(64).optional(),
     ownerUids: z.array(DocIdSchema),
     /** Everyone with a member document, until their memberships are removed. */
     memberUids: z.array(DocIdSchema).optional(),
@@ -322,31 +330,38 @@ export interface OffboardingPlan {
   uid: string;
   /** Open matter tasks assigned to them. */
   tasks: number;
-  /** Upcoming deadlines assigned to them. */
+  /** Upcoming (or blocked) deadlines assigned to them. */
   deadlines: number;
-  /** Matters they are the responsible lawyer for that aren't closed. */
+  /** Matters they are the responsible lawyer for that aren't closed or archived. */
   matters: number;
+  /** Whether any of that work is on a privileged matter: whoever takes it needs `privileged.view`. */
+  privileged: { tasks: boolean; deadlines: boolean; matters: boolean };
   /** Their personal tasks (not deleted). */
   personalTasks: number;
-  /** Their running or paused timer is on a matter of this practice. */
+  /** Their timer is running or paused on a matter of this practice. */
   timer: boolean;
   /** Their own connections (Microsoft, Google). */
   integrations: number;
 }
 
-export const PersonalTasksChoiceSchema = z.enum(['transfer', 'delete']);
+/**
+ * Their personal tasks (private even from admins): `export` writes them to a CSV for the admin
+ * doing this (a 7-day export, like any other) and then deletes them; `delete` just deletes them.
+ */
+export const PersonalTasksChoiceSchema = z.enum(['export', 'delete']);
 export type PersonalTasksChoice = z.infer<typeof PersonalTasksChoiceSchema>;
 
 export const OffboardMemberInput = z.object({
   requestId: z.uuid(),
   uid: DocIdSchema,
-  /** Who takes each kind of work; required when there is any of it. */
-  reassign: z.object({
-    tasks: DocIdSchema.optional(),
-    deadlines: DocIdSchema.optional(),
-    matters: DocIdSchema.optional(),
-  }),
-  /** `transfer`: their personal tasks move to the admin doing this; `delete`: they go. */
+  /** Who takes each kind of work; required when there is any of it (`orgs-offboardingPlan`). */
+  reassign: z
+    .object({
+      tasks: DocIdSchema.optional(),
+      deadlines: DocIdSchema.optional(),
+      matters: DocIdSchema.optional(),
+    })
+    .default({}),
   personalTasks: PersonalTasksChoiceSchema,
 });
 export type OffboardMemberInput = z.input<typeof OffboardMemberInput>;
@@ -354,11 +369,26 @@ export type OffboardMemberInput = z.input<typeof OffboardMemberInput>;
 export interface OffboardMemberResult {
   ok: true;
   tokensRevoked: boolean;
-  moved: { tasks: number; deadlines: number; matters: number; personalTasks: number };
-  deletedPersonalTasks: number;
-  timerSaved: boolean;
+  /** How many of each were handed on. */
+  moved: { tasks: number; deadlines: number; matters: number };
+  /** Their personal tasks: how many, and the export job when they were exported. */
+  personalTasks: { choice: PersonalTasksChoice; count: number; exportJobId?: string };
+  /** Their timer's time was saved as draft time entries (`discarded` when its matter is gone). */
+  timer: 'saved' | 'discarded' | 'none';
   integrationsRemoved: number;
 }
+
+/** The personal-tasks CSV's columns (`orgs-offboardMember` with `personalTasks: export`). */
+export const PERSONAL_TASK_EXPORT_COLUMNS = [
+  'Title',
+  'Status',
+  'Priority',
+  'Due date',
+  'Group',
+  'Description',
+  'Checklist',
+  'Created',
+] as const;
 
 // ---------- deleting an account ----------
 

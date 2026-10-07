@@ -107,4 +107,24 @@ describe('expireExports', () => {
     expect(await w.sweep()).toEqual({ files: 1, jobs: 0, failed: 0 });
     expect(w.files.objects.size).toBe(0);
   });
+  it('deletes every zip of a split full export with its first (SEC-05)', async () => {
+    const parts = [1, 2, 3].map((n) => ({
+      storagePath: n === 1 ? 'orgs/org-a/exports/j-full.zip' : `orgs/org-a/exports/j-full.part-${n}.zip`,
+      sizeBytes: 3,
+      sha256: 'b'.repeat(64),
+    }));
+    const w = world({
+      'orgs/org-a/jobs/j-full': job('orgs/org-a/exports/j-full.zip', {
+        type: 'org.export',
+        output: { storagePath: parts[0]?.storagePath, sizeBytes: 9, sha256: 'b'.repeat(64), pages: 0, parts },
+      }),
+    });
+    w.files.put('orgs/org-a/exports/j-full.zip', 'zip', { timeCreated: OLD });
+    // Written later than the first, so not yet 7 days old on their own.
+    w.files.put('orgs/org-a/exports/j-full.part-2.zip', 'zip', { timeCreated: FRESH });
+    w.files.put('orgs/org-a/exports/j-full.part-3.zip', 'zip', { timeCreated: OLD });
+    expect(await w.sweep()).toEqual({ files: 3, jobs: 1, failed: 0 });
+    expect(w.files.objects.size).toBe(0);
+    expect(w.store.docs.has('orgs/org-a/jobs/j-full')).toBe(false);
+  });
 });
