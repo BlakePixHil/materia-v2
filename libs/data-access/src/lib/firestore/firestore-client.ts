@@ -122,7 +122,7 @@ export class FirestoreClient implements FirestoreSource {
   private async start(): Promise<FirestoreHandle> {
     const setup = this.setup;
     if (!setup) throw new Error('FIREBASE_SETUP is not provided');
-    const [sdk, app] = await Promise.all([this.loadSdk(), setup.app(), this.closing]);
+    const [sdk, app] = await Promise.all([this.loadSdk(), setup.app(), this.closing, setup.ready?.()]);
     const mode = setup.cacheMode?.() ?? firestoreCacheMode();
     const db = sdk.initializeFirestore(app, {
       localCache:

@@ -70,8 +70,24 @@ We now:
 
 Both rely on members the Firebase SDK marks internal (`initialize` and `getToken` on App Check providers, `_shouldInitProactively` and `_initialize` on the pop-up helper). A unit test fails if App Check's are renamed. If the pop-up helper's are, Auth either loads the helper as it starts again (slower) or loads it when Google is tapped, where a phone may fall back to the redirect sign-in.
 
+## Update: the shell drawn from the cached session and policy (SEC-07b, MAT-177, 2026-10-07)
+
+The shell's guards still waited for two network answers before anything was drawn: Auth restoring the session (its SDK, then `accounts:lookup`, and a token refresh when the ID token has expired, as it has after an hour away) and the org's security policy (the Firestore SDK, an App Check token and a listener's first answer).
+
+We now:
+
+- keep what the device saw last: Auth's port saves the session (uid, name, email, verification, providers, MFA enrolment, claims and sign-in time) each time Auth reports it, and `SessionPolicy` saves the org's security policy for that member and org each time its listener answers (`core/auth/session-cache.ts`). They live in localStorage, or in the tab's sessionStorage for a shared-computer sign-in, as Firestore's cache does. Sign-out, a session ending and a session without an org remove them, and a write that fails leaves nothing older behind;
+- start from them: `AuthState` starts with the cached session, so the guards decide at once, and `SessionPolicy` uses the cached policy until its listener answers. The shell and the page are drawn while Auth and Firestore download;
+- keep everything signed in to Firebase waiting for Auth's own answer (`AuthState.whenConfirmed()`): the Firestore client (`FIREBASE_SETUP.ready`) and the org's flag overrides. No read goes out as nobody, or as the person the cache remembered;
+- check Auth's first answer against the cache (`SessionWatcher`): if the session has ended (signed out elsewhere, or revoked), the tab cleans up as a sign-out does and goes to sign-in with the page as its return URL; another person reloads on Today; a different org, role, email verification or MFA enrolment reloads the page so its guards decide again.
+
+The cache decides only what is drawn first. Rules and callables check the live token, and nothing is read before Auth has confirmed the session, so an edited cache shows menus without data behind them. The cached copy holds the person's name, email and org name, which the app already keeps on the device in Auth's and Firestore's own storage.
+
+On the emulators (phone layouts, Lighthouse mobile) Today's LCP fell from 8.5 s to 7.7 s simulated (1.0 s to 0.9 s unthrottled) and its TBT from 615 ms to 404 ms; a matter's from 10.0 s to 9.6 s; the Matters list didn't change (10.5–10.7 s), as its LCP is its rows. Locally Auth answers in a few milliseconds, so this understates the gain where the session needs a token refresh over a phone network. The emulator figures can't reach 2.5 s: Hosting's emulator serves about 100 requests before the first paint over HTTP/1.1 with gzip, which Lighthouse simulates as six connections on slow 4G, so the Web Vitals spec holds them at measured ceilings, and the CDN (HTTP/2, Brotli) is measured on dev.
+
 ## Alternatives considered
 
 - **Raise the initial budget and load Auth and the Firestore SDK up front:** measured above for Auth (no net gain); the SDK (about 150 kB gzip) would make the sign-in screens heavier for the same parallelism the bootstrap download already gives.
 - **`PreloadAllModules`:** starts every download the moment the first page is up, competing with that page's reads.
 - **Keep `canMatch` and match the URL against the route table ourselves:** duplicates the router's matching for the same result.
+- **Download Auth and the Firestore SDK only after a cached start-up's first paint (MAT-177):** Lighthouse would then leave about 250 kB out of Today's LCP, whose greeting needs no data, but every page's data would start one download later, and the Matters list's and a matter's LCP are their data, so theirs would get worse.

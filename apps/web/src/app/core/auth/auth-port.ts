@@ -2,6 +2,8 @@ import { InjectionToken } from '@angular/core';
 
 import type { Role } from '@materia/domain';
 
+import { readCachedSession } from './session-cache';
+
 /** The signed-in person as the app sees them (from the Firebase user and ID token). */
 export interface AuthSession {
   uid: string;
@@ -112,6 +114,11 @@ export interface AuthPort {
    * Screens that offer Google to someone signed in call it as they show (MOB-02b).
    */
   preparePopups(): Promise<void>;
+  /**
+   * The session this device saw last, read without loading Firebase (MAT-177), so the shell can be
+   * drawn while Auth confirms it. Null when there's none, or it had no org.
+   */
+  cachedSession(): AuthSession | null;
   /** Forces a token refresh so new custom claims apply. */
   refreshClaims(): Promise<void>;
   call<T>(name: string, data: unknown): Promise<T>;
@@ -156,6 +163,7 @@ export function lazyFirebaseAuthPort(
   }
   let loaded: AuthPort | undefined;
   proxy.pendingLink = () => loaded?.pendingLink() ?? null;
+  proxy.cachedSession = readCachedSession;
   proxy.watch = (callback) => {
     let stop: (() => void) | undefined;
     let cancelled = false;
