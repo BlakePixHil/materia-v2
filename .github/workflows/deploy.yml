@@ -3,9 +3,8 @@
 # here from the release's bundles), in a fixed order, then runs the @smoke Playwright tests against
 # the deployed site. Order: Firestore indexes → rules (Firestore and Storage) → Cloud Run jobs →
 # Cloud Run services (ClamAV, previews) → functions (codebase `core`) → hosting. A failure stops the
-# run loudly. The only automatic retry is for functions that fail to update (deploy-functions.sh:
-# up to two more attempts of just those, for the regional CPU quota); docs/runbooks/deploy.md covers
-# partial deploys.
+# run loudly. The only automatic retry is for functions that fail to update (up to two more
+# attempts of just those, for the regional CPU quota); docs/runbooks/deploy.md covers partial deploys.
 #
 # Settings come from variables named <NAME>_<DEV|PROD> (repository or environment variables):
 # GCP_PROJECT_*, GCP_WIF_PROVIDER_* and GCP_DEPLOYER_SA_*. No JSON keys anywhere.
@@ -179,10 +178,37 @@ jobs:
 
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
-      # Functions that fail to update (usually the regional Cloud Run CPU quota while every function
-      # rolls a new revision) are retried on their own, twice at most.
+      # A full deploy rolls every function at once, and on dev a few new revisions can fail their
+      # health check on the regional Cloud Run CPU quota ("Quota exceeded for total allowable CPU per
+      # project per region") while the old revisions are still up. So the functions that failed are
+      # redeployed on their own, up to twice, a minute apart; a failure with no function list (a
+      # build error, say) fails straight away. Inline rather than a script because the checkout is
+      # the release's commit, which may predate any script.
       - name: Deploy functions (codebase core)
-        run: .github/scripts/deploy-functions.sh "$PROJECT"
+        run: |
+          set -o pipefail
+          only=functions:core
+          for attempt in 1 2 3; do
+            if pnpm exec firebase deploy --only "$only" --project "$PROJECT" --config firebase.json --non-interactive 2>&1 | tee "$RUNNER_TEMP/functions-deploy.log"; then
+              exit 0
+            fi
+            # The CLI ends with "Functions deploy had errors with the following functions:" and one
+            # "<tab>core:<id>(<region>)" line per failed function.
+            failed="$(sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/functions-deploy.log" \
+              | sed -n '/Functions deploy had errors with the following functions:/,/^[^[:space:]]/p' \
+              | sed -n 's/^[[:space:]]\{1,\}core:\([A-Za-z0-9_-]\{1,\}\)(.*$/\1/p' | sort -u | paste -sd' ')"
+            if [ -z "$failed" ]; then
+              echo "::error::The functions deploy failed without a list of failed functions; not retrying."
+              exit 1
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::These functions still failed after three attempts: $failed"
+              exit 1
+            fi
+            echo "::warning::Functions deploy attempt $attempt failed for: $failed. Retrying just those in a minute."
+            only="$(echo "$failed" | tr ' ' '\n' | sed 's/^/functions:core:/' | paste -sd,)"
+            sleep 60
+          done
 
       # Hidden sourcemaps (FND-21) are never served: they go to the private sourcemaps bucket for
       # `materia-scripts decode-stack`, then leave the hosting directory (firebase.json also ignores
