@@ -123,6 +123,7 @@ describe('my tasks', () => {
       await page.press('x', {}, title);
     }
     await page.click('Due date', page.body.querySelector('mt-tasks-bulk-bar') as HTMLElement);
+    await page.openedDialog();
     expect(page.text(page.dialog())).toContain('Change the due date of 2 tasks');
     await page.fill('Due date', '31/02/2026', page.dialog() ?? page.body);
     await page.submit(page.dialog());

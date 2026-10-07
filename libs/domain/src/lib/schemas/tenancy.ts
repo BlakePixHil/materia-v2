@@ -49,7 +49,7 @@ export type FeeDefaults = z.infer<typeof FeeDefaultsSchema>;
 
 /** `orgs/{orgId}`: the firm. */
 export const Org = withMeta(
-  {
+  () => ({
     name: NonEmptyString,
     /** Optional at onboarding (FND-17); set later in org settings. */
     abn: z
@@ -154,7 +154,7 @@ export const Org = withMeta(
     termsAcceptedVersion: z.string().optional(),
     termsAcceptedAt: InstantSchema.optional(),
     termsAcceptedBy: DocIdSchema.optional(),
-  },
+  }),
   {
     path: 'orgs',
     // The practice details and billing settings change only through `orgs-updateSettings` (CORE-21),
@@ -184,7 +184,7 @@ export const Org = withMeta(
 
 /** `orgs/{orgId}/members/{uid}`. */
 export const Member = withMeta(
-  {
+  () => ({
     role: RoleSchema,
     status: MemberStatusSchema,
     /** Lower-case sign-in email, shown in the team list to tell apart members with the same name (FND-17). */
@@ -206,7 +206,7 @@ export const Member = withMeta(
      * compare the token's `auth_time`. Set by `security-revokeSessions`.
      */
     sessionsValidAfter: InstantSchema.optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/members',
     // Role and status change only through the orgs-* callables, which keep the last-owner invariant
@@ -217,7 +217,7 @@ export const Member = withMeta(
 
 /** `orgs/{orgId}/invites/{inviteId}`. The raw token is never stored, only its hash. */
 export const Invite = withMeta(
-  {
+  () => ({
     email: z.email().transform((value) => value.toLowerCase()),
     role: RoleSchema,
     tokenHash: z.string().min(32),
@@ -227,7 +227,7 @@ export const Invite = withMeta(
     /** Who accepted it and when (FND-17); accepting again is a no-op for them. */
     acceptedBy: DocIdSchema.optional(),
     acceptedAt: InstantSchema.optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/invites',
     serverOwned: ['tokenHash', 'status', 'invitedBy', 'expiresAt', 'acceptedBy', 'acceptedAt'],
@@ -237,7 +237,7 @@ export const Invite = withMeta(
 
 /** `users/{uid}`: profile and preferences (user-scoped, not org-scoped). */
 export const User = withMeta(
-  {
+  () => ({
     email: z.email().transform((value) => value.toLowerCase()),
     displayName: NonEmptyString,
     firstName: z.string(),
@@ -283,7 +283,7 @@ export const User = withMeta(
       })
       .optional(),
     legacy: z.object({ uid: z.string(), migratedAt: InstantSchema }).optional(),
-  },
+  }),
   {
     path: 'users',
     // The active org changes only through `orgs-switchActiveOrg`, which also sets the claims.
@@ -298,13 +298,13 @@ export const User = withMeta(
  * deletes a token FCM reports as invalid, and a device unseen for `PUSH_DEVICE_STALE_DAYS`.
  */
 export const Device = withMeta(
-  {
+  () => ({
     token: z.string().min(1).max(4096),
     platform: z.enum(['web', 'ios', 'android']),
     /** What Settings calls it: `Chrome on macOS`, `Safari on iPhone`. */
     label: z.string().min(1).max(80),
     lastSeenAt: InstantSchema,
-  },
+  }),
   { path: 'users/{uid}/devices', migratable: false },
 );
 export type Device = z.infer<typeof Device.schema>;

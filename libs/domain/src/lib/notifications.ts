@@ -8,7 +8,7 @@ import {
   type NotificationChannel,
   type NotificationKind,
   type NotificationPriority,
-} from './schemas/org-records';
+} from './schemas/notification-records';
 import type { DateOnly } from './values/date-only';
 
 /*

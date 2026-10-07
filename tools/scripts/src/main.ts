@@ -31,6 +31,8 @@ const COMMANDS = {
   'dependabot-automerge': 'Merge Dependabot’s dev-patch group once ci passes (SEC-02; run by its workflow)',
   'demo-reset':
     'Load (or reset) the demo practice and its accounts on dev or the emulators (--dry-run, --verify, --remove)',
+  'demo-lighthouse':
+    'Mobile Lighthouse on a page of dev, signed in to the demo practice (MOB-02b; --path, --runs, --url)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -81,6 +83,7 @@ export async function run(argv: string[]): Promise<number> {
       'backup-status': () => import('./backups/status.ts'),
       'dependabot-automerge': () => import('./dependabot-automerge.ts'),
       'demo-reset': () => import('./demo-reset.ts'),
+      'demo-lighthouse': () => import('./demo-lighthouse.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);

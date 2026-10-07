@@ -41,14 +41,14 @@ export type MatterViewSort = z.infer<typeof MatterViewSortSchema>;
 
 /** `users/{uid}/views/{viewId}`: a saved Matters list view, private to its user. */
 export const SavedView = withMeta(
-  {
+  () => ({
     orgId: DocIdSchema,
     list: z.literal('matters'),
     name: NonEmptyString.max(60),
     filters: MatterViewFiltersSchema,
     sort: MatterViewSortSchema,
     groupBy: z.enum(MATTER_GROUP_BY),
-  },
+  }),
   { path: 'users/{uid}/views', migratable: false },
 );
 export type SavedView = z.infer<typeof SavedView.schema>;
@@ -77,13 +77,13 @@ export const RECENT_ENTRIES_SHOWN = 10;
  * Ids only: the palette reads each entry's title (so a rename or a lost permission shows at once).
  */
 export const RecentMatter = withMeta(
-  {
+  () => ({
     orgId: DocIdSchema,
     kind: z.enum(RECENT_KINDS).default('matter'),
     matterId: DocIdSchema.optional(),
     entityId: DocIdSchema.optional(),
     expireAt: InstantSchema,
-  },
+  }),
   { path: 'users/{uid}/recent', migratable: false },
 );
 export type RecentMatter = z.infer<typeof RecentMatter.schema>;

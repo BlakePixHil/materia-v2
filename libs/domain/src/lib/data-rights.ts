@@ -281,7 +281,7 @@ export type OrgPurgeCounts = z.infer<typeof OrgPurgeCountsSchema>;
  * with the certificate (`deleted`). `ownerUids` lets an owner fetch the certificate again.
  */
 export const DeletedOrg = withMeta(
-  {
+  () => ({
     orgId: DocIdSchema,
     name: NonEmptyString,
     status: z.enum(['purging', 'deleted']),
@@ -301,7 +301,7 @@ export const DeletedOrg = withMeta(
     /** Everyone with a member document, until their memberships are removed. */
     memberUids: z.array(DocIdSchema).optional(),
     counts: OrgPurgeCountsSchema,
-  },
+  }),
   { path: 'deletedOrgs', migratable: false, updatable: [] },
 );
 export type DeletedOrg = z.infer<typeof DeletedOrg.schema>;

@@ -8,7 +8,7 @@ import {
   filterChecklistTemplates,
 } from './checklist-templates';
 import { TASK_CHECKLIST_MAX } from './schemas/matter-records';
-import { ChecklistTemplate } from './schemas/org-records';
+import { ChecklistTemplate } from './schemas/task-templates';
 import { dateOnly } from './values/date-only';
 
 /** Checklist templates (CORE-08d). Fictional data only. */
