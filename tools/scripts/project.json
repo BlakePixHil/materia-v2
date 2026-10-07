@@ -13,6 +13,9 @@
         "command": "tsc --noEmit -p tools/scripts/tsconfig.json"
       }
     },
+    "test": {
+      "inputs": ["default", "^production", "{workspaceRoot}/docs/compliance/**/*"]
+    },
     "build": {
       "executor": "nx:run-commands",
       "cache": true,

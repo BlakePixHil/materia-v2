@@ -173,6 +173,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 **ADR-020: Offline and PWA.**
 - Firestore `persistentLocalCache` with a multi-tab manager, plus the Angular service worker for the shell.
 - Offline writes are allowed only for client-direct write paths. Callables show "needs connection".
+- [ADR-060](adr/060-installable-app-updates-and-offline-indicators.md) (MOB-01): `sw.js` wraps the Angular service worker, sends API and `/__/` requests straight to the network and gives navigations a 4-second timeout. No API response is cached by the worker. A new version offers a Reload toast and reloads every tab together; `system-ping` returns `minClientVersion`, and a client older than `CLIENT_COMPAT_VERSION` asks to reload, with a chance to save first. A banner shows offline, a "Pending sync" chip counts unsynced documents, and callable buttons read "Needs connection" offline.
 
 **ADR-035: Trust money is shown, never kept** ([ADR-035](adr/035-trust-accounting.md), BILL-10).
 - Materia never keeps trust records: no receipts, payments, transfers, running balance or "available" amount. The trust ledger stays in the firm's trust software.

@@ -2,7 +2,12 @@ import { inject, InjectionToken } from '@angular/core';
 import type { DocumentSnapshot, Query, QueryConstraint, QuerySnapshot } from 'firebase/firestore';
 
 import type { CollectionDriver, DriverFactory, DriverOptions, PageRequest, QuerySpec, RawDoc, RawPage } from '../query';
-import { FirestoreClient, type FirestoreHandle, type FirestoreSource } from './firestore-client';
+import {
+  FirestoreClient,
+  type FirestoreHandle,
+  type FirestoreSource,
+  type ListenerSyncState,
+} from './firestore-client';
 
 function toRaw(doc: DocumentSnapshot): RawDoc {
   return { id: doc.id, snapshot: doc, cursor: doc };
@@ -28,20 +33,40 @@ function buildQuery(
   return sdk.query(group ? sdk.collectionGroup(db, path) : sdk.collection(db, path), ...constraints);
 }
 
+/** A query snapshot's sync state: from the cache, and its documents with unacknowledged writes. */
+function querySync(snap: QuerySnapshot): ListenerSyncState {
+  const pending = snap.metadata.hasPendingWrites
+    ? snap.docs.filter((doc) => doc.metadata.hasPendingWrites).map((doc) => doc.ref.path)
+    : [];
+  return { fromCache: snap.metadata.fromCache, pending };
+}
+
+function docSync(snap: DocumentSnapshot): ListenerSyncState {
+  return { fromCache: snap.metadata.fromCache, pending: snap.metadata.hasPendingWrites ? [snap.ref.path] : [] };
+}
+
 /**
  * Attaches a listener once the SDK has loaded. The returned function cancels a listener that
- * hasn't attached yet, or unsubscribes one that has.
+ * hasn't attached yet, or unsubscribes one that has. `subscribe` gets the key the listener's
+ * sync state is reported under (`FirestoreSource.observe`); it's forgotten when the listener
+ * stops or fails.
  */
 function attach(
   source: FirestoreSource,
-  subscribe: (handle: FirestoreHandle) => () => void,
+  subscribe: (handle: FirestoreHandle, key: object, error: (e: unknown) => void) => () => void,
   error: (e: unknown) => void,
 ) {
+  const key = {};
+  const forget = () => source.observe?.(key, null);
+  const failed = (e: unknown) => {
+    forget();
+    error(e);
+  };
   let stopped = false;
   let unsubscribe: (() => void) | undefined;
   source.get().then(
     (handle) => {
-      if (!stopped) unsubscribe = subscribe(handle);
+      if (!stopped) unsubscribe = subscribe(handle, key, failed);
     },
     (e: unknown) => {
       if (!stopped) error(e);
@@ -50,6 +75,7 @@ function attach(
   return () => {
     stopped = true;
     unsubscribe?.();
+    forget();
   };
 }
 
@@ -70,12 +96,15 @@ export function firestoreDriver(source: FirestoreSource, path: string, options: 
     listen(request, next, error) {
       return attach(
         source,
-        (handle) =>
+        (handle, key, failed) =>
           handle.sdk.onSnapshot(
             buildQuery(handle, path, request.spec, request, group),
             { includeMetadataChanges: true },
-            (snap) => next(toPage(snap)),
-            error,
+            (snap) => {
+              source.observe?.(key, querySync(snap));
+              next(toPage(snap));
+            },
+            failed,
           ),
         error,
       );
@@ -92,12 +121,15 @@ export function firestoreDriver(source: FirestoreSource, path: string, options: 
       if (group) throw new Error(`Collection group "${path}" can't watch one document`);
       return attach(
         source,
-        (handle) =>
+        (handle, key, failed) =>
           handle.sdk.onSnapshot(
             handle.sdk.doc(handle.db, path, id),
             { includeMetadataChanges: true },
-            (snap) => next(snap.exists() ? toRaw(snap) : null, snap.metadata.fromCache),
-            error,
+            (snap) => {
+              source.observe?.(key, docSync(snap));
+              next(snap.exists() ? toRaw(snap) : null, snap.metadata.fromCache);
+            },
+            failed,
           ),
         error,
       );

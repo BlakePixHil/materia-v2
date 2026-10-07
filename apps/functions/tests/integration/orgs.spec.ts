@@ -7,6 +7,8 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type 
 import { getAuth as getAdminAuth, type Auth as AdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 
+import { TERMS_VERSION } from '@materia/domain';
+
 /**
  * FND-17 through the emulators: every orgs callable (happy path and edge cases) and the
  * `auth-syncClaims` trigger, with real custom claims and the emulator outbox for invite emails.
@@ -164,6 +166,50 @@ describe('orgs-createOrg', () => {
     const audit = await db.collection(`orgs/${orgId}/audit`).where('action', '==', 'org.created').get();
     expect(audit.size).toBe(1);
     expect(await db.collection('orgs').where('name', '==', 'Bayside Fictional Legal').get()).toHaveProperty('size', 1);
+  });
+});
+
+describe('terms of service (SEC-01)', () => {
+  it('createOrg records the terms the owner ticked', async () => {
+    const uid = await person('ticker');
+    await signInAs('ticker');
+    const { orgId } = await call<{ orgId: string }>('orgs-createOrg', {
+      name: 'Ticked Fictional Legal',
+      primaryJurisdiction: 'VIC',
+      acceptTermsVersion: TERMS_VERSION,
+    });
+    const org = (await db.doc(`orgs/${orgId}`).get()).data() ?? {};
+    expect(org).toMatchObject({ termsAcceptedVersion: TERMS_VERSION, termsAcceptedBy: uid });
+    expect(org['termsAcceptedAt']).toBeInstanceOf(Timestamp);
+    const audit = await db.collection(`orgs/${orgId}/audit`).where('action', '==', 'org.terms_accepted').get();
+    expect(audit.size).toBe(1);
+  });
+
+  it('acceptTerms: the owner only, the current version only, recorded and audited once', async () => {
+    const ownerUid = await person('signer');
+    await person('deputy');
+    const orgId = await createOrgAs('signer', 'Unsigned Fictional Legal');
+    expect((await db.doc(`orgs/${orgId}`).get()).get('termsAcceptedVersion')).toBeUndefined();
+    await inviteAndAccept('signer', 'deputy', 'admin');
+
+    // `deputy` is signed in as an admin of the org.
+    expect(codeOf(await failure(call('orgs-acceptTerms', { version: TERMS_VERSION })))).toBe('PERMISSION_DENIED');
+    await signInAs('signer');
+    expect(codeOf(await failure(call('orgs-acceptTerms', { version: '0.0' })))).toBe('FAILED_PRECONDITION');
+    expect(await call('orgs-acceptTerms', { version: TERMS_VERSION })).toEqual({
+      version: TERMS_VERSION,
+      recorded: true,
+    });
+    expect(await call('orgs-acceptTerms', { version: TERMS_VERSION })).toEqual({
+      version: TERMS_VERSION,
+      recorded: false,
+    });
+    expect((await db.doc(`orgs/${orgId}`).get()).data()).toMatchObject({
+      termsAcceptedVersion: TERMS_VERSION,
+      termsAcceptedBy: ownerUid,
+    });
+    const audit = await db.collection(`orgs/${orgId}/audit`).where('action', '==', 'org.terms_accepted').get();
+    expect(audit.size).toBe(1);
   });
 });
 

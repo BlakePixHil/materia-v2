@@ -9,6 +9,7 @@ import {
   generatePassword,
   main,
   parseDemoArgs,
+  pdfReport,
   resolveDemoTarget,
 } from './demo-reset.ts';
 import { buildDataset, type FixtureName, SEED_ORG_ID } from './seed/dataset.ts';
@@ -66,9 +67,12 @@ describe('demo-reset arguments', () => {
       dryRun: true,
       verify: false,
       remove: false,
+      pdfs: false,
     });
     expect(parseDemoArgs(['--project=demo-x', '--remove'])).toMatchObject({ remove: true, dryRun: false });
-    expect(() => parseDemoArgs(['--verify', '--remove'])).toThrow(/not both/);
+    expect(parseDemoArgs(['--pdfs'])).toMatchObject({ pdfs: true, verify: false });
+    expect(() => parseDemoArgs(['--verify', '--remove'])).toThrow(/not more/);
+    expect(() => parseDemoArgs(['--verify', '--pdfs'])).toThrow(/not more/);
     expect(() => parseDemoArgs(['--apply'])).toThrow();
   });
 });
@@ -119,5 +123,44 @@ describe('demo-reset documents', () => {
       expect(password).toMatch(/^Vine-[A-HJ-NP-Za-km-z2-9]{4}-[A-HJ-NP-Za-km-z2-9]{4}-[A-HJ-NP-Za-km-z2-9]{4}$/);
     }
     expect(new Set(passwords).size).toBe(50);
+  });
+});
+
+describe('demo-reset PDF report', () => {
+  const now = new Date('2026-10-07T06:40:00Z');
+  const at = (iso: string) => ({ toDate: () => new Date(iso) });
+  const snapshot = (docs: { id: string; data: Record<string, unknown> }[]) => ({
+    docs: docs.map(({ id, data }) => ({ id, get: (field: string) => data[field] })),
+  });
+  const collections: Record<string, ReturnType<typeof snapshot>> = {
+    [`orgs/${SEED_ORG_ID}/invoices`]: snapshot([
+      { id: 'a', data: { pdfStatus: 'ready' } },
+      { id: 'b', data: { pdfStatus: 'pending' } },
+      { id: 'c', data: { pdfStatus: 'pending' } },
+    ]),
+    [`orgs/${SEED_ORG_ID}/jobs`]: snapshot([
+      { id: 'a-pdf', data: { status: 'succeeded', attempts: 1 } },
+      { id: 'b-pdf', data: { status: 'queued', attempts: 0, executionId: 'pdf-x1' } },
+      {
+        id: 'c-pdf',
+        data: {
+          status: 'running',
+          attempts: 1,
+          executionId: 'pdf-x2',
+          heartbeatAt: at('2026-10-07T06:30:00Z'),
+          error: { code: 'JOB_TIMEOUT', message: 'The job ran out of time' },
+        },
+      },
+    ]),
+  };
+  const db = { collection: (path: string) => ({ get: async () => collections[path] }) };
+
+  it('counts the invoices and jobs and lists the jobs that have not succeeded', async () => {
+    expect(await pdfReport(db as never, now)).toEqual([
+      'Invoice PDFs: 1 ready, 2 pending.',
+      'PDF jobs: 1 succeeded, 1 queued, 1 running.',
+      '  b-pdf: queued, attempts 0, execution pdf-x1, no heartbeat',
+      '  c-pdf: running, attempts 1, execution pdf-x2, heartbeat 600 s ago, JOB_TIMEOUT: The job ran out of time',
+    ]);
   });
 });

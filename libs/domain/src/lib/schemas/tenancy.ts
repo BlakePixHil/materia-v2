@@ -139,7 +139,13 @@ export const Org = withMeta(
     flags: z.record(z.string(), z.union([z.boolean(), z.string(), z.number()])).optional(),
     legalHold: z.object({ on: z.boolean(), reason: z.string(), by: z.string(), at: InstantSchema }).optional(),
     deletionScheduledAt: InstantSchema.optional(),
+    /**
+     * The terms of service and DPA version the org's owner accepted for it (SEC-01, `TERMS_VERSION`),
+     * when and by whom. Written only by `orgs-acceptTerms` and `orgs-createOrg`.
+     */
     termsAcceptedVersion: z.string().optional(),
+    termsAcceptedAt: InstantSchema.optional(),
+    termsAcceptedBy: DocIdSchema.optional(),
   },
   {
     path: 'orgs',
@@ -159,6 +165,9 @@ export const Org = withMeta(
       'retentionYears',
       'billing',
       'trust',
+      'termsAcceptedVersion',
+      'termsAcceptedAt',
+      'termsAcceptedBy',
     ],
   },
 );

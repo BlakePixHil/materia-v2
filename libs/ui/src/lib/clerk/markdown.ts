@@ -37,6 +37,11 @@ export interface MdOptions {
   citations?: boolean;
   /** Keep single line breaks inside a paragraph as `\n` (notes; the renderer shows them) instead of spaces. */
   breaks?: boolean;
+  /**
+   * Also keep links to an app path (`/legal/terms`), for the app's own pages (the legal documents,
+   * SEC-01). Off for Clerk and notes, whose relative links stay text.
+   */
+  internalLinks?: boolean;
 }
 
 const SAFE_URL = /^(https?:\/\/|mailto:)/i;
@@ -44,6 +49,14 @@ const SAFE_URL = /^(https?:\/\/|mailto:)/i;
 /** True for URLs a Clerk answer may link to: http(s) and mailto only. */
 export function isSafeUrl(url: string): boolean {
   return SAFE_URL.test(url.trim());
+}
+
+/** An absolute path inside the app (`/legal/terms`), never a protocol-relative URL (`//host`). */
+const APP_PATH = /^\/(?![/\\])[^\s]*$/;
+
+/** True for an app path a page's own Markdown may link to with `internalLinks`. */
+export function isAppPath(url: string): boolean {
+  return APP_PATH.test(url.trim());
 }
 
 const CITE = /^\[(\d+(?:\s*,\s*\d+)*)\]/;
@@ -164,7 +177,8 @@ export function parseInline(src: string, streaming = false, options: MdOptions =
       if (link) {
         const children = nested(link[1] ?? '');
         const href = link[2] ?? '';
-        if (isSafeUrl(href)) out.push({ type: 'link', href: href.trim(), children });
+        if (isSafeUrl(href) || (options.internalLinks && isAppPath(href)))
+          out.push({ type: 'link', href: href.trim(), children });
         else out.push(...children);
         i += link[0].length;
         continue;

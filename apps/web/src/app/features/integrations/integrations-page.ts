@@ -47,6 +47,7 @@ import {
 import { injectRecentLogin } from '../../core/auth/reauth-dialog';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 import { warnBeforeUnload, type HasUnsavedChanges } from '../settings/unsaved-changes';
 import { formatEntryDate, parseEntryDate } from '../time/time-view';
 
@@ -102,6 +103,7 @@ const XERO_PITCH = 'Send issued invoices and credit notes to Xero, and bring pay
     FormsModule,
     MtButton,
     MtIntegrationCard,
+    MtNeedsConnection,
     MtNote,
     MtSelect,
     MtSettingsRow,
@@ -137,16 +139,37 @@ const XERO_PITCH = 'Send issued invoices and credit notes to Xero, and bring pay
         >
           <div class="mt-row" style="gap: 6px">
             @if (connection() === 'disconnected') {
-              <button mtButton variant="primary" size="sm" [loading]="connecting()" (click)="connect()">
+              <button
+                mtButton
+                mtNeedsConnection
+                variant="primary"
+                size="sm"
+                [loading]="connecting()"
+                (click)="connect()"
+              >
                 Connect Xero
               </button>
             } @else {
               @if (connection() === 'reconnect_required') {
-                <button mtButton variant="secondary" size="sm" [loading]="connecting()" (click)="connect()">
+                <button
+                  mtButton
+                  mtNeedsConnection
+                  variant="secondary"
+                  size="sm"
+                  [loading]="connecting()"
+                  (click)="connect()"
+                >
                   Reconnect Xero
                 </button>
               }
-              <button mtButton variant="ghost" size="sm" [loading]="disconnecting()" (click)="disconnect()">
+              <button
+                mtButton
+                mtNeedsConnection
+                variant="ghost"
+                size="sm"
+                [loading]="disconnecting()"
+                (click)="disconnect()"
+              >
                 Disconnect
               </button>
             }
@@ -247,7 +270,14 @@ const XERO_PITCH = 'Send issued invoices and credit notes to Xero, and bring pay
           @if (unsent(); as pending) {
             <mt-note data-testid="xero-unsent">
               {{ pending.text }}
-              <button mtButton variant="secondary" size="sm" [loading]="sending()" (click)="sendUnsent()">
+              <button
+                mtButton
+                mtNeedsConnection
+                variant="secondary"
+                size="sm"
+                [loading]="sending()"
+                (click)="sendUnsent()"
+              >
                 Send them to Xero
               </button>
             </mt-note>
