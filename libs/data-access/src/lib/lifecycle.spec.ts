@@ -105,6 +105,40 @@ describe('FirestoreClient', () => {
       onLine.mockRestore();
     }
   });
+
+  it('counts documents waiting to sync and knows when no listener has reached the server', async () => {
+    const { client } = setup();
+    expect(client.pendingWrites()).toBe(0);
+    expect(client.cacheOnly()).toBe(false);
+
+    const tasks = {};
+    const matter = {};
+    client.observe(tasks, { fromCache: true, pending: ['orgs/o1/tasks/t1', 'orgs/o1/tasks/t2'] });
+    client.observe(matter, { fromCache: true, pending: ['orgs/o1/tasks/t1'] });
+    // A document two listeners show counts once.
+    expect(client.pendingWrites()).toBe(2);
+    expect(client.cacheOnly()).toBe(true);
+
+    client.observe(matter, { fromCache: false, pending: [] });
+    expect(client.cacheOnly()).toBe(false);
+    client.observe(tasks, null);
+    expect(client.pendingWrites()).toBe(0);
+
+    // This page's writes count too, when no listener shows them (a deleted document).
+    let acknowledge: () => void = () => undefined;
+    const write = client.track(new Promise<void>((resolve) => (acknowledge = resolve)));
+    expect(client.pendingWrites()).toBe(1);
+    acknowledge();
+    await write;
+    expect(client.pendingWrites()).toBe(0);
+
+    // Signing out forgets both.
+    client.track(new Promise<void>(() => undefined));
+    client.observe(tasks, { fromCache: true, pending: ['orgs/o1/tasks/t1'] });
+    await client.shutdown({ clearCache: false });
+    expect(client.pendingWrites()).toBe(0);
+    expect(client.cacheOnly()).toBe(false);
+  });
 });
 
 describe('DataLifecycle', () => {

@@ -1,3 +1,4 @@
+import { isOfflineError } from '@materia/data-access';
 import { DomainError, isErrorCode, ORG_CLERK_FEATURES, type ErrorCode } from '@materia/domain';
 
 /**
@@ -61,6 +62,15 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   INTEGRATION_RECONNECT_REQUIRED: 'This connection has stopped working. Connect it again from Settings.',
   INTERNAL: 'Something went wrong on our side. Try again, and contact support if it keeps happening.',
 };
+
+/**
+ * A callable tried offline (MOB-01, ADR-020): it never left the browser. `short` labels a button
+ * that needs the connection; `long` is the message.
+ */
+export const NEEDS_CONNECTION_COPY = {
+  short: 'Needs connection',
+  long: 'Needs connection. Try again when you’re back online.',
+} as const;
 
 /** The error code of a `DomainError` (from the data layer) or a raw callable error (`details.code`), or INTERNAL. */
 export function errorCodeOf(error: unknown): ErrorCode {
@@ -142,6 +152,7 @@ export const TERMS_OUTDATED_COPY =
 
 /** User-facing copy for any error thrown by a callable. */
 export function errorCopy(error: unknown): string {
+  if (isOfflineError(error)) return NEEDS_CONNECTION_COPY.long;
   const code = errorCodeOf(error);
   const details = (error as { details?: unknown } | null)?.details;
   if (code === 'FAILED_PRECONDITION' && (details as { reason?: unknown } | null)?.reason === 'terms_outdated')

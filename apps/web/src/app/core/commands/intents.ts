@@ -10,7 +10,16 @@ import { ActivatedRoute, Router } from '@angular/router';
  */
 export const INTENT_PARAM = 'do';
 
-export type Intent = 'add-task' | 'add-deadline' | 'record-event' | 'upload' | 'close' | 'new-contact' | 'log-time';
+export type Intent =
+  | 'add-task'
+  | 'add-deadline'
+  | 'record-event'
+  | 'upload'
+  | 'close'
+  | 'new-contact'
+  | 'log-time'
+  // Quick time entry over whatever page is open: the installed app's shortcut (MOB-01).
+  | 'new-time-entry';
 
 /** A URL with an intent (`/matters/m1/tasks?do=add-task`). */
 export function intentUrl(path: string, intent: Intent): string {

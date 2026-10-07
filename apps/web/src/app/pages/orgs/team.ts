@@ -43,6 +43,8 @@ import { AuthState } from '../../core/auth/auth-state';
 import { injectRecentLogin } from '../../core/auth/reauth-dialog';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService } from '../../core/orgs/org-service';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
+import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { SettingsApi } from '../../features/settings/settings-api';
 
 /** One row of the role explainer: an action and whether each role may do it. */
@@ -87,10 +89,12 @@ const ROLE_LABELS: Record<Role, string> = {
   selector: 'mt-team-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    MtPageOfflineNote,
     FormsModule,
     ReactiveFormsModule,
     MtAvatar,
     MtButton,
+    MtNeedsConnection,
     MtNote,
     MtSelect,
     MtSettingsRow,
@@ -127,7 +131,7 @@ const ROLE_LABELS: Record<Role, string> = {
             required
           />
           <mt-select label="Role" formControlName="role" [options]="grantable()" [native]="true" />
-          <button mtButton variant="primary" type="submit" [loading]="inviting()">Send invite</button>
+          <button mtButton mtNeedsConnection variant="primary" type="submit" [loading]="inviting()">Send invite</button>
         </form>
       </mt-settings-section>
     }
@@ -145,7 +149,7 @@ const ROLE_LABELS: Record<Role, string> = {
           </mt-note>
         }
         @case ('offline') {
-          <mt-note tone="info" role="status">
+          <mt-note tone="info" role="status" mtPageOfflineNote>
             {{
               team().length
                 ? 'You’re offline. This is the team as it was when you were last connected.'
@@ -263,8 +267,8 @@ const ROLE_LABELS: Record<Role, string> = {
         @for (invite of invites(); track invite.id) {
           <mt-settings-row [title]="invite.email" [description]="describeInvite(invite)">
             <div class="mt-row" style="gap: 8px">
-              <button mtButton size="sm" (click)="resend(invite)">Resend</button>
-              <button mtButton size="sm" (click)="revoke(invite)">Revoke</button>
+              <button mtButton mtNeedsConnection size="sm" (click)="resend(invite)">Resend</button>
+              <button mtButton mtNeedsConnection size="sm" (click)="revoke(invite)">Revoke</button>
             </div>
           </mt-settings-row>
         }

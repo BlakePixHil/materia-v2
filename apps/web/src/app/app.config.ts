@@ -30,6 +30,7 @@ import { FeatureFlagService } from './core/flags/feature-flags';
 import { clientErrorReporter } from './core/observability/client-error-reporter';
 import { startPerformanceMonitoring } from './core/observability/perf';
 import { OrgService } from './core/orgs/org-service';
+import { providePwa } from './core/pwa/pwa';
 import { DelayedPreloading, prefetchPagesDuringGuards } from './core/routing/preloading';
 import { MateriaTitleStrategy } from './core/title-strategy';
 import { environment } from '../environments/environment';
@@ -71,6 +72,8 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(ThemeService);
     }),
+    // The installable app (MOB-01): service worker, updates, install prompt, browser bar colour.
+    providePwa(),
     // The data layer (FND-19): the full Firestore SDK loads lazily, on the first signed-in read.
     // Its download starts now, while Auth restores the session, instead of after it; Firestore
     // itself still starts on the first read.

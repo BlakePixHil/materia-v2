@@ -22,6 +22,7 @@ import { DialogService, MtButton, MtEmptyState, MtIcon, MtKbd, MtMatterTag, MtNo
 import { INBOX_FILTER_LABELS, InboxData, inboxSuggestion } from './inbox-data';
 import { InboxSuggestion, InboxSuggestionDialog, type InboxSuggestionDialogData } from './inbox-suggestion';
 import { MtNotificationRow } from '../../core/notifications/notification-row';
+import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { isEditable, ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 import { DeadlineActions } from '../deadlines/deadline-actions';
@@ -58,6 +59,7 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
     '../../../../../../libs/ui/src/generated/components/notif.css',
   ],
   imports: [
+    MtPageOfflineNote,
     FormsModule,
     InboxSuggestion,
     MtButton,
@@ -119,7 +121,7 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
       </div>
 
       @if (!data.online()) {
-        <mt-note tone="warning" icon="wifi-off"
+        <mt-note tone="warning" icon="wifi-off" mtPageOfflineNote
           >You’re offline. Showing the notifications on this device; changes sync when you reconnect.</mt-note
         >
       }

@@ -49,6 +49,12 @@ export const LAWYER = testSession();
 export const ADMIN = testSession({ uid: PRIYA, email: 'owner@harbourvine.example', ...claims('admin') });
 export const PARALEGAL = testSession(claims('paralegal'));
 export const READONLY = testSession(claims('readonly'));
+/**
+ * The sessions above signed in when this file loaded. Specs share it, so a long run can open a page
+ * past the recent sign-in window (SEC-04) and get "Confirm it’s you" instead of the action: each page
+ * opens with them signed in just now. A session made in a spec keeps its own `authTime`.
+ */
+const SHARED_SESSIONS: ReadonlySet<AuthSession> = new Set([LAWYER, ADMIN, PARALEGAL, READONLY]);
 
 type Seed = Record<string, unknown>;
 const settle = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -511,7 +517,8 @@ export const TEMPLATES_ON = { 'templates.system': true };
 
 /** Renders the app at `url` with the fictional practice seeded. */
 export async function openMatter(url = '/matters/m-whitfield/overview', options: OpenOptions = {}) {
-  const port = new FakeAuthPort(options.session ?? LAWYER);
+  const session = options.session ?? LAWYER;
+  const port = new FakeAuthPort(SHARED_SESSIONS.has(session) ? { ...session, authTime: Date.now() } : session);
   const firestore = new InMemoryFirestore();
   seed(firestore, options.matter);
   options.configure?.(firestore, port);

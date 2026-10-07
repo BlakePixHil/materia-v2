@@ -7,6 +7,7 @@ import { MtButton, MtEmptyState } from '@materia/ui';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { EXPORT_DOWNLOAD } from '../../core/exports/export-button';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 
 /** Why an export can't be downloaded, in plain words. */
 export function exportDownloadErrorCopy(error: unknown): string {
@@ -25,7 +26,7 @@ export function exportDownloadErrorCopy(error: unknown): string {
 @Component({
   selector: 'mt-export-download-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MtButton, MtEmptyState, RouterLink],
+  imports: [MtButton, MtEmptyState, MtNeedsConnection, RouterLink],
   template: `
     <div class="mt-col" style="max-width: 520px; margin: 48px auto; padding: 0 16px; gap: 12px">
       @if (error(); as message) {
@@ -39,7 +40,14 @@ export function exportDownloadErrorCopy(error: unknown): string {
         </p>
         @if (fileName()) {
           <div class="mt-row" style="gap: 8px">
-            <button mtButton variant="secondary" iconStart="arrow-down" [loading]="busy()" (click)="start()">
+            <button
+              mtButton
+              mtNeedsConnection
+              variant="secondary"
+              iconStart="arrow-down"
+              [loading]="busy()"
+              (click)="start()"
+            >
               Download again
             </button>
           </div>

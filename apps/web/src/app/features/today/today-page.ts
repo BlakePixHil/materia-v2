@@ -21,6 +21,7 @@ import { MONTH_ENTRY_LIMIT, TodayData } from './today-data';
 import { TodayAttention, TodayDue, TodayRecent, TodayTasks } from './today-sections';
 import { timeZoneHintText, TODAY_COPY } from './today-view';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 import { DeadlineActions } from '../deadlines/deadline-actions';
@@ -70,6 +71,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     '../../../../../../libs/ui/src/generated/components/tl.css',
   ],
   imports: [
+    MtPageOfflineNote,
     MtBadge,
     MtButton,
     MtEmptyState,
@@ -100,7 +102,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
       }
     </header>
     @if (!data.online()) {
-      <mt-note tone="warning" data-offline>{{ copy.offline }}</mt-note>
+      <mt-note tone="warning" data-offline mtPageOfflineNote>{{ copy.offline }}</mt-note>
     }
     <p class="mt-sr" aria-live="polite">{{ deadlineActions.announcement() }}</p>
 

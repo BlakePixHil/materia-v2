@@ -11,3 +11,12 @@ export const BILLING_UNIT_MINUTES = 6;
 
 /** Australian GST rate. */
 export const GST_RATE = 0.1;
+
+/**
+ * The web app's compatibility with the API (MOB-01). The web app is built with this number and
+ * system-ping reports the server's as `minClientVersion`; an app left open across a deploy that
+ * raised it asks the person to save their work and reload. Raise it in a change that apps built
+ * before it would break against (a callable's input renamed, a document shape their code can't
+ * read).
+ */
+export const CLIENT_COMPAT_VERSION = 1;

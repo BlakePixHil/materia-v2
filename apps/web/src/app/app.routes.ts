@@ -226,6 +226,9 @@ const shellRoutes: Route[] = [
       },
     ],
   },
+  // The installed app's Record shortcut (MOB-01) opens /record: Time & billing until the phone's
+  // Record screen (MOB-02) takes the path.
+  { path: 'record', pathMatch: 'full', redirectTo: 'billing' },
   // My time, WIP by matter and approvals (BILL-03).
   {
     path: 'billing',
