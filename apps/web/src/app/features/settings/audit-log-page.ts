@@ -156,7 +156,7 @@ interface DetailData {
       padding: var(--space-8, 8px);
       background: var(--bg-canvas);
       border-radius: var(--radius-sm, 4px);
-      font: var(--text-mono-s, 12px/1.5 var(--font-mono));
+      font: 400 12px/1.5 var(--font-mono);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       max-height: 320px;

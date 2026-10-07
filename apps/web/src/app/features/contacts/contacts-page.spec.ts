@@ -256,7 +256,10 @@ describe('contacts list', () => {
     expect(page.text()).not.toContain('Gone Merged');
     expect(page.text()).not.toContain('Deleted Person');
     expect(page.selected()).toBe('c-avery');
-    expect(page.body.querySelector('mt-person-header h1')?.textContent).toContain('Avery Quill');
+    // One h1 (Contacts); the open contact's name is an h2 and its sections h3 (SEC-06b).
+    expect(page.body.querySelector('mt-person-header h2')?.textContent).toContain('Avery Quill');
+    expect([...page.body.querySelectorAll('h1')].map((h) => h.textContent?.trim())).toEqual(['Contacts']);
+    expect(page.body.querySelector('mt-contact-detail h3')?.textContent?.trim()).toBe('Details');
   });
 
   it('shows the loading, empty, error and offline states', async () => {

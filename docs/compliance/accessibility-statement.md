@@ -43,7 +43,7 @@ On 7 October 2026 we audited the app against WCAG 2.2 level AA:
 ## Known limitations
 
 - **White text on the action blue.** White text on Materia's action blue (#346CFC) has a contrast ratio of 4.47:1, just under the 4.5:1 that WCAG asks for small text (success criterion 1.4.3). Our design allows it only for labels of 13px medium weight or larger. Where white text sits on blue in the app today (primary buttons, today's date in the deadline calendar and unread counts on phones), we use a darker blue, #2459E6, which gives 5.76:1.
-- **Document previews.** The preview of a PDF shows each page as an image, so a screen reader can't read the text in the preview. Download the document to read it in an app of your choice; it keeps whatever accessibility the original file has. We're working on a readable text layer for the preview.
+- **Scanned documents.** In a document preview a screen reader reads each page's text, and you can find and copy it. A scanned page is only a picture of its text: a screen reader hears the text Materia read from it, which can have mistakes, or, where Materia hasn't read it, that the page has no text. Download the document to read it in an app of your choice; it keeps whatever accessibility the original file has.
 - **Screen reader testing.** Until the manual screen reader audit is done, there may be problems that only a screen reader shows, such as a control announced with the wrong name or state.
 
 ## Feedback

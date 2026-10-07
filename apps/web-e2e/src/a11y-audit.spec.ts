@@ -14,6 +14,7 @@ import {
   MATTER_TITLE,
   PACKET,
   PHONE,
+  PHONE_AUDIT_ROUTES,
   settled,
   signInToAuditPractice,
   ZONE,
@@ -356,29 +357,15 @@ test.describe('accessibility audit @audit', () => {
 });
 
 test.describe('accessibility audit at phone width @audit', () => {
-  // The iPhone 13 profile in Chromium (phone bugs reproduce with it; WebKit runs it in the morning run).
+  // The iPhone 13 profile in Chromium (phone bugs reproduce with it). WebKit runs it in the morning
+  // run, and on a PR that changes a phone screen (a11y-phone.spec.ts).
   test.use(PHONE);
 
   test('Today, Record and the main destinations', async ({ page, request }) => {
     test.setTimeout(240_000);
     const audit = new Audit(page);
     await signInToAuditPractice(page, request, 'lawyer');
-    // The TabBar's destinations (MOB-02), then the pages a phone reaches from them.
-    for (const url of [
-      '/today',
-      '/record',
-      '/record/scan',
-      '/more',
-      '/billing',
-      '/matters',
-      `/matters/${MATTER}/overview`,
-      `/matters/${MATTER}/tasks`,
-      '/deadlines',
-      '/inbox',
-      '/settings/profile',
-    ]) {
-      await audit.visit(url);
-    }
+    for (const url of PHONE_AUDIT_ROUTES(MATTER)) await audit.visit(url);
     audit.expectClean();
   });
 });

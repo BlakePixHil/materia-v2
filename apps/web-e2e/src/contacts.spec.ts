@@ -48,7 +48,7 @@ test.describe('contacts', () => {
     await expect(page.getByRole('region', { name: /Notifications/ }).getByText('Contact created')).toBeVisible({
       timeout: 20_000,
     });
-    await expect(detail(page).getByRole('heading', { level: 1, name: 'Marlowe Testperson' })).toBeVisible();
+    await expect(detail(page).getByRole('heading', { level: 2, name: 'Marlowe Testperson' })).toBeVisible();
     await expect(detail(page)).toContainText('0412 555 018');
     const contactId = new URL(page.url()).searchParams.get('contact');
     expect(contactId).toBeTruthy();
@@ -75,7 +75,7 @@ test.describe('contacts', () => {
     await dialog(page).getByLabel('Preferred name').fill('Lowe');
     await dialog(page).getByRole('button', { name: 'Save changes' }).click();
     await expect(dialog(page)).toHaveCount(0);
-    await expect(detail(page).getByRole('heading', { level: 1, name: 'Lowe Testperson' })).toBeVisible();
+    await expect(detail(page).getByRole('heading', { level: 2, name: 'Lowe Testperson' })).toBeVisible();
 
     // A matter with this contact as executor (party orgId/matterId written as the server would).
     await setEmulatorDocument(request, `orgs/${orgId}/matters/m-e2e`, {

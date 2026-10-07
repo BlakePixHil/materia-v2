@@ -224,6 +224,15 @@ export class DocumentActions {
     }
   }
 
+  /**
+   * The stored text of a version's pages (`documents-citationText`), by page: for a scanned PDF page,
+   * what OCR read from it. Only the current version keeps it. Throws on failure.
+   */
+  async pageText(docId: string, version: number, pages: number[]): Promise<Map<number, string>> {
+    const result = await this.api.citationText({ matterId: this.matterId(), docId, version, pages });
+    return new Map(result.pages.map((page) => [page.page, page.text]));
+  }
+
   /** A signed URL to read a version or one of its renditions in the viewer. Throws on failure. */
   async readUrl(docId: string, version: number | undefined, rendition: DownloadRendition): Promise<string> {
     const { url } = await this.api.getDownloadUrl({

@@ -15,7 +15,12 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import type {
+  PageViewport,
+  PDFDocumentLoadingTask,
+  PDFDocumentProxy,
+  PDFPageProxy,
+} from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import { MtButton, MtIconButton, MtNote } from '@materia/ui';
 
@@ -45,11 +50,30 @@ export function loadPdfJs(): Promise<PdfJs> {
   }));
 }
 
+/** The parts of PDF.js the viewer uses. */
+type PdfLib = Pick<PdfJs, 'getDocument' | 'TextLayer'>;
+
 /** Loads PDF.js (tests replace it with a fake). */
-export const PDFJS_LOADER = new InjectionToken<() => Promise<Pick<PdfJs, 'getDocument'>>>('PDFJS_LOADER', {
+export const PDFJS_LOADER = new InjectionToken<() => Promise<PdfLib>>('PDFJS_LOADER', {
   providedIn: 'root',
   factory: () => loadPdfJs,
 });
+
+/**
+ * Where a scanned page's text is kept: the stored text of `pages` (what OCR read from a page with no
+ * text of its own), by page. A page left out has none.
+ */
+export type PdfStoredText = (pages: number[]) => Promise<ReadonlyMap<number, string>>;
+
+/** How many pages' stored text one call asks for, so scrolling through a scan makes few calls. */
+const STORED_TEXT_PAGES = 10;
+
+/** What a screen reader hears for a scanned page: its stored text, or why there is none. */
+export const SCANNED_PAGE_COPY = {
+  text: 'Scanned page. Text read from the scan:',
+  none: 'Scanned page with no text Materia could read. Download the document to open it in another app.',
+  failed: 'Scanned page. Its text didn’t load. Download the document to open it in another app.',
+} as const;
 
 /** A PDF.js failure as what the person can do about it. */
 export function pdfProblem(error: unknown): PdfProblem {
@@ -104,8 +128,10 @@ interface PageSlot {
  * canvas. Nothing in the PDF runs: no JavaScript, forms, XFA or links are rendered, and the bytes
  * come from a short-lived signed URL by `fetch`, never as a page the browser opens. Pages render
  * lazily as they scroll near the viewport, so a 500-page PDF opens as fast as a short one (PDF.js
- * fetches byte ranges where the server allows it). Each page's text is in a visually hidden block
- * for screen readers. `page` scrolls to a page (citations: `?page=N`), and `pageChange` reports the
+ * fetches byte ranges where the server allows it). Over each canvas is PDF.js's text layer (SEC-06b):
+ * the page's text, transparent and in place, so screen readers read it and it can be found and
+ * selected. A scanned page has no text of its own; given `storedText`, a screen reader hears what
+ * OCR read from it instead. `page` scrolls to a page (citations: `?page=N`), and `pageChange` reports the
  * page in view. `highlight` (AI-05) marks a quote on its page from PDF.js's text content, across a
  * page break when it runs on, scrolls it into view and reports the outcome (`highlighted`): a
  * scanned page has no text layer, so the caller shows the OCR text instead.
@@ -261,6 +287,54 @@ interface PageSlot {
       width: 100%;
       height: auto;
     }
+    /* PDF.js's text layer (web/pdf_viewer.css): transparent text sized and placed over the canvas. */
+    .page ::ng-deep .textLayer {
+      position: absolute;
+      inset: 0;
+      overflow: clip;
+      line-height: 1;
+      text-align: initial;
+      text-size-adjust: none;
+      forced-color-adjust: none;
+      transform-origin: 0 0;
+      caret-color: CanvasText;
+      z-index: 0;
+      --scale-round-x: 1px;
+      --scale-round-y: 1px;
+      --min-font-size: 1;
+      --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+      --min-font-size-inv: calc(1 / var(--min-font-size));
+    }
+    .page ::ng-deep .textLayer :is(span, br) {
+      color: transparent;
+      position: absolute;
+      white-space: pre;
+      cursor: text;
+      transform-origin: 0% 0%;
+    }
+    .page ::ng-deep .textLayer > :not(.markedContent) {
+      z-index: 1;
+      --font-height: 0;
+      font-size: calc(var(--text-scale-factor) * var(--font-height));
+      --scale-x: 1;
+      --rotate: 0deg;
+      transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+    }
+    .page ::ng-deep .textLayer ::selection {
+      background: color-mix(in srgb, AccentColor, transparent 75%);
+    }
+    .page ::ng-deep .textLayer br::selection {
+      background: transparent;
+    }
+    .page ::ng-deep .textLayer[data-main-rotation='90'] {
+      transform: rotate(90deg) translateY(-100%);
+    }
+    .page ::ng-deep .textLayer[data-main-rotation='180'] {
+      transform: rotate(180deg) translate(-100%, -100%);
+    }
+    .page ::ng-deep .textLayer[data-main-rotation='270'] {
+      transform: rotate(270deg) translateX(-100%);
+    }
     .page ::ng-deep .mt-pdf-hl {
       display: block;
       position: absolute;
@@ -283,6 +357,8 @@ export class PdfViewer {
   readonly page = input<number | null>(null);
   /** A quote to mark (citations, AI-05). */
   readonly highlight = input<PdfHighlight | null>(null);
+  /** Where scanned pages' stored text comes from; without it a scanned page is only its image. */
+  readonly storedText = input<PdfStoredText | null>(null);
 
   readonly pageChange = output<number>();
   readonly highlighted = output<PdfHighlightResult>();
@@ -308,8 +384,11 @@ export class PdfViewer {
   private readonly injector = inject(Injector);
   private readonly loadLib = inject(PDFJS_LOADER);
 
+  private lib: PdfLib | null = null;
   private task: PDFDocumentLoadingTask | null = null;
   private pdf: PDFDocumentProxy | null = null;
+  /** Scanned pages' stored text by page, as it loads (null: it didn't). */
+  private stored = new Map<number, Promise<string | null>>();
   private observer: IntersectionObserver | null = null;
   private readonly rendered = new Set<number>();
   /** The highlight's boxes by page, once located. */
@@ -356,6 +435,16 @@ export class PdfViewer {
         scroller.removeEventListener('touchend', end);
         scroller.removeEventListener('touchcancel', end);
       });
+    });
+    // The width a page has at 100%, which sizes the text layers (with the zoom) as the view resizes.
+    effect((onCleanup) => {
+      const scroller = this.scroller()?.nativeElement;
+      if (!scroller || typeof ResizeObserver !== 'function') return;
+      const observer = new ResizeObserver(([entry]) => {
+        if (entry) scroller.style.setProperty('--mt-pdf-fit', String(entry.contentRect.width));
+      });
+      observer.observe(scroller);
+      onCleanup(() => observer.disconnect());
     });
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.redrawTimer);
@@ -455,6 +544,7 @@ export class PdfViewer {
     try {
       const lib = await this.loadLib();
       if (id !== this.loadId) return;
+      this.lib = lib;
       this.task = lib.getDocument({
         url,
         cMapUrl: pdfAsset('cmaps/'),
@@ -536,22 +626,71 @@ export class PdfViewer {
       else slot.appendChild(canvas);
       slot.dataset['rendered'] = '';
       this.drawBoxes(slot, number);
-      // A redraw at a new zoom keeps the page's text from the first time.
+      // A redraw at a new zoom keeps the page's text from the first time: it scales with the page.
       if (drawn) return;
       const text = await page.getTextContent();
-      const words = text.items
-        .map((item) => ('str' in item ? item.str : ''))
-        .join(' ')
-        .trim();
-      if (words) {
-        const reader = document.createElement('div');
-        reader.className = 'mt-sr';
-        reader.textContent = words;
-        slot.appendChild(reader);
+      if (pdf !== this.pdf) return;
+      if (text.items.some((item) => 'str' in item && item.str.trim())) {
+        await this.drawText(slot, text, page.getViewport({ scale: width / base.width }), base.width);
+      } else {
+        await this.describeScan(slot, number);
       }
     } catch {
       this.rendered.delete(number);
     }
+  }
+
+  /**
+   * PDF.js's text layer over the canvas: each run of text, transparent, where the page shows it. It
+   * scales with the page: the width at 100% (`--mt-pdf-fit`, until measured the width now) times
+   * the zoom, over the page's own width.
+   */
+  private async drawText(
+    slot: HTMLElement,
+    text: Awaited<ReturnType<PDFPageProxy['getTextContent']>>,
+    viewport: PageViewport,
+    pageWidth: number,
+  ): Promise<void> {
+    const lib = this.lib;
+    if (!lib) return;
+    const layer = document.createElement('div');
+    layer.className = 'textLayer';
+    const fit = (slot.clientWidth || 800) / this.zoom();
+    layer.style.setProperty(
+      '--total-scale-factor',
+      `calc(var(--mt-pdf-fit, ${fit}) * var(--mt-pdf-zoom, 1) / ${pageWidth})`,
+    );
+    slot.appendChild(layer);
+    await new lib.TextLayer({ textContentSource: text, container: layer, viewport }).render();
+  }
+
+  /** A scanned page, for screen readers: the text OCR read from it, or that there is none. */
+  private async describeScan(slot: HTMLElement, number: number): Promise<void> {
+    const source = this.storedText();
+    if (!source) return;
+    const pdf = this.pdf;
+    const text = await this.scanText(source, number);
+    if (pdf !== this.pdf) return;
+    const reader = document.createElement('div');
+    reader.className = 'mt-sr';
+    reader.dataset['scanText'] = '';
+    if (text === null) reader.textContent = SCANNED_PAGE_COPY.failed;
+    else reader.textContent = text.trim() ? `${SCANNED_PAGE_COPY.text} ${text.trim()}` : SCANNED_PAGE_COPY.none;
+    slot.appendChild(reader);
+  }
+
+  /** A scanned page's stored text, asked for with the next few pages not yet asked for. */
+  private scanText(source: PdfStoredText, number: number): Promise<string | null> {
+    const known = this.stored.get(number);
+    if (known) return known;
+    const pages: number[] = [];
+    for (let page = number; page <= this.count() && pages.length < STORED_TEXT_PAGES; page++) {
+      if (!this.stored.has(page)) pages.push(page);
+    }
+    const batch = source(pages).catch(() => null);
+    const textOf = (page: number) => batch.then((texts) => (texts ? (texts.get(page) ?? '') : null));
+    for (const page of pages) this.stored.set(page, textOf(page));
+    return textOf(number);
   }
 
   /**
@@ -626,6 +765,7 @@ export class PdfViewer {
     this.observer?.disconnect();
     this.observer = null;
     this.rendered.clear();
+    this.stored = new Map();
     void this.task?.destroy();
     this.task = null;
     this.pdf = null;

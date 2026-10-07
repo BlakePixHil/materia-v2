@@ -115,7 +115,7 @@ function draw(
     }
     input[type='range'] {
       width: 100%;
-      accent-color: var(--accent, currentColor);
+      accent-color: var(--bg-brand);
     }
   `,
 })

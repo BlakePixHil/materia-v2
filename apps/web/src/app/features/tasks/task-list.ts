@@ -264,7 +264,7 @@ const FOLLOW_MS = 1500;
     }
     .mt-task-list .matter {
       white-space: nowrap;
-      color: var(--text-link, var(--text-brand));
+      color: var(--text-brand);
     }
     /* The preview stays inside the list (cdkDragPreviewContainer="parent") so it keeps the row's styles. */
     .mt-task-list .cdk-drag-preview {

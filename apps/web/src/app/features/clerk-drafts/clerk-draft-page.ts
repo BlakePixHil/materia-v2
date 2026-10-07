@@ -328,7 +328,7 @@ const AUTOSAVE_MS = 800;
     }
     .mt-clerk-draft .frame .layer mark {
       color: transparent;
-      background: var(--warning-subtle, #fff3c4);
+      background: var(--bg-warning-subtle);
       border-radius: 2px;
     }
     .mt-clerk-draft .frame .field {
