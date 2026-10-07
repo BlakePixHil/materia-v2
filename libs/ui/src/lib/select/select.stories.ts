@@ -86,7 +86,7 @@ export const States: Story = {
     // Arrow keys open the menu; Enter picks the active option.
     await userEvent.keyboard('{ArrowDown}');
     const listbox = await within(document.body).findByRole('listbox');
-    await expect(listbox).toBeVisible();
+    await waitFor(() => expect(listbox).toBeVisible());
     await userEvent.keyboard('{ArrowDown}{Enter}');
     await waitFor(() => expect(trigger).toHaveTextContent('Probate'));
   },
