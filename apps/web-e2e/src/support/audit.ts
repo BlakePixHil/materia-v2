@@ -4,9 +4,13 @@ import { addDays, contactSearchTokens, locationKey, packetSearchTokens, partyDoc
 import {
   a11yViolationsInThemes,
   type A11yOptions,
+  createTestAccount,
+  EMULATOR_PROJECT,
+  FIRESTORE_EMULATOR,
   setClerkKey,
   setEmulatorDocuments,
-  signInAsTestUser,
+  signInThroughUi,
+  type TestAccount,
 } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './matters';
@@ -16,6 +20,8 @@ import { matterDoc, seedClient, uniqueOrg } from './matters';
  * sits behind turned on, and enough records that each page shows its content rather than its empty
  * state: matters of three types, parties, tasks and deadlines due around today, a note, a time
  * entry, a stored document, a will in safe custody and notifications. Fictional data only.
+ *
+ * Each Playwright worker seeds it once and its tests share it (`signInToAuditPractice`).
  */
 
 export const ZONE = 'Australia/Melbourne';
@@ -36,6 +42,8 @@ export const MATTER_NUMBER = 'M-2026-0707';
 export const MATTER_TITLE = 'Estate of Wilhelmina Audit';
 /** A contested estate, for the Litigation tab. */
 export const DISPUTE = 'm-audit-contest';
+/** The contested estate's task, which a test ticks off (so the probate matter's tasks stay as seeded). */
+export const DISPUTE_TASK = 'Serve the reply on the plaintiff';
 /** An original will in safe custody, for the packet page. */
 export const PACKET = 'sc-audit';
 
@@ -123,11 +131,11 @@ export async function seedAuditPractice(request: APIRequestContext, orgId: strin
     daysAgo: 5,
   });
   const M = `orgs/${orgId}/matters/${MATTER}`;
-  const task = (id: string, title: string, dueDate: string, order: number) => ({
-    path: `${M}/tasks/${id}`,
+  const task = (id: string, title: string, dueDate: string, order: number, matterId = MATTER) => ({
+    path: `orgs/${orgId}/matters/${matterId}/tasks/${id}`,
     data: {
       orgId,
-      matterId: MATTER,
+      matterId,
       title,
       dueDate,
       status: 'todo',
@@ -158,30 +166,6 @@ export async function seedAuditPractice(request: APIRequestContext, orgId: strin
       ...meta(uid),
     },
   });
-  const notification = (id: string, minutesAgo: number, extra: Record<string, unknown>) => {
-    const at = new Date(Date.now() - minutesAgo * 60_000);
-    return {
-      path: `orgs/${orgId}/notifications/${id}`,
-      data: {
-        kind: 'task_assigned',
-        taskId: 't-audit-1',
-        recipientUid: uid,
-        title: 'Task assigned to you',
-        body: 'Lodge the inventory of assets',
-        link: '/tasks',
-        channels: ['inapp'],
-        priority: 'normal',
-        readAt: null,
-        summaryId: null,
-        createdAt: at,
-        createdBy: 'system',
-        updatedAt: at,
-        updatedBy: 'system',
-        schemaVersion: 2,
-        ...extra,
-      },
-    };
-  };
   const vault = { site: 'Geelong office', cabinet: 'Safe A', slot: '12' };
   const sha256 = 'a1'.repeat(32);
   const storagePath = `${M}/documents/d-audit-letter/v1`;
@@ -193,7 +177,7 @@ export async function seedAuditPractice(request: APIRequestContext, orgId: strin
       data: { ...probate.data, stageId: 'intake', openTaskCount: 2, estate: { grantType: 'probate' } },
     },
     { ...will, data: { ...will.data, stageId: 'intake' } },
-    { ...contest, data: { ...contest.data, stageId: 'intake' } },
+    { ...contest, data: { ...contest.data, stageId: 'intake', openTaskCount: 1 } },
     ...(
       [
         ['client', 'c-client'],
@@ -206,6 +190,7 @@ export async function seedAuditPractice(request: APIRequestContext, orgId: strin
     })),
     task('t-audit-1', 'Lodge the inventory of assets', day, 1024),
     task('t-audit-2', 'Call the executor about the bank accounts', addDays(day, 2), 2048),
+    task('t-audit-serve', DISPUTE_TASK, addDays(day, 5), 1024, DISPUTE),
     deadline('d-audit-late', 'Advertise for creditors', addDays(day, -2)),
     deadline('d-audit-today', 'Send the costs disclosure update', day),
     deadline('d-audit-next', 'Apply for the grant of probate', addDays(day, 9)),
@@ -299,27 +284,118 @@ export async function seedAuditPractice(request: APIRequestContext, orgId: strin
         ...meta(uid),
       },
     },
+    ...inbox(orgId, uid),
+  ]);
+}
+
+/** A member's own notifications (the Inbox, and the unread count on the sidebar and the TabBar). */
+function inbox(orgId: string, uid: string) {
+  const notification = (id: string, minutesAgo: number, extra: Record<string, unknown>) => {
+    const at = new Date(Date.now() - minutesAgo * 60_000);
+    return {
+      path: `orgs/${orgId}/notifications/${id}-${uid}`,
+      data: {
+        kind: 'task_assigned',
+        taskId: 't-audit-1',
+        recipientUid: uid,
+        title: 'Task assigned to you',
+        body: 'Lodge the inventory of assets',
+        link: '/tasks',
+        channels: ['inapp'],
+        priority: 'normal',
+        readAt: null,
+        summaryId: null,
+        createdAt: at,
+        createdBy: 'system',
+        updatedAt: at,
+        updatedBy: 'system',
+        schemaVersion: 2,
+        ...extra,
+      },
+    };
+  };
+  return [
     notification('n-audit-task', 10, { title: 'Lodge the inventory of assets', matterId: MATTER }),
     notification('n-audit-system', 30, { kind: 'system', taskId: undefined, title: 'Welcome to the inbox' }),
     notification('n-audit-read', 60 * 30, { title: 'Read yesterday', readAt: new Date() }),
-  ]);
+  ];
 }
 
 export type AuditRole = 'owner' | 'lawyer' | 'paralegal' | 'readonly';
 
-/** A fresh member of a new audit practice, signed in and on Today. */
+const ORG_NAME = 'Fictional Audit Practice';
+const NAMES: Record<AuditRole, string> = {
+  owner: 'Jordan Fictional',
+  lawyer: 'Casey Fictional',
+  paralegal: 'Riley Fictional',
+  readonly: 'Morgan Fictional',
+};
+
+/**
+ * This worker's audit practice, seeded by its first test, and its members by role. Seeding a
+ * practice fires a few hundred triggers, which the Functions emulator works through at about two a
+ * second: with a practice per test (ten in a11y.spec.ts), the specs after it waited minutes for
+ * their own triggers and timed out. Tests that change the practice change only what no other test
+ * reads: the contested estate's task, the order of the probate matter's tasks and its board column.
+ */
+let practice: Promise<AuditPractice> | undefined;
+
+interface AuditPractice {
+  orgId: string;
+  members: Map<AuditRole, Promise<TestAccount>>;
+}
+
+function auditPractice(request: APIRequestContext): Promise<AuditPractice> {
+  practice ??= (async () => {
+    const orgId = uniqueOrg();
+    const owner = await createTestAccount(request, {
+      claims: { orgId, role: 'owner', orgName: ORG_NAME },
+      displayName: NAMES.owner,
+    });
+    await seedAuditPractice(request, orgId, owner.uid);
+    return { orgId, members: new Map<AuditRole, Promise<TestAccount>>([['owner', Promise.resolve(owner)]]) };
+  })().catch((err: unknown) => {
+    practice = undefined;
+    throw err;
+  });
+  return practice;
+}
+
+async function addMember(request: APIRequestContext, orgId: string, role: AuditRole): Promise<TestAccount> {
+  const account = await createTestAccount(request, {
+    claims: { orgId, role, orgName: ORG_NAME },
+    displayName: NAMES[role],
+  });
+  await setEmulatorDocuments(request, inbox(orgId, account.uid));
+  return account;
+}
+
+/** A member of this worker's audit practice (seeded on first use), signed in and on Today. */
 export async function signInToAuditPractice(
   page: Page,
   request: APIRequestContext,
   role: AuditRole = 'owner',
 ): Promise<{ orgId: string; uid: string }> {
-  const orgId = uniqueOrg();
-  const account = await signInAsTestUser(page, request, {
-    claims: { orgId, role, orgName: 'Fictional Audit Practice' },
-    displayName: 'Jordan Fictional',
-  });
-  await seedAuditPractice(request, orgId, account.uid);
+  const { orgId, members } = await auditPractice(request);
+  let member = members.get(role);
+  if (!member) {
+    member = addMember(request, orgId, role);
+    members.set(role, member);
+  }
+  const account = await member;
+  await signInThroughUi(page, account);
+  // Signing in waits on the emulators, which other workers keep busy.
+  await expect(page).toHaveURL(/\/today$/, { timeout: 20_000 });
   return { orgId, uid: account.uid };
+}
+
+/** Deletes a member's running timer, as discarding it does (users/{uid}/timer/current). */
+export async function discardTimer(request: APIRequestContext, uid: string): Promise<void> {
+  const response = await request.delete(
+    `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/users/${uid}/timer/current`,
+    { headers: { Authorization: 'Bearer owner' } },
+  );
+  expect(response.ok(), await response.text()).toBe(true);
 }
 
 /**

@@ -7,6 +7,7 @@ import { createTestAccount, FIRST_LOAD, signInThroughUi } from '@materia/test-ut
 
 import {
   Audit,
+  discardTimer,
   DISPUTE,
   MATTER,
   MATTER_NUMBER,
@@ -224,7 +225,7 @@ test.describe('accessibility audit @audit', () => {
   test('dialogs and panels of the key flows', async ({ page, request }) => {
     test.setTimeout(360_000);
     const audit = new Audit(page);
-    await signInToAuditPractice(page, request, 'owner');
+    const { uid } = await signInToAuditPractice(page, request, 'owner');
     const dialog = page.getByRole('dialog');
 
     // Create a matter (intake): the type step, the clients step and its new-contact dialog.
@@ -281,6 +282,9 @@ test.describe('accessibility audit @audit', () => {
       .click();
     await expect(page.locator('mt-timer-widget').getByTestId('timer-matter')).toHaveText(MATTER_NUMBER, SERVER);
     await audit.scan('timer running');
+    // The worker's other tests sign in as this owner too: no timer left running in their top bar.
+    await discardTimer(request, uid);
+    await expect(page.locator('mt-timer-widget').getByTestId('timer-matter')).toBeHidden(SERVER);
 
     // The command palette, the shortcut sheet and the account menu.
     await page.keyboard.press('ControlOrMeta+k');

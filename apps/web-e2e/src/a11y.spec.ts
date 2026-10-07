@@ -3,6 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { A11Y_THEMES, expectNoA11yViolationsInThemes, FIRST_LOAD, useTheme } from '@materia/test-utils/e2e';
 
 import {
+  DISPUTE,
+  DISPUTE_TASK,
   MATTER,
   MATTER_NUMBER,
   MATTER_TITLE,
@@ -277,11 +279,12 @@ test.describe('accessibility (WCAG 2.2 AA)', () => {
     test.setTimeout(150_000);
     await signInToAuditPractice(page, request, 'owner');
     // A toast reaches screen readers through the polite region (danger ones through the assertive one).
-    await page.goto(`/matters/${MATTER}/tasks`);
+    // The contested estate's task: the probate matter's tasks are another test's (the practice is shared).
+    await page.goto(`/matters/${DISPUTE}/tasks`);
     await settled(page);
     // The toast outlet's own polite region (the shell has other live regions).
     const polite = page.locator('mt-toast-outlet > [aria-live="polite"]');
-    await page.getByRole('checkbox', { name: /^Done: Lodge the inventory/ }).click();
+    await page.getByRole('checkbox', { name: `Done: ${DISPUTE_TASK}` }).click();
     await expect(page.locator('.mt-toaster')).toContainText('Task done', SERVER);
     await expect(polite).toContainText('Task done');
     await expect(page.locator('.mt-toaster')).not.toHaveAttribute('aria-live', /.+/);
