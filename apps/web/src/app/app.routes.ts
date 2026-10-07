@@ -406,6 +406,15 @@ const shellRoutes: Route[] = [
         canDeactivate: [unsavedChangesGuard],
         loadComponent: () => import('./features/integrations/integrations-page').then((m) => m.IntegrationsPage),
       },
+      // Claude connector (INT-07, ADR-064): everyone connects their own Claude; owners and admins
+      // turn it on for the practice. While `integrations.claudeConnector` is on.
+      {
+        path: 'claude',
+        title: 'Claude connector',
+        data: { crumb: 'Claude connector' },
+        canActivate: [flagGuard('integrations.claudeConnector')],
+        loadComponent: () => import('./features/connector/claude-connector-page').then((m) => m.ClaudeConnectorPage),
+      },
       // Matter numbering (CORE-21a): owners and admins (`org.settings`).
       {
         path: 'numbering',
@@ -609,6 +618,20 @@ export const appRoutes: Route[] = [
     loadComponent: minimalLayout,
     data: { width: 'wide' },
     loadChildren: () => import('./features/legal/legal.routes').then((m) => m.LEGAL_ROUTES),
+  },
+  // Claude's request to connect (INT-07, ADR-064): the consent page, signed in with an active org
+  // and the terms accepted. Signing in first comes back here with the request.
+  {
+    path: 'connect/claude',
+    loadComponent: minimalLayout,
+    canActivate: [orgGuard, termsGuard],
+    children: [
+      {
+        path: '',
+        title: 'Connect Claude',
+        loadComponent: () => import('./features/connector/connect-claude-page').then((m) => m.ConnectClaudePage),
+      },
+    ],
   },
   // An owner accepts the current terms for their practice before using the app (SEC-01).
   {

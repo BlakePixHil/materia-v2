@@ -31,7 +31,7 @@ import {
 } from '@materia/domain';
 
 import { assertCanGrant } from './invites';
-import { changeMember, revokeIfActive, syncMember, type MemberCtx } from './members';
+import { changeMember, endClaudeConnections, revokeIfActive, syncMember, type MemberCtx } from './members';
 import { memberPath } from './shared';
 import { audit } from '../audit/audit';
 import { isDeleted } from '../contacts/shared';
@@ -458,6 +458,7 @@ export function offboardMemberDefinition(files: () => FileStore = () => storageF
         ctx.log.warn('member integrations not removed', errorReportFields(error));
         return 0;
       });
+      const claudeConnectionsEnded = await endClaudeConnections(ctx, input.uid);
 
       const result: OffboardMemberResult = {
         ok: true,
@@ -482,6 +483,7 @@ export function offboardMemberDefinition(files: () => FileStore = () => storageF
           personalTasks: { choice, count: live.length, ...(exportJobId ? { exportJobId } : {}) },
           timer,
           integrationsRemoved,
+          ...(claudeConnectionsEnded ? { claudeConnectionsEnded } : {}),
         },
       });
       ctx.log.info('member offboarded', { moved, personalTasks: live.length, choice, timer, integrationsRemoved });

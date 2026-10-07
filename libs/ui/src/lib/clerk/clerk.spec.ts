@@ -292,6 +292,15 @@ describe('MtSuggestion', () => {
     });
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
+
+  it('says who asked for one Clerk didn’t make (INT-07)', async () => {
+    const origin = 'Suggested in Claude by Priya Shah';
+    await render(MtSuggestion, {
+      inputs: { suggestion: { id: 's', kind: 'Task', title: 'Call the executor', origin } },
+    });
+    expect(screen.getByRole('group', { name: `Suggestion: Call the executor. ${origin}` })).toBeInTheDocument();
+    expect(screen.getByText(origin)).toBeInTheDocument();
+  });
 });
 
 @Component({

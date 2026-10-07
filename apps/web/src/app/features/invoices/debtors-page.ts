@@ -250,7 +250,7 @@ const WHOSE: MtOption<Whose>[] = [
       color: var(--text-tertiary);
     }
     .mt-debtors-page tr.client {
-      background: var(--surface-sunken);
+      background: var(--bg-sunken);
     }
     .mt-debtors-page .matter {
       padding-left: var(--space-20);

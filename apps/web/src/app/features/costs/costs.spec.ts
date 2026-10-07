@@ -112,8 +112,7 @@ describe('costs disclosure panel', () => {
     });
     await page.stable(50);
     await page.click('Record as sent', panel() ?? undefined);
-    await page.stable(50);
-    expect(page.dialog()).not.toBeNull();
+    await page.openedDialog();
     await page.fill('Date sent', '05/10/2026');
     await page.submit(page.dialog());
     expect(page.text(page.dialog())).toContain('can’t be after today');
@@ -152,7 +151,7 @@ describe('costs disclosure panel', () => {
     });
     await page.stable(50);
     await page.click('No disclosure needed', panel() ?? undefined);
-    await page.stable(50);
+    await page.openedDialog();
     await page.fill('Why no disclosure is needed', '2');
     await page.submit(page.dialog());
     expect(page.text(page.dialog())).toContain('Say why no disclosure is needed.');

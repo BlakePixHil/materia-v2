@@ -73,6 +73,8 @@ export * from './lib/insights-narrative';
 export * from './lib/matter-brief';
 export * from './lib/payments';
 export * from './lib/integrations';
+export * from './lib/connector';
+export * from './lib/connector-settings';
 export * from './lib/xero';
 export * from './lib/migration-review';
 export * from './lib/exports';

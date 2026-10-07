@@ -15,6 +15,7 @@ import { syncClaims } from './claims';
 import { assertCanGrant } from './invites';
 import { assertAnotherOwner, memberPath } from './shared';
 import { audit } from '../audit/audit';
+import { revokeConnections } from '../connector/grants';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
 import { errorReportFields } from '../core/log';
 import { OAUTH_SECRETS } from '../integrations/providers';
@@ -22,6 +23,16 @@ import { removeMemberConnections } from '../integrations/vault';
 
 export type MemberCtx = CallableContext<unknown>;
 type Ctx = MemberCtx;
+
+/** Ends a departing member's Claude connections (INT-07). Best effort, like their integrations. */
+export async function endClaudeConnections(ctx: Ctx, uid: string): Promise<number> {
+  return revokeConnections(ctx, ctx.orgId, { uid }, { actor: 'system', reason: 'member_removed' }).catch(
+    (error: unknown) => {
+      ctx.log.warn('member Claude connections not ended', errorReportFields(error));
+      return 0;
+    },
+  );
+}
 
 interface MemberState {
   role: Role;
@@ -142,11 +153,17 @@ export const removeMemberDefinition = {
       ctx.log.warn('member integrations not removed', errorReportFields(error));
       return 0;
     });
+    // Their Claude connections (INT-07) already stop at the next call; this ends them for good.
+    const claudeConnectionsEnded = await endClaudeConnections(ctx, input.uid);
     await audit(ctx, {
       action: 'member.removed',
       entity: { path: memberPath(ctx.orgId, input.uid) },
       summary: 'Member removed',
-      data: { tokensRevoked, ...(integrationsRemoved ? { integrationsRemoved } : {}) },
+      data: {
+        tokensRevoked,
+        ...(integrationsRemoved ? { integrationsRemoved } : {}),
+        ...(claudeConnectionsEnded ? { claudeConnectionsEnded } : {}),
+      },
     });
     return { ok: true, tokensRevoked };
   },

@@ -60,6 +60,9 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   INTEGRATION_NOT_CONFIGURED: 'This integration isn’t set up for Materia yet. Ask your practice admin.',
   INTEGRATION_REJECTED: 'The connection wasn’t allowed. Try again, or ask your IT administrator to approve Materia.',
   INTEGRATION_RECONNECT_REQUIRED: 'This connection has stopped working. Connect it again from Settings.',
+  CONNECTOR_OFF:
+    'Your practice hasn’t turned on the Claude connector. An owner or admin can turn it on in Settings → Claude connector.',
+  CONNECTOR_REQUEST_INVALID: 'This connection request isn’t valid. Start connecting again from Claude.',
   ORG_READ_ONLY:
     'This practice is scheduled for deletion, so it’s read-only. An owner can cancel the deletion in Settings → Data and deletion.',
   LEGAL_HOLD:

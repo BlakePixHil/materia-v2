@@ -44,6 +44,7 @@ export const READ_ONLY_CALLABLES: ReadonlySet<string> = new Set([
   'orgs-acceptTerms',
   // Taking access away
   'clerk-removeApiKey',
+  'connector-disconnect',
   'integrations-disconnect',
   'orgs-removeMember',
   'orgs-suspendMember',
