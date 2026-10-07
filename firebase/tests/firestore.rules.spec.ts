@@ -3906,6 +3906,10 @@ describe('integrations (INT-01)', () => {
     const lawyer = db(env, 'lawyer');
     await assertSucceeds(getDoc(doc(lawyer, `${STATUS}/${OWNER_UID}_microsoft`)));
     await assertSucceeds(getDoc(doc(lawyer, `${STATUS}/xero`)));
+    // One nobody has made yet reads as missing, not refused: Settings → Integrations watches `xero`
+    // before Xero is ever connected, and a refusal there sends an owner to "no access".
+    await assertSucceeds(getDoc(doc(db(env, 'owner'), `${STATUS}/never-connected`)));
+    await assertFails(getDoc(doc(db(env, 'owner', OTHER_ORG), `${STATUS}/never-connected`)));
     // Another person's connection, owners and admins included.
     await assertFails(getDoc(doc(lawyer, `${STATUS}/${uidFor('paralegal')}_microsoft`)));
     await assertFails(getDoc(doc(db(env, 'owner'), `${STATUS}/${uidFor('paralegal')}_microsoft`)));

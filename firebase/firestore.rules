@@ -1100,10 +1100,11 @@ service cloud.firestore {
         allow read, write: if false;
       }
       // The client-readable mirror of an OAuth connection (INT-01, ADR-051), with nothing secret: a
-      // practice connection (`uid` null) is read by its members, a person's own only by them.
-      // Written only by the token vault.
+      // practice connection (`uid` null) is read by its members, a person's own only by them. One
+      // never made reads as missing, not refused: Settings → Integrations watches `xero` before it
+      // exists. Written only by the token vault.
       match /integrationStatus/{integrationId} {
-        allow read: if inOrg(orgId) && (resource.data.uid == null || resource.data.uid == uid());
+        allow read: if inOrg(orgId) && (resource == null || resource.data.uid == null || resource.data.uid == uid());
       }
       // OAuth connect attempts (INT-01): the state's hash and the PKCE verifier. Server-only.
       match /integrationStates/{stateId} {
