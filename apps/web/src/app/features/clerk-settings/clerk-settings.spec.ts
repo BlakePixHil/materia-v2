@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 
@@ -12,6 +13,7 @@ import { App } from '../../app';
 import { appRoutes } from '../../app.routes';
 import { AUTH_PORT, type AuthSession } from '../../core/auth/auth-port';
 import { FakeAuthPort, testSession } from '../../core/auth/testing';
+import { ClerkPanel } from '../../core/clerk/clerk-panel';
 import { provideTestFlags } from '../../core/flags/testing';
 import { FakeTenancyPort } from '../../core/orgs/testing';
 
@@ -418,6 +420,27 @@ describe('How Clerk works', () => {
     expect(page.text()).toContain('How Clerk works');
     expect(page.page().querySelectorAll('.rules li')).toHaveLength(7);
     expect(page.text()).toContain('It suggests; you decide');
+  });
+
+  it('goes back to the Clerk panel it was opened from', async () => {
+    const page = await open('/settings/clerk', LAWYER);
+    const panel = TestBed.inject(ClerkPanel);
+    await page.router.navigateByUrl('/help/clerk', { state: { fromClerk: true } });
+    await page.stable();
+    expect(panel.open()).toBe(false);
+    // jsdom doesn't traverse history, so the step back itself is checked by the e2e.
+    const back = vi.spyOn(TestBed.inject(Location), 'back').mockImplementation(() => undefined);
+    page.button('Back to Clerk').click();
+    expect(back).toHaveBeenCalledOnce();
+    expect(panel.open()).toBe(true);
+  });
+
+  it('goes to Today when opened directly', async () => {
+    const page = await open('/help/clerk', LAWYER);
+    page.button('Back').click();
+    await page.stable();
+    await vi.waitFor(() => expect(page.router.url).not.toContain('/help/clerk'));
+    expect(TestBed.inject(ClerkPanel).open()).toBe(false);
   });
 });
 

@@ -1,8 +1,11 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Location } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 
 import { can } from '@materia/data-access';
-import { MtClerkMark } from '@materia/ui';
+import { MtButton, MtClerkMark } from '@materia/ui';
+
+import { ClerkPanel } from '../../core/clerk/clerk-panel';
 
 interface Rule {
   title: string;
@@ -43,15 +46,20 @@ export const CLERK_RULES: readonly Rule[] = [
 
 /**
  * How Clerk works (`/help/clerk`, AI-13): the seven Clerk rules in plain words, for everyone.
- * Linked from the Clerk panel and Settings → Clerk and AI.
+ * Linked from the Clerk panel and Settings → Clerk and AI. Back returns to the page it was opened
+ * from, reopening the Clerk panel on the same thread when that's where the link was; opened
+ * directly, it goes to Today.
  */
 @Component({
   selector: 'mt-clerk-guide-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MtClerkMark, RouterLink],
-  host: { class: 'mt-col', style: 'gap: 24px; max-width: 720px' },
+  imports: [MtButton, MtClerkMark, RouterLink],
+  host: { class: 'mt-col', style: 'gap: 24px; max-width: 720px', '(keydown.escape)': 'back()' },
   template: `
     <div class="mt-col" style="gap: 6px">
+      <button mtButton variant="ghost" size="sm" iconStart="chevron-left" class="back" (click)="back()">
+        {{ fromClerk ? 'Back to Clerk' : 'Back' }}
+      </button>
       <h1 class="title-l mt-row" style="margin: 0; gap: 8px; align-items: center">
         <mt-clerk-mark size="sm" />
         How Clerk works
@@ -78,6 +86,10 @@ export const CLERK_RULES: readonly Rule[] = [
     </p>
   `,
   styles: `
+    .back {
+      align-self: flex-start;
+      margin: 0 0 var(--space-6) calc(-1 * var(--space-8));
+    }
     .rules {
       list-style: none;
       margin: 0;
@@ -105,6 +117,26 @@ export const CLERK_RULES: readonly Rule[] = [
   `,
 })
 export class ClerkGuidePage {
+  private readonly location = inject(Location);
+  private readonly router = inject(Router);
+  private readonly panel = inject(ClerkPanel);
+
   protected readonly rules = CLERK_RULES;
   protected readonly canConfigure = can('clerk.configure');
+  private readonly navigation = this.router.currentNavigation();
+  /** Opened from the Clerk panel's footer link, which closes the panel on the way. */
+  protected readonly fromClerk = (this.navigation?.extras.state ?? historyState())['fromClerk'] === true;
+  /** Whether an earlier page of the app is behind this one (the router numbers its navigations from 1). */
+  private readonly inApp = !!this.navigation?.previousNavigation || Number(historyState()['navigationId'] ?? 0) > 1;
+
+  protected back(): void {
+    if (this.fromClerk) this.panel.show({ resume: true });
+    if (this.inApp) this.location.back();
+    else void this.router.navigateByUrl('/');
+  }
+}
+
+function historyState(): Record<string, unknown> {
+  const state: unknown = typeof history === 'undefined' ? null : history.state;
+  return state && typeof state === 'object' ? (state as Record<string, unknown>) : {};
 }
