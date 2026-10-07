@@ -12,11 +12,15 @@ import { provideInteractionsConfig } from 'ng-primitives/interactions';
 
 import {
   ACCESS_REVOKED_HANDLER,
+  countReads,
+  createReadCounter,
+  exposeReadCounter,
   FIREBASE_SETUP,
   FIRESTORE_SDK_LOADER,
   FirestoreClient,
   firestoreTenancyPort,
   ListenerRegistry,
+  loadFirestoreSdk,
   TENANCY_PORT,
 } from '@materia/data-access';
 import { ThemeService } from '@materia/ui';
@@ -43,6 +47,12 @@ async function resumeScans(injector: Injector): Promise<void> {
   const { ScanQueue } = await import('./features/scan/scan-queue');
   injector.get(ScanQueue);
 }
+
+/**
+ * Set by the build (`define` in apps/web/project.json): true in development and e2e builds, false
+ * in deployed ones, where the bundler drops the reads counter below.
+ */
+declare const MATERIA_READS_COUNTER: boolean | undefined;
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -91,6 +101,21 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(FIRESTORE_SDK_LOADER)().catch(() => undefined);
     }),
+    // SEC-07: development and e2e builds count Firestore reads per screen (`window.__materiaReads`,
+    // read by apps/web-e2e/src/perf); deployed builds load the SDK as it is. The test stays inline:
+    // behind a module constant the minifier kept the counter in once the providers above changed.
+    ...(typeof MATERIA_READS_COUNTER !== 'undefined' && MATERIA_READS_COUNTER
+      ? [
+          {
+            provide: FIRESTORE_SDK_LOADER,
+            useFactory: () => {
+              const counter = exposeReadCounter(createReadCounter());
+              let counted: ReturnType<typeof loadFirestoreSdk> | undefined;
+              return () => (counted ??= loadFirestoreSdk().then((sdk) => countReads(sdk, counter)));
+            },
+          },
+        ]
+      : []),
     {
       provide: FIREBASE_SETUP,
       useValue: {

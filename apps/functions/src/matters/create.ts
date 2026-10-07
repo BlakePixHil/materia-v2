@@ -468,8 +468,12 @@ export const createMatterDefinition = {
       ...new Set(parties.filter((party) => party.inputIndex !== undefined).map((party) => party.contactId)),
     ];
 
+    // Attempts at the numbering transaction, logged: more than one means it contended for the
+    // year's counter (SEC-07; one transaction per org is fine at 5 creates a second).
+    let attempts = 0;
     const number = await db.runTransaction(
       async (tx) => {
+        attempts++;
         const contactSnaps = extraContactIds.length
           ? await tx.getAll(...extraContactIds.map((id) => db.doc(`orgs/${orgId}/contacts/${id}`)))
           : [];
@@ -637,6 +641,7 @@ export const createMatterDefinition = {
       });
     }
     log.info('matter created', {
+      attempts,
       deadlines,
       matterId: matterRef.id,
       status,

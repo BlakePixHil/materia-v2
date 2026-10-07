@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
-import type { InMemoryFirestore } from '@materia/data-access/repository';
+import type { DriverFactory } from '@materia/data-access';
+import { FIRESTORE_DRIVER, type InMemoryFirestore } from '@materia/data-access/repository';
 import { matterSearchTokens } from '@materia/domain';
 
 import { KEYBOARD_INSET_VAR, MOBILE_QUERY, PhoneLayout } from './phone-layout';
@@ -232,6 +233,38 @@ describe('Matters on a phone (MOB-02)', () => {
     // The desktop's layout switch and export stay off the phone's top bar; New matter stays.
     expect(page.body.querySelector('.mt-topbar mt-segmented-control, .mt-topbar mt-export-button')).toBeNull();
     expect(page.buttons('New matter')[0]?.getAttribute('href')).toBe('/matters/new');
+  });
+
+  it('shows my recent matters and the view together, so the view isn’t pushed down when they land', async () => {
+    // Hold the recents' answer, as a slow network does: they read a list, then each matter.
+    let firestore!: InMemoryFirestore;
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    const held: DriverFactory = (path, options) => {
+      const driver = firestore.driver(path, options);
+      if (path !== `users/${ME}/recent`) return driver;
+      return {
+        ...driver,
+        fetch: async (request) => {
+          await answered;
+          return driver.fetch(request);
+        },
+      };
+    };
+    const page = await openPhone('/matters', {
+      configure: (fs) => (firestore = fs),
+      providers: [{ provide: FIRESTORE_DRIVER, useFactory: () => held }],
+    });
+    const list = page.body.querySelector('mt-phone-matters') as HTMLElement;
+    expect(list.querySelector('[data-recent], #phone-matters-view, [data-matter]')).toBeNull();
+    expect(list.querySelector('mt-skeleton')).not.toBeNull();
+
+    answer();
+    await page.stable(20);
+    await page.stable(20);
+    expect(texts(page, '[data-recent] .tt', list)).toEqual(['Will for Bram Ostler', 'Estate of Margaret Whitfield']);
+    expect(texts(page, '[data-matter] .ts', list).sort()).toEqual(['M-2026-0142', 'M-2026-0150']);
+    expect(list.querySelector('mt-skeleton')).toBeNull();
   });
 
   it('searches every matter by number or name, and opens a result', async () => {
