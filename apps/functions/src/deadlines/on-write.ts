@@ -2,6 +2,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 
 import { nextDeadlineOf, type DeadlineLike, type NextDeadline } from '@materia/domain';
 
+import { refreshDeadlineMatterCopy } from './matter-copy';
 import { deadlinesPath } from './shared';
 import { orgClock } from '../core/emulator-clock';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
@@ -29,14 +30,14 @@ function asRow(id: string, data: Data): DeadlineLike {
  * Brings a matter's `nextDeadline` ({id, dueDate, title, critical}) up to date with its deadlines
  * (`nextDeadlineOf`: the soonest live upcoming deadline with a date), removing it when there is
  * none. One transaction reads the matter and all its deadlines, so concurrent events converge;
- * nothing is written when the value is already current. Returns the value, or null when the
- * matter is gone.
+ * nothing is written when the value is already current. Returns the value and the matter it read,
+ * or null when the matter is gone.
  */
 export async function syncNextDeadline(
   db: Firestore,
   orgId: string,
   matterId: string,
-): Promise<{ next: NextDeadline | undefined; written: boolean } | null> {
+): Promise<{ next: NextDeadline | undefined; written: boolean; matter: Data } | null> {
   const matterRef = db.doc(matterPath(orgId, matterId));
   return db.runTransaction(async (tx) => {
     const matter = await tx.get(matterRef);
@@ -44,16 +45,19 @@ export async function syncNextDeadline(
     if (!matter.exists || matter.get('destroyedAt')) return null;
     const deadlines = await tx.get(db.collection(deadlinesPath(orgId, matterId)));
     const next = nextDeadlineOf(deadlines.docs.map((doc) => asRow(doc.id, doc.data())));
-    if (same(matter.get('nextDeadline'), next)) return { next, written: false };
+    const data = matter.data() ?? {};
+    if (same(matter.get('nextDeadline'), next)) return { next, written: false, matter: data };
     tx.update(matterRef, { nextDeadline: next ?? FieldValue.delete() });
-    return { next, written: true };
+    return { next, written: true, matter: data };
   });
 }
 
 /**
  * `deadlines-onWrite` (CORE-10), on every write of `orgs/{orgId}/matters/{matterId}/deadlines/{id}`:
- * denormalises the matter's `nextDeadline` for the matters list and dashboard, and (CORE-11) sets
- * the deadline's `nextReminderAt` when its date, criticality, reminders or status changed.
+ * denormalises the matter's `nextDeadline` for the matters list and dashboard, (CORE-11) sets the
+ * deadline's `nextReminderAt` when its date, criticality, reminders or status changed, and
+ * (SEC-07c) gives the deadline a current copy of its matter when it has none or a stale one (a
+ * manual deadline, a migrated one).
  */
 export async function onDeadlineWrite(ctx: TriggerContext, change?: TriggerChange): Promise<void> {
   const orgId = ctx.params['orgId'] as string;
@@ -84,6 +88,15 @@ export async function onDeadlineWrite(ctx: TriggerContext, change?: TriggerChang
     written: result?.written ?? false,
     nextId: result?.next?.id ?? null,
   });
+  if (result && change?.after?.exists) {
+    const copied = await refreshDeadlineMatterCopy(
+      ctx.db,
+      ctx.db.doc(change.after.ref.path),
+      result.matter,
+      change.after.data(),
+    );
+    if (copied) ctx.log.info('matter copied', { matterId, deadlineId: ctx.params['deadlineId'] });
+  }
 }
 
 export const onWriteDefinition: TriggerDefinition = {

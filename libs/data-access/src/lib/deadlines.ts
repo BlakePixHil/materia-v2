@@ -98,6 +98,11 @@ export const DeadlineItemSchema = /* @__PURE__ */ z.object({
   pastOnCreation: deadline.pastOnCreation,
   /** The matter's flag (CORE-10b); absent on deadlines written before it. */
   privileged: deadline.privileged.optional(),
+  /**
+   * The matter's number, title, people and jurisdiction (SEC-07c); absent on deadlines from before
+   * it (until `backfill-deadline-matters` runs) and, for a moment, on a manual one just added.
+   */
+  matter: deadline.matter,
   updatedAt: deadline.updatedAt.optional(),
   updatedBy: deadline.updatedBy.optional(),
   deletedAt: SoftDeleteShape.deletedAt,
@@ -159,14 +164,30 @@ export function deadlineGroupRepository(): GroupRepository<DeadlineItem> {
 export const MATTER_DEADLINES_QUERY: QuerySpec<DeadlineItem> = { pageSize: 200 };
 
 /**
- * The Deadlines screen: the org's upcoming deadlines by date (indexed: orgId, status, dueDate).
- * Group them with `groupDeadlines` and filter with `deadlineMatchesFilters`.
+ * The Deadlines screen's list: the org's upcoming deadlines by date (indexed: orgId, status,
+ * dueDate), a page at a time (SEC-07c). The first page is the overdue ones and the next few weeks;
+ * scrolling loads the next (`loadMore`). Group them with `groupDeadlines` and filter with
+ * `deadlineMatchesFilters`.
  */
 export const UPCOMING_DEADLINES_QUERY: QuerySpec<DeadlineItem> = {
   where: [['status', '==', 'upcoming']],
   orderBy: [['dueDate', 'asc']],
-  pageSize: 500,
+  pageSize: 100,
 };
+
+/**
+ * The Deadlines screen's calendar: upcoming deadlines due from `from` to `to`, both included, by
+ * date (the same index as the list).
+ */
+export const upcomingDeadlinesBetweenQuery = (from: string, to: string): QuerySpec<DeadlineItem> => ({
+  where: [
+    ['status', '==', 'upcoming'],
+    ['dueDate', '>=', from],
+    ['dueDate', '<=', to],
+  ],
+  orderBy: [['dueDate', 'asc']],
+  pageSize: 500,
+});
 
 /** "Mine": my upcoming deadlines by date (indexed: orgId, assigneeUid, status, dueDate). */
 export const myUpcomingDeadlinesQuery = (uid: string): QuerySpec<DeadlineItem> => ({

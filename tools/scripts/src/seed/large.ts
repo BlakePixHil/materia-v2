@@ -405,6 +405,7 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
     const endDay = domain.dateOnlyAt(endAt, timeZone);
     const spanDays = Math.max(1, domain.daysBetween(createdDay, endDay));
     const by = responsible.uid;
+    const teamUids = paralegal === responsible ? [by] : [by, paralegal.uid];
 
     // Parties: the client, an executor and a beneficiary.
     for (const [role, contactId] of [
@@ -430,8 +431,10 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
       );
     }
 
-    // Deadlines: upcoming on live matters (a few overdue), done on the rest.
+    // Deadlines: upcoming on live matters (a few overdue), done on the rest, each with its copy of
+    // the matter (SEC-07c), as the deadline writers stamp it.
     let next: { id: string; dueDate: D.DateOnly; title: string; critical: boolean } | undefined;
+    const matterCopy = domain.deadlineMatterCopy({ number, title, jurisdiction: 'VIC', responsibleUid: by, teamUids });
     for (let k = 0; k < share(plan.deadlines, plan.matters, i); k++) {
       const id = `dl-${k + 1}`;
       const critical = k === 0;
@@ -455,6 +458,7 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
         ...(live ? {} : { resolution: { on: dueDate, by, at: endAt } }),
         assigneeUid: by,
         privileged,
+        matter: matterCopy,
         deletedAt: null,
       };
       if (live && (!next || dueDate < next.dueDate)) next = { id, dueDate, title, critical };
@@ -595,7 +599,7 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
       priority: at(['none', 'none', 'low', 'medium', 'high', 'urgent'] as const, i * 3),
       jurisdiction: 'VIC',
       responsibleUid: by,
-      teamUids: paralegal === responsible ? [by] : [by, paralegal.uid],
+      teamUids,
       clientContactIds: [clientId],
       deceased: DECEASED_TYPES.has(type)
         ? {

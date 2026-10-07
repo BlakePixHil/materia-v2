@@ -3,6 +3,7 @@ import type { Firestore, Query, QuerySnapshot, Transaction } from 'firebase-admi
 import {
   can,
   computeTimeEntry,
+  deadlineMatterCopy,
   defaultBillable,
   DomainError,
   keyFactEventKind,
@@ -179,10 +180,13 @@ const deadline: SuggestionHandler<'deadline'> = {
         }),
       );
       if (!fields.success) throw invalid(issuesOf(fields.error));
+      // Its copy of the matter, for the Deadlines screen (SEC-07c).
+      const copy = deadlineMatterCopy(matter);
       tx.create(
         ref,
         Deadline.schema.parse({
           ...fields.data,
+          ...(copy ? { matter: copy } : {}),
           pastOnCreation: false,
           createdAt: now,
           createdBy: uid,

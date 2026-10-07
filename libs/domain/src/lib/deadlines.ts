@@ -5,6 +5,7 @@ import { DocIdSchema } from './schemas/common';
 import {
   DeadlineKindSchema,
   EventKindSchema,
+  JurisdictionSchema,
   type DeadlineStatus,
   type Jurisdiction,
   type Role,
@@ -17,6 +18,7 @@ import {
   type DeadlineChangeCause,
   type DeadlineChangeKind,
   type DeadlineChangeStatus,
+  type DeadlineMatterCopy,
 } from './schemas/matter-records';
 import { endOfWeek } from './tasks';
 import { addDays, compareDates, DateOnlySchema, type DateOnly } from './values/date-only';
@@ -392,6 +394,44 @@ export interface DeadlineMatterInfo {
   jurisdiction?: Jurisdiction | undefined;
   responsibleUid?: string | undefined;
   teamUids?: readonly string[] | undefined;
+}
+
+/**
+ * A deadline's copy of its matter (`Deadline.matter`, SEC-07c), from the matter's fields. Null for
+ * a record without a number and title, which leaves any copy as it is.
+ */
+export function deadlineMatterCopy(matter: Readonly<Record<string, unknown>>): DeadlineMatterCopy | null {
+  const { number, title, responsibleUid, teamUids } = matter;
+  if (typeof number !== 'string' || !number.trim() || typeof title !== 'string' || !title.trim()) return null;
+  const jurisdiction = JurisdictionSchema.safeParse(matter['jurisdiction']);
+  return {
+    number,
+    title,
+    ...(jurisdiction.success ? { jurisdiction: jurisdiction.data } : {}),
+    ...(typeof responsibleUid === 'string' && responsibleUid ? { responsibleUid } : {}),
+    teamUids: Array.isArray(teamUids)
+      ? teamUids.filter((uid): uid is string => typeof uid === 'string' && uid.length > 0)
+      : [],
+  };
+}
+
+/**
+ * Whether a deadline's stored copy already says what `copy` says (field by field: Firestore doesn't
+ * keep a map's key order). True when `copy` is null, since nothing would be written.
+ */
+export function matterCopyIsCurrent(stored: unknown, copy: DeadlineMatterCopy | null): boolean {
+  if (!copy) return true;
+  if (!stored || typeof stored !== 'object') return false;
+  const known = stored as Record<string, unknown>;
+  const team = Array.isArray(known['teamUids']) ? (known['teamUids'] as unknown[]) : [];
+  return (
+    known['number'] === copy.number &&
+    known['title'] === copy.title &&
+    (known['jurisdiction'] ?? undefined) === copy.jurisdiction &&
+    (known['responsibleUid'] ?? undefined) === copy.responsibleUid &&
+    team.length === copy.teamUids.length &&
+    team.every((uid, i) => uid === copy.teamUids[i])
+  );
 }
 
 export interface DeadlineFilters {

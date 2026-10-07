@@ -17,6 +17,7 @@ import {
   compareDates,
   Deadline,
   DeadlineChange,
+  deadlineMatterCopy,
   DomainError,
   EVENT_KEY_FACTS,
   MatterEvent,
@@ -244,6 +245,8 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
     // Events, deadlines and proposals carry a copy of the matter's flag (CORE-10b), which the rules
     // read in cross-matter queries.
     const privileged = matter['privileged'] === true;
+    // New deadlines carry a copy of the matter for the Deadlines screen (SEC-07c).
+    const matterCopy = deadlineMatterCopy(matter);
 
     // ---- reads ----
     const event = request.event;
@@ -417,6 +420,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
             matterId,
             assigneeUid: responsibleUid,
             privileged,
+            ...(matterCopy ? { matter: matterCopy } : {}),
             ...(taskId ? { taskId } : {}),
             ...created,
             schemaVersion: Deadline.version,

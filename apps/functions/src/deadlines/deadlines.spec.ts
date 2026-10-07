@@ -7,6 +7,7 @@ import { type Role } from '@materia/domain';
 
 import { completeDefinition } from './complete';
 import { deleteEventDefinition, recomputeDefinition, upsertEventDefinition } from './events';
+import { matterCopyChanged, refreshDeadlineMatterCopy, syncDeadlineMatterCopies } from './matter-copy';
 import { flagMissedAllOrgs, flagMissedDeadlines } from './missed';
 import { onDeadlineWrite, onWriteDefinition, syncNextDeadline } from './on-write';
 import { overrideDefinition } from './override';
@@ -381,6 +382,114 @@ describe('privileged copies (CORE-10b)', () => {
     expect(privilegeChanged({}, { privileged: false })).toBe(false);
     expect(privilegeChanged(undefined, { privileged: true })).toBe(false);
     expect(privilegeChanged({ privileged: true }, undefined)).toBe(false);
+  });
+});
+
+describe('matter copies (SEC-07c)', () => {
+  const COPY = {
+    number: 'BL-2026-0042',
+    title: 'Estate of Fictional Person',
+    jurisdiction: 'VIC',
+    responsibleUid: 'user-lawyer',
+    teamUids: [],
+  };
+  const copies = (w: World) => [...new Set(w.under(D).map((row) => JSON.stringify(row['matter'] ?? null)))];
+  const trigger = (w: World, path: string) => ({
+    ctx: {
+      eventId: 'e1',
+      time: new Date('2026-10-05T01:00:00Z'),
+      params: { orgId: ORG, matterId: 'm1', deadlineId: path.split('/').at(-1) },
+      log: w.log,
+      clock: w.clock,
+      db: w.db,
+      ports: w.ports,
+    } as unknown as TriggerContext,
+    change: (before?: Data) =>
+      ({
+        before: before ? { ref: { path }, data: () => before, exists: true } : undefined,
+        after: { ref: { path }, data: () => w.doc(path), exists: !!w.doc(path) },
+      }) as unknown as TriggerChange,
+  });
+
+  it('every deadline a recompute creates carries a copy of its matter', async () => {
+    const w = world();
+    await upsert(w, { kind: 'date_of_death', date: '2026-08-01' });
+    expect(w.under(D).length).toBeGreaterThan(1);
+    expect(copies(w)).toEqual([JSON.stringify(COPY)]);
+  });
+
+  it('deadlines-onWrite gives a deadline written without one a copy, then stops', async () => {
+    const w = world();
+    const path = `${D}/manual-1`;
+    await w.db.doc(path).set({
+      ...meta,
+      orgId: ORG,
+      matterId: 'm1',
+      title: 'Settle the fictional sale',
+      dueDate: '2026-10-20',
+      kind: 'contractual',
+      critical: false,
+      status: 'upcoming',
+      assigneeUid: 'user-lawyer',
+      reminders: [],
+      privileged: false,
+      deletedAt: null,
+    });
+    const { ctx, change } = trigger(w, path);
+    await onWriteDefinition.handler(change(), ctx);
+    expect(w.doc(path)?.['matter']).toEqual(COPY);
+    expect(w.doc(path)?.['updatedBy']).toBe('user-lawyer');
+    // Its own write leaves the copy current: the next event reads nothing more and writes nothing.
+    expect(
+      await refreshDeadlineMatterCopy(w.db as never, w.db.doc(path) as never, w.doc(MATTER) as Data, w.doc(path)),
+    ).toBe(false);
+    // A soft-deleted deadline is left as it is.
+    await w.db.doc(path).update({ matter: { ...COPY, title: 'Old title' }, deletedAt: new Date() });
+    expect(await refreshDeadlineMatterCopy(w.db as never, w.db.doc(path) as never, w.doc(MATTER) as Data)).toBe(false);
+    expect((w.doc(path)?.['matter'] as Data)['title']).toBe('Old title');
+  });
+
+  it('matters-denormalise rewrites the copies when the matter is renamed or restaffed, and only then', async () => {
+    const w = world();
+    await upsert(w, { kind: 'date_of_death', date: '2026-08-01' });
+    const count = w.under(D).length;
+    const run = (before: Data, after: Data) =>
+      denormaliseDefinition.handler(
+        {
+          before: { ref: { path: MATTER }, data: () => before },
+          after: { ref: { path: MATTER }, data: () => after },
+        } as unknown as TriggerChange,
+        {
+          eventId: 'e1',
+          time: new Date('2026-10-05T01:00:00Z'),
+          params: { orgId: ORG, matterId: 'm1' },
+          log: w.log,
+          clock: w.clock,
+          db: w.db,
+          ports: w.ports,
+        } as unknown as TriggerContext,
+      );
+    const before = { ...(w.doc(MATTER) as Data) };
+    await w.db.doc(MATTER).update({ priority: 'high' });
+    expect(matterCopyChanged(before, w.doc(MATTER))).toBe(false);
+    await run(before, w.doc(MATTER) as Data);
+    expect(copies(w)).toEqual([JSON.stringify(COPY)]);
+
+    await w.db.doc(MATTER).update({ title: 'Estate of Fictional Person (renamed)', teamUids: ['user-paralegal'] });
+    expect(matterCopyChanged(before, w.doc(MATTER))).toBe(true);
+    await run(before, w.doc(MATTER) as Data);
+    expect(copies(w)).toEqual([
+      JSON.stringify({ ...COPY, title: 'Estate of Fictional Person (renamed)', teamUids: ['user-paralegal'] }),
+    ]);
+    expect(await syncDeadlineMatterCopies(w.db as never, ORG, 'm1')).toBe(0);
+
+    // Every live deadline, whatever its status; a destroyed matter's tombstone or a missing one is left alone.
+    await w.db.doc(MATTER).update({ number: 'BL-2026-0043' });
+    expect(await syncDeadlineMatterCopies(w.db as never, ORG, 'm1')).toBe(count);
+    await w.db.doc(MATTER).update({ number: 'BL-2026-0044', destroyedAt: new Date() });
+    expect(await syncDeadlineMatterCopies(w.db as never, ORG, 'm1')).toBe(0);
+    expect(await syncDeadlineMatterCopies(w.db as never, ORG, 'nope')).toBe(0);
+    expect(matterCopyChanged(undefined, w.doc(MATTER))).toBe(false);
   });
 });
 

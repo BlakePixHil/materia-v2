@@ -17,6 +17,7 @@ import {
   DocumentSourceSchema,
   EventKindSchema,
   GstTreatmentSchema,
+  JurisdictionSchema,
   PartyRoleSchema,
   PrioritySchema,
   TaskStatusSchema,
@@ -210,6 +211,23 @@ export const DEADLINE_ESCALATION_RECIPIENTS_MAX = 50;
 export const DEADLINE_REASON_MAX = 1000;
 
 /**
+ * A deadline's copy of its matter (SEC-07c): what the Deadlines screen names a row by and filters
+ * on (my team's matters, jurisdiction), so the screen doesn't read each deadline's matter. Made by
+ * `deadlineMatterCopy`. Writers that read the matter stamp it, `deadlines-onWrite` fills or
+ * refreshes it after any other write, and `matters-denormalise` rewrites it on a matter's live
+ * deadlines when these fields change. Absent on deadlines from before SEC-07c until
+ * `backfill-deadline-matters` runs; the screen reads those deadlines' matters instead.
+ */
+export const DeadlineMatterCopySchema = z.object({
+  number: NonEmptyString,
+  title: NonEmptyString,
+  jurisdiction: JurisdictionSchema.optional(),
+  responsibleUid: DocIdSchema.optional(),
+  teamUids: z.array(DocIdSchema).default([]),
+});
+export type DeadlineMatterCopy = z.infer<typeof DeadlineMatterCopySchema>;
+
+/**
  * `matters/{matterId}/deadlines/{deadlineId}`. Every computed deadline records its rule (ADR-009).
  *
  * Computed deadlines (`computed` set, id `rule-{ruleId}`) are written by the recompute (CORE-10);
@@ -284,6 +302,8 @@ export const Deadline = withMeta(
      * matter's flag changes. No default: a writer that forgets it fails rather than leaks.
      */
     privileged: z.boolean(),
+    /** The matter's number, title, people and jurisdiction, copied (SEC-07c): `DeadlineMatterCopySchema`. */
+    matter: DeadlineMatterCopySchema.optional(),
   }),
   {
     path: `${MATTER}/deadlines`,
@@ -292,6 +312,7 @@ export const Deadline = withMeta(
       'orgId',
       'matterId',
       'privileged',
+      'matter',
       'status',
       'blockedReason',
       'blockedCode',
