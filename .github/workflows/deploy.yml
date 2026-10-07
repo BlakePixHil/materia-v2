@@ -3,7 +3,9 @@
 # here from the release's bundles), in a fixed order, then runs the @smoke Playwright tests against
 # the deployed site. Order: Firestore indexes → rules (Firestore and Storage) → Cloud Run jobs →
 # Cloud Run services (ClamAV, previews) → functions (codebase `core`) → hosting. A failure stops the
-# run loudly; nothing is retried automatically (docs/runbooks/deploy.md covers partial deploys).
+# run loudly. The only automatic retry is for functions that fail to update (deploy-functions.sh:
+# up to two more attempts of just those, for the regional CPU quota); docs/runbooks/deploy.md covers
+# partial deploys.
 #
 # Settings come from variables named <NAME>_<DEV|PROD> (repository or environment variables):
 # GCP_PROJECT_*, GCP_WIF_PROVIDER_* and GCP_DEPLOYER_SA_*. No JSON keys anywhere.
@@ -177,8 +179,10 @@ jobs:
 
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
+      # Functions that fail to update (usually the regional Cloud Run CPU quota while every function
+      # rolls a new revision) are retried on their own, twice at most.
       - name: Deploy functions (codebase core)
-        run: pnpm exec firebase deploy --only functions:core --project "$PROJECT" --config firebase.json --non-interactive
+        run: .github/scripts/deploy-functions.sh "$PROJECT"
 
       # Hidden sourcemaps (FND-21) are never served: they go to the private sourcemaps bucket for
       # `materia-scripts decode-stack`, then leave the hosting directory (firebase.json also ignores
