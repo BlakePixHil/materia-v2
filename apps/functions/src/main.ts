@@ -35,6 +35,7 @@ export * as security from './security/index';
 export * as metrics from './metrics/index';
 export * as integrations from './integrations/index';
 export * as xero from './xero/index';
+export * as migration from './migration/index';
 export * as exports from './exports/index';
 // Emulator-only tools (the dev mail preview): undefined, so never deployed, anywhere else.
 export * as dev from './dev/index';

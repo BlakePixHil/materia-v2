@@ -101,6 +101,20 @@ describe('orgs-updateSettings', () => {
     expect(w.records.get('lawyer')?.customClaims).toMatchObject({ orgName: 'Fictional Bayside Lawyers' });
   });
 
+  it('confirms a migrated practice’s name when it is renamed (MIG-08)', async () => {
+    const w = world();
+    w.docs.set(`orgs/${ORG}`, { ...w.org(), needsReview: ['org_name_unconfirmed'] });
+    await run(w, { practice: { ...practice, name: 'Fictional Bayside Lawyers' } });
+    expect(w.org()['needsReview']).toBeUndefined();
+    expect(w.org()['reviewed']).toEqual(['org_name_unconfirmed']);
+
+    // Saving other settings leaves the name to confirm.
+    const other = world();
+    other.docs.set(`orgs/${ORG}`, { ...other.org(), needsReview: ['org_name_unconfirmed'] });
+    await run(other, { practice: { ...practice, abn: '' } });
+    expect(other.org()['needsReview']).toEqual(['org_name_unconfirmed']);
+  });
+
   it('does nothing when nothing changed', async () => {
     const w = world();
     const result = await run(w, { billing });

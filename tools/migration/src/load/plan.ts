@@ -1,7 +1,11 @@
 import type { Phase } from './entities.ts';
-import type { LoadLine } from './run-files.ts';
+import { FILE_MISSING, FILE_NOT_COPIED, type LoadLine } from './run-files.ts';
 import type { WriteOp } from './target.ts';
 import { changedFields, editedAfterLoad, provenanceOf, type Data } from './values.ts';
+import { REVIEW_CODES } from '../transform/context.ts';
+
+/** The review codes the transform and load stamp; others on a record are the app's (MIG-09's). */
+const LOAD_CODES: ReadonlySet<string> = new Set([...REVIEW_CODES, FILE_MISSING, FILE_NOT_COPIED]);
 
 /**
  * What the load does with one line, given what v2 already holds at its path:
@@ -66,14 +70,15 @@ export function planLine(phase: Phase, line: LoadLine, existing: Data | undefine
 
 /**
  * A line as v2 should hold it now: the fields v2 maintains itself (the phase's `reconciled`, such
- * as counts and search) as v2 has them, and when a trigger stamped the document after the load
- * (`updatedBy: 'system'`), that stamp.
+ * as counts and search) as v2 has them; the person's review (MIG-08, D-22); and when a trigger
+ * stamped the document after the load (`updatedBy: 'system'`), that stamp.
  */
 export function reconcile(phase: Phase, data: Data, existing: Data): Data {
   const next: Data = { ...data };
   for (const field of phase.reconciled) {
     if (field in existing) next[field] = existing[field];
   }
+  reconcileReview(next, existing);
   const loaded = provenanceOf(existing)?.loadedAt.getTime();
   const updated = existing['updatedAt'] instanceof Date ? existing['updatedAt'].getTime() : undefined;
   if (existing['updatedBy'] === 'system' && loaded !== undefined && updated !== undefined && updated >= loaded) {
@@ -81,4 +86,22 @@ export function reconcile(phase: Phase, data: Data, existing: Data): Data {
     next['updatedBy'] = 'system';
   }
   return next;
+}
+
+const codesIn = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((code): code is string => typeof code === 'string') : [];
+
+/**
+ * The review is the app's once loaded (MIG-08, D-22): a code the person reviewed or put right stays
+ * reviewed rather than open again, and a code the app added (MIG-09's unreadable file) stays open.
+ * So a re-run or delta that brings the same codes writes nothing for them.
+ */
+function reconcileReview(next: Data, existing: Data): void {
+  const reviewed = codesIn(existing['reviewed']);
+  const appCodes = codesIn(existing['needsReview']).filter((code) => !LOAD_CODES.has(code));
+  if (!reviewed.length && !appCodes.length) return;
+  const open = [...new Set([...codesIn(next['needsReview']), ...appCodes])].filter((code) => !reviewed.includes(code));
+  if (open.length) next['needsReview'] = open;
+  else delete next['needsReview'];
+  if (reviewed.length) next['reviewed'] = existing['reviewed'];
 }

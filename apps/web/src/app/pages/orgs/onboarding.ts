@@ -26,7 +26,9 @@ const TIMEZONES: MtOption<string>[] = ORG_TIMEZONES.map((zone) => ({
 
 /**
  * Onboarding (FND-17): create the practice, which makes you its owner. Someone with an invite
- * waiting (they signed up from the link) is offered it first. MIG-08 adds the import step.
+ * waiting (they signed up from the link) is offered it first. A practice brought across from the
+ * old materia never comes here (its owner already has one): its import step is Settings → Import
+ * from materia, offered from Today (MIG-08, D-22).
  */
 @Component({
   selector: 'mt-onboarding-page',

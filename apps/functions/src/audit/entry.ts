@@ -61,6 +61,10 @@ export const NOISE_FIELDS = new Set([
   'matterRoles',
   // Documents (AI-04): Clerk ingestion progress, written by documents-ingest.
   'ingest',
+  // The legacy migration's review (MIG-08): `migration-resolveReview` records one entry per call,
+  // and a code cleared by a trigger follows an edit that is audited itself.
+  'needsReview',
+  'reviewed',
   // Integrations (INT-01): a refresh token the provider rotated (Xero does on every refresh).
   'encryptedRefreshToken',
   'kmsKeyVersion',

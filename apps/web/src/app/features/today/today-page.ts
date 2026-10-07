@@ -24,6 +24,7 @@ import { FeatureFlagService } from '../../core/flags/feature-flags';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 import { DeadlineActions } from '../deadlines/deadline-actions';
+import { TodayImportCard } from '../migration/today-import-card';
 import { TaskActions } from '../tasks/task-actions';
 
 /** How long focus waits for a completed task to leave the list. */
@@ -79,6 +80,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     TodayAttention,
     TodayDue,
     TodayRecent,
+    TodayImportCard,
     TodayTasks,
   ],
   host: { class: 'mt-today' },
@@ -145,6 +147,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
               </ol>
             </section>
           }
+          <mt-today-import />
           <mt-today-attention />
           <mt-today-tasks />
         </div>
