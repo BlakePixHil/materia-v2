@@ -28,9 +28,10 @@ export interface MailPort {
 }
 
 /**
- * Why an email wasn't sent (FND-20): `not_configured` (no POSTMARK_TOKEN yet), `inactive_recipient`
- * (the provider suppresses the address after a bounce or complaint), `rejected` (a request the
- * provider refuses, such as an unverified sender) or `transient` (worth retrying).
+ * Why an email wasn't sent (FND-20): `not_configured` (no RESEND_API_KEY yet), `inactive_recipient`
+ * (the provider refuses a suppressed address at send time; Resend reports those by webhook
+ * instead, ADR-057), `rejected` (a request the provider refuses, such as an unverified sender) or
+ * `transient` (worth retrying).
  */
 export type MailFailure = 'not_configured' | 'inactive_recipient' | 'rejected' | 'transient';
 

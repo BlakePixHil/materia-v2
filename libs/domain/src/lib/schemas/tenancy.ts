@@ -247,8 +247,8 @@ export const User = withMeta(
      */
     avatarUrl: z.url().max(2048).optional(),
     /**
-     * Set by the Postmark bounce and spam webhook (FND-20): mail to this address bounced hard or
-     * was reported as spam, so nothing more is emailed to it.
+     * Set by the Resend bounce and complaint webhook (FND-20, ADR-057): mail to this address
+     * bounced hard or was reported as spam, so nothing more is emailed to it.
      */
     emailDeliverability: z
       .object({

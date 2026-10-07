@@ -1,0 +1,76 @@
+# Remote Config for dev (FND-23a). Prints every registry flag as the dev client template
+# (`firebase`, the web app) and server template (`firebase-server`, server enforcement in Functions)
+# have it, what the app ends up with, and any per-org overrides, to the run summary.
+# A push to main that changes infra/remote-config/dev.json publishes the flags it lists to BOTH
+# dev templates (dispatch with `apply` to publish it again, for example after a console edit). Flags
+# the file doesn't list are left as they are; `null` removes a parameter so the registry default
+# applies. Runs `materia-scripts remote-config` as terraform-agent through the same Workload
+# Identity pool as infra.yml (environment infra-dev), because agent sessions can't hold Google
+# credentials. Dev only: there is no prod input, and the script refuses to write any other project.
+# Prod flags stay a person's change in the console, after the practitioner sign-offs.
+name: remote-config
+run-name: remote-config${{ (github.event_name == 'push' || inputs.apply) && ' apply' || '' }}${{ inputs.dry_run && ' (dry run)' || '' }}
+
+on:
+  push:
+    branches: [main]
+    paths: ['infra/remote-config/dev.json']
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Also publish infra/remote-config/dev.json to dev (otherwise report only)
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: With apply, have Remote Config validate the change without publishing it
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: remote-config
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  remote-config:
+    name: remote-config (dev)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: infra-dev
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+    env:
+      PROJECT: ${{ vars.GCP_PROJECT_DEV }}
+      APPLY: ${{ github.event_name == 'push' || inputs.apply }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - name: Check the inputs
+        run: |
+          if [ -z "$PROJECT" ]; then
+            echo "::error::GCP_PROJECT_DEV is not set."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Authenticate to Google Cloud as terraform-agent (Workload Identity Federation, no key)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.TF_WIF_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Remote Config report${{ (github.event_name == 'push' || inputs.apply) && ' after publishing infra/remote-config/dev.json' || '' }}
+        run: |
+          args=(--project "$PROJECT")
+          if [ "$APPLY" = "true" ]; then args+=(--apply infra/remote-config/dev.json); fi
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          echo "materia-scripts remote-config ${args[*]}"
+          pnpm -s materia-scripts remote-config "${args[@]}"

@@ -20,7 +20,7 @@ import { REGION } from '../config';
 import { isDeleted } from '../contacts/shared';
 import { adminDb } from '../core/admin';
 import { createLog, functionsSink, type Log } from '../core/log';
-import { POSTMARK_TOKEN } from '../core/secrets';
+import { RESEND_API_KEY } from '../core/secrets';
 import { appUrl } from '../orgs/shared';
 import { MailError, type Clock, type Ports } from '../ports';
 import { ports, systemClock } from '../ports/container';
@@ -261,7 +261,7 @@ export const digest = onSchedule(
     timeZone: 'Australia/Melbourne',
     region: REGION,
     retryCount: 0,
-    secrets: [POSTMARK_TOKEN],
+    secrets: [RESEND_API_KEY],
   },
   async () => {
     const log = createLog({ fn: 'notifications-digest' }, functionsSink);

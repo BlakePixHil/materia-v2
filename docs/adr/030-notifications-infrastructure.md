@@ -1,6 +1,6 @@
 # ADR-030: Notifications go through one notify() and a delivery queue
 
-- **Status:** Accepted
+- **Status:** Accepted; email moved from Postmark to Resend in [ADR-057](057-resend-email.md) (`MailPort`, the webhook and its secrets), the rest stands
 - **Date:** 2026-10-05
 - **Ticket:** [FND-20](https://linear.app/materia-web/issue/MAT-29)
 

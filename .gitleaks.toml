@@ -1,0 +1,47 @@
+# gitleaks configuration (SEC-02). CI's `security` job scans each change's commits with it
+# (`gitleaks git`), and `.github/scripts/gitleaks-selftest.sh` proves every custom rule below still
+# fires, on fake secrets it generates at run time (none are committed).
+#
+# The default rules stay on; these add the secrets Materia actually holds. Never add an allowlist
+# for a real secret: rotate it (SECURITY.md) and rewrite the history instead.
+
+title = "Materia gitleaks config"
+
+[extend]
+useDefault = true
+
+# A Google service account key file (Firebase Admin, the Terraform agent, GCP_SA_KEY_B64 decoded).
+# The default `private-key` rule catches the PEM block; this one also catches a key file whose
+# private key was trimmed or reformatted, by its `private_key_id`.
+[[rules]]
+id = "gcp-service-account-key-id"
+description = "Google Cloud service account key file (private_key_id)"
+regex = '''"private_key_id"\s*:\s*"([a-f0-9]{40})"'''
+secretGroup = 1
+keywords = ["private_key_id"]
+
+# The same key file base64-encoded, as it is stored in the GCP_SA_KEY_B64 secret. Matches the
+# encodings of `{"type": "service_account"` and of gcloud's pretty-printed `{\n  "type": ...`.
+[[rules]]
+id = "gcp-service-account-key-base64"
+description = "Base64-encoded Google Cloud service account key file"
+regex = '''\b(eyJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIs|eyJ0eXBlIjoic2VydmljZV9hY2NvdW50Iiw|ewogICJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIs)[A-Za-z0-9+/=]{100,}'''
+keywords = ["eyj0exblijoginnlcnzpy2vfywnjb3vudcis", "eyj0exblijoic2vydmljzv9hy2nvdw50iiw", "ewogicj0exblijoginnlcnzpy2vfywnjb3vudcis"]
+
+# Anthropic API keys: the Clerk key in Secret Manager (ADR-011a), the eval key and orgs' own keys
+# (BYOK, ADR-011b), which are KMS-encrypted and must never appear in plain text anywhere.
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API or admin key"
+regex = '''\b(sk-ant-(?:api|admin)\d{2}-[A-Za-z0-9_\-]{80,120})\b'''
+secretGroup = 1
+keywords = ["sk-ant-"]
+
+# Resend API keys (ADR-057): notification email.
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key"
+regex = '''\b(re_[A-Za-z0-9]{8}_[A-Za-z0-9]{24})\b'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["re_"]

@@ -1,0 +1,7 @@
+# Materia: how to report a security vulnerability (RFC 9116, SEC-02).
+# Served at /.well-known/security.txt (firebase.json rewrite) and /security.txt.
+# Please never include real client information in a report.
+Contact: https://github.com/BlakePixHil
+Expires: 2027-10-01T00:00:00.000Z
+Preferred-Languages: en
+Policy: https://materia-v2-prod.web.app/SECURITY.md
