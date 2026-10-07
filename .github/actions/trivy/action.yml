@@ -48,7 +48,8 @@ runs:
             --format json --output "trivy-reports/$name.json" "$image"
           trivy convert --format table "trivy-reports/$name.json"
           echo "::endgroup::"
-          count="$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log((r.Results || []).reduce((n, t) => n + (t.Vulnerabilities || []).length, 0))' "trivy-reports/$name.json")"
+          # process.stdout.write, not console.log: CI sets FORCE_COLOR, which colours a logged number.
+          count="$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String((r.Results || []).reduce((n, t) => n + (t.Vulnerabilities || []).length, 0)))' "trivy-reports/$name.json")"
           if [ "$count" != "0" ]; then
             echo "::error::$image has $count fixable high or critical vulnerabilities (see the table above)."
             status=1
