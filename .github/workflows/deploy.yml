@@ -34,6 +34,11 @@ on:
         description: Web bundle inside the artifact (web-dev or web-prod).
         required: true
         type: string
+      hosting-only:
+        description: Deploy only hosting (and run the smoke tests), skipping indexes, rules, jobs, services and functions.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -42,7 +47,7 @@ jobs:
   deploy:
     name: deploy (${{ inputs.environment }})
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60 # includes up to 15 minutes of functions retry waits
     environment:
       name: ${{ inputs.environment }}
       url: https://${{ vars[format('GCP_PROJECT_{0}', inputs.suffix)] }}.web.app
@@ -113,9 +118,11 @@ jobs:
       # --non-interactive makes the CLI fail instead of prompting (for example before deleting a
       # function). Functions are never deployed with --force.
       - name: Deploy Firestore indexes
+        if: ${{ !inputs.hosting-only }}
         run: pnpm exec firebase deploy --only firestore:indexes --project "$PROJECT" --config firebase.json --non-interactive
 
       - name: Deploy Firestore and Storage rules
+        if: ${{ !inputs.hosting-only }}
         run: pnpm exec firebase deploy --only firestore:rules,storage --project "$PROJECT" --config firebase.json --non-interactive
 
       # Functions start job executions, so the job is updated first (ADR-014, FND-24). The image is
@@ -123,6 +130,7 @@ jobs:
       # environment's Artifact Registry (scanned on push) and deployed as the job `pdf`. Releases
       # from before FND-24 carry no jobs bundle and skip this step.
       - name: Deploy Cloud Run jobs
+        if: ${{ !inputs.hosting-only }}
         env:
           SHA: ${{ inputs.sha }}
         run: |
@@ -154,6 +162,7 @@ jobs:
       # bundle into the `services` repository; the scanner's build pulls the day's signatures.
       # Releases from before CORE-12a carry no bundle and skip this step.
       - name: Deploy Cloud Run services
+        if: ${{ !inputs.hosting-only }}
         env:
           SHA: ${{ inputs.sha }}
         run: |
@@ -168,6 +177,7 @@ jobs:
       # that doesn't exist leaves its URL empty: uploads then stay "Scanning delayed" (fail closed)
       # and Office/HEIC files have no preview.
       - name: Point the functions at the document services
+        if: ${{ !inputs.hosting-only }}
         run: |
           url() { gcloud run services describe "$1" --project "$PROJECT" --region "$REGION" --format 'value(status.url)' 2>/dev/null || true; }
           clamav="$(url clamav)"
@@ -188,6 +198,7 @@ jobs:
       # away. Inline rather than a script because the checkout is
       # the release's commit, which may predate any script.
       - name: Deploy functions (codebase core)
+        if: ${{ !inputs.hosting-only }}
         run: |
           set -o pipefail
           only=functions:core
@@ -244,7 +255,9 @@ jobs:
           FUNCTIONS_URL: https://${{ env.REGION }}-${{ env.PROJECT }}.cloudfunctions.net
           EXPECTED_SHA: ${{ inputs.sha }}
           CI: 'true'
-        run: pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --grep @smoke --project=chromium
+          # A hosting-only deploy leaves the functions on an earlier release, so their sha won't match.
+          SKIP_FUNCTIONS: ${{ inputs.hosting-only && 'system-ping' || '' }}
+        run: pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --grep @smoke --project=chromium ${SKIP_FUNCTIONS:+--grep-invert "$SKIP_FUNCTIONS"}
 
       - name: Upload the Playwright report
         if: failure()

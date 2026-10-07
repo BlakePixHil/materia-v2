@@ -21,6 +21,11 @@ on:
     branches: [main]
   # Re-deploy the current main (for example after a failed run, or to rebuild an expired artifact).
   workflow_dispatch:
+    inputs:
+      hosting-only:
+        description: Deploy only the web app (hosting), for when the functions already match main.
+        type: boolean
+        default: false
 
 # Deploys queue; a running deploy is never cancelled halfway.
 concurrency:
@@ -180,3 +185,4 @@ jobs:
       sha: ${{ needs.build.outputs.sha }}
       artifact-run-id: ${{ github.run_id }}
       web-dir: web-dev
+      hosting-only: ${{ github.event_name == 'workflow_dispatch' && inputs.hosting-only }}
