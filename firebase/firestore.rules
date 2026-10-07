@@ -1240,6 +1240,7 @@ service cloud.firestore {
     function fieldsMetrics() { return ['period', 'values', 'snapshotOn', 'debtors']; }
     function fieldsMetricsLedger() { return []; }
     function fieldsMetricsShard() { return []; }
+    function fieldsMigrationEnrichment() { return []; }
     function fieldsMigrationRun() { return []; }
     function fieldsNote() { return ['pinned']; }
     function fieldsNoteRevision() { return []; }

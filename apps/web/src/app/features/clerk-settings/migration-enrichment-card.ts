@@ -58,6 +58,7 @@ const plural = (count: number, one: string, many = `${one}s`) =>
             [max]="progress().documents || 1"
             data-documents-meter
           />
+          <span class="caption t-2">{{ documentsLabel() }}</span>
           @if (progress().matters) {
             <mt-meter
               [label]="mattersLabel()"
@@ -65,6 +66,7 @@ const plural = (count: number, one: string, many = `${one}s`) =>
               [max]="progress().matters || 1"
               data-matters-meter
             />
+            <span class="caption t-2">{{ mattersLabel() }}</span>
           }
           <span class="caption t-3" data-spent>{{ spentText() }}</span>
         }
