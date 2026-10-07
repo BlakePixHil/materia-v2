@@ -139,6 +139,34 @@ describe('firestore.indexes.json', () => {
     );
   });
 
+  it('leaves unqueried timestamps on high-volume collections unindexed (SEC-07)', () => {
+    // Time entries (2 million at the target scale), ingest chunks, metrics ledgers and idempotency
+    // records are written in bursts (a migration, an ingest, a backfill) with a time that only
+    // increases, and nothing orders or filters them by it. Unindexed, those writes add no index
+    // entries to store and no ever-growing sequential range to write at the end of (a hot spot
+    // past about 500 writes a second). `result` is a whole callable result.
+    const exempt = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; indexes?: unknown[] }[])
+      .filter((o) => o.indexes?.length === 0)
+      .map((o) => `${o.collectionGroup}.${o.fieldPath}`);
+    expect(exempt).toEqual(
+      expect.arrayContaining([
+        'timeEntries.createdAt',
+        'timeEntries.updatedAt',
+        'chunks.createdAt',
+        'chunks.updatedAt',
+        'metrics.createdAt',
+        'metrics.updatedAt',
+        'requests.startedAt',
+        'requests.result',
+      ]),
+    );
+    // No composite index needs them either.
+    const fields = file.indexes
+      .filter((i) => ['timeEntries', 'chunks', 'metrics', 'requests'].includes(i.collectionGroup))
+      .flatMap((i) => i.fields.map((f) => f.fieldPath));
+    for (const field of ['createdAt', 'updatedAt', 'startedAt']) expect(fields).not.toContain(field);
+  });
+
   it('a matter’s conflict checks are listed newest first (CORE-02)', () => {
     const checks = file.indexes.filter((i) => i.collectionGroup === 'conflictChecks');
     expect(checks.map((i) => i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(','))).toEqual([
