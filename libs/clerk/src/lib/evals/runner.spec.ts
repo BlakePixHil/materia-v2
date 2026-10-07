@@ -373,6 +373,23 @@ describe('scoring', () => {
     expect(scored.excerpt).toBe('the bank pays out once probate has been granted.');
   });
 
+  it('names the missing fact a draft left unmarked, with the text around it', () => {
+    const scored = scoreCase(
+      suiteConfig(),
+      evalCase('x'),
+      {
+        id: 'x',
+        fixtures: {},
+        placeholders: { missing: [{ fact: 'date of the grant', keywords: ['grant'] }], forbidden: [] },
+      },
+      outcome('We enclose a certified copy of the grant.', 1000),
+      new Map(),
+    );
+    expect(scored.scores.placeholderHonesty).toBe(0);
+    expect(scored.misses).toEqual(['placeholder:unmarked:date of the grant (no placeholders)']);
+    expect(scored.excerpt).toBe('we enclose a certified copy of the grant.');
+  });
+
   it('names how an answer with a draft fell short of draftHonesty', () => {
     const scored = scoreCase(
       suiteConfig(),
