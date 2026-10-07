@@ -4,7 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { OrgContext } from '@materia/data-access';
 import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
-import { TERMS_VERSION } from '@materia/domain';
+import { resolveSecurity, TERMS_VERSION } from '@materia/domain';
 import { MT_KEYBOARD_PLATFORM } from '@materia/ui';
 
 import { App } from '../../app';
@@ -136,7 +136,53 @@ async function open(url: string, session: AuthSession | null, options: Options =
 
 afterEach(() => forgetInvite());
 
+/** Dialogs (the offboarding wizard, confirmations) render in the overlay, outside the page. */
+const overlay = {
+  text: () => document.body.querySelector('.mt-dialog')?.textContent?.replace(/\s+/g, ' ') ?? '',
+  async click(text: string, stable: () => Promise<void>) {
+    const found = [...document.body.querySelectorAll<HTMLElement>('.mt-dialog button')].find((b) =>
+      b.textContent?.trim().startsWith(text),
+    );
+    if (!found) throw new Error(`No button "${text}"`);
+    found.click();
+    await stable();
+  },
+  async choose(label: string, optionText: string, stable: () => Promise<void>) {
+    const host = [...document.body.querySelectorAll('.mt-dialog mt-select')].find((f) =>
+      f.querySelector('label, .mt-label')?.textContent?.trim().startsWith(label),
+    );
+    const select = host?.querySelector('select');
+    const option = [...(select?.options ?? [])].find((o) => o.textContent?.trim() === optionText);
+    if (!select || !option) throw new Error(`No option "${optionText}" in "${label}"`);
+    select.value = option.value;
+    select.dispatchEvent(new Event('change'));
+    await stable();
+  },
+};
+afterEach(() => {
+  for (const node of document.body.querySelectorAll('.mt-modal-root')) node.remove();
+});
+
 describe('onboarding', () => {
+  it('deletes the account of someone in no practice once they type DELETE, then signs out (SEC-05)', async () => {
+    const page = await open('/onboarding', NO_ORG, {
+      configure: (port) => {
+        port.callResults['auth-deleteAccount'] = { deleted: true };
+      },
+    });
+    await page.click('Delete my account');
+    expect(overlay.text()).toContain('Delete your account?');
+    const typed = document.body.querySelector<HTMLInputElement>('.mt-dialog input');
+    if (!typed) throw new Error('No confirmation field');
+    typed.value = 'DELETE';
+    typed.dispatchEvent(new Event('input', { bubbles: true }));
+    await page.stable();
+    await overlay.click('Delete account', page.stable);
+    expect(page.port.calls.at(-1)).toEqual({ name: 'auth-deleteAccount', data: { confirmation: 'DELETE' } });
+    expect(page.port.session).toBeNull();
+    expect(page.router.url).toBe('/auth/sign-in');
+  });
+
   it('creates the practice, accepting the terms for it, refreshes the claims and opens Today', async () => {
     const page = await open('/onboarding', NO_ORG, {
       configure: (port) => {
@@ -366,7 +412,7 @@ describe('team page', () => {
     expect(page.text()).toContain('Aaron Fictional');
   });
 
-  it('invites, changes a role, removes after confirming, resends and revokes', async () => {
+  it('invites, changes a role, resends and revokes', async () => {
     const page = await open('/settings/team', OWNER, {
       configure: (port, tenancy, firestore) => {
         seedMembers(firestore);
@@ -386,29 +432,111 @@ describe('team page', () => {
     await page.choose('Role for Sam Lee', 'Lawyer');
     expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-changeRole', data: { uid: 'u-sam-1', role: 'lawyer' } });
 
-    await page.click('Remove');
-    expect(page.port.calls.at(-1)?.name).toBe('orgs-changeRole');
-    await page.click('Confirm removal');
-    expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-removeMember', data: { uid: 'u-sam-1' } });
-
     await page.click('Resend');
     expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-resendInvite', data: { inviteId: 'inv-9' } });
     await page.click('Revoke');
     expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-revokeInvite', data: { inviteId: 'inv-9' } });
   });
 
-  it('shows the last-owner error', async () => {
+  it('removes a member through the offboarding wizard, handing on their work (SEC-05)', async () => {
     const page = await open('/settings/team', OWNER, {
       configure: (port, _tenancy, firestore) => {
         seedMembers(firestore);
-        port.call = async () => {
-          throw { details: { code: 'LAST_OWNER' } };
+        port.callResults['orgs-offboardingPlan'] = {
+          uid: 'u-sam-1',
+          tasks: 3,
+          deadlines: 0,
+          matters: 1,
+          privileged: { tasks: false, deadlines: false, matters: true },
+          personalTasks: 2,
+          timer: true,
+          integrations: 1,
+        };
+        port.callResults['orgs-offboardMember'] = {
+          ok: true,
+          tokensRevoked: true,
+          moved: { tasks: 3, deadlines: 0, matters: 1 },
+          personalTasks: { choice: 'export', count: 2, exportJobId: 'job-p1' },
+          timer: 'saved',
+          integrationsRemoved: 1,
         };
       },
     });
     await page.click('Remove');
-    await page.click('Confirm removal');
-    expect(page.text()).toContain('A practice needs at least one owner');
+    expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-offboardingPlan', data: { uid: 'u-sam-1' } });
+    expect(overlay.text()).toContain('Step 1 of 2');
+    expect(overlay.text()).toContain('3 open tasks.');
+    expect(overlay.text()).toContain('some privileged');
+    // No deadlines to hand on, so no question about them; Next waits for both answers.
+    expect(overlay.text()).not.toContain('Who takes their deadlines');
+    const next = () =>
+      [...document.body.querySelectorAll<HTMLButtonElement>('.mt-dialog button')].find((b) =>
+        b.textContent?.includes('Next'),
+      );
+    expect(next()?.disabled).toBe(true);
+    await overlay.choose('Who takes their open tasks', 'Jordan Price', page.stable);
+    await overlay.choose('Who becomes responsible for their matters', 'Jordan Price', page.stable);
+    await overlay.click('Next', page.stable);
+
+    expect(overlay.text()).toContain('Their 2 personal tasks');
+    expect(overlay.text()).toContain('3 open tasks go to Jordan Price.');
+    expect(overlay.text()).toContain('Their running timer is stopped and saved as draft time.');
+    expect(overlay.text()).toContain('1 matter they’re responsible for goes to Jordan Price.');
+    expect(overlay.text()).toContain('1 connection (Microsoft, Google) is disconnected.');
+    await overlay.click('Remove Sam Lee', page.stable);
+    expect(page.port.calls.at(-1)).toMatchObject({
+      name: 'orgs-offboardMember',
+      data: { uid: 'u-sam-1', reassign: { tasks: 'user-jordan', matters: 'user-jordan' }, personalTasks: 'export' },
+    });
+    expect(document.body.textContent).toContain('Sam Lee removed');
+  });
+
+  it('shows the last-owner error in the wizard', async () => {
+    const page = await open('/settings/team', OWNER, {
+      configure: (port, _tenancy, firestore) => {
+        seedMembers(firestore);
+        port.callResults['orgs-offboardingPlan'] = {
+          uid: 'u-sam-1',
+          tasks: 0,
+          deadlines: 0,
+          matters: 0,
+          privileged: { tasks: false, deadlines: false, matters: false },
+          personalTasks: 0,
+          timer: false,
+          integrations: 0,
+        };
+        const call = port.call.bind(port);
+        port.call = async <T>(name: string, data: unknown): Promise<T> => {
+          if (name === 'orgs-offboardMember') throw { details: { code: 'LAST_OWNER' } };
+          return call<T>(name, data);
+        };
+      },
+    });
+    await page.click('Remove');
+    expect(overlay.text()).toContain('Sam Lee has no open tasks, deadlines or matters to hand on.');
+    await overlay.click('Next', page.stable);
+    await overlay.click('Remove Sam Lee', page.stable);
+    expect(overlay.text()).toContain('A practice needs at least one owner');
+  });
+
+  it('only takes access away while the practice waits to be deleted (SEC-05)', async () => {
+    const page = await open('/settings/team', OWNER, {
+      configure: (port, tenancy, firestore) => {
+        seedMembers(firestore);
+        tenancy.security_ = {
+          policy: resolveSecurity(undefined),
+          validAfter: null,
+          deletionScheduledAt: new Date('2026-11-06T02:00:00Z'),
+        };
+        port.callResults['orgs-removeMember'] = { ok: true };
+      },
+    });
+    await page.click('Remove');
+    expect(overlay.text()).toContain('nothing of theirs is handed on');
+    await overlay.click('Remove', page.stable);
+    expect(page.port.calls.map((c) => c.name)).not.toContain('orgs-offboardingPlan');
+    expect(page.port.calls.at(-1)).toMatchObject({ name: 'orgs-removeMember', data: { uid: 'u-sam-1' } });
+    expect(document.body.textContent).toContain('Sam Lee removed');
   });
 
   it('is read-only for roles without members.manage', async () => {

@@ -52,7 +52,15 @@ function meterValues(entry: MeterEntry): Record<string, FieldValue> {
  * - streamed replies in `clerkThreads/{t}/messages/{m}`, with the verbatim assistant turn (and the
  *   whole exchange, AI-06) in the server-only `messages/{m}/private/raw` for replay.
  */
+/**
+ * Metering periods this instance has created, per database: the gateway (and so this store) is
+ * built per call, so the cache lives here.
+ */
+const createdPeriodsByDb = new WeakMap<Firestore, Set<string>>();
+
 export function firestoreClerkStore(db: Firestore, now: () => number = Date.now): ClerkStore {
+  let createdPeriods = createdPeriodsByDb.get(db);
+  if (!createdPeriods) createdPeriodsByDb.set(db, (createdPeriods = new Set()));
   return {
     async orgSettings(orgId): Promise<OrgClerkSettings> {
       const org = await db.doc(`orgs/${orgId}`).get();
@@ -81,14 +89,20 @@ export function firestoreClerkStore(db: Firestore, now: () => number = Date.now)
     },
 
     async meter(orgId, period, entry, at): Promise<void> {
+      // Every Clerk call in the org meters onto this one document, so it is never read in a
+      // transaction (concurrent calls contended for it, SEC-07): created once per instance, as the
+      // INS-01 rollups are (ADR-048), then only incremented.
       const ref = db.doc(`orgs/${orgId}/metrics/${period}`);
-      await db.runTransaction(async (tx) => {
-        const snapshot = await tx.get(ref);
-        const meta = snapshot.exists
-          ? { updatedAt: at, updatedBy: SYSTEM }
-          : { period, createdAt: at, createdBy: SYSTEM, updatedAt: at, updatedBy: SYSTEM, schemaVersion: 1 };
-        tx.set(ref, { ...meta, values: meterValues(entry) }, { merge: true });
-      });
+      if (!createdPeriods.has(ref.path)) {
+        await ref
+          .create({ period, createdAt: at, createdBy: SYSTEM, updatedAt: at, updatedBy: SYSTEM, schemaVersion: 1 })
+          .catch((error: unknown) => {
+            // ALREADY_EXISTS: another call or instance created it first.
+            if ((error as { code?: number }).code !== 6) throw error;
+          });
+        createdPeriods.add(ref.path);
+      }
+      await ref.set({ updatedAt: at, updatedBy: SYSTEM, values: meterValues(entry) }, { merge: true });
     },
 
     async openMessage(orgId, { threadId, messageId }, init): Promise<MessageSink> {

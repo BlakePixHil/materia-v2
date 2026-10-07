@@ -382,6 +382,14 @@ export const TIME_CALLABLES = {
   exportCsv: 'time-exportCsv',
 } as const;
 
+/**
+ * The billing screen's WIP callable (BILL-03). Here rather than in `billing.ts` so the time data
+ * layer, which Today loads, doesn't pull in the billing rules and what they import (MOB-02b).
+ */
+export const BILLING_CALLABLES = {
+  wip: 'billing-wip',
+} as const;
+
 /** Entries one `time-setStatus` call changes at most. */
 export const TIME_STATUS_BATCH_MAX = 100;
 

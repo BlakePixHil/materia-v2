@@ -41,6 +41,11 @@ const STAGE_COPY: Record<string, string> = {
   finalising: 'Finishing the PDF',
   zipping: 'Adding the documents to the zip',
   saving: 'Saving',
+  // The full export of a practice (SEC-05).
+  data: 'Exporting the records',
+  documents: 'Adding the documents',
+  files: 'Adding the other files',
+  final: 'Writing the manifest',
 };
 
 /** The words under the bar for a job's state. */

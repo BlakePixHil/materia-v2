@@ -57,73 +57,79 @@ type SearchState =
 
     @switch (search().status) {
       @case ('idle') {
-        @if (recents().length) {
-          <section aria-labelledby="phone-matters-recent">
-            <h2 class="mt-mgroup" id="phone-matters-recent">Recent</h2>
-            @for (matter of recents(); track matter.id) {
-              <a class="mt-mrow" data-recent [routerLink]="['/matters', matter.id]">
-                <span class="dot" [style.background]="'var(--matter-' + matter.type + ')'"></span>
-                <span class="mt-grow">
-                  <span class="tt mt-ell">{{ matter.title }}</span>
-                  <span class="ts mono">{{ matter.number }}</span>
-                </span>
-                <mt-icon class="chev" name="chevron-right" />
-              </a>
+        <!-- My recents and the view appear together: drawn first, the view was pushed down when the
+             recents landed (a layout shift of 0.29 on a mid-tier phone, SEC-07). -->
+        @if (recentsLoading()) {
+          <mt-skeleton variant="lines" label="Loading matters…" [count]="6" />
+        } @else {
+          @if (recents().length) {
+            <section aria-labelledby="phone-matters-recent">
+              <h2 class="mt-mgroup" id="phone-matters-recent">Recent</h2>
+              @for (matter of recents(); track matter.id) {
+                <a class="mt-mrow" data-recent [routerLink]="['/matters', matter.id]">
+                  <span class="dot" [style.background]="'var(--matter-' + matter.type + ')'"></span>
+                  <span class="mt-grow">
+                    <span class="tt mt-ell">{{ matter.title }}</span>
+                    <span class="ts mono">{{ matter.number }}</span>
+                  </span>
+                  <mt-icon class="chev" name="chevron-right" />
+                </a>
+              }
+            </section>
+          }
+
+          <section aria-labelledby="phone-matters-view">
+            <h2 class="mt-mgroup" id="phone-matters-view">{{ heading() }}</h2>
+            @switch (status()) {
+              @case ('error') {
+                <mt-note tone="danger">
+                  {{ error() }}
+                  <button mtButton size="sm" (click)="retry.emit()">Try again</button>
+                </mt-note>
+              }
+              @case ('offline') {
+                <mt-note role="status" mtPageOfflineNote
+                  >You’re offline. These are the matters as they were when you were last connected.</mt-note
+                >
+              }
+              @case ('loading') {
+                <mt-skeleton variant="lines" label="Loading matters…" [count]="6" />
+              }
+            }
+            @if (status() === 'ready' || status() === 'offline') {
+              @for (row of rows(); track row.id) {
+                <a class="mt-mrow" data-matter [routerLink]="['/matters', row.id]">
+                  <span class="dot" [style.background]="'var(--matter-' + row.type + ')'"></span>
+                  <span class="mt-grow">
+                    <span class="tt mt-ell">{{ row.title }}</span>
+                    <span class="ts mono">{{ row.number }}</span>
+                  </span>
+                  @if (row.nextDeadline; as next) {
+                    <mt-deadline-chip [due]="next.dueDate" [critical]="next.critical" [trace]="next.title" />
+                  } @else {
+                    <mt-icon class="chev" name="chevron-right" />
+                  }
+                </a>
+              } @empty {
+                <mt-empty-state
+                  icon="matters"
+                  [title]="filtered() ? 'No matters in this view' : 'No matters yet'"
+                  [description]="
+                    filtered()
+                      ? 'Search for any matter above, or open Matters on a bigger screen to change the view.'
+                      : 'Matters you open, from intake to grant, show here.'
+                  "
+                  [headingLevel]="3"
+                />
+              }
+              @if (hasMore()) {
+                <button mtButton size="sm" class="more" [loading]="loadingMore()" (click)="more.emit()">
+                  Show more matters
+                </button>
+              }
             }
           </section>
         }
-
-        <section aria-labelledby="phone-matters-view">
-          <h2 class="mt-mgroup" id="phone-matters-view">{{ heading() }}</h2>
-          @switch (status()) {
-            @case ('error') {
-              <mt-note tone="danger">
-                {{ error() }}
-                <button mtButton size="sm" (click)="retry.emit()">Try again</button>
-              </mt-note>
-            }
-            @case ('offline') {
-              <mt-note role="status" mtPageOfflineNote
-                >You’re offline. These are the matters as they were when you were last connected.</mt-note
-              >
-            }
-            @case ('loading') {
-              <mt-skeleton variant="lines" label="Loading matters…" [count]="6" />
-            }
-          }
-          @if (status() === 'ready' || status() === 'offline') {
-            @for (row of rows(); track row.id) {
-              <a class="mt-mrow" data-matter [routerLink]="['/matters', row.id]">
-                <span class="dot" [style.background]="'var(--matter-' + row.type + ')'"></span>
-                <span class="mt-grow">
-                  <span class="tt mt-ell">{{ row.title }}</span>
-                  <span class="ts mono">{{ row.number }}</span>
-                </span>
-                @if (row.nextDeadline; as next) {
-                  <mt-deadline-chip [due]="next.dueDate" [critical]="next.critical" [trace]="next.title" />
-                } @else {
-                  <mt-icon class="chev" name="chevron-right" />
-                }
-              </a>
-            } @empty {
-              <mt-empty-state
-                icon="matters"
-                [title]="filtered() ? 'No matters in this view' : 'No matters yet'"
-                [description]="
-                  filtered()
-                    ? 'Search for any matter above, or open Matters on a bigger screen to change the view.'
-                    : 'Matters you open, from intake to grant, show here.'
-                "
-                [headingLevel]="3"
-              />
-            }
-            @if (hasMore()) {
-              <button mtButton size="sm" class="more" [loading]="loadingMore()" (click)="more.emit()">
-                Show more matters
-              </button>
-            }
-          }
-        </section>
       }
       @case ('searching') {
         <mt-skeleton variant="lines" label="Searching matters…" [count]="3" />
@@ -224,6 +230,7 @@ export class PhoneMatters {
 
   private readonly recent = recentMatters();
   protected readonly recents = computed(() => this.recent.items().slice(0, RECENTS_SHOWN));
+  protected readonly recentsLoading = this.recent.loading;
   private readonly provider = new SearchResults().providers[0];
 
   protected readonly search = signal<SearchState>({ status: 'idle' });

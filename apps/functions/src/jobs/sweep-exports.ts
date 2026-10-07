@@ -34,8 +34,9 @@ export interface ExportSweepResult {
  * that made it
  * (`orgs/{orgId}/jobs/{jobId}`, whose `output.storagePath` names it) is deleted first, so
  * `jobs-getExportUrl` answers NOT_FOUND rather than signing a link to nothing, and a run that stops
- * between the two leaves only a file, which the next run deletes. One file's failure is logged
- * (ids only) and doesn't stop the rest.
+ * between the two leaves only a file, which the next run deletes. A full export split into several
+ * zips (SEC-05) loses them all with its first. One file's failure is logged (ids only) and doesn't
+ * stop the rest.
  */
 export async function expireExports(
   deps: ExportSweepDeps,
@@ -44,18 +45,32 @@ export async function expireExports(
   const { db, files, clock, log } = deps;
   const cutoff = clock.now().getTime() - ttlMs;
   const result: ExportSweepResult = { files: 0, jobs: 0, failed: 0 };
+  const gone = new Set<string>();
   for (const object of await files.list('orgs/', 'orgs/*/exports/*')) {
     const match = EXPORT_FILE_PATH.exec(object.path);
-    if (!match || !object.timeCreated || object.timeCreated.getTime() > cutoff) continue;
+    if (!match || gone.has(object.path) || !object.timeCreated || object.timeCreated.getTime() > cutoff) continue;
     const [, orgId, jobId] = match as unknown as [string, string, string];
     try {
       const job = db.doc(`orgs/${orgId}/jobs/${jobId}`);
       const snap = await job.get();
-      if ((snap.get('output') as { storagePath?: unknown } | undefined)?.storagePath === object.path) {
+      const output = snap.get('output') as { storagePath?: unknown; parts?: { storagePath?: unknown }[] } | undefined;
+      if (output?.storagePath === object.path) {
         await job.delete();
         result.jobs++;
+        // A full export's later zips (SEC-05) go with its first, whenever they were written.
+        for (const part of output.parts ?? []) {
+          const path = typeof part.storagePath === 'string' ? part.storagePath : null;
+          if (!path || path === object.path || !EXPORT_FILE_PATH.test(path)) continue;
+          const stored = await files.stat(path);
+          if (stored) {
+            await files.remove(path, stored.generation);
+            result.files++;
+          }
+          gone.add(path);
+        }
       }
       await files.remove(object.path, object.generation);
+      gone.add(object.path);
       result.files++;
       log.info('export expired', { orgId, jobId });
     } catch (error) {

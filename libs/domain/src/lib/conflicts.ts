@@ -147,7 +147,7 @@ export function hasAdverseHit(hits: readonly ConflictHit[]): boolean {
 
 /** `orgs/{orgId}/conflictChecks/{checkId}`: one run and its hits, written by `conflicts-run` only. */
 export const ConflictCheck = withMeta(
-  {
+  () => ({
     subjects: z.array(ConflictSubjectSchema),
     hits: z.array(ConflictHitSchema),
     excludeMatterId: DocIdSchema.optional(),
@@ -155,7 +155,7 @@ export const ConflictCheck = withMeta(
     ranBy: DocIdSchema,
     /** Whether adverse roles were evaluated (the `conflicts.enforced` flag at run time). */
     adverseRolesChecked: z.boolean(),
-  },
+  }),
   { path: 'orgs/{orgId}/conflictChecks', migratable: false, updatable: [] },
 );
 export type ConflictCheck = z.infer<typeof ConflictCheck.schema>;

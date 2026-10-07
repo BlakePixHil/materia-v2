@@ -96,7 +96,21 @@ service cloud.firestore {
       return changedKeys().hasOnly(fields);
     }
     function validMeta() {
-      return request.resource.data.updatedBy == uid() && request.resource.data.updatedAt == request.time;
+      return request.resource.data.updatedBy == uid() && request.resource.data.updatedAt == request.time
+        && notBeingDeleted();
+    }
+    // A practice waiting to be deleted (SEC-05, its `deletionScheduledAt`) is read-only, as the
+    // callables refuse changes (apps/functions/src/core/read-only.ts). Every client write stamps
+    // validMeta(), so the check sits here, costing reads nothing (can() is at the 1000-expression
+    // limit on Clerk's message lists). The practice comes from the request path
+    // (/databases/{db}/documents/orgs/{orgId}/…); its document is the one sessionOk() read. A
+    // person's own notifications and member document (their profile, personal tasks) stay
+    // writable; that is checked last, so it costs nothing until a deletion is scheduled (on the org
+    // document itself `path[5]` is an error, which denies, as wanted).
+    function notBeingDeleted() {
+      return request.path[3] != 'orgs'
+        || get(/databases/$(database)/documents/orgs/$(request.path[4])).data.get('deletionScheduledAt', null) == null
+        || request.path[5] in ['notifications', 'members'];
     }
     // An update that touches only whitelisted fields (plus updatedAt/updatedBy) and stamps meta.
     function clientUpdate(fields) {
@@ -337,6 +351,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
     }
 
+    // A deleted practice's tombstone and certificate record (SEC-05): server-only.
+    match /deletedOrgs/{orgId} {
+      allow read, write: if false;
+    }
+
     // ---------- users ----------
     match /users/{userId} {
       // Notification preferences (FND-20), when present, hold sensible values, and never switch off
@@ -371,8 +390,9 @@ service cloud.firestore {
       allow update: if isSignedIn() && uid() == userId && clientUpdate(fieldsUser())
         && notificationPrefsOk(request.resource.data) && pinsOk();
 
-      // Push devices (FND-20): `{token, platform, lastSeenAt}`, private to their user, registered,
-      // refreshed and removed by the client. Functions prune tokens FCM reports gone.
+      // Push devices (FND-20, MOB-04): `{token, platform, label, lastSeenAt}`, private to their
+      // user, registered, refreshed and removed by the client. Functions prune tokens FCM reports
+      // gone and devices unseen for 60 days.
       match /devices/{deviceId} {
         function isDeviceOwner() {
           return isSignedIn() && uid() == userId;
@@ -380,6 +400,7 @@ service cloud.firestore {
         function validDevice(data) {
           return data.token is string && data.token.size() > 0 && data.token.size() <= 4096
             && data.platform in ['web', 'ios', 'android']
+            && data.label is string && data.label.size() > 0 && data.label.size() <= 80
             && data.lastSeenAt is timestamp;
         }
         function deviceKeys() {
@@ -1250,9 +1271,10 @@ service cloud.firestore {
     function fieldsCreditNote() { return []; }
     function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt']; }
     function fieldsDeadlineChange() { return []; }
+    function fieldsDeletedOrg() { return []; }
     function fieldsDestructionCertificate() { return []; }
     function fieldsDestructionRequest() { return []; }
-    function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }
+    function fieldsDevice() { return ['token', 'platform', 'label', 'lastSeenAt']; }
     function fieldsDisbursement() { return ['date', 'description', 'payee', 'category', 'presetId', 'amountExGstCents', 'gstCents', 'amountIncGstCents', 'gstTreatment', 'receiptDocumentId']; }
     function fieldsDisbursementPresetsDoc() { return ['presets']; }
     function fieldsDistribution() { return ['beneficiaryPartyId', 'kind', 'amountCents', 'assetId', 'share', 'status', 'paidOn', 'paymentReference', 'notes', 'needsValueReview']; }

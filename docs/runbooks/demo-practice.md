@@ -33,3 +33,13 @@ Don't run it while a `deploy-dev` run is in progress: both use the Cloud Run CPU
 - `args: --remove` deletes the demo (org, files, accounts); the secret stays.
 
 Locally: `pnpm materia-scripts demo-reset --project demo-materia` with the emulators running (the seed password). `nx run scripts:test-seed` runs it twice and verifies it.
+
+## Measure a page with Lighthouse
+
+Actions → **dev-script** → Run workflow on `main`, command `demo-lighthouse`, dry run off (MOB-02b). It signs in as the demo owner in a headless Chrome on the runner and runs mobile Lighthouse (simulated throttling, 4× CPU) on Today five times, keeping the browser's storage between runs as a signed-in person's phone would. The job summary has every run, the median and where its main thread went; the run's `lighthouse-<run id>` artifact has the reports.
+
+- `args: --path /matters --runs 7` for another page or more runs; `--account lawyer` (or `paralegal`, `readonly`) for another role.
+- `args: --url https://materia-v2-dev--pr-123-abc.web.app` measures a PR's preview channel (the URL from its preview comment) against dev's data, before it merges.
+- With dry run on it only signs in and opens the page.
+
+The runner is in the US, so dev's data is a long way off; compare runs with each other rather than with a phone in Australia. Locally: `pnpm materia-scripts demo-lighthouse --project demo-materia` after `demo-reset`, with the e2e build on the Hosting emulator.

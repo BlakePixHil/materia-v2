@@ -1,5 +1,4 @@
 import { DEFAULT_ORG_TIMEZONE } from './constants';
-import { fyStartYear } from './org-settings';
 import { ROLES } from './permissions';
 import type { MemberMetricsVisibility, Role } from './schemas/enums';
 import {
@@ -14,6 +13,7 @@ import {
   dateOnly,
   dateOnlyAt,
   daysBetween,
+  fyStartYear,
   isDateOnly,
   weekday,
   type DateOnly,

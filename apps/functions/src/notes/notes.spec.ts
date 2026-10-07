@@ -79,7 +79,7 @@ function world(initial: Record<string, Data> = {}) {
   const notifications = () => under(`orgs/${ORG}/notifications`);
   const audits = () => under(`orgs/${ORG}/audit`);
   const queued = () => (ports.tasks as FakeTaskQueue).queued;
-  return { ...store, clock, create, update, under, doc, notifications, audits, queued };
+  return { ...store, clock, ports, create, update, under, doc, notifications, audits, queued };
 }
 
 const failure = async (promise: Promise<unknown>) => {
@@ -166,6 +166,33 @@ describe('notes-create', () => {
         .map((task) => task.payload['notificationId'])
         .sort(),
     ).toEqual(sent.map((n) => n.id).sort());
+  });
+
+  it('notifies a team mention at once, not one member after another (SEC-07)', async () => {
+    const w = world();
+    // Each recipient's reads (member, user, recent count) and delivery enqueue take a while, as
+    // they do against Firestore and Cloud Tasks; count how many are in flight together.
+    const tracked =
+      <A extends unknown[], R>(fn: (...args: A) => Promise<R>, seen: { now: number; most: number }) =>
+      async (...args: A): Promise<R> => {
+        seen.most = Math.max(seen.most, ++seen.now);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        seen.now--;
+        return fn(...args);
+      };
+    const reads = { now: 0, most: 0 };
+    const enqueues = { now: 0, most: 0 };
+    const db = w.db as unknown as { getAll: (...refs: unknown[]) => Promise<unknown[]> };
+    db.getAll = tracked(db.getAll.bind(db), reads);
+    const tasks = w.ports.tasks as FakeTaskQueue;
+    tasks.enqueue = tracked(tasks.enqueue.bind(tasks), enqueues);
+
+    await w.create({ bodyMd: 'Please review before Friday. @[user-owner] @[user-paralegal]' });
+
+    expect(w.notifications()).toHaveLength(2);
+    expect(w.queued()).toHaveLength(2);
+    expect(reads.most).toBe(2);
+    expect(enqueues.most).toBe(2);
   });
 
   it('a privileged note notifies only members who can open it; the rest are unreachable', async () => {

@@ -10,7 +10,7 @@ import {
 } from './conflicts';
 import { scoreDuplicate, DUPLICATE_THRESHOLD } from './contacts';
 import { ConflictAlertSchema } from './schemas/contacts-matters';
-import { NotificationPayloadSchema } from './schemas/org-records';
+import { NotificationPayloadSchema } from './schemas/notification-records';
 
 const requestId = '00000000-0000-4000-8000-000000000000';
 

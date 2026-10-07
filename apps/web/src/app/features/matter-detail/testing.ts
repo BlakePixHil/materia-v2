@@ -651,6 +651,13 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
     await stable();
   };
   const dialog = () => body.querySelector<HTMLElement>('.mt-dialog');
+  /** The open dialog, waiting for one that loads as it opens (`import()`) rather than for a fixed time. */
+  const openedDialog = async () => {
+    for (let i = 0; i < 40 && !dialog(); i++) await stable(25);
+    const found = dialog();
+    if (!found) throw new Error('No dialog opened');
+    return found;
+  };
   /** Types into the field labelled `label` (an input, select or textarea under it). */
   const fill = async (label: string, value: string, root: ParentNode = body) => {
     const host = [...root.querySelectorAll('mt-text-field, mt-select, mt-search-field, mt-textarea')].find(
@@ -685,6 +692,7 @@ export async function openMatter(url = '/matters/m-whitfield/overview', options:
     buttons,
     click,
     dialog,
+    openedDialog,
     fill,
     submit,
     press,
