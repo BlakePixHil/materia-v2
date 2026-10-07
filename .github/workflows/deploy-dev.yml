@@ -3,7 +3,8 @@
 # `build` job deploy nothing: quiet-hour merges (22:00-07:30 Melbourne) and docs-only changes wait
 # for CI's morning run, which deploys whatever main has gained since the last dev deploy (ci.yml).
 # Daytime pushes deploy at most once every two hours: a push within two hours of the last dev
-# deploy is left for CI's hourly catch-up run (ci.yml), except release commits. MVP has no staging project:
+# deploy is left for CI's hourly catch-up run (ci.yml), except release commits. An open issue
+# labelled dev-deploy-hold stops every dev deploy (.github/scripts/dev-deploy-hold.sh). MVP has no staging project:
 # dev plays that role. The same run builds the prod web bundle from the same commit and keeps the
 # whole release as the artifact release-<sha>, which deploy-prod.yml promotes without rebuilding.
 #
@@ -11,7 +12,8 @@
 # (`terraform output -raw web_app_config`). FIREBASE_WEB_CONFIG_PROD is optional here; without it
 # the release has no prod bundle and cannot be promoted.
 name: deploy-dev
-run-name: deploy-dev ${{ github.event.workflow_run.head_sha || github.sha }}
+# A hosting-only dispatch says so in its name: last-dev-deploy.sh doesn't count it as a dev deploy.
+run-name: deploy-dev ${{ inputs.hosting-only && 'hosting-only ' || '' }}${{ github.event.workflow_run.head_sha || github.sha }}
 
 on:
   workflow_run:
@@ -20,6 +22,11 @@ on:
     branches: [main]
   # Re-deploy the current main (for example after a failed run, or to rebuild an expired artifact).
   workflow_dispatch:
+    inputs:
+      hosting-only:
+        description: Deploy only the web app (hosting), for when the functions already match main.
+        type: boolean
+        default: false
 
 # Deploys queue; a running deploy is never cancelled halfway.
 concurrency:
@@ -42,6 +49,7 @@ jobs:
     permissions:
       contents: read
       actions: read # read the CI run's jobs
+      issues: read # look for a dev deploy hold
     outputs:
       ready: ${{ steps.check.outputs.ready }}
     steps:
@@ -58,6 +66,12 @@ jobs:
         run: |
           if [ -z "$WEB_CONFIG" ]; then
             echo "::notice::Dev deploy skipped: set the FIREBASE_WEB_CONFIG_DEV repository variable (docs/runbooks/deploy.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # An open issue labelled dev-deploy-hold stops every dev deploy, dispatches included.
+          if hold="$(.github/scripts/dev-deploy-hold.sh)"; then
+            echo "::notice::Dev deploy held by $hold. Close that issue to lift the hold, then dispatch deploy-dev."
             echo "ready=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -172,3 +186,4 @@ jobs:
       sha: ${{ needs.build.outputs.sha }}
       artifact-run-id: ${{ github.run_id }}
       web-dir: web-dev
+      hosting-only: ${{ github.event_name == 'workflow_dispatch' && inputs.hosting-only }}

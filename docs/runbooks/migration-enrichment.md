@@ -41,7 +41,7 @@ Logs carry counts, ids and error types only, never document text or names.
    NODE_USE_ENV_PROXY=1 pnpm materia-scripts backfill-metrics --project <project> --org <orgId> --from earliest
    ```
 
-   On dev, agents run it through the `dev-script` workflow (command `backfill-metrics`, args `--org <orgId> --from earliest`). Proof: Insights → Billed shows the past months, with "Includes … billed in the previous system".
+   Run it where the rest of the migration ran (the agent's session or Cloud Shell), never through the `dev-script` workflow: that runs on a CI runner, which D-23 keeps away from real data. Proof: Insights → Billed shows the past months, with "Includes … billed in the previous system".
 
 ## Rollback and re-runs
 

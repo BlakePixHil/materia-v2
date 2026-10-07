@@ -20,6 +20,7 @@ const FEATURE_SUITES = [
   'chat',
   'classification',
   'drafting',
+  'events-from-file',
   'insights-narrative',
   'time-assist',
   'will-extraction',

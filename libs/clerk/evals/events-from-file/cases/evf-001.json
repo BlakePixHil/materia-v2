@@ -1,0 +1,26 @@
+{
+  "id": "evf-001",
+  "description": "Date of death, will located and the will's date, all stated in notes",
+  "matter": {
+    "matterNumber": "HV-2026-0031",
+    "title": "Estate of Harold James Whitcombe",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Harold James Whitcombe",
+    "executors": ["Margaret Whitcombe"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    }
+  },
+  "notes": [
+    {
+      "text": "Called Margaret (executor). She confirmed Harold died on 4 March 2026 at University Hospital Geelong. Death certificate ordered from BDM."
+    },
+    {
+      "text": "Original will located in our safe custody on 18 March 2026. The will is dated 2 August 2019 and appoints Margaret as sole executor."
+    }
+  ],
+  "today": "2026-06-15"
+}

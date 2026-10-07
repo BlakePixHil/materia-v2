@@ -1,0 +1,26 @@
+{
+  "id": "evf-002",
+  "description": "Grant and notice of intention stated in a Probate Office letter; filing already recorded",
+  "matter": {
+    "matterNumber": "HV-2026-0019",
+    "title": "Estate of Doreen Ivy Ashby",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Doreen Ivy Ashby",
+    "dateOfDeath": "2025-12-20",
+    "executors": ["Colin Ashby"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-03-02",
+      "granted": null
+    }
+  },
+  "documents": [
+    {
+      "id": "d-ashby-grant",
+      "fixture": "matters/ashby/grant-letter.txt",
+      "title": "Letter from the Probate Office"
+    }
+  ],
+  "today": "2026-06-15"
+}

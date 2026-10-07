@@ -1,0 +1,88 @@
+# Cloud Run quota check (and, for dev, an increase request). Reads the CPU and memory allocation
+# limits of run.googleapis.com in australia-southeast1, the peak allocation and the hours the quota
+# was exceeded over the last days, and prints them to the run summary. Dev deploys roll about 160
+# functions at once, and new revisions fail their health checks when the regional CPU allocation
+# quota runs out. With `preferred_value` (dev only) it also files a Cloud Quotas increase request
+# for that quota; Google reviews it and emails the first budget alert address.
+# Runs as terraform-agent through the same Workload Identity pool as infra.yml (environment
+# infra-dev). Reading prod changes nothing there.
+name: cloud-run-quota
+run-name: cloud-run-quota ${{ inputs.env }}${{ inputs.preferred_value && format(' (request {0})', inputs.preferred_value) || '' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Project to read
+        required: true
+        type: choice
+        options: [dev, prod]
+        default: dev
+      days:
+        description: Days of usage history to read
+        required: false
+        type: string
+        default: '7'
+      preferred_value:
+        description: 'Dev only: request this CPU allocation limit, in the unit the read prints (empty: read only)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  quota:
+    name: quota (${{ inputs.env }})
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: infra-dev
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/scripts
+            infra/terraform/envs
+
+      - name: Check the inputs
+        id: inputs
+        env:
+          ENV_NAME: ${{ inputs.env }}
+          DAYS: ${{ inputs.days }}
+          PREFERRED_VALUE: ${{ inputs.preferred_value }}
+        run: |
+          if ! [[ "$DAYS" =~ ^[0-9]{1,2}$ ]]; then echo "::error::days must be a number up to 99."; exit 1; fi
+          if [ -n "$PREFERRED_VALUE" ]; then
+            if [ "$ENV_NAME" != dev ]; then echo "::error::Increase requests are dev only; prod is read-only here."; exit 1; fi
+            if ! [[ "$PREFERRED_VALUE" =~ ^[0-9]{1,9}$ ]]; then echo "::error::preferred_value must be a whole number."; exit 1; fi
+          fi
+          project="$(sed -nE 's/^project_id *= *"([^"]+)".*/\1/p' "infra/terraform/envs/$ENV_NAME.tfvars")"
+          echo "project=$project" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud as terraform-agent (Workload Identity Federation, no key)
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.TF_WIF_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Read the quota${{ inputs.preferred_value && ' and request the increase' || '' }}
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+          PROJECT: ${{ steps.inputs.outputs.project }}
+          REGION: australia-southeast1
+          DAYS: ${{ inputs.days }}
+          PREFERRED_VALUE: ${{ inputs.preferred_value }}
+          BUDGET_ALERT_EMAILS: ${{ secrets.TF_VAR_BUDGET_ALERT_EMAILS }}
+        run: |
+          if [ -n "$PREFERRED_VALUE" ]; then
+            CONTACT_EMAIL="$(jq -r '.[0] // empty' <<< "$BUDGET_ALERT_EMAILS" 2>/dev/null || true)"
+            export CONTACT_EMAIL
+          fi
+          .github/scripts/cloud-run-quota.sh

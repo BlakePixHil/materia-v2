@@ -1,0 +1,24 @@
+{
+  "id": "evf-009",
+  "description": "Dates written day-first with slashes; the file note's own date isn't an event",
+  "matter": {
+    "matterNumber": "HV-2026-0036",
+    "title": "Estate of Albert Ernest Novak",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Albert Ernest Novak",
+    "dateOfDeath": "2026-01-25",
+    "executors": ["Helena Novak"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    }
+  },
+  "notes": [
+    {
+      "text": "File note 16/04/2026: notice of intention to apply for a grant published on the Supreme Court website 02/03/2026; application for probate filed online 17/03/2026."
+    }
+  ],
+  "today": "2026-06-15"
+}

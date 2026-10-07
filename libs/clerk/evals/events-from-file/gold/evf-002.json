@@ -1,0 +1,16 @@
+{
+  "id": "evf-002",
+  "fixtures": {
+    "matters/ashby/grant-letter.txt": "d7cb36c571823e5f"
+  },
+  "events": [
+    {
+      "kind": "grant_issued",
+      "date": "2026-04-14"
+    },
+    {
+      "kind": "notice_published",
+      "date": "2026-02-09"
+    }
+  ]
+}

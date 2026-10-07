@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import type { Firestore } from 'firebase-admin/firestore';
+
 import {
   CLERK_MODELS,
+  EventsFromFileOutput,
   citedQuote,
   getPrompt,
   type ClerkCitation,
@@ -22,6 +25,7 @@ import {
   type CitedQuote,
   type DraftedItem,
   type EvalCase,
+  type ProposedEvent,
   type TextSpan,
 } from '@materia/clerk/evals';
 import {
@@ -35,6 +39,7 @@ import {
 } from '@materia/domain';
 
 import { createLog } from '../../core/log';
+import { EVENTS_QUERY, toProposals } from '../../migration/events';
 import { ClerkModelError, type ClerkModelPort, type ClerkModelResult } from '../../ports';
 import { CHAT_PROMPT, CHAT_TASKS } from '../chat/run';
 import { createChatToolbox, type ChatDraft } from '../chat/tools';
@@ -78,6 +83,7 @@ const FEATURES: Record<CaseRequest['feature'], ClerkFeature> = {
   drafting: 'drafting',
   timeAssist: 'timeAssist',
   insightsNarrative: 'insightsNarrative',
+  eventsExtraction: 'eventsExtraction',
 };
 
 export interface EvalExecutorOptions {
@@ -392,6 +398,62 @@ async function runInsights(
   });
 }
 
+/**
+ * One key-dates case (MIG-09) the way `extractMatterEvents` reads a migrated matter: production's
+ * `buildContext` over the case as an in-memory matter (its date of death and grant recorded as
+ * events, as matter creation records them), the prompt's `today`, and production's `toProposals`
+ * checks on the reply. The graders score what a person would be offered.
+ */
+async function runEvents(
+  gateway: ClerkGateway,
+  ctx: GatewayContext,
+  evalCase: EvalCase,
+  promptRef: string,
+  root: string,
+): Promise<{ result: ClerkRunResult; proposed: ProposedEvent[] }> {
+  const orgs = evalOrg(evalCase, ctx.orgId, ctx.uid);
+  const matter = orgs[ctx.orgId]?.matters[EVAL_MATTER];
+  if (!matter) throw new Error(`${evalCase.id}: no eval matter`);
+  const facts = evalCase.matter as { dateOfDeath?: string; probate?: { granted?: string | null } };
+  matter.events = {
+    ...matter.events,
+    ...(facts.dateOfDeath ? { 'e-death': { kind: 'date_of_death', date: facts.dateOfDeath } } : {}),
+    ...(facts.probate?.granted ? { 'e-grant': { kind: 'grant_issued', date: facts.probate.granted } } : {}),
+  };
+  const documentText = evalDocumentText(evalCase, root);
+  const context = await createContextBuilder({
+    source: new MemoryContextSource(orgs),
+    chunks: evalChunkSearch(evalCase, root),
+    documentText,
+    tokens: charEstimateCounter,
+  }).buildContext({ ctx, scope: { matterId: EVAL_MATTER }, feature: 'eventsExtraction', query: EVENTS_QUERY });
+  const result = await gateway.run({
+    ctx,
+    feature: 'eventsExtraction',
+    promptId: promptRef,
+    vars: { today: evalCase.today },
+    context,
+    output: EventsFromFileOutput,
+  });
+  const parsed = EventsFromFileOutput.safeParse(result.parsed);
+  if (result.status !== 'done' || !parsed.success) return { result, proposed: [] };
+  // toProposals reads only the cited notes from Firestore: serve them from the eval matter.
+  const db = {
+    doc: (ref: string) => ({ get: async () => ({ data: () => matter.notes?.[ref.split('/').at(-1) ?? ''] }) }),
+  } as unknown as Firestore;
+  const recorded = new Set(Object.values(matter.events).map((event) => String(event['kind'])));
+  const proposals = await toProposals({ db, text: documentText }, ctx.orgId, EVAL_MATTER, parsed.data.events, {
+    manifest: result.manifest ?? context.manifest,
+    recorded,
+    today: evalCase.today,
+  });
+  const proposed = proposals.map((proposal) => {
+    const payload = proposal.payload as { kind: string; date: string; label?: string };
+    return { kind: payload.kind, date: payload.date, ...(payload.label ? { label: payload.label } : {}) };
+  });
+  return { result, proposed };
+}
+
 /** A draft as the graders read it: a note's text, or a task's title, due date and details. */
 function draftText(draft: ChatDraft): string {
   if (draft.kind === 'note') return draft.payload.bodyMd;
@@ -464,8 +526,17 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
     const started = now();
     let result: ClerkRunResult;
     let drafts: DraftedItem[] | undefined;
+    let proposedEvents: ProposedEvent[] | undefined;
     try {
-      if (request.feature === 'insightsNarrative')
+      if (request.feature === 'eventsExtraction')
+        ({ result, proposed: proposedEvents } = await runEvents(
+          gateway,
+          { ...ctx, clock: { now: () => caseNow(evalCase) } },
+          evalCase,
+          promptRef,
+          root,
+        ));
+      else if (request.feature === 'insightsNarrative')
         result = await runInsights(
           gateway,
           { ...ctx, clock: { now: () => caseNow(evalCase) } },
@@ -531,6 +602,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
       costMicros: result.costMicros,
       latencyMs,
       ...(drafts ? { drafts } : {}),
+      ...(proposedEvents ? { proposedEvents } : {}),
     };
 
     if (options.judge && request.suite.citations === 'api' && result.citations.length) {

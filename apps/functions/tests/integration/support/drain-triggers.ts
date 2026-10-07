@@ -4,8 +4,8 @@ import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 /**
- * Before each spec file: waits until the Functions emulator has worked through the triggers that
- * earlier files left queued.
+ * Before each spec file, and again before its first test: waits until the Functions emulator has
+ * worked through the triggers queued so far.
  *
  * A shard's files share one set of emulators, and the Firestore emulator delivers trigger events
  * in order. A file that writes in bulk (contacts' 600-reference merge, clerk-context's task
@@ -18,13 +18,20 @@ import { getFirestore } from 'firebase-admin/firestore';
  * The barrier writes a marker document and waits for audit-onOrgWrite's entry for it: once that
  * exists, everything queued before the marker has been delivered. On a quiet emulator that takes
  * well under a second.
+ *
+ * It runs again before the file's first test, after the file's own `beforeAll`: the data a file
+ * seeds there queues triggers of its own, and on fresh emulators each function's first event waits
+ * about 2 s for its worker to start, one function after another. suggestions.spec, first in its
+ * shard, seeds documents that start a dozen functions, and its first test's task trigger began 25 s
+ * after the accept, so the test's 30 s poll for the matter's open task count ran out on a slow run
+ * (2026-10-07). Once per file: the tests' own writes are theirs to wait for.
  */
 const PROJECT_ID = 'demo-materia';
 const ORG = 'org-trigger-drain';
 /** Long enough for the biggest backlog a file leaves on a CI runner, inside the shard's six minutes. */
 const DRAIN_TIMEOUT_MS = 180_000;
 
-beforeAll(async () => {
+async function drain(): Promise<void> {
   const app = initializeApp({ projectId: PROJECT_ID }, `drain-${randomUUID()}`);
   try {
     const db = getFirestore(app);
@@ -38,8 +45,17 @@ beforeAll(async () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
     const waited = Date.now() - started;
-    if (waited > 2_000) process.stdout.write(`Waited ${(waited / 1000).toFixed(1)} s for earlier files' triggers\n`);
+    if (waited > 2_000) process.stdout.write(`Waited ${(waited / 1000).toFixed(1)} s for queued triggers\n`);
   } finally {
     await deleteApp(app);
   }
+}
+
+beforeAll(drain, DRAIN_TIMEOUT_MS);
+
+let seeded = false;
+beforeEach(async () => {
+  if (seeded) return;
+  seeded = true;
+  await drain();
 }, DRAIN_TIMEOUT_MS);

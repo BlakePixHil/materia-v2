@@ -503,6 +503,22 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
     expect(w.model.requests).toHaveLength(0);
   });
 
+  it('logs what an unexpected failure was (type, Firestore status, frames), never its message', async () => {
+    const w = await world();
+    const logged: { severity: string; message: string; entry: Data }[] = [];
+    w.deps.log = createLog({ fn: 'test' }, (severity, message, entry) => logged.push({ severity, message, entry }));
+    const notFound = Object.assign(new Error('5 NOT_FOUND: no entity to update: Fictional Ashdown'), { code: 5 });
+    vi.spyOn(w.deps.context, 'buildContext').mockRejectedValue(notFound);
+
+    const sent = await w.ask('Who is the executor?');
+    expect(sent.outcome).toBe('failed');
+    expect(w.message(sent.threadId, sent.messageId)).toMatchObject({ status: 'error', error: { code: 'INTERNAL' } });
+    const failed = logged.find((line) => line.message === 'clerk chat failed');
+    expect(failed).toMatchObject({ severity: 'error', entry: { code: 'INTERNAL', errorType: 'Error', causeCode: 5 } });
+    expect(failed?.entry['stack_trace']).toMatch(/^Error: message withheld\n {4}at /);
+    expect(JSON.stringify(logged)).not.toContain('Fictional Ashdown');
+  });
+
   it('says at once when Clerk is off, has no key or is over budget, and records a rate limit on the answer', async () => {
     const off = await world({ flags: { ...FLAGS, 'clerk.features.chat': false } });
     expect((await failure(off.send({ text: 'Hello?' }))).details).toMatchObject({

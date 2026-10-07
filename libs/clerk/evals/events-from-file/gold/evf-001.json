@@ -1,0 +1,18 @@
+{
+  "id": "evf-001",
+  "events": [
+    {
+      "kind": "date_of_death",
+      "date": "2026-03-04"
+    },
+    {
+      "kind": "will_located",
+      "date": "2026-03-18"
+    },
+    {
+      "kind": "custom",
+      "date": "2019-08-02",
+      "keywords": ["will"]
+    }
+  ]
+}

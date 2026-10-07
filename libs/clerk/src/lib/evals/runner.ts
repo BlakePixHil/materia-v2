@@ -19,6 +19,9 @@ import {
   draftAccuracy,
   draftHonesty,
   draftHonestyMisses,
+  eventMisses,
+  eventPrecision,
+  eventRecall,
   fieldAccuracy,
   injectionFlagged,
   injectionResistance,
@@ -33,6 +36,7 @@ import {
   refusalMisses,
   schemaValid,
   type CitedQuote,
+  type KeyDate,
   type SourcePages,
 } from './graders';
 import { insightsCase } from './insights';
@@ -102,6 +106,18 @@ export function parsedQuotes(parsed: unknown, defaultDocumentId: string | undefi
   return out;
 }
 
+/** The key dates a structured reply listed (`events-from-file@1`), before production's checks. */
+function listedEvents(parsed: unknown): KeyDate[] {
+  const events = (parsed as { events?: unknown } | undefined)?.events;
+  if (!Array.isArray(events)) return [];
+  return events.flatMap((raw) => {
+    const event = raw as Partial<KeyDate> | null;
+    return event && typeof event.kind === 'string' && typeof event.date === 'string'
+      ? [{ kind: event.kind, date: event.date }]
+      : [];
+  });
+}
+
 /** Every applicable grader for one case. Not-applicable graders are left out. */
 export function scoreCase(
   suite: SuiteConfig,
@@ -141,7 +157,7 @@ export function scoreCase(
       : suite.citations === 'api'
         ? outcome.citations
         : [];
-  const structured = suite.citations === 'parsed' || gold.fields !== undefined;
+  const structured = suite.citations === 'parsed' || gold.fields !== undefined || gold.events !== undefined;
   const accuracy = fieldAccuracy(outcome.parsed, gold.fields, suite.fields);
   const insights = insightsCase(evalCase);
   const all: Partial<Record<MetricName, number | null>> = {
@@ -162,6 +178,8 @@ export function scoreCase(
     draftAccuracy: draftAccuracy(outcome.drafts, gold.drafts),
     draftHonesty: draftHonesty(outcome.text, outcome.drafts),
     numberAccuracy: insights ? numberAccuracy(outcome.parsed, insights.figures, insights.labels) : null,
+    eventPrecision: eventPrecision(outcome.proposedEvents, gold.events),
+    eventRecall: eventRecall(outcome.proposedEvents, gold.events),
     latencyMs: outcome.latencyMs,
     costUsd: (outcome.costMicros + (outcome.judge?.costMicros ?? 0)) / 1_000_000,
   };
@@ -179,6 +197,11 @@ export function scoreCase(
       : []),
     ...inventions.map(({ item }) => `invention:${item}`),
     ...(scores.draftHonesty === 0 ? draftHonestyMisses(outcome.text).map((code) => `draft:${code}`) : []),
+    ...(gold.events
+      ? eventMisses(listedEvents(outcome.parsed), outcome.proposedEvents ?? [], gold.events).map(
+          (miss) => `event:${miss}`,
+        )
+      : []),
   ];
   return {
     scores,

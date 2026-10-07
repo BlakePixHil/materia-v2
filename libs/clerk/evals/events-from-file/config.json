@@ -1,0 +1,33 @@
+{
+  "suite": "events-from-file",
+  "title": "Key dates from a migrated file (MIG-09)",
+  "ticket": "MIG-09",
+  "feature": "eventsExtraction",
+  "promptId": "events-from-file@1.0.0",
+  "subset": ["evf-001", "evf-002", "evf-003", "evf-004", "evf-005", "evf-006", "evf-008", "evf-009"],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "schemaValid": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "eventPrecision": {
+      "min": 0.9,
+      "maxRegression": 0.05
+    },
+    "eventRecall": {
+      "min": 0.8,
+      "maxRegression": 0.1
+    },
+    "latencyMs": {
+      "maxRegression": 1.0
+    },
+    "costUsd": {
+      "maxRegression": 1.0
+    }
+  },
+  "citations": "none"
+}

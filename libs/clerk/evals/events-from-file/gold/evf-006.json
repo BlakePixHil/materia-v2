@@ -1,0 +1,12 @@
+{
+  "id": "evf-006",
+  "fixtures": {
+    "matters/kerr/email-from-beneficiary.txt": "2e8dfc90640c1aba"
+  },
+  "events": [
+    {
+      "kind": "statutory_notice_published",
+      "date": "2026-05-06"
+    }
+  ]
+}

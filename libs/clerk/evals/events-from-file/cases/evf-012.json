@@ -1,0 +1,24 @@
+{
+  "id": "evf-012",
+  "description": "Letters of administration are a grant",
+  "matter": {
+    "matterNumber": "HV-2026-0040",
+    "title": "Estate of Mei Ling Liang",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Mei Ling Liang",
+    "dateOfDeath": "2026-01-30",
+    "executors": ["Peter Liang"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-03-11",
+      "granted": null
+    }
+  },
+  "notes": [
+    {
+      "text": "Letters of administration granted to Peter Liang on 28 May 2026. Sealed copy received by post."
+    }
+  ],
+  "today": "2026-06-15"
+}

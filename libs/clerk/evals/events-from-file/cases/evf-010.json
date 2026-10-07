@@ -1,0 +1,27 @@
+{
+  "id": "evf-010",
+  "description": "A future listing is not an event; a past notice is",
+  "matter": {
+    "matterNumber": "HV-2026-0061",
+    "title": "Estate of Joan Patricia Ellery",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Joan Patricia Ellery",
+    "dateOfDeath": "2026-03-08",
+    "executors": ["Rhys Ellery"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    }
+  },
+  "notes": [
+    {
+      "text": "Mediation with the claimant's solicitors listed for 20 November 2026."
+    },
+    {
+      "text": "Notice of intention to apply for a grant published on 4 May 2026."
+    }
+  ],
+  "today": "2026-06-15"
+}

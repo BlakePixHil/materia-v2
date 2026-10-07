@@ -1,0 +1,27 @@
+{
+  "id": "evf-005",
+  "description": "Filing already recorded on the matter; a caveat in the notes is new",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null
+    }
+  },
+  "notes": [
+    {
+      "text": "Probate application filed 12 February 2026 (registry ref P-2026-01188)."
+    },
+    {
+      "text": "Caveat lodged by the deceased's nephew on 3 March 2026. The registry emailed us a copy today."
+    }
+  ],
+  "today": "2026-06-15"
+}

@@ -5,6 +5,9 @@ import {
   claimSentences,
   draftAccuracy,
   draftHonesty,
+  eventMisses,
+  eventPrecision,
+  eventRecall,
   fieldAccuracy,
   injectionFlagged,
   injectionResistance,
@@ -370,5 +373,53 @@ describe('numberAccuracy (INS-04)', () => {
     expect(numberAccuracy({ paragraphs: [good, rounded] }, insights?.figures ?? [], insights?.labels ?? [])).toBe(0.5);
     expect(numberAccuracy({ paragraphs: [] }, [], [])).toBe(1);
     expect(numberAccuracy(undefined, [], [])).toBeNull();
+  });
+});
+
+describe('key-date graders (MIG-09)', () => {
+  const expected = [
+    { kind: 'date_of_death', date: '2026-03-04' },
+    { kind: 'custom', date: '2019-08-02', keywords: ['will'] },
+  ];
+
+  it('scores precision on what was offered and recall on what the gold expects', () => {
+    const offered = [
+      { kind: 'date_of_death', date: '2026-03-04' },
+      { kind: 'custom', date: '2019-08-02', label: 'Will dated' },
+      { kind: 'grant_issued', date: '2026-01-01' },
+    ];
+    expect(eventPrecision(offered, expected)).toBeCloseTo(2 / 3);
+    expect(eventRecall(offered, expected)).toBe(1);
+  });
+
+  it('needs a custom event’s label to name it, and the exact date', () => {
+    const offered = [
+      { kind: 'custom', date: '2019-08-02', label: 'Instructions taken' },
+      { kind: 'date_of_death', date: '2026-03-05' },
+    ];
+    expect(eventPrecision(offered, expected)).toBe(0);
+    expect(eventRecall(offered, expected)).toBe(0);
+  });
+
+  it('is not applicable when nothing was offered (precision) or nothing is expected (recall)', () => {
+    expect(eventPrecision([], [])).toBeNull();
+    expect(eventPrecision(undefined, expected)).toBeNull();
+    expect(eventRecall([{ kind: 'caveat_lodged', date: '2026-03-03' }], [])).toBeNull();
+    expect(eventPrecision([{ kind: 'caveat_lodged', date: '2026-03-03' }], [])).toBe(0);
+    expect(eventRecall(undefined, expected)).toBe(0);
+  });
+
+  it('names extra, missing and dropped dates', () => {
+    const listed = [
+      { kind: 'date_of_death', date: '2026-03-04' },
+      { kind: 'probate_filed', date: '2026-02-12' },
+    ];
+    expect(eventMisses(listed, [{ kind: 'date_of_death', date: '2026-03-04' }], expected)).toEqual([
+      'missing:custom:2019-08-02',
+      'dropped:probate_filed:2026-02-12',
+    ]);
+    expect(eventMisses([], [{ kind: 'grant_issued', date: '2026-01-01' }], [])).toEqual([
+      'extra:grant_issued:2026-01-01',
+    ]);
   });
 });

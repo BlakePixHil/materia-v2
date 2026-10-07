@@ -382,3 +382,65 @@ export function numberAccuracy(
     periodLabels,
   );
 }
+
+/** A key date: what was offered (MIG-09), or what the gold expects. */
+export interface KeyDate {
+  kind: string;
+  date: string;
+  label?: string | undefined;
+}
+/** A key date the gold expects: a `custom` one's label must contain one of the keywords. */
+export interface ExpectedKeyDate {
+  kind: string;
+  date: string;
+  keywords?: readonly string[] | undefined;
+}
+
+function sameKeyDate(offered: KeyDate, want: ExpectedKeyDate): boolean {
+  if (offered.kind !== want.kind || offered.date !== want.date) return false;
+  if (!want.keywords?.length) return true;
+  const label = normalise(offered.label ?? '');
+  return want.keywords.some((keyword) => label.includes(normalise(keyword)));
+}
+
+/**
+ * eventPrecision (MIG-09): the share of the key dates offered to a person that the gold expects. A
+ * wrong date recomputes statutory deadlines, so this is the one that matters most. Nothing offered:
+ * not applicable (eventRecall covers a file whose dates were missed).
+ */
+export function eventPrecision(
+  offered: readonly KeyDate[] | undefined,
+  expected: readonly ExpectedKeyDate[] | undefined,
+): Score {
+  if (!expected || !offered?.length) return null;
+  return offered.filter((event) => expected.some((want) => sameKeyDate(event, want))).length / offered.length;
+}
+
+/** eventRecall (MIG-09): the share of the key dates the gold expects that were offered. None expected: not applicable. */
+export function eventRecall(
+  offered: readonly KeyDate[] | undefined,
+  expected: readonly ExpectedKeyDate[] | undefined,
+): Score {
+  if (!expected?.length) return null;
+  const made = offered ?? [];
+  return expected.filter((want) => made.some((event) => sameKeyDate(event, want))).length / expected.length;
+}
+
+/**
+ * Why the key dates fell short, as `extra:<kind>:<date>` (offered, not expected),
+ * `missing:<kind>:<date>` (expected, not offered) and `dropped:<kind>:<date>` (the model listed it
+ * and production's checks removed it, so a miss can be told apart from a check that caught one).
+ */
+export function eventMisses(
+  listed: readonly KeyDate[],
+  offered: readonly KeyDate[],
+  expected: readonly ExpectedKeyDate[],
+): string[] {
+  const key = (event: { kind: string; date: string }) => `${event.kind}:${event.date}`;
+  const offeredKeys = new Set(offered.map(key));
+  return [
+    ...offered.filter((event) => !expected.some((want) => sameKeyDate(event, want))).map((e) => `extra:${key(e)}`),
+    ...expected.filter((want) => !offered.some((event) => sameKeyDate(event, want))).map((w) => `missing:${key(w)}`),
+    ...listed.filter((event) => !offeredKeys.has(key(event))).map((e) => `dropped:${key(e)}`),
+  ];
+}
