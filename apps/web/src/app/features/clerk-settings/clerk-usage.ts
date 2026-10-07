@@ -19,6 +19,7 @@ const FEATURE_LABELS: Record<string, string> = {
   hello: 'Connection check',
   ocr: 'Reading scans',
   willExtraction: 'Read wills',
+  eventsExtraction: 'Key dates from migrated files',
   ...Object.fromEntries(ORG_CLERK_FEATURES.map((f) => [f.key, f.label])),
 };
 

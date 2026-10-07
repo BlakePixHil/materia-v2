@@ -216,4 +216,13 @@ describe('classify', () => {
     expect(classify({ path: `orgs/${FIXTURE_ORG}/audit/a-1`, data: {} }, 'run-1')).toBe('system');
     expect(classify({ path: `orgs/${FIXTURE_ORG}/unknown/x`, data: {} }, 'run-1')).toBe('foreign');
   });
+
+  it('counts what Clerk and the notifications wrote after the load as v2’s own (MIG-09)', () => {
+    const matter = P.note.split('/notes/')[0];
+    expect(classify({ path: `${matter}/suggestions/s-1`, data: { kind: 'event' } }, 'run-1')).toBe('system');
+    expect(classify({ path: `orgs/${FIXTURE_ORG}/notifications/n-1`, data: {} }, 'run-1')).toBe('system');
+    expect(classify({ path: `orgs/${FIXTURE_ORG}/migrationEnrichments/run-1`, data: {} }, 'run-1')).toBe('system');
+    // An event a person recorded from a suggestion is their work: it still stops the rollback.
+    expect(classify({ path: `${matter}/events/e-1`, data: {} }, 'run-1')).toBe('foreign');
+  });
 });

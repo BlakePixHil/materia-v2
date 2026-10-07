@@ -1,4 +1,4 @@
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 
 import {
   DocTemplateVersionSchema,
@@ -10,6 +10,7 @@ import {
 
 import { systemTemplateDocx } from './system-templates';
 import { isDeleted } from '../contacts/shared';
+import { withDates } from '../core/dates';
 import type { FileStore } from '../documents/files';
 
 /** Where an org's docx templates live (INT-06). */
@@ -30,13 +31,7 @@ export interface LoadedTemplate {
 
 type Data = Record<string, unknown>;
 
-/** Firestore Timestamps as Dates, so stored records parse with the domain schemas. */
-export function withDates(value: unknown, depth = 0): unknown {
-  if (value instanceof Timestamp) return value.toDate();
-  if (depth > 6 || value === null || typeof value !== 'object' || value instanceof Date) return value;
-  if (Array.isArray(value)) return value.map((item) => withDates(item, depth + 1));
-  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withDates(item, depth + 1)]));
-}
+export { withDates };
 
 export const versionsOfTemplate = (doc: Data | undefined): DocTemplateVersion[] =>
   Array.isArray(doc?.['versions'])

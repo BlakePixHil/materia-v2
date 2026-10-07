@@ -31,6 +31,8 @@ export const EXCLUDED_COLLECTIONS = new Set([
   'xeroContacts',
   // Legacy migration runs (MIG-06): the tool records each run once itself (`migration.loaded`…).
   'migrations',
+  // Clerk reading a run (MIG-09): progress saved after every document; the approval is audited itself.
+  'migrationEnrichments',
 ]);
 
 /**

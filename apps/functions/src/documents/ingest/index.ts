@@ -1,7 +1,7 @@
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 import * as z from 'zod';
 
-import { DocIdSchema, PERMISSIONS, type DocumentIngest } from '@materia/domain';
+import { awaitsMigrationEnrichment, DocIdSchema, PERMISSIONS, type DocumentIngest } from '@materia/domain';
 
 import { deleteChunks, syncChunksPrivileged } from './chunks';
 import { gatewayIngestClerk } from './clerk';
@@ -77,7 +77,7 @@ export async function onIngestChangeHandler(change: TriggerChange, ctx: TriggerC
 
   const version = Number(after['version'] ?? 0);
   const wasWaiting = needsIngest(before) && Number(before?.['version'] ?? 0) === version;
-  // Migrated documents are ingested by `documents-backfillIngest` after the load (MIG-09).
+  // Migrated documents are read by the migration's enrichment once an owner approves its cost (MIG-09).
   if (needsIngest(after) && !wasWaiting && !isMigrationWrite(before, after)) {
     const task: IngestTask = {
       orgId: ctx.params['orgId'] as string,
@@ -161,7 +161,8 @@ export const ingest = defineQueue({
 
 /**
  * Enqueues ingestion for every live, clean document in the org (or one matter) whose current
- * version isn't ingested yet or failed: documents from before AI-04 and migrated ones (MIG-09).
+ * version isn't ingested yet or failed: documents from before AI-04. Migrated documents Clerk
+ * hasn't read are left to the migration's enrichment, which an owner approves first (MIG-09).
  * `runId` makes the tasks new (Cloud Tasks won't reuse a task id soon after it ran).
  */
 export async function backfillIngest(
@@ -182,7 +183,8 @@ export async function backfillIngest(
       const version = Number(doc['version'] ?? 0);
       const ready = !isDeleted(doc) && (doc['scan'] as { status?: string })?.status === 'clean' && version > 0;
       const finished = ingest.version === version && ['done', 'skipped', 'running', 'queued'].includes(ingest.status);
-      if (!ready || finished) {
+      // A migrated document Clerk hasn't read waits for the enrichment's approval (MIG-09).
+      if (!ready || finished || awaitsMigrationEnrichment(doc)) {
         skipped++;
         continue;
       }
@@ -198,7 +200,7 @@ export const BackfillIngestInput = z.object({ requestId: z.uuid(), matterId: Doc
 
 /**
  * `documents-backfillIngest` (AI-04; `clerk.configure`, idempotent): queues ingestion of the org's
- * documents that predate Clerk ingestion, were migrated, or failed.
+ * documents that predate Clerk ingestion or failed (migrated ones wait for their enrichment, MIG-09).
  */
 export const backfillIngestDefinition = {
   name: 'documents-backfillIngest',

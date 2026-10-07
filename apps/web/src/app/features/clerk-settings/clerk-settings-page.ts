@@ -7,7 +7,9 @@ import {
   clerkMetricsRepository,
   MEMBER_LIST_QUERY,
   membersRepository,
+  migrationEnrichmentsRepository,
   orgClerkSettingsRepository,
+  RECENT_ENRICHMENTS_QUERY,
 } from '@materia/data-access/repository';
 import {
   CLERK_DISCLOSURE_VERSION,
@@ -49,6 +51,7 @@ import {
 import { MtMarkdown } from '@materia/ui/markdown';
 
 import { ClerkUsage } from './clerk-usage';
+import { MigrationEnrichmentCard } from './migration-enrichment-card';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { dollarsText, parseDollars } from '../settings/money';
@@ -77,6 +80,7 @@ function parseCount(text: string, min: number, max: number): number | null | und
   imports: [
     ClerkUsage,
     FormsModule,
+    MigrationEnrichmentCard,
     MtButton,
     MtIcon,
     MtMarkdown,
@@ -325,6 +329,18 @@ function parseCount(text: string, min: number, max: number): number | null | und
           </mt-settings-section>
         }
 
+        @if (canConfigure() && enrichments().length) {
+          <mt-settings-section
+            title="Migrated files"
+            description="Clerk reads what the move from your previous system brought across, once you approve the cost."
+            [headingLevel]="2"
+          >
+            @for (enrichment of enrichments(); track enrichment.runId) {
+              <mt-migration-enrichment-card [enrichment]="enrichment" />
+            }
+          </mt-settings-section>
+        }
+
         <mt-settings-section title="Data and retention" [headingLevel]="2">
           <details class="fold mt-card retention" data-retention>
             <summary>
@@ -523,6 +539,13 @@ export class ClerkSettingsPage {
   protected readonly period = clerkMeteringPeriod(new Date());
 
   protected readonly org = orgClerkSettingsRepository().watch(() => this.context.orgId());
+  /** Clerk reading migration runs (MIG-09): owners and admins approve the cost here. */
+  private readonly enrichmentRuns = migrationEnrichmentsRepository().watchQuery(() =>
+    this.canConfigure() && this.context.orgId() ? RECENT_ENRICHMENTS_QUERY : null,
+  );
+  protected readonly enrichments = computed(() =>
+    this.enrichmentRuns.value().filter((enrichment) => enrichment.status !== 'cancelled'),
+  );
   protected readonly settings = computed(() => this.org.value()?.settings?.clerk);
   protected readonly loaded = computed(() => this.org.status() === 'ready');
   protected readonly orgName = computed(() => this.org.value()?.name ?? 'your practice');

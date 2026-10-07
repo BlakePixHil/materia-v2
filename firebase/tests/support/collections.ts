@@ -383,6 +383,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
   },
   {
+    // Clerk reading a migration run (MIG-09): owners and admins follow it in Settings → Clerk and AI.
+    collection: 'migrationEnrichments',
+    docPath: `orgs/${ORG}/migrationEnrichments/run-1`,
+    entity: 'MigrationEnrichment',
+    read: 'org.settings',
+    update: 'none',
+  },
+  {
     collection: 'integrations',
     docPath: `orgs/${ORG}/integrations/${OWNER}_microsoft`,
     entity: 'Integration',

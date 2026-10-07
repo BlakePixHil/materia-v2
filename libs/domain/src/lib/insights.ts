@@ -221,8 +221,10 @@ export function wipCentsOf(values: MetricValues | undefined): number | null {
 
 /** The overview Stats for a period. */
 export interface InsightsSummary {
-  /** Invoiced, excluding GST. */
+  /** Invoiced, excluding GST, with the legacy system's billing imported by the migration. */
   billedCents: number;
+  /** Of that, billed in the legacy system (`legacy.billedCents`, by its billing date; MIG-09), as it recorded the totals. */
+  legacyBilledCents: number;
   /** Payments received, net of refunds. */
   collectedCents: number;
   /** WIP at the end of the period's last month (the nightly snapshot), or null when not recorded. */
@@ -252,8 +254,10 @@ export function insightsSummary(input: {
   const billableMinutes = get(values, 'time.billable.minutes');
   const targetMinutes =
     monthsTargetMinutes(input.months, input.dailyTargetMinutes, input.today) * Math.max(0, input.feeEarners);
+  const legacyBilledCents = get(values, 'legacy.billedCents');
   return {
-    billedCents: get(values, 'billing.invoicedCents'),
+    billedCents: get(values, 'billing.invoicedCents') + legacyBilledCents,
+    legacyBilledCents,
     collectedCents: get(values, 'billing.collectedCents'),
     wipCents: wipCentsOf(input.latest),
     mattersOpened: get(values, 'matters.opened'),
