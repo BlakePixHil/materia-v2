@@ -440,7 +440,9 @@ describe('orgs-purge', () => {
       .toUpperCase();
     const hex = (value: string) => Buffer.from(value, 'latin1').toString('hex').toUpperCase();
     expect(text).toContain(hex('Backups taken before the deletion'));
-    expect(text).toContain(hex('daily backups after 35 days'));
+    expect(text).toContain(hex('daily backups after 7 days'));
+    expect(text).toContain(hex('monthly exports after 400 days'));
+    expect(text).toContain(hex('within about 13 months'));
     expect(text).toContain(hex('Fictional Bayside Legal - Zoe & Co'));
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
   });

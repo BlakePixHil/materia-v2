@@ -318,10 +318,11 @@ export async function deletionCertificatePdf(facts: DeletionCertificateFacts): P
     'and their sign-in claims for the practice were removed; memberships of other practices are unchanged.',
     "Materia keeps only a tombstone: the practice's id, its name, when it was deleted and this certificate.",
     '',
-    'Backups taken before the deletion may hold copies until they expire (Security, privacy & compliance:',
-    'backups, SEC-03): point-in-time recovery after 7 days, daily backups after 35 days, weekly backups',
-    'after 14 weeks, monthly copies after one year, and deleted files kept by storage soft delete after',
-    '30 days. Backups are never restored into the live service for a deleted practice.',
+    'Backups taken before the deletion are not edited: their copies expire on the schedule in the retention',
+    'policy (SEC-03): point-in-time recovery after 7 days, daily backups after 7 days, daily exports and the',
+    'nightly file copy after 35 days, weekly backups after 14 weeks, monthly exports after 400 days (about',
+    '13 months), deleted files after 30 days and replaced file versions after 90 days. Every copy has gone',
+    'within about 13 months. Backups are never restored into the live service for a deleted practice.',
   ]) {
     line(text, { size: 10, gap: 15 });
   }
