@@ -1,5 +1,3 @@
-import type * as z from 'zod';
-
 import { domain } from '../domain.ts';
 import { syncClaims } from './claims.ts';
 import { docPathPattern, PHASES } from './entities.ts';
@@ -76,11 +74,23 @@ export class RollbackRefusedError extends Error {
   }
 }
 
+/**
+ * The fields of an entity's schema: an object's, or both sides of an intersection (a suggestion is
+ * its payload union and its own fields, as is a notification).
+ */
+function fieldsOf(schema: unknown): string[] {
+  const s = schema as { shape?: Record<string, unknown>; def?: { left?: unknown; right?: unknown } } | undefined;
+  if (s?.shape) return Object.keys(s.shape);
+  if (s?.def?.left && s.def.right) return [...fieldsOf(s.def.left), ...fieldsOf(s.def.right)];
+  return [];
+}
+
 /** Every entity's document paths, and whether its documents carry `migration`. */
 const KINDS = (Object.values(domain) as unknown[]).flatMap((value) => {
-  const entity = value as { schema?: z.ZodObject; path?: unknown; create?: unknown };
-  if (!entity?.schema || typeof entity.path !== 'string' || !entity.create || !('shape' in entity.schema)) return [];
-  return [{ pattern: docPathPattern(entity.path), migratable: 'migration' in entity.schema.shape }];
+  const entity = value as { schema?: unknown; path?: unknown; create?: unknown };
+  const fields = fieldsOf(entity?.schema);
+  if (typeof entity?.path !== 'string' || !entity.create || !fields.length) return [];
+  return [{ pattern: docPathPattern(entity.path), migratable: fields.includes('migration') }];
 });
 
 /**
