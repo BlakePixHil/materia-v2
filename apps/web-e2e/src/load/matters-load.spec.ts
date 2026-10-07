@@ -1,18 +1,32 @@
 import { expect, test } from '@playwright/test';
 
-import { FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
+import {
+  disableBackgroundTriggers,
+  enableBackgroundTriggers,
+  FIRST_LOAD,
+  setEmulatorDocuments,
+  signInAsTestUser,
+} from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, table, uniqueOrg } from '../support/matters';
 
 /**
- * The Matters list's first paint with 500 matters (CORE-03). Seeding 500 matters fires the
- * matters-denormalise and audit triggers 500 times each, which saturates the Functions emulator,
- * so this runs in its own Playwright project after the other projects (see playwright.config.mts)
- * instead of slowing their callables down.
+ * The Matters list's first paint with 500 matters (CORE-03), seeded with the Functions emulator's
+ * background triggers off. In production triggers run on their own servers, but the emulator runs
+ * them on the test's own CPU, one at a time: 500 matters set off over 3,000 runs (list fields,
+ * metrics, audit entries, and the activity and audit checks those set off). Measured while they
+ * ran, the first paint took 1,056 and 1,069 ms on CI, and 1,012 to 1,995 ms locally on two cores;
+ * with the triggers off, 554 to 988 ms. Waiting for every matter's audit entry instead took over a
+ * minute and still left the rest running (2026-10-07). The list shows only what the seed writes:
+ * the triggers add nothing it reads.
+ *
+ * Switching triggers off affects every test using the emulators, so this runs in its own Playwright
+ * project after the other projects (see playwright.config.mts).
  */
 
 test.describe('matters under load', () => {
   test.skip(({ isMobile }) => isMobile, 'The dense list is a desktop feature');
+  test.afterEach(({ request }) => enableBackgroundTriggers(request));
 
   test('with 500 matters the first rows paint within a second, and scrolling loads more', async ({ page, request }) => {
     test.setTimeout(120_000);
@@ -21,6 +35,7 @@ test.describe('matters under load', () => {
       claims: { orgId, role: 'lawyer', orgName: 'Fictional Busy Practice' },
       displayName: 'Jordan Fictional',
     });
+    await disableBackgroundTriggers(request);
     await seedClient(request, orgId, account.uid);
     const surnames = ['Abernathy', 'Blackwood', 'Corrigan', 'Delacroix', 'Ellery', 'Fairweather', 'Galloway', 'Hollis'];
     await setEmulatorDocuments(

@@ -73,8 +73,8 @@ export default defineConfig({
             use: { ...devices['iPhone 13'] },
           },
         ]),
-    // Tests that flood the emulators (src/load) run once everything else has finished. Locally:
-    // `--project=chromium-load --no-deps`.
+    // Tests that flood the emulators or switch their triggers off (src/load) run once everything
+    // else has finished. Locally: `--project=chromium-load --no-deps`.
     {
       name: 'chromium-load',
       testMatch: /\/load\/.*\.spec\.ts$/,
