@@ -217,10 +217,10 @@ export function buildInsights(input: InsightsInput): InsightsView {
 
   const trend = input.trendMonths;
   const axis = monthAxisLabels(trend);
-  const monthBars = (key: string): ChartDatum[] => {
+  const monthBars = (...keys: string[]): ChartDatum[] => {
     const rows = trend.map((month, i) => ({
       label: axis[i] ?? month,
-      value: get(input.months.get(month), key),
+      value: keys.reduce((sum, key) => sum + get(input.months.get(month), key), 0),
       meta: monthLabel(month, 'long'),
     }));
     return rows.some((row) => row.value !== 0) ? rows : [];
@@ -315,7 +315,8 @@ export function buildInsights(input: InsightsInput): InsightsView {
       trend.length === period.months.length
         ? period.label
         : `${trend.length} months to ${monthLabel(trend.at(-1) ?? '', 'long')}`,
-    billedByMonth: monthBars('billing.invoicedCents'),
+    // Months before the move to Materia show what the legacy system billed (MIG-09).
+    billedByMonth: monthBars('billing.invoicedCents', 'legacy.billedCents'),
     collectedByMonth: monthBars('billing.collectedCents'),
     grantDays,
     grantDaysComparison: grantComparison,

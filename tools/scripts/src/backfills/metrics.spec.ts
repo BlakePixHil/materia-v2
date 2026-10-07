@@ -309,6 +309,18 @@ describe('backfillMetrics on a migrated practice', () => {
     expect(store.docs.get(`${O}/metrics/day-2025-08-01`)?.['values']).not.toHaveProperty('time.minutes');
   });
 
+  it('starts each org at the FY of its earliest figure with --from earliest, legacy billing included (MIG-09)', async () => {
+    const store = migrated();
+    const log: string[] = [];
+    await backfillMetrics(store, { from: 'earliest', org: ORG, now: NOW, log: (line) => log.push(line) });
+    // The oldest matter opened on 1 August 2023: FY2023 starts on 1 July 2023.
+    expect(log[0]).toMatch(/^org-legacy \(from 2023-07-01\)/);
+    expect(sorted(rollups(store, '2023-07-01'))).toEqual(sorted(fromRecords(store, domain.dateOnly('2023-07-01'))));
+    expect((store.docs.get(`${O}/metrics/month-2024-05`)?.['values'] as Data)['legacy.billedCents']).toBe(440_000);
+    expect((store.docs.get(`${O}/metrics/fy-2023`)?.['values'] as Data)['legacy.billedCents']).toBe(440_000);
+    expect(parseArgs(['--project', 'materia-v2-dev', '--from', 'earliest'])).toMatchObject({ from: 'earliest' });
+  });
+
   it('works out the snapshot figures at each period end, keeping past WIP', async () => {
     const store = migrated();
     await backfillMetrics(store, { from: '2025-07', org: ORG, now: NOW });
@@ -354,8 +366,8 @@ describe('backfillMetrics on a migrated practice', () => {
     const log: string[] = [];
     await backfillMetrics(store, { from: '2025-07', now: NOW, log: (line) => log.push(line) });
     expect(log).toEqual([
-      expect.stringMatching(/^org-legacy: 12 records, \d+ ledgers, \d+ documents and 1 shards written$/),
-      expect.stringMatching(/^org-other: 0 records/),
+      expect.stringMatching(/^org-legacy \(from 2025-07-01\): 12 records, \d+ ledgers, \d+ documents and 1 shards written$/),
+      expect.stringMatching(/^org-other \(from 2025-07-01\): 0 records/),
     ]);
     expect(log.join('\n')).not.toMatch(/Bellarine|Ellis/);
     const again = await backfillMetrics(store, { from: '2025-07', org: ORG, now: NOW });

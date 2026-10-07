@@ -194,6 +194,12 @@ const isComparison = (value: string | null): value is InsightsComparison =>
               <span class="mt-ml caption t-3">Excluding GST</span>
             </div>
             <div class="mt-hero" data-testid="hero-billed">{{ money(v.summary.billedCents) }}</div>
+            @if (v.summary.legacyBilledCents) {
+              <span class="caption t-3" data-testid="hero-legacy"
+                >Includes {{ money(v.summary.legacyBilledCents) }} billed in the previous system, by its billing
+                dates.</span
+              >
+            }
             @if (v.heroBudget; as budget) {
               <div class="mt-col" style="gap: 8px">
                 <mt-meter
