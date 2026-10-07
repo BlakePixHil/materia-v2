@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
 import { DomainError, STATUTORY_DISABLED_MESSAGE } from '@materia/domain';
+import { formatDateOnly } from '@materia/ui';
 
 import { deadlineErrorCopy, monthLabel, recomputeSummaryText, shiftMonth } from './deadline-view';
 import { parseEventTime } from './event-dialog';
@@ -603,10 +604,11 @@ describe('deadlines screen', () => {
     d('d-today', deadlineDoc('File the inventory', { kind: 'court', dueDate: '2026-10-04', assigneeUid: PRIYA }));
   }
 
+  /** The groups and rows shown: filters hide the others rather than remove them (SEC-07c). */
   const groups = (page: Page) =>
-    [...page.body.querySelectorAll<HTMLElement>('section[data-group]')].map(
+    [...page.body.querySelectorAll<HTMLElement>('section[data-group]:not([hidden])')].map(
       (section) =>
-        `${section.dataset['group']}: ${[...section.querySelectorAll('mt-deadline-row .title')]
+        `${section.dataset['group']}: ${[...section.querySelectorAll('li:not([hidden]) mt-deadline-row .title')]
           .map((t) => page.text(t))
           .join(', ')}`,
     );
@@ -633,8 +635,15 @@ describe('deadlines screen', () => {
   it('filters by mine, critical, kind and jurisdiction', async () => {
     const page = await openMatter('/deadlines', { configure: seedScreen, flags: RULES_ON });
     await page.stable(20);
+    const inventory = row(page, 'd-today');
     await page.click('Mine');
     expect(groups(page).join(' | ')).not.toContain('File the inventory');
+    // Hidden, not redrawn: the row comes back as it was.
+    expect(inventory?.closest('li')?.hidden).toBe(true);
+    await page.click('Mine');
+    expect(row(page, 'd-today')).toBe(inventory);
+    expect(inventory?.closest('li')?.hidden).toBe(false);
+    await page.click('Mine');
     await page.click('Mine');
     await page.click('Critical');
     expect(groups(page)).toEqual([
@@ -669,6 +678,136 @@ describe('deadlines screen', () => {
     expect(page.text(calendar?.querySelector('h3'))).toBe('October 2026');
     localStorage.removeItem('materia.deadlines.view');
     TestBed.resetTestingModule();
+  });
+
+  describe('a long list (SEC-07c)', () => {
+    const QUILL = MATTER.replace('m-whitfield', 'm-quill');
+    const COUNT = 210;
+    const dueOn = (i: number) => new Date(Date.UTC(2026, 9, 5 + i)).toISOString().slice(0, 10);
+
+    /**
+     * 210 upcoming deadlines, one a day from 5 October, on a matter nobody here can read: each names
+     * it from its copy. Every tenth is mine. Whitfield's notice (8 October) has no copy yet.
+     */
+    function seedMany(fs: Fs): void {
+      for (let i = 0; i < COUNT; i++) {
+        fs.set(
+          `${QUILL}/deadlines/q-${i}`,
+          deadlineDoc(`Quill step ${i}`, {
+            kind: 'internal',
+            dueDate: dueOn(i),
+            matterId: 'm-quill',
+            assigneeUid: i % 10 ? PRIYA : ME,
+            matter: {
+              number: 'HV-2026-0200',
+              title: 'Estate of Fictional Quill',
+              jurisdiction: 'VIC',
+              responsibleUid: PRIYA,
+              teamUids: [PRIYA],
+            },
+          }),
+        );
+      }
+    }
+
+    const rendered = (page: Page) => page.body.querySelectorAll('section[data-group] li').length;
+    const shown = (page: Page) =>
+      page.body.querySelectorAll('section[data-group]:not([hidden]) li:not([hidden]) mt-deadline-row').length;
+    const later = (page: Page) => page.text(page.body.querySelector('section[data-group="later"] h2'));
+    const more = (page: Page) => page.body.querySelector('.mt-deadlines-page .more');
+
+    it('loads a page at a time as the list scrolls, or on the button while filtered', async () => {
+      const observers: { report: IntersectionObserverCallback; targets: Element[]; live: boolean }[] = [];
+      vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+          private readonly entry: (typeof observers)[number];
+          constructor(report: IntersectionObserverCallback) {
+            this.entry = { report, targets: [], live: true };
+            observers.push(this.entry);
+          }
+          observe(target: Element): void {
+            this.entry.targets.push(target);
+          }
+          unobserve(): void {
+            // Nothing to release.
+          }
+          disconnect(): void {
+            this.entry.live = false;
+          }
+        },
+      );
+      /** The end of the list comes into view. */
+      const scrollToEnd = async (page: Page) => {
+        for (const { report, targets, live } of observers) {
+          if (live) {
+            report(
+              targets.map((target) => ({ isIntersecting: true, target }) as IntersectionObserverEntry),
+              {} as IntersectionObserver,
+            );
+          }
+        }
+        await page.stable(20);
+      };
+      try {
+        const page = await openMatter('/deadlines', { configure: seedMany, flags: RULES_ON });
+        await page.stable(20);
+        // The first page: the notice and the next 99 days, the last group marked as going on.
+        expect(rendered(page)).toBe(100);
+        expect(later(page)).toMatch(/\d+\+$/);
+        expect(page.text(row(page, 'q-0'))).toContain('HV-2026-0200 · Estate of Fictional Quill');
+        expect(page.text(row(page, 'd-notice'))).toContain('M-2026-0142 · Estate of Margaret Whitfield');
+
+        await scrollToEnd(page);
+        expect(rendered(page)).toBe(200);
+
+        // Filtered, a short list doesn't load the rest on its own: the button does.
+        await page.click('Mine');
+        expect(shown(page)).toBe(21);
+        expect(page.text(more(page))).toContain(
+          `These filters cover the deadlines due by ${formatDateOnly(dueOn(198))}`,
+        );
+        await scrollToEnd(page);
+        expect(rendered(page)).toBe(200);
+        await page.click('Kind');
+        await page.click('Court');
+        expect(shown(page)).toBe(0);
+        expect(page.text(more(page))).toContain('Nothing matches these filters among the deadlines due by');
+        expect(page.text(page.body)).not.toContain('No deadlines match');
+        await page.click('Show later deadlines');
+        await page.stable(20);
+        expect(rendered(page)).toBe(COUNT + 1);
+        expect(more(page)).toBeNull();
+        expect(page.text(page.body)).toContain('No deadlines match');
+
+        await page.click('Clear filters');
+        expect(shown(page)).toBe(COUNT + 1);
+        expect(later(page)).toMatch(/\d$/);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('reads the calendar a month at a time', async () => {
+      localStorage.setItem('materia.deadlines.view', 'calendar');
+      try {
+        const page = await openMatter('/deadlines', { configure: seedMany, flags: RULES_ON });
+        await page.stable(20);
+        const calendar = page.body.querySelector('mt-deadline-calendar');
+        expect(page.text(calendar?.querySelector('td[data-date="2026-10-08"]'))).toContain(
+          'Advertise notice of intended application',
+        );
+        for (let i = 0; i < 6; i++) await page.click('Next month');
+        await page.stable(20);
+        expect(page.text(calendar?.querySelector('h3'))).toBe('April 2027');
+        // Far past the list's first page, and only that month's days read.
+        expect(page.text(calendar?.querySelector(`td[data-date="${dueOn(200)}"]`))).toContain('Quill step 200');
+        expect(page.body.querySelector('section[data-group]')).toBeNull();
+      } finally {
+        localStorage.removeItem('materia.deadlines.view');
+        TestBed.resetTestingModule();
+      }
+    });
   });
 });
 

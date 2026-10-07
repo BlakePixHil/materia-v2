@@ -490,22 +490,36 @@ export interface CalendarDay<T> {
   deadlines: T[];
 }
 
+/** Monday 1 to Sunday 7. */
+function isoWeekday(date: DateOnly): number {
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
 /**
- * A month view (Monday-first weeks, padded with neighbouring days to whole weeks) with each day's
- * live deadlines sorted by `compareDeadlines`. `month` is `YYYY-MM`.
+ * The days a month view shows, first and last included: the Monday on or before the 1st to the
+ * Sunday on or after the month's last day. `month` is `YYYY-MM`.
+ */
+export function monthCalendarRange(month: string): { from: DateOnly; to: DateOnly } {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error(`Expected YYYY-MM, got ${month}`);
+  const first = `${month}-01` as DateOnly;
+  const [year, monthNumber] = month.split('-').map(Number) as [number, number];
+  const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const last = addDays(first, days - 1);
+  return { from: addDays(first, 1 - isoWeekday(first)), to: addDays(last, 7 - isoWeekday(last)) };
+}
+
+/**
+ * A month view (Monday-first weeks, padded with neighbouring days to whole weeks; the days of
+ * `monthCalendarRange`) with each day's live deadlines sorted by `compareDeadlines`. `month` is
+ * `YYYY-MM`.
  */
 export function monthCalendar<T extends DeadlineLike>(
   month: string,
   rows: readonly T[],
   todayDate: DateOnly,
 ): CalendarDay<T>[][] {
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error(`Expected YYYY-MM, got ${month}`);
-  const first = `${month}-01` as DateOnly;
-  const weekdayOf = (date: DateOnly) => {
-    const day = new Date(`${date}T00:00:00Z`).getUTCDay();
-    return day === 0 ? 7 : day;
-  };
-  const start = addDays(first, 1 - weekdayOf(first));
+  const start = monthCalendarRange(month).from;
   const byDate = new Map<string, T[]>();
   for (const row of [...rows].sort(compareDeadlines)) {
     if (!row.dueDate || !isLive(row)) continue;

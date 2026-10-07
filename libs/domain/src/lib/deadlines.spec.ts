@@ -22,6 +22,7 @@ import {
   matterCopyIsCurrent,
   matterEventPath,
   monthCalendar,
+  monthCalendarRange,
   needsReview,
   nextDeadlineOf,
   OverrideDeadlineInput,
@@ -253,6 +254,20 @@ describe('monthCalendar', () => {
     expect(monthCalendar('2026-06', [], TODAY)[0]?.[0]?.date).toBe('2026-06-01');
     expect(monthCalendar('2026-05', [], TODAY).at(-1)?.at(-1)?.date).toBe('2026-05-31');
     expect(() => monthCalendar('2026-13', [], TODAY)).toThrow('YYYY-MM');
+  });
+
+  it('knows the days a month view shows, for the calendar’s query (SEC-07c)', () => {
+    expect(monthCalendarRange('2026-10')).toEqual({ from: '2026-09-28', to: '2026-11-01' });
+    expect(monthCalendarRange('2026-06')).toEqual({ from: '2026-06-01', to: '2026-07-05' });
+    expect(monthCalendarRange('2026-05')).toEqual({ from: '2026-04-27', to: '2026-05-31' });
+    // February in a leap year, across a year's end.
+    expect(monthCalendarRange('2028-02')).toEqual({ from: '2028-01-31', to: '2028-03-05' });
+    expect(monthCalendarRange('2026-12')).toEqual({ from: '2026-11-30', to: '2027-01-03' });
+    for (const month of ['2026-10', '2026-06', '2026-05', '2028-02']) {
+      const weeks = monthCalendar(month, [], TODAY);
+      expect({ from: weeks[0]?.[0]?.date, to: weeks.at(-1)?.at(-1)?.date }).toEqual(monthCalendarRange(month));
+    }
+    expect(() => monthCalendarRange('2026-1')).toThrow('YYYY-MM');
   });
 });
 

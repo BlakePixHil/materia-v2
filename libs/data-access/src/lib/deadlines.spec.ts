@@ -17,6 +17,7 @@ import {
   PENDING_CHANGES_QUERY,
   REVIEW_QUEUE_QUERY,
   UPCOMING_DEADLINES_QUERY,
+  upcomingDeadlinesBetweenQuery,
 } from './deadlines';
 import { OrgContext } from './org-context';
 import { InMemoryFirestore, provideInMemoryFirestore } from './testing/in-memory-firestore';
@@ -140,6 +141,22 @@ describe('across matters', () => {
     expect((await group.query(UPCOMING_DEADLINES_QUERY)).map((r) => r.title)).toEqual(['Past', 'Theirs', 'Mine']);
     expect((await group.query(myUpcomingDeadlinesQuery('u-jordan'))).map((r) => r.title)).toEqual(['Past', 'Mine']);
     expect((await group.query(REVIEW_QUEUE_QUERY)).map((r) => r.title)).toEqual(['Past']);
+  });
+
+  it('reads a calendar’s days, and each deadline’s copy of its matter (SEC-07c)', async () => {
+    const { fs, run } = setup();
+    const copy = { number: 'HV-2026-0042', title: 'Estate of Fictional Quill', jurisdiction: 'VIC', teamUids: [] };
+    fs.set(`${M}/deadlines/d-1`, deadline('Before', { dueDate: '2026-09-27' }));
+    fs.set(`${M}/deadlines/d-2`, deadline('First day', { dueDate: '2026-09-28', matter: copy }));
+    fs.set(`${M}/deadlines/d-3`, deadline('Last day', { dueDate: '2026-11-01' }));
+    fs.set(`${M}/deadlines/d-4`, deadline('After', { dueDate: '2026-11-02' }));
+    fs.set(`${M}/deadlines/d-5`, deadline('Done', { dueDate: '2026-10-09', status: 'done' }));
+    const group = run(() => deadlineGroupRepository());
+    const days = await group.query(upcomingDeadlinesBetweenQuery('2026-09-28', '2026-11-01'));
+    expect(days.map((r) => [r.title, r.matter])).toEqual([
+      ['First day', copy],
+      ['Last day', undefined],
+    ]);
   });
 
   it('reads proposals for a matter and those waiting on me', async () => {
