@@ -1,4 +1,4 @@
-import { citedRefs, inlineText, isSafeUrl, type MdBlock, parseInline, parseMarkdown } from './markdown';
+import { citedRefs, inlineText, isAppPath, isSafeUrl, type MdBlock, parseInline, parseMarkdown } from './markdown';
 
 describe('parseInline', () => {
   it('parses bold, italic, code, links and citations', () => {
@@ -44,6 +44,18 @@ describe('parseInline', () => {
     expect(isSafeUrl(' https://a.example')).toBe(true);
     expect(isSafeUrl('JavaScript:alert(1)')).toBe(false);
     expect(isSafeUrl('/relative')).toBe(false);
+  });
+
+  it('keeps links to app paths only when asked (the legal pages, SEC-01)', () => {
+    const terms = { type: 'link', href: '/legal/terms', children: [{ type: 'text', text: 'terms' }] };
+    expect(parseInline('[terms](/legal/terms)')).toEqual([{ type: 'text', text: 'terms' }]);
+    expect(parseInline('[terms](/legal/terms)', false, { internalLinks: true })).toEqual([terms]);
+    // Protocol-relative and scheme URLs are never app paths.
+    expect(parseInline('[x](//evil.example/a)', false, { internalLinks: true })).toEqual([{ type: 'text', text: 'x' }]);
+    expect(parseInline('[x](javascript:alert(1))', false, { internalLinks: true })[0]).toMatchObject({ type: 'text' });
+    expect(isAppPath('/legal/privacy')).toBe(true);
+    expect(isAppPath('/\\evil.example')).toBe(false);
+    expect(isAppPath('legal/privacy')).toBe(false);
   });
 
   it('renders half-finished syntax tolerantly while streaming', () => {

@@ -8,6 +8,7 @@ import {
   errorCodeOf,
   errorCopy,
   shouldRefreshTokenAndRetry,
+  TERMS_OUTDATED_COPY,
 } from './error-copy';
 
 describe('error copy', () => {
@@ -31,6 +32,16 @@ describe('error copy', () => {
     expect(errorCodeOf(new Error('boom'))).toBe('INTERNAL');
     expect(errorCodeOf(null)).toBe('INTERNAL');
     expect(errorCodeOf({ details: { code: 'MADE_UP' } })).toBe('INTERNAL');
+  });
+
+  it('asks for a reload when the terms changed while the page was open (SEC-01)', () => {
+    expect(
+      errorCopy(new DomainError('FAILED_PRECONDITION', 'old terms', { reason: 'terms_outdated', current: '0.2' })),
+    ).toBe(TERMS_OUTDATED_COPY);
+    expect(errorCopy({ details: { code: 'FAILED_PRECONDITION', reason: 'terms_outdated' } })).toBe(TERMS_OUTDATED_COPY);
+    expect(errorCopy(new DomainError('FAILED_PRECONDITION', 'other', { reason: 'other' }))).toBe(
+      ERROR_COPY.FAILED_PRECONDITION,
+    );
   });
 
   it('flags a stale org claim for a token refresh and one retry', () => {

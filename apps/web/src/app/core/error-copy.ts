@@ -136,10 +136,16 @@ function clerkCopy(code: ErrorCode, details: Record<string, unknown>): string | 
   return undefined;
 }
 
+/** The terms changed while the page that showed them was open (SEC-01, `terms_outdated`). */
+export const TERMS_OUTDATED_COPY =
+  'The terms have been updated since this page opened. Reload to read the current terms.';
+
 /** User-facing copy for any error thrown by a callable. */
 export function errorCopy(error: unknown): string {
   const code = errorCodeOf(error);
   const details = (error as { details?: unknown } | null)?.details;
+  if (code === 'FAILED_PRECONDITION' && (details as { reason?: unknown } | null)?.reason === 'terms_outdated')
+    return TERMS_OUTDATED_COPY;
   const specific =
     details && typeof details === 'object' ? clerkCopy(code, details as Record<string, unknown>) : undefined;
   return specific ?? ERROR_COPY[code];

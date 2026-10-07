@@ -21,6 +21,9 @@ if [ "$now" -ge 2200 ] || [ "$now" -lt 730 ]; then quiet=true; fi
 # (Clerk prompts are compiled from libs/clerk/prompts/*.md), so only top-level Markdown, READMEs
 # and these folders count. Lint (Prettier) still checks them.
 docs_pattern='^(docs/|\.claude/|\.github/ISSUE_TEMPLATE/|\.github/pull_request_template\.md$|\.github/CODEOWNERS$|LICENSE$|[^/]+\.md$)|(^|/)README\.md$'
+# ...except the legal documents, which `materia-scripts legal-docs` compiles into the app's /legal
+# pages (SEC-01): a change to one runs the tests (which check the compiled copy) and deploys.
+app_docs_pattern='^docs/compliance/'
 
 # Prints the changed files, one per line; prints nothing when they can't be listed (run everything).
 compare_files() {
@@ -37,7 +40,8 @@ pr_files() {
 
 is_docs_only() {
   local files="$1"
-  [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs_pattern" >/dev/null
+  [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs_pattern" >/dev/null &&
+    ! printf '%s\n' "$files" | grep -E "$app_docs_pattern" >/dev/null
 }
 
 # The newest successful dev deploy: "<sha> <minutes ago> <due|recent>" (last-dev-deploy.sh).

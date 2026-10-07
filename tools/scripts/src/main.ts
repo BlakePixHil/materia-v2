@@ -2,6 +2,7 @@
 const COMMANDS = {
   'clerk-bench': 'Clerk provider latency benchmark (AI-01)',
   'clerk-prompts': 'Compile the Clerk prompt registry (libs/clerk/prompts) for Functions (AI-02)',
+  'legal-docs': 'Compile the legal documents (docs/compliance) for the /legal pages (SEC-01; --check)',
   env: 'Write apps/web environment files from Terraform outputs (FND-03)',
   'bundle-size': 'Check the apps/web gzip bundle budgets (FND-04)',
   csp: 'Check the built index.html against the Hosting CSP; write the e2e emulator config (FND-22)',
@@ -52,6 +53,7 @@ export async function run(argv: string[]): Promise<number> {
     const modules = {
       'clerk-bench': () => import('./clerk-bench.ts'),
       'clerk-prompts': () => import('./clerk-prompts.ts'),
+      'legal-docs': () => import('./legal-docs.ts'),
       env: () => import('./env.ts'),
       'bundle-size': () => import('./bundle-size.ts'),
       csp: () => import('./csp.ts'),

@@ -41,8 +41,9 @@ export interface TenancyPort {
   watchUser(uid: string, callback: (tenancy: UserTenancy | null) => void): () => void;
   invites(orgId: string): Promise<PendingInvite[]>;
   /**
-   * The org's security policy and this member's `sessionsValidAfter` (SEC-04), now and on every
-   * change; null when they can't be read. Both documents stay readable whatever the policy says.
+   * The org's security policy and this member's `sessionsValidAfter` (SEC-04), plus the terms version
+   * the org has accepted (SEC-01, from the same org document), now and on every change; null when
+   * they can't be read. Both documents stay readable whatever the policy says.
    */
   watchSecurity?(orgId: string, uid: string, callback: (security: SessionSecurity | null) => void): () => void;
 }
@@ -52,6 +53,8 @@ export interface SessionSecurity {
   policy: ResolvedSecurity;
   /** Sign-ins before this were signed out everywhere. */
   validAfter: Date | null;
+  /** The terms of service version the org's owner accepted (SEC-01), null before any. */
+  termsAcceptedVersion?: string | null;
 }
 
 const asDate = (value: unknown): Date | undefined =>
@@ -151,13 +154,14 @@ export function firestoreTenancyPort(source: FirestoreSource, registry: Listener
       const stops: (() => void)[] = [];
       let policy: ResolvedSecurity | undefined;
       let validAfter: Date | null | undefined;
+      let termsAcceptedVersion: string | null = null;
       let last: string | undefined;
       const emit = () => {
         if (stopped || policy === undefined || validAfter === undefined) return;
-        const key = JSON.stringify([policy, validAfter]);
+        const key = JSON.stringify([policy, validAfter, termsAcceptedVersion]);
         if (key === last) return;
         last = key;
-        callback({ policy, validAfter });
+        callback({ policy, validAfter, termsAcceptedVersion });
       };
       source.get().then(
         ({ sdk, db }) => {
@@ -166,7 +170,10 @@ export function firestoreTenancyPort(source: FirestoreSource, registry: Listener
             sdk.onSnapshot(
               sdk.doc(db, 'orgs', orgId),
               (snap) => {
-                policy = toResolvedSecurity(snap.data()?.['security']);
+                const org = snap.data();
+                policy = toResolvedSecurity(org?.['security']);
+                const terms = org?.['termsAcceptedVersion'];
+                termsAcceptedVersion = typeof terms === 'string' ? terms : null;
                 emit();
               },
               () => !stopped && callback(null),
