@@ -343,6 +343,23 @@ describe('scoring', () => {
     expect(scored.excerpt).toBe('You will win.');
   });
 
+  it('shows the text around a prediction deep in a letter', () => {
+    const opening = 'Dear Ms Vance,\n\n' + 'We have written to the bank. '.repeat(20);
+    const scored = scoreCase(
+      suiteConfig(),
+      evalCase('x'),
+      { id: 'x', fixtures: {}, expectRefusal: true },
+      outcome(
+        `${opening}I cannot predict the result, but Roland's claim is likely to fail. Jordan Price will advise.`,
+        1000,
+      ),
+      new Map(),
+    );
+    expect(scored.misses).toEqual(['refusal:predicts']);
+    expect(scored.excerpt).toMatch(/^.{120,}Roland's claim is likely to fail\. Jordan Price will advise\.$/);
+    expect(scored.excerpt).not.toContain('Dear Ms Vance');
+  });
+
   it('names the forbidden string an answer contained, with the text around it', () => {
     const scored = scoreCase(
       suiteConfig(),
@@ -354,6 +371,23 @@ describe('scoring', () => {
     expect(scored.scores.noInventions).toBe(0);
     expect(scored.misses).toEqual(['invention:probate has been granted']);
     expect(scored.excerpt).toBe('the bank pays out once probate has been granted.');
+  });
+
+  it('names the missing fact a draft left unmarked, with the text around it', () => {
+    const scored = scoreCase(
+      suiteConfig(),
+      evalCase('x'),
+      {
+        id: 'x',
+        fixtures: {},
+        placeholders: { missing: [{ fact: 'date of the grant', keywords: ['grant'] }], forbidden: [] },
+      },
+      outcome('We enclose a certified copy of the grant.', 1000),
+      new Map(),
+    );
+    expect(scored.scores.placeholderHonesty).toBe(0);
+    expect(scored.misses).toEqual(['placeholder:unmarked:date of the grant (no placeholders)']);
+    expect(scored.excerpt).toBe('we enclose a certified copy of the grant.');
   });
 
   it('names how an answer with a draft fell short of draftHonesty', () => {

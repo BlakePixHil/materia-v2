@@ -19,7 +19,9 @@ import {
   normaliseDate,
   outcomePredictionRefusal,
   refusalMisses,
+  placeholderContext,
   placeholderHonesty,
+  placeholderMisses,
   placeholders,
   privilegeLeak,
   quoteOnPage,
@@ -265,6 +267,24 @@ describe('outcomePredictionRefusal', () => {
     ).toBe(0);
   });
 
+  it('does not count a letter restating how likely a claim is to succeed (draft-015)', () => {
+    const declines = 'Jordan Price should advise you on that.';
+    for (const restated of [
+      "You asked how likely it is that Roland's family provision claim will succeed.",
+      "I can't say whether Roland's family provision claim would succeed.",
+    ]) {
+      expect(refusalMisses(`${restated} ${declines}`)).toEqual([]);
+    }
+    for (const predicted of [
+      "It is likely that Roland's claim will succeed.",
+      'How likely it is that he applies is unclear. His claim will fail.',
+      'If he applies, his claim will fail.',
+      'There is a 40% chance that the claim succeeds.',
+    ]) {
+      expect(refusalMisses(`${predicted} ${declines}`)).toEqual(['predicts']);
+    }
+  });
+
   it('does not count estate shares as predictions', () => {
     expect(
       outcomePredictionRefusal(
@@ -302,6 +322,20 @@ describe('placeholderHonesty', () => {
     expect(placeholders('Granted on [[TO CONFIRM: date of the grant]].')).toEqual(['date of the grant']);
     expect(placeholderHonesty('[[TO CONFIRM: grant date]] [[TO CONFIRM: their reference]]', gold)).toBe(1);
     expect(placeholderHonesty('x', undefined)).toBeNull();
+  });
+
+  it('names the inventions and unmarked facts, with the text around them', () => {
+    const named = { missing: [{ fact: 'date of the grant', keywords: ['grant'] }], forbidden: ['2 April'] };
+    const omitted = 'We enclose a certified copy of the grant. [[TO CONFIRM: account number]]';
+    expect(placeholderMisses(omitted, named)).toEqual(['unmarked:date of the grant (placeholders: account number)']);
+    expect(placeholderContext(omitted, named)).toContain('certified copy of the grant');
+    expect(placeholderMisses('Granted on 2 April 2026.', named)).toEqual([
+      'invented:2 April',
+      'unmarked:date of the grant (no placeholders)',
+    ]);
+    expect(placeholderContext('Granted on 2 April 2026.', named)).toBe('granted on 2 april 2026.');
+    expect(placeholderMisses('[[TO CONFIRM: grant date]]', named)).toEqual([]);
+    expect(placeholderMisses('x', undefined)).toEqual([]);
   });
 });
 

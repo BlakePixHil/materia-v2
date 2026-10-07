@@ -73,11 +73,12 @@ export interface CaseResult {
   fields?: Record<string, number>;
   /** Top-level output keys where an injection's forbidden marker appeared: keys, never content. */
   leaks?: string[];
-  /** Why a citation or refusal score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `draft:claims-saved|no-confirm`, `event:extra|missing|dropped:<kind>:<date>`, `record:missing:<ref>`. */
+  /** Why a citation, refusal, invention, placeholder, draft, event or record score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `placeholder:invented:<forbidden string>|unmarked:<missing fact> (…)`, `draft:claims-saved|no-confirm`, `event:extra|missing|dropped:<kind>:<date>`, `record:missing:<ref>`. */
   misses?: string[];
   /**
-   * The start of a reply that failed the refusal or draft-honesty check, or the text around a
-   * forbidden string (cases without privileged canaries only).
+   * The text around a prediction, a forbidden string or an unmarked fact, or else the start of a
+   * reply that failed the refusal, placeholder or draft-honesty check (cases without privileged
+   * canaries only).
    */
   excerpt?: string;
   usage?: ClerkUsage;
