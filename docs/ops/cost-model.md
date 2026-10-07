@@ -89,14 +89,14 @@ Reads are where a careless screen would show up, so they are modelled screen by 
 | Today, page load (shell included) | 1 | 78 | 78 |
 | Today, from another screen | 8 | 75 | 600 |
 | Matters list | 6 | 165 | 990 |
-| A matter | 20 | 62 | 1,240 |
+| A matter | 20 | 63 | 1,260 |
 | Deadlines | 2 | 688 | 1,376 |
 | Other screens (time, documents, contacts, billing, search) | 25 | 40 (assumed) | 1,000 |
 | Listener updates (colleagues' changes arriving) | | | 150 |
 | Security rules' `get()` of the membership and matter, about 1.5 per request (not seen by the client counter) | | | 1,134 |
-| **Per active member-day** | | | **≈ 6,570** |
+| **Per active member-day** | | | **≈ 6,590** |
 
-- **People:** 6,570 × 45 × 21 ≈ **6.2 million reads**, about **US$2.40** a month. Deadlines is a fifth of it. Its follow-up ("Window the Deadlines page and denormalise matter fields onto deadlines") would take about US$0.35 off at this scale, and more for firms that live on that page. The firm's 50 member documents are read by the Matters list, a matter and Deadlines alike; that counts each listener as new, though Firestore bills a listener resumed within 30 minutes only for what changed, so these screens are upper bounds.
+- **People:** 6,590 × 45 × 21 ≈ **6.2 million reads**, about **US$2.40** a month. Deadlines is a fifth of it. Its follow-up ("Window the Deadlines page and denormalise matter fields onto deadlines") would take about US$0.35 off at this scale, and more for firms that live on that page. The firm's 50 member documents are read by the Matters list, a matter and Deadlines alike; that counts each listener as new, though Firestore bills a listener resumed within 30 minutes only for what changed, so these screens are upper bounds.
 - **Functions:** transactions, triggers and rollups read about 2.5 documents per write, about 1.06 million. Scheduled jobs (reminders, digests, debtors, sweeps) read about 600,000. Together about **US$0.63**.
 - **Nightly export:** one read per document per night, about 122 million reads without chunks and 188 million with them. That is **US$46–72**.
 
@@ -104,7 +104,7 @@ Reads are where a careless screen would show up, so they are modelled screen by 
 
 | Line | Clerk ingestion off | Clerk ingests everything | How it's derived |
 | -- | --: | --: | -- |
-| Firestore reads: people | 2.36 | 2.36 | 6.2 million reads |
+| Firestore reads: people | 2.37 | 2.37 | 6.2 million reads |
 | Firestore reads: functions and scheduled jobs | 0.63 | 0.63 | 1.66 million reads |
 | Firestore reads: nightly export | 46.43 | 71.51 | one read per document, 30 nights |
 | Firestore writes and deletes | 0.46 | 0.49 | 424,000 writes, deletes at 5% |
@@ -121,7 +121,7 @@ Reads are where a careless screen would show up, so they are modelled screen by 
 | Functions (Cloud Run, request-based) | 8.31 | 8.31 | 650,000 invocations (about 1.2 per write, plus callables), about 228,000 vCPU-seconds |
 | Cloud Tasks | 0.01 | 0.01 | 28,000 operations |
 | Vertex embeddings for new documents | 0 | 1.56 | 5,200 documents × 4 pages × 3,000 characters |
-| **Total** | **≈ 89.57** | **≈ 239.92** | |
+| **Total** | **≈ 89.58** | **≈ 239.93** | |
 
 The invocations follow the writes because most writes set off triggers. In the load tests, creating a matter set off about 52 trigger invocations for its 60 or so writes (audit, activity, metrics, search and conflict triggers). A Clerk message set off about 8, six of them `audit-onOrgWrite` on the thread, rate-limit, meter and idempotency documents, which it then skips.
 
