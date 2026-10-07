@@ -1,10 +1,11 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-setting). Regenerate with `pnpm materia-scripts sync-design`. */
-.mt-setting { display: flex; align-items: center; gap: var(--space-16); padding: var(--space-12) var(--space-16); background: var(--bg-surface); border: 1px solid var(--border-default); }
+.mt-setting { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-16); padding: var(--space-12) var(--space-16); background: var(--bg-surface); border: 1px solid var(--border-default); }
 .mt-setting + .mt-setting { border-top: 0; }
 .mt-setting:first-of-type { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 .mt-setting:last-child { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 .mt-setting:only-of-type { border-radius: var(--radius-lg); }
-.mt-setting .tx { flex: 1; min-width: 0; }
+.mt-setting .tx { flex: 1 1 240px; min-width: 0; }
+.mt-setting > .tx ~ * { margin-inline-start: auto; }
 .mt-setting .tt { font: 500 13px/18px var(--font-sans); color: var(--text-primary); display: flex; align-items: center; gap: var(--space-6); }
 .mt-setting .ts { font: 400 12px/16px var(--font-sans); color: var(--text-tertiary); margin-top: 2px; }
 .mt-setting[data-locked] .tt .mt-i { color: var(--icon-muted); width: 13px; height: 13px; }

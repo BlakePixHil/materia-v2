@@ -22,7 +22,7 @@ type CalendarRow = DeadlineLike & { row: DeadlineRowVm };
   template: `
     <div class="nav">
       <button mtIconButton icon="chevron-left" size="sm" label="Previous month" (click)="go(-1)"></button>
-      <h3 class="title-s month" aria-live="polite">{{ label() }}</h3>
+      <h3 class="heading month" aria-live="polite">{{ label() }}</h3>
       <button mtIconButton icon="chevron-right" size="sm" label="Next month" (click)="go(1)"></button>
       @if (month() !== thisMonth()) {
         <button mtButton size="sm" variant="ghost" (click)="monthChange.emit(thisMonth())">This month</button>

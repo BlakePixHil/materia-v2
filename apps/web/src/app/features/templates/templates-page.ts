@@ -28,11 +28,13 @@ import { errorCopy } from '../../core/error-copy';
   imports: [RouterLink, MtBadge, MtButton, MtNote, MtSettingsRow, MtSettingsSection],
   host: { class: 'mt-col', style: 'gap: 24px; max-width: 760px' },
   template: `
-    <h1 class="title-l" style="margin: 0">Matter templates</h1>
-    <p style="margin: 0; color: var(--text-secondary)">
-      A template sets a matter type’s stages, the tasks each stage creates and the deadline rules that apply. Matters
-      keep the version they started on until someone upgrades them.
-    </p>
+    <div class="mt-col" style="gap: 6px">
+      <h1 class="title-l" style="margin: 0">Matter templates</h1>
+      <p style="margin: 0; color: var(--text-secondary)">
+        A template sets a matter type’s stages, the tasks each stage creates and the deadline rules that apply. Matters
+        keep the version they started on until someone upgrades them.
+      </p>
+    </div>
 
     @if (error(); as message) {
       <mt-note tone="danger">{{ message }}</mt-note>

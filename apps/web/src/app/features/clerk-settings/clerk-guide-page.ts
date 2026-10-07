@@ -65,7 +65,7 @@ export const CLERK_RULES: readonly Rule[] = [
         <li>
           <span class="n" aria-hidden="true">{{ i + 1 }}</span>
           <div class="mt-col" style="gap: 4px">
-            <h2 class="title-s" style="margin: 0">{{ rule.title }}</h2>
+            <h2 class="heading" style="margin: 0">{{ rule.title }}</h2>
             <p style="margin: 0; color: var(--text-secondary)">{{ rule.body }}</p>
           </div>
         </li>

@@ -137,7 +137,7 @@ function prefersNativePicker(): boolean {
   host: { class: 'mt-field' },
   template: `
     @if (label(); as text) {
-      <span ngpLabel class="mt-label">
+      <span ngpLabel class="mt-label" [class.mt-sr]="labelHidden()">
         {{ text }}
         @if (optional()) {
           <span class="mt-opt">Optional</span>
@@ -148,6 +148,7 @@ function prefersNativePicker(): boolean {
       <span
         ngpHover
         class="mt-input mt-select"
+        [attr.data-size]="size() === 'sm' ? 'sm' : null"
         [attr.data-invalid]="showInvalid() ? '' : null"
         [attr.data-disabled]="isDisabled() ? '' : null"
       >
@@ -190,6 +191,7 @@ function prefersNativePicker(): boolean {
         ngpSelect
         ngpHover
         class="mt-input mt-select"
+        [attr.data-size]="size() === 'sm' ? 'sm' : null"
         [mtSelectTypeahead]="labels()"
         [disabledOptions]="disabledFlags()"
         [currentIndex]="selectedIndex()"
@@ -256,6 +258,8 @@ function prefersNativePicker(): boolean {
 export class MtSelect<T = string> extends MtLabelledControl<T | null> {
   readonly options = input.required<readonly (MtOption<T> | MtOptionGroup<T>)[]>();
   readonly placeholder = input('Choose…');
+  /** `sm` (28px) for tables and SettingsRows, as TextField. */
+  readonly size = input<'sm' | 'md'>('md');
   /** Force the native picker (true) or the menu (false); by default, native below 768px. */
   readonly native = input<boolean | undefined>(undefined);
 

@@ -193,8 +193,12 @@ const EMPTY: ProfileForm = {
       flex-wrap: wrap;
       gap: 8px;
     }
+    /* Floated, the legend is an ordinary flex item on its own line rather than drawn into the
+       fieldset's top edge. */
     .colours legend {
-      margin-bottom: 8px;
+      float: left;
+      width: 100%;
+      padding: 0;
     }
     .swatch {
       width: 28px;

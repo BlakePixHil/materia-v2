@@ -227,8 +227,12 @@ const sameForm = (a: PracticeForm, b: PracticeForm) =>
       flex-wrap: wrap;
       gap: var(--space-12, 12px) var(--space-20, 20px);
     }
+    /* Floated, the legend is an ordinary flex item on its own line rather than drawn into the
+       fieldset's top edge, so it sits the same distance under the field above as any label. */
     .jurisdictions legend {
-      margin-bottom: var(--space-8, 8px);
+      float: left;
+      width: 100%;
+      padding: 0;
     }
   `,
 })

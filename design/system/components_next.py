@@ -63,10 +63,18 @@ comp("SettingsRow", "Settings", 260, """
 One setting: a label, one line of consequence, and its control on the right (Switch, Select or Button). Rows group into bordered sections with a heading and a sentence that says what the group controls.
 
 A setting the firm cannot change shows a lock and says why. Settings that widen what Clerk can read or do say so in plain words (“Clerk will read emails filed to a matter”).
-""", '<div class="mt-settings-section" style="width:640px"><h3>What Clerk can read</h3><p>Clerk only reads what is switched on here, and only within matters the person asking can open.</p>'
+
+A section can also hold fields, notes and buttons: they sit 12px apart, and consecutive rows still join into one bordered list. A person’s row leads with their avatar. When a row’s controls don’t fit beside a readable title (about 240px), they wrap under it, still at the end, rather than squeezing the title.
+""", '<div class="mt-col" style="width:640px;gap:28px"><div class="mt-settings-section"><h3>What Clerk can read</h3><p>Clerk only reads what is switched on here, and only within matters the person asking can open.</p>'
     + f'<div class="mt-setting"><div class="tx"><div class="tt">Matter documents</div><div class="ts">Wills, certificates, statements and correspondence filed to a matter.</div></div>{switch(True)}</div>'
     + f'<div class="mt-setting"><div class="tx"><div class="tt">Email</div><div class="ts">Only emails filed to a matter or exchanged with a matter’s contacts.</div></div>{switch(True)}</div>'
-    + f'<div class="mt-setting" data-locked><div class="tx"><div class="tt">Send email or file documents {icon("shield")}</div><div class="ts">Clerk never sends, files or bills anything. A person always does.</div></div>{switch(False, disabled=True)}</div></div>')
+    + f'<div class="mt-setting" data-locked><div class="tx"><div class="tt">Send email or file documents {icon("shield")}</div><div class="ts">Clerk never sends, files or bills anything. A person always does.</div></div>{switch(False, disabled=True)}</div></div>'
+    + '<div class="mt-settings-section"><h3>Invoices</h3><p>What appears on every invoice.</p>'
+    + f'<div class="mt-setting"><div class="tx"><div class="tt">Registered for GST</div><div class="ts">Invoices show GST and are titled “Tax invoice”.</div></div>{switch(True)}</div>'
+    + field("Invoice number prefix", "HP-") + field("Payment terms", "14", suffix="days") + "</div>"
+    + '<div class="mt-settings-section"><h3>Members</h3>'
+    + f'<div class="mt-setting">{avatar("PS", hue="2")}<div class="tx"><div class="tt">Priya Shah</div><div class="ts">priya.shah@haleprice.example.com.au · Lawyer · $440.00/h</div></div><span class="mt-row" style="gap:8px">{btn("Rate and budget", "secondary", "sm")}{field(None, "Lawyer", select=True, size="sm")}{btn("Suspend…", "secondary", "sm")}{btn("Transfer ownership…", "secondary", "sm")}{btn("Remove", "secondary", "sm")}</span></div>'
+    + f'<div class="mt-setting">{avatar("JP")}<div class="tx"><div class="tt">Jordan Price (you)</div><div class="ts">jordan.price@haleprice.example.com.au · Owner</div></div><span class="body-s t-2">Owner</span></div></div></div>')
 
 comp("IntegrationCard", "Settings", 150, """
 # IntegrationCard

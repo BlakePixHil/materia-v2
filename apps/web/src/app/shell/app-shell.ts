@@ -96,6 +96,14 @@ export const MOBILE_QUERY = '(max-width: 767px)';
   // On a phone the page's actions in the top bar show just their icons (the label stays for screen
   // readers) and no shortcut hints, so the bar fits the screen instead of widening the page.
   styles: `
+    /* The page column spaces banners and the routed page. The outlet element and an empty banner take
+       no room, so a page starts at the column's padding instead of two gaps further down. */
+    .mt-page > router-outlet {
+      display: none;
+    }
+    .mt-page > mt-mfa-grace-banner {
+      display: contents;
+    }
     @media (max-width: 767px) {
       .mt-topbar .mt-btn:has(> mt-icon:first-child + span) {
         width: var(--h);
@@ -303,7 +311,7 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         <div class="mt-page">
           <mt-mfa-grace-banner />
           @if (timer.forgotten(); as flag) {
-            <mt-note tone="warning" class="mt-timer-banner" data-testid="timer-forgotten">
+            <mt-note tone="warning" data-testid="timer-forgotten">
               {{ forgottenText() }}
               <span class="mt-row" style="gap: 6px; margin-top: 6px">
                 <button mtButton size="sm" variant="primary" (click)="timer.stop()">Stop timer</button>
