@@ -3,8 +3,9 @@
 # here from the release's bundles), in a fixed order, then runs the @smoke Playwright tests against
 # the deployed site. Order: Firestore indexes → rules (Firestore and Storage) → Cloud Run jobs →
 # Cloud Run services (ClamAV, previews) → functions (codebase `core`) → hosting. A failure stops the
-# run loudly. The only automatic retry is for functions that fail to update (up to two more
-# attempts of just those, for the regional CPU quota); docs/runbooks/deploy.md covers partial deploys.
+# run loudly. The only automatic retry is for functions that fail to update (two more attempts of
+# just those, 5 and 10 minutes later, for the regional CPU quota); docs/runbooks/deploy.md covers
+# partial deploys.
 #
 # Settings come from variables named <NAME>_<DEV|PROD> (repository or environment variables):
 # GCP_PROJECT_*, GCP_WIF_PROVIDER_* and GCP_DEPLOYER_SA_*. No JSON keys anywhere.
@@ -178,11 +179,13 @@ jobs:
 
       # The CLI loads dist/apps/functions to list its triggers (firebase-functions resolves from the
       # workspace node_modules); Cloud Build installs from the generated package.json and lockfile.
-      # A full deploy rolls every function at once, and on dev a few new revisions can fail their
-      # health check on the regional Cloud Run CPU quota ("Quota exceeded for total allowable CPU per
-      # project per region") while the old revisions are still up. So the functions that failed are
-      # redeployed on their own, up to twice, a minute apart; a failure with no function list (a
-      # build error, say) fails straight away. Inline rather than a script because the checkout is
+      # A full deploy rolls every function at once: each new revision starts an instance (1 vCPU)
+      # for its health check, and instances stay up to 15 minutes after they go idle. So on dev some
+      # new revisions can fail on the regional Cloud Run CPU quota ("Quota exceeded for total
+      # allowable CPU per project per region"), more so when deploys run back to back. The functions
+      # that failed are redeployed on their own, after 5 and then 10 minutes so the burst's idle
+      # instances can drain; a failure with no function list (a build error, say) fails straight
+      # away. Inline rather than a script because the checkout is
       # the release's commit, which may predate any script.
       - name: Deploy functions (codebase core)
         run: |
@@ -205,9 +208,10 @@ jobs:
               echo "::error::These functions still failed after three attempts: $failed"
               exit 1
             fi
-            echo "::warning::Functions deploy attempt $attempt failed for: $failed. Retrying just those in a minute."
+            wait=$((attempt * 5))
+            echo "::warning::Functions deploy attempt $attempt failed for: $failed. Retrying just those in $wait minutes."
             only="$(echo "$failed" | tr ' ' '\n' | sed 's/^/functions:core:/' | paste -sd,)"
-            sleep 60
+            sleep $((wait * 60))
           done
 
       # Hidden sourcemaps (FND-21) are never served: they go to the private sourcemaps bucket for
