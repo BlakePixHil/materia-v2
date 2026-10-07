@@ -1,9 +1,10 @@
-import { computed, DestroyRef, inject, Injectable, InjectionToken, signal } from '@angular/core';
+import { computed, DestroyRef, inject, Injectable, InjectionToken, Injector, signal } from '@angular/core';
 
 import { DataLifecycle, setFirestoreCacheMode } from '@materia/data-access';
 
 import { AUTH_PORT, type AuthPersistence, type AuthSession, type SignInOutcome } from './auth-port';
 import { deleteScanQueue } from '../../features/scan/scan-db';
+import { PushDevices } from '../push/push-devices';
 
 /** The signed-in person and their active org, as the shell shows them. */
 export interface SessionUser {
@@ -38,7 +39,9 @@ export type SignOutCleanup = () => void | Promise<void>;
 export const SIGN_OUT_CLEANUP = new InjectionToken<SignOutCleanup[]>('SIGN_OUT_CLEANUP', {
   factory: () => {
     const data = inject(DataLifecycle);
-    return [() => data.signOut()];
+    const injector = inject(Injector);
+    // This browser's push device first (MOB-04): deleting it needs Firestore, which the data layer closes.
+    return [() => injector.get(PushDevices).signOut(), () => data.signOut()];
   },
 });
 

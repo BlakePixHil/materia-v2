@@ -57,6 +57,7 @@ import { MtDeletionBanner } from '../core/orgs/deletion-banner';
 import { OrgService } from '../core/orgs/org-service';
 import { PinnedMatters } from '../core/pins/pinned-matters';
 import { UserPrefsService } from '../core/profile/user-prefs';
+import { PushDevices } from '../core/push/push-devices';
 import { InstallPrompt, INSTALL_COPY } from '../core/pwa/install-prompt';
 import { MtOfflineBanner } from '../core/pwa/offline-banner';
 import { MtPendingSync } from '../core/pwa/pending-sync';
@@ -71,6 +72,8 @@ import { ClerkChatPanel } from '../features/clerk/clerk-chat-panel';
 export const SIDEBAR_STORAGE_PREFIX = 'materia.shell.sidebar-collapsed.';
 /** Where the collapsed-Pinned-section choice is kept, per user (CORE-23). */
 export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
+/** How long after the shell opens this device's push registration is refreshed (MOB-04). */
+const PUSH_REFRESH_DELAY_MS = 8000;
 
 /**
  * The app shell (FND-12): sidebar, inset main panel with the header (breadcrumbs, page actions and
@@ -635,6 +638,12 @@ export class AppShellComponent {
 
     const cleanups = [...this.registerShortcuts(), ...this.registerCommands()];
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+
+    // This device's push registration (MOB-04) keeps its token and last-seen date fresh, once the
+    // first page has settled.
+    const push = inject(PushDevices);
+    const refresh = setTimeout(() => void push.refresh().catch(() => undefined), PUSH_REFRESH_DELAY_MS);
+    destroyRef.onDestroy(() => clearTimeout(refresh));
 
     // The installed app's "New time entry" shortcut (MOB-01) opens quick time entry over Today.
     onIntent(
