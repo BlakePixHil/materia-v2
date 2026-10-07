@@ -25,16 +25,24 @@ export const CLERK_THREAD_TITLE_MAX = 80;
 export const CLERK_THREAD_MESSAGES_MAX = 400;
 
 /**
- * The `/` commands. Only `summarise` is built; the others arrive with their tickets (chronology:
- * LIT-06, drafting: AI-10, timeline: INS) and show as "coming soon" until then.
+ * The `/` commands. `summarise` asks Clerk in the thread; `draft` opens Clerk drafting (AI-10) on
+ * the matter instead, with what follows it as the instructions (`page`: the server never sees it as
+ * a command). The others arrive with their tickets (chronology: LIT-06, timeline: INS) and show as
+ * "coming soon" until then.
  */
 export const CLERK_CHAT_COMMANDS = [
   { name: 'summarise', description: 'Summarise this matter', available: true },
   { name: 'chronology', description: 'Chronology from the documents (coming soon)', available: false },
-  { name: 'draft', description: 'Draft a letter or file note (coming soon)', available: false },
+  { name: 'draft', description: 'Draft a letter on the letterhead', available: true, page: true },
   { name: 'timeline', description: 'Key dates as a timeline (coming soon)', available: false },
 ] as const;
 export type ClerkChatCommand = (typeof CLERK_CHAT_COMMANDS)[number]['name'];
+
+/** `/draft write to the bank…`: the instructions for Clerk drafting (AI-10), or null for another message. */
+export function parseDraftCommand(text: string): { instructions: string } | null {
+  const match = /^\/draft(?:\s+([\s\S]*))?$/.exec(text.trim());
+  return match ? { instructions: (match[1] ?? '').trim() } : null;
+}
 
 /** What `/summarise` asks when nothing follows it. */
 export const SUMMARISE_DEFAULT_QUESTION =
@@ -46,7 +54,7 @@ export const SUMMARISE_DEFAULT_QUESTION =
  */
 export function parseClerkCommand(text: string): { command: ClerkChatCommand | null; question: string } {
   const match = /^\/([a-z]+)(?:\s+([\s\S]*))?$/.exec(text.trim());
-  const command = CLERK_CHAT_COMMANDS.find((c) => c.available && c.name === match?.[1]);
+  const command = CLERK_CHAT_COMMANDS.find((c) => c.available && !('page' in c) && c.name === match?.[1]);
   if (!match || !command) return { command: null, question: text.trim() };
   const rest = (match[2] ?? '').trim();
   return { command: command.name, question: rest || SUMMARISE_DEFAULT_QUESTION };

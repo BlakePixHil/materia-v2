@@ -19,6 +19,10 @@ const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'];
 // main runs both browsers.
 const chromiumOnly = process.env['E2E_CHROMIUM_ONLY'] === '1';
 
+// SEC-07's performance specs (src/perf) need the large practice (`materia-scripts seed-large`), so
+// they run only when asked: E2E_PERF=1 with --project=chromium-perf (CI's morning perf job).
+const perf = process.env['E2E_PERF'] === '1';
+
 /**
  * Playwright e2e for apps/web (ADR-017). Chromium on desktop plus WebKit on a mobile viewport.
  * Without WebKit installed, run `pnpm e2e -- --project=chromium`.
@@ -39,6 +43,9 @@ export default defineConfig({
     // Tests check behaviour, not motion. With reduced motion the app's animations finish at once
     // (libs/ui base.css), so a closing dialog or menu is gone before the next step looks for one.
     reducedMotion: 'reduce',
+    // The e2e build has the service worker (MOB-01). It would sit between page.route and the app's
+    // own fetches, so tests run without it; pwa.spec.ts allows it.
+    serviceWorkers: 'block',
   },
   ...(baseURL
     ? {}
@@ -54,7 +61,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /\/load\//,
+      testIgnore: /\/(load|perf)\//,
       use: { ...devices['Desktop Chrome'], ...(executablePath ? { launchOptions: { executablePath } } : {}) },
     },
     ...(chromiumOnly
@@ -62,17 +69,29 @@ export default defineConfig({
       : [
           {
             name: 'webkit-mobile',
-            testIgnore: /\/load\//,
+            testIgnore: /\/(load|perf)\//,
             use: { ...devices['iPhone 13'] },
           },
         ]),
-    // Tests that flood the emulators (src/load) run once everything else has finished. Locally:
-    // `--project=chromium-load --no-deps`.
+    // Tests that flood the emulators or switch their triggers off (src/load) run once everything
+    // else has finished. Locally: `--project=chromium-load --no-deps`.
     {
       name: 'chromium-load',
       testMatch: /\/load\/.*\.spec\.ts$/,
       dependencies: chromiumOnly ? ['chromium'] : ['chromium', 'webkit-mobile'],
       use: { ...devices['Desktop Chrome'], ...(executablePath ? { launchOptions: { executablePath } } : {}) },
     },
+    // Reads per screen and Web Vitals budgets (SEC-07), one at a time: they measure, so nothing
+    // else may run beside them. Desktop for the reads; the Web Vitals spec emulates a mid-tier phone.
+    ...(perf
+      ? [
+          {
+            name: 'chromium-perf',
+            testMatch: /\/perf\/.*\.spec\.ts$/,
+            fullyParallel: false,
+            use: { ...devices['Desktop Chrome'], ...(executablePath ? { launchOptions: { executablePath } } : {}) },
+          },
+        ]
+      : []),
   ],
 });

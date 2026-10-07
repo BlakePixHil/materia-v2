@@ -67,6 +67,14 @@ export function matterCommands(
       'time.record',
     ),
     command(
+      'add-note',
+      'Add note',
+      'compose',
+      intentUrl(`${base}/notes`, 'add-note'),
+      ['file note', 'write'],
+      'note.write',
+    ),
+    command(
       'upload',
       'Upload document',
       'upload',

@@ -101,11 +101,43 @@ A large radio option with a glyph, a title and one line of detail, for decisions
 comp("TabBar", "Mobile", 120, """
 # TabBar
 
-Primary navigation on phones: Today, Matters, Record, Clerk and Inbox. The centre item is the Record action (time or a file note, by voice), raised as a 48px button. Targets are at least 44px.
-""", '<div class="mt-tabbar" style="width:390px;border:1px solid var(--border-default);border-radius:12px">' + f'<a data-active>{icon("today")}Today</a><a>{icon("matters")}Matters</a><a><span class="fab">{icon("mic")}</span></a><a>{icon("sparkle")}Clerk</a><a>{icon("inbox")}Inbox</a></div>', canvas=True)
+Primary navigation on phones (under 768px): Today, Matters, Record, Inbox and More. The centre item is the Record screen (log time or a file note, and voice when it ships), raised as a 48px button labelled “Record” for screen readers. Inbox carries its unread count. More holds the rest of the sidebar, your account and the theme; any page reached from it keeps More current.
+
+Fixed to the bottom with the safe area below it, the same height from the first frame (no layout shift). Targets are at least 44px.
+""", '<div class="mt-tabbar" style="width:390px;border:1px solid var(--border-default);border-radius:12px">' + f'<a data-active>{icon("today")}Today</a><a>{icon("matters")}Matters</a><a aria-label="Record"><span class="fab">{icon("mic")}</span></a><a>{icon("inbox")}Inbox</a><a>{icon("more")}More</a></div>', canvas=True)
+
+comp("MobileRow", "Mobile", 330, """
+# MobileRow
+
+The phone's list row (`mt-mrow`): an icon or a matter-type dot, a title and a subtitle, and a chevron, a DeadlineChip or a count at the end. At least 56px tall and the full width, so the whole row is the target. As a link or button it darkens while pressed (`bg-pressed`) and shows the focus ring when reached by keyboard. `data-tone="danger"` for Sign out.
+
+Groups of rows sit under a MobileGroup heading (`mt-mgroup`): 12px uppercase `text-tertiary`, 20px above. Used by More, Matters, a matter's sections and the matter actions sheet.
+""", '<div class="mt-col" style="width:390px;gap:0;padding:0 16px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:12px">'
+    + '<span class="mt-mgroup" style="margin-top:12px">Recent</span>'
+    + f'<a class="mt-mrow"><span style="flex:none;width:10px;height:10px;border-radius:3px;background:var(--matter-probate)"></span><span class="mt-col mt-grow" style="gap:0;align-items:flex-start"><span class="tt mt-ell">Estate of Margaret Whitfield</span><span class="ts mono-s">WE-142</span></span>{deadline("Today", "today")}</a>'
+    + '<span class="mt-mgroup">This device</span>'
+    + f'<button class="mt-mrow">{icon("moon")}<span class="tt mt-grow">Dark theme</span></button>'
+    + f'<button class="mt-mrow" data-tone="danger" style="border-bottom:0">{icon("log-out")}<span class="tt mt-grow">Sign out</span></button></div>', canvas=True)
+
+comp("PullToRefresh", "Mobile", 170, """
+# PullToRefresh
+
+Pull down at the very top of Today, Matters or Inbox to load them again. A pill under the top bar follows the finger: “Pull to refresh”, then “Release to refresh” in brand blue past 64px, then a spinning “Refreshing…” (`role="status"`) until the screen has its data.
+
+Only one finger, only from the top of the page, and never while it's already refreshing. The browser's own pull-to-reload is off on these screens (`overscroll-behavior-y: contain`), so the page never reloads under you. With reduced motion the pill appears without sliding and the icon doesn't spin.
+
+```html
+<mt-pull-refresh [refreshing]="loading()" (refresh)="reload()" />
+```
+""", '<div class="mt-row" style="gap:16px">'
+    + f'<div class="mt-ptr" data-pulling style="position:static;transform:none">{icon("refresh")}Pull to refresh</div>'
+    + f'<div class="mt-ptr" data-pulling data-ready style="position:static;transform:none">{icon("refresh")}Release to refresh</div>'
+    + f'<div class="mt-ptr" data-refreshing style="position:static;transform:none">{icon("refresh")}Refreshing…</div></div>', canvas=True)
 
 comp("BottomSheet", "Mobile", 330, """
 # BottomSheet
 
 The phone’s dialog: slides up over the current screen for a short task (record time, confirm a deadline). Grab handle, a title, the content, and the primary action at the bottom within thumb reach.
+
+Under 768px every Dialog takes this shape by itself (`libs/ui` dialog CSS), so features don't build a second version. It rises above the on-screen keyboard (`--mt-keyboard-inset`), scrolls inside when it's taller than the screen, and closes with the Close button, Esc or a tap on the overlay.
 """, '<div style="position:relative;width:390px;height:300px;border-radius:16px;overflow:hidden;background:var(--bg-canvas);border:1px solid var(--border-default)"><div class="mt-sheet"><span class="grab"></span><div class="title-m">Record time</div>' + time_entry("Call with Peter Hale re: share registry", "WE-118 · from your voice note", "0.2 h", "$88.00", "phone", True, False) + btn("Save entry", "primary", "lg") .replace('class="mt-btn"', 'class="mt-btn" style="width:100%"') + "</div></div>", canvas=True)

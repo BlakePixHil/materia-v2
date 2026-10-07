@@ -8,14 +8,19 @@ import {
   provideZonelessChangeDetection,
 } from '@angular/core';
 import { provideRouter, TitleStrategy, withPreloading } from '@angular/router';
+import { provideInteractionsConfig } from 'ng-primitives/interactions';
 
 import {
   ACCESS_REVOKED_HANDLER,
+  countReads,
+  createReadCounter,
+  exposeReadCounter,
   FIREBASE_SETUP,
   FIRESTORE_SDK_LOADER,
   FirestoreClient,
   firestoreTenancyPort,
   ListenerRegistry,
+  loadFirestoreSdk,
   TENANCY_PORT,
 } from '@materia/data-access';
 import { ThemeService } from '@materia/ui';
@@ -30,14 +35,31 @@ import { FeatureFlagService } from './core/flags/feature-flags';
 import { clientErrorReporter } from './core/observability/client-error-reporter';
 import { startPerformanceMonitoring } from './core/observability/perf';
 import { OrgService } from './core/orgs/org-service';
+import { providePwa } from './core/pwa/pwa';
 import { DelayedPreloading, prefetchPagesDuringGuards } from './core/routing/preloading';
 import { MateriaTitleStrategy } from './core/title-strategy';
 import { environment } from '../environments/environment';
 import { RELEASE } from '../environments/version';
+import { anyScansWaiting } from './features/scan/scan-db';
+
+async function resumeScans(injector: Injector): Promise<void> {
+  if (!(await anyScansWaiting())) return;
+  const { ScanQueue } = await import('./features/scan/scan-queue');
+  injector.get(ScanQueue);
+}
+
+/**
+ * Set by the build (`define` in apps/web/project.json): true in development and e2e builds, false
+ * in deployed ones, where the bundler drops the reads counter below.
+ */
+declare const MATERIA_READS_COUNTER: boolean | undefined;
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    // When nothing can hover (a phone) ng-primitives skips hover tracking, which gives every button a
+    // ResizeObserver and a style read as it renders: on a phone's Today that was ~30 ms of start-up.
+    ...(globalThis.matchMedia?.('(any-hover: none)').matches ? provideInteractionsConfig({ hover: false }) : []),
     // Zoneless change detection (ADR-002). Do not add zone.js or libraries that depend on it.
     provideZonelessChangeDetection(),
     // Once a page is up, the other pages download in the background (one at a time), so opening
@@ -71,12 +93,29 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(ThemeService);
     }),
+    // The installable app (MOB-01): service worker, updates, install prompt, browser bar colour.
+    providePwa(),
     // The data layer (FND-19): the full Firestore SDK loads lazily, on the first signed-in read.
     // Its download starts now, while Auth restores the session, instead of after it; Firestore
     // itself still starts on the first read.
     provideAppInitializer(() => {
       inject(FIRESTORE_SDK_LOADER)().catch(() => undefined);
     }),
+    // SEC-07: development and e2e builds count Firestore reads per screen (`window.__materiaReads`,
+    // read by apps/web-e2e/src/perf); deployed builds load the SDK as it is. The test stays inline:
+    // behind a module constant the minifier kept the counter in once the providers above changed.
+    ...(typeof MATERIA_READS_COUNTER !== 'undefined' && MATERIA_READS_COUNTER
+      ? [
+          {
+            provide: FIRESTORE_SDK_LOADER,
+            useFactory: () => {
+              const counter = exposeReadCounter(createReadCounter());
+              let counted: ReturnType<typeof loadFirestoreSdk> | undefined;
+              return () => (counted ??= loadFirestoreSdk().then((sdk) => countReads(sdk, counter)));
+            },
+          },
+        ]
+      : []),
     {
       provide: FIREBASE_SETUP,
       useValue: {
@@ -109,6 +148,12 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(SessionPolicy);
       inject(IdleTimeout);
+    }),
+    // Scans saved on this device without a connection (MOB-05) upload when it's back, after a
+    // reload too. The queue loads only when a scan is waiting.
+    provideAppInitializer(() => {
+      const injector = inject(Injector);
+      setTimeout(() => void resumeScans(injector).catch(() => undefined), 5000);
     }),
   ],
 };

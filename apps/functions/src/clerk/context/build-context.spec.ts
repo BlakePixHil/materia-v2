@@ -242,6 +242,25 @@ describe('buildContext: scope', () => {
   });
 });
 
+describe('buildContext: the matter brief (AI-06c)', () => {
+  it('gives the brief’s facts only: no notes, document text, retrieval or privileged records', async () => {
+    const { source, chunks, build } = setup();
+    const result = await build('lawyer', { feature: 'matterBrief', query: 'ignored' });
+    const text = textOf(result.contextBlocks);
+    expect(text).toContain('kind="brief"');
+    expect(text).not.toContain(CANARY);
+    expect(result.documents).toEqual([]);
+    expect(result.searchResults).toEqual([]);
+    expect(result.brief?.facts.today).toBe('Mon 5 Oct 2026');
+    expect(result.manifest.privileged).toBe(false);
+    expect(source.reads.some((read) => read.startsWith('notes:'))).toBe(false);
+    expect((chunks as FakeChunkSearch).calls).toEqual([]);
+    await expect(build('lawyer', { feature: 'matterBrief', attachments: ['d-advice'] })).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
+  });
+});
+
 describe('buildContext: access changes', () => {
   it('aborts with ACCESS_REVOKED when the member was suspended after the request', async () => {
     await expect(setup().build('lawyer', { uid: USERS.suspended })).rejects.toMatchObject({ code: 'ACCESS_REVOKED' });

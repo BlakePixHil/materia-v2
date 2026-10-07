@@ -73,8 +73,12 @@ export const issueDefinition = {
     const ref = db.doc(invoicePath(orgId, input.invoiceId));
     const counterRef = db.doc(counterPath(orgId, INVOICE_COUNTER));
 
+    // Attempts at the transaction, logged: more than one means it contended for the invoice
+    // counter (or the invoice) with another issue (SEC-07).
+    let attempts = 0;
     const result = await db.runTransaction(
       async (tx) => {
+        attempts++;
         const read = reader(db, tx);
         const invoice = existing(await tx.get(ref));
         if (LIVE_INVOICE_STATUSES.has(String(invoice['status']))) {
@@ -177,7 +181,7 @@ export const issueDefinition = {
       const issued = (await ref.get()).data() as Parameters<typeof startDocumentPdf>[3];
       await startDocumentPdf(ctx, 'invoice', ref.id, issued, result.matter);
     }
-    log.info('invoice issued', { invoiceId: ref.id, number: result.number, repeat: !result.issued });
+    log.info('invoice issued', { invoiceId: ref.id, number: result.number, repeat: !result.issued, attempts });
     return { invoiceId: ref.id, number: result.number, totalCents: result.totalCents };
   },
 } satisfies CallableDefinition<typeof IssueInvoiceInput, IssueInvoiceResult>;

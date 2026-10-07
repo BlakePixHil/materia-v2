@@ -1,9 +1,0 @@
-SAMPLE - FICTIONAL DOCUMENT FOR SOFTWARE TESTING ONLY
-
-HARBOUR & VINE LEGAL - LETTER HOUSE STYLE
-
-- Address the recipient by title and surname.
-- Open with the estate name in bold as the subject line.
-- Short paragraphs; plain English; no Latin.
-- Sign off "Yours faithfully" for organisations and "Yours sincerely" for named people.
-- Mark anything we do not yet know as [[MISSING: what is missing]] for the lawyer to fill in.

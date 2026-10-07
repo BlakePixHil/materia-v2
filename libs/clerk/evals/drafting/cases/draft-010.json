@@ -1,6 +1,6 @@
 {
   "id": "draft-010",
-  "description": "Letter with every fact known: no placeholders needed",
+  "description": "Client update with every fact known: no placeholders needed",
   "matter": {
     "matterNumber": "HV-2026-0007",
     "title": "Estate of Gwendolyn May Pryce",
@@ -12,7 +12,8 @@
     "responsibleLawyer": "Jordan Price",
     "probate": {
       "applicationFiled": "2026-02-12",
-      "granted": null
+      "granted": null,
+      "grantType": "probate"
     },
     "upcomingDeadlines": [
       {
@@ -24,16 +25,22 @@
   },
   "documents": [
     {
-      "id": "d-style",
-      "fixture": "drafting/house-style.txt",
-      "title": "Letter house style"
-    },
-    {
       "id": "d-pryce-nerida",
       "fixture": "matters/pryce/nerida-letter.txt",
-      "title": "Letter from Nerida Cole, 12 March 2026"
+      "title": "Letter from Nerida Cole"
     }
   ],
-  "query": "Draft a short letter to Nerida Cole confirming we have noted her new address at 4/12 Gheringhap Street, Geelong.",
-  "today": "2026-03-20"
+  "query": "Short client update to Nerida Cole confirming we have noted her new address.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "client-update",
+    "recipients": [
+      {
+        "name": "Nerida Cole",
+        "role": "executor",
+        "address": "4/12 Gheringhap Street\nGeelong VIC 3220"
+      }
+    ],
+    "instructions": "Keep it short: confirm we have noted her new address at 4/12 Gheringhap Street, Geelong."
+  }
 }

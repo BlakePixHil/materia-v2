@@ -11,7 +11,15 @@ import {
   type TotpEnrolment,
 } from './auth-port';
 
-/** A fictional, fully set-up session (verified, org member). */
+/**
+ * A fictional, fully set-up session (verified, org member).
+ *
+ * Unless a test gives an `authTime`, the sign-in is always just now, whenever it's read. Angular
+ * runs the unit tests without isolation, so a session a spec file makes as it loads (ADMIN,
+ * LAWYER…) lasts for the rest of its worker's run. A sign-in time fixed then went stale for
+ * sensitive actions five minutes in (`SENSITIVE_REAUTH_MINUTES`): once the web suite ran longer
+ * than that, Connect Xero asked for a fresh sign-in instead of starting (2026-10-07).
+ */
 export function testSession(overrides: Partial<AuthSession> = {}): AuthSession {
   return {
     uid: 'user-jordan',
@@ -21,7 +29,9 @@ export function testSession(overrides: Partial<AuthSession> = {}): AuthSession {
     providerIds: ['password'],
     mfaEnrolled: false,
     claims: { orgId: 'org-harbour-vine', role: 'lawyer', orgName: 'Harbour & Vine Legal' },
-    authTime: Date.now(),
+    get authTime() {
+      return Date.now();
+    },
     ...overrides,
   };
 }
@@ -144,6 +154,13 @@ export class FakeAuthPort implements AuthPort {
     if (this.mfaOnSignIn) return { kind: 'mfaRequired' };
     if (this.session) this.emit({ ...this.session, authTime: Date.now() });
     return { kind: 'signedIn' };
+  }
+
+  /** How many times a screen got the Google pop-up ready. */
+  popupsPrepared = 0;
+
+  async preparePopups(): Promise<void> {
+    this.popupsPrepared++;
   }
 
   async refreshClaims(): Promise<void> {

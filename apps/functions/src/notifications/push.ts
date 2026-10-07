@@ -27,14 +27,22 @@ export function classifyPushError(error: unknown): PushResult {
   return { ok: false, reason: 'rejected' };
 }
 
-/** The FCM message: title and body on the lock screen, the app link on tap (web and native). */
+/**
+ * The FCM message: title and body on the lock screen, the app link (and its org) on tap. On the
+ * web, the app's service worker (`sw.js`, MOB-04) shows it and routes the tap; `fcmOptions.link`
+ * is for clients without it. High urgency, so a phone saving battery doesn't hold it back.
+ */
 export function fcmMessage(token: string, message: PushMessage) {
   const url = `${appUrl()}${message.link}`;
   return {
     token,
     notification: { title: message.title, body: message.body },
-    data: { link: message.link },
-    webpush: { fcmOptions: { link: url } },
+    data: {
+      link: message.link,
+      ...(message.orgId ? { orgId: message.orgId } : {}),
+      ...(message.tag ? { tag: message.tag } : {}),
+    },
+    webpush: { headers: { Urgency: 'high' }, fcmOptions: { link: url } },
   };
 }
 

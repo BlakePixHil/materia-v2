@@ -172,6 +172,8 @@ comp("Switch", "Forms", 160, """
 
 Settings that take effect immediately (Clerk suggestions on/off, calendar sync). Use a Checkbox inside forms that are saved with a button.
 
+On phones (under 768px) it is iOS-sized: a 51 × 31px track with a 27px thumb, inside a 44px-tall target whose border above and below is clear. Its label centres on the track, and the focus ring hugs the track. Set its colours with `background-color`, never the `background` shorthand, which would fill the clear border.
+
 ```html
 <button ngpSwitch [(ngpSwitchChecked)]="enabled" class="mt-switch"><span ngpSwitchThumb class="mt-switch-thumb"></span></button>
 ```
@@ -183,12 +185,12 @@ comp("NavItem", "Navigation", 330, """
 
 Sidebar navigation: an icon, a label and an optional count, in a 240px sidebar on the canvas.
 
-The active item gets `bg-pressed` and primary text. Hover uses `bg-hover`. Counts are mono and tertiary and only show something actionable (unread, due). Pinned matters use a 8px matter-type square instead of an icon. Sections (“Workspace”, “Pinned”) are 12px tertiary labels and can collapse.
+The active item gets `bg-pressed` and primary text. Hover uses `bg-hover`. Counts are mono and tertiary and only show something actionable (unread, due). Pinned matters use a 8px matter-type square instead of an icon. Sections (“Workspace”, “Pinned”) are 12px tertiary labels. Pinned is a button that collapses its list (`.mt-nav-section[data-toggle]` over a `.mt-nav-group`): a chevron shows on hover and focus, turns to point right while closed, and the list slides shut. The choice is remembered per person, and the section hides when nothing is pinned and in the rail.
 
 ```html
 <a ngpButton routerLink="/matters" routerLinkActive #rla="routerLinkActive" [attr.data-active]="rla.isActive ? '' : null" class="mt-nav">…</a>
 ```
-""", '<div class="mt-col" style="width:240px;gap:1px;padding:8px;background:var(--bg-canvas);border-radius:10px">' + nav("Today", "today") + nav("Inbox", "inbox", 3, hover=True) + '<div class="mt-nav-section">Workspace</div>' + nav("Matters", "matters", 42, True) + nav("Deadlines", "calendar", 9) + nav("Time and billing", "billing") + nav("Insights", "insights") + '<div class="mt-nav-section">Pinned</div>' + nav("Estate of Margaret Whitfield", None, dot="matter-probate") + nav("Nguyen v Nguyen", None, dot="matter-fp") + "</div>", canvas=True)
+""", '<div class="mt-col" style="width:240px;gap:1px;padding:8px;background:var(--bg-canvas);border-radius:10px">' + nav("Today", "today") + nav("Inbox", "inbox", 3, hover=True) + '<div class="mt-nav-section">Workspace</div>' + nav("Matters", "matters", 42, True) + nav("Deadlines", "calendar", 9) + nav("Time and billing", "billing") + nav("Insights", "insights") + nav_toggle("Pinned") + nav("Estate of Margaret Whitfield", None, dot="matter-probate") + nav("Nguyen v Nguyen", None, dot="matter-fp") + "</div>", canvas=True)
 
 comp("Tabs", "Navigation", 120, """
 # Tabs
@@ -314,7 +316,7 @@ comp("Table", "Data display", 230, """
 
 Dense, scannable lists of matters, entries and documents: 40px rows, 13px text, group rows, and a sticky header.
 
-Columns lead with the ref (mono) and status glyph, then the name, then type, stage, next deadline, owner and money (right-aligned, mono). Selected rows use `bg-selected`; selecting shows the bulk-action bar. Group rows (`.group`) collapse.
+Columns lead with the ref (mono) and status glyph, then the name, then type, stage, next deadline, owner and money (right-aligned, mono). Selected rows use `bg-selected`; selecting shows the bulk-action bar. Group rows (`.group`) collapse. A row's own actions sit in a last `more` column that shows on hover and keyboard focus (always on touch screens) and stays out of the tab order, since row shortcuts reach the same actions (`p` pins a matter).
 
 Use native `<table>` for semantics; selection follows `ngpListbox` keyboard patterns (↑ ↓, Space, Shift-click).
 """, '<div style="width:100%;border:1px solid var(--border-default);border-radius:10px;overflow:hidden"><table class="mt-table"><thead><tr><th></th><th>Ref</th><th>Matter</th><th>Type</th><th>Stage</th><th>Next deadline</th><th>Owner</th><th class="num">WIP</th></tr></thead><tbody><tr class="group"><td colspan="8"><span class="mt-row">' + icon("chevron-down", "sm") + 'Active<span class="mt-count">3</span></span></td></tr>' + rows_html + "</tbody></table></div>", col=True)
@@ -376,6 +378,8 @@ comp("ClerkBrief", "Clerk", 380, """
 Clerk’s proactive summary card: a heading that states the conclusion, up to three items, each with its sources and one action.
 
 The card has a 2px violet-to-orange top edge, `border-ai` and `ai-glow`. Each item leads with the matter name in bold, says what changed and what Clerk did, and cites its sources with `mt-cite`. The footer states what Clerk read and when. Use it on Today and at the top of a matter, never more than once per page.
+
+At the top of a matter's Overview it is the matter brief (AI-06c): a heading with the day's numbers, then at most five items, what's overdue or due in the next 14 days first, then what changed and one next step. Each item leads with what it is ("Overdue.", "Due soon.", "New since your last visit.", "Next step."), and cites the deadline, task, document, note or suggestion it is about with numbered `mt-cite` chips that open that record. The head carries Refresh and, where the Clerk panel is available, "Ask a follow-up". When Clerk didn't write it (Clerk is off, it failed, or the person can't use Clerk), the same card shows the template brief built from the same facts, in the plain style: `data-plain` drops the AI edge, glow and wash, the head shows "Matter brief" without the Clerk mark, and the footer says it was built from the matter's records. While it loads, the card holds `mt-skeleton` lines.
 """, '<div class="mt-clerk-card" style="width:100%"><div class="in"><div class="mt-clerk-head">' + clerk("sm") + 'Morning brief<span class="mt-ml mt-row" style="gap:4px">' + btn("Sources", "ghost", "sm", "link") + "</span></div>"
     + '<div class="title-m">Three things need you today</div>'
     + '<div class="mt-col" style="gap:0">' + "".join(f'<div class="mt-row" style="align-items:flex-start;gap:12px;padding:10px 0;border-top:1px solid var(--border-subtle)">{icon(ic, None, "t-" + tone)}<div class="mt-grow mt-col" style="gap:6px"><div class="body t-2"><b class="t-1">{m}</b> {txt}</div><div class="mt-cites">{cs}</div></div>{btn(a, "secondary", "sm")}</div>' for ic, tone, m, txt, cs, a in [
@@ -407,6 +411,8 @@ comp("Citation", "Clerk", 110, """
 Points from a Clerk claim to its source: a document and pinpoint, an email, or a provision. Opens the source at that spot in a side panel.
 
 Format: `Source · pinpoint` in mono (“Will · cl. 6”, “APA 1958 (Vic) s 99”, “File note 14 Aug”). Numbered when the text uses superscripts.
+
+On a phone (under 768px) each chip is at least 44px tall, at 12px, with 8px between chips, so a finger can open one source without catching the next.
 """, cite("Will · cl. 6", 1) + cite("Death certificate") + cite("Administration and Probate Act 1958 (Vic) s 99") + cite("Email · K. Ho 30 Sep") + cite("Westpac statement p 3"))
 
 comp("Suggestion", "Clerk", 170, """
@@ -437,13 +443,20 @@ A matter on a board: status glyph and ref, the estate’s name, type, next deadl
 Cards are 12px padded on `bg-surface` with `border-default`; hover lifts the border to `border-strong`. Names wrap to two lines, never truncate mid-word.
 """, '<div class="mt-row" style="gap:12px;align-items:flex-start"><div style="width:280px">' + matter_card("WE-142", "Estate of Margaret Whitfield", "probate", ("active", .25), "Notice", deadline("Today", "today"), avatar("JP") + avatar("PS", hue="2"), "Publish the notice today so filing can open 16 Oct.") + '</div><div style="width:280px">' + matter_card("WE-097", "Nguyen v Nguyen", "fp", ("blocked", 0), "Mediation", deadline("Overdue 2d", "overdue"), avatar("DK", hue="3")) + "</div></div>", canvas=True)
 
-comp("TaskRow", "Matter patterns", 210, """
+comp("TaskRow", "Matter patterns", 330, """
 # TaskRow
 
 A to-do on Today or a matter: checkbox, title, the matter it belongs to, due date and owner.
 
 Done tasks strike through in `text-tertiary`. Clerk-proposed tasks use Suggestion until accepted. Rows are 40px minimum.
-""", '<div class="mt-col" style="gap:2px;width:620px">' + task("Send estate asset questionnaire to executors", "Estate of Margaret Whitfield", deadline("Today", "today") + avatar("JP")) + task("Search for next of kin for the Fairweather intestacy", "Estate of Doris Fairweather", deadline("Mon 12 Oct", "upcoming") + avatar("PS", hue="2")) + task("Obtain original will from safe custody", "Estate of George Lambert", deadline("Done 2 Oct", "done") + avatar("JP"), True) + "</div>")
+
+**Snooze.** Where a row can be moved (Today's My tasks), a “Snooze to tomorrow” icon button shows on hover or focus, and always on touch screens. It moves the due date to tomorrow in the practice's time zone, with Undo in the toast.
+
+**Swipe (phones).** Swipe right past 72px to finish the task and left to snooze it, each with Undo. The row follows the finger, says what letting go will do (“Done” on green, “Tomorrow” on amber) and springs back if it isn't far enough. Vertical scrolls, short drags and the mouse are left alone; with reduced motion the row doesn't animate back.
+""", '<div class="mt-col" style="gap:2px;width:620px">' + task("Send estate asset questionnaire to executors", "Estate of Margaret Whitfield", deadline("Today", "today") + avatar("JP")) + task("Search for next of kin for the Fairweather intestacy", "Estate of Doris Fairweather", deadline("Mon 12 Oct", "upcoming") + avatar("PS", hue="2")) + task("Obtain original will from safe custody", "Estate of George Lambert", deadline("Done 2 Oct", "done") + avatar("JP"), True)
+    + task("Call the bank about the estate account", "Estate of Margaret Whitfield", deadline("Today", "today") + avatar("JP")).replace('<div class="mt-task">', '<div class="mt-task" data-swipeable data-swipe="done" style="--mt-swipe:96px">', 1)
+    + task("Chase the valuer for the Toorak house", "Estate of Robert Chen", deadline("Today", "today") + avatar("JP")).replace('<div class="mt-task">', '<div class="mt-task" data-swipeable data-swipe="snooze" style="--mt-swipe:-96px">', 1)
+    + "</div>")
 
 comp("Timeline", "Matter patterns", 290, """
 # Timeline
@@ -462,13 +475,17 @@ Manual entries are solid. Clerk-captured entries are dashed `border-ai` with the
 """, '<div class="mt-col" style="gap:8px;width:600px">' + time_entry("Drafted probate application and affidavit", "WE-142 · Whitfield · 1 Oct", "1.8 h", "$792.00") + time_entry("Emails with executor re: asset schedule", "3 emails · 10:42–11:05 · WE-142", "0.4 h", "$176.00", "mail", True) + time_entry("Conference with Ms Okafor re: attorneys", "Calendar · 25 min · WE-151", "0.5 h", "Fixed fee", "calendar", True) + "</div>")
 
 STAGES = ["Intake", "Will & assets", "Notice", "Filed", "Grant", "Collect", "Debts & tax", "Distribute", "Finalise"]
-comp("EstateStepper", "Matter patterns", 110, """
+comp("EstateStepper", "Matter patterns", 190, """
 # EstateStepper
 
 The nine stages of a deceased estate, under the matter title. Done stages fill blue; the current stage is half-filled and its label is primary.
 
 Stages: Intake · Will & assets · Notice · Filed · Grant · Collect · Debts & tax · Distribute · Finalise. Letters of administration uses the same track; family provision claims use their own (Instructions · Notice · Filed · Mediation · Hearing · Orders).
-""", '<ol class="mt-stepper" style="width:100%">' + "".join(f'<li data-state="{"done" if i < 2 else "current" if i == 2 else ""}">{s}</li>' for i, s in enumerate(STAGES)) + "</ol>", col=True)
+
+**Phones** (under 768px, `compact`): nine labels don't fit side by side, so the track keeps its segments without labels and the current stage is named under it: “Stage 3 of 9 · Notice”. Where the stage can be changed, that line is a 44px ghost button whose menu lists the stages, with the current one checked and locked ones disabled with their reason.
+""", '<div class="mt-col" style="gap:24px;width:100%"><ol class="mt-stepper" style="width:100%">' + "".join(f'<li data-state="{"done" if i < 2 else "current" if i == 2 else ""}">{s}</li>' for i, s in enumerate(STAGES)) + "</ol>"
+    + '<div class="mt-stepper-compact" style="width:358px"><span class="mt-stepper-bars" style="--n:9">' + "".join(f'<i{" data-state=done" if i < 2 else " data-state=current" if i == 2 else ""}></i>' for i in range(9)) + "</span>"
+    + btn("Stage 3 of 9 · Notice", "ghost", "sm", trail="chevron-down").replace('class="mt-btn"', 'class="mt-btn mt-stepper-now"', 1) + "</div></div>", col=True)
 
 comp("KeyFacts", "Matter patterns", 220, """
 # KeyFacts

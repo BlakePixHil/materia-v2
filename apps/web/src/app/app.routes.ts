@@ -1,14 +1,15 @@
 import { inject } from '@angular/core';
 import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 
-import type { Role } from '@materia/domain';
+import { PERMISSIONS, type Role } from '@materia/domain';
 
 import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
+import { acceptTermsGuard, termsGuard } from './core/legal/terms';
 import { startPagePath } from './core/profile/start-page';
 import { readLayout } from './features/matters/matters-layout';
-import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
+import { SETTINGS_ADMIN_ROLES, SETTINGS_OWNER_ROLES } from './features/settings/settings-nav';
 import { unsavedChangesGuard } from './features/settings/unsaved-changes';
 import { MATTER_TABS } from './pages/matter-tabs';
 import type { PlaceholderData } from './pages/placeholder';
@@ -137,6 +138,20 @@ const matterRoutes: Route[] = [
         data: { crumb: 'Document' },
         loadComponent: () => import('./features/documents/document-page').then((m) => m.DocumentPage),
       },
+      // Clerk drafting (AI-10): starting a letter (`?type=`, `?instructions=`), then the draft's editor.
+      {
+        path: 'drafts/new',
+        title: 'Draft a letter',
+        data: { crumb: 'Draft a letter' },
+        loadComponent: () =>
+          import('./features/clerk-drafts/clerk-draft-start-page').then((m) => m.ClerkDraftStartPage),
+      },
+      {
+        path: 'drafts/:draftId',
+        title: 'Draft letter',
+        data: { crumb: 'Draft letter' },
+        loadComponent: () => import('./features/clerk-drafts/clerk-draft-page').then((m) => m.ClerkDraftPage),
+      },
       // Deep links to a tab that doesn't exist land on the overview.
       { path: '**', redirectTo: 'overview' },
     ],
@@ -210,6 +225,40 @@ const shellRoutes: Route[] = [
         loadComponent: () => import('./features/safe-custody/packet-page').then((m) => m.SafeCustodyPacketPage),
       },
     ],
+  },
+  // Record (MOB-02): the phone's capture screen, the TabBar's centre button and the installed app's
+  // Record shortcut (MOB-01). Scan a document (MOB-05) photographs a paper document into a matter.
+  {
+    path: 'record',
+    data: { crumb: 'Record' },
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        title: 'Record',
+        loadComponent: () => import('./features/record/record-page').then((m) => m.RecordPage),
+      },
+      {
+        path: 'scan',
+        title: 'Scan a document',
+        data: { crumb: 'Scan a document' },
+        canActivate: [roleGuard(PERMISSIONS['document.upload'])],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/scan/scan-page').then((m) => m.ScanPage),
+      },
+    ],
+  },
+  // Where a tapped push notification lands (MOB-04): opens its link, after asking to switch org.
+  {
+    path: 'open',
+    title: 'Opening',
+    loadComponent: () => import('./core/push/open-from-push').then((m) => m.OpenFromPushPage),
+  },
+  // More (MOB-02): on a phone, the account and every destination the TabBar has no room for.
+  {
+    path: 'more',
+    title: 'More',
+    loadComponent: () => import('./features/more/more-page').then((m) => m.MorePage),
   },
   // My time, WIP by matter and approvals (BILL-03).
   {
@@ -440,6 +489,14 @@ const shellRoutes: Route[] = [
         data: { crumb: 'Security' },
         loadComponent: () => import('./features/security/security-page').then((m) => m.SecurityPage),
       },
+      // Data and deletion (SEC-05): owners export everything and delete the practice.
+      {
+        path: 'data',
+        title: 'Data and deletion',
+        data: { crumb: 'Data and deletion' },
+        canActivate: [roleGuard(SETTINGS_OWNER_ROLES)],
+        loadComponent: () => import('./features/settings/data-deletion-page').then((m) => m.DataDeletionPage),
+      },
       // Settings pages still to come land on the team page.
       { path: '**', redirectTo: 'team' },
     ],
@@ -546,12 +603,34 @@ export const appRoutes: Route[] = [
       },
     ],
   },
-  // The shell needs a signed-in, verified person with an active org (and MFA where required).
+  // The legal documents (SEC-01): public, signed in or not, in a wider card for reading.
+  {
+    path: 'legal',
+    loadComponent: minimalLayout,
+    data: { width: 'wide' },
+    loadChildren: () => import('./features/legal/legal.routes').then((m) => m.LEGAL_ROUTES),
+  },
+  // An owner accepts the current terms for their practice before using the app (SEC-01).
+  {
+    path: 'accept-terms',
+    loadComponent: minimalLayout,
+    data: { width: 'wide' },
+    canActivate: [orgGuard, acceptTermsGuard],
+    children: [
+      {
+        path: '',
+        title: 'Accept the terms',
+        loadComponent: () => import('./features/legal/accept-terms-page').then((m) => m.AcceptTermsPage),
+      },
+    ],
+  },
+  // The shell needs a signed-in, verified person with an active org (and MFA where required), and
+  // an owner whose practice has accepted the current terms (SEC-01).
   // canActivate rather than canMatch, so the router knows the target pages while the guard waits
   // and their chunks download meanwhile (prefetchPagesDuringGuards).
   {
     path: '',
-    canActivate: [orgGuard],
+    canActivate: [orgGuard, termsGuard],
     loadComponent: () => import('./shell/app-shell').then((m) => m.AppShellComponent),
     children: shellRoutes,
   },

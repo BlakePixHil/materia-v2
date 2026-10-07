@@ -1,6 +1,13 @@
 import { type Firestore, type QuerySnapshot } from 'firebase-admin/firestore';
 
-import { contactDisplayName, RoleSchema, sumMetricShards, trustSettingsOf, type Contact } from '@materia/domain';
+import {
+  contactDisplayName,
+  OPEN_SUGGESTION_STATUSES,
+  RoleSchema,
+  sumMetricShards,
+  trustSettingsOf,
+  type Contact,
+} from '@materia/domain';
 
 import type { ContextSource, Row } from './ports';
 import { isEnabled } from '../../core/flags';
@@ -92,6 +99,23 @@ export function firestoreContextSource(db: Firestore): ContextSource {
       if (!ids.length) return [];
       const snaps = await db.getAll(...ids.map((id) => db.doc(`${matterPath(orgId, matterId)}/documents/${id}`)));
       return snaps.filter((snap) => snap.exists).map((snap) => ({ id: snap.id, data: snap.data() ?? {} }));
+    },
+
+    async recentActivity(orgId, matterId, { limit }) {
+      return rows(await sub(orgId, matterId, 'activity').orderBy('at', 'desc').limit(limit).get());
+    },
+
+    async recentDocuments(orgId, matterId, { limit }) {
+      return rows(await sub(orgId, matterId, 'documents').orderBy('createdAt', 'desc').limit(limit).get());
+    },
+
+    async openSuggestions(orgId, matterId, { limit }) {
+      return rows(
+        await sub(orgId, matterId, 'suggestions')
+          .where('status', 'in', [...OPEN_SUGGESTION_STATUSES])
+          .limit(limit)
+          .get(),
+      );
     },
 
     async metricMonths(orgId, months) {

@@ -110,9 +110,13 @@ export const makeUser = (o: Partial<D.User> = {}) =>
     o,
   );
 
-/** A browser's push token (FND-20). The token is a made-up string, not a real FCM token. */
+/** A browser's push token (FND-20, MOB-04). The token is a made-up string, not a real FCM token. */
 export const makeDevice = (o: Partial<D.Device> = {}) =>
-  build(D.Device, { token: 'fake-fcm-token-0001', platform: 'web', lastSeenAt: FIXED_INSTANT }, o);
+  build(
+    D.Device,
+    { token: 'fake-fcm-token-0001', platform: 'web', label: 'Chrome on macOS', lastSeenAt: FIXED_INSTANT },
+    o,
+  );
 
 export const makeTimer = (o: Partial<D.Timer> = {}) =>
   build(
@@ -418,8 +422,49 @@ export const makeFactCitation = (o: Partial<D.FactCitation> = {}) =>
     o,
   );
 
+/** A matter's brief on Overview (AI-06c), as the template writes it. */
+export const makeMatterBrief = (o: Partial<D.MatterBrief> = {}) =>
+  build(
+    D.MatterBrief,
+    {
+      source: 'template',
+      reason: 'off',
+      headline: 'Nothing overdue; 1 item due in the next 14 days.',
+      items: [
+        {
+          kind: 'due',
+          text: 'Deadline “Apply for probate” is due Fri 16 Oct.',
+          refs: [{ kind: 'deadline', id: 'deadline-test-1', label: 'Apply for probate' }],
+        },
+      ],
+      read: { deadlines: 1, tasks: 0, changes: 0, documents: 0, suggestions: 0 },
+      day: d('2026-10-01'),
+      factsHash: '0123456789abcd',
+      privileged: false,
+      generatedAt: FIXED_INSTANT,
+      generatedBy: TEST_UID,
+    },
+    o,
+  );
+
 export const makeClerkThread = (o: Partial<D.ClerkThread> = {}) =>
   build(D.ClerkThread, { title: 'Grant timeline', ownerUid: TEST_UID, matterId: TEST_MATTER_ID }, o);
+
+export const makeClerkDraft = (o: Partial<D.ClerkDraft> = {}) =>
+  build(
+    D.ClerkDraft,
+    {
+      typeId: 'bank-balance-request',
+      title: 'Bank balance request: Surfcoast Community Bank',
+      ownerUid: TEST_UID,
+      recipients: [{ name: 'Surfcoast Community Bank', address: 'PO Box 1\nTorquay VIC 3228' }],
+      status: 'ready',
+      bodyMd: 'Dear Sir or Madam\n\nPlease tell us the balance as at [[TO CONFIRM: date of death]].',
+      provenance: [{ origin: 'clerk', length: 82 }],
+      deletedAt: null,
+    },
+    o,
+  );
 
 export const makeClerkMessage = (o: Partial<D.ClerkMessage> = {}) =>
   build(
@@ -1007,6 +1052,26 @@ export const makeDestructionCertificate = (o: Partial<D.DestructionCertificate> 
     o,
   );
 
+export const makeDeletedOrg = (o: Partial<D.DeletedOrg> = {}) =>
+  build(
+    D.DeletedOrg,
+    {
+      orgId: TEST_ORG_ID,
+      name: 'Fictional Test Legal',
+      status: 'deleted',
+      stage: 'certificate',
+      requestedBy: TEST_UID,
+      requestedAt: FIXED_INSTANT,
+      scheduledFor: FIXED_INSTANT,
+      purgeStartedAt: FIXED_INSTANT,
+      deletedAt: FIXED_INSTANT,
+      certificateId: 'odc-0123456789ab',
+      ownerUids: [TEST_UID],
+      counts: { records: 120, files: 4, integrations: 0, members: 2 },
+    },
+    o,
+  );
+
 export const makeRecentMatter = (o: Partial<D.RecentMatter> = {}) =>
   build(
     D.RecentMatter,
@@ -1043,8 +1108,10 @@ export const ENTITY_FACTORIES = {
   Distribution: [D.Distribution, makeDistribution],
   Suggestion: [D.Suggestion, makeSuggestion],
   FactCitation: [D.FactCitation, makeFactCitation],
+  MatterBrief: [D.MatterBrief, makeMatterBrief],
   ClerkThread: [D.ClerkThread, makeClerkThread],
   ClerkMessage: [D.ClerkMessage, makeClerkMessage],
+  ClerkDraft: [D.ClerkDraft, makeClerkDraft],
   Proceeding: [D.Proceeding, makeProceeding],
   CourtEvent: [D.CourtEvent, makeCourtEvent],
   CourtOrder: [D.CourtOrder, makeCourtOrder],
@@ -1087,4 +1154,5 @@ export const ENTITY_FACTORIES = {
   RecentMatter: [D.RecentMatter, makeRecentMatter],
   DestructionRequest: [D.DestructionRequest, makeDestructionRequest],
   DestructionCertificate: [D.DestructionCertificate, makeDestructionCertificate],
+  DeletedOrg: [D.DeletedOrg, makeDeletedOrg],
 } as const;

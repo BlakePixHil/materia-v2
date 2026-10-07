@@ -1,9 +1,13 @@
-import { ChangeDetectionStrategy, Component, ViewEncapsulation } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject, ViewEncapsulation } from '@angular/core';
+import { ActivatedRoute, RouterLink, RouterOutlet } from '@angular/router';
 
 import { MtBrandMark } from '@materia/ui';
 
-/** The layout for sign-in and onboarding: no shell, a centred card on the canvas. */
+/**
+ * The layout for sign-in, onboarding and the legal pages: no shell, a centred card on the canvas,
+ * and links to the privacy policy and terms (SEC-01). A route with `data: { width: 'wide' }` gets a
+ * wider card, for reading (the legal documents).
+ */
 @Component({
   selector: 'mt-minimal-layout',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -13,11 +17,16 @@ import { MtBrandMark } from '@materia/ui';
     '../../../../../libs/ui/src/generated/components/strength.css',
     '../../../../../libs/ui/src/generated/components/shimmer.css',
   ],
-  imports: [RouterOutlet, MtBrandMark],
+  imports: [RouterLink, RouterOutlet, MtBrandMark],
   template: `
     <main id="main" class="mt-minimal">
       <mt-brand-mark [size]="32" wordmark />
-      <div class="mt-minimal-card"><router-outlet /></div>
+      <div class="mt-minimal-card" [attr.data-width]="wide ? 'wide' : null"><router-outlet /></div>
+      <nav class="mt-minimal-legal" aria-label="Legal">
+        <a routerLink="/legal/privacy">Privacy policy</a>
+        <a routerLink="/legal/terms">Terms of service</a>
+        <a routerLink="/legal/collection-notice">Collection notice</a>
+      </nav>
     </main>
   `,
   styles: `
@@ -42,8 +51,33 @@ import { MtBrandMark } from '@materia/ui';
       background: var(--bg-surface);
       box-shadow: var(--shadow-card);
     }
+    .mt-minimal-card[data-width='wide'] {
+      width: min(100%, 760px);
+    }
+    @media (max-width: 600px) {
+      .mt-minimal-card[data-width='wide'] {
+        padding: 24px 16px;
+      }
+    }
     .mt-minimal-card h1 {
       margin: 0;
+    }
+    .mt-minimal-legal {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 4px 20px;
+      font: 400 13px/18px var(--font-sans);
+    }
+    .mt-minimal-legal a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      color: var(--text-secondary);
+      text-underline-offset: 2px;
+    }
+    .mt-minimal-legal a:hover {
+      color: var(--text-primary);
     }
     /* The routed page is the card's content: spaced as a column; the outlet itself takes no room. */
     .mt-minimal-card > router-outlet {
@@ -154,4 +188,7 @@ import { MtBrandMark } from '@materia/ui';
     }
   `,
 })
-export class MinimalLayout {}
+export class MinimalLayout {
+  /** A wider card for reading (`data: { width: 'wide' }` on the route). */
+  protected readonly wide = inject(ActivatedRoute).snapshot.data['width'] === 'wide';
+}

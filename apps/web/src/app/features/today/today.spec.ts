@@ -1,8 +1,10 @@
 import { signal } from '@angular/core';
 
 import { Connectivity, DATA_CLOCK } from '@materia/data-access';
+import { rollupMetrics, timeEntryMetrics } from '@materia/domain';
 
 import { DEVICE_TIME_ZONE } from './today-data';
+import { PhoneLayout } from '../../core/layout/phone-layout';
 import {
   ADMIN,
   cleanUpOverlays,
@@ -126,9 +128,17 @@ function entryDoc(data: Seed = {}): Seed {
   };
 }
 
-/** My time this month (drafts, final, billed, written off, non-billable), last month's and a colleague's. */
+/**
+ * My time this month (drafts, final, billed, written off, non-billable), last month's and a
+ * colleague's, with the month and member figures the metrics triggers keep from them (INS-01).
+ */
 function myTime(fs: Fs): void {
-  const entry = (id: string, data: Seed) => fs.set(`${MATTER}/timeEntries/${id}`, entryDoc(data));
+  const entries: Seed[] = [];
+  const entry = (id: string, data: Seed) => {
+    const doc = entryDoc(data);
+    entries.push(doc);
+    fs.set(`${MATTER}/timeEntries/${id}`, doc);
+  };
   entry('te-draft', {});
   entry('te-final', { date: '2026-10-05', status: 'final', amountCents: 30000 });
   entry('te-billed', { status: 'billed', invoiceId: 'inv-1' });
@@ -136,6 +146,9 @@ function myTime(fs: Fs): void {
   entry('te-free', { billable: false });
   entry('te-september', { date: '2026-09-30' });
   entry('te-theirs', { uid: 'user-daniel' });
+  for (const [key, values] of rollupMetrics(entries.map((data) => timeEntryMetrics(data)))) {
+    fs.set(`orgs/${ORG}/metrics/${key}`, { values, ...meta });
+  }
 }
 
 function recentDoc(matterId: string, at: string): Seed {
@@ -289,6 +302,17 @@ describe('today', () => {
     expect(stats(page)[2]).toEqual(['WIP this month', '$740.00', 'Your time not yet billed']);
   });
 
+  it('reads WIP this month from my month figures, not from every entry (SEC-07)', async () => {
+    const page = await openToday({
+      configure: (fs) =>
+        fs.set(`orgs/${ORG}/metrics/month-2026-10/byMember/${ME}`, {
+          values: { 'time.recordedCents': 125_000, 'time.billedCents': 40_000 },
+          ...meta,
+        }),
+    });
+    expect(stats(page).find(([label]) => label === 'WIP this month')?.[1]).toBe('$850.00');
+  });
+
   it('shows WIP this month to a paralegal, who records time too', async () => {
     const page = await openToday({ session: PARALEGAL, configure: myTime });
     expect(stats(page).map(([label, value]) => [label, value])).toContainEqual(['WIP this month', '$740.00']);
@@ -418,6 +442,60 @@ describe('today', () => {
     expect((page.firestore.get(`${MATTER}/tasks/t-late`) as Seed)['status']).toBe('done');
     expect(items(page, 'tasks')).not.toContain('Chase the bank valuation');
     expect(focused(page)).toBe('Draft the will');
+  });
+
+  it('snoozes one of my tasks to tomorrow from its row, with an Undo (MOB-02)', async () => {
+    const page = await openToday({ configure: busyDay });
+    const due = () => (page.firestore.get(`${MATTER}/tasks/t-late`) as Seed)['dueDate'];
+    await page.click('Snooze to tomorrow: Chase the bank valuation');
+    await page.stable(20);
+    // Monday 5 October in Melbourne, so due Tuesday.
+    expect(due()).toBe('2026-10-06');
+    expect(page.text(page.body.querySelector('.mt-toast'))).toContain('Snoozed to tomorrow');
+    await page.click('Undo');
+    await page.stable(20);
+    expect(due()).toBe('2026-09-30');
+  });
+
+  it('on a phone, draws the cards after My tasks as they scroll into view (MOB-02b)', async () => {
+    let report: ((entries: { isIntersecting: boolean; target: Element }[]) => void) | undefined;
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: typeof report) {
+          report = callback;
+        }
+        observe(target: Element): void {
+          observed.push(target);
+        }
+        unobserve(): void {
+          // Nothing to release.
+        }
+        disconnect(): void {
+          // Nothing to release.
+        }
+      },
+    );
+    try {
+      const page = await openToday({
+        configure: busyDay,
+        providers: [{ provide: PhoneLayout, useValue: { phone: signal(true).asReadonly() } }],
+      });
+      const sections = () =>
+        [...page.body.querySelectorAll<HTMLElement>('.mt-today [data-section]')].map((node) => node.dataset['section']);
+      expect(sections()).toEqual(['attention', 'tasks']);
+      const later = page.body.querySelector('[data-today-later]');
+      expect(later).not.toBeNull();
+
+      report?.(observed.filter((target) => target === later).map((target) => ({ isIntersecting: true, target })));
+      await page.stable(20);
+      expect(sections()).toEqual(['attention', 'tasks', 'stats', 'due', 'recent']);
+      expect(page.body.querySelector('[data-today-later]')).toBeNull();
+      expect(items(page, 'due')).toContain('Deadline: Advertise notice of intended application');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('lists a critical deadline escalated to me, and acknowledges it (CORE-11)', async () => {

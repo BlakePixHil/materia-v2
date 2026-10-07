@@ -33,6 +33,8 @@ export const EXCLUDED_COLLECTIONS = new Set([
   'migrations',
   // Clerk reading a run (MIG-09): progress saved after every document; the approval is audited itself.
   'migrationEnrichments',
+  // A matter's brief (AI-06c): rebuilt from records that are audited themselves, whenever they change.
+  'briefs',
 ]);
 
 /**

@@ -4,6 +4,7 @@ import {
   CLERK_CHAT_TOOLS,
   clerkToolLabel,
   parseClerkCommand,
+  parseDraftCommand,
   SendClerkMessageInput,
   SetClerkFeedbackInput,
   SUMMARISE_DEFAULT_QUESTION,
@@ -24,7 +25,16 @@ describe('Clerk chat (AI-06)', () => {
       question: '/draft a letter to the bank',
     });
     expect(parseClerkCommand('Who are the executors?')).toEqual({ command: null, question: 'Who are the executors?' });
-    expect(CLERK_CHAT_COMMANDS.filter((c) => c.available).map((c) => c.name)).toEqual(['summarise']);
+    expect(CLERK_CHAT_COMMANDS.filter((c) => c.available).map((c) => c.name)).toEqual(['summarise', 'draft']);
+  });
+
+  it('reads /draft as instructions for Clerk drafting (AI-10), which never reach the chat', () => {
+    expect(parseDraftCommand('/draft  a letter to the bank\nabout the accounts ')).toEqual({
+      instructions: 'a letter to the bank\nabout the accounts',
+    });
+    expect(parseDraftCommand('/draft')).toEqual({ instructions: '' });
+    expect(parseDraftCommand('/drafting')).toBeNull();
+    expect(parseDraftCommand('Please /draft')).toBeNull();
   });
 
   it('labels every tool, and anything else as working', () => {

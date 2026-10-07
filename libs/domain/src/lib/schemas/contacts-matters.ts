@@ -41,7 +41,7 @@ export type ConflictAlert = z.infer<typeof ConflictAlertSchema>;
 
 /** `orgs/{orgId}/contacts/{contactId}`: people and organisations. */
 export const Contact = withMeta(
-  {
+  () => ({
     kind: z.enum(['person', 'organisation']),
     givenNames: z.string().optional(),
     familyName: z.string().optional(),
@@ -82,7 +82,7 @@ export const Contact = withMeta(
      * privileged flag changes); `materia-scripts backfill-matter-roles` fills older contacts.
      */
     matterRoles: z.array(PartyRoleSchema).default([]),
-  },
+  }),
   {
     path: 'orgs/{orgId}/contacts',
     softDelete: true,
@@ -258,7 +258,7 @@ export type CostsDisclosure = z.infer<typeof CostsDisclosureSchema>;
 
 /** `orgs/{orgId}/matters/{matterId}`. */
 export const Matter = withMeta(
-  {
+  () => ({
     number: NonEmptyString,
     title: NonEmptyString,
     type: MatterTypeSchema,
@@ -390,7 +390,7 @@ export const Matter = withMeta(
     legacyBilling: z.record(z.string(), z.unknown()).optional(),
     /** Raw legacy fields a migrated matter keeps for reference (MIG-03): the legacy `fee` as it was. Read-only. */
     legacy: z.record(z.string(), z.unknown()).optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/matters',
     softDelete: true,
@@ -452,7 +452,7 @@ export const Matter = withMeta(
  * transaction as the matter; server-only. A soft-deleted matter keeps its number.
  */
 export const MatterNumber = withMeta(
-  { number: NonEmptyString, matterId: DocIdSchema, year: z.number().int().min(2000).max(9999) },
+  () => ({ number: NonEmptyString, matterId: DocIdSchema, year: z.number().int().min(2000).max(9999) }),
   { path: 'orgs/{orgId}/matterNumbers', migratable: false, serverOwned: ['number', 'matterId', 'year'] },
 );
 

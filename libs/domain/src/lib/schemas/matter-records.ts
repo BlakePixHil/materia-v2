@@ -32,7 +32,7 @@ const MATTER = 'orgs/{orgId}/matters/{matterId}';
 const GroupKeys = { orgId: DocIdSchema, matterId: DocIdSchema };
 
 export const Party = withMeta(
-  {
+  () => ({
     contactId: DocIdSchema,
     role: PartyRoleSchema,
     share: z.string().optional(),
@@ -40,7 +40,7 @@ export const Party = withMeta(
     addedFrom: z.enum(['manual', 'clerk', 'migration']).default('manual'),
     // Queried across matters by contact ("the matters this contact is on", CORE-01).
     ...GroupKeys,
-  },
+  }),
   {
     path: `${MATTER}/parties`,
     softDelete: true,
@@ -118,13 +118,13 @@ const TASK_UPDATABLE = [
  * reconciles it, and a server writer that counts a task itself sets it to `true`.
  */
 export const Task = withMeta(
-  {
+  () => ({
     ...taskShape,
     ...GroupKeys,
     templateTaskKey: z.string().optional(),
     duePending: EventKindSchema.optional(),
     countedOpen: z.boolean().optional(),
-  },
+  }),
   {
     path: `${MATTER}/tasks`,
     softDelete: true,
@@ -148,15 +148,12 @@ export const Task = withMeta(
  * can't read them). Same shape as matter tasks with `matterId: null` (the `tasks` collection group
  * holds both) and `assigneeUid` always the owner, so "assigned to me" finds them too.
  */
-export const PersonalTask = withMeta(
-  { ...taskShape, orgId: DocIdSchema, matterId: z.null().default(null) },
-  {
-    path: 'orgs/{orgId}/members/{uid}/tasks',
-    softDelete: true,
-    serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor', 'search', 'legacyCalendar'],
-    updatable: TASK_UPDATABLE,
-  },
-);
+export const PersonalTask = withMeta(() => ({ ...taskShape, orgId: DocIdSchema, matterId: z.null().default(null) }), {
+  path: 'orgs/{orgId}/members/{uid}/tasks',
+  softDelete: true,
+  serverOwned: ['orgId', 'matterId', 'completedAt', 'reminderSentFor', 'search', 'legacyCalendar'],
+  updatable: TASK_UPDATABLE,
+});
 
 /**
  * `matters/{matterId}/events/{eventId}`: key facts that drive deadlines. Written only through the
@@ -164,7 +161,7 @@ export const PersonalTask = withMeta(
  * matter's deadlines in the same transaction; clients read them.
  */
 export const MatterEvent = withMeta(
-  {
+  () => ({
     kind: EventKindSchema,
     date: DateOnlySchema,
     time: TimeOfDay.optional(),
@@ -173,7 +170,7 @@ export const MatterEvent = withMeta(
     sourceDocumentId: DocIdSchema.optional(),
     /** The matter's privileged flag, copied (CORE-10b): see `Deadline.privileged`. */
     privileged: z.boolean(),
-  },
+  }),
   { path: `${MATTER}/events`, softDelete: true, serverOwned: ['privileged'], updatable: [] },
 );
 
@@ -223,7 +220,7 @@ export const DEADLINE_REASON_MAX = 1000;
  * is absent only while `status` is `blocked`.
  */
 export const Deadline = withMeta(
-  {
+  () => ({
     ...GroupKeys,
     title: NonEmptyString.max(DEADLINE_TITLE_MAX),
     dueDate: DateOnlySchema.optional(),
@@ -287,7 +284,7 @@ export const Deadline = withMeta(
      * matter's flag changes. No default: a writer that forgets it fails rather than leaks.
      */
     privileged: z.boolean(),
-  },
+  }),
   {
     path: `${MATTER}/deadlines`,
     softDelete: true,
@@ -332,7 +329,7 @@ export type DeadlineChangeCause = z.infer<typeof DeadlineChangeCauseSchema>;
  * a pending proposal that no longer holds. Written by functions only; members read them.
  */
 export const DeadlineChange = withMeta(
-  {
+  () => ({
     ...GroupKeys,
     deadlineId: DocIdSchema,
     ruleId: NonEmptyString,
@@ -357,7 +354,7 @@ export const DeadlineChange = withMeta(
     resolvedAt: InstantSchema.optional(),
     /** The matter's privileged flag, copied (CORE-10b): see `Deadline.privileged`. */
     privileged: z.boolean(),
-  },
+  }),
   {
     path: `${MATTER}/deadlineChanges`,
     migratable: false,
@@ -532,7 +529,7 @@ export type DocumentIngest = z.infer<typeof DocumentIngestSchema>;
  * server-owned. A soft-deleted document stays readable so citations resolve ("Removed document").
  */
 export const MatterDocument = withMeta(
-  {
+  () => ({
     ...GroupKeys,
     name: NonEmptyString.max(DOCUMENT_NAME_MAX),
     category: DocumentCategorySchema,
@@ -565,7 +562,7 @@ export const MatterDocument = withMeta(
       .object({ templateId: DocIdSchema, version: z.number().int().min(1) })
       .strict()
       .optional(),
-  },
+  }),
   {
     path: `${MATTER}/documents`,
     softDelete: true,
@@ -600,10 +597,11 @@ export const MatterDocument = withMeta(
  * so two uploads of the same file, even at the same moment, can't both be the original: the
  * second is marked `duplicateOf` the first.
  */
-export const DocumentHash = withMeta(
-  { documentId: DocIdSchema },
-  { path: `${MATTER}/documentHashes`, migratable: false, updatable: [] },
-);
+export const DocumentHash = withMeta(() => ({ documentId: DocIdSchema }), {
+  path: `${MATTER}/documentHashes`,
+  migratable: false,
+  updatable: [],
+});
 
 /** The embedding size of every chunk (ADR-012: Vertex AI text embeddings at 768 dimensions). */
 export const CHUNK_EMBEDDING_DIMENSIONS = 768;
@@ -615,7 +613,7 @@ export const CHUNK_EMBEDDING_DIMENSIONS = 768;
  * trigger). Written by functions only; old versions' chunks are deleted on re-ingest.
  */
 export const Chunk = withMeta(
-  {
+  () => ({
     ...GroupKeys,
     text: z.string(),
     page: z.number().int().min(1),
@@ -628,7 +626,7 @@ export const Chunk = withMeta(
     ocr: z.boolean().optional(),
     // Vector(768) in Firestore; a number array in the domain model (ADR-012).
     embedding: z.array(z.number()).length(CHUNK_EMBEDDING_DIMENSIONS),
-  },
+  }),
   { path: `${MATTER}/documents/{docId}/chunks`, migratable: false },
 );
 
@@ -643,7 +641,7 @@ export const NOTE_BODY_MAX = 100_000;
  * note's author who isn't a member.
  */
 export const Note = withMeta(
-  {
+  () => ({
     bodyMd: z.string().max(NOTE_BODY_MAX),
     mentions: z.object({ uids: z.array(DocIdSchema), matterIds: z.array(DocIdSchema) }),
     pinned: z.boolean().default(false),
@@ -652,7 +650,7 @@ export const Note = withMeta(
     editedAt: InstantSchema.optional(),
     editedBy: z.string().optional(),
     legacyAuthor: z.string().max(200).optional(),
-  },
+  }),
   {
     path: `${MATTER}/notes`,
     softDelete: true,
@@ -666,12 +664,12 @@ export const Note = withMeta(
  * `notes-update` before each edit. `editedAt`/`editedBy` say who wrote that version and when.
  */
 export const NoteRevision = withMeta(
-  {
+  () => ({
     bodyMd: z.string().max(NOTE_BODY_MAX),
     privileged: z.boolean(),
     editedAt: InstantSchema,
     editedBy: z.string(),
-  },
+  }),
   { path: `${MATTER}/notes/{noteId}/revisions`, migratable: false, updatable: [] },
 );
 
@@ -680,13 +678,13 @@ export const NoteRevision = withMeta(
  * history (MIG-03) lands here too, with the `migration` stamp.
  */
 export const Activity = withMeta(
-  {
+  () => ({
     kind: NonEmptyString,
     summary: z.string(),
     actorUid: z.string(),
     at: InstantSchema,
     refs: z.record(z.string(), z.string()).default({}),
-  },
+  }),
   { path: `${MATTER}/activity` },
 );
 
@@ -701,7 +699,7 @@ export const TIME_ENTRY_MAX_MINUTES = 6000;
  * the client's values) and keeps the matter's `wipCents`. Status changes go through `time-setStatus`.
  */
 export const TimeEntry = withMeta(
-  {
+  () => ({
     ...GroupKeys,
     uid: DocIdSchema,
     date: DateOnlySchema,
@@ -727,7 +725,7 @@ export const TimeEntry = withMeta(
     rejection: z.object({ note: z.string().max(500), by: DocIdSchema, at: InstantSchema }).optional(),
     /** What this entry adds to the matter's `wipCents` right now; kept by `time-onWrite`. */
     wipCountedCents: CentsSchema.default(0 as never),
-  },
+  }),
   {
     path: `${MATTER}/timeEntries`,
     softDelete: true,
@@ -764,7 +762,7 @@ export type DisbursementCategory = z.infer<typeof DisbursementCategorySchema>;
  * restoring go through `disbursements-setStatus`; billed ones (BILL-07) are immutable.
  */
 export const Disbursement = withMeta(
-  {
+  () => ({
     ...GroupKeys,
     date: DateOnlySchema,
     description: NonEmptyString.max(DISBURSEMENT_TEXT_MAX),
@@ -783,7 +781,7 @@ export const Disbursement = withMeta(
     invoiceId: DocIdSchema.optional(),
     /** What this disbursement adds to the matter's `disbursementWipCents` right now; kept by the trigger. */
     wipCountedCents: CentsSchema.default(0 as never),
-  },
+  }),
   {
     path: `${MATTER}/disbursements`,
     softDelete: true,
@@ -853,7 +851,7 @@ export const SHARE_BPS_WHOLE = 10_000;
  * metadata only (no live FX). `estate-onWrite` keeps the matter's totals.
  */
 export const Asset = withMeta(
-  {
+  () => ({
     class: AssetClassSchema,
     description: NonEmptyString.max(ESTATE_TEXT_MAX),
     /** The institution, account or title reference ("Corio Savings Bank, account ending 4471"). */
@@ -877,19 +875,19 @@ export const Asset = withMeta(
     /** Valuation documents on the matter (bank letters, valuations). */
     documentIds: z.array(DocIdSchema).max(ASSET_DOCUMENTS_MAX).default([]),
     notes: z.string().max(ESTATE_NOTES_MAX).optional(),
-  },
+  }),
   { path: `${MATTER}/assets`, softDelete: true },
 );
 
 export const Liability = withMeta(
-  {
+  () => ({
     class: LiabilityClassSchema,
     creditor: NonEmptyString.max(ESTATE_TEXT_MAX),
     reference: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
     amountCents: NonNegativeCentsSchema,
     status: LiabilityStatusSchema,
     notes: z.string().max(ESTATE_NOTES_MAX).optional(),
-  },
+  }),
   { path: `${MATTER}/liabilities`, softDelete: true },
 );
 
@@ -901,7 +899,7 @@ export const Liability = withMeta(
  * by a person.
  */
 export const Distribution = withMeta(
-  {
+  () => ({
     beneficiaryPartyId: DocIdSchema,
     kind: DistributionKindSchema,
     amountCents: NonNegativeCentsSchema.optional(),
@@ -917,7 +915,7 @@ export const Distribution = withMeta(
     paymentReference: z.string().trim().max(ESTATE_TEXT_MAX).optional(),
     notes: z.string().max(ESTATE_NOTES_MAX).optional(),
     needsValueReview: z.boolean().optional(),
-  },
+  }),
   { path: `${MATTER}/distributions`, softDelete: true },
 );
 

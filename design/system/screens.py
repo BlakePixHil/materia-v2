@@ -16,7 +16,7 @@ def sidebar(active):
     h += [nav(l, i, c, k == active) for k, l, i, c in items]
     h.append('<div class="mt-nav-section">Workspace</div>')
     h += [nav(l, i, c, k == active) for k, l, i, c in work]
-    h.append('<div class="mt-nav-section">Pinned</div>')
+    h.append(nav_toggle("Pinned"))
     h += [nav(n, None, dot=d) for n, d in pins]
     h.append('<div style="margin-top:auto;display:flex;flex-direction:column;gap:6px;padding-top:16px">'
              '<button class="mt-btn" data-variant="ai" style="justify-content:flex-start;width:100%">' + icon("sparkle") + 'Ask Clerk<span class="mt-ml">' + kbd("⌘", "J") + "</span></button>"
@@ -131,6 +131,8 @@ MATTERS = [
     ("progress", "WE-087", "Estate of Ivy Santoro", "trust", ("active", .5), "Annual trust return", ("13 Nov", "upcoming"), ("DK", "3"), "$1,480", "low", False),
     ("intake", "WE-160", "Estate of George Lambert", "probate", ("draft", 0), "Clerk reading 4 documents", None, ("JP", None), "$0", "none", False),
 ]
+# Pinned to the sidebar (CORE-23): the list marks them.
+PINNED = {"WE-097", "WE-142", "WE-151"}
 GROUPS = [("attention", "Needs attention", ("blocked", 0)), ("progress", "In progress", ("active", .5)), ("intake", "Intake", ("draft", 0))]
 
 
@@ -144,13 +146,15 @@ def matters_list(overlay=""):
     body = []
     for g, label, st in GROUPS:
         rows = [m for m in MATTERS if m[0] == g]
-        body.append(f'<tr class="group"><td colspan="9"><span class="mt-row">{icon("chevron-down", "sm")}{status(*st)}<span class="t-1">{label}</span><span class="mt-count">{len(rows)}</span><span class="mt-ml">{ibtn("plus", "Add", size="sm")}</span></span></td></tr>')
+        body.append(f'<tr class="group"><td colspan="10"><span class="mt-row">{icon("chevron-down", "sm")}{status(*st)}<span class="t-1">{label}</span><span class="mt-count">{len(rows)}</span><span class="mt-ml">{ibtn("plus", "Add", size="sm")}</span></span></td></tr>')
         for i, (_, ref, name, t, stt, stage, dl_, (who, hue), wip, pr, flag) in enumerate(rows):
             sel = ref == "WE-142"
             fl = f' <span class="mt-badge" data-tone="danger" style="margin-left:6px">Clerk flag</span>' if flag else ""
+            pin = icon("pin", "sm", "t-3") if ref in PINNED else ""
+            more = ibtn("more", f"More actions for {ref}", size="sm") if sel else ""
             dlh = deadline(*dl_) if dl_ else '<span class="mt-working caption"><span class="dots"><i></i><i></i><i></i></span>Building</span>'
-            body.append(f'<tr{" data-selected" if sel else ""}><td style="width:36px;padding-right:0">{check("on" if sel else "off")}</td><td style="width:22px;padding:0 4px">{priority(pr)}</td><td class="ref">{ref}</td><td><span class="mt-row" style="gap:8px">{status(*stt)}<span class="title">{name}</span>{fl}</span></td><td>{tag(t)}</td><td class="t-2">{stage}</td><td>{dlh}</td><td><span class="mt-row" style="gap:6px">{avatar(who, hue=hue)}</span></td><td class="num" style="padding-right:20px">{wip}</td></tr>')
-    table = ('<table class="mt-table"><thead><tr><th></th><th></th><th>Ref</th><th>Matter</th><th>Type</th><th>Stage</th><th>Next deadline</th><th>Owner</th><th class="num" style="padding-right:20px">WIP</th></tr></thead><tbody>' + "".join(body) + "</tbody></table>")
+            body.append(f'<tr{" data-selected" if sel else ""}><td style="width:36px;padding-right:0">{check("on" if sel else "off")}</td><td style="width:22px;padding:0 4px">{priority(pr)}</td><td class="ref">{ref}</td><td><span class="mt-row" style="gap:8px">{status(*stt)}<span class="title">{name}</span>{pin}{fl}</span></td><td>{tag(t)}</td><td class="t-2">{stage}</td><td>{dlh}</td><td><span class="mt-row" style="gap:6px">{avatar(who, hue=hue)}</span></td><td class="num">{wip}</td><td style="width:44px;padding:0 12px 0 4px">{more}</td></tr>')
+    table = ('<table class="mt-table"><thead><tr><th></th><th></th><th>Ref</th><th>Matter</th><th>Type</th><th>Stage</th><th>Next deadline</th><th>Owner</th><th class="num">WIP</th><th><span class="mt-sr">Actions</span></th></tr></thead><tbody>' + "".join(body) + "</tbody></table>")
     bulk = ('<div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:6px 6px 6px 14px;border-radius:10px;background:var(--bg-inverse);color:var(--text-inverse);box-shadow:var(--shadow-dialog)">'
             '<span class="label" style="margin-right:8px">1 selected</span>' + "".join(f'<button class="mt-btn" data-variant="ghost" data-size="sm" style="color:var(--text-inverse)">{icon(i)}{l}</button>' for i, l in [("user-plus", "Assign"), ("timer", "Record time"), ("archive", "Archive")]) + btn("Summarise for partner", "ai", "sm", "sparkle") + "</div>")
     page = '<div style="flex:1;position:relative;display:flex;flex-direction:column">' + matters_toolbar() + '<div style="padding:0 8px">' + table + "</div>" + bulk + "</div>"

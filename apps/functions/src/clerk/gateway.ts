@@ -158,6 +158,11 @@ export interface ClerkRunInput<TOutput = unknown> {
    * `clerk-sendMessage` created (AI-06) instead of creating it.
    */
   stream?: { threadId: string; messageId: string; adopt?: boolean };
+  /**
+   * Streams into a sink the caller opened instead of a Clerk message (AI-10 drafts stream into the
+   * draft). The caller writes the final record from the result; `finish` only settles the stream.
+   */
+  sink?: MessageSink;
   /** Earlier exchanges of the conversation, sent first and unchanged (AI-06). */
   history?: ClerkHistory;
   /** Blocks before the question in this turn (a continued thread's summary, AI-06). */
@@ -382,8 +387,8 @@ export function createClerkGateway(deps: GatewayDeps) {
 
     // 5. The message to stream into, and stop handling.
     const abort = new AbortController();
-    let sink: MessageSink | undefined;
-    if (input.stream) {
+    let sink: MessageSink | undefined = input.sink;
+    if (!sink && input.stream) {
       sink = await deps.store.openMessage(ctx.orgId, input.stream, {
         uid: ctx.uid,
         promptRef: prompt.ref,
@@ -391,8 +396,8 @@ export function createClerkGateway(deps: GatewayDeps) {
         ...(context ? { manifest: context.manifest } : {}),
         ...(input.stream.adopt ? { adopt: true } : {}),
       });
-      sink.onStop(() => abort.abort());
     }
+    sink?.onStop(() => abort.abort());
     let streamed = '';
     /** Text from earlier steps of a tool loop is kept; the next step's text follows a blank line. */
     let stepStart = true;

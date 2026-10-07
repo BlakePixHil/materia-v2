@@ -1,7 +1,9 @@
 /**
  * `materia-scripts bundle-size [--dist dist/apps/web/browser] [--json out.json]`
  * Gzip bundle budgets for apps/web (Testing & quality strategy, FND-04): initial JS + CSS
- * ≤ 300 kB gzip, and every lazy chunk ≤ 150 kB gzip. Exits 1 when a budget is exceeded.
+ * ≤ 300 kB gzip, and every lazy chunk ≤ 150 kB gzip. Exits 1 when a budget is exceeded, or when a
+ * development-only hook (the SEC-07 Firestore reads counter) is in the bundle: production builds
+ * define `MATERIA_READS_COUNTER` false, so the bundler must drop it.
  */
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -10,6 +12,9 @@ import { parseArgs } from 'node:util';
 import { gzipSync } from 'node:zlib';
 
 export const BUDGETS = { initialKb: 300, lazyChunkKb: 150 } as const;
+
+/** Strings only development and e2e builds may contain (libs/data-access read-counter.ts). */
+export const DEV_ONLY_MARKERS = ['__materiaReads'] as const;
 
 export interface BundleFile {
   file: string;
@@ -60,6 +65,12 @@ export function analyseBundle(distDir: string): BundleReport {
   const violations: string[] = [];
   if (initialGzipBytes > BUDGETS.initialKb * KB) {
     violations.push(`initial bundle is ${formatKb(initialGzipBytes)} gzip (budget ${BUDGETS.initialKb} kB)`);
+  }
+  for (const file of [...initial, ...lazy].filter((f) => f.file.endsWith('.js'))) {
+    const source = readFileSync(path.join(distDir, file.file), 'utf8');
+    for (const marker of DEV_ONLY_MARKERS.filter((m) => source.includes(m))) {
+      violations.push(`${file.file} contains the development-only ${marker} (build it with the production define)`);
+    }
   }
   for (const chunk of lazy) {
     if (chunk.gzipBytes > BUDGETS.lazyChunkKb * KB) {

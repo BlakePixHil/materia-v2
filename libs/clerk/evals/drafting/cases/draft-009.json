@@ -1,6 +1,6 @@
 {
   "id": "draft-009",
-  "description": "Letter to a charity about its legacy: payment date unknown",
+  "description": "Letter from instructions to a charity about its legacy: payment date unknown",
   "matter": {
     "matterNumber": "HV-2026-0007",
     "title": "Estate of Gwendolyn May Pryce",
@@ -12,7 +12,8 @@
     "responsibleLawyer": "Jordan Price",
     "probate": {
       "applicationFiled": "2026-02-12",
-      "granted": null
+      "granted": null,
+      "grantType": "probate"
     },
     "upcomingDeadlines": [
       {
@@ -20,20 +21,31 @@
         "due": "2026-04-20"
       }
     ],
-    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"],
+    "parties": [
+      {
+        "name": "Bellarine Bush Nursing Centre Inc.",
+        "role": "beneficiary"
+      }
+    ]
   },
   "documents": [
     {
-      "id": "d-style",
-      "fixture": "drafting/house-style.txt",
-      "title": "Letter house style"
-    },
-    {
       "id": "d-pryce-will",
       "fixture": "matters/pryce/will.txt",
-      "title": "Will of Gwendolyn May Pryce (2016)"
+      "title": "Will of Gwendolyn May Pryce"
     }
   ],
-  "query": "Draft a letter to the Bellarine Bush Nursing Centre about its $15,000 legacy and when it will be paid.",
-  "today": "2026-03-20"
+  "query": "Letter to the Bellarine Bush Nursing Centre about its $15,000 legacy and when it will be paid.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "letter",
+    "recipients": [
+      {
+        "name": "Bellarine Bush Nursing Centre Inc.",
+        "role": "beneficiary"
+      }
+    ],
+    "instructions": "Tell them about the $15,000 legacy in the will and when it will be paid."
+  }
 }

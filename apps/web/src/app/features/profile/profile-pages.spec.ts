@@ -15,6 +15,8 @@ import { FakeAuthPort, testSession } from '../../core/auth/testing';
 import { provideTestFlags } from '../../core/flags/testing';
 import { FakeTenancyPort } from '../../core/orgs/testing';
 import { START_PAGE_STORAGE_KEY } from '../../core/profile/start-page';
+import { PUSH_PLATFORM } from '../../core/push/push-platform';
+import { fakePushPlatform, type FakePushPlatform } from '../../core/push/testing';
 
 /**
  * Profile and preferences (CORE-20) against the in-memory Firestore: the notification matrix with
@@ -100,7 +102,9 @@ async function open(
   url: string,
   seed: (firestore: InMemoryFirestore) => void = () => undefined,
   role: 'lawyer' | 'owner' = 'lawyer',
+  push: FakePushPlatform = fakePushPlatform({ supportIs: 'unsupported' }),
 ) {
+  const auth = new FakeAuthPort(role === 'lawyer' ? SESSION : testSession({ claims: { ...SESSION.claims, role } }));
   const firestore = new InMemoryFirestore();
   firestore.set(`orgs/${ORG}`, { name: 'Harbour & Vine Legal', timezone: 'Australia/Melbourne', ...meta });
   firestore.set(`orgs/${ORG}/members/${UID}`, {
@@ -123,11 +127,9 @@ async function open(
     providers: [
       provideRouter(appRoutes),
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
-      {
-        provide: AUTH_PORT,
-        useValue: new FakeAuthPort(role === 'lawyer' ? SESSION : testSession({ claims: { ...SESSION.claims, role } })),
-      },
+      { provide: AUTH_PORT, useValue: auth },
       { provide: TENANCY_PORT, useValue: new FakeTenancyPort() },
+      { provide: PUSH_PLATFORM, useValue: push },
       {
         provide: AVATAR_STORE,
         useValue: {
@@ -165,6 +167,8 @@ async function open(
     return found;
   };
   return {
+    auth,
+    push,
     firestore,
     router,
     el,
@@ -300,19 +304,95 @@ describe('Settings → Preferences', () => {
     expect(page.user().prefs['notifications']).toEqual({ ...DEFAULT_NOTIFICATION_PREFS, taskReminderDays: 0 });
   });
 
-  it('lists devices and signs one out of push notifications', async () => {
+  it('lists devices and removes one from push notifications', async () => {
     const page = await open('/settings/preferences', (firestore) =>
       firestore.set(`users/${UID}/devices/d1`, {
         token: 'fcm-token-fictional',
-        platform: 'web',
+        platform: 'android',
+        label: 'Chrome on Android',
         lastSeenAt: new Date('2026-10-01T09:00:00Z'),
         ...meta,
       }),
     );
-    expect(page.text()).toContain('Web browser');
-    await page.click('Sign out of this device');
+    expect(page.text()).toContain('Chrome on Android');
+    expect(page.text()).toContain('This browser can’t get push notifications.');
+    await page.click('Remove');
     expect(page.firestore.get(`users/${UID}/devices/d1`)).toBeUndefined();
     expect(page.text()).toContain('No devices get push notifications yet.');
+  });
+
+  it('turns push on for this device (MOB-04), sends it a test and turns it off', async () => {
+    const page = await open('/settings/preferences', undefined, 'lawyer', fakePushPlatform());
+    const row = () => page.el.querySelector('[data-this-device]') as HTMLElement;
+    expect(row().getAttribute('data-push')).toBe('off');
+    await page.click('Turn on');
+    expect(page.push.prompts).toBe(1);
+    expect(page.firestore.get(`users/${UID}/devices/device-this-1`)).toMatchObject({
+      token: 'fake-fcm-token-1',
+      platform: 'web',
+      label: 'Chrome on macOS',
+      createdBy: UID,
+    });
+    // Push itself goes on, with deadline reminders on it; escalations push by default.
+    const prefs = page.user().prefs['notifications'] as NotificationPrefs;
+    expect(prefs.push).toBe(true);
+    expect(prefs.kinds?.['deadline_reminder']).toEqual({ push: true });
+    expect(page.push.store.record).toMatchObject({ uid: UID, token: 'fake-fcm-token-1' });
+    expect(row().getAttribute('data-push')).toBe('on');
+    expect(page.text()).toContain('Chrome on macOS (this device)');
+
+    await page.click('Send a test');
+    expect(page.auth.calls).toContainEqual({
+      name: 'notifications-testPush',
+      data: expect.objectContaining({ deviceId: 'device-this-1' }),
+    });
+    expect(document.body.textContent).toContain('Test sent');
+
+    await page.click('Turn off');
+    expect(page.firestore.get(`users/${UID}/devices/device-this-1`)).toBeUndefined();
+    expect(page.push.unsubscribed).toBe(1);
+    expect(page.push.store.record).toBeNull();
+    expect(row().getAttribute('data-push')).toBe('off');
+  });
+
+  it('keeps a person’s choice for deadline reminders when push goes on', async () => {
+    const page = await open(
+      '/settings/preferences',
+      (firestore) =>
+        firestore.set(
+          `users/${UID}`,
+          userDoc({ notifications: { ...DEFAULT_NOTIFICATION_PREFS, kinds: { deadline_reminder: { push: false } } } }),
+        ),
+      'lawyer',
+      fakePushPlatform(),
+    );
+    await page.click('Turn on');
+    const prefs = page.user().prefs['notifications'] as NotificationPrefs;
+    expect(prefs.push).toBe(true);
+    expect(prefs.kinds?.['deadline_reminder']).toEqual({ push: false });
+  });
+
+  it('says why push can’t go on: blocked, Safari on an iPhone, or the prompt dismissed', async () => {
+    const blocked = await open(
+      '/settings/preferences',
+      undefined,
+      'lawyer',
+      fakePushPlatform({ permissionIs: 'denied' }),
+    );
+    expect(blocked.el.querySelector('[data-this-device]')?.getAttribute('data-push')).toBe('denied');
+    expect(blocked.text()).toContain('Notifications are blocked for Materia in this browser.');
+    expect(blocked.text()).not.toContain('Turn on');
+    TestBed.resetTestingModule();
+
+    const iphone = await open('/settings/preferences', undefined, 'lawyer', fakePushPlatform({ supportIs: 'install' }));
+    expect(iphone.text()).toContain('push needs Materia on your Home Screen');
+    expect(iphone.text()).toContain('How to install');
+    TestBed.resetTestingModule();
+
+    const dismissed = await open('/settings/preferences', undefined, 'lawyer', fakePushPlatform({ answer: 'default' }));
+    await dismissed.click('Turn on');
+    expect(dismissed.firestore.get(`users/${UID}/devices/device-this-1`)).toBeUndefined();
+    expect(dismissed.el.querySelector('[data-this-device]')?.getAttribute('data-push')).toBe('off');
   });
 });
 

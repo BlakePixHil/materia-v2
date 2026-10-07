@@ -1,5 +1,7 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
+import { TERMS_VERSION } from '@materia/domain';
+
 /**
  * Auth helpers for e2e against the Firebase emulators (project `demo-materia`). Accounts are
  * created through the emulator's admin API (`Bearer owner`), which skips the sign-up blocking
@@ -24,6 +26,30 @@ export interface TestAccountOptions {
   displayName?: string;
   /** Defaults to a unique fictional address. */
   email?: string;
+  /**
+   * Whether the org (from the claims) has accepted the current terms of service (SEC-01), so its
+   * owners aren't asked first. Defaults to true; false leaves the org as it is.
+   */
+  termsAccepted?: boolean;
+}
+
+/** The org fields that record the current terms as accepted (SEC-01), by a fictional owner. */
+export function acceptedTermsFields(by = 'e2e-owner'): Record<string, unknown> {
+  return {
+    termsAcceptedVersion: TERMS_VERSION,
+    termsAcceptedAt: new Date(),
+    termsAcceptedBy: by,
+  };
+}
+
+/** `acceptedTermsFields` as Firestore REST fields. */
+function acceptedTermsRestFields(by?: string): Record<string, unknown> {
+  const { termsAcceptedVersion, termsAcceptedAt, termsAcceptedBy } = acceptedTermsFields(by);
+  return {
+    termsAcceptedVersion: { stringValue: termsAcceptedVersion },
+    termsAcceptedAt: { timestampValue: (termsAcceptedAt as Date).toISOString() },
+    termsAcceptedBy: { stringValue: termsAcceptedBy },
+  };
 }
 
 /** A unique fictional email for this test. */
@@ -65,6 +91,7 @@ export async function createTestAccount(
     const orgId = claims['orgId'];
     if (typeof claims['orgName'] === 'string')
       await writeFields(request, `orgs/${orgId}`, { name: { stringValue: claims['orgName'] } });
+    if (options.termsAccepted !== false) await writeFields(request, `orgs/${orgId}`, acceptedTermsRestFields());
     await writeFields(request, `orgs/${orgId}/members/${localId}`, {
       role: { stringValue: String(claims['role'] ?? 'lawyer') },
       status: { stringValue: 'active' },
@@ -189,7 +216,10 @@ export async function createInvite(request: APIRequestContext, email: string, or
   expect(response.ok(), await response.text()).toBe(true);
 }
 
-/** Sets an org's feature flag overrides through the Firestore emulator (what `flags-setOrgOverride` writes). */
+/**
+ * Sets an org's feature flag overrides through the Firestore emulator (what `flags-setOrgOverride`
+ * writes). It replaces the org document, keeping the current terms accepted (SEC-01).
+ */
 export async function setOrgFlags(
   request: APIRequestContext,
   orgId: string,
@@ -200,7 +230,13 @@ export async function setOrgFlags(
     `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT}/databases/(default)/documents/orgs/${orgId}`,
     {
       headers: ADMIN,
-      data: { fields: { name: { stringValue: 'Fictional e2e practice' }, flags: { mapValue: { fields } } } },
+      data: {
+        fields: {
+          name: { stringValue: 'Fictional e2e practice' },
+          flags: { mapValue: { fields } },
+          ...acceptedTermsRestFields(),
+        },
+      },
     },
   );
   expect(response.ok(), await response.text()).toBe(true);

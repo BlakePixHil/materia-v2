@@ -53,7 +53,13 @@ const ACTION_OPTIONS: MtOption<string>[] = [
   { value: 'matter.status_changed', label: 'Matter status changed' },
   { value: 'matter.renumbered', label: 'Matter renumbered' },
   { value: 'audit.exported', label: 'Audit log exported' },
-  { value: 'export.created', label: 'List exported' },
+  { value: 'export.created', label: 'Export started' },
+  // Data rights (SEC-05).
+  { value: 'export.org_completed', label: 'Full export finished' },
+  { value: 'member.offboarded', label: 'Member offboarded' },
+  { value: 'org.deletion_requested', label: 'Deletion requested' },
+  { value: 'org.deletion_cancelled', label: 'Deletion cancelled' },
+  { value: 'org.deletion_blocked', label: 'Deletion stopped' },
 ];
 
 const actionLabel = (action: string) => ACTION_OPTIONS.find((o) => o.value === action)?.label ?? action;

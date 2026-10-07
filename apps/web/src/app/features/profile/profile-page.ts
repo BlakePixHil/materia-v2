@@ -80,11 +80,13 @@ const EMPTY: ProfileForm = {
       >
         <div class="mt-row" style="gap: 12px; align-items: center">
           <mt-avatar size="lg" [name]="form().displayName || 'You'" [colorKey]="uid() ?? ''" [src]="avatarUrl()" />
+          <!-- Hidden: the button below opens it, so keyboard focus never lands on an invisible input
+               (WCAG 2.4.7, SEC-06). -->
           <input
             #photo
             type="file"
             accept="image/*,.heic,.heif"
-            class="mt-sr"
+            hidden
             aria-label="Choose a photo"
             (change)="choose($event)"
           />

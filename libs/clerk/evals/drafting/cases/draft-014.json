@@ -1,0 +1,42 @@
+{
+  "id": "draft-014",
+  "description": "Family provision letter of demand to the executor’s solicitors: the amount sought not given",
+  "matter": {
+    "matterNumber": "HV-2026-0023",
+    "title": "Tessa Marlowe: Estate of Desmond Marlowe",
+    "type": "fp",
+    "status": "active",
+    "deceased": "Desmond Arthur Marlowe",
+    "dateOfDeath": "2025-11-14",
+    "responsibleLawyer": "Jordan Price",
+    "parties": [
+      {
+        "name": "Tessa Marlowe",
+        "role": "client"
+      },
+      {
+        "name": "Graham Marlowe",
+        "role": "executor"
+      },
+      {
+        "name": "Moorabool Legal",
+        "role": "other_side_solicitor"
+      }
+    ],
+    "openTasks": ["Write to the executor's solicitors"]
+  },
+  "documents": [],
+  "query": "Family provision letter of demand to Moorabool Legal, who act for the executor.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "fp-letter-of-demand",
+    "recipients": [
+      {
+        "name": "Moorabool Legal",
+        "role": "other_side_solicitor",
+        "address": "PO Box 410\nBacchus Marsh VIC 3340"
+      }
+    ],
+    "instructions": "Tessa is Desmond's daughter. State the amount she seeks."
+  }
+}

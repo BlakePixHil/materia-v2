@@ -28,6 +28,7 @@ import {
 
 import { docTemplateErrorCopy, templateProblems } from './document-templates-view';
 import { CALLABLES } from '../../core/data/callables';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 
 export interface GenerateDocumentData {
   matterId: string;
@@ -54,7 +55,17 @@ interface Choice {
 @Component({
   selector: 'mt-generate-document-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtCheckbox, MtDialog, MtNote, MtRadioGroup, MtTextarea, MtTextField],
+  imports: [
+    FormsModule,
+    MtButton,
+    MtCheckbox,
+    MtDialog,
+    MtNeedsConnection,
+    MtNote,
+    MtRadioGroup,
+    MtTextarea,
+    MtTextField,
+  ],
   template: `
     <mt-dialog size="md" title="New from template" [description]="data.matterLabel">
       <form
@@ -145,6 +156,7 @@ interface Choice {
           variant="primary"
           type="submit"
           form="mt-generate-form"
+          mtNeedsConnection
           [loading]="saving()"
           [disabled]="!chosen()"
         >

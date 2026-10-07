@@ -96,12 +96,13 @@ export class MtButton {
   protected readonly lockedWidth = signal<number | null>(null);
 
   constructor() {
-    // Runs before the template swaps in the spinner, so this measures the resting width.
+    // Runs before the template swaps in the spinner, so this measures the resting width. Only then:
+    // reading the width forces a layout, and a page renders many buttons that aren't loading.
     effect(() => {
       const loading = this.loading();
       untracked(() => {
-        const width = this.element.offsetWidth;
-        this.lockedWidth.set(loading && width > 0 ? width : null);
+        const width = loading ? this.element.offsetWidth : 0;
+        this.lockedWidth.set(width > 0 ? width : null);
       });
     });
   }

@@ -3,6 +3,7 @@
 .mt-btn[data-size="sm"] { --h: var(--control-sm); padding: 0 var(--space-8); gap: var(--space-4); font-size: 12px; }
 .mt-btn[data-size="lg"] { --h: var(--control-lg); padding: 0 var(--space-16); }
 .mt-btn .mt-kbd { margin-left: var(--space-2); }
+@media (max-width: 767px) { .mt-btn .mt-kbd { display: none; } }
 .mt-btn[data-variant="primary"] { background: var(--bg-brand-hover); color: var(--text-on-brand); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), var(--shadow-control); }
 .mt-btn[data-variant="primary"][data-hover] { background: var(--bg-brand-hover); filter: brightness(.9); }
 .mt-btn[data-variant="primary"] .mt-kbd { background: rgba(255,255,255,.16); border-color: transparent; box-shadow: none; color: var(--text-on-brand); }

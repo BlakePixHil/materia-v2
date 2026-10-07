@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken, inject } from '@angular/core';
+import { Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
 import type { Firestore } from 'firebase/firestore';
 
 import { FIREBASE_SETUP } from '../firebase-setup';
@@ -11,11 +11,21 @@ export interface FirestoreHandle {
   db: Firestore;
 }
 
+/** What a live listener's latest snapshot says about syncing (MOB-01's offline indicators). */
+export interface ListenerSyncState {
+  /** The snapshot came from the cache: the server hasn't confirmed it. */
+  fromCache: boolean;
+  /** Paths of its documents with local changes the server hasn't acknowledged yet. */
+  pending: readonly string[];
+}
+
 /** Anything that hands out the Firestore instance (the client, or a test double). */
 export interface FirestoreSource {
   get(): Promise<FirestoreHandle>;
   /** Counts a write until the server acknowledges it (or it fails), for "You have unsynced changes". */
   track?<T>(write: Promise<T>): Promise<T>;
+  /** Records a live listener's latest snapshot (`listener` is any stable key), or `null` once it stops. */
+  observe?(listener: object, state: ListenerSyncState | null): void;
 }
 
 /**
@@ -80,6 +90,25 @@ export class FirestoreClient implements FirestoreSource {
   private closing: Promise<unknown> = Promise.resolve();
   /** Writes made through `track` that the server hasn't acknowledged yet. */
   private unacknowledged = new Set<Promise<unknown>>();
+  private readonly writesInFlight = signal(0);
+  private readonly listeners = signal<ReadonlyMap<object, ListenerSyncState>>(new Map());
+
+  /**
+   * Documents with local changes the server hasn't acknowledged (MOB-01's "Pending sync"): those
+   * the live listeners show, or this page's writes in flight when that's more (a deleted
+   * document drops out of its listener).
+   */
+  readonly pendingWrites = computed(() => {
+    const paths = new Set<string>();
+    for (const state of this.listeners().values()) for (const path of state.pending) paths.add(path);
+    return Math.max(paths.size, this.writesInFlight());
+  });
+
+  /** True while every live listener shows cached data: none has heard from the server. */
+  readonly cacheOnly = computed(() => {
+    const states = [...this.listeners().values()];
+    return states.length > 0 && states.every((state) => state.fromCache);
+  });
 
   get(): Promise<FirestoreHandle> {
     return (this.current ??= this.start());
@@ -117,9 +146,24 @@ export class FirestoreClient implements FirestoreSource {
   track<T>(write: Promise<T>): Promise<T> {
     const writes = this.unacknowledged;
     writes.add(write);
-    const settle = () => writes.delete(write);
+    this.writesInFlight.set(writes.size);
+    const settle = () => {
+      writes.delete(write);
+      // After a shutdown these writes are gone with their instance; the count started again.
+      if (writes === this.unacknowledged) this.writesInFlight.set(writes.size);
+    };
     write.then(settle, settle);
     return write;
+  }
+
+  observe(listener: object, state: ListenerSyncState | null): void {
+    const current = this.listeners();
+    const previous = current.get(listener);
+    if (state ? previous && sameState(previous, state) : !previous) return;
+    const next = new Map(current);
+    if (state) next.set(listener, state);
+    else next.delete(listener);
+    this.listeners.set(next);
   }
 
   /**
@@ -157,8 +201,11 @@ export class FirestoreClient implements FirestoreSource {
   shutdown(options: { clearCache: boolean }): Promise<boolean> {
     const current = this.current;
     this.current = null;
-    // A terminated instance never settles its writes; they're discarded with it.
+    // A terminated instance never settles its writes; they're discarded with it, and its
+    // listeners stop.
     this.unacknowledged = new Set();
+    this.writesInFlight.set(0);
+    this.listeners.set(new Map());
     if (!current) return Promise.resolve(false);
     const done = this.close(current, options);
     this.closing = done.catch(() => undefined);
@@ -179,4 +226,12 @@ export class FirestoreClient implements FirestoreSource {
       new Promise<boolean>((resolve) => setTimeout(() => resolve(false), CLEAR_CACHE_WAIT_MS)),
     ]);
   }
+}
+
+function sameState(a: ListenerSyncState, b: ListenerSyncState): boolean {
+  return (
+    a.fromCache === b.fromCache &&
+    a.pending.length === b.pending.length &&
+    a.pending.every((p, i) => p === b.pending[i])
+  );
 }

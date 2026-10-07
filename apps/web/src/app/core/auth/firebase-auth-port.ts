@@ -1,15 +1,17 @@
 import { FirebaseError } from 'firebase/app';
 import {
   applyActionCode,
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
   browserSessionPersistence,
   confirmPasswordReset,
   connectAuthEmulator,
   createUserWithEmailAndPassword,
-  getAuth,
   getMultiFactorResolver,
   getRedirectResult,
   GoogleAuthProvider,
   indexedDBLocalPersistence,
+  initializeAuth,
   linkWithCredential,
   multiFactor,
   onIdTokenChanged,
@@ -30,6 +32,7 @@ import {
   type AuthCredential,
   type MultiFactorError,
   type MultiFactorResolver,
+  type PopupRedirectResolver,
   type TotpSecret,
   type User,
   type UserCredential,
@@ -120,10 +123,60 @@ async function toSession(user: User): Promise<AuthSession> {
   };
 }
 
+/** The members of Firebase's pop-up helper that Auth calls (its published types mark them internal). */
+export interface PopupHelper {
+  readonly _shouldInitProactively: boolean;
+  _initialize(auth: Auth): Promise<unknown>;
+}
+
+/**
+ * Firebase's helper for the Google sign-in pop-up and redirect (Google's gapi script and a frame
+ * from the auth domain), loaded on phones and in Safari when a screen that offers Google shows
+ * (`prepare`) instead of as Auth starts. There, Firebase loads it as Auth starts so the pop-up can
+ * open as soon as it's tapped, and restores the session only once the frame is ready: every
+ * start-up of a signed-in phone waited for two more sites (MOB-02b, ADR-056). Elsewhere it loads on
+ * first use, as before. Auth makes one instance of the class, kept as `latest`.
+ */
+export function onDemandPopups(firebasePopups: new () => PopupHelper) {
+  return class OnDemandPopups extends firebasePopups {
+    static latest: OnDemandPopups | undefined;
+
+    constructor() {
+      super();
+      OnDemandPopups.latest = this;
+    }
+
+    override get _shouldInitProactively(): boolean {
+      return false;
+    }
+
+    /** Loads the helper where Firebase would have loaded it as Auth started. */
+    prepare(auth: Auth): Promise<void> {
+      if (!Reflect.get(firebasePopups.prototype, '_shouldInitProactively', this)) return Promise.resolve();
+      // A failed load is retried on the next prepare or by the pop-up itself.
+      return Promise.resolve()
+        .then(() => this._initialize(auth))
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    }
+  };
+}
+
 /** The Identity Platform implementation of AuthPort (FND-16), connected to the emulators locally. */
 export function createFirebaseAuthPort(): AuthPort {
   const app = firebaseApp();
-  const auth: Auth = getAuth(app);
+  // getAuth's persistence and pop-up helper, the helper loaded on demand. Firebase's Node build
+  // (unit tests) has no helper, and getAuth there starts Auth without one.
+  const popups =
+    typeof browserPopupRedirectResolver === 'function'
+      ? onDemandPopups(browserPopupRedirectResolver as unknown as new () => PopupHelper)
+      : undefined;
+  const auth: Auth = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+    ...(popups && { popupRedirectResolver: popups as unknown as PopupRedirectResolver }),
+  });
   const functions = getFunctions(app, REGION);
   if (environment.useEmulators) {
     connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
@@ -140,7 +193,12 @@ export function createFirebaseAuthPort(): AuthPort {
     current = user ? await toSession(user) : null;
     for (const listener of listeners) listener(current);
   };
-  onIdTokenChanged(auth, (user) => void publish(user));
+  const preparePopups = () => popups?.latest?.prepare(auth) ?? Promise.resolve();
+  onIdTokenChanged(auth, (user) => {
+    void publish(user);
+    // Signed out: the sign-in screen, which offers Google, is next.
+    if (!user) void preparePopups();
+  });
 
   const failure = (error: unknown): never => {
     const code = authErrorCode(error);
@@ -286,6 +344,7 @@ export function createFirebaseAuthPort(): AuthPort {
         await publish(auth.currentUser);
       }),
     pendingLink: () => (pending ? { email: pending.email, method: pending.method } : null),
+    preparePopups,
     reauthenticateWithPassword: (password) =>
       run(async () => {
         const user = requireUser();

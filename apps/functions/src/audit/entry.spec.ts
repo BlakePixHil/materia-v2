@@ -266,6 +266,8 @@ describe('buildWriteEntry', () => {
     expect(build(`${ORG}/metrics/day-2026-10-04`, undefined, { x: 1 })).toEqual({ skip: 'excluded collection' });
     expect(build(`${ORG}/migrations/run-1`, undefined, { status: 'running' })).toEqual({ skip: 'excluded collection' });
     expect(build(`${ORG}/matters/m1/activity/a1`, undefined, { x: 1 })).toEqual({ skip: 'excluded collection' });
+    // A matter's brief (AI-06c) is rebuilt from audited records: auditing it too would only be noise.
+    expect(build(`${ORG}/matters/m1/briefs/latest`, undefined, { x: 1 })).toEqual({ skip: 'excluded collection' });
     expect(build(`${ORG}/matters/m1`, undefined, undefined)).toEqual({ skip: 'no data' });
     expect(build(`${ORG}/matters/m1`, meta('u1', { a: 1 }), meta('u2', { a: 1 }))).toEqual({ skip: 'meta only' });
     expect(

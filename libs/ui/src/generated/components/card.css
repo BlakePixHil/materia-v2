@@ -4,3 +4,4 @@
 .mt-card-h { display: flex; align-items: center; gap: var(--space-8); min-height: 24px; }
 .mt-card-h h3, .mt-card-title { margin: 0; font: 600 14px/20px var(--font-sans); letter-spacing: -.005em; color: var(--text-primary); }
 .mt-card-h .mt-ml { display: flex; gap: var(--space-4); align-items: center; }
+@media (max-width: 767px) { .mt-card-h > a { min-height: 44px; margin-block: -10px; } .mt-card-h > a:not(.mt-ml) { display: inline-flex; align-items: center; } }

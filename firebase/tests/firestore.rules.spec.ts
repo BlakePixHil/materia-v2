@@ -351,6 +351,35 @@ describe('field-level rules', () => {
     await assertSucceeds(list('lawyer'));
   });
 
+  it('matter briefs: no client writes; a privileged matter’s brief needs privileged.view (AI-06c)', async () => {
+    const BRIEF = `${MATTER}/briefs/latest`;
+    const PRIV_MATTER = `orgs/${ORG}/matters/matter-brief-priv`;
+    const PRIV_BRIEF = `${PRIV_MATTER}/briefs/latest`;
+    // A brief kept from before the matter was made privileged: the matter's flag still hides it.
+    const NOW_PRIV = `orgs/${ORG}/matters/matter-brief-now-priv`;
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, BRIEF), seedData(specFor('briefs')));
+      await setDoc(doc(f, PRIV_MATTER), { ...seedData(specFor('matters')), privileged: true });
+      await setDoc(doc(f, PRIV_BRIEF), { ...seedData(specFor('briefs')), privileged: true });
+      await setDoc(doc(f, NOW_PRIV), { ...seedData(specFor('matters')), privileged: true });
+      await setDoc(doc(f, `${NOW_PRIV}/briefs/latest`), seedData(specFor('briefs')));
+    });
+    // Only clerk-matterBrief writes them.
+    await assertFails(updateDoc(doc(db(env, 'owner'), BRIEF), stamped({ headline: 'Changed' }, uidFor('owner'))));
+    await assertFails(deleteDoc(doc(db(env, 'lawyer'), BRIEF)));
+    await assertFails(setDoc(doc(db(env, 'lawyer'), `${MATTER}/briefs/other`), seedData(specFor('briefs'))));
+    for (const role of ROLES) {
+      const as = (path: string) => getDoc(doc(db(env, role), path));
+      await assertSucceeds(as(BRIEF));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(as(PRIV_BRIEF));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(as(`${NOW_PRIV}/briefs/latest`));
+      // Before the first brief is written, the Overview's listener reads it as missing.
+      await assertSucceeds(as(`${MATTER}/briefs/none-yet`));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(as(`${PRIV_MATTER}/briefs/none-yet`));
+    }
+    await assertFails(getDoc(doc(db(env, 'lawyer', OTHER_ORG), BRIEF)));
+  });
+
   it('invoices, pre-bills and credit notes change only through the billing callables (BILL-07)', async () => {
     const INVOICE = `orgs/${ORG}/invoices/invoice-1`;
     const CREDIT = `orgs/${ORG}/creditNotes/credit-1`;
@@ -451,6 +480,31 @@ describe('field-level rules', () => {
     await assertFails(
       updateDoc(doc(db(env, 'lawyer'), `${OPEN}/messages/m-open`), stamped({ feedback: {} }, OWNER_UID)),
     );
+  });
+
+  it('a Clerk draft is its owner’s: edited once Clerk has finished, stopped while drafting (AI-10)', async () => {
+    const DRAFTS = `${MATTER}/clerkDrafts`;
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, `${DRAFTS}/running`), { ...seedData(specFor('clerkDrafts')), status: 'drafting' });
+      await setDoc(doc(f, `${DRAFTS}/ready`), seedData(specFor('clerkDrafts')));
+      await setDoc(doc(f, `${DRAFTS}/priv`), { ...seedData(specFor('clerkDrafts')), privileged: true });
+    });
+    const mine = (id: string) => doc(db(env, 'lawyer'), `${DRAFTS}/${id}`);
+    // While Clerk writes it, the owner can only ask it to stop.
+    await assertFails(updateDoc(mine('running'), stamped({ bodyMd: 'Mine now' }, OWNER_UID)));
+    await assertSucceeds(updateDoc(mine('running'), stamped({ stopRequested: true }, OWNER_UID)));
+    await assertFails(updateDoc(mine('ready'), stamped({ stopRequested: true }, OWNER_UID)));
+    // Once it's ready: the body and who wrote what, never the status, recipients or privilege.
+    await assertSucceeds(
+      updateDoc(mine('ready'), stamped({ bodyMd: 'Edited', provenance: [{ origin: 'person', length: 6 }] }, OWNER_UID)),
+    );
+    for (const change of [{ status: 'saved' }, { privileged: true }, { recipients: [] }, { documentIds: ['d1'] }])
+      await assertFails(updateDoc(mine('ready'), stamped(change, OWNER_UID)));
+    await assertFails(updateDoc(mine('ready'), stamped({ bodyMd: 'x'.repeat(50_001) }, OWNER_UID)));
+    // A privileged draft needs privileged.view, and a list must prove whose drafts it reads.
+    await assertSucceeds(getDoc(mine('priv')));
+    await assertFails(getDocs(collection(db(env, 'lawyer'), DRAFTS)));
+    await assertSucceeds(getDocs(query(collection(db(env, 'lawyer'), DRAFTS), where('ownerUid', '==', OWNER_UID))));
   });
 
   it('notifications and personal tasks belong to one member', async () => {
@@ -576,6 +630,18 @@ describe('org settings (CORE-21)', () => {
     );
   });
 
+  it('the terms acceptance is recorded only by orgs-acceptTerms and orgs-createOrg, even for owners (SEC-01)', async () => {
+    await seed(specFor('orgs'));
+    const owner = uidFor('owner');
+    const ref = doc(db(env, 'owner'), ORG_DOC);
+    await assertFails(updateDoc(ref, stamped({ termsAcceptedVersion: '9.9' }, owner)));
+    await assertFails(updateDoc(ref, stamped({ termsAcceptedAt: new Date() }, owner)));
+    await assertFails(updateDoc(ref, stamped({ termsAcceptedBy: owner }, owner)));
+    await assertFails(
+      updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped({ termsAcceptedVersion: '9.9' }, uidFor('admin'))),
+    );
+  });
+
   it('owners and admins set a member’s rate, budgets and supervisor; others can’t', async () => {
     await seed(specFor('members'));
     const patch = {
@@ -680,6 +746,97 @@ describe('session policy (SEC-04)', () => {
   });
 });
 
+describe('a practice waiting to be deleted is read-only (SEC-05)', () => {
+  const setDeletion = (at: Timestamp | null) =>
+    seedAdmin(env, (firestore) =>
+      updateDoc(doc(firestore, `orgs/${ORG}`), { deletionScheduledAt: at ?? deleteField() }),
+    );
+  const matters = specFor('matters');
+  const notifications = specFor('notifications');
+
+  beforeAll(async () => {
+    await seed(matters);
+    await seed(notifications);
+  });
+  afterEach(() => setDeletion(null));
+
+  it('members still read its records, but no one changes them', async () => {
+    const owner = uidFor('owner');
+    await assertSucceeds(updateDoc(doc(db(env, 'owner'), matters.docPath), stamped(changeFor(matters), owner)));
+    await setDeletion(Timestamp.fromMillis(Date.now() + 30 * 86_400_000));
+    await assertSucceeds(getDoc(doc(db(env, 'lawyer'), matters.docPath)));
+    await assertSucceeds(
+      getDocs(query(collection(db(env, 'lawyer'), `orgs/${ORG}/matters`), where('privileged', '==', false))),
+    );
+    await assertFails(updateDoc(doc(db(env, 'owner'), matters.docPath), stamped(changeFor(matters), owner)));
+    await assertFails(
+      updateDoc(doc(db(env, 'owner'), matters.docPath), {
+        deletedAt: serverTimestamp(),
+        deletedBy: owner,
+        updatedAt: serverTimestamp(),
+        updatedBy: owner,
+      }),
+    );
+  });
+
+  it('refuses new records too', async () => {
+    const lawyer = uidFor('lawyer');
+    const task = (id: string) =>
+      [
+        doc(db(env, 'lawyer'), `${MATTER}/tasks/${id}`),
+        {
+          title: 'Call the executor',
+          status: 'todo',
+          priority: 'none',
+          assigneeUid: lawyer,
+          checklist: [],
+          order: 1,
+          source: 'manual',
+          countedOpen: false,
+          orgId: ORG,
+          matterId: MATTER.split('/').at(-1),
+          createdAt: serverTimestamp(),
+          createdBy: lawyer,
+          updatedAt: serverTimestamp(),
+          updatedBy: lawyer,
+          schemaVersion: 1,
+        },
+      ] as const;
+    await assertSucceeds(setDoc(...task('task-before-deleting')));
+    await setDeletion(Timestamp.fromMillis(Date.now() + 30 * 86_400_000));
+    await assertFails(setDoc(...task('task-while-deleting')));
+  });
+
+  it('keeps a person’s own notifications and profile theirs to change', async () => {
+    await setDeletion(Timestamp.fromMillis(Date.now() + 30 * 86_400_000));
+    const lawyer = uidFor('lawyer');
+    await assertSucceeds(
+      updateDoc(doc(db(env, 'lawyer'), notifications.docPath), stamped(changeFor(notifications), lawyer)),
+    );
+    await assertSucceeds(
+      updateDoc(
+        doc(db(env, 'lawyer'), `orgs/${ORG}/members/${lawyer}`),
+        stamped({ displayName: 'Lena Fictional', title: 'Senior associate' }, lawyer),
+      ),
+    );
+    // Their own profile outside the practice too.
+    await assertSucceeds(updateDoc(doc(db(env, 'lawyer'), `users/${lawyer}`), stamped({ firstName: 'Lena' }, lawyer)));
+  });
+
+  it('keeps the deletion date server-owned', async () => {
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'owner'), `orgs/${ORG}`),
+        stamped({ deletionScheduledAt: Timestamp.fromMillis(Date.now()) }, uidFor('owner')),
+      ),
+    );
+    await setDeletion(Timestamp.fromMillis(Date.now() + 30 * 86_400_000));
+    await assertFails(
+      updateDoc(doc(db(env, 'owner'), `orgs/${ORG}`), stamped({ deletionScheduledAt: deleteField() }, uidFor('owner'))),
+    );
+  });
+});
+
 describe('profile (CORE-20)', () => {
   it('a member edits their own name, title, admission number, initials and colour, and nothing else', async () => {
     const uid = uidFor('paralegal');
@@ -730,6 +887,41 @@ describe('profile (CORE-20)', () => {
           uid,
         ),
       ),
+    );
+  });
+});
+
+describe('pinned matters (CORE-23)', () => {
+  const tenIds = Array.from({ length: 10 }, (_, i) => `matter-${i + 1}`);
+
+  it('a person pins up to ten matters in their current org, and nobody else writes their pins', async () => {
+    const uid = uidFor('lawyer');
+    const elsewhere = { [OTHER_ORG]: ['matter-9'] };
+    for (const who of [uid, uidFor('paralegal')]) {
+      await seedAdmin(env, (f) =>
+        setDoc(doc(f, `users/${who}`), { ...seedData(specFor('users')), pinnedMatterIds: elsewhere }),
+      );
+    }
+    const ref = doc(db(env, 'lawyer'), `users/${uid}`);
+    const pins = (ids: unknown, extra: Record<string, unknown> = {}) =>
+      stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ids, ...extra } }, uid);
+
+    await assertSucceeds(updateDoc(ref, pins(['matter-1', 'matter-2'])));
+    await assertSucceeds(updateDoc(ref, pins(tenIds)));
+    await assertSucceeds(updateDoc(ref, pins(tenIds.slice(1))));
+    await assertFails(updateDoc(ref, pins([...tenIds, 'matter-11'])));
+    await assertFails(updateDoc(ref, pins('matter-1')));
+    // Only the current org's list changes: another org's stays as it was.
+    await assertFails(updateDoc(ref, pins(['matter-1'], { [OTHER_ORG]: ['matter-1'] })));
+    await assertFails(updateDoc(ref, stamped({ pinnedMatterIds: { [ORG]: ['matter-1'] } }, uid)));
+    await assertFails(updateDoc(ref, stamped({ pinnedMatterIds: 'matter-1' }, uid)));
+    // Unpinning the last one drops the org's list.
+    await assertSucceeds(updateDoc(ref, stamped({ pinnedMatterIds: elsewhere }, uid)));
+    // Another person's pins are theirs alone.
+    const other = doc(db(env, 'lawyer'), `users/${uidFor('paralegal')}`);
+    await assertFails(updateDoc(other, stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ['matter-1'] } }, uid)));
+    await assertFails(
+      updateDoc(other, stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ['matter-1'] } }, uidFor('paralegal'))),
     );
   });
 });
@@ -1850,6 +2042,7 @@ describe('notifications (FND-20)', () => {
   const device = (uid: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
     token: 'fake-fcm-token-rules',
     platform: 'web',
+    label: 'Chrome on macOS',
     lastSeenAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     createdBy: uid,
@@ -1891,6 +2084,8 @@ describe('notifications (FND-20)', () => {
       { token: 'x'.repeat(4097) },
       { token: 42 },
       { platform: 'fax' },
+      { label: '' },
+      { label: 'x'.repeat(81) },
       { lastSeenAt: '2026-10-05' },
       { createdBy: 'someone-else' },
       { updatedBy: 'someone-else' },
@@ -3805,6 +4000,10 @@ describe('integrations (INT-01)', () => {
     const lawyer = db(env, 'lawyer');
     await assertSucceeds(getDoc(doc(lawyer, `${STATUS}/${OWNER_UID}_microsoft`)));
     await assertSucceeds(getDoc(doc(lawyer, `${STATUS}/xero`)));
+    // One nobody has made yet reads as missing, not refused: Settings → Integrations watches `xero`
+    // before Xero is ever connected, and a refusal there sends an owner to "no access".
+    await assertSucceeds(getDoc(doc(db(env, 'owner'), `${STATUS}/never-connected`)));
+    await assertFails(getDoc(doc(db(env, 'owner', OTHER_ORG), `${STATUS}/never-connected`)));
     // Another person's connection, owners and admins included.
     await assertFails(getDoc(doc(lawyer, `${STATUS}/${uidFor('paralegal')}_microsoft`)));
     await assertFails(getDoc(doc(db(env, 'owner'), `${STATUS}/${uidFor('paralegal')}_microsoft`)));

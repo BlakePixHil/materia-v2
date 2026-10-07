@@ -80,6 +80,17 @@ body {
   outline: none;
 }
 
+/* Forced colours (Windows contrast themes) remove box-shadows, and with them the focus ring that
+   components draw as one over `outline: none`: there, focus is a solid outline in the system's
+   highlight colour (WCAG 2.4.7, SEC-06). */
+@media (forced-colors: active) {
+  :focus-visible,
+  [data-focus-visible] {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px !important;
+  }
+}
+
 /* An icon button inside a chip (a label's remove button) is a small circle that fits within the chip. */
 .mt-chip > .mt-ibtn[data-size] {
   --s: 20px;

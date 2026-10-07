@@ -6,7 +6,7 @@ import { matterDocumentRepository, matterDocumentsQuery } from '@materia/data-ac
 import { EventKindSchema, type DateOnly, type EventKind } from '@materia/domain';
 import { injectDialogRef, MtButton, MtDialog, MtSelect, MtTextField, type MtOption } from '@materia/ui';
 
-import { eventKindLabel } from '../matter-detail/matter-view';
+import { eventKindLabel } from './deadline-view';
 import { formatDueInput, parseDueInput } from '../tasks/task-view';
 
 export interface EventDialogData {
