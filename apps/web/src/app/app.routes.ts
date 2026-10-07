@@ -4,7 +4,7 @@ import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 import type { Role } from '@materia/domain';
 
 import { AuthState } from './core/auth/auth-state';
-import { authGuard, mfaGuard, orgScopedGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
+import { authGuard, mfaGuard, orgGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
 import { startPagePath } from './core/profile/start-page';
 import { readLayout } from './features/matters/matters-layout';
@@ -295,8 +295,11 @@ const shellRoutes: Route[] = [
       {
         path: '',
         pathMatch: 'full',
-        redirectTo: () => {
-          const role = inject(AuthState).claims().role;
+        // Redirects run before the shell's guard, so wait for the session's role.
+        redirectTo: async () => {
+          const auth = inject(AuthState);
+          await auth.whenReady();
+          const role = auth.claims().role;
           return role === 'owner' || role === 'admin' ? 'practice' : 'team';
         },
       },
@@ -544,9 +547,11 @@ export const appRoutes: Route[] = [
     ],
   },
   // The shell needs a signed-in, verified person with an active org (and MFA where required).
+  // canActivate rather than canMatch, so the router knows the target pages while the guard waits
+  // and their chunks download meanwhile (prefetchPagesDuringGuards).
   {
     path: '',
-    canMatch: [orgScopedGuard],
+    canActivate: [orgGuard],
     loadComponent: () => import('./shell/app-shell').then((m) => m.AppShellComponent),
     children: shellRoutes,
   },
