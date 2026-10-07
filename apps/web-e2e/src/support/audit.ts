@@ -45,6 +45,7 @@ const FLAGS: Record<string, boolean> = {
   'clerk.features.brief': true,
   'clerk.features.chat': true,
   'clerk.features.suggestions': true,
+  'clerk.features.drafting': true,
   'conflicts.enforced': true,
   'templates.system': true,
   'matters.destruction': true,

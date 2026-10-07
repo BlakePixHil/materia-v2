@@ -206,6 +206,15 @@ test.describe('accessibility audit @audit', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Will (customised)' })).toBeVisible(SERVER);
     await settled(page);
     await audit.scan('/settings/templates/:id');
+    // Clerk drafting (AI-10): the start page, then a letter in the editor (the emulator's fake model).
+    await audit.visit(`/matters/${MATTER}/drafts/new`);
+    await page.getByRole('radio', { name: 'Bank balance request' }).click();
+    await page.getByRole('checkbox', { name: 'Someone else' }).click();
+    await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Fictional Savings Bank');
+    await page.getByRole('button', { name: 'Draft letter' }).click();
+    await expect(page).toHaveURL(new RegExp(`/matters/${MATTER}/drafts/[^/]+$`), SERVER);
+    await expect(page.getByRole('textbox', { name: 'Letter' })).toBeEditable(SERVER);
+    await audit.scan('/matters/:id/drafts/:draftId');
     // Where an export_ready notification and an OAuth provider lead, here with links gone stale.
     await audit.visit('/exports/export-fictional', '/exports/:jobId (expired)');
     await audit.visit('/integrations/callback/xero', '/integrations/callback/:provider (no code)');
