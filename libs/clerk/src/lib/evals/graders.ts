@@ -442,3 +442,30 @@ export function eventMisses(
     ...listed.filter((event) => !offeredKeys.has(key(event))).map((e) => `dropped:${key(e)}`),
   ];
 }
+
+/** A matter brief after production's checks (AI-06c), as the executor reports it. */
+export interface CheckedBrief {
+  written: number;
+  kept: number;
+  refs: readonly string[];
+}
+
+/**
+ * factAccuracy (AI-06c): the share of the items Clerk wrote that production's checks keep
+ * (`checkBrief`: every record it cites is in the facts, and every number and date is in what it
+ * cites). Not applicable when the reply had no items.
+ */
+export function factAccuracy(brief: CheckedBrief | undefined): Score {
+  if (!brief?.written) return null;
+  return brief.kept / brief.written;
+}
+
+/**
+ * recordRecall (AI-06c): the share of the records the gold says a brief must mention that a kept
+ * item cites. Nothing expected: not applicable.
+ */
+export function recordRecall(brief: CheckedBrief | undefined, expected: readonly string[] | undefined): Score {
+  if (!expected?.length) return null;
+  const cited = new Set(brief?.refs ?? []);
+  return expected.filter((ref) => cited.has(ref)).length / expected.length;
+}

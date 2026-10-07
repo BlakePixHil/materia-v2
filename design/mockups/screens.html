@@ -395,6 +395,11 @@ ol.mt-crumbs { list-style: none; margin: 0; padding: 0; }
 .mt-clerk-title { margin: 0; font: 600 16px/22px var(--font-sans); letter-spacing: -.01em; color: var(--text-primary); }
 .mt-clerk-working[data-static] .dots i, .mt-clerk-working[data-static] .mt-shimmer { animation: none; }
 .mt-clerk-card { display: block; }
+/* The same card when Clerk didn't write it (a matter's template brief, AI-06c): no AI edge, glow or wash, and no Clerk mark. */
+.mt-clerk-card[data-plain] { border-color: var(--border-default); box-shadow: var(--shadow-card); }
+.mt-clerk-card[data-plain]::before { content: none; }
+.mt-clerk-card[data-plain] > .in { background: none; }
+.mt-clerk-card[data-plain] .mt-clerk-head { color: var(--text-secondary); }
 .mt-brief { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .mt-brief-item { display: flex; align-items: flex-start; gap: var(--space-12); padding: 10px 0; border-top: 1px solid var(--border-subtle); }
 .mt-brief-item > .mt-i { margin-top: 2px; }

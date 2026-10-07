@@ -21,6 +21,8 @@ export interface MemoryMatter {
   tasks?: Record<string, Data>;
   notes?: Record<string, Data>;
   documents?: Record<string, Data>;
+  activity?: Record<string, Data>;
+  suggestions?: Record<string, Data>;
 }
 
 export interface MemoryOrg {
@@ -39,6 +41,15 @@ export interface MemoryOrg {
 
 const toRows = (records: Record<string, Data> | undefined): Row[] =>
   Object.entries(records ?? {}).map(([id, data]) => ({ id, data }));
+
+/** Rows by a Date field, newest first, capped (as the Firestore source's `orderBy(…, 'desc')`). */
+const newest = (rows: Row[], field: string, limit: number) =>
+  rows
+    .sort(
+      (a, b) =>
+        ((b.data[field] as Date | undefined)?.getTime() ?? 0) - ((a.data[field] as Date | undefined)?.getTime() ?? 0),
+    )
+    .slice(0, limit);
 
 /**
  * An in-memory ContextSource for unit tests (the Firestore one is covered by integration tests).
@@ -106,6 +117,23 @@ export class MemoryContextSource implements ContextSource {
     this.reads.push(`documents:${matterId}:${ids.length}`);
     const docs = this.matterOf(orgId, matterId)?.documents ?? {};
     return ids.filter((id) => docs[id]).map((id) => ({ id, data: docs[id] as Data }));
+  }
+
+  async recentActivity(orgId: string, matterId: string, options: { limit: number }) {
+    this.reads.push(`activity:${matterId}`);
+    return newest(toRows(this.matterOf(orgId, matterId)?.activity), 'at', options.limit);
+  }
+
+  async recentDocuments(orgId: string, matterId: string, options: { limit: number }) {
+    this.reads.push(`recentDocuments:${matterId}`);
+    return newest(toRows(this.matterOf(orgId, matterId)?.documents), 'createdAt', options.limit);
+  }
+
+  async openSuggestions(orgId: string, matterId: string, options: { limit: number }) {
+    this.reads.push(`suggestions:${matterId}`);
+    return toRows(this.matterOf(orgId, matterId)?.suggestions)
+      .filter((row) => ['proposed', 'stale'].includes(row.data['status'] as string))
+      .slice(0, options.limit);
   }
 
   async metricMonths(orgId: string, months: readonly string[]) {

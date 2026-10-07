@@ -1,0 +1,5 @@
+{
+  "id": "mb-001",
+  "briefRefs": ["deadline:dl-advert", "deadline:dl-filing"],
+  "mustNotContain": ["has been filed", "was filed", "grant has issued", "was granted"]
+}

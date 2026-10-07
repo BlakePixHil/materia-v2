@@ -28,6 +28,17 @@ export const CLERK_FEATURES = {
   },
   ocr: { flag: null, timeoutMs: 120_000, background: true },
   brief: { flag: 'clerk.features.brief', timeoutMs: 90_000, orgFeature: 'brief' },
+  /**
+   * The brief on a matter's Overview (AI-06c): written when the matter is opened and its brief is
+   * stale, without the person asking, so it takes no slot in their request window; the org's
+   * daily cap on matter briefs and the monthly budget apply.
+   */
+  matterBrief: {
+    flag: 'clerk.features.matterBrief',
+    timeoutMs: 60_000,
+    background: true,
+    orgFeature: 'matterBrief',
+  },
   willExtraction: { flag: 'clerk.features.willExtraction', timeoutMs: 300_000, orgFeature: 'willExtract' },
   drafting: { flag: 'clerk.features.drafting', timeoutMs: 180_000, orgFeature: 'drafting' },
   timeAssist: { flag: 'clerk.features.timeAssist', timeoutMs: 60_000, orgFeature: 'timeAssist' },

@@ -28,7 +28,7 @@ import {
   type ProposedEvent,
   type TextSpan,
 } from '@materia/clerk/evals';
-import { DomainError, can, narrativePeriodInfo, narrativePromptVars } from '@materia/domain';
+import { DomainError, briefRef, can, checkBrief, narrativePeriodInfo, narrativePromptVars } from '@materia/domain';
 
 import { createLog } from '../../core/log';
 import { EVENTS_QUERY, toProposals } from '../../migration/events';
@@ -37,7 +37,7 @@ import { CHAT_PROMPT, CHAT_TASKS } from '../chat/run';
 import { createChatToolbox, type ChatDraft } from '../chat/tools';
 import { createContextBuilder } from '../context/build-context';
 import { charEstimateCounter, type DocumentTextPort } from '../context/ports';
-import { MemoryContextSource } from '../context/testing';
+import { MemoryContextSource, type MemoryMatter } from '../context/testing';
 import type { ClerkFeature } from '../features';
 import {
   createClerkGateway,
@@ -75,6 +75,7 @@ const FEATURES: Record<CaseRequest['feature'], ClerkFeature> = {
   timeAssist: 'timeAssist',
   insightsNarrative: 'insightsNarrative',
   eventsExtraction: 'eventsExtraction',
+  matterBrief: 'matterBrief',
 };
 
 export interface EvalExecutorOptions {
@@ -388,6 +389,77 @@ async function runEvents(
   return { result, proposed };
 }
 
+/**
+ * A matter brief case's records (AI-06c) as Firestore keeps them on the eval matter: documents
+ * scanned clean, instants as Dates, the matter privileged when the case says so.
+ */
+export function briefMatter(evalCase: EvalCase, matter: MemoryMatter): MemoryMatter {
+  const rows = evalCase.brief;
+  if (!rows) throw new Error(`${evalCase.id}: a matter brief case needs its records (brief)`);
+  const byId = <T extends { id: string }>(
+    list: readonly T[],
+    data: (row: Omit<T, 'id'>) => Record<string, unknown> = (row) => row,
+  ) => Object.fromEntries(list.map(({ id, ...row }) => [id, data(row)]));
+  return {
+    ...matter,
+    data: { ...matter.data, privileged: rows.matterPrivileged },
+    deadlines: byId(rows.deadlines),
+    tasks: byId(rows.tasks),
+    activity: byId(rows.activity, ({ at, ...row }) => ({ ...row, at: new Date(at) })),
+    documents: byId(rows.documents, ({ createdAt, ...row }) => ({
+      ...row,
+      createdAt: new Date(createdAt),
+      scan: { status: 'clean' },
+    })),
+    suggestions: byId(rows.suggestions),
+  };
+}
+
+/**
+ * One matter brief case (AI-06c) the way `clerk-matterBrief` asks: production's `buildContext`
+ * (the brief's facts from the case's records), the prompt's `today`, and production's `checkBrief`
+ * on the reply. The graders score what would be shown.
+ */
+async function runMatterBrief(
+  gateway: ClerkGateway,
+  ctx: GatewayContext,
+  evalCase: EvalCase,
+  promptRef: string,
+  root: string,
+): Promise<{ result: ClerkRunResult; brief: { written: number; kept: number; refs: string[] } }> {
+  const orgs = evalOrg(evalCase, ctx.orgId, ctx.uid);
+  const org = orgs[ctx.orgId];
+  const matter = org?.matters[EVAL_MATTER];
+  if (!org || !matter) throw new Error(`${evalCase.id}: no eval matter`);
+  org.matters[EVAL_MATTER] = briefMatter(evalCase, matter);
+  const context = await createContextBuilder({
+    source: new MemoryContextSource(orgs),
+    chunks: evalChunkSearch(evalCase, root),
+    documentText: evalDocumentText(evalCase, root),
+    tokens: charEstimateCounter,
+  }).buildContext({ ctx, scope: { matterId: EVAL_MATTER }, feature: 'matterBrief' });
+  const facts = context.brief;
+  if (!facts) throw new Error(`${evalCase.id}: the matter brief context has no facts`);
+  const result = await gateway.run({
+    ctx,
+    feature: 'matterBrief',
+    promptId: promptRef,
+    vars: { today: facts.facts.today },
+    context,
+  });
+  const parsed = result.parsed as { headline?: unknown; items?: unknown } | undefined;
+  if (result.status !== 'done' || !parsed) return { result, brief: { written: 0, kept: 0, refs: [] } };
+  const checked = checkBrief(parsed, facts);
+  return {
+    result,
+    brief: {
+      written: Array.isArray(parsed.items) ? parsed.items.length : 0,
+      kept: checked.items.length,
+      refs: [...new Set(checked.items.flatMap((item) => item.refs.map((ref) => briefRef(ref.kind, ref.id))))],
+    },
+  };
+}
+
 /** A draft as the graders read it: a note's text, or a task's title, due date and details. */
 function draftText(draft: ChatDraft): string {
   if (draft.kind === 'note') return draft.payload.bodyMd;
@@ -460,8 +532,17 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
     let result: ClerkRunResult;
     let drafts: DraftedItem[] | undefined;
     let proposedEvents: ProposedEvent[] | undefined;
+    let brief: CaseOutcome['brief'];
     try {
-      if (request.feature === 'eventsExtraction')
+      if (request.feature === 'matterBrief')
+        ({ result, brief } = await runMatterBrief(
+          gateway,
+          { ...ctx, clock: { now: () => caseNow(evalCase) } },
+          evalCase,
+          promptRef,
+          root,
+        ));
+      else if (request.feature === 'eventsExtraction')
         ({ result, proposed: proposedEvents } = await runEvents(
           gateway,
           { ...ctx, clock: { now: () => caseNow(evalCase) } },
@@ -528,6 +609,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
       latencyMs,
       ...(drafts ? { drafts } : {}),
       ...(proposedEvents ? { proposedEvents } : {}),
+      ...(brief ? { brief } : {}),
     };
 
     if (options.judge && request.suite.citations === 'api' && result.citations.length) {

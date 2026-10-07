@@ -11,6 +11,12 @@ export interface ContextPolicy {
   budgetTokens: number;
   /** The scopes the feature may ask for. Only an explicit feature reaches across matters (metrics). */
   scopes: readonly ContextScopeKind[];
+  /**
+   * `brief`: the matter brief's facts only (AI-06c): deadlines, tasks, the feed's lines, the names
+   * and categories of documents added and the open suggestions, with no notes, document text or
+   * retrieval.
+   */
+  facts?: 'brief';
 }
 
 /**
@@ -27,6 +33,8 @@ export const CONTEXT_POLICIES = {
   suggestions: { budgetTokens: 24_000, scopes: ['matter'] },
   classification: { budgetTokens: 16_000, scopes: ['matter'] },
   brief: { budgetTokens: 24_000, scopes: ['matter'] },
+  /** The matter brief's facts (AI-06c): about 60 short lines at most. */
+  matterBrief: { budgetTokens: 8_000, scopes: ['matter'], facts: 'brief' },
   willExtraction: { budgetTokens: 120_000, scopes: ['matter'] },
   drafting: { budgetTokens: 40_000, scopes: ['matter'] },
   timeAssist: { budgetTokens: 12_000, scopes: ['matter'] },

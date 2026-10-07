@@ -1,0 +1,5 @@
+{
+  "id": "mb-008",
+  "briefRefs": ["deadline:dl-serve", "deadline:dl-directions"],
+  "mustNotContain": ["mediation", "3 Nov", "sworn"]
+}

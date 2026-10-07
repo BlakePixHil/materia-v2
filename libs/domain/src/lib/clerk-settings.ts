@@ -21,6 +21,7 @@ export { CLERK_DISCLOSURE_VERSION, CLERK_DISCLOSURES } from './clerk-disclosure.
 export const ORG_CLERK_FEATURE_KEYS = [
   'chat',
   'brief',
+  'matterBrief',
   'suggestions',
   'classification',
   'willExtract',
@@ -48,6 +49,11 @@ export const ORG_CLERK_FEATURES: readonly OrgClerkFeatureInfo[] = [
     description: 'Questions about a matter or the practice, answered with citations.',
   },
   { key: 'brief', label: 'Morning brief', description: 'A summary of what needs you, on Today.' },
+  {
+    key: 'matterBrief',
+    label: 'Matter brief',
+    description: 'What changed, what’s due and a next step, at the top of each matter’s Overview.',
+  },
   {
     key: 'suggestions',
     label: 'Suggest tasks and deadlines',

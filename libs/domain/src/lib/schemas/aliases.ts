@@ -1,4 +1,4 @@
-import { Suggestion, FactCitation, ClerkThread, ClerkMessage } from './clerk';
+import { Suggestion, FactCitation, ClerkThread, ClerkMessage, MatterBrief } from './clerk';
 import { Contact, Matter, MatterNumber } from './contacts-matters';
 import { Job } from './jobs';
 import { DisbursementPresetsDoc } from '../disbursements';
@@ -179,6 +179,9 @@ export const SuggestionUpdateSchema = Suggestion.update;
 export const FactCitationSchema = FactCitation.schema;
 export const FactCitationCreateSchema = FactCitation.create;
 export const FactCitationUpdateSchema = FactCitation.update;
+export const MatterBriefSchema = MatterBrief.schema;
+export const MatterBriefCreateSchema = MatterBrief.create;
+export const MatterBriefUpdateSchema = MatterBrief.update;
 export const ClerkThreadSchema = ClerkThread.schema;
 export const ClerkThreadCreateSchema = ClerkThread.create;
 export const ClerkThreadUpdateSchema = ClerkThread.update;

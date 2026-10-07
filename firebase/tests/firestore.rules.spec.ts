@@ -351,6 +351,35 @@ describe('field-level rules', () => {
     await assertSucceeds(list('lawyer'));
   });
 
+  it('matter briefs: no client writes; a privileged matter’s brief needs privileged.view (AI-06c)', async () => {
+    const BRIEF = `${MATTER}/briefs/latest`;
+    const PRIV_MATTER = `orgs/${ORG}/matters/matter-brief-priv`;
+    const PRIV_BRIEF = `${PRIV_MATTER}/briefs/latest`;
+    // A brief kept from before the matter was made privileged: the matter's flag still hides it.
+    const NOW_PRIV = `orgs/${ORG}/matters/matter-brief-now-priv`;
+    await seedAdmin(env, async (f) => {
+      await setDoc(doc(f, BRIEF), seedData(specFor('briefs')));
+      await setDoc(doc(f, PRIV_MATTER), { ...seedData(specFor('matters')), privileged: true });
+      await setDoc(doc(f, PRIV_BRIEF), { ...seedData(specFor('briefs')), privileged: true });
+      await setDoc(doc(f, NOW_PRIV), { ...seedData(specFor('matters')), privileged: true });
+      await setDoc(doc(f, `${NOW_PRIV}/briefs/latest`), seedData(specFor('briefs')));
+    });
+    // Only clerk-matterBrief writes them.
+    await assertFails(updateDoc(doc(db(env, 'owner'), BRIEF), stamped({ headline: 'Changed' }, uidFor('owner'))));
+    await assertFails(deleteDoc(doc(db(env, 'lawyer'), BRIEF)));
+    await assertFails(setDoc(doc(db(env, 'lawyer'), `${MATTER}/briefs/other`), seedData(specFor('briefs'))));
+    for (const role of ROLES) {
+      const as = (path: string) => getDoc(doc(db(env, role), path));
+      await assertSucceeds(as(BRIEF));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(as(PRIV_BRIEF));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(as(`${NOW_PRIV}/briefs/latest`));
+      // Before the first brief is written, the Overview's listener reads it as missing.
+      await assertSucceeds(as(`${MATTER}/briefs/none-yet`));
+      await (allows(role, 'privileged.view') ? assertSucceeds : assertFails)(as(`${PRIV_MATTER}/briefs/none-yet`));
+    }
+    await assertFails(getDoc(doc(db(env, 'lawyer', OTHER_ORG), BRIEF)));
+  });
+
   it('invoices, pre-bills and credit notes change only through the billing callables (BILL-07)', async () => {
     const INVOICE = `orgs/${ORG}/invoices/invoice-1`;
     const CREDIT = `orgs/${ORG}/creditNotes/credit-1`;

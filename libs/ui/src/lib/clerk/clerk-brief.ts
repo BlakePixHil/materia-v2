@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output, ViewEncapsulation } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, input, output, ViewEncapsulation } from '@angular/core';
 
 import { type CitationOpenEvent, type CitationVm, MtCitation } from './citation';
 import { MtClerkMark } from './clerk-mark';
@@ -21,7 +21,9 @@ export interface BriefItemVm {
 
 /**
  * ClerkBrief (`mt-clerk-brief`): Clerk's summary card ("Three things need you today"), with the Clerk
- * mark, one row per item with its sources, and an optional action per item.
+ * mark, one row per item with its sources, and an optional action per item. `plain` is the same
+ * card when Clerk didn't write it (a matter's template brief, AI-06c): no AI edge or glow, and an
+ * icon instead of the Clerk mark. Projected content follows the list (the footer, `mt-clerk-foot`).
  */
 @Component({
   selector: 'mt-clerk-brief',
@@ -33,11 +35,20 @@ export interface BriefItemVm {
     '../../generated/components/cites.css',
   ],
   imports: [MtClerkMark, MtCitation, MtButton, MtIcon],
-  host: { class: 'mt-clerk-card', role: 'region', '[attr.aria-label]': 'label()' },
+  host: {
+    class: 'mt-clerk-card',
+    role: 'region',
+    '[attr.aria-label]': 'label()',
+    '[attr.data-plain]': 'plain() ? "" : null',
+  },
   template: `
     <div class="in">
       <div class="mt-clerk-head">
-        <mt-clerk-mark />
+        @if (plain()) {
+          <mt-icon name="calendar" />
+        } @else {
+          <mt-clerk-mark />
+        }
         {{ label() }}
         <span class="mt-ml mt-row"><ng-content select="[mtBriefActions]" /></span>
       </div>
@@ -80,6 +91,8 @@ export class MtClerkBrief {
   readonly label = input('Clerk brief');
   readonly title = input<string>();
   readonly items = input.required<readonly BriefItemVm[]>();
+  /** Not written by Clerk: the plain card, without the Clerk mark. */
+  readonly plain = input(false, { transform: booleanAttribute });
   readonly action = output<BriefItemVm>();
   readonly citationOpen = output<CitationOpenEvent>();
 }

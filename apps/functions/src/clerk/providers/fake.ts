@@ -138,6 +138,50 @@ export function narrativeStep(request: ClerkModelRequest): FakeStep {
   return { chunks: [JSON.stringify(output)] };
 }
 
+/**
+ * A matter brief (AI-06c) the checks accept: an item for the first overdue and the first upcoming
+ * deadline, the newest document added and the first open suggestion (or undated task), each
+ * worded from the facts `<matter_facts kind="brief">` gives and citing its ref.
+ */
+export function matterBriefStep(request: ClerkModelRequest): FakeStep {
+  const text = request.messages.map(turnText).join('\n');
+  const json = /<matter_facts [^>]*kind="brief"[^>]*>\n([\s\S]*?)\n<\/matter_facts>/.exec(text)?.[1];
+  type Row = {
+    ref?: string;
+    title?: string;
+    due?: string;
+    name?: string;
+    type?: string;
+    added?: string;
+    text?: string;
+  };
+  let facts: Record<string, Row[] | undefined> = {};
+  try {
+    facts = json ? JSON.parse(json) : {};
+  } catch {
+    facts = {};
+  }
+  const first = (key: string) => facts[key]?.[0];
+  const items: { kind: string; text: string; refs: string[] }[] = [];
+  const overdue = first('overdueDeadlines');
+  if (overdue?.ref)
+    items.push({ kind: 'due', text: `${overdue.title} was due ${overdue.due} (fake Clerk).`, refs: [overdue.ref] });
+  const upcoming = first('upcomingDeadlines');
+  if (upcoming?.ref)
+    items.push({ kind: 'due', text: `${upcoming.title} is due ${upcoming.due} (fake Clerk).`, refs: [upcoming.ref] });
+  const doc = first('documentsAdded');
+  if (doc?.ref)
+    items.push({
+      kind: 'changed',
+      text: `${doc.name} (${doc.type}) was added ${doc.added} (fake Clerk).`,
+      refs: [doc.ref],
+    });
+  const next = first('suggestions') ?? first('undatedTasks');
+  if (next?.ref) items.push({ kind: 'next', text: `Next: ${next.text ?? next.title} (fake Clerk).`, refs: [next.ref] });
+  const headline = items.length ? 'Here is where this matter stands (fake Clerk).' : 'Nothing needs you (fake Clerk).';
+  return { chunks: [JSON.stringify({ headline, items })] };
+}
+
 /** Words that tell the fake model which key date a sentence states (fictional files only). */
 const EVENT_WORDS: [kind: string, pattern: RegExp][] = [
   ['date_of_death', /\b(died|death|passed away)\b/i],
@@ -190,6 +234,7 @@ export function eventsStep(request: ClerkModelRequest): FakeStep {
 function defaultStep(request: ClerkModelRequest): FakeStep {
   if (request.output?.name === 'insightsNarrative') return narrativeStep(request);
   if (request.output?.name === 'eventsFromFile') return eventsStep(request);
+  if (request.output?.name === 'matterBrief') return matterBriefStep(request);
   const chat = chatStep(request);
   if (chat) return chat;
   const sample = request.output ? SAMPLE_OUTPUT[request.output.name] : undefined;

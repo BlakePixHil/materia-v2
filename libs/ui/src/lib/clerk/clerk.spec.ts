@@ -204,6 +204,13 @@ describe('MtClerkBrief', () => {
     await render(MtClerkBrief, { inputs: { items: [] } });
     expect(screen.getByText('Nothing needs you right now.')).toBeInTheDocument();
   });
+
+  it('shows a brief Clerk didn’t write as the plain card, without the Clerk mark', async () => {
+    const { container } = await render(MtClerkBrief, { inputs: { label: 'Matter brief', items: [], plain: true } });
+    const card = screen.getByRole('region', { name: 'Matter brief' });
+    expect(card).toHaveAttribute('data-plain');
+    expect(container.querySelector('mt-clerk-mark')).toBeNull();
+  });
 });
 
 describe('MtClerkWorking', () => {

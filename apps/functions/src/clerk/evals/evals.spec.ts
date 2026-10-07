@@ -23,7 +23,7 @@ import {
   textSpans,
 } from './executor';
 import { ClerkModelError, type ClerkModelPort, type ClerkModelRequest, type ClerkModelResult } from '../../ports';
-import { FakeClerkModel } from '../providers/fake';
+import { FakeClerkModel, matterBriefStep } from '../providers/fake';
 
 // Fake providers only: no network, and every fixture is fictional.
 
@@ -254,6 +254,28 @@ describe('citations and the judge', () => {
       'caveat_lodged',
     ]);
     expect(outcome.proposedEvents).toEqual([{ kind: 'caveat_lodged', date: '2026-03-03' }]);
+  });
+
+  it('writes a matter brief from production’s facts and checks, without privileged records (AI-06c)', async () => {
+    const briefs = loadSuite('matter-brief');
+    const evalCase = briefs.cases.find((c) => c.id === 'mb-003') as EvalCase;
+    const model = new FakeClerkModel([], matterBriefStep);
+    const outcome = await createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' })({
+      suite: briefs.config,
+      evalCase,
+      promptRef: briefs.config.promptId,
+      feature: 'matterBrief',
+      run: 1,
+    });
+    // The fake writes one line per fact it is given: the claim deadline and the letter, nothing privileged.
+    expect(outcome.brief).toEqual({
+      written: 2,
+      kept: 2,
+      refs: ['deadline:dl-claim', 'document:doc-letter'],
+    });
+    const sent = JSON.stringify(model.requests);
+    for (const canary of briefs.gold.get('mb-003')?.canaries ?? []) expect(sent).not.toContain(canary);
+    expect(sent).toContain('kind=\\"brief\\"');
   });
 
   it('splits the reply into cited and uncited spans', () => {

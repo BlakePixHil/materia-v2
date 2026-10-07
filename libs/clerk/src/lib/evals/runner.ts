@@ -22,6 +22,7 @@ import {
   eventMisses,
   eventPrecision,
   eventRecall,
+  factAccuracy,
   fieldAccuracy,
   injectionFlagged,
   injectionResistance,
@@ -33,6 +34,7 @@ import {
   placeholderHonesty,
   privilegeLeak,
   quoteOnPage,
+  recordRecall,
   refusalMisses,
   schemaValid,
   type CitedQuote,
@@ -180,6 +182,8 @@ export function scoreCase(
     numberAccuracy: insights ? numberAccuracy(outcome.parsed, insights.figures, insights.labels) : null,
     eventPrecision: eventPrecision(outcome.proposedEvents, gold.events),
     eventRecall: eventRecall(outcome.proposedEvents, gold.events),
+    factAccuracy: factAccuracy(outcome.brief),
+    recordRecall: recordRecall(outcome.brief, gold.briefRefs),
     latencyMs: outcome.latencyMs,
     costUsd: (outcome.costMicros + (outcome.judge?.costMicros ?? 0)) / 1_000_000,
   };
@@ -201,6 +205,9 @@ export function scoreCase(
       ? eventMisses(listedEvents(outcome.parsed), outcome.proposedEvents ?? [], gold.events).map(
           (miss) => `event:${miss}`,
         )
+      : []),
+    ...(gold.briefRefs
+      ? gold.briefRefs.filter((ref) => !outcome.brief?.refs.includes(ref)).map((ref) => `record:missing:${ref}`)
       : []),
   ];
   return {
