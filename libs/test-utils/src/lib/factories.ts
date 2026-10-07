@@ -1079,6 +1079,36 @@ export const makeRecentMatter = (o: Partial<D.RecentMatter> = {}) =>
     o,
   );
 
+export const makeConnectorConnection = (o: Partial<D.ConnectorConnection> = {}) =>
+  build(
+    D.ConnectorConnection,
+    {
+      uid: TEST_UID,
+      clientId: 'https://claude.ai/oauth/mcp-oauth-client-metadata',
+      clientName: 'Claude',
+      scopes: ['materia.read', 'materia.propose'],
+      status: 'active',
+      authTime: new Date('2026-10-06T00:00:00Z'),
+      connectedAt: new Date('2026-10-06T00:01:00Z'),
+    },
+    o,
+  );
+
+export const makeConnectorGrant = (o: Partial<D.ConnectorGrant> = {}) =>
+  build(
+    D.ConnectorGrant,
+    {
+      kind: 'access',
+      connectionId: 'connection-1',
+      uid: TEST_UID,
+      clientId: 'https://claude.ai/oauth/mcp-oauth-client-metadata',
+      scopes: ['materia.read'],
+      resource: 'https://materia-v2-dev.web.app/mcp',
+      expireAt: new Date('2026-10-06T01:00:00Z'),
+    },
+    o,
+  );
+
 /** Every factory with its entity, for exhaustive tests (schema coverage, converter round-trips). */
 export const ENTITY_FACTORIES = {
   Org: [D.Org, makeOrg],
@@ -1138,6 +1168,8 @@ export const ENTITY_FACTORIES = {
   Integration: [D.Integration, makeIntegration],
   IntegrationStatus: [D.IntegrationStatus, makeIntegrationStatus],
   IntegrationState: [D.IntegrationState, makeIntegrationState],
+  ConnectorConnection: [D.ConnectorConnection, makeConnectorConnection],
+  ConnectorGrant: [D.ConnectorGrant, makeConnectorGrant],
   XeroContactLink: [D.XeroContactLink, makeXeroContactLink],
   SafeCustody: [D.SafeCustody, makeSafeCustody],
   TrustSnapshot: [D.TrustSnapshot, makeTrustSnapshot],
