@@ -746,6 +746,97 @@ describe('session policy (SEC-04)', () => {
   });
 });
 
+describe('a practice waiting to be deleted is read-only (SEC-05)', () => {
+  const setDeletion = (at: Timestamp | null) =>
+    seedAdmin(env, (firestore) =>
+      updateDoc(doc(firestore, `orgs/${ORG}`), { deletionScheduledAt: at ?? deleteField() }),
+    );
+  const matters = specFor('matters');
+  const notifications = specFor('notifications');
+
+  beforeAll(async () => {
+    await seed(matters);
+    await seed(notifications);
+  });
+  afterEach(() => setDeletion(null));
+
+  it('members still read its records, but no one changes them', async () => {
+    const owner = uidFor('owner');
+    await assertSucceeds(updateDoc(doc(db(env, 'owner'), matters.docPath), stamped(changeFor(matters), owner)));
+    await setDeletion(Timestamp.fromMillis(Date.now() + 30 * 86_400_000));
+    await assertSucceeds(getDoc(doc(db(env, 'lawyer'), matters.docPath)));
+    await assertSucceeds(
+      getDocs(query(collection(db(env, 'lawyer'), `orgs/${ORG}/matters`), where('privileged', '==', false))),
+    );
+    await assertFails(updateDoc(doc(db(env, 'owner'), matters.docPath), stamped(changeFor(matters), owner)));
+    await assertFails(
+      updateDoc(doc(db(env, 'owner'), matters.docPath), {
+        deletedAt: serverTimestamp(),
+        deletedBy: owner,
+        updatedAt: serverTimestamp(),
+        updatedBy: owner,
+      }),
+    );
+  });
+
+  it('refuses new records too', async () => {
+    const lawyer = uidFor('lawyer');
+    const task = (id: string) =>
+      [
+        doc(db(env, 'lawyer'), `${MATTER}/tasks/${id}`),
+        {
+          title: 'Call the executor',
+          status: 'todo',
+          priority: 'none',
+          assigneeUid: lawyer,
+          checklist: [],
+          order: 1,
+          source: 'manual',
+          countedOpen: false,
+          orgId: ORG,
+          matterId: MATTER.split('/').at(-1),
+          createdAt: serverTimestamp(),
+          createdBy: lawyer,
+          updatedAt: serverTimestamp(),
+          updatedBy: lawyer,
+          schemaVersion: 1,
+        },
+      ] as const;
+    await assertSucceeds(setDoc(...task('task-before-deleting')));
+    await setDeletion(Timestamp.fromMillis(Date.now() + 30 * 86_400_000));
+    await assertFails(setDoc(...task('task-while-deleting')));
+  });
+
+  it('keeps a person’s own notifications and profile theirs to change', async () => {
+    await setDeletion(Timestamp.fromMillis(Date.now() + 30 * 86_400_000));
+    const lawyer = uidFor('lawyer');
+    await assertSucceeds(
+      updateDoc(doc(db(env, 'lawyer'), notifications.docPath), stamped(changeFor(notifications), lawyer)),
+    );
+    await assertSucceeds(
+      updateDoc(
+        doc(db(env, 'lawyer'), `orgs/${ORG}/members/${lawyer}`),
+        stamped({ displayName: 'Lena Fictional', title: 'Senior associate' }, lawyer),
+      ),
+    );
+    // Their own profile outside the practice too.
+    await assertSucceeds(updateDoc(doc(db(env, 'lawyer'), `users/${lawyer}`), stamped({ firstName: 'Lena' }, lawyer)));
+  });
+
+  it('keeps the deletion date server-owned', async () => {
+    await assertFails(
+      updateDoc(
+        doc(db(env, 'owner'), `orgs/${ORG}`),
+        stamped({ deletionScheduledAt: Timestamp.fromMillis(Date.now()) }, uidFor('owner')),
+      ),
+    );
+    await setDeletion(Timestamp.fromMillis(Date.now() + 30 * 86_400_000));
+    await assertFails(
+      updateDoc(doc(db(env, 'owner'), `orgs/${ORG}`), stamped({ deletionScheduledAt: deleteField() }, uidFor('owner'))),
+    );
+  });
+});
+
 describe('profile (CORE-20)', () => {
   it('a member edits their own name, title, admission number, initials and colour, and nothing else', async () => {
     const uid = uidFor('paralegal');

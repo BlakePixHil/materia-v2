@@ -96,7 +96,21 @@ service cloud.firestore {
       return changedKeys().hasOnly(fields);
     }
     function validMeta() {
-      return request.resource.data.updatedBy == uid() && request.resource.data.updatedAt == request.time;
+      return request.resource.data.updatedBy == uid() && request.resource.data.updatedAt == request.time
+        && notBeingDeleted();
+    }
+    // A practice waiting to be deleted (SEC-05, its `deletionScheduledAt`) is read-only, as the
+    // callables refuse changes (apps/functions/src/core/read-only.ts). Every client write stamps
+    // validMeta(), so the check sits here, costing reads nothing (can() is at the 1000-expression
+    // limit on Clerk's message lists). The practice comes from the request path
+    // (/databases/{db}/documents/orgs/{orgId}/…); its document is the one sessionOk() read. A
+    // person's own notifications and member document (their profile, personal tasks) stay
+    // writable; that is checked last, so it costs nothing until a deletion is scheduled (on the org
+    // document itself `path[5]` is an error, which denies, as wanted).
+    function notBeingDeleted() {
+      return request.path[3] != 'orgs'
+        || get(/databases/$(database)/documents/orgs/$(request.path[4])).data.get('deletionScheduledAt', null) == null
+        || request.path[5] in ['notifications', 'members'];
     }
     // An update that touches only whitelisted fields (plus updatedAt/updatedBy) and stamps meta.
     function clientUpdate(fields) {
@@ -335,6 +349,11 @@ service cloud.firestore {
     }
     match /systemTemplates/{templateId} {
       allow read: if isSignedIn();
+    }
+
+    // A deleted practice's tombstone and certificate record (SEC-05): server-only.
+    match /deletedOrgs/{orgId} {
+      allow read, write: if false;
     }
 
     // ---------- users ----------
