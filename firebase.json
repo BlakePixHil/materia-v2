@@ -64,6 +64,15 @@
         ]
       },
       {
+        "source": "/@(sw|ngsw-worker|safety-worker|worker-basic.min).js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
         "source": "/media/**",
         "headers": [
           {

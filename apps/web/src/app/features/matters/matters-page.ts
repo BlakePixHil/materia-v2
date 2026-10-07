@@ -101,6 +101,7 @@ import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { MtExportButton } from '../../core/exports/export-button';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 
@@ -130,6 +131,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
   selector: 'mt-matters-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    MtPageOfflineNote,
     FormsModule,
     RouterLink,
     MT_MENU,
@@ -253,7 +255,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
             </mt-note>
           }
           @case ('offline') {
-            <mt-note role="status"
+            <mt-note role="status" mtPageOfflineNote
               >You’re offline. These are the matters as they were when you were last connected.</mt-note
             >
           }
@@ -277,7 +279,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
             </mt-note>
           }
           @case ('offline') {
-            <mt-note role="status"
+            <mt-note role="status" mtPageOfflineNote
               >You’re offline. These are the matters as they were when you were last connected.</mt-note
             >
           }

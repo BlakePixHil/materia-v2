@@ -57,6 +57,7 @@ import { onIntent } from '../../core/commands/intents';
 import { recentRecorder } from '../../core/commands/recents';
 import { errorCopy } from '../../core/error-copy';
 import { MtExportButton } from '../../core/exports/export-button';
+import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 
@@ -90,6 +91,7 @@ const KIND_FILTERS: MtOption<string>[] = [
   selector: 'mt-contacts-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    MtPageOfflineNote,
     FormsModule,
     MtAvatar,
     MtButton,
@@ -184,7 +186,7 @@ const KIND_FILTERS: MtOption<string>[] = [
             </mt-note>
           }
           @case ('offline') {
-            <mt-note role="status">
+            <mt-note role="status" mtPageOfflineNote>
               {{
                 rows().length
                   ? 'You’re offline. These are your contacts as they were when you were last connected.'

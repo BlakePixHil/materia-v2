@@ -1,3 +1,4 @@
+import { offlineError } from '@materia/data-access';
 import { DomainError, ERROR_CODES } from '@materia/domain';
 
 import {
@@ -7,6 +8,7 @@ import {
   ERROR_COPY,
   errorCodeOf,
   errorCopy,
+  NEEDS_CONNECTION_COPY,
   shouldRefreshTokenAndRetry,
 } from './error-copy';
 
@@ -25,6 +27,11 @@ describe('error copy', () => {
     expect(errorCodeOf(error)).toBe('PERMISSION_DENIED');
     expect(errorCopy(error)).toBe(ERROR_COPY.PERMISSION_DENIED);
     expect(errorCopy(error)).not.toContain('system-echo');
+  });
+
+  it('says a callable that never left the browser needs a connection (MOB-01)', () => {
+    expect(errorCopy(offlineError())).toBe(NEEDS_CONNECTION_COPY.long);
+    expect(errorCopy(new DomainError('UNAVAILABLE'))).toBe(ERROR_COPY.UNAVAILABLE);
   });
 
   it('falls back to INTERNAL for unknown errors', () => {

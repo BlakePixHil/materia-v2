@@ -56,6 +56,7 @@ import {
 } from './conflict-view';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 
 /** The matter's recorded determination (`matter.conflictCheck`). */
 export type ConflictDetermination = Matter['conflictCheck'];
@@ -152,6 +153,7 @@ export function sameSubjects(a: readonly ConflictSubject[], b: readonly Conflict
     MtBadge,
     MtButton,
     MtIconButton,
+    MtNeedsConnection,
     MtNote,
     MtRadioGroup,
     MtSelect,
@@ -227,6 +229,7 @@ export function sameSubjects(a: readonly ConflictSubject[], b: readonly Conflict
             size="sm"
             type="submit"
             form="mt-conflict-run-form"
+            mtNeedsConnection
             iconStart="search"
             [loading]="running()"
           >

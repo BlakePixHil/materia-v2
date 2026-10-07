@@ -36,6 +36,7 @@ import { recentRecorder } from '../core/commands/recents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
 import { startTrace } from '../core/observability/perf';
+import { MtPageOfflineNote } from '../core/pwa/offline-banner';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterHeader } from '../features/matter-detail/matter-header';
 import { MatterScreen } from '../features/matter-detail/matter-screen';
@@ -60,6 +61,7 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
   selector: 'mt-matter-layout',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    MtPageOfflineNote,
     MatterHeader,
     MatterStages,
     MtButton,
@@ -117,7 +119,9 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
         <mt-not-found-page />
       }
       @case ('offline') {
-        <mt-note role="status">You’re offline, and this matter isn’t saved on this device yet.</mt-note>
+        <mt-note role="status" mtPageOfflineNote
+          >You’re offline, and this matter isn’t saved on this device yet.</mt-note
+        >
       }
       @case ('error') {
         <mt-note tone="danger">{{ loadError() }}</mt-note>

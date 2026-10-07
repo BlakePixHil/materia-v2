@@ -49,13 +49,16 @@ import { AuthState } from '../core/auth/auth-state';
 import { MtMfaGraceBanner } from '../core/auth/mfa-grace-banner';
 import { ClerkPanel } from '../core/clerk/clerk-panel';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
-import { intentUrl } from '../core/commands/intents';
+import { intentUrl, onIntent } from '../core/commands/intents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
 import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
 import { OfflineError, OrgService } from '../core/orgs/org-service';
 import { UserPrefsService } from '../core/profile/user-prefs';
+import { InstallPrompt, INSTALL_COPY } from '../core/pwa/install-prompt';
+import { MtOfflineBanner } from '../core/pwa/offline-banner';
+import { MtPendingSync } from '../core/pwa/pending-sync';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { clockLabel } from '../core/timer/clock-label';
 import { TimerStore, type TimerTarget } from '../core/timer/timer-store';
@@ -143,6 +146,8 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     MtNavItem,
     MtNote,
     MtNotificationsPopover,
+    MtOfflineBanner,
+    MtPendingSync,
     MtTabBar,
     MtTimerWidget,
     NgpPopover,
@@ -287,6 +292,8 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         <div class="mt-topbar">
           <mt-breadcrumb [items]="crumbs()" />
           <div class="mt-ml mt-row" style="gap: 6px">
+            <!-- Changes saved on this device that haven't synced yet (MOB-01). -->
+            <mt-pending-sync />
             <!-- The global timer (BILL-02): on every page. -->
             <mt-timer-widget [compact]="mobile()" [currentMatter]="currentMatter()" />
             @if (header.actions(); as actions) {
@@ -308,6 +315,8 @@ export const MOBILE_QUERY = '(max-width: 767px)';
             }
           </div>
         </div>
+        <!-- You're offline (MOB-01). -->
+        <mt-offline-banner />
         <div class="mt-page">
           <mt-mfa-grace-banner />
           @if (timer.forgotten(); as flag) {
@@ -404,6 +413,9 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         <a mtMenuItem icon="settings" routerLink="/settings">Settings</a>
         <button mtMenuItem icon="moon" (click)="toggleTheme()">{{ themeLabel() }}</button>
         <button mtMenuItem icon="keyboard" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
+        @if (install.available()) {
+          <button mtMenuItem icon="download" (click)="installApp()">{{ installLabel }}</button>
+        }
         <mt-menu-separator />
         <button mtMenuItem icon="log-out" (click)="signOut()">Sign out</button>
       </mt-menu>
@@ -426,6 +438,9 @@ export class AppShellComponent {
   protected readonly header = inject(PageHeader);
   /** Unread in-app notifications (FND-20). */
   protected readonly notifications = inject(NotificationsStore);
+  /** "Install Materia" (MOB-01). */
+  protected readonly install = inject(InstallPrompt);
+  protected readonly installLabel = INSTALL_COPY.menuItem;
   protected readonly bell = viewChild(NgpPopoverTrigger);
   /** The bell's name says how many are unread (CORE-22). */
   protected readonly bellLabel = computed(() => {
@@ -531,6 +546,15 @@ export class AppShellComponent {
 
     const cleanups = [...this.registerShortcuts(), ...this.registerCommands()];
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+
+    // The installed app's "New time entry" shortcut (MOB-01) opens quick time entry over Today.
+    onIntent(
+      'new-time-entry',
+      () => {
+        if (this.canRecordTime()) void this.openQuickTime();
+      },
+      () => this.orgs.role() !== null,
+    );
   }
 
   toggleSidebar(): void {
@@ -612,6 +636,11 @@ export class AppShellComponent {
     } finally {
       this.quickTimeOpen = false;
     }
+  }
+
+  /** The browser's install prompt, or on iOS the Add to Home Screen steps (MOB-01). */
+  async installApp(): Promise<void> {
+    await this.install.install();
   }
 
   async openShortcuts(): Promise<void> {
@@ -822,6 +851,15 @@ export class AppShellComponent {
         shortcut: '[',
         when: () => !this.mobile(),
         run: () => this.toggleSidebar(),
+      },
+      {
+        id: 'app.install',
+        title: INSTALL_COPY.menuItem,
+        group: 'General',
+        icon: 'download',
+        keywords: ['app', 'home screen', 'desktop', 'dock', 'pwa', 'add'],
+        when: () => this.install.available(),
+        run: () => void this.installApp(),
       },
       {
         id: 'shortcuts.open',

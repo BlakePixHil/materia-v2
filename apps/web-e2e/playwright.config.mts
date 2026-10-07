@@ -39,6 +39,9 @@ export default defineConfig({
     // Tests check behaviour, not motion. With reduced motion the app's animations finish at once
     // (libs/ui base.css), so a closing dialog or menu is gone before the next step looks for one.
     reducedMotion: 'reduce',
+    // The e2e build has the service worker (MOB-01). It would sit between page.route and the app's
+    // own fetches, so tests run without it; pwa.spec.ts allows it.
+    serviceWorkers: 'block',
   },
   ...(baseURL
     ? {}

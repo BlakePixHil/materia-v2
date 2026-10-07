@@ -1,0 +1,42 @@
+{
+  "$schema": "../../node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "navigationRequestStrategy": "freshness",
+  "assetGroups": [
+    {
+      "name": "shell",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/index.html",
+          "/manifest.webmanifest",
+          "/favicon.ico",
+          "/favicon.svg",
+          "/apple-touch-icon.png",
+          "/main-*.js",
+          "/polyfills-*.js",
+          "/styles-*.css",
+          "/fonts/**",
+          "/assets/icons/**"
+        ]
+      }
+    },
+    {
+      "name": "chunks",
+      "installMode": "lazy",
+      "updateMode": "lazy",
+      "resources": {
+        "files": [
+          "/*.js",
+          "/*.css",
+          "/media/**",
+          "!/sw.js",
+          "!/ngsw-worker.js",
+          "!/safety-worker.js",
+          "!/worker-basic.min.js"
+        ]
+      }
+    }
+  ]
+}

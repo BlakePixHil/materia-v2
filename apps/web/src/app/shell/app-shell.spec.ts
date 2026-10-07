@@ -234,6 +234,40 @@ describe('AppShellComponent', () => {
     expect(localStorage.getItem('materia.commands.recent')).toBeNull();
   });
 
+  it('offers “Install Materia” in ⌘K once the browser can install it (MOB-01)', async () => {
+    const { el, fixture } = await setup();
+    const registry = TestBed.inject(CommandRegistry);
+    expect(registry.get('app.install')?.when?.()).toBe(false);
+
+    const prompt = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: vi.fn(async () => undefined),
+      userChoice: Promise.resolve({ outcome: 'accepted' }),
+    });
+    window.dispatchEvent(prompt);
+    await fixture.whenStable();
+    expect(registry.get('app.install')?.when?.()).toBe(true);
+    expect(registry.get('app.install')?.title).toBe('Install Materia');
+    registry.get('app.install')?.run();
+    await vi.waitFor(() => expect(prompt.prompt).toHaveBeenCalledOnce());
+    expect(el.textContent).not.toContain('Install Materia');
+  });
+
+  it('opens quick time entry from the installed app’s “New time entry” shortcut (MOB-01)', async () => {
+    const quickTime = vi.spyOn(AppShellComponent.prototype, 'openQuickTime').mockResolvedValue();
+    try {
+      const { router } = await setup('/today?do=new-time-entry');
+      await vi.waitFor(() => expect(quickTime).toHaveBeenCalledOnce());
+      expect(router.url).toBe('/today');
+    } finally {
+      quickTime.mockRestore();
+    }
+  });
+
+  it('sends the installed app’s “Record” shortcut to Time & billing until the Record tab exists', async () => {
+    const { router } = await setup('/record');
+    expect(router.url).toBe('/billing');
+  });
+
   it('shows the TabBar instead of the sidebar on phones', async () => {
     const { el } = await setup('/today', { mobile: true });
     expect(el.querySelector('.mt-sidebar')).toBeNull();
