@@ -60,6 +60,42 @@ export interface IngestDeps {
   timeBudgetMs?: number;
   /** Milliseconds, for the time budget (tests advance it). */
   now?: () => number;
+  /**
+   * The OCR page budget: the org's daily one (`budget.ts`) unless given. The migration's
+   * enrichment (MIG-09) has its own allowance instead, so it grants every page.
+   */
+  ocrBudget?: OcrBudget;
+  /**
+   * Where the rest of a long document goes when the time budget runs out: a continuation task on
+   * `documents-ingest` unless given. The enrichment's own task picks the document up again itself.
+   */
+  continueLater?: (task: IngestTask, nextPage: number) => Promise<void>;
+  /** Tell people about the classification's suggestion (default); the enrichment sends one summary instead. */
+  notifySuggestions?: boolean;
+}
+
+/** Reserves OCR pages before the calls, and gives back what a run didn't use. */
+export interface OcrBudget {
+  reserve(orgId: string, wanted: number, at: Date): Promise<number>;
+  refund(orgId: string, pages: number, at: Date): Promise<void>;
+}
+
+/** The org's daily OCR budget (`budget.ts`). */
+const dailyOcrBudget = (db: Firestore): OcrBudget => ({
+  reserve: (orgId, wanted, at) => reserveOcrPages(db, orgId, wanted, at),
+  refund: (orgId, pages, at) => refundOcrPages(db, orgId, pages, at),
+});
+
+/**
+ * Stops a run on purpose, leaving its checkpoint for a later one (the enrichment paused: its
+ * allowance or the org's Clerk budget ran out). It passes through classification's catch-all, and
+ * isn't a failure.
+ */
+export class IngestInterrupted extends Error {
+  constructor(readonly reason: string) {
+    super(`Ingest interrupted: ${reason}`);
+    this.name = 'IngestInterrupted';
+  }
 }
 
 export type IngestOutcome = 'done' | 'skipped' | 'stale' | 'already_done' | 'queued' | 'continued';
@@ -81,6 +117,7 @@ export const ingestTaskKey = (task: IngestTask, suffix: string) =>
 
 export async function ingestDocument(task: IngestTask, deps: IngestDeps): Promise<IngestOutcome> {
   const { db, log } = deps;
+  const ocrBudget = deps.ocrBudget ?? dailyOcrBudget(db);
   const now = deps.now ?? Date.now;
   const started = now();
   const budget = deps.timeBudgetMs ?? TIME_BUDGET_MS;
@@ -153,7 +190,8 @@ export async function ingestDocument(task: IngestTask, deps: IngestDeps): Promis
       if (checkpoint.nextPage > source.pageCount) break;
       if (now() - started > budget) {
         await save(state);
-        await deps.tasks.enqueue(INGEST_QUEUE, task, { dedupeKey: ingestTaskKey(task, `p${checkpoint.nextPage}`) });
+        if (deps.continueLater) await deps.continueLater(task, checkpoint.nextPage);
+        else await deps.tasks.enqueue(INGEST_QUEUE, task, { dedupeKey: ingestTaskKey(task, `p${checkpoint.nextPage}`) });
         log.info('ingest continues in a new task', { ...ids, nextPage: checkpoint.nextPage });
         return 'continued';
       }
@@ -167,7 +205,7 @@ export async function ingestDocument(task: IngestTask, deps: IngestDeps): Promis
       let ocrUnavailable = 0;
       let ocrDone = 0;
       if (needing.length && !ocrOff) {
-        const granted = await reserveOcrPages(db, task.orgId, needing.length, deps.clock.now());
+        const granted = await ocrBudget.reserve(task.orgId, needing.length, deps.clock.now());
         if (granted < needing.length) stopAt = needing[granted]?.page;
         try {
           for (const page of needing.slice(0, granted)) {
@@ -187,7 +225,7 @@ export async function ingestDocument(task: IngestTask, deps: IngestDeps): Promis
             if (out.language) languages.push(out.language);
           }
         } catch (error) {
-          await refundOcrPages(db, task.orgId, granted - ocrDone, deps.clock.now());
+          await ocrBudget.refund(task.orgId, granted - ocrDone, deps.clock.now());
           if (!(error instanceof OcrUnavailableError)) throw error;
           ocrOff = true;
           // Without OCR the rest of the document is read as far as its text layer goes, today.
@@ -346,10 +384,12 @@ async function classify(
         output: result.output,
         model: result.model,
         promptRef: result.promptRef,
+        notify: deps.notifySuggestions ?? true,
       },
     );
     return result;
   } catch (error) {
+    if (error instanceof IngestInterrupted) throw error;
     deps.log.warn('classification failed', { ...ids, errorType: error instanceof Error ? error.name : typeof error });
     return null;
   }

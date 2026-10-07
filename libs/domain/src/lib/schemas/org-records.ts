@@ -981,6 +981,105 @@ export const MigrationRun = withMeta(
   { path: `${ORG}/migrations`, migratable: false, updatable: [] },
 );
 
+const Count = z.number().int().min(0);
+
+/** Where an enrichment run stands (MIG-09, D-21). */
+export const MigrationEnrichmentStatusSchema = z.enum([
+  /** Counting the pages of the run's documents (no Clerk calls). */
+  'estimating',
+  /** Waiting for an owner or admin to approve the estimate. */
+  'awaiting_approval',
+  /** They chose not to, for now: approving later starts it. */
+  'declined',
+  'running',
+  /** Stopped before the end (`pausedFor`): approving again resumes where it stopped. */
+  'paused',
+  'done',
+  /** The run was rolled back. */
+  'cancelled',
+]);
+export type MigrationEnrichmentStatus = z.infer<typeof MigrationEnrichmentStatusSchema>;
+
+/** Why a running enrichment stopped: its allowance used, the org's monthly Clerk limit reached, or Clerk off. */
+export const MigrationEnrichmentPauseSchema = z.enum(['allowance', 'budget', 'clerk_off']);
+export type MigrationEnrichmentPause = z.infer<typeof MigrationEnrichmentPauseSchema>;
+
+/** What reading a run's documents and estate matters would take, counted before any Clerk call. */
+export const MigrationEnrichmentEstimateSchema = z
+  .object({
+    /** Documents to read: live, scanned clean and not read by Clerk yet. */
+    documents: Count,
+    pages: Count,
+    /** Pages with no text layer, read by OCR. */
+    ocrPages: Count,
+    /** Characters of text to embed (OCR pages counted at an average). */
+    chars: Count,
+    /** Documents Clerk can't read (encrypted, damaged or an unsupported kind). */
+    unreadable: Count,
+    /** Open estate matters Clerk reads for their key dates. */
+    matters: Count,
+    /** The estimate in US cents at the org's model's list price, rounded up. */
+    costCents: Count,
+    model: NonEmptyString,
+  })
+  .strict();
+export type MigrationEnrichmentEstimate = z.infer<typeof MigrationEnrichmentEstimateSchema>;
+
+/**
+ * `migrationEnrichments/{runId}` (MIG-09, D-21): Clerk reading what a migration run loaded. It
+ * reads every migrated document (AI-04 ingestion, at low priority, one at a time), then each open
+ * estate matter's notes and documents for its key dates (`event` suggestions with citations, AI-07),
+ * and tells the owner what is waiting. It starts by itself when the run's record turns `succeeded`:
+ * the pages are counted first, and nothing that costs money runs until an owner or admin approves
+ * the estimate and sets the allowance in Settings → Clerk and AI. Written only by functions
+ * (`migration-*`); owners and admins read it.
+ */
+export const MigrationEnrichment = withMeta(
+  {
+    runId: NonEmptyString,
+    status: MigrationEnrichmentStatusSchema,
+    phase: z.enum(['estimate', 'ingest', 'events', 'finish']),
+    /** Each step's task carries it, and a step moves it on: a task with an older one is stale. */
+    seq: Count,
+    /** The documents to read, as `{matterId}/{docId}`, in order. */
+    documents: z.array(z.string().regex(/^[^/]+\/[^/]+$/)).default([]),
+    /** The estate matters to read for key dates, in order. */
+    matters: z.array(DocIdSchema).default([]),
+    /** The next document or matter of the phase. */
+    cursor: Count.default(0),
+    /** Failed tries at the current one (it is passed over after three). */
+    attempts: Count.default(0),
+    estimate: MigrationEnrichmentEstimateSchema.optional(),
+    /** The estimate with headroom: what the approval offers as the allowance. */
+    suggestedAllowanceCents: Count.optional(),
+    /** The most it may spend (US cents), set when approved: separate from the org's monthly limit, which still applies. */
+    allowanceCents: Count.optional(),
+    /** What its Clerk calls have cost so far, in micro-dollars. */
+    spentMicros: Count.default(0),
+    approvedBy: DocIdSchema.optional(),
+    approvedAt: InstantSchema.optional(),
+    pausedFor: MigrationEnrichmentPauseSchema.optional(),
+    progress: z
+      .object({
+        /** Documents read, passed over (Clerk can't read them, or there is no text), and failed. */
+        read: Count,
+        skipped: Count,
+        failed: Count,
+        mattersRead: Count,
+        /** Key-date suggestions made. */
+        events: Count,
+      })
+      .strict()
+      .default({ read: 0, skipped: 0, failed: 0, mattersRead: 0, events: 0 }),
+    /** When done: the suggestions waiting on the run's matters, and the documents listed for review. */
+    suggestionsWaiting: Count.optional(),
+    unreadable: Count.optional(),
+    finishedAt: InstantSchema.optional(),
+  },
+  { path: `${ORG}/migrationEnrichments`, migratable: false, updatable: [] },
+);
+export type MigrationEnrichment = z.infer<typeof MigrationEnrichment.schema>;
+
 /** `ruleSets/{ruleSetId}/versions/{version}` (global, immutable once published, ADR-009). */
 export const RuleSetVersion = withMeta(
   {
