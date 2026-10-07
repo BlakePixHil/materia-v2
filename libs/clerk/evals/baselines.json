@@ -178,5 +178,19 @@
         "costUsd": 0.0109
       }
     }
+  },
+  "events-from-file": {
+    "events-from-file@1.0.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-07",
+      "source": "2026-10-07T02-19-29-261Z",
+      "metrics": {
+        "schemaValid": 1,
+        "eventPrecision": 1,
+        "eventRecall": 1,
+        "latencyMs": 2891.0417,
+        "costUsd": 0.0045
+      }
+    }
   }
 }
