@@ -2,6 +2,7 @@ import type { InMemoryFirestore } from '@materia/data-access/repository';
 import { DomainError } from '@materia/domain';
 
 import {
+  answerAnnouncement,
   answerError,
   CHAT_COMMANDS,
   MANUAL_PATH,
@@ -9,6 +10,8 @@ import {
   messageState,
   retryable,
   scopeLabel,
+  spokenText,
+  SPOKEN_ANSWER_MAX,
   workingLabel,
   type ChatMessage,
 } from './clerk-chat-view';
@@ -159,6 +162,24 @@ describe('clerk chat view', () => {
     );
   });
 
+  it('announces a finished answer once, as plain text, and says nothing while it streams (SEC-06)', () => {
+    const said = (text: string, status = 'done') =>
+      answerAnnouncement({ status, content: [{ type: 'text', text }] } as unknown as ChatMessage);
+    expect(said('Avery', 'streaming')).toBeNull();
+    expect(said('**Avery Quill** is the executor [1].')).toBe('Clerk answered: Avery Quill is the executor.');
+    expect(spokenText('Two things:\n\n- the grant\n- the [advert](https://example.test)')).toBe(
+      'Two things: the grant; the advert',
+    );
+    expect(said('')).toBe('Clerk answered.');
+    expect(said('Avery', 'stopped')).toBe('Clerk stopped. This answer is incomplete.');
+    expect(said('', 'refused')).toBe('Clerk declined to answer this.');
+    // A failed answer's own alert says why.
+    expect(said('', 'error')).toBeNull();
+    const long = said('word '.repeat(400));
+    expect(long?.length).toBeLessThan(SPOKEN_ANSWER_MAX + 80);
+    expect(long).toMatch(/word… The rest is in the conversation\.$/);
+  });
+
   it('offers Retry on the newest finished answer only', () => {
     const first = message({});
     const last = { ...message({}), id: 'b' } as ChatMessage;
@@ -191,8 +212,15 @@ describe('Clerk chat panel', () => {
       content: [{ type: 'text', text: 'Avery Quill is the executor.' }],
     });
     expect(page.panel()?.querySelector('mt-clerk-working')).toBeNull();
+    // The conversation isn't read out as it streams; the finished answer is announced once (SEC-06).
+    const log = page.panel()?.querySelector('[role="log"]');
+    const announcement = () => page.text(page.panel()?.querySelector('[data-clerk-announcement]'));
+    expect(log?.getAttribute('aria-live')).toBe('off');
+    expect(page.panel()?.querySelector('mt-clerk-message')?.getAttribute('aria-busy')).toBe('true');
+    expect(announcement()).toBe('');
     await page.answer(path, { status: 'done' });
     expect(page.text(page.panel()?.querySelector('mt-clerk-message'))).toContain('Avery Quill is the executor.');
+    expect(announcement()).toBe('Clerk answered: Avery Quill is the executor.');
     expect(page.buttons('Copy', page.panel() ?? undefined)).toHaveLength(1);
     expect(page.buttons('Retry', page.panel() ?? undefined)).toHaveLength(1);
   });

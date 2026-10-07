@@ -162,7 +162,8 @@ export interface MtTabBarItem {
       height: 16px;
       padding: 0 4px;
       border-radius: 8px;
-      background: var(--bg-brand);
+      /* brand-600: white 10px text on brand-500 is 4.47:1, under AA; on brand-600 it is 5.76:1 (SEC-06). */
+      background: var(--bg-brand-hover);
       color: var(--text-on-brand);
       font: 500 10px/16px var(--font-mono);
       text-align: center;

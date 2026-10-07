@@ -138,6 +138,7 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
         @case ('error') {
           <mt-empty-state
             icon="alert"
+            [headingLevel]="2"
             title="Couldn’t load your inbox"
             description="Your notifications are safe; this is a problem fetching them."
           >
@@ -206,12 +207,18 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
               }
             </div>
           } @else if (data.filter() !== 'all' || data.unreadOnly()) {
-            <mt-empty-state icon="filter" title="Nothing matches" description="No notifications match these filters.">
+            <mt-empty-state
+              icon="filter"
+              [headingLevel]="2"
+              title="Nothing matches"
+              description="No notifications match these filters."
+            >
               <button mtButton size="sm" (click)="clearFilters()">Clear filters</button>
             </mt-empty-state>
           } @else {
             <mt-empty-state
               icon="check-check"
+              [headingLevel]="2"
               title="You’re all caught up"
               description="New mentions, assignments, deadlines and finished Clerk work land here."
             />
@@ -320,8 +327,10 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
             <mt-kbd keys="x" /> selects it.
           </p>
         } @else {
+          <!-- The page's sections have no headings of their own, so its empty states are level 2 (SEC-06). -->
           <mt-empty-state
             icon="inbox"
+            [headingLevel]="2"
             title="Nothing selected"
             description="Choose a notification, or press J to start at the top."
           />

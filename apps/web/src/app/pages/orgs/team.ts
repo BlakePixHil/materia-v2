@@ -115,7 +115,11 @@ const ROLE_LABELS: Record<Role, string> = {
     <h1 class="title-l" style="margin: 0">Team and roles</h1>
 
     @if (manage()) {
-      <mt-settings-section title="Invite someone" description="They’ll get an email with a link that works for 7 days.">
+      <mt-settings-section
+        title="Invite someone"
+        description="They’ll get an email with a link that works for 7 days."
+        [headingLevel]="2"
+      >
         <form
           class="mt-row"
           style="gap: 8px; align-items: flex-end; flex-wrap: wrap"

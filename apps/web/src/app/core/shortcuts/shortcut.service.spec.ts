@@ -63,6 +63,23 @@ describe('isEditable', () => {
 });
 
 describe('ShortcutService', () => {
+  it('leaves an Escape that closes a dialog or menu to it, so the page doesn’t act on it too (SEC-06)', () => {
+    const { service } = setup();
+    const handler = vi.fn();
+    service.register({ combo: 'esc', description: 'Close the new matter', handler });
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    document.body.append(dialog);
+    // The dialog closes on the document's capture phase, before the page's listeners run.
+    const close = () => dialog.remove();
+    document.addEventListener('keydown', close, { capture: true, once: true });
+    key('Escape');
+    expect(handler).not.toHaveBeenCalled();
+    // With nothing open, Escape is the page's.
+    key('Escape');
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
   it('runs a registered combo from a document keydown and prevents the default', () => {
     const { service } = setup();
     const handler = vi.fn();

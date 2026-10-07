@@ -89,7 +89,8 @@ const SETTLE_MS = 15_000;
 /**
  * The Matters board (CORE-04): the view's matters as MatterCards in columns, by status or (one type
  * filtered) by stage, optionally in swimlanes by responsible lawyer. Cards move by drag and drop
- * (CDK; long-press on touch) or the keyboard: `m` on a focused card opens "Move to…", Alt+↑/↓
+ * (CDK; long-press on touch) or the keyboard: `m` on a focused card opens "Move to…" (which also has
+ * Move up and Move down, so nothing needs a drag, WCAG 2.5.7), Alt+↑/↓
  * reorders, arrows move focus. A move across columns is optimistic and goes through
  * `matters-changeStatus` or `matters-changeStage`, which validate it; a refusal puts the card back
  * with a toast saying why. The order within a column is the matter's `boardOrder` (a midpoint of
@@ -134,7 +135,8 @@ const SETTLE_MS = 15_000;
               <div class="column" [attr.data-column]="cell.column.id">
                 <div class="col-head">
                   <mt-status-icon [status]="headIcon(cell.column)" [label]="cell.column.title" />
-                  <h3 class="col-title" [mtTooltip]="cell.column.description ?? ''">{{ cell.column.title }}</h3>
+                  <!-- Level 2: the columns sit straight under the page's h1 (SEC-06). -->
+                  <h2 class="col-title" [mtTooltip]="cell.column.description ?? ''">{{ cell.column.title }}</h2>
                   @let limit = limitOf(cell.column);
                   @if (!limit || swimlanes()) {
                     <span class="mt-count">{{ cell.cards.length }}</span>
@@ -214,6 +216,24 @@ const SETTLE_MS = 15_000;
                               (click)="moveVia(card, column)"
                             >
                               {{ column.title }}
+                            </button>
+                          }
+                          @if (cell.cards.length > 1) {
+                            <!-- Reordering without dragging (WCAG 2.5.7, SEC-06): Alt+↑/↓'s moves. -->
+                            <mt-menu-separator />
+                            <button
+                              mtMenuItem
+                              [disabled]="cell.cards.indexOf(card) === 0"
+                              (click)="nudge(card, cell, -1)"
+                            >
+                              Move up
+                            </button>
+                            <button
+                              mtMenuItem
+                              [disabled]="cell.cards.indexOf(card) === cell.cards.length - 1"
+                              (click)="nudge(card, cell, 1)"
+                            >
+                              Move down
                             </button>
                           }
                         </mt-menu>
@@ -672,6 +692,20 @@ export class MattersBoard {
     void this.moveTo(card, column, 0);
   }
 
+  /** Alt+↑/↓ on a card, or Move up and Move down in its menu: one place up or down its column. */
+  protected nudge(card: BoardCard, cell: BoardCell, delta: -1 | 1): void {
+    if (!this.movable(card)) return;
+    const to = cell.cards.indexOf(card) + delta;
+    if (to < 0 || to >= cell.cards.length) {
+      this.say(`${card.row.number} is already ${to < 0 ? 'first' : 'last'} in ${cell.column.title}.`);
+      return;
+    }
+    // In the lane's cell without the card, the slot it moves to is `to`.
+    const column = this.columnCards(cell.column.id);
+    this.follow = { id: card.row.id, until: Date.now() + FOLLOW_MS };
+    void this.moveTo(card, cell.column, columnIndex(column, cell.cards, card.row.id, to));
+  }
+
   /** Every card in a column, across lanes, in board order. */
   private columnCards(columnId: string): BoardCard[] {
     return sortCards(this.cards().filter((card) => card.column === columnId));
@@ -896,16 +930,7 @@ export class MattersBoard {
     }
     if (event.altKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
       event.preventDefault();
-      if (!this.movable(card)) return;
-      const to = cardIndex + (key === 'ArrowUp' ? -1 : 1);
-      if (to < 0 || to >= cell.cards.length) {
-        this.say(`${card.row.number} is already ${to < 0 ? 'first' : 'last'} in ${cell.column.title}.`);
-        return;
-      }
-      // In the lane's cell without the card, the slot it moves to is `to`.
-      const column = this.columnCards(cell.column.id);
-      this.follow = { id, until: Date.now() + FOLLOW_MS };
-      void this.moveTo(card, cell.column, columnIndex(column, cell.cards, id, to));
+      this.nudge(card, cell, key === 'ArrowUp' ? -1 : 1);
       return;
     }
     if (event.altKey || event.shiftKey) return;

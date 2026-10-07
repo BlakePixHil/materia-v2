@@ -1,14 +1,18 @@
 import {
+  afterNextRender,
   booleanAttribute,
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   Directive,
+  type ElementRef,
   inject,
   Injectable,
   input,
   signal,
   type Type,
+  viewChild,
   ViewEncapsulation,
 } from '@angular/core';
 import {
@@ -74,6 +78,10 @@ export type MtDialogSize = 'sm' | 'md' | 'lg';
     .mt-dialog > .mt-dialog-f {
       flex: none;
     }
+    .mt-dialog > .mt-dialog-b:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--border-focus);
+    }
   `,
   imports: [NgpDialogOverlay, NgpDialog, NgpDialogTitle, NgpDialogDescription, MtIconButton],
   host: { style: 'display: contents' },
@@ -81,12 +89,20 @@ export type MtDialogSize = 'sm' | 'md' | 'lg';
     <div ngpDialogOverlay class="mt-overlay mt-modal-root" [ngpDialogOverlayCloseOnClick]="closeOnOutsideClick()">
       <div ngpDialog class="mt-dialog" [ngpDialogRole]="role()" [attr.data-size]="size() === 'md' ? null : size()">
         <div class="mt-dialog-h">
-          <h2 ngpDialogTitle>{{ title() }}</h2>
+          <h2 ngpDialogTitle #heading>{{ title() }}</h2>
           @if (closable()) {
             <button mtIconButton icon="x" size="sm" label="Close" [tooltip]="false" (click)="ref?.close()"></button>
           }
         </div>
-        <div class="mt-dialog-b">
+        <!-- A body that scrolls takes focus, so it can be scrolled from the keyboard even when it
+             holds nothing focusable, such as the shortcut sheet (WCAG 2.1.1; SEC-06). -->
+        <div
+          #body
+          class="mt-dialog-b"
+          [attr.tabindex]="scrolls() ? 0 : null"
+          [attr.role]="scrolls() ? 'region' : null"
+          [attr.aria-labelledby]="scrolls() ? heading.id : null"
+        >
           @if (description(); as text) {
             <p ngpDialogDescription>{{ text }}</p>
           }
@@ -109,6 +125,37 @@ export class MtDialog {
   readonly closeOnOutsideClick = input(true, { transform: booleanAttribute });
 
   protected readonly ref = injectDialogRef({ optional: true });
+
+  /** Whether the body is taller than the space it has, and so scrolls. */
+  protected readonly scrolls = signal(false);
+  private readonly body = viewChild.required<ElementRef<HTMLElement>>('body');
+
+  constructor() {
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(() => {
+      const body = this.body().nativeElement;
+      const measure = () => this.scrolls.set(body.scrollHeight > body.clientHeight + 1);
+      measure();
+      if (typeof ResizeObserver === 'undefined') return;
+      // The body changes size with the window; its content, as the children grow or change.
+      const resize = new ResizeObserver(measure);
+      const watch = () => {
+        resize.disconnect();
+        resize.observe(body);
+        for (const child of Array.from(body.children)) resize.observe(child);
+      };
+      watch();
+      const children = new MutationObserver(() => {
+        watch();
+        measure();
+      });
+      children.observe(body, { childList: true });
+      destroyRef.onDestroy(() => {
+        resize.disconnect();
+        children.disconnect();
+      });
+    });
+  }
 }
 
 /** Opens an `<ng-template>` holding an `<mt-dialog>` from a button. */

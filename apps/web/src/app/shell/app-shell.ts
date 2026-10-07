@@ -101,7 +101,9 @@ export const MOBILE_QUERY = '(max-width: 767px)';
     '../../../../../libs/ui/src/generated/components/nav.css',
   ],
   // On a phone the page's actions in the top bar show just their icons (the label stays for screen
-  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page.
+  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page. When
+  // they still don't fit (a 320 px screen, or 400% zoom), the bar wraps onto a second row rather than
+  // scrolling the page sideways (WCAG 1.4.10 Reflow, SEC-06).
   styles: `
     /* The page column spaces banners and the routed page. The outlet element and an empty banner take
        no room, so a page starts at the column's padding instead of two gaps further down. */
@@ -124,8 +126,21 @@ export const MOBILE_QUERY = '(max-width: 767px)';
         clip: rect(0 0 0 0);
         white-space: nowrap;
       }
-      .mt-topbar .mt-btn mt-kbd {
+      /* The key caps, not the mt-kbd host: its inline display: contents outranks a stylesheet rule. */
+      .mt-topbar .mt-btn .mt-kbd {
         display: none;
+      }
+      .mt-topbar {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: var(--topbar);
+        padding-block: var(--space-6);
+        row-gap: var(--space-6);
+      }
+      .mt-topbar > .mt-ml {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
       }
     }
   `,
