@@ -130,6 +130,8 @@ Six runs of the CI step on the shared machine, on `main` at `ee6d4e1` with MOB-0
 | A matter (phone Overview) | 9.5–9.8 s | 1.0–1.2 s | 5.2–5.3 s | 189–336 ms | 0.04 | 40–80 ms | LCP 12 s |
 | Deadlines | 13.0–13.2 s | 2.8–3.0 s | 4.7 s | 3.3–3.8 s | 0.273 | 2.7–3.2 s | LCP 15 s, CLS 0.35, INP 4 s |
 
+Two more runs after merging MOB-02b (#300), which draws a phone's Today cards below My tasks only as they scroll into view: Today's LCP was 7.7 s and its FCP 4.6 s. The other screens were close to the figures above (a matter's INP 48–96 ms), all within their ceilings.
+
 "Observed LCP" is the unthrottled time on the test machine; Lighthouse's simulated LCP is the budgeted figure.
 
 **LCP fails on every screen, for the same reason.** Before the first signed-in paint:
