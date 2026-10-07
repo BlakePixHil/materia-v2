@@ -268,6 +268,12 @@ jobs:
         env:
           JOBS_IMAGE: materia-jobs:ci
         run: pnpm exec vitest run -c apps/jobs/vitest.integration.config.mts
+      # SEC-02: fixable high and critical vulnerabilities fail the change.
+      - name: Scan the image
+        uses: ./.github/actions/trivy
+        with:
+          images: materia-jobs:ci
+          report-name: trivy-jobs
 
   # CORE-12a: builds the ClamAV and preview images exactly as deploy.yml does, then calls them over
   # HTTP: EICAR is infected and a plain file clean (real clamd, the image's signatures), a .docx
@@ -291,6 +297,12 @@ jobs:
           SCANNER_IMAGE: materia-clamav:ci
           PREVIEW_IMAGE: materia-preview:ci
         run: pnpm exec vitest run -c apps/doc-services/vitest.integration.config.mts
+      # SEC-02: fixable high and critical vulnerabilities fail the change.
+      - name: Scan the images
+        uses: ./.github/actions/trivy
+        with:
+          images: materia-clamav:ci materia-preview:ci
+          report-name: trivy-doc-services
 
   build:
     name: build
@@ -494,8 +506,11 @@ jobs:
           sha256sum -c --ignore-missing "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
           tar -xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      # Default rules plus Materia's own (.gitleaks.toml): service account keys, Anthropic and Resend keys.
       - name: gitleaks (commits in this change)
         run: gitleaks git --redact --no-banner --log-opts="$NX_BASE..$NX_HEAD" .
+      - name: gitleaks custom rules still fire
+        run: .github/scripts/gitleaks-selftest.sh
       # CodeQL takes ~3-4 min, so to save Actions minutes it runs once a day in CI's morning run (and
       # on manual dispatches), over everything merged since the last dev deploy, not on PRs.
       - name: Detect code changes

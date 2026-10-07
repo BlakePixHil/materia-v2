@@ -20,6 +20,10 @@
             "input": "apps/web/public"
           },
           {
+            "glob": "SECURITY.md",
+            "input": "."
+          },
+          {
             "glob": "pdf.worker.min.mjs",
             "input": "node_modules/pdfjs-dist/legacy/build",
             "output": "assets/pdfjs"

@@ -15,7 +15,11 @@ RUN apt-get update \
     fonts-dejavu-core fonts-liberation2 fonts-crosextra-carlito fonts-crosextra-caladea \
     ca-certificates \
   && apt-get upgrade -y \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  # The service needs only `node`: drop npm, npx, corepack and yarn, whose bundled packages carry
+  # CVEs the image scan (SEC-02) would otherwise report.
+  && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-*
 
 WORKDIR /app
 COPY preview.js ./preview.js

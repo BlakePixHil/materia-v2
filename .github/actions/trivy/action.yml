@@ -1,0 +1,68 @@
+name: Trivy image scan
+description: >-
+  Scans locally built container images for fixable high and critical vulnerabilities (SEC-02).
+  Replaces Artifact Registry's on-push scanning, which is off because it was billed per image on
+  every deploy. Fails the job on any finding; the JSON reports are uploaded as an artifact.
+
+inputs:
+  images:
+    description: Space-separated image references to scan (already built on the runner).
+    required: true
+  report-name:
+    description: Name of the uploaded report artifact.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # A pinned release whose tarball checksum is committed here, so a re-published release can't
+    # change what runs.
+    - name: Install trivy (checksum-pinned)
+      shell: bash
+      env:
+        TRIVY_VERSION: 0.75.0
+        TRIVY_SHA256: c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f
+      run: |
+        cd "$RUNNER_TEMP"
+        tarball="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+        curl -fsSLO "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${tarball}"
+        echo "${TRIVY_SHA256}  ${tarball}" | sha256sum -c -
+        mkdir -p "$RUNNER_TEMP/trivy-bin"
+        tar -xzf "$tarball" -C "$RUNNER_TEMP/trivy-bin" trivy
+        echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
+
+    # Only findings with a fix count: an unfixed CVE in a Debian package has nothing to upgrade to,
+    # and the Dockerfiles already run `apt-get upgrade`. Our own dependencies are also gated by
+    # `pnpm audit` in the security job.
+    - name: Scan
+      shell: bash
+      env:
+        IMAGES: ${{ inputs.images }}
+      run: |
+        mkdir -p trivy-reports
+        status=0
+        for image in $IMAGES; do
+          name="$(echo "$image" | tr '/:' '__')"
+          echo "::group::trivy $image"
+          trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --no-progress \
+            --format json --output "trivy-reports/$name.json" "$image"
+          trivy convert --format table "trivy-reports/$name.json"
+          echo "::endgroup::"
+          count="$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log((r.Results || []).reduce((n, t) => n + (t.Vulnerabilities || []).length, 0))' "trivy-reports/$name.json")"
+          if [ "$count" != "0" ]; then
+            echo "::error::$image has $count fixable high or critical vulnerabilities (see the table above)."
+            status=1
+          else
+            echo "$image: no fixable high or critical vulnerabilities."
+          fi
+        done
+        exit "$status"
+
+    - name: Upload the reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.report-name }}
+        path: trivy-reports
+        if-no-files-found: ignore
+        retention-days: 14
