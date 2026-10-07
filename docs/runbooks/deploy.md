@@ -67,7 +67,7 @@ A tag on a commit with no successful `deploy-dev` run, or one whose artifact has
 The order is chosen so that a partial deploy leaves prod working: indexes are additive (deploys never delete them), rules changes must suit both the old and the new code, and hosting goes last, so users only see the new UI once its functions exist.
 
 1. Open the failed step's log. Typical causes are a permission the deployer lacks (the error names it, see below), a quota, or the CLI refusing to delete a function.
-2. **"would delete functions"**: the source no longer has a function that is deployed. The CLI is non-interactive and the workflow never passes `--force`, so it fails. If the deletion is intended, delete it by hand first (`pnpm exec firebase functions:delete <name> --region australia-southeast1 --project <project>`, needs owner credentials), then re-run the failed jobs.
+2. **"would delete functions"**: the source no longer has a function that is deployed. The CLI is non-interactive and the workflow never passes `--force`, so it fails. If the deletion is intended (and the function's owner agrees), list its id in `apps/functions/retired-functions.txt` in the same change: the deploy's "Delete retired functions" step deletes it before the functions deploy, and skips it where it isn't deployed. To unblock a run that already failed, delete it by hand (`pnpm exec firebase functions:delete <name> --region australia-southeast1 --project <project>`, needs owner credentials), then re-run the failed jobs.
 3. Fix the cause and use **Re-run failed jobs**. Each step is safe to repeat. If the fix is a code change, merge it to `main`. For prod, release it as a patch version.
 4. If prod is broken in the meantime, roll back: [`rollback.md`](rollback.md).
 

@@ -105,15 +105,10 @@ resource "google_secret_manager_secret" "this" {
   # infra/MANUAL.md); on prod it stays empty.
   # RESEND_API_KEY: the Resend API key; RESEND_WEBHOOK_SECRET: the signing secret (`whsec_…`) of
   # Resend's bounce webhook (FND-20, ADR-057, infra/MANUAL.md).
-  # POSTMARK_TOKEN, POSTMARK_WEBHOOK_SECRET: unused since ADR-057. They stay until dev's deployed
-  # functions no longer reference them (a deleted secret stops their new instances starting), then
-  # a follow-up removes them.
   # XERO_CLIENT_ID, XERO_CLIENT_SECRET: the Xero app the OAuth token vault connects through
   # (INT-01, BILL-09, docs/runbooks/integrations.md).
   for_each = toset([
     "ANTHROPIC_API_KEY",
-    "POSTMARK_TOKEN",
-    "POSTMARK_WEBHOOK_SECRET",
     "RESEND_API_KEY",
     "RESEND_WEBHOOK_SECRET",
     "XERO_CLIENT_ID",
@@ -142,8 +137,6 @@ resource "google_secret_manager_secret" "this" {
 # removes this one.
 resource "google_secret_manager_secret_version" "placeholder" {
   for_each = toset([
-    "POSTMARK_TOKEN",
-    "POSTMARK_WEBHOOK_SECRET",
     "RESEND_API_KEY",
     "RESEND_WEBHOOK_SECRET",
     "XERO_CLIENT_ID",

@@ -3,5 +3,5 @@
 // notify people.
 export { deliver } from './deliver';
 export { digest } from './digest';
-export { postmarkWebhook, resendWebhook } from './webhook';
+export { resendWebhook } from './webhook';
 export { weeklyReport } from './weekly-report';
