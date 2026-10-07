@@ -19,6 +19,7 @@ import { formatAud, formatDateOnly } from '@materia/ui';
 
 import { errorCopy } from '../../core/error-copy';
 import { formatDateInput, parseDateInput, PARTY_ROLE_LABELS } from '../contacts/contact-form';
+import { eventKindLabel } from '../deadlines/deadline-view';
 import { retentionErrorCopy } from '../matters/matters-view';
 
 /** The matter on the screen. */
@@ -104,26 +105,8 @@ export function keyFactLabel(id: KeyFactId): string {
   return KEY_FACTS.find((fact) => fact.id === id)?.label ?? id;
 }
 
-/** Matter event kinds in words ("Grant issued"), for requirement notes and template due dates. */
-export const EVENT_KIND_LABELS: Readonly<Record<EventKind, string>> = {
-  date_of_death: 'Date of death',
-  will_located: 'Will located',
-  notice_published: 'Notice of intended application published',
-  probate_filed: 'Probate application filed',
-  grant_issued: 'Grant issued',
-  statutory_notice_published: 'Statutory notice to claimants published',
-  caveat_lodged: 'Caveat lodged',
-  grant_served: 'Grant served',
-  fp_claim_filed: 'Family provision claim filed',
-  hearing: 'Hearing',
-  order_made: 'Order made',
-  offer_made: 'Offer made',
-  custom: 'Custom event',
-};
-
-export function eventKindLabel(kind: EventKind): string {
-  return EVENT_KIND_LABELS[kind] ?? kind;
-}
+// Event kinds in words live with the deadlines feature, which Today loads without this file.
+export { EVENT_KIND_LABELS, eventKindLabel } from '../deadlines/deadline-view';
 
 /** What a refused stage move is missing: key facts, matter events and template task keys. */
 export interface StageRequirements {

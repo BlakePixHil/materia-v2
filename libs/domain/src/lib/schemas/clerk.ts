@@ -230,7 +230,7 @@ export const FACT_CITATIONS_MAX = 20;
  * read, like the suggestion. The document id is the fact's id.
  */
 export const FactCitation = withMeta(
-  {
+  () => ({
     factId: KeyFactIdSchema,
     /** The value the citations support: an ISO date, cents, or text, as the matter stores it. */
     value: z.union([z.string().max(KEY_FACT_TEXT_MAX), z.number().int()]),
@@ -238,7 +238,7 @@ export const FactCitation = withMeta(
     /** The accepted suggestion the citations came from. */
     suggestionId: DocIdSchema,
     privileged: z.boolean().default(false),
-  },
+  }),
   { path: `${MATTER}/factCitations`, updatable: [], migratable: false },
 );
 export type FactCitation = z.infer<typeof FactCitation.schema>;
@@ -306,7 +306,7 @@ export type BriefRead = z.infer<typeof BriefReadSchema>;
  * generation while one runs, and `retryAfter` a retry after Clerk failed or a limit was reached.
  */
 export const MatterBrief = withMeta(
-  {
+  () => ({
     source: z.enum(['clerk', 'template']),
     reason: z.enum(BRIEF_TEMPLATE_REASONS).optional(),
     headline: NonEmptyString.max(MATTER_BRIEF_HEADLINE_MAX),
@@ -323,7 +323,7 @@ export const MatterBrief = withMeta(
     refreshes: z.object({ day: DateOnlySchema, count: z.number().int().min(0) }).optional(),
     pendingUntil: InstantSchema.optional(),
     retryAfter: InstantSchema.optional(),
-  },
+  }),
   { path: `${MATTER}/briefs`, updatable: [], migratable: false },
 );
 export type MatterBrief = z.infer<typeof MatterBrief.schema>;
@@ -337,7 +337,7 @@ export type MatterBrief = z.infer<typeof MatterBrief.schema>;
  * the context budget.
  */
 export const ClerkThread = withMeta(
-  {
+  () => ({
     title: z.string().max(200),
     ownerUid: DocIdSchema,
     matterId: DocIdSchema.nullable(),
@@ -345,7 +345,7 @@ export const ClerkThread = withMeta(
     shared: z.boolean().default(false),
     privileged: z.boolean().default(false),
     continuedFrom: DocIdSchema.optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/clerkThreads',
     softDelete: true,
@@ -441,7 +441,7 @@ export const ClerkToolCallSchema = z.object({
 });
 
 export const ClerkMessage = withMeta(
-  {
+  () => ({
     role: z.enum(['user', 'assistant']),
     content: z.array(ContentBlockSchema),
     citations: z.array(CitationSchema).default([]),
@@ -479,7 +479,7 @@ export const ClerkMessage = withMeta(
     feedback: ClerkFeedbackSchema.optional(),
     /** Why an answer failed (`status: error`): an error code, and the switch for CLERK_DISABLED. */
     error: z.object({ code: z.string().max(60), switch: z.string().max(100).optional() }).optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/clerkThreads/{threadId}/messages',
     migratable: false,

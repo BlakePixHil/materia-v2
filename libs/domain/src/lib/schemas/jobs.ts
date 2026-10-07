@@ -169,7 +169,7 @@ export const JobOutputSchema = z.object({
 
 /** `jobs/{jobId}`: status and progress, written by functions (create) and the job (everything else). */
 export const Job = withMeta(
-  {
+  () => ({
     type: z.union([JobTypeSchema, FunctionJobTypeSchema]),
     input: z.record(z.string(), z.unknown()),
     target: JobTargetSchema,
@@ -187,7 +187,7 @@ export const Job = withMeta(
     startedAt: InstantSchema.optional(),
     heartbeatAt: InstantSchema.optional(),
     finishedAt: InstantSchema.optional(),
-  },
+  }),
   {
     path: `${ORG}/jobs`,
     migratable: false,

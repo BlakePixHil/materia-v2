@@ -8,7 +8,7 @@ import {
   type NotificationPrefs,
 } from './notifications';
 import { ThemeSchema } from './schemas/enums';
-import { NOTIFICATION_CHANNELS, type NotificationChannel, type NotificationKind } from './schemas/org-records';
+import { NOTIFICATION_CHANNELS, type NotificationChannel, type NotificationKind } from './schemas/notification-records';
 
 /*
  * A person's own profile and preferences (CORE-20): Settings → Profile and Preferences. The names

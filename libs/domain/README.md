@@ -23,6 +23,8 @@ Each entity `X` exports `{ schema, create, update, version, path }` built by `wi
 - `create` is the callable input: no meta and no server-owned fields (counters, denormalised fields).
 - `update` is a partial of the whitelisted fields only.
 
+`withMeta(() => ({ ...fields }), options)` takes the fields as a function and builds each of the three schemas on first use, so a page that imports a schema file doesn't pay for entities it never reads (ADR-056). Keep module-level schemas out of files a start-up path imports. Importing any `XSchema` alias builds every entity (they are module-level constants), so web code reads `X.schema` instead.
+
 ## Permissions
 
 `can(role, action, { privileged })`. A privileged resource also needs `privileged.view`, so read-only users never see privileged material. The table below is generated from `PERMISSIONS`; regenerate it with `UPDATE_PERMISSIONS_README=1 pnpm nx test domain` after changing the matrix (the test fails if it drifts). The Firestore rules mirror it (FND-14).
