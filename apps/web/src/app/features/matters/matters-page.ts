@@ -56,16 +56,17 @@ import {
   MtIcon,
   MtMatterTag,
   MtNote,
+  type MtOption,
   MtPriorityIcon,
   MtSearchField,
   MtSegmentedControl,
+  MtSkeleton,
+  type MtSort,
   MtTable,
   MtTableCell,
+  type MtTableColumn,
   sortRows,
   ToastService,
-  type MtOption,
-  type MtSort,
-  type MtTableColumn,
 } from '@materia/ui';
 
 import { MatterNameDialog, type MatterNameDialogData } from './matter-name-dialog';
@@ -144,6 +145,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
     MtPriorityIcon,
     MtSearchField,
     MtSegmentedControl,
+    MtSkeleton,
     MtTable,
     MtTableCell,
     MattersBulkBar,
@@ -259,10 +261,10 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
         @if (ready()) {
           <ng-container #boardHost />
           @if (!board()) {
-            <p role="status" class="mt-matters-muted">Loading the board…</p>
+            <mt-skeleton variant="cards" label="Loading the board…" [count]="4" />
           }
         } @else if (matters.status() === 'loading') {
-          <p role="status" class="mt-matters-muted">Loading matters…</p>
+          <mt-skeleton variant="cards" label="Loading matters…" [count]="4" />
         }
       </div>
     } @else {
@@ -280,7 +282,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
             >
           }
           @case ('loading') {
-            <p role="status" class="mt-matters-muted">Loading matters…</p>
+            <mt-skeleton label="Loading matters…" [count]="6" />
           }
         }
         @if (matters.newItems(); as count) {
@@ -291,6 +293,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
         @if (ready()) {
           <mt-table
             #table
+            class="mt-fade"
             label="Matters"
             density="compact"
             sortMode="external"

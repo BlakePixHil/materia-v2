@@ -15,7 +15,15 @@ import {
   RECENT_ACTIVITY_QUERY,
 } from '@materia/data-access/repository';
 import { deadlineTraceText, STATUTORY_DISABLED_MESSAGE } from '@materia/domain';
-import { formatRelativeDate, MT_TODAY, MtClerkMark, MtDeadlineChip, MtEmptyState, type MtDateInput } from '@materia/ui';
+import {
+  formatRelativeDate,
+  MT_TODAY,
+  MtClerkMark,
+  type MtDateInput,
+  MtDeadlineChip,
+  MtEmptyState,
+  MtSkeleton,
+} from '@materia/ui';
 import { MtMarkdown } from '@materia/ui/markdown';
 
 import { MatterKeyFacts } from './matter-key-facts';
@@ -62,6 +70,7 @@ const TASKS_SHOWN = 5;
     MtDeadlineChip,
     MtEmptyState,
     MtMarkdown,
+    MtSkeleton,
   ],
   // One citation viewer for the tab's sources: key facts (CORE-06a) and Clerk's suggestions (AI-07).
   providers: [CitationSources, { provide: CitationScope, useExisting: MatterScreen }],
@@ -130,9 +139,9 @@ const TASKS_SHOWN = 5;
           <p class="caption t-2 statutory">{{ statutoryMessage }}</p>
         }
         @if (deadlines.status() === 'loading') {
-          <p class="caption t-3" role="status">Loading deadlines…</p>
+          <mt-skeleton label="Loading deadlines…" [count]="3" />
         } @else {
-          <ul class="list">
+          <ul class="list mt-stagger">
             @for (deadline of upcoming(); track deadline.id) {
               <li>
                 <span class="mt-grow">{{ deadline.title }}</span>
@@ -155,9 +164,9 @@ const TASKS_SHOWN = 5;
           <a class="mt-ml caption" routerLink="../tasks">All tasks</a>
         </div>
         @if (tasks.status() === 'loading') {
-          <p class="caption t-3" role="status">Loading tasks…</p>
+          <mt-skeleton label="Loading tasks…" [count]="3" />
         } @else {
-          <ul class="list">
+          <ul class="list mt-stagger">
             @for (task of openTasks(); track task.id) {
               <li>
                 <span class="mt-grow">{{ task.title }}</span>
@@ -182,9 +191,9 @@ const TASKS_SHOWN = 5;
           <a class="mt-ml caption" routerLink="../activity">All activity</a>
         </div>
         @if (activity.status() === 'loading') {
-          <p class="caption t-3" role="status">Loading activity…</p>
+          <mt-skeleton label="Loading activity…" [count]="3" />
         } @else {
-          <ul class="list">
+          <ul class="list mt-stagger">
             @for (entry of activity.value(); track entry.id) {
               <li>
                 <span class="mt-grow">{{ activityLine(entry.actorUid, entry.summary) }}</span>

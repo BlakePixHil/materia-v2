@@ -23,14 +23,15 @@ import {
   MtAvatar,
   MtButton,
   MtNote,
+  type MtOption,
   MtSelect,
   MtSettingsRow,
   MtSettingsSection,
+  MtSkeleton,
   MtTable,
+  type MtTableColumn,
   MtTextField,
   ToastService,
-  type MtOption,
-  type MtTableColumn,
 } from '@materia/ui';
 
 import {
@@ -94,6 +95,7 @@ const ROLE_LABELS: Record<Role, string> = {
     MtSelect,
     MtSettingsRow,
     MtSettingsSection,
+    MtSkeleton,
     MtTable,
     MtTextField,
   ],
@@ -152,7 +154,7 @@ const ROLE_LABELS: Record<Role, string> = {
           </mt-note>
         }
         @case ('loading') {
-          <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading members…</p>
+          <mt-skeleton variant="fields" framed label="Loading members…" />
         }
         @case ('empty') {
           <p style="margin: 0; color: var(--text-tertiary)">No members yet.</p>

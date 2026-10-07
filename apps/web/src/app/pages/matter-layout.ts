@@ -15,7 +15,16 @@ import { filter, map } from 'rxjs';
 
 import { ACCESS_REVOKED_HANDLER, can, OrgContext } from '@materia/data-access';
 import { canRestoreMatter } from '@materia/domain';
-import { formatDateOnly, MtButton, MtEmptyState, MtNote, MtTabLink, MtTabNav, ToastService } from '@materia/ui';
+import {
+  formatDateOnly,
+  MtButton,
+  MtEmptyState,
+  MtNote,
+  MtSkeleton,
+  MtTabLink,
+  MtTabNav,
+  ToastService,
+} from '@materia/ui';
 
 import { matterTabsFor } from './matter-tabs';
 import { NotFoundPage } from './not-found';
@@ -56,6 +65,7 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
     MtButton,
     MtEmptyState,
     MtNote,
+    MtSkeleton,
     MtTabNav,
     MtTabLink,
     NotFoundPage,
@@ -88,7 +98,7 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
   template: `
     @switch (state()) {
       @case ('loading') {
-        <p role="status" class="caption t-3">Loading the matter…</p>
+        <mt-skeleton variant="cards" label="Loading the matter…" />
       }
       @case ('restricted') {
         <div class="mt-col" style="flex: 1; justify-content: center">

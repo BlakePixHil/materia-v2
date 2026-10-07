@@ -15,7 +15,7 @@ import { RouterLink } from '@angular/router';
 
 import { can } from '@materia/data-access';
 import type { OnboardingStep } from '@materia/domain';
-import { formatAud, MT_TODAY, MtBadge, MtButton, MtEmptyState, MtIcon, MtNote } from '@materia/ui';
+import { formatAud, MT_TODAY, MtBadge, MtButton, MtEmptyState, MtIcon, MtNote, MtSkeleton } from '@materia/ui';
 
 import { MONTH_ENTRY_LIMIT, TodayData } from './today-data';
 import { TodayAttention, TodayDue, TodayRecent, TodayTasks } from './today-sections';
@@ -76,6 +76,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     MtIcon,
     MtNote,
     MtPageActions,
+    MtSkeleton,
     RouterLink,
     TodayAttention,
     TodayDue,
@@ -105,10 +106,19 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
 
     <!-- Drawn once every section has its first answer, so nothing moves as each one lands. -->
     @if (!data.settled()) {
-      <p class="caption t-3" role="status" data-today-loading>{{ copy.loading }}</p>
+      <div class="grid" data-today-loading>
+        <div class="col">
+          <div class="mt-card" data-pad><mt-skeleton [label]="copy.loading" [count]="4" /></div>
+          <div class="mt-card" data-pad><mt-skeleton label="" [count]="3" /></div>
+        </div>
+        <div class="col side">
+          <mt-skeleton variant="cards" label="" [count]="2" />
+          <div class="mt-card" data-pad><mt-skeleton label="" variant="lines" [count]="4" /></div>
+        </div>
+      </div>
     } @else {
       <div class="grid">
-        <div class="col">
+        <div class="col mt-stagger">
           @if (briefOn()) {
             <section class="mt-card" data-pad data-section="brief" aria-labelledby="mt-today-brief">
               <div class="mt-card-h">
@@ -151,7 +161,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
           <mt-today-attention />
           <mt-today-tasks />
         </div>
-        <div class="col side">
+        <div class="col side mt-stagger">
           <!--
             The design system's Stat (stat.css), drawn here rather than with MtStat: the first use of a
             @materia/ui component from a lazy page puts it in the initial bundle.

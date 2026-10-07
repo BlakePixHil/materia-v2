@@ -8,7 +8,7 @@ import {
   type LetterheadItem,
 } from '@materia/data-access/repository';
 import { LetterheadDetailsSchema } from '@materia/domain';
-import { MtButton, MtNote, MtSettingsSection, MtTextarea, MtTextField, ToastService } from '@materia/ui';
+import { MtButton, MtNote, MtSettingsSection, MtSkeleton, MtTextarea, MtTextField, ToastService } from '@materia/ui';
 
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
@@ -39,7 +39,7 @@ const formOf = (doc: LetterheadItem | null | undefined): LetterheadForm => ({
 @Component({
   selector: 'mt-letterhead-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtNote, MtSettingsSection, MtTextarea, MtTextField],
+  imports: [FormsModule, MtButton, MtNote, MtSettingsSection, MtSkeleton, MtTextarea, MtTextField],
   template: `
     <mt-settings-section
       title="Letterhead details"
@@ -48,7 +48,7 @@ const formOf = (doc: LetterheadItem | null | undefined): LetterheadForm => ({
     >
       @switch (doc.status()) {
         @case ('loading') {
-          <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading letterhead details…</p>
+          <mt-skeleton variant="fields" framed label="Loading letterhead details…" [count]="2" />
         }
         @case ('error') {
           <mt-note tone="danger">{{ loadError() }}</mt-note>

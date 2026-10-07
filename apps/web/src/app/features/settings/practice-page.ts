@@ -21,12 +21,13 @@ import {
   MtButton,
   MtCheckbox,
   MtNote,
+  type MtOption,
   MtSelect,
   MtSettingsRow,
   MtSettingsSection,
+  MtSkeleton,
   MtTextField,
   ToastService,
-  type MtOption,
 } from '@materia/ui';
 
 import { SettingsApi } from './settings-api';
@@ -84,6 +85,7 @@ const sameForm = (a: PracticeForm, b: PracticeForm) =>
     MtSelect,
     MtSettingsRow,
     MtSettingsSection,
+    MtSkeleton,
     MtTextField,
   ],
   host: { class: 'mt-col', style: 'gap: 24px; max-width: 760px' },
@@ -97,7 +99,7 @@ const sameForm = (a: PracticeForm, b: PracticeForm) =>
 
     @switch (org.status()) {
       @case ('loading') {
-        <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading settings…</p>
+        <mt-skeleton variant="fields" framed label="Loading settings…" [count]="4" />
       }
       @case ('error') {
         <mt-note tone="danger">{{ loadError() }}</mt-note>
@@ -118,7 +120,7 @@ const sameForm = (a: PracticeForm, b: PracticeForm) =>
 
     <!-- Shown once the org has loaded, so nothing typed is overwritten when the settings arrive. -->
     @if (org.value()) {
-      <form class="mt-col" style="gap: 24px" (submit)="$event.preventDefault(); save()">
+      <form class="mt-col mt-fade" style="gap: 24px" (submit)="$event.preventDefault(); save()">
         <mt-settings-section title="Firm details" [headingLevel]="2">
           <mt-text-field
             name="name"
