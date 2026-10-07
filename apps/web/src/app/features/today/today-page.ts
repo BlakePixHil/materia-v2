@@ -112,7 +112,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     @if (phone()) {
       <mt-pull-refresh [refreshing]="refreshing()" (refresh)="pullRefresh()" />
     }
-    <header class="head">
+    <header class="head" data-tour="today-head">
       <span class="eyebrow t-3" data-today-date>{{ data.dateLabel() }}</span>
       <h1 class="display">{{ data.greeting() }}</h1>
       @if (data.zoneHint(); as hint) {

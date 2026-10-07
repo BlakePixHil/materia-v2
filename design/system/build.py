@@ -17,6 +17,7 @@ import components_next  # noqa: F401  (registers second-pass components)
 import components_lit  # noqa: F401  (registers litigation components)
 import components_pass4  # noqa: F401  (registers fourth-pass components, DES-01)
 import components_pwa  # noqa: F401  (registers the installable app's components, MOB-01)
+import components_tours  # noqa: F401  (registers the guided tour, CORE-24)
 import screens
 import screens_next
 import screens_lit

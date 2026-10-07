@@ -61,7 +61,17 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
         <a mtButton variant="ghost" size="sm" routerLink="/billing/disclosures">Costs disclosures</a>
       }
       @if (screen.canRecord()) {
-        <button mtButton variant="primary" size="sm" iconStart="timer" kbd="t" (click)="record()">Record time</button>
+        <button
+          mtButton
+          variant="primary"
+          size="sm"
+          iconStart="timer"
+          kbd="t"
+          data-tour="record-time"
+          (click)="record()"
+        >
+          Record time
+        </button>
       }
     </ng-template>
     <div class="mt-row head">
@@ -69,7 +79,7 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
       <span class="body-s t-3" data-testid="billing-subtitle">{{ subtitle() }}</span>
     </div>
 
-    <div class="stats" [attr.data-count]="screen.canViewBilling() ? 4 : 3">
+    <div class="stats" data-tour="billing-stats" [attr.data-count]="screen.canViewBilling() ? 4 : 3">
       @if (screen.canViewBilling()) {
         <mt-stat label="Work in progress" [value]="wipValue()" data-testid="stat-wip">
           <span class="caption t-3">{{ wipCaption() }}</span>
@@ -126,7 +136,7 @@ const TABS: readonly Tab[] = ['mine', 'wip', 'approvals'];
     </div>
 
     <div mtTabset [mtTabsetValue]="shown()" (mtTabsetValueChange)="tab.set($any($event))">
-      <div mtTabList aria-label="Time and billing views">
+      <div mtTabList aria-label="Time and billing views" data-tour="billing-tabs">
         <button mtTab value="mine" icon="timer">My time</button>
         @if (screen.canViewBilling()) {
           <button mtTab value="wip" icon="billing">WIP</button>

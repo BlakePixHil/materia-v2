@@ -109,6 +109,7 @@ const EVERYONE = '';
       <mt-time-entry-form
         #addForm
         class="add"
+        data-tour="time-entry"
         layout="row"
         formLabel="Record time"
         [initial]="newInitial()"
@@ -130,7 +131,7 @@ const EVERYONE = '';
       }
       @default {
         @for (day of days(); track day.date) {
-          <section class="day" [attr.aria-labelledby]="'time-day-' + day.date">
+          <section class="day" data-tour="time-days" [attr.aria-labelledby]="'time-day-' + day.date">
             <h3 class="mt-row day-head" [id]="'time-day-' + day.date">
               <span class="label">{{ heading(day.date) }}</span>
               <span class="mt-ml caption t-3">{{ unitsText(day.units) }} · {{ amount(day.amountCents) }}</span>

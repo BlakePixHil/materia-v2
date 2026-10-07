@@ -19,7 +19,7 @@ import { OrgService } from '../../core/orgs/org-service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, RouterOutlet, MtNavItem],
   template: `
-    <nav class="settings-nav mt-col" aria-label="Settings pages">
+    <nav class="settings-nav mt-col" aria-label="Settings pages" data-tour="settings-nav">
       @for (group of groups(); track group.name) {
         <div class="mt-nav-section">{{ group.name }}</div>
         @for (section of group.sections; track section.path) {
