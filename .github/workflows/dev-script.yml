@@ -65,7 +65,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup
 
@@ -85,7 +85,7 @@ jobs:
       # demo-lighthouse writes its reports and summary here (MOB-02b).
       - name: Upload the Lighthouse reports
         if: always() && inputs.command == 'demo-lighthouse'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lighthouse-${{ github.run_id }}
           path: dist/lighthouse
