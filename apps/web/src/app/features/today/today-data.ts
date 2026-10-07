@@ -6,7 +6,9 @@ import {
   inject,
   Injectable,
   InjectionToken,
+  Injector,
   PendingTasks,
+  runInInjectionContext,
   signal,
   untracked,
   type Signal,
@@ -28,11 +30,10 @@ import {
   myTasksThisWeekQuery,
   myTodayChangesQuery,
   orgTimeZoneRepository,
-  personTimeQuery,
+  periodMetricsRepository,
   recentMattersQuery,
   recentMattersRepository,
   taskGroupRepository,
-  timeGroupRepository,
   todayMatterRepository,
   type QueryResource,
 } from '@materia/data-access/repository';
@@ -44,6 +45,7 @@ import {
   greeting,
   hourIn,
   longDayLabel,
+  metricPeriods,
   monthWindow,
   needsAttention,
   onboardingSteps,
@@ -51,7 +53,6 @@ import {
   timeZoneHint,
   todayItemKey,
   todayWindow,
-  wipThisMonth,
   type TodayEscalationLike,
 } from '@materia/domain';
 import { ToastService } from '@materia/ui';
@@ -89,8 +90,6 @@ const REFRESH_GAP_MS = 10_000;
 const TICK_MS = 60_000;
 /** The longest the sections wait to be drawn together (see `TodayData.settled`). */
 const SETTLE_MS = 2500;
-/** My time entries this month read at most, for WIP this month (a bounded query until INS-01's rollups). */
-export const MONTH_ENTRY_LIMIT = 500;
 
 /** Today's numbers: null while unknown (loading, offline or refused). */
 export interface TodayCounts {
@@ -100,6 +99,8 @@ export interface TodayCounts {
   /** Live matters in the practice the person can see: 0 shows the onboarding checklist. */
   orgMatters: number | null;
   activeMembers: number | null;
+  /** WIP this month in cents (roles that record time; see `TodayData.wip`). */
+  wipCents: number | null;
 }
 
 const NO_COUNTS: TodayCounts = {
@@ -108,6 +109,7 @@ const NO_COUNTS: TodayCounts = {
   openTasks: null,
   orgMatters: null,
   activeMembers: null,
+  wipCents: null,
 };
 
 /**
@@ -119,7 +121,8 @@ const NO_COUNTS: TodayCounts = {
  * - Needs attention listens live (overdue deadlines and changes waiting on me). Everything else is
  *   read once, showing this device's cache first, and read again on focus and after a task changes.
  * - Counts use count aggregation, and aren't asked for while offline. WIP this month (roles that
- *   record time) adds up my own entries dated this month, read once like the lists.
+ *   record time) is one document: my figures for the month from INS-01's rollups (ADR-048), read
+ *   with the counts, rather than every entry I recorded this month (SEC-07's read budget).
  * - Rows on matters the person can't read (or that were deleted) are left out silently.
  */
 @Injectable()
@@ -204,15 +207,9 @@ export class TodayData {
     },
     { live: false, cacheFirst: true },
   );
-  /** My time entries dated this month (roles that record time), for WIP this month. */
-  private readonly monthTime = timeGroupRepository().watchQuery(
-    () => {
-      const uid = this.context.uid();
-      const { start, end } = this.month();
-      return uid && this.canRecordTime() ? personTimeQuery(uid, start, end, MONTH_ENTRY_LIMIT) : null;
-    },
-    { live: false, cacheFirst: true },
-  );
+  /** My figures for a month (`metrics/month-YYYY-MM/byMember`), by month, for WIP this month. */
+  private readonly injector = inject(Injector);
+  private readonly memberMonths = new Map<string, ReturnType<typeof periodMetricsRepository>>();
   private readonly oneShot: readonly QueryResource<unknown>[] = [
     this.dueDeadlines,
     this.dueTasks,
@@ -253,7 +250,6 @@ export class TodayData {
   /** Every source has its first answer: the rows, their matters, and (online) the counts. */
   private readonly answered = computed(() => {
     if ([this.overdue, this.changes, ...this.oneShot].some((source) => source.status() === 'loading')) return false;
-    if (this.canRecordTime() && this.monthTime.status() === 'loading') return false;
     const lookup = this.lookup();
     if (this.matterIds().some((id) => !lookup.has(id))) return false;
     return this.countsAnswered() || !this.online();
@@ -350,17 +346,13 @@ export class TodayData {
 
   /**
    * WIP this month: the value of my billable time dated this month that isn't billed yet, in cents
-   * (`wipThisMonth`); null for roles that don't record time. Its cents are null while unknown
-   * (loading, refused, or offline, when this device may hold only some of the entries), like the
-   * counts. `truncated` when I have more entries this month than were read.
+   * (`wipThisMonth`'s figure: `time.recordedCents` less `time.billedCents` in my month rollup, kept
+   * by the metrics triggers a second or two behind a write); null for roles that don't record time.
+   * Its cents are null while unknown (loading, refused or offline), like the counts.
    */
   readonly wip = computed(() => {
     if (!this.canRecordTime()) return null;
-    const ready = this.online() && this.monthTime.status() === 'ready';
-    return {
-      cents: ready ? wipThisMonth(this.monthTime.value(), this.today()) : null,
-      truncated: ready && this.monthTime.hasMore(),
-    };
+    return { cents: this.online() ? this.counts().wipCents : null };
   });
 
   /** The checklist for a practice without matters; null once it has one (or while unknown). */
@@ -454,7 +446,6 @@ export class TodayData {
     if (!this.online() || (!force && now - this.lastRefresh < REFRESH_GAP_MS)) return;
     this.lastRefresh = now;
     for (const resource of this.oneShot) resource.refresh();
-    this.monthTime.refresh();
     const uid = this.context.uid();
     if (uid) void this.loadCounts(uid);
     const ids = [...this.requested];
@@ -517,16 +508,32 @@ export class TodayData {
     if (!this.online()) return;
     const ask = (work: () => Promise<number>) => work().catch(() => null);
     const privilegedVisible = this.privilegedVisible();
-    const [openMatters, deadlinesThisWeek, openTasks, orgMatters, activeMembers] = await Promise.all([
+    const [openMatters, deadlinesThisWeek, openTasks, orgMatters, activeMembers, wipCents] = await Promise.all([
       ask(() => this.matterCounts.count(matterCountQuery({ privilegedVisible, responsibleUid: uid, status: 'open' }))),
       ask(() => this.deadlineCounts.count(myDeadlinesThisWeekQuery(uid, this.window()))),
       ask(() => this.taskCounts.count(myOpenTaskCountQuery(uid))),
       ask(() => this.matterCounts.count(matterCountQuery({ privilegedVisible }))),
       ask(() => this.memberCounts.count(ACTIVE_MEMBERS_QUERY)),
+      this.canRecordTime() ? ask(() => this.loadWip(uid)) : Promise.resolve(null),
     ]);
     if (this.context.uid() !== uid) return;
-    this.countState.set({ openMatters, deadlinesThisWeek, openTasks, orgMatters, activeMembers });
+    this.countState.set({ openMatters, deadlinesThisWeek, openTasks, orgMatters, activeMembers, wipCents });
     this.countsAnswered.set(true);
+  }
+
+  /**
+   * WIP this month from my month rollup (INS-01): what I recorded less what was billed, as
+   * `wipThisMonth` adds up my entries. No document yet means no time this month.
+   */
+  private async loadWip(uid: string): Promise<number> {
+    const period = metricPeriods(this.month().start).month;
+    let months = this.memberMonths.get(period);
+    if (!months) {
+      months = runInInjectionContext(this.injector, () => periodMetricsRepository(period, 'byMember'));
+      this.memberMonths.set(period, months);
+    }
+    const values = (await months.get(uid))?.values ?? {};
+    return (values['time.recordedCents'] ?? 0) - (values['time.billedCents'] ?? 0);
   }
 
   private deadlineVm(deadline: TodayDeadlineVm['deadline'], key: string, matters: MatterLookup): TodayDeadlineVm {

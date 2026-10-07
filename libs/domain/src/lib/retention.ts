@@ -317,7 +317,7 @@ export type DestructionCounts = z.infer<typeof DestructionCountsSchema>;
  * keeps titles (`destructionKeepsTitle`).
  */
 export const DestructionRequest = withMeta(
-  {
+  () => ({
     matterId: DocIdSchema,
     number: NonEmptyString,
     title: z.string().optional(),
@@ -336,7 +336,7 @@ export const DestructionRequest = withMeta(
     destroyedAt: InstantSchema.optional(),
     /** The last failure, as an error code (no client text); the task retries. */
     error: z.string().max(200).optional(),
-  },
+  }),
   { path: `${ORG}/destructionQueue`, migratable: false, updatable: [] },
 );
 export type DestructionRequest = z.infer<typeof DestructionRequest.schema>;
@@ -346,7 +346,7 @@ export type DestructionRequest = z.infer<typeof DestructionRequest.schema>;
  * is complete. The PDF lives at `storagePath` (server-only; downloaded through a signed URL).
  */
 export const DestructionCertificate = withMeta(
-  {
+  () => ({
     matterId: DocIdSchema,
     number: NonEmptyString,
     title: z.string().optional(),
@@ -359,7 +359,7 @@ export const DestructionCertificate = withMeta(
     counts: DestructionCountsSchema,
     storagePath: NonEmptyString,
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  },
+  }),
   { path: `${ORG}/destructionCertificates`, migratable: false, updatable: [] },
 );
 export type DestructionCertificate = z.infer<typeof DestructionCertificate.schema>;

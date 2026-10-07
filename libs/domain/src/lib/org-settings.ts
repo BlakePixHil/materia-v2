@@ -8,7 +8,6 @@ import { validTimeZone } from './notifications';
 import { CentsSchema, DocIdSchema, NonEmptyString } from './schemas/common';
 import { JurisdictionSchema, MatterTypeSchema, RoundingSchema } from './schemas/enums';
 import { FeeDefaultsSchema, MatterTypeCodeSchema } from './schemas/tenancy';
-import type { DateOnly } from './values/date-only';
 
 /**
  * Org settings (CORE-21): the practice, billing and fee defaults that owners and admins edit in
@@ -72,22 +71,6 @@ export function matterNumberFormatWarning(format: string): string | null {
   if (!isMatterNumberFormat(trimmed)) return null;
   if (/\{(YYYY|YY)\}/.test(trimmed)) return null;
   return 'Without {YYYY} or {YY}, the running number restarts each year, so a number could repeat. A repeat is refused when the matter is created.';
-}
-
-/**
- * The financial year a date falls in, as the year it starts (`budgets[fyStartYear]`). The year
- * starts in July by default, so 2026-08-01 and 2027-06-30 are both 2026 (FY2026–27).
- */
-export function fyStartYear(date: DateOnly, startMonth = 7): number {
-  const year = Number(date.slice(0, 4));
-  const month = Number(date.slice(5, 7));
-  return month >= startMonth ? year : year - 1;
-}
-
-/** "FY2026–27" for the year starting in 2026 (en dash). A calendar FY (January) is "FY2026". */
-export function fyLabel(startYear: number, startMonth = 7): string {
-  if (startMonth === 1) return `FY${startYear}`;
-  return `FY${startYear}–${String((startYear + 1) % 100).padStart(2, '0')}`;
 }
 
 /** Australian zones first, then every other zone the runtime knows. */

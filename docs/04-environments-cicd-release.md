@@ -64,6 +64,7 @@ These are created by the tickets that introduce them:
 - deploy;
 - rollback;
 - restore from PITR, a backup or an export ([restore.md](runbooks/restore.md), SEC-03);
+- a practice's export and deletion ([org-deletion.md](runbooks/org-deletion.md), SEC-05);
 - rotate secret;
 - incident response;
 - migration rehearsals and cutover ([migration-cutover.md](runbooks/migration-cutover.md), MIG-07), with a runbook per step (export, transform, copy, auth import, load);

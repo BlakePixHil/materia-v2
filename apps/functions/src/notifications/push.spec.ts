@@ -21,7 +21,16 @@ describe('push adapters', () => {
       token: 'fake-token',
       notification: { title: message.title, body: message.body },
       data: { link: '/matters/m1/deadlines' },
-      webpush: { fcmOptions: { link: 'https://materia.example/matters/m1/deadlines' } },
+      webpush: { headers: { Urgency: 'high' }, fcmOptions: { link: 'https://materia.example/matters/m1/deadlines' } },
+    });
+  });
+
+  it('carries the org and tag for the service worker (MOB-04)', () => {
+    process.env['MATERIA_APP_URL'] = 'https://materia.example';
+    expect(fcmMessage('fake-token', { ...message, orgId: 'org-1', tag: 'n-1' }).data).toEqual({
+      link: '/matters/m1/deadlines',
+      orgId: 'org-1',
+      tag: 'n-1',
     });
   });
 

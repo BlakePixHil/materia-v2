@@ -200,6 +200,19 @@ describe('runRollback', () => {
     expect(s.target.get(P.task)).toBeUndefined();
   });
 
+  it('refuses, deleting nothing, once the practice is scheduled for deletion (SEC-05)', async () => {
+    const s = await loaded();
+    const org = s.target.get(P.org) ?? {};
+    s.target.docs.set(P.org, { ...org, deletionScheduledAt: new Date(NOW.getTime() + 86_400_000) });
+    const before = s.target.paths();
+    await expect(s.rollback()).rejects.toThrow(/scheduled for deletion/);
+    await expect(s.rollback({ dryRun: true })).rejects.toBeInstanceOf(RollbackRefusedError);
+    expect(s.target.paths()).toEqual(before);
+    s.target.docs.set(P.org, org);
+    s.target.docs.set(`deletedOrgs/${FIXTURE_ORG}`, { orgId: FIXTURE_ORG, status: 'purging' });
+    await expect(s.rollback()).rejects.toBeInstanceOf(RollbackRefusedError);
+  });
+
   it('refuses a run it can’t read', async () => {
     const s = await loaded();
     s.sink.files.delete('report.json');

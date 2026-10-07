@@ -191,7 +191,7 @@ export function describeUserAgent(userAgent: string | null | undefined): {
  * by its owner ("Your sessions"), never written by clients. Firestore TTL deletes it at `expireAt`.
  */
 export const SignIn = withMeta(
-  {
+  () => ({
     at: InstantSchema,
     /** The `auth_time` the sign-in's tokens carry (seconds), to tell which entry is this session. */
     authTime: z.number().int().min(0),
@@ -201,7 +201,7 @@ export const SignIn = withMeta(
     /** Whether the account had a second factor enrolled, so signing in needed it. */
     secondFactor: z.boolean(),
     expireAt: InstantSchema,
-  },
+  }),
   {
     path: 'users/{uid}/signIns',
     migratable: false,

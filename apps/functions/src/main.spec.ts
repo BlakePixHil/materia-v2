@@ -1,8 +1,9 @@
+import { READ_ONLY_CALLABLES } from './core/read-only';
 import { runtimeServiceAccount } from './global-options';
 import * as main from './main';
 
 interface EndpointLike {
-  __endpoint: { serviceAccountEmail?: string | null; maxInstances?: number | null };
+  __endpoint: { serviceAccountEmail?: string | null; maxInstances?: number | null; callableTrigger?: object };
 }
 
 const isFunction = (value: unknown): value is EndpointLike => typeof value === 'function' && '__endpoint' in value;
@@ -29,6 +30,14 @@ describe('functions entry point', () => {
   it.each(endpoints)('%s runs as fn-runtime with the global instance cap', (_name, fn) => {
     expect(fn.__endpoint.serviceAccountEmail).toBe('fn-runtime@');
     expect(fn.__endpoint.maxInstances).toBe(10);
+  });
+
+  it('every callable a practice waiting to be deleted still runs is a deployed callable (SEC-05)', () => {
+    const callables = new Set(
+      endpoints.filter(([, fn]) => fn.__endpoint.callableTrigger).map(([name]) => name.replace('.', '-')),
+    );
+    expect(callables).toContain('orgs-requestDeletion');
+    expect([...READ_ONLY_CALLABLES].filter((name) => !callables.has(name))).toEqual([]);
   });
 });
 

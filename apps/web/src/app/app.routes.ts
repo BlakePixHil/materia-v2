@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { ActivatedRouteSnapshot, Route, Router } from '@angular/router';
 
-import type { Role } from '@materia/domain';
+import { PERMISSIONS, type Role } from '@materia/domain';
 
 import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
@@ -9,7 +9,7 @@ import { flagGuard } from './core/flags/flag';
 import { acceptTermsGuard, termsGuard } from './core/legal/terms';
 import { startPagePath } from './core/profile/start-page';
 import { readLayout } from './features/matters/matters-layout';
-import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
+import { SETTINGS_ADMIN_ROLES, SETTINGS_OWNER_ROLES } from './features/settings/settings-nav';
 import { unsavedChangesGuard } from './features/settings/unsaved-changes';
 import { MATTER_TABS } from './pages/matter-tabs';
 import type { PlaceholderData } from './pages/placeholder';
@@ -227,11 +227,32 @@ const shellRoutes: Route[] = [
     ],
   },
   // Record (MOB-02): the phone's capture screen, the TabBar's centre button and the installed app's
-  // Record shortcut (MOB-01).
+  // Record shortcut (MOB-01). Scan a document (MOB-05) photographs a paper document into a matter.
   {
     path: 'record',
-    title: 'Record',
-    loadComponent: () => import('./features/record/record-page').then((m) => m.RecordPage),
+    data: { crumb: 'Record' },
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        title: 'Record',
+        loadComponent: () => import('./features/record/record-page').then((m) => m.RecordPage),
+      },
+      {
+        path: 'scan',
+        title: 'Scan a document',
+        data: { crumb: 'Scan a document' },
+        canActivate: [roleGuard(PERMISSIONS['document.upload'])],
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./features/scan/scan-page').then((m) => m.ScanPage),
+      },
+    ],
+  },
+  // Where a tapped push notification lands (MOB-04): opens its link, after asking to switch org.
+  {
+    path: 'open',
+    title: 'Opening',
+    loadComponent: () => import('./core/push/open-from-push').then((m) => m.OpenFromPushPage),
   },
   // More (MOB-02): on a phone, the account and every destination the TabBar has no room for.
   {
@@ -467,6 +488,14 @@ const shellRoutes: Route[] = [
         title: 'Security',
         data: { crumb: 'Security' },
         loadComponent: () => import('./features/security/security-page').then((m) => m.SecurityPage),
+      },
+      // Data and deletion (SEC-05): owners export everything and delete the practice.
+      {
+        path: 'data',
+        title: 'Data and deletion',
+        data: { crumb: 'Data and deletion' },
+        canActivate: [roleGuard(SETTINGS_OWNER_ROLES)],
+        loadComponent: () => import('./features/settings/data-deletion-page').then((m) => m.DataDeletionPage),
       },
       // Settings pages still to come land on the team page.
       { path: '**', redirectTo: 'team' },

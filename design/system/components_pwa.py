@@ -1,4 +1,4 @@
-"""The installable app's components (MOB-01): the update toast, Pending sync, Needs connection and the install steps."""
+"""The installable app's components (MOB-01): the update toast, Pending sync, Needs connection and the install steps; and push alerts (MOB-04)."""
 from components import comp, lab
 from icons import icon
 from markup import *
@@ -88,4 +88,40 @@ The installed app opens at Today in its own window, with shortcuts to Today, New
     + '<div class="mt-menu" style="width:220px">' + menu_item("Profile", "user") + menu_item("Settings", "settings") + menu_item("Dark theme", "moon") + menu_item("Keyboard shortcuts", "keyboard", "?") + menu_item("Install Materia", "download", highlighted=True) + '<div class="mt-menu-sep"></div>' + menu_item("Sign out", "log-out") + "</div>"
     + '<div style="position:relative;width:390px;height:330px;border-radius:16px;overflow:hidden;background:var(--bg-canvas);border:1px solid var(--border-default)"><div class="mt-sheet"><span class="grab"></span><div class="title-m">Install Materia on this device</div>'
     + _steps + btn("Done", "primary", "lg").replace('class="mt-btn"', 'class="mt-btn" style="width:100%"') + "</div></div>"
+    + "</div>", canvas=True)
+
+
+def _offer(title, text, ic, action):
+    return ('<section class="mt-row" style="width:560px;gap:12px;align-items:flex-start;padding:14px 16px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-surface)">'
+            + f'<span style="color:var(--icon-brand);margin-top:2px">{icon(ic)}</span>'
+            + f'<div class="mt-col mt-grow" style="gap:2px"><p class="label" style="margin:0">{title}</p><p class="body-s t-2" style="margin:0">{text}</p></div>'
+            + f'<div class="mt-row" style="gap:8px">{action}{btn("Not now", "ghost", "sm")}</div></section>')
+
+
+_notification = ('<div class="mt-row" style="width:360px;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:var(--bg-raised);border:1px solid var(--border-default);box-shadow:var(--shadow-popover)">'
+                 + '<span style="flex:none;width:32px;height:32px;border-radius:8px;background:var(--bg-brand);color:var(--text-on-brand);display:grid;place-items:center;font:600 15px/1 var(--font-sans)">M</span>'
+                 + '<div class="mt-col mt-grow" style="gap:2px"><span class="caption t-3">Materia · now</span><span class="label">Critical deadline in 2 days: WE-142</span><span class="body-s t-2">Open Materia to see it.</span></div></div>')
+
+comp("PushAlerts", "Mobile", 680, """
+# PushAlerts
+
+Push notifications on a device (MOB-04): deadline alerts, and the other notifications a person turns on for push, even when Materia is closed.
+
+**Asking.** Never on sign-in. The first time someone looks at a critical deadline (on a matter’s Deadlines tab or the Deadlines page), a card under the list offers “Get deadline alerts on this device” with **Turn on alerts** and **Not now**. Only Turn on alerts asks the browser for permission. Either answer is remembered on the device and the card doesn’t come back; Settings → Preferences → Devices can turn push on at any time.
+
+**iPhone and iPad.** Safari only delivers push to Materia on the Home Screen. In Safari the card says “Install Materia to receive alerts” and **How to install** opens the InstallMateria steps.
+
+**Blocked.** When the browser has notifications blocked, Materia never asks again. The This device row says so and how to allow them again: the lock or settings icon beside the address, then Notifications, then reload.
+
+**Devices.** Settings → Preferences → Devices: a This device row (Turn on, Turn off or How to install) and one row per device that gets push, named by browser and system (“Chrome on macOS”, “Materia app on iPhone”) with when it was last seen, **Send a test** and **Remove**. Devices unseen for 60 days stop getting pushes and drop off the list. Signing out removes this device.
+
+**The notification.** The title names the matter by number at most; the text is always “Open Materia to see it.” Lock screens never show a client, a deadline’s title or anything else from the matter, which the in-app notification still has. Tapping it brings an open Materia tab forward at the link, or opens one. A notification from another practice asks first (“Switch to Harbour & Vine Legal?”, **Switch to Harbour & Vine Legal** and **Stay here**), because switching reloads Materia.
+""", '<div class="mt-col" style="gap:24px">'
+    + _offer("Get deadline alerts on this device", "Materia can tell this device when a critical deadline is close or nobody has acknowledged it, even when Materia is closed. Alerts name the matter number, never the client.", "bell", btn("Turn on alerts", "primary", "sm"))
+    + _offer("Install Materia to receive alerts", "On iPhone and iPad, deadline alerts come only to Materia on your Home Screen. Install it, open it from there, and turn alerts on.", "smartphone", btn("How to install", "primary", "sm"))
+    + '<div class="mt-settings-section" style="width:640px"><h3>Devices</h3><p>Where you get push notifications. Removing a device stops its pushes.</p>'
+    + f'<div class="mt-setting"><div class="tx"><div class="tt">This device</div><div class="ts">Gets push notifications, even when Materia is closed.</div></div>{btn("Turn off", "secondary", "sm")}</div>'
+    + f'<div class="mt-setting"><div class="tx"><div class="tt">Chrome on macOS (this device)</div><div class="ts">Last seen today</div></div><span class="mt-row" style="gap:8px">{btn("Send a test", "ghost", "sm")}{btn("Remove", "ghost", "sm")}</span></div>'
+    + f'<div class="mt-setting"><div class="tx"><div class="tt">Materia app on iPhone</div><div class="ts">Last seen 3 days ago</div></div><span class="mt-row" style="gap:8px">{btn("Send a test", "ghost", "sm")}{btn("Remove", "ghost", "sm")}</span></div></div>'
+    + _notification
     + "</div>", canvas=True)

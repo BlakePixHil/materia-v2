@@ -43,6 +43,33 @@ We will:
 
 `libs/ui` and `libs/data-access` now carry a `package.json` with `"sideEffects": false`, as `libs/domain` has since CORE-01. Without it the bundler kept every module a barrel re-exports, because importing a module might have run code: the whole UI library (543 kB raw) sat in the initial chunks, and the repository barrel pulled every collection's schemas into Today's first load. With it, a page gets only the components and repositories it uses: the initial JS fell from 264 kB to 121 kB gzip, and building Zod schemas at start-up from about 470 ms to 270 ms of main-thread time on a 4× slower CPU. None of the three libraries runs code at import time; a new library with a barrel gets the same `package.json`, and a module that must run on import doesn't belong in one.
 
+## Update: less start-up work on a phone's Today (MOB-02b, 2026-10-07)
+
+Mobile Lighthouse scored Today 79 locally (median of 7, emulators, simulated 4× CPU), held down by total blocking time (777 ms). A profile showed Zod schemas built as modules loaded, and the shell and Today loading code for pages they don't show: the sidebar's pinned matters came from the Matters list's file, which brought matter filters, intake, contacts (with libphonenumber's metadata) and the org records; Today's deadline and task actions loaded every dialog; and the event kind labels came from the matter page's file.
+
+We now:
+
+- build each entity's schemas on first use: `withMeta` takes the field shape as a function, and `schema`, `create` and `update` are built separately, so a page that only reads never builds the write schemas. A module that needs a field's schema reads `X.schema.shape`, which builds that entity's stored schema then;
+- keep modules a page imports small: the pinned matters repository has its own file, the migration run, notification and task template entities have their own schema files, `BILLING_CALLABLES` and the financial year helpers moved next to their users, and a feature's dialogs load when one opens (`await import()`), as the checklist dialogs already did;
+- skip ng-primitives' hover tracking when nothing on the device can hover (`(any-hover: none)`): it gave every button a ResizeObserver and a style read as it rendered;
+- on a phone, draw Today's cards below My tasks (the numbers, Due today and this week, Recent matters) as they scroll into view (`@defer (on viewport)`). They are the page's last cards, so nothing below them moves when they arrive. On a larger screen they're drawn with the rest.
+
+Code loaded for the shell and Today fell from 1,284 kB to 1,022 kB raw, and libphonenumber is off the start-up path. Locally the median rose from 79 to 82, with total blocking time 643–660 ms over three sets of seven runs (±3 points between sets on this machine). What remains is Angular's first render, the Firestore SDK and its cache, and Zod schemas for the collections Today reads.
+
+## Update: Google's scripts off a phone's start-up (MOB-02b, 2026-10-07)
+
+The first measurement on dev (`materia-scripts demo-lighthouse`, five runs as the demo owner, before the deploy carrying the change above) scored Today 61: total blocking time 1,032 ms, LCP 3.6 s. Two pieces of Google code the emulators never load were the largest costs the app controls:
+
+- **reCAPTCHA Enterprise**, loaded and run by App Check's provider as App Check starts, even when the token saved last time is still valid: 1.6 s of main-thread time on the simulated phone, and six long tasks (about 480 ms of the blocking time).
+- **Firebase Auth's pop-up helper** (Google's gapi script and a frame from the auth domain). On phones and in Safari, Auth loads it as it starts, so the Google pop-up can open the moment it's tapped, and restores the session only once the frame is ready: each signed-in start-up waited for two more sites before the shell could draw.
+
+We now:
+
+- give App Check a provider that loads reCAPTCHA when App Check asks it for a new token (`OnDemandReCaptchaEnterpriseProvider`). App Check asks only when it has no valid saved token, or when renewing one (tokens last 12 hours and renew after about 6), exactly when the SDK's provider would have run reCAPTCHA. Tokens, their checks and enforcement are unchanged;
+- create Auth with the same persistence and helper as `getAuth`, but with the helper's start-up loading turned off (`onDemandPopups`). On phones and in Safari it loads when a screen that offers Google shows: when the session is signed out (the sign-in screen is next), and when a Google account is asked to sign in again (the confirm-it's-you dialog and two-step setup). Desktop Chrome and Firefox load it on first use, as before.
+
+Both rely on members the Firebase SDK marks internal (`initialize` and `getToken` on App Check providers, `_shouldInitProactively` and `_initialize` on the pop-up helper). A unit test fails if App Check's are renamed. If the pop-up helper's are, Auth either loads the helper as it starts again (slower) or loads it when Google is tapped, where a phone may fall back to the redirect sign-in.
+
 ## Alternatives considered
 
 - **Raise the initial budget and load Auth and the Firestore SDK up front:** measured above for Auth (no net gain); the SDK (about 150 kB gzip) would make the sign-in screens heavier for the same parallelism the bootstrap download already gives.

@@ -110,9 +110,13 @@ export const makeUser = (o: Partial<D.User> = {}) =>
     o,
   );
 
-/** A browser's push token (FND-20). The token is a made-up string, not a real FCM token. */
+/** A browser's push token (FND-20, MOB-04). The token is a made-up string, not a real FCM token. */
 export const makeDevice = (o: Partial<D.Device> = {}) =>
-  build(D.Device, { token: 'fake-fcm-token-0001', platform: 'web', lastSeenAt: FIXED_INSTANT }, o);
+  build(
+    D.Device,
+    { token: 'fake-fcm-token-0001', platform: 'web', label: 'Chrome on macOS', lastSeenAt: FIXED_INSTANT },
+    o,
+  );
 
 export const makeTimer = (o: Partial<D.Timer> = {}) =>
   build(
@@ -1048,6 +1052,26 @@ export const makeDestructionCertificate = (o: Partial<D.DestructionCertificate> 
     o,
   );
 
+export const makeDeletedOrg = (o: Partial<D.DeletedOrg> = {}) =>
+  build(
+    D.DeletedOrg,
+    {
+      orgId: TEST_ORG_ID,
+      name: 'Fictional Test Legal',
+      status: 'deleted',
+      stage: 'certificate',
+      requestedBy: TEST_UID,
+      requestedAt: FIXED_INSTANT,
+      scheduledFor: FIXED_INSTANT,
+      purgeStartedAt: FIXED_INSTANT,
+      deletedAt: FIXED_INSTANT,
+      certificateId: 'odc-0123456789ab',
+      ownerUids: [TEST_UID],
+      counts: { records: 120, files: 4, integrations: 0, members: 2 },
+    },
+    o,
+  );
+
 export const makeRecentMatter = (o: Partial<D.RecentMatter> = {}) =>
   build(
     D.RecentMatter,
@@ -1130,4 +1154,5 @@ export const ENTITY_FACTORIES = {
   RecentMatter: [D.RecentMatter, makeRecentMatter],
   DestructionRequest: [D.DestructionRequest, makeDestructionRequest],
   DestructionCertificate: [D.DestructionCertificate, makeDestructionCertificate],
+  DeletedOrg: [D.DeletedOrg, makeDeletedOrg],
 } as const;

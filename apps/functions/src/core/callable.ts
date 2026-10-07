@@ -17,6 +17,7 @@ import { toHttpsError } from './errors';
 import { firestoreIdempotency, type IdempotencyStore } from './idempotency';
 import { createLog, functionsSink, type Log, type LogSink } from './log';
 import { cachedMemberLookup, type MemberLookup } from './members';
+import { assertWritable } from './read-only';
 import { assertSessionAllowed, cachedSessionLookup, type SessionLookup } from './sessions';
 import { requireRecentLogin } from './user-callable';
 import { ports, systemClock } from '../ports/container';
@@ -95,7 +96,8 @@ function isRole(value: unknown): value is Role {
 /**
  * The callable pipeline, separated from `onCall` so it can be tested directly:
  * authenticate → claims → role → active member → session policy (SEC-04: revoked, expired, MFA)
- * → recent sign-in → validate → idempotency → handler → output.
+ * → read-only while the practice waits to be deleted (SEC-05) → recent sign-in → validate →
+ * idempotency → handler → output.
  */
 export async function runCallable<TSchema extends z.ZodType, TOutput>(
   def: CallableDefinition<TSchema, TOutput>,
@@ -124,7 +126,12 @@ export async function runCallable<TSchema extends z.ZodType, TOutput>(
     if (!def.roles.includes(role)) throw new DomainError('PERMISSION_DENIED', `Role ${role} cannot call ${def.name}`);
     if (!(await deps.memberLookup(orgId, uid))) throw new DomainError('MEMBER_INACTIVE', 'Membership is not active');
     const nowMs = deps.clock.now().getTime();
-    if (deps.sessions) assertSessionAllowed(token, await deps.sessions(orgId, uid), nowMs, { mfa: def.mfa ?? true });
+    if (deps.sessions) {
+      const session = await deps.sessions(orgId, uid);
+      assertSessionAllowed(token, session, nowMs, { mfa: def.mfa ?? true });
+      // A practice waiting to be deleted is read-only (SEC-05).
+      assertWritable(def.name, session);
+    }
     if (def.recentLoginMinutes !== undefined) requireRecentLogin(token, nowMs, def.recentLoginMinutes);
 
     const parsed = def.input.safeParse(data);

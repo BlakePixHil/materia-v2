@@ -236,6 +236,14 @@ async function devPassword(project: string, create: boolean): Promise<{ password
   return { password, created: true };
 }
 
+/** The demo accounts' password, to sign in with (demo-lighthouse): the secret on dev, the seed's in the emulators. */
+export async function demoPassword(target: DemoTarget): Promise<string> {
+  if (target.kind === 'emulator') return SEED_PASSWORD;
+  const { password } = await devPassword(target.projectId, false);
+  if (!password) throw new Error(`No ${DEMO_SECRET} secret on ${target.projectId}: run demo-reset first.`);
+  return password;
+}
+
 /** Starts the `pdf` Cloud Run job for one queued job document, as jobs-startPdf does (ADR-014). */
 async function startPdfJob(project: string, jobId: string): Promise<string> {
   const response = await call(project, `${CLOUD_RUN}/projects/${project}/locations/${REGION}/jobs/pdf:run`, {

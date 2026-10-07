@@ -1,4 +1,10 @@
-import { Notification, NOTIFICATION_BURST_LIMIT, notificationExpiry } from '@materia/domain';
+import {
+  Notification,
+  NOTIFICATION_BURST_LIMIT,
+  notificationExpiry,
+  PUSH_BODY,
+  PUSH_DEVICE_STALE_DAYS,
+} from '@materia/domain';
 
 import { DELIVERY_MAX_ATTEMPTS, deliverNotification, RetryDelivery } from './deliver';
 import { digestContent, digestModel, runDigests } from './digest';
@@ -439,7 +445,13 @@ describe('deliverNotification()', () => {
     expect(w.push.sent).toEqual([
       {
         token: 'fake-fcm-token-good',
-        message: { title: 'Task assigned to you', body: expect.any(String), link: '/matters/m1/tasks' },
+        message: {
+          title: 'Task assigned to you',
+          body: PUSH_BODY,
+          link: '/matters/m1/tasks',
+          orgId: ORG,
+          tag: 'n1',
+        },
       },
     ]);
     expect(w.doc('users/user-ada/devices/d-gone')).toBeUndefined();
@@ -454,6 +466,55 @@ describe('deliverNotification()', () => {
     expect(await w.deliver('n1', 'push', DELIVERY_MAX_ATTEMPTS - 1)).toEqual({ status: 'failed', reason: 'transient' });
     expect(w.push.sent).toHaveLength(1);
     expectCleanLogs(w.logged, 'fake-fcm-token-good', 'invalid-fcm-token');
+  });
+
+  it('never puts the notification body on a lock screen: the title and a fixed line only (MOB-04)', async () => {
+    const w = world({
+      [`users/user-ada`]: user('ada.fictional@example.com', { email: true, push: true, digestHour: 7 }),
+      [`users/user-ada/devices/d-1`]: { token: 'fake-fcm-token', platform: 'ios', lastSeenAt: MORNING },
+    });
+    await sent(w, {
+      title: 'Deadline in 3 days: M-2026-0142',
+      body: 'File the caveat for the Estate of Margaret Whitfield is due 2026-10-08.',
+      channels: ['inapp', 'push'],
+    });
+    expect(await w.deliver('n1', 'push')).toEqual({ status: 'sent' });
+    expect(w.push.sent).toHaveLength(1);
+    const payload = JSON.stringify(w.push.sent[0]?.message);
+    expect(payload).not.toContain('Whitfield');
+    expect(w.push.sent[0]?.message).toMatchObject({ title: 'Deadline in 3 days: M-2026-0142', body: PUSH_BODY });
+  });
+
+  it('skips and deletes devices unseen for 60 days, and pushes to the rest', async () => {
+    const day = 86_400_000;
+    const w = world({
+      [`users/user-ada`]: user('ada.fictional@example.com', { email: true, push: true, digestHour: 7 }),
+      [`users/user-ada/devices/d-recent`]: {
+        token: 'fake-fcm-token-recent',
+        platform: 'web',
+        lastSeenAt: new Date(MORNING.getTime() - (PUSH_DEVICE_STALE_DAYS - 1) * day),
+      },
+      [`users/user-ada/devices/d-stale`]: {
+        token: 'fake-fcm-token-stale',
+        platform: 'android',
+        lastSeenAt: new Date(MORNING.getTime() - (PUSH_DEVICE_STALE_DAYS + 1) * day),
+      },
+    });
+    await sent(w, { channels: ['inapp', 'push'] });
+    expect(await w.deliver('n1', 'push')).toEqual({ status: 'sent' });
+    expect(w.push.sent.map((p) => p.token)).toEqual(['fake-fcm-token-recent']);
+    expect(w.doc('users/user-ada/devices/d-stale')).toBeUndefined();
+    expect(w.doc('users/user-ada/devices/d-recent')).toBeDefined();
+  });
+
+  it('records push with only stale devices as skipped, and deletes them', async () => {
+    const w = world({
+      [`users/user-ada/devices/d-old`]: { token: 'fake-fcm-token-old', platform: 'web', lastSeenAt: new Date(0) },
+    });
+    await sent(w, { channels: ['inapp', 'push'] });
+    expect(await w.deliver('n1', 'push')).toEqual({ status: 'skipped', reason: 'inactive_devices' });
+    expect(w.doc('users/user-ada/devices/d-old')).toBeUndefined();
+    expect(w.push.sent).toEqual([]);
   });
 
   it('records push with no devices as skipped', async () => {
