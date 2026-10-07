@@ -338,7 +338,7 @@ const AUTOSAVE_MS = 800;
       border: 0;
       outline: none;
       background: transparent;
-      color: var(--text-1);
+      color: var(--text-primary);
     }
     .mt-clerk-draft .rewrite {
       display: flex;
@@ -365,8 +365,10 @@ const AUTOSAVE_MS = 800;
       border: 0;
       border-radius: var(--radius-sm, 4px);
       padding: var(--space-4) var(--space-6);
-      background: var(--warning-subtle, #fff3c4);
-      color: var(--text-1);
+      /* Theme tokens: the undefined --warning-subtle fell back to a pale yellow in the dark theme
+         too, under the dark theme's light text (SEC-06, WCAG 1.4.3). */
+      background: var(--bg-warning-subtle);
+      color: var(--text-primary);
       font: 400 13px/18px var(--font-sans);
       cursor: pointer;
     }

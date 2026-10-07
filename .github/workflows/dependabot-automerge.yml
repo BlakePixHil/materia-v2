@@ -1,0 +1,46 @@
+# Dependabot auto-merge (SEC-02; Blake asked for it on 2026-10-07). When `ci` passes on a pull
+# request from Dependabot's dev-patch group (patch updates of development dependencies outside the
+# angular, nx and firebase groups; .github/dependabot.yml), `materia-scripts dependabot-automerge`
+# squash-merges it. It checks the author, the branch, that the head is the commit ci passed on, that
+# every commit is Dependabot's and that only package.json and pnpm-lock.yaml change. Every other
+# update waits for review.
+#
+# workflow_run runs main's copy of this workflow and script, never the pull request's code: the
+# pull request is only read through the API. GitHub's auto-merge setting is off for the repository,
+# so the script merges directly, passing the tested commit so a later push makes the merge fail.
+# A merge made with GITHUB_TOKEN starts no other workflow: the update reaches dev with the next
+# merge's deploy.
+name: dependabot-automerge
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/npm_and_yarn/dev-patch-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: dependabot-automerge-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Merge the dev-patch group
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: pnpm -s materia-scripts dependabot-automerge

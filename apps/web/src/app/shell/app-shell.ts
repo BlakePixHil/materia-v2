@@ -102,7 +102,9 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
     '../../../../../libs/ui/src/generated/components/nav.css',
   ],
   // On a phone the page's actions in the top bar show just their icons (the label stays for screen
-  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page.
+  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page. When
+  // they still don't fit (Time & billing's, or a 320 px screen), they wrap onto a second row and the
+  // bar grows to hold it (app.css) rather than scrolling the page sideways (WCAG 1.4.10, SEC-06).
   styles: `
     /* The page column spaces banners and the routed page. The outlet element and an empty banner take
        no room, so a page starts at the column's padding instead of two gaps further down. */
@@ -125,8 +127,14 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
         clip: rect(0 0 0 0);
         white-space: nowrap;
       }
-      .mt-topbar .mt-btn mt-kbd {
+      /* The key caps, not the mt-kbd host: its inline display: contents outranks a stylesheet rule. */
+      .mt-topbar .mt-btn .mt-kbd {
         display: none;
+      }
+      .mt-topbar > .mt-ml {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
       }
     }
   `,

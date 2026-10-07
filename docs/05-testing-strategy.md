@@ -25,7 +25,11 @@
 - **Every bug fix** adds a failing test first.
 - **Flaky tests are bugs.** Fix the cause; never retry-to-green, and never use `test.skip` to merge.
 - **E2E selectors:** use roles and labels (`getByRole`). Add `data-testid` only where no accessible handle exists.
-- **Accessibility:** every e2e page visit runs `checkA11y()`. Serious and critical violations fail the run.
+- **Accessibility:**
+  - Every e2e page visit runs `expectNoA11yViolations(page)` (axe, WCAG 2.2 A and AA tags); `expectNoA11yViolationsInThemes(page)` scans the light and the dark theme.
+  - `a11y.spec.ts` runs the scripted WCAG checks on every PR: keyboard walks with visible, unobscured focus (also in forced colours), landmarks and headings, reflow at 320 px and 640 px, reduced motion, paste and autocomplete on sign-in, live regions, dragging alternatives, consistent help and phone target sizes.
+  - `a11y-audit.spec.ts` (tagged `@audit`) scans every route, matter tab, settings page and key dialog in both themes, plus a phone pass. It takes 7 to 9 minutes of test time, so PRs skip it (`--grep-invert @audit`) and the morning run covers it. A new route belongs in its list.
+  - The audit report and the screen reader checklist are in `docs/accessibility/` (SEC-06).
 - **Rules coverage:** the emulator rules coverage report is uploaded in CI. New `match` blocks need tests.
 
 ## Test data factories

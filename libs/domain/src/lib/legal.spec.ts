@@ -7,7 +7,15 @@ import { isDateOnly } from './values/date-only';
 describe('the legal documents registry (SEC-01)', () => {
   it('publishes every SEC-01 document once, in index order', () => {
     const keys = LEGAL_DOCUMENTS.map((doc) => doc.key);
-    expect(keys).toEqual(['privacy', 'collection-notice', 'terms', 'dpa', 'subprocessors', 'retention']);
+    expect(keys).toEqual([
+      'privacy',
+      'collection-notice',
+      'terms',
+      'dpa',
+      'subprocessors',
+      'retention',
+      'accessibility',
+    ]);
     expect(new Set(keys).size).toBe(keys.length);
   });
 

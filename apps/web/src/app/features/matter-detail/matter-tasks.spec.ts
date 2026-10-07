@@ -194,6 +194,24 @@ describe('matter tasks tab', () => {
     );
   });
 
+  it('moves a task with Move up and Move down in its details, without a drag (WCAG 2.5.7)', async () => {
+    const page = await openMatter(URL, { configure: moreTasks });
+    await page.click('Details: Locate the original will');
+    const down = page.body.querySelector<HTMLButtonElement>('button[aria-label="Move down: Locate the original will"]');
+    expect(down).not.toBeNull();
+    down?.click();
+    await page.stable(20);
+    expect(sections(page)[0]).toBe('Intake: Verify the executor’s identity, Locate the original will');
+    expect(page.text(page.body.querySelector('mt-task-list [aria-live]'))).toBe(
+      'Moved Locate the original will to position 2 of 2 in Intake.',
+    );
+    // Focus stays on the button that moved it, so it can be pressed again.
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Move down: Locate the original will');
+    page.body.querySelector<HTMLButtonElement>('button[aria-label="Move up: Locate the original will"]')?.click();
+    await page.stable(20);
+    expect(sections(page)[0]).toBe('Intake: Locate the original will, Verify the executor’s identity');
+  });
+
   it('selects with x and assigns the selection in bulk', async () => {
     const page = await openMatter(URL, { configure: moreTasks });
     for (const text of ['Locate the original will', 'Write to the bank']) {
