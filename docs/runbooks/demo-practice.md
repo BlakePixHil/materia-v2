@@ -41,5 +41,6 @@ Actions → **dev-script** → Run workflow on `main`, command `demo-lighthouse`
 - `args: --path /matters --runs 7` for another page or more runs; `--account lawyer` (or `paralegal`, `readonly`) for another role.
 - `args: --url https://materia-v2-dev--pr-123-abc.web.app` measures a PR's preview channel (the URL from its preview comment) against dev's data, before it merges.
 - With dry run on it only signs in, opens the page and reports App Check's saved token.
+- App Check: a headless Chrome scores too low with reCAPTCHA to get an App Check token itself, so by default (`--app-check saved`) the run registers an App Check debug token on dev, signs in with it, and removes it before Lighthouse starts. The runs then start with a saved token, as a phone that passed reCAPTCHA in the last few hours does. `args: --app-check none` measures a start-up without one, which runs reCAPTCHA first (a phone's first visit after its token expired). The debug token is never printed; a failed run's token is removed by the next run.
 
 The runner is in the US, so dev's data is a long way off; compare runs with each other rather than with a phone in Australia. Locally: `pnpm materia-scripts demo-lighthouse --project demo-materia` after `demo-reset`, with the e2e build on the Hosting emulator.

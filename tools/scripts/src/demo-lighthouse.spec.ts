@@ -38,6 +38,7 @@ describe('demo-lighthouse', () => {
       runs: 5,
       account: 'owner',
       url: undefined,
+      appCheck: 'saved',
       dryRun: false,
     });
     expect(
@@ -51,6 +52,8 @@ describe('demo-lighthouse', () => {
     expect(() => parseLighthouseArgs(['--runs', '0'])).toThrow(/--runs/);
     expect(() => parseLighthouseArgs(['--runs', '2.5'])).toThrow(/--runs/);
     expect(() => parseLighthouseArgs(['--account', 'admin'])).toThrow(/--account/);
+    expect(() => parseLighthouseArgs(['--app-check', 'debug'])).toThrow(/--app-check/);
+    expect(parseLighthouseArgs(['--app-check', 'none']).appCheck).toBe('none');
   });
 
   it('sends the demo password only to dev, its preview channels or the local Hosting emulator', () => {
