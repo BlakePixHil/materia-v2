@@ -310,7 +310,9 @@ export class InMemoryFirestore {
         return this.page(path, request);
       },
       watchDoc: (id, next, error) => {
-        const failure = this.takeFailure(path);
+        const failure =
+          this.takeFailure(path) ??
+          (this.denied.has(`${path}/${id}`) ? { code: 'permission-denied', message: 'Missing permissions' } : null);
         if (failure) {
           queueMicrotask(() => error(failure));
           return () => undefined;

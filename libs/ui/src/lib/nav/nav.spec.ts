@@ -48,6 +48,19 @@ describe('MtNavItem', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Matters');
     vi.useRealTimers();
   });
+
+  it('does not read as current while inactive, even on its route', async () => {
+    const { navigate, rerender } = await render(
+      `<a mtNavItem routerLink="/matters" icon="matters" label="Matters" [inactive]="inactive"></a>`,
+      { imports: [MtNavItem, RouterLink], providers: [provideRouter(routes)], componentProperties: { inactive: true } },
+    );
+    await navigate('/matters');
+    const matters = screen.getByRole('link', { name: 'Matters' });
+    expect(matters).not.toHaveAttribute('data-active');
+    expect(matters).not.toHaveAttribute('aria-current');
+    await rerender({ componentProperties: { inactive: false } });
+    await waitFor(() => expect(matters).toHaveAttribute('aria-current', 'page'));
+  });
 });
 
 describe('MtBreadcrumb', () => {

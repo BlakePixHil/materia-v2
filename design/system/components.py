@@ -183,12 +183,12 @@ comp("NavItem", "Navigation", 330, """
 
 Sidebar navigation: an icon, a label and an optional count, in a 240px sidebar on the canvas.
 
-The active item gets `bg-pressed` and primary text. Hover uses `bg-hover`. Counts are mono and tertiary and only show something actionable (unread, due). Pinned matters use a 8px matter-type square instead of an icon. Sections (“Workspace”, “Pinned”) are 12px tertiary labels and can collapse.
+The active item gets `bg-pressed` and primary text. Hover uses `bg-hover`. Counts are mono and tertiary and only show something actionable (unread, due). Pinned matters use a 8px matter-type square instead of an icon. Sections (“Workspace”, “Pinned”) are 12px tertiary labels. Pinned is a button that collapses its list (`.mt-nav-section[data-toggle]` over a `.mt-nav-group`): a chevron shows on hover and focus, turns to point right while closed, and the list slides shut. The choice is remembered per person, and the section hides when nothing is pinned and in the rail.
 
 ```html
 <a ngpButton routerLink="/matters" routerLinkActive #rla="routerLinkActive" [attr.data-active]="rla.isActive ? '' : null" class="mt-nav">…</a>
 ```
-""", '<div class="mt-col" style="width:240px;gap:1px;padding:8px;background:var(--bg-canvas);border-radius:10px">' + nav("Today", "today") + nav("Inbox", "inbox", 3, hover=True) + '<div class="mt-nav-section">Workspace</div>' + nav("Matters", "matters", 42, True) + nav("Deadlines", "calendar", 9) + nav("Time and billing", "billing") + nav("Insights", "insights") + '<div class="mt-nav-section">Pinned</div>' + nav("Estate of Margaret Whitfield", None, dot="matter-probate") + nav("Nguyen v Nguyen", None, dot="matter-fp") + "</div>", canvas=True)
+""", '<div class="mt-col" style="width:240px;gap:1px;padding:8px;background:var(--bg-canvas);border-radius:10px">' + nav("Today", "today") + nav("Inbox", "inbox", 3, hover=True) + '<div class="mt-nav-section">Workspace</div>' + nav("Matters", "matters", 42, True) + nav("Deadlines", "calendar", 9) + nav("Time and billing", "billing") + nav("Insights", "insights") + nav_toggle("Pinned") + nav("Estate of Margaret Whitfield", None, dot="matter-probate") + nav("Nguyen v Nguyen", None, dot="matter-fp") + "</div>", canvas=True)
 
 comp("Tabs", "Navigation", 120, """
 # Tabs
@@ -314,7 +314,7 @@ comp("Table", "Data display", 230, """
 
 Dense, scannable lists of matters, entries and documents: 40px rows, 13px text, group rows, and a sticky header.
 
-Columns lead with the ref (mono) and status glyph, then the name, then type, stage, next deadline, owner and money (right-aligned, mono). Selected rows use `bg-selected`; selecting shows the bulk-action bar. Group rows (`.group`) collapse.
+Columns lead with the ref (mono) and status glyph, then the name, then type, stage, next deadline, owner and money (right-aligned, mono). Selected rows use `bg-selected`; selecting shows the bulk-action bar. Group rows (`.group`) collapse. A row's own actions sit in a last `more` column that shows on hover and keyboard focus (always on touch screens) and stays out of the tab order, since row shortcuts reach the same actions (`p` pins a matter).
 
 Use native `<table>` for semantics; selection follows `ngpListbox` keyboard patterns (↑ ↓, Space, Shift-click).
 """, '<div style="width:100%;border:1px solid var(--border-default);border-radius:10px;overflow:hidden"><table class="mt-table"><thead><tr><th></th><th>Ref</th><th>Matter</th><th>Type</th><th>Stage</th><th>Next deadline</th><th>Owner</th><th class="num">WIP</th></tr></thead><tbody><tr class="group"><td colspan="8"><span class="mt-row">' + icon("chevron-down", "sm") + 'Active<span class="mt-count">3</span></span></td></tr>' + rows_html + "</tbody></table></div>", col=True)

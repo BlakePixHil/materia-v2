@@ -54,6 +54,7 @@ import {
   MtDeadlineChip,
   MtEmptyState,
   MtIcon,
+  MtIconButton,
   MtMatterTag,
   MtNote,
   type MtOption,
@@ -101,6 +102,7 @@ import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { MtExportButton } from '../../core/exports/export-button';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { PinnedMatters } from '../../core/pins/pinned-matters';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 
@@ -119,8 +121,9 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
 /**
  * Matters (`/matters`, CORE-03): every matter in a table, with filters, grouping, saved views and
  * bulk actions, as in the design system's Matters list. The view is in the URL (`?view=<id>`;
- * "My open matters" by default). Keyboard: `j`/`k` move, Enter opens, `x` selects, `/` searches,
- * `c` starts a new matter.
+ * "My open matters" by default). Keyboard: `j`/`k` move, Enter opens, `x` selects, `p` pins or
+ * unpins (CORE-23; also in each row's "…" menu), `/` searches, `c` starts a new matter. On a phone,
+ * which has no sidebar, my pinned matters lead the page.
  *
  * The same page at `/matters/board` (route data `layout: 'board'`, CORE-04) shows the view's
  * matters as a board instead (`MattersBoard`, loaded on first use); the List/Board switch in the
@@ -139,6 +142,7 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
     MtEmptyState,
     MtExportButton,
     MtIcon,
+    MtIconButton,
     MtMatterTag,
     MtNote,
     MtPageActions,
@@ -167,6 +171,18 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
       }
     </ng-template>
     <h1 class="mt-sr">Matters</h1>
+
+    @if (pins.items().length) {
+      <!-- Phones have no sidebar, so my pinned matters (CORE-23) lead the list there. -->
+      <nav class="mt-matters-pins" aria-label="Pinned matters">
+        @for (pin of pins.items(); track pin.id) {
+          <a class="mt-chip mt-fade" [routerLink]="['/matters', pin.id]"
+            ><span class="dot" [style.background]="'var(--matter-' + pin.type + ')'"></span
+            ><span class="mt-ell">{{ pin.title }}</span></a
+          >
+        }
+      </nav>
+    }
 
     <div class="mt-matters-bar" role="group" aria-label="View and filters">
       <button type="button" class="mt-chip" data-selected [mtMenuTrigger]="viewMenu" aria-haspopup="menu">
@@ -333,7 +349,35 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
               <span class="mt-matters-title">
                 <mt-priority-icon [level]="row.priority" />
                 <span class="title mt-ell">{{ row.title }}</span>
+                @if (pins.isPinned(row.id)) {
+                  <span class="mt-matters-pinned"><mt-icon name="pin" [size]="14" label="Pinned" /></span>
+                }
               </span>
+            </ng-template>
+            <ng-template mtCell="actions" let-cell>
+              @let row = asRow(cell);
+              <button
+                mtIconButton
+                class="mt-matters-row-menu"
+                icon="more"
+                size="sm"
+                tabindex="-1"
+                [label]="'More actions for ' + row.number"
+                [mtMenuTrigger]="rowMenu"
+              ></button>
+              <ng-template #rowMenu>
+                <mt-menu [attr.aria-label]="row.number">
+                  <button
+                    mtMenuItem
+                    [icon]="pins.isPinned(row.id) ? 'pin-off' : 'pin'"
+                    kbd="p"
+                    (click)="togglePin(row)"
+                  >
+                    {{ pins.isPinned(row.id) ? 'Unpin matter' : 'Pin matter' }}
+                  </button>
+                  <button mtMenuItem icon="external" (click)="openInNewTab(row)">Open in new tab</button>
+                </mt-menu>
+              </ng-template>
             </ng-template>
             <ng-template mtCell="type" let-cell>
               @let row = asRow(cell);
@@ -623,6 +667,58 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
       gap: var(--space-8);
       min-width: 0;
     }
+    .mt-matters-pinned {
+      display: inline-flex;
+      flex: none;
+      color: var(--text-tertiary);
+    }
+    /* The row's "…" shows on hover and focus (always on touch screens, which can't hover). Its
+       column is as narrow as the button, so the matter's title keeps the room. */
+    .mt-matters-rows ::ng-deep td.actions {
+      padding: 0 var(--space-8) 0 0;
+    }
+    .mt-matters-row-menu {
+      opacity: 0;
+      transition: opacity var(--motion-fast) var(--ease-out);
+    }
+    .mt-matters-rows ::ng-deep tr:is(:hover, :focus-visible, [data-active]:focus-within) .mt-matters-row-menu,
+    .mt-matters-row-menu[aria-expanded='true'],
+    .mt-matters-row-menu:focus-visible {
+      opacity: 1;
+    }
+    @media (hover: none) {
+      .mt-matters-row-menu {
+        opacity: 1;
+      }
+    }
+    .mt-matters-pins {
+      display: none;
+    }
+    @media (max-width: 767px) {
+      /* The pins lead the list on phones, so rows don't spend their narrow title on a marker. */
+      .mt-matters-pinned {
+        display: none;
+      }
+      .mt-matters-pins {
+        display: flex;
+        gap: var(--space-6);
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding: 10px var(--space-20) 0;
+      }
+      .mt-matters-pins .mt-chip {
+        flex: none;
+        max-width: 220px;
+        min-height: 36px;
+        text-decoration: none;
+      }
+      .mt-matters-pins .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+        flex: none;
+      }
+    }
     .mt-matters-muted {
       margin: 0;
       padding: var(--space-12);
@@ -660,6 +756,8 @@ export class MattersPage {
   private readonly context = inject(OrgContext);
   private readonly today = inject(MT_TODAY);
   private readonly flags = inject(FeatureFlagService);
+  /** My pinned matters (CORE-23). */
+  protected readonly pins = inject(PinnedMatters);
 
   /** List (`/matters`) or board (`/matters/board`, CORE-04). */
   protected readonly layout: MattersLayout = this.route.snapshot.data['layout'] === 'board' ? 'board' : 'list';
@@ -835,6 +933,8 @@ export class MattersPage {
       value: (row) => formatRelativeDate(row.lastActivityAt, this.today()),
       sortValue: (row) => row.lastActivityAt?.getTime(),
     },
+    // The row's "…" menu (CORE-23: pin or unpin).
+    { id: 'actions', header: 'Actions', headerHidden: true, value: () => null, cellClass: 'actions', width: '36px' },
   ];
   protected readonly rowKey = (row: MatterRow) => row.id;
   /** The matter's link (CORE-21a), when it is a safe http(s) URL: its number opens it. */
@@ -905,6 +1005,7 @@ export class MattersPage {
             shortcut('j', 'Next matter', () => this.move(1)),
             shortcut('k', 'Previous matter', () => this.move(-1)),
             shortcut('x', 'Select the focused matter', () => this.toggleFocused()),
+            shortcut('p', 'Pin or unpin the focused matter', () => this.pinFocused()),
           ]
         : // Listed in the cheat sheet; the focused card handles them (CORE-04).
           (
@@ -1273,6 +1374,20 @@ export class MattersPage {
     this.focused.set(next);
     this.table()?.focusRow(next);
     if (next >= rows.length - 1) this.loadMore();
+  }
+
+  /** Pins the matter to my sidebar, or unpins it (CORE-23). */
+  protected togglePin(row: MatterRow): void {
+    void this.pins.toggle({ id: row.id, number: row.number });
+  }
+
+  protected openInNewTab(row: MatterRow): void {
+    globalThis.open?.(this.router.serializeUrl(this.router.createUrlTree(['/matters', row.id])), '_blank', 'noopener');
+  }
+
+  private pinFocused(): void {
+    const row = this.rows()[this.focused()];
+    if (row) this.togglePin(row);
   }
 
   private toggleFocused(): void {

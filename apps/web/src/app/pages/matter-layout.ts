@@ -36,6 +36,7 @@ import { recentRecorder } from '../core/commands/recents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
 import { startTrace } from '../core/observability/perf';
+import { PinnedMatters } from '../core/pins/pinned-matters';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterHeader } from '../features/matter-detail/matter-header';
 import { MatterScreen } from '../features/matter-detail/matter-screen';
@@ -401,11 +402,35 @@ export class MatterLayout {
       when: () => ready() && !!this.header()?.canClose(),
       run: () => this.header()?.closeMatter(),
     };
+    // Pinning (CORE-23) is personal: any role, on a closed or archived matter too, but not a deleted one.
+    const pins = inject(PinnedMatters);
+    const pinnable = () => this.state() === 'ready' && !this.screen.deleted();
+    const pinned = () => pins.isPinned(this.screen.value()?.id ?? '');
+    const pin: Command = {
+      id: 'this-matter.pin',
+      title: 'Pin matter',
+      group,
+      icon: 'pin',
+      keywords: ['sidebar', 'favourite', 'bookmark', 'star'],
+      when: () => pinnable() && !pinned(),
+      run: () => this.header()?.togglePin(),
+    };
+    const unpin: Command = {
+      id: 'this-matter.unpin',
+      title: 'Unpin matter',
+      group,
+      icon: 'pin-off',
+      keywords: ['sidebar', 'remove', 'favourite'],
+      when: () => pinnable() && pinned(),
+      run: () => this.header()?.togglePin(),
+    };
     return [
       () => releaseActions.forEach((release) => release()),
       commands.register(changeStage),
       commands.register(assign),
       commands.register(close),
+      commands.register(pin),
+      commands.register(unpin),
     ];
   }
 
