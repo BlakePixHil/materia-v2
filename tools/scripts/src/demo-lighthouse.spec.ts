@@ -1,4 +1,12 @@
-import { type Lhr, medianRun, parseLighthouseArgs, runRow, siteOrigin, summary } from './demo-lighthouse.ts';
+import {
+  appCheckNote,
+  type Lhr,
+  medianRun,
+  parseLighthouseArgs,
+  runRow,
+  siteOrigin,
+  summary,
+} from './demo-lighthouse.ts';
 import { resolveDemoTarget } from './demo-reset.ts';
 
 const DEV = resolveDemoTarget('materia-v2-dev', {});
@@ -98,15 +106,73 @@ describe('demo-lighthouse', () => {
           details: { items: [{ entity: 'Google CDN', mainThreadTime: 210, blockingTime: 120, transferSize: 300_000 }] },
         },
         'long-tasks': { details: { items: [{ url: 'Unattributable', startTime: 1500, duration: 180 }] } },
+        'network-requests': {
+          details: {
+            items: [
+              { url: 'https://materia-v2-dev.web.app/chunk-A.js', statusCode: 200, networkRequestTime: 40 },
+              {
+                url: 'https://www.google.com/recaptcha/enterprise.js?render=site-key',
+                statusCode: 200,
+                networkRequestTime: 900,
+              },
+              {
+                url: 'https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?gsessionid=x',
+                statusCode: 200,
+                networkRequestTime: 700.4,
+              },
+              {
+                url: 'https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?gsessionid=y',
+                statusCode: -1,
+                networkRequestTime: 1400,
+              },
+              { url: 'data:image/png;base64,AAAA', statusCode: 200, networkRequestTime: 10 },
+            ],
+          },
+        },
       },
+      finalDisplayedUrl: 'https://materia-v2-dev.web.app/today',
     });
-    const text = summary([runRow(1, median)], median, 'Mobile Lighthouse: /today');
+    const note = 'App Check before the runs: a saved token.';
+    const text = summary([runRow(1, median)], median, 'Mobile Lighthouse: /today', [note]);
     expect(text).toContain('| 1 | 82 | 980 ms | 2267 ms | 660 ms | 2302 ms | 0 | 2031 |  |');
     expect(text).toContain('**Median: 82** (run 1)');
     expect(text).toContain('| Script Evaluation | 1235 ms |');
     expect(text).toContain('| https://materia-v2-dev.web.app/main-ABC.js | 900 ms | 700 ms | 40 ms |');
     expect(text).toContain('| Google CDN | 210 ms | 120 ms | 293 kB |');
     expect(text).toContain('| Unattributable | 1500 ms | 180 ms |');
+    expect(text).toContain(note);
+    const sites = text.slice(text.indexOf('### Requests to other sites'));
+    expect(sites).not.toContain('chunk-A.js');
+    expect(sites).not.toContain('data:');
+    expect(sites).not.toContain('site-key');
+    expect(sites.indexOf('Listen/channel')).toBeLessThan(sites.indexOf('enterprise.js'));
+    expect(sites).toContain(
+      '| https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel | 2 | 200, -1 | 700 ms |',
+    );
+    expect(sites).toContain('| https://www.google.com/recaptcha/enterprise.js | 1 | 200 | 900 ms |');
+    expect(summary([], undefined, 'x', [note])).toContain(note);
     expect(summary([], undefined, 'x')).toContain('No run finished without an error.');
+  });
+
+  it('says whether App Check had a valid saved token when the runs began', () => {
+    const now = Date.UTC(2026, 9, 7, 21, 0);
+    const minute = 60_000;
+    expect(appCheckNote(null, now)).toMatch(/not started in this build/);
+    expect(appCheckNote([], now)).toMatch(/\*\*no valid saved token\*\*/);
+    expect(appCheckNote([{ issuedAtTimeMillis: now - 70 * minute, expireTimeMillis: now - 10 * minute }], now)).toMatch(
+      /no valid saved token/,
+    );
+    expect(
+      appCheckNote(
+        [
+          { issuedAtTimeMillis: now - 70 * minute, expireTimeMillis: now - 10 * minute },
+          { issuedAtTimeMillis: now - 5 * minute, expireTimeMillis: now + 715 * minute },
+        ],
+        now,
+      ),
+    ).toBe(
+      'App Check before the runs: a saved token, valid for another 715 min (time to live 720 min, renewed after ' +
+        "365 min), so the runs shouldn't need reCAPTCHA.",
+    );
   });
 });

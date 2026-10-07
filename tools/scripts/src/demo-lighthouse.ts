@@ -6,9 +6,11 @@
  * a headless Chrome, then runs Lighthouse's mobile preset (simulated throttling, 4× CPU) on the page
  * `--runs` times in that browser. Storage is kept between runs, as for a person who's signed in, so
  * each run is a repeat visit: the service worker, the Firestore cache and the session are there.
- * Prints each run, the median run's metrics and where its main thread went, and writes the reports
- * and a summary to dist/lighthouse (the `dev-script` workflow uploads them; on GitHub the summary
- * also goes to the job summary).
+ * Prints each run, the median run's metrics, where its main thread went and which other sites it
+ * called, and writes the reports and a summary to dist/lighthouse (the `dev-script` workflow uploads
+ * them; on GitHub the summary also goes to the job summary). It also says whether App Check had a
+ * valid saved token when the runs began: without one, every start-up runs reCAPTCHA, which a
+ * returning person's phone mostly skips.
  *
  * - On dev (through the `dev-script` workflow) the password is the `demo-login-password` secret,
  *   never printed. `--url` measures a Hosting preview channel of dev instead of the live site
@@ -170,8 +172,94 @@ function top(lhr: Lhr, id: string, cells: (item: Record<string, unknown>) => (st
   return (lhr.audits[id]?.details?.items ?? []).slice(0, n).map((item) => `| ${cells(item).join(' | ')} |`);
 }
 
-/** The summary, in Markdown: every run, then the median run's metrics and where its main thread went. */
-export function summary(rows: RunRow[], median: Lhr | undefined, heading: string): string {
+/**
+ * The run's requests to other sites (Google's APIs, reCAPTCHA, fonts), one row per address without
+ * its query string, in the order they started: shows which of Auth, App Check and Firestore's calls
+ * a start-up made, and how they ended.
+ */
+function otherSites(lhr: Lhr, n: number): string[] {
+  const own = lhr.finalDisplayedUrl ? new URL(lhr.finalDisplayedUrl).origin : '';
+  const groups = new Map<string, { count: number; statuses: Set<string>; start: number }>();
+  for (const item of lhr.audits['network-requests']?.details?.items ?? []) {
+    let url: URL;
+    try {
+      url = new URL(text(item['url']));
+    } catch {
+      continue;
+    }
+    if (url.origin === own || !url.protocol.startsWith('http')) continue;
+    const address = `${url.origin}${url.pathname}`;
+    const group = groups.get(address) ?? { count: 0, statuses: new Set(), start: num(item['networkRequestTime']) };
+    group.count++;
+    group.statuses.add(text(item['statusCode']));
+    groups.set(address, group);
+  }
+  const cut = (address: string) => (address.length > 120 ? `${address.slice(0, 64)}…${address.slice(-55)}` : address);
+  return [...groups]
+    .sort(([, a], [, b]) => a.start - b.start)
+    .slice(0, n)
+    .map(([address, g]) => `| ${cut(address)} | ${g.count} | ${[...g.statuses].join(', ')} | ${g.start} ms |`);
+}
+
+/** What App Check had saved when the runs began: a start-up with a valid token skips reCAPTCHA. */
+export interface SavedAppCheckToken {
+  issuedAtTimeMillis: number;
+  expireTimeMillis: number;
+}
+
+export function appCheckNote(tokens: SavedAppCheckToken[] | null, now: number): string {
+  if (tokens === null) return 'App Check before the runs: not started in this build (no site key, or the emulators).';
+  const valid = tokens.filter((t) => t.expireTimeMillis > now).sort((a, b) => b.expireTimeMillis - a.expireTimeMillis);
+  const best = valid[0];
+  if (!best)
+    return (
+      'App Check before the runs: **no valid saved token**, so each run starts by running reCAPTCHA for a new one ' +
+      '(a returning person with a token less than about 6 hours old skips it).'
+    );
+  const minutes = (millis: number) => Math.round(millis / 60_000);
+  const renewAt = best.issuedAtTimeMillis + (best.expireTimeMillis - best.issuedAtTimeMillis) / 2 + 5 * 60_000;
+  return (
+    `App Check before the runs: a saved token, valid for another ${minutes(best.expireTimeMillis - now)} min ` +
+    `(time to live ${minutes(best.expireTimeMillis - best.issuedAtTimeMillis)} min, renewed after ` +
+    `${minutes(renewAt - best.issuedAtTimeMillis)} min), so the runs shouldn't need reCAPTCHA.`
+  );
+}
+
+/**
+ * Runs in the page: the App Check tokens saved in this browser for the page's site, as their times
+ * only (the token never leaves the page), or null when App Check has never started there. A string,
+ * as this package is typed without the DOM.
+ */
+const SAVED_APP_CHECK_TOKENS = `(async () => {
+  const name = 'firebase-app-check-database';
+  const store = 'firebase-app-check-store';
+  if (!(await indexedDB.databases()).some((db) => db.name === name)) return null;
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open(name);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    if (!db.objectStoreNames.contains(store)) return [];
+    const rows = await new Promise((resolve, reject) => {
+      const request = db.transaction(store).objectStore(store).getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    return rows
+      .map((row) => row && row.value)
+      .filter((v) => v && typeof v.issuedAtTimeMillis === 'number' && typeof v.expireTimeMillis === 'number')
+      .map((v) => ({ issuedAtTimeMillis: v.issuedAtTimeMillis, expireTimeMillis: v.expireTimeMillis }));
+  } finally {
+    db.close();
+  }
+})()`;
+
+/**
+ * The summary, in Markdown: every run, then the median run's metrics, any `notes`, and where its
+ * main thread and requests went.
+ */
+export function summary(rows: RunRow[], median: Lhr | undefined, heading: string, notes: string[] = []): string {
   const lines = [
     `## ${heading}`,
     '',
@@ -183,7 +271,8 @@ export function summary(rows: RunRow[], median: Lhr | undefined, heading: string
     ),
   ];
   const mid = medianRun(rows);
-  if (!mid || !median) return [...lines, '', 'No run finished without an error.'].join('\n');
+  const noted = notes.flatMap((note) => ['', note]);
+  if (!mid || !median) return [...lines, ...noted, '', 'No run finished without an error.'].join('\n');
   lines.push(
     '',
     `**Median: ${mid.score}** (run ${mid.run}): FCP ${mid.fcp} ms, LCP ${mid.lcp} ms, TBT ${mid.tbt} ms, SI ${mid.si} ms, CLS ${mid.cls}.`,
@@ -191,6 +280,7 @@ export function summary(rows: RunRow[], median: Lhr | undefined, heading: string
   const lcpElement = median.audits['largest-contentful-paint-element']?.details?.items?.[0];
   const lcpNode = (lcpElement?.['items'] as { node?: { snippet?: string } }[] | undefined)?.[0]?.node?.snippet;
   if (lcpNode) lines.push('', `LCP element: \`${lcpNode.slice(0, 160)}\``);
+  lines.push(...noted);
   const sections: [string, string, string[]][] = [
     [
       'Main thread by category',
@@ -236,6 +326,11 @@ export function summary(rows: RunRow[], median: Lhr | undefined, heading: string
         (i) => [short(text(i['url'])), `${num(i['startTime'])} ms`, `${num(i['duration'])} ms`],
         12,
       ),
+    ],
+    [
+      'Requests to other sites',
+      '| Address | Requests | Status | First started |\n| -- | -- | -- | -- |',
+      otherSites(median, 20),
     ],
   ];
   for (const [title, head, rowsOf] of sections) if (rowsOf.length) lines.push('', `### ${title}`, '', head, ...rowsOf);
@@ -303,6 +398,8 @@ export async function main(argv: string[] = []): Promise<void> {
     await page.waitForTimeout(5_000);
     await skipTour(page);
     await page.screenshot({ path: path.join(OUT_DIR, 'warm-up.png') });
+    const appCheck = appCheckNote(await page.evaluate<SavedAppCheckToken[] | null>(SAVED_APP_CHECK_TOKENS), Date.now());
+    log(appCheck);
     await page.goto('about:blank');
     if (args.dryRun) {
       log(`Dry run: signed in and opened ${pageUrl}; Lighthouse would run ${args.runs} times.`);
@@ -338,7 +435,7 @@ export async function main(argv: string[] = []): Promise<void> {
     }
     const mid = medianRun(rows);
     const heading = `Mobile Lighthouse: ${args.path} on ${origin} (${args.runs} runs, signed in as the demo ${args.account})`;
-    const report = summary(rows, mid ? reports[mid.run - 1] : undefined, heading);
+    const report = summary(rows, mid ? reports[mid.run - 1] : undefined, heading, [appCheck]);
     writeFileSync(path.join(OUT_DIR, 'summary.md'), `${report}\n`);
     if (mid) log(`Median report: dist/lighthouse/run-${mid.run}.report.html`);
     log(report);

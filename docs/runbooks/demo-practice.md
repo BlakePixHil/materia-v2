@@ -36,10 +36,10 @@ Locally: `pnpm materia-scripts demo-reset --project demo-materia` with the emula
 
 ## Measure a page with Lighthouse
 
-Actions → **dev-script** → Run workflow on `main`, command `demo-lighthouse`, dry run off (MOB-02b). It signs in as the demo owner in a headless Chrome on the runner and runs mobile Lighthouse (simulated throttling, 4× CPU) on Today five times, keeping the browser's storage between runs as a signed-in person's phone would. The job summary has every run, the median and where its main thread went; the run's `lighthouse-<run id>` artifact has the reports.
+Actions → **dev-script** → Run workflow on `main`, command `demo-lighthouse`, dry run off (MOB-02b). It signs in as the demo owner in a headless Chrome on the runner and runs mobile Lighthouse (simulated throttling, 4× CPU) on Today five times, keeping the browser's storage between runs as a signed-in person's phone would. The job summary has every run, the median, where its main thread went and which other sites it called (Auth, App Check, Firestore, reCAPTCHA); the run's `lighthouse-<run id>` artifact has the reports. It also says whether App Check had a valid saved token when the runs began: without one, each run starts by running reCAPTCHA, which a returning person's phone skips while its token is less than about six hours old.
 
 - `args: --path /matters --runs 7` for another page or more runs; `--account lawyer` (or `paralegal`, `readonly`) for another role.
 - `args: --url https://materia-v2-dev--pr-123-abc.web.app` measures a PR's preview channel (the URL from its preview comment) against dev's data, before it merges.
-- With dry run on it only signs in and opens the page.
+- With dry run on it only signs in, opens the page and reports App Check's saved token.
 
 The runner is in the US, so dev's data is a long way off; compare runs with each other rather than with a phone in Australia. Locally: `pnpm materia-scripts demo-lighthouse --project demo-materia` after `demo-reset`, with the e2e build on the Hosting emulator.
