@@ -32,9 +32,12 @@ describe('seed-large', () => {
 
     const small = planLargeOrg(0.05);
     expect(small).toMatchObject({ matters: 500, documents: 25_000, timeEntries: 100_000, fullLoadMatters: 357 });
-    // Every role is there, however small: the perf specs sign in as each.
-    expect(new Set(small.accounts.map((a) => a.role))).toEqual(new Set(['owner', 'lawyer', 'paralegal', 'readonly']));
-    expect(largeAccounts(0.05).find((a) => a.uid === 'lg-lawyer-1')?.email).toBe('lawyer1@large.example');
+    // The firm is the full 50 at every scale: member lists are read whole.
+    expect(small.accounts).toHaveLength(TARGET.members);
+    expect(new Set(small.accounts.map((a) => a.role))).toEqual(
+      new Set(['owner', 'admin', 'lawyer', 'paralegal', 'readonly']),
+    );
+    expect(largeAccounts().find((a) => a.uid === 'lg-lawyer-1')?.email).toBe('lawyer1@large.example');
     expect(() => planLargeOrg(0)).toThrow('--scale');
     expect(() => planLargeOrg(2)).toThrow('--scale');
   });

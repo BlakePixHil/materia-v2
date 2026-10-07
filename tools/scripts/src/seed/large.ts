@@ -1,11 +1,12 @@
 /**
  * A synthetic large practice for performance work (SEC-07): Ashgrove & Finch Lawyers, fictional,
  * at the target scale (50 members, 10,000 matters, 500,000 documents, 2,000,000 time entries)
- * times `scale`. Scaling shrinks the firm, not the work: members, matters and records scale
- * together, so each matter carries the same records at every scale. The first lawyer (`lg-lawyer-1`,
- * `lawyer1@large.example`) always carries a full fee earner's share of matters (target matters ÷
- * the 28 who run matters, about 357) when the scale allows it, so one person's screens read what
- * they would at the target scale.
+ * with the matters and their records times `scale`. The firm is always the full 50 members (the
+ * target is firms of up to 50, and member lists are read whole); each matter carries the same
+ * records at every scale. The first lawyer (`lg-lawyer-1`, `lawyer1@large.example`) always carries a
+ * full fee earner's share of matters (target matters ÷ the 28 who run matters, about 357) when the
+ * scale allows it, so one person's screens read what they would at the target scale. Clerk is on,
+ * with the data-use disclosure acknowledged; the load tests (tools/load) save its key.
  *
  * Records are generated one matter at a time (a generator), so the full scale never sits in
  * memory. Each kind's prototype is built once with the libs/test-utils factory (schema-valid by
@@ -158,14 +159,12 @@ function share(n: number, count: number, i: number): number {
   return Math.floor(n / count) + (i < n % count ? 1 : 0);
 }
 
-/** The accounts at a scale: at least one of each role, the first lawyer being the full-load one. */
-export function largeAccounts(scale: number): SeedAccount[] {
+/** The firm's 50 accounts (`ROLE_MIX`), the first lawyer being the full-load one. */
+export function largeAccounts(): SeedAccount[] {
   const accounts: SeedAccount[] = [];
   let n = 0;
   for (const role of ['owner', 'admin', 'lawyer', 'paralegal', 'readonly'] as const) {
-    const count =
-      role === 'admin' ? Math.round(ROLE_MIX.admin * scale) : Math.max(1, Math.round(ROLE_MIX[role] * scale));
-    for (let i = 1; i <= count; i++) {
+    for (let i = 1; i <= ROLE_MIX[role]; i++) {
       const suffix = role === 'owner' ? '' : String(i);
       const [first, last] = at(MEMBER_NAMES, n).split(' ') as [string, string];
       accounts.push({
@@ -185,7 +184,7 @@ export function largeAccounts(scale: number): SeedAccount[] {
 export function planLargeOrg(scale: number, orgId = LARGE_ORG_ID): LargePlan {
   if (!(scale > 0) || scale > 1)
     throw new Error('--scale is a number above 0 and at most 1 (1 is the target practice)');
-  const accounts = largeAccounts(scale);
+  const accounts = largeAccounts();
   const matters = Math.max(1, Math.round(TARGET.matters * scale));
   const documents = Math.round(TARGET.documents * scale);
   const timeEntries = Math.round(TARGET.timeEntries * scale);
@@ -265,7 +264,10 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
         'billing.invoicing': true,
         'billing.feeBudgets': true,
         'billing.disbursements': true,
+        'clerk.enabled': true,
+        'clerk.features.chat': true,
       },
+      settings: { clerk: { ackVersion: domain.CLERK_DISCLOSURE_VERSION } },
     } as Partial<D.Org>) as unknown as Data,
   );
   const rates: Record<string, number> = {};
