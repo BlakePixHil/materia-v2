@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { watchCspViolations } from '@materia/test-utils/e2e';
+import { FIRST_CALL, watchCspViolations } from '@materia/test-utils/e2e';
 
 /**
  * Smoke tests (FND-05), read-only so they are safe against prod. The deploy workflows run
@@ -52,4 +52,26 @@ test('sign-in runs under the Hosting CSP: Firebase, App Check and the Google pop
   // The attempt ends (the popup closed, or an error shown) and the button is usable again.
   await expect(google).toBeEnabled({ timeout: 20_000 });
   expect(csp(), 'Content Security Policy violations').toEqual([]);
+});
+
+test('Hosting sends the Claude connector its requests, Authorization header included @smoke', async ({ request }) => {
+  // INT-07 (ADR-064): /mcp and the OAuth paths are Hosting rewrites to connector-api, which answers
+  // these even while the flag is off. A made-up token is refused as not valid, so the function saw
+  // the header: without it the 401 would carry no error. Nothing is read or written.
+  test.skip(!process.env['BASE_URL'], '`ng serve` has no Hosting rewrites');
+  const metadata = await request.get('/.well-known/oauth-authorization-server', FIRST_CALL);
+  expect(metadata.ok(), `${metadata.status()} ${metadata.headers()['content-type']}`).toBe(true);
+  const { issuer, token_endpoint } = (await metadata.json()) as { issuer: string; token_endpoint: string };
+  expect(issuer).toMatch(/^https?:\/\/[^/]+$/);
+  expect(token_endpoint).toBe(`${issuer}/oauth/token`);
+
+  const refused = await request.post('/mcp', {
+    headers: { authorization: 'Bearer smoke-not-a-token' },
+    data: { jsonrpc: '2.0', id: 1, method: 'ping' },
+    ...FIRST_CALL,
+  });
+  expect(refused.status()).toBe(401);
+  const challenge = refused.headers()['www-authenticate'] ?? '';
+  expect(challenge).toContain(`resource_metadata="${issuer}/.well-known/oauth-protected-resource/mcp"`);
+  expect(challenge).toContain('error="invalid_token"');
 });
