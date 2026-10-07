@@ -56,6 +56,7 @@ import {
   deadlineErrorCopy,
   deadlineKindLabel,
   monthOf,
+  sameData,
   type ChangeRowVm,
   type DeadlineMatterRef,
   type DeadlineRowVm,
@@ -64,6 +65,7 @@ import { matterLookup } from './matter-lookup';
 import { PendingChanges } from './pending-changes';
 import { statutoryDisabled } from './statutory-flag';
 import { MtExportButton } from '../../core/exports/export-button';
+import { PushDevices } from '../../core/push/push-devices';
 import { PushOffer } from '../../core/push/push-offer';
 
 type View = 'list' | 'calendar';
@@ -125,9 +127,6 @@ function storedView(): View {
     @if (statutoryOff()) {
       <mt-note tone="warning">{{ statutoryMessage }}</mt-note>
     }
-    @if (hasCritical()) {
-      <mt-push-offer />
-    }
 
     @switch (state()) {
       @case ('loading') {
@@ -140,6 +139,9 @@ function storedView(): View {
         </mt-note>
       }
       @default {
+        @if (hasCritical()) {
+          <mt-push-offer />
+        }
         @if (changeRows().length) {
           <section class="block" aria-labelledby="mt-dl-changes">
             <h2 class="title-m" id="mt-dl-changes">
@@ -377,6 +379,12 @@ function storedView(): View {
     .mt-deadlines-page .rows > li:not([hidden]) ~ li:not([hidden]) {
       border-top: 1px solid var(--border-subtle);
     }
+    /* Rows off screen aren't laid out or painted until they near it: a page of 100, or a filter
+       showing them again, costs what the screen shows (SEC-07c). */
+    .mt-deadlines-page .rows > li {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 96px;
+    }
     .mt-deadlines-page .fresh {
       align-self: flex-start;
     }
@@ -431,6 +439,7 @@ function storedView(): View {
 export class DeadlinesPage {
   protected readonly actions = inject(DeadlineActions);
   private readonly context = inject(OrgContext);
+  private readonly push = inject(PushDevices);
   protected readonly today = inject(MT_TODAY);
 
   protected readonly canComplete = can('task.edit');
@@ -477,14 +486,16 @@ export class DeadlinesPage {
   );
 
   /**
-   * What is drawn below the head: nothing until the list (or, on the calendar, the review queue)
-   * and the changes waiting on me have answered, so nothing jumps when a later one does.
+   * What is drawn below the head: nothing until the list (or, on the calendar, the review queue),
+   * the changes waiting on me and whether to offer deadline alerts (this browser's own record) are
+   * known, so nothing jumps when a later one arrives.
    */
   protected readonly state = computed<'loading' | 'error' | 'ready'>(() => {
     const list = this.view() === 'list' ? this.deadlines.status() : 'ready';
     const review = this.review.status();
     if (list === 'error' || review === 'error') return 'error';
-    return list === 'loading' || review === 'loading' || this.changes.status() === 'loading' ? 'loading' : 'ready';
+    const waiting = list === 'loading' || review === 'loading' || this.changes.status() === 'loading';
+    return waiting || !this.push.loaded() ? 'loading' : 'ready';
   });
   protected readonly loadError = computed(() => deadlineErrorCopy(this.deadlines.error() ?? this.review.error()));
   protected readonly calendarError = computed(() => deadlineErrorCopy(this.calendarDeadlines.error()));
@@ -598,6 +609,7 @@ export class DeadlinesPage {
   private readonly more = viewChild<ElementRef<HTMLElement>>('more');
 
   constructor() {
+    void this.push.load();
     let observer: IntersectionObserver | undefined;
     effect(() => {
       observer?.disconnect();
@@ -616,6 +628,13 @@ export class DeadlinesPage {
   }
 
   /**
+   * The rows drawn, by key. A row whose deadline and matter are unchanged is kept, so a snapshot
+   * that changes nothing in it (the server confirming the cache, or a page read again when the next
+   * one loads) doesn't redraw it.
+   */
+  private readonly drawn = new Map<string, DeadlineRowVm>();
+
+  /**
    * Rows for deadlines on a matter, each with its matter: the deadline's copy, or else the one read
    * for it (the lookup is only read, and so only watched, when a deadline has no copy).
    */
@@ -627,7 +646,12 @@ export class DeadlinesPage {
       const matter: DeadlineMatterRef | undefined = deadline.matter
         ? { id: matterId, ...deadline.matter }
         : (lookup ??= this.matters()).get(matterId);
-      return [{ key: `${matterId}/${deadline.id}`, matterId, deadline, matter }];
+      const key = `${matterId}/${deadline.id}`;
+      const kept = this.drawn.get(key);
+      if (kept && sameData(kept.deadline, deadline) && sameData(kept.matter, matter)) return [kept];
+      const row = { key, matterId, deadline, matter };
+      this.drawn.set(key, row);
+      return [row];
     });
   }
 

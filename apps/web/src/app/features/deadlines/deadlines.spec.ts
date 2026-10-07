@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { DomainError, STATUTORY_DISABLED_MESSAGE } from '@materia/domain';
 import { formatDateOnly } from '@materia/ui';
 
-import { deadlineErrorCopy, monthLabel, recomputeSummaryText, shiftMonth } from './deadline-view';
+import { deadlineErrorCopy, monthLabel, recomputeSummaryText, sameData, shiftMonth } from './deadline-view';
 import { parseEventTime } from './event-dialog';
 import { storedDocument } from '../documents/testing';
 import {
@@ -827,5 +827,28 @@ describe('deadline view helpers', () => {
       ),
     ).toBe('Type the matter number exactly.');
     expect(deadlineErrorCopy(new DomainError('NOT_FOUND', 'x'))).toContain('couldn’t find');
+  });
+
+  it('knows when a snapshot left a row’s data as it was (SEC-07c)', () => {
+    const at = (iso: string) => new Date(iso);
+    const row = {
+      title: 'Fictional step',
+      dueDate: '2026-10-08',
+      reminders: [{ days: 7 }],
+      computed: { trace: ['a', 'b'] },
+      updatedAt: at('2026-10-01T00:00:00Z'),
+      override: undefined,
+    };
+    const again = structuredClone({ ...row, updatedAt: at('2026-10-01T00:00:00Z') });
+    expect(sameData(row, again)).toBe(true);
+    expect(sameData({ ...row, override: undefined }, { ...row, override: undefined, extra: undefined })).toBe(true);
+    expect(sameData(row, { ...again, updatedAt: at('2026-10-02T00:00:00Z') })).toBe(false);
+    expect(sameData(row, { ...again, reminders: [{ days: 3 }] })).toBe(false);
+    expect(sameData(row, { ...again, computed: { trace: ['a'] } })).toBe(false);
+    expect(sameData(row, { ...again, title: 'Another' })).toBe(false);
+    expect(sameData(undefined, undefined)).toBe(true);
+    expect(sameData(undefined, { id: 'm' })).toBe(false);
+    expect(sameData(['a'], { 0: 'a' })).toBe(false);
+    expect(sameData(at('2026-10-01T00:00:00Z'), '2026-10-01')).toBe(false);
   });
 });

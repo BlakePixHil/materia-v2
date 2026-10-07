@@ -34,6 +34,7 @@ export class PushDevices {
   /** This browser's device id, once registered for the signed-in person. */
   private readonly registered = signal<string | null>(null);
   private loading: Promise<void> | undefined;
+  private readonly settled = signal(false);
 
   /** This browser's device id (for "This device" in Settings), once read. */
   readonly deviceId = signal<string | null>(null);
@@ -45,11 +46,19 @@ export class PushDevices {
     return this.permission() === 'granted' && this.registered() ? 'on' : 'off';
   });
 
+  /**
+   * The first `load` has finished, read or not: `status` can be trusted. A screen that shows the
+   * offer can wait for it, so the offer is drawn with the screen rather than pushing it down after.
+   */
+  readonly loaded = this.settled.asReadonly();
+
   /** Reads this browser's registration once; `status` is `off` until it has. */
   load(): Promise<void> {
-    return (this.loading ??= this.read().catch(() => {
-      this.loading = undefined;
-    }));
+    return (this.loading ??= this.read()
+      .catch(() => {
+        this.loading = undefined;
+      })
+      .finally(() => this.settled.set(true)));
   }
 
   /**
