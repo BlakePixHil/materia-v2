@@ -208,6 +208,72 @@ export const Brief: Story = {
 };
 export const BriefDark: Story = { ...Brief, globals: { theme: 'dark' } };
 
+/** A matter's brief on Overview (AI-06c): numbered record chips, Refresh and "Ask a follow-up". */
+const MATTER_BRIEF: BriefItemVm[] = [
+  {
+    id: 'm1',
+    icon: 'alert',
+    tone: 'danger',
+    lead: 'Overdue.',
+    text: 'Advertising the notice of intention was due Mon 5 Oct.',
+    citations: [{ n: 1, documentId: 'deadline:notice', label: 'Advertise notice of intention', kind: 'record' }],
+  },
+  {
+    id: 'm2',
+    icon: 'calendar',
+    tone: 'warning',
+    lead: 'Due soon.',
+    text: 'The probate application is due Fri 16 Oct, in 9 days.',
+    citations: [{ n: 2, documentId: 'deadline:probate', label: 'Apply for probate', kind: 'record' }],
+  },
+  {
+    id: 'm3',
+    icon: 'document',
+    lead: 'New since your last visit.',
+    text: 'The will was added on Mon 5 Oct.',
+    citations: [{ n: 3, documentId: 'document:will', label: 'Will of the late J. Citizen', kind: 'record' }],
+  },
+  {
+    id: 'm4',
+    icon: 'arrow-right',
+    tone: 'brand',
+    lead: 'Next step.',
+    text: 'Review Clerk’s suggestion to request certified copies of the death certificate.',
+    citations: [{ n: 4, documentId: 'suggestion:copies', label: 'Task: Request certified copies', kind: 'record' }],
+  },
+];
+
+export const MatterBrief: Story = {
+  render: () => ({
+    props: { items: MATTER_BRIEF },
+    template: `
+      <div style="max-width: 720px">
+        <mt-clerk-brief title="The probate application is due Fri 16 Oct and one deadline is overdue." [items]="items">
+          <button mtBriefActions mtButton variant="ghost" size="sm" iconStart="refresh">Refresh</button>
+          <button mtBriefActions mtButton variant="clerk" size="sm" iconStart="sparkle">Ask a follow-up</button>
+          <p class="mt-clerk-foot">Clerk read 2 deadlines, 1 task, 1 change, 1 document and 1 suggestion · 9:12 am. Clerk can be wrong; check the sources.</p>
+        </mt-clerk-brief>
+      </div>
+    `,
+  }),
+};
+export const MatterBriefDark: Story = { ...MatterBrief, globals: { theme: 'dark' } };
+
+/** The template brief, when Clerk didn't write it: the same facts, the plain card. */
+export const MatterBriefTemplate: Story = {
+  render: () => ({
+    props: { items: MATTER_BRIEF.slice(0, 3).map((item) => ({ ...item, lead: undefined })) },
+    template: `
+      <div style="max-width: 720px">
+        <mt-clerk-brief plain label="Matter brief" title="1 item overdue and 1 due in the next 14 days." [items]="items">
+          <p class="mt-clerk-foot">Built from the matter’s deadlines, tasks and activity, not by Clerk · 9:12 am</p>
+        </mt-clerk-brief>
+      </div>
+    `,
+  }),
+};
+export const MatterBriefTemplateDark: Story = { ...MatterBriefTemplate, globals: { theme: 'dark' } };
+
 export const WorkingAndSuggestions: Story = {
   render: () => ({
     props: {

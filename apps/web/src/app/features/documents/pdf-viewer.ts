@@ -2,6 +2,7 @@ import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   effect,
   ElementRef,
@@ -14,9 +15,14 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import type {
+  PageViewport,
+  PDFDocumentLoadingTask,
+  PDFDocumentProxy,
+  PDFPageProxy,
+} from 'pdfjs-dist/legacy/build/pdf.mjs';
 
-import { MtButton, MtNote } from '@materia/ui';
+import { MtButton, MtIconButton, MtNote } from '@materia/ui';
 
 import { hasTextLayer, highlightBoxes, type HighlightBox, type PdfPageText, type PdfTextItem } from './pdf-highlight';
 
@@ -44,11 +50,30 @@ export function loadPdfJs(): Promise<PdfJs> {
   }));
 }
 
+/** The parts of PDF.js the viewer uses. */
+type PdfLib = Pick<PdfJs, 'getDocument' | 'TextLayer'>;
+
 /** Loads PDF.js (tests replace it with a fake). */
-export const PDFJS_LOADER = new InjectionToken<() => Promise<Pick<PdfJs, 'getDocument'>>>('PDFJS_LOADER', {
+export const PDFJS_LOADER = new InjectionToken<() => Promise<PdfLib>>('PDFJS_LOADER', {
   providedIn: 'root',
   factory: () => loadPdfJs,
 });
+
+/**
+ * Where a scanned page's text is kept: the stored text of `pages` (what OCR read from a page with no
+ * text of its own), by page. A page left out has none.
+ */
+export type PdfStoredText = (pages: number[]) => Promise<ReadonlyMap<number, string>>;
+
+/** How many pages' stored text one call asks for, so scrolling through a scan makes few calls. */
+const STORED_TEXT_PAGES = 10;
+
+/** What a screen reader hears for a scanned page: its stored text, or why there is none. */
+export const SCANNED_PAGE_COPY = {
+  text: 'Scanned page. Text read from the scan:',
+  none: 'Scanned page with no text Materia could read. Download the document to open it in another app.',
+  failed: 'Scanned page. Its text didn’t load. Download the document to open it in another app.',
+} as const;
 
 /** A PDF.js failure as what the person can do about it. */
 export function pdfProblem(error: unknown): PdfProblem {
@@ -78,6 +103,20 @@ export interface PdfHighlightResult {
   textLayer: boolean;
 }
 
+/** Zoom: 100% fits the page to the width; pinch or the buttons go up to 300%, in 25% steps. */
+export const PDF_ZOOM_MIN = 1;
+export const PDF_ZOOM_MAX = 3;
+const ZOOM_STEP = 0.25;
+/** Pages redraw sharp this long after the zoom stops changing (ms); until then they scale. */
+const ZOOM_REDRAW_MS = 250;
+/** The most pixels a page's canvas may have: iOS Safari won't draw a canvas over about 16.7 million. */
+const MAX_CANVAS_PIXELS = 12_000_000;
+
+/** A zoom level inside the limits, to the nearest 1%. */
+export function clampZoom(zoom: number): number {
+  return Math.round(Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, zoom)) * 100) / 100;
+}
+
 interface PageSlot {
   number: number;
   /** CSS height of the slot before it renders (from the first page's shape). */
@@ -89,16 +128,21 @@ interface PageSlot {
  * canvas. Nothing in the PDF runs: no JavaScript, forms, XFA or links are rendered, and the bytes
  * come from a short-lived signed URL by `fetch`, never as a page the browser opens. Pages render
  * lazily as they scroll near the viewport, so a 500-page PDF opens as fast as a short one (PDF.js
- * fetches byte ranges where the server allows it). Each page's text is in a visually hidden block
- * for screen readers. `page` scrolls to a page (citations: `?page=N`), and `pageChange` reports the
+ * fetches byte ranges where the server allows it). Over each canvas is PDF.js's text layer (SEC-06b):
+ * the page's text, transparent and in place, so screen readers read it and it can be found and
+ * selected. A scanned page has no text of its own; given `storedText`, a screen reader hears what
+ * OCR read from it instead. `page` scrolls to a page (citations: `?page=N`), and `pageChange` reports the
  * page in view. `highlight` (AI-05) marks a quote on its page from PDF.js's text content, across a
  * page break when it runs on, scrolls it into view and reports the outcome (`highlighted`): a
  * scanned page has no text layer, so the caller shows the OCR text instead.
+ *
+ * Zoom (MOB-02): pinch with two fingers, the − and + buttons, or `-`, `+` and `0` in the pages; the
+ * percentage button fits the width again. Pages scale at once and redraw sharp when the zoom settles.
  */
 @Component({
   selector: 'mt-pdf-viewer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MtButton, MtNote],
+  imports: [MtButton, MtIconButton, MtNote],
   host: { class: 'mt-pdf-viewer' },
   template: `
     @if (problem(); as p) {
@@ -132,10 +176,51 @@ interface PageSlot {
         >
           Next page
         </button>
+        <span class="zoom" role="group" aria-label="Zoom">
+          <button
+            mtIconButton
+            icon="minus"
+            size="sm"
+            label="Zoom out"
+            data-zoom-out
+            [disabled]="zoom() <= minZoom"
+            (click)="zoomBy(-1)"
+          ></button>
+          <button
+            mtButton
+            variant="ghost"
+            size="sm"
+            data-zoom-fit
+            [attr.aria-label]="'Zoom ' + percent() + '%. Fit to width'"
+            [disabled]="zoom() === minZoom"
+            (click)="setZoom(minZoom)"
+          >
+            {{ percent() }}%
+          </button>
+          <button
+            mtIconButton
+            icon="plus"
+            size="sm"
+            label="Zoom in"
+            data-zoom-in
+            [disabled]="zoom() >= maxZoom"
+            (click)="zoomBy(1)"
+          ></button>
+        </span>
       </div>
-      <div #scroller class="pages" tabindex="0" [attr.aria-label]="label()" role="region" (scroll)="onScroll()">
+      <div
+        #scroller
+        class="pages"
+        tabindex="0"
+        [attr.aria-label]="label()"
+        role="region"
+        aria-keyshortcuts="+ - 0"
+        [style.--mt-pdf-zoom]="zoom()"
+        (scroll)="onScroll()"
+        (keydown)="onKey($event)"
+      >
         @for (slot of slots(); track slot.number) {
-          <div class="page" [attr.data-page]="slot.number" [style.min-height.px]="slot.height">
+          <div class="page" [attr.data-page]="slot.number" [style.min-height.px]="slot.height * zoom()">
             <div class="mt-sr" role="heading" aria-level="3">Page {{ slot.number }}</div>
           </div>
         }
@@ -152,8 +237,19 @@ interface PageSlot {
     }
     .bar {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: var(--space-8);
+    }
+    .zoom {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-left: auto;
+    }
+    .zoom [data-zoom-fit] {
+      min-width: 56px;
+      font-variant-numeric: tabular-nums;
     }
     .pages {
       flex: 1;
@@ -162,11 +258,13 @@ interface PageSlot {
       overflow: auto;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: flex-start;
       gap: var(--space-12);
       padding: var(--space-12);
       background: var(--bg-sunken);
       border-radius: var(--radius-md);
+      /* Two fingers zoom the pages (below), not the whole app. */
+      touch-action: pan-x pan-y;
     }
     .pages:focus-visible {
       outline: none;
@@ -174,15 +272,68 @@ interface PageSlot {
     }
     .page {
       position: relative;
-      width: 100%;
+      flex: none;
+      width: calc(100% * var(--mt-pdf-zoom, 1));
       background: #fff;
       box-shadow: var(--shadow-card, 0 1px 2px rgb(0 0 0 / 12%));
+    }
+    /* A drawn page is as tall as its canvas: the placeholder height is the first page's shape. */
+    .page[data-rendered] {
+      min-height: 0 !important;
     }
     /* The canvas and highlight boxes are created in code, outside the template's encapsulation. */
     .page ::ng-deep canvas {
       display: block;
       width: 100%;
       height: auto;
+    }
+    /* PDF.js's text layer (web/pdf_viewer.css): transparent text sized and placed over the canvas. */
+    .page ::ng-deep .textLayer {
+      position: absolute;
+      inset: 0;
+      overflow: clip;
+      line-height: 1;
+      text-align: initial;
+      text-size-adjust: none;
+      forced-color-adjust: none;
+      transform-origin: 0 0;
+      caret-color: CanvasText;
+      z-index: 0;
+      --scale-round-x: 1px;
+      --scale-round-y: 1px;
+      --min-font-size: 1;
+      --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+      --min-font-size-inv: calc(1 / var(--min-font-size));
+    }
+    .page ::ng-deep .textLayer :is(span, br) {
+      color: transparent;
+      position: absolute;
+      white-space: pre;
+      cursor: text;
+      transform-origin: 0% 0%;
+    }
+    .page ::ng-deep .textLayer > :not(.markedContent) {
+      z-index: 1;
+      --font-height: 0;
+      font-size: calc(var(--text-scale-factor) * var(--font-height));
+      --scale-x: 1;
+      --rotate: 0deg;
+      transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+    }
+    .page ::ng-deep .textLayer ::selection {
+      background: color-mix(in srgb, AccentColor, transparent 75%);
+    }
+    .page ::ng-deep .textLayer br::selection {
+      background: transparent;
+    }
+    .page ::ng-deep .textLayer[data-main-rotation='90'] {
+      transform: rotate(90deg) translateY(-100%);
+    }
+    .page ::ng-deep .textLayer[data-main-rotation='180'] {
+      transform: rotate(180deg) translate(-100%, -100%);
+    }
+    .page ::ng-deep .textLayer[data-main-rotation='270'] {
+      transform: rotate(270deg) translateX(-100%);
     }
     .page ::ng-deep .mt-pdf-hl {
       display: block;
@@ -206,6 +357,8 @@ export class PdfViewer {
   readonly page = input<number | null>(null);
   /** A quote to mark (citations, AI-05). */
   readonly highlight = input<PdfHighlight | null>(null);
+  /** Where scanned pages' stored text comes from; without it a scanned page is only its image. */
+  readonly storedText = input<PdfStoredText | null>(null);
 
   readonly pageChange = output<number>();
   readonly highlighted = output<PdfHighlightResult>();
@@ -217,13 +370,25 @@ export class PdfViewer {
   protected readonly count = signal(0);
   protected readonly current = signal(1);
   protected readonly slots = signal<PageSlot[]>([]);
+  protected readonly zoom = signal(PDF_ZOOM_MIN);
+  protected readonly percent = computed(() => Math.round(this.zoom() * 100));
+  protected readonly minZoom = PDF_ZOOM_MIN;
+  protected readonly maxZoom = PDF_ZOOM_MAX;
+  private redrawTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Each page render's turn, so a slower earlier render doesn't replace a newer one. */
+  private renderSeq = 0;
+  /** A two-finger pinch: the finger spread and the zoom when it started. */
+  private pinch: { distance: number; zoom: number } | null = null;
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly loadLib = inject(PDFJS_LOADER);
 
+  private lib: PdfLib | null = null;
   private task: PDFDocumentLoadingTask | null = null;
   private pdf: PDFDocumentProxy | null = null;
+  /** Scanned pages' stored text by page, as it loads (null: it didn't). */
+  private stored = new Map<number, Promise<string | null>>();
   private observer: IntersectionObserver | null = null;
   private readonly rendered = new Set<number>();
   /** The highlight's boxes by page, once located. */
@@ -244,7 +409,96 @@ export class PdfViewer {
       const highlight = this.highlight();
       if (this.count()) untracked(() => void this.locate(highlight));
     });
-    inject(DestroyRef).onDestroy(() => this.close());
+    // Pinch to zoom: passive listeners, since `touch-action` already stops the browser's own zoom.
+    effect((onCleanup) => {
+      const scroller = this.scroller()?.nativeElement;
+      if (!scroller) return;
+      const start = (event: TouchEvent) => {
+        this.pinch = event.touches.length === 2 ? { distance: spread(event.touches), zoom: this.zoom() } : null;
+      };
+      const move = (event: TouchEvent) => {
+        const pinch = this.pinch;
+        if (!pinch || event.touches.length !== 2) return;
+        this.setZoom(pinch.zoom * (spread(event.touches) / pinch.distance), middle(event.touches));
+      };
+      const end = (event: TouchEvent) => {
+        if (event.touches.length < 2) this.pinch = null;
+      };
+      const options = { passive: true } as const;
+      scroller.addEventListener('touchstart', start, options);
+      scroller.addEventListener('touchmove', move, options);
+      scroller.addEventListener('touchend', end, options);
+      scroller.addEventListener('touchcancel', end, options);
+      onCleanup(() => {
+        scroller.removeEventListener('touchstart', start);
+        scroller.removeEventListener('touchmove', move);
+        scroller.removeEventListener('touchend', end);
+        scroller.removeEventListener('touchcancel', end);
+      });
+    });
+    // The width a page has at 100%, which sizes the text layers (with the zoom) as the view resizes.
+    effect((onCleanup) => {
+      const scroller = this.scroller()?.nativeElement;
+      if (!scroller || typeof ResizeObserver !== 'function') return;
+      const observer = new ResizeObserver(([entry]) => {
+        if (entry) scroller.style.setProperty('--mt-pdf-fit', String(entry.contentRect.width));
+      });
+      observer.observe(scroller);
+      onCleanup(() => observer.disconnect());
+    });
+    inject(DestroyRef).onDestroy(() => {
+      clearTimeout(this.redrawTimer);
+      this.close();
+    });
+  }
+
+  /** One zoom step in (1) or out (-1), keeping the middle of the view in place. */
+  protected zoomBy(steps: number): void {
+    this.setZoom(Math.round((this.zoom() + steps * ZOOM_STEP) / ZOOM_STEP) * ZOOM_STEP);
+  }
+
+  /**
+   * Zooms to `value`, keeping the point under `anchor` (screen coordinates; the middle of the view by
+   * default) where it is, then redraws the pages sharp once the zoom settles.
+   */
+  setZoom(value: number, anchor?: { x: number; y: number }): void {
+    const next = clampZoom(value);
+    const before = this.zoom();
+    if (next === before) return;
+    const scroller = this.scroller()?.nativeElement;
+    this.zoom.set(next);
+    if (scroller) {
+      const box = scroller.getBoundingClientRect();
+      const x = anchor ? anchor.x - box.left : scroller.clientWidth / 2;
+      const y = anchor ? anchor.y - box.top : scroller.clientHeight / 2;
+      const left = scroller.scrollLeft + x;
+      const top = scroller.scrollTop + y;
+      // Apply the new width now (the binding follows), so the scroll position is measured against it.
+      scroller.style.setProperty('--mt-pdf-zoom', String(next));
+      const ratio = next / before;
+      scroller.scrollLeft = left * ratio - x;
+      scroller.scrollTop = top * ratio - y;
+    }
+    clearTimeout(this.redrawTimer);
+    this.redrawTimer = setTimeout(() => this.redraw(), ZOOM_REDRAW_MS);
+  }
+
+  protected onKey(event: KeyboardEvent): void {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key === '+' || event.key === '=') this.zoomBy(1);
+    else if (event.key === '-') this.zoomBy(-1);
+    else if (event.key === '0') this.setZoom(PDF_ZOOM_MIN);
+    else return;
+    event.preventDefault();
+  }
+
+  /** Draws the pages near the view again at the current zoom; the rest redraw as they come into view. */
+  private redraw(): void {
+    const scroller = this.scroller()?.nativeElement;
+    if (!scroller || !this.observer) return;
+    this.rendered.clear();
+    this.observer.disconnect();
+    for (const element of scroller.querySelectorAll('.page')) this.observer.observe(element);
   }
 
   protected go(page: number): void {
@@ -286,9 +540,11 @@ export class PdfViewer {
     this.problem.set(null);
     this.count.set(0);
     this.slots.set([]);
+    this.zoom.set(PDF_ZOOM_MIN);
     try {
       const lib = await this.loadLib();
       if (id !== this.loadId) return;
+      this.lib = lib;
       this.task = lib.getDocument({
         url,
         cMapUrl: pdfAsset('cmaps/'),
@@ -347,36 +603,94 @@ export class PdfViewer {
     const pdf = this.pdf;
     if (!pdf) return;
     this.rendered.add(number);
+    const turn = String(++this.renderSeq);
+    slot.dataset['render'] = turn;
     try {
       const page = await pdf.getPage(number);
       const width = slot.clientWidth || 800;
       const base = page.getViewport({ scale: 1 });
       const ratio = window.devicePixelRatio || 1;
-      const viewport = page.getViewport({ scale: (width / base.width) * ratio });
+      // Sharp at the zoom shown, short of the canvas size a phone can draw.
+      const most = Math.sqrt(MAX_CANVAS_PIXELS / (base.width * base.height));
+      const viewport = page.getViewport({ scale: Math.min((width / base.width) * ratio, most) });
       const canvas = document.createElement('canvas');
       canvas.width = Math.floor(viewport.width);
       canvas.height = Math.floor(viewport.height);
       canvas.setAttribute('aria-hidden', 'true');
       await page.render({ canvas, viewport }).promise;
-      if (pdf !== this.pdf) return;
+      if (pdf !== this.pdf || slot.dataset['render'] !== turn) return;
+      const drawn = slot.dataset['rendered'] !== undefined;
       slot.style.minHeight = '';
-      slot.appendChild(canvas);
+      const old = slot.querySelector('canvas');
+      if (old) old.replaceWith(canvas);
+      else slot.appendChild(canvas);
       slot.dataset['rendered'] = '';
       this.drawBoxes(slot, number);
+      // A redraw at a new zoom keeps the page's text from the first time: it scales with the page.
+      if (drawn) return;
       const text = await page.getTextContent();
-      const words = text.items
-        .map((item) => ('str' in item ? item.str : ''))
-        .join(' ')
-        .trim();
-      if (words) {
-        const reader = document.createElement('div');
-        reader.className = 'mt-sr';
-        reader.textContent = words;
-        slot.appendChild(reader);
+      if (pdf !== this.pdf) return;
+      if (text.items.some((item) => 'str' in item && item.str.trim())) {
+        await this.drawText(slot, text, page.getViewport({ scale: width / base.width }), base.width);
+      } else {
+        await this.describeScan(slot, number);
       }
     } catch {
       this.rendered.delete(number);
     }
+  }
+
+  /**
+   * PDF.js's text layer over the canvas: each run of text, transparent, where the page shows it. It
+   * scales with the page: the width at 100% (`--mt-pdf-fit`, until measured the width now) times
+   * the zoom, over the page's own width.
+   */
+  private async drawText(
+    slot: HTMLElement,
+    text: Awaited<ReturnType<PDFPageProxy['getTextContent']>>,
+    viewport: PageViewport,
+    pageWidth: number,
+  ): Promise<void> {
+    const lib = this.lib;
+    if (!lib) return;
+    const layer = document.createElement('div');
+    layer.className = 'textLayer';
+    const fit = (slot.clientWidth || 800) / this.zoom();
+    layer.style.setProperty(
+      '--total-scale-factor',
+      `calc(var(--mt-pdf-fit, ${fit}) * var(--mt-pdf-zoom, 1) / ${pageWidth})`,
+    );
+    slot.appendChild(layer);
+    await new lib.TextLayer({ textContentSource: text, container: layer, viewport }).render();
+  }
+
+  /** A scanned page, for screen readers: the text OCR read from it, or that there is none. */
+  private async describeScan(slot: HTMLElement, number: number): Promise<void> {
+    const source = this.storedText();
+    if (!source) return;
+    const pdf = this.pdf;
+    const text = await this.scanText(source, number);
+    if (pdf !== this.pdf) return;
+    const reader = document.createElement('div');
+    reader.className = 'mt-sr';
+    reader.dataset['scanText'] = '';
+    if (text === null) reader.textContent = SCANNED_PAGE_COPY.failed;
+    else reader.textContent = text.trim() ? `${SCANNED_PAGE_COPY.text} ${text.trim()}` : SCANNED_PAGE_COPY.none;
+    slot.appendChild(reader);
+  }
+
+  /** A scanned page's stored text, asked for with the next few pages not yet asked for. */
+  private scanText(source: PdfStoredText, number: number): Promise<string | null> {
+    const known = this.stored.get(number);
+    if (known) return known;
+    const pages: number[] = [];
+    for (let page = number; page <= this.count() && pages.length < STORED_TEXT_PAGES; page++) {
+      if (!this.stored.has(page)) pages.push(page);
+    }
+    const batch = source(pages).catch(() => null);
+    const textOf = (page: number) => batch.then((texts) => (texts ? (texts.get(page) ?? '') : null));
+    for (const page of pages) this.stored.set(page, textOf(page));
+    return textOf(number);
   }
 
   /**
@@ -451,8 +765,21 @@ export class PdfViewer {
     this.observer?.disconnect();
     this.observer = null;
     this.rendered.clear();
+    this.stored = new Map();
     void this.task?.destroy();
     this.task = null;
     this.pdf = null;
   }
+}
+
+/** How far apart two fingers are, in px. */
+function spread(touches: TouchList): number {
+  const [a, b] = [touches[0], touches[1]];
+  return a && b ? Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1 : 1;
+}
+
+/** The point between two fingers. */
+function middle(touches: TouchList): { x: number; y: number } {
+  const [a, b] = [touches[0], touches[1]];
+  return a && b ? { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 } : { x: 0, y: 0 };
 }

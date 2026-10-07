@@ -131,3 +131,19 @@ export function toDisplay(value: DateOnly, locale = 'en-AU'): string {
     new Date(Date.UTC(y, m - 1, d)),
   );
 }
+
+/**
+ * The financial year a date falls in, as the year it starts (`budgets[fyStartYear]`). The year
+ * starts in July by default, so 2026-08-01 and 2027-06-30 are both 2026 (FY2026–27).
+ */
+export function fyStartYear(date: DateOnly, startMonth = 7): number {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  return month >= startMonth ? year : year - 1;
+}
+
+/** "FY2026–27" for the year starting in 2026 (en dash). A calendar FY (January) is "FY2026". */
+export function fyLabel(startYear: number, startMonth = 7): string {
+  if (startMonth === 1) return `FY${startYear}`;
+  return `FY${startYear}–${String((startYear + 1) % 100).padStart(2, '0')}`;
+}

@@ -117,8 +117,17 @@ export async function runRollback(args: RollbackArgs, deps: RollbackDeps): Promi
   );
   const { orgId } = input;
   const orgPath = `orgs/${orgId}`;
-  const org = (await db.getAll([orgPath])).get(orgPath);
+  const tombstonePath = `deletedOrgs/${orgId}`;
+  const found = await db.getAll([orgPath, tombstonePath]);
+  const org = found.get(orgPath);
   const orgName = String(org?.['name'] ?? input.orgLine?.data['name'] ?? '');
+  // Once an owner asks for the practice to be deleted (SEC-05), its deletion owns it: a rollback
+  // racing the deletion job could leave half of either behind.
+  if (org?.['deletionScheduledAt'] || found.get(tombstonePath)) {
+    throw new RollbackRefusedError(
+      'The practice is scheduled for deletion: an owner cancels it (Settings → Data and deletion) before a rollback.',
+    );
+  }
   if (args.env === 'prod' && !args.dryRun) {
     if (!args.confirmProd) throw new RollbackRefusedError('Deleting from prod needs --confirm-prod.');
     const typed = await deps.ask(`Type the org's name (${orgName}) to delete run ${args.runId} from prod: `);

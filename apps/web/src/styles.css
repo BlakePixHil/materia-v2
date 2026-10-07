@@ -1,1 +1,6 @@
 /* You can add global styles to this file, and also import other style files */
+
+/* PDF.js measures text for the PDF preview's text layer on a canvas it adds to the page; never shown. */
+canvas.hiddenCanvasElement {
+  display: none;
+}

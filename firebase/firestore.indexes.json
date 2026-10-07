@@ -1231,6 +1231,24 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "assigneeUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "deadlines",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "privileged",
           "order": "ASCENDING"
         },
@@ -2383,6 +2401,12 @@
       "indexes": []
     },
     {
+      "collectionGroup": "connectorGrants",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "invites",
       "fieldPath": "tokenHash",
       "indexes": [
@@ -2441,6 +2465,46 @@
     {
       "collectionGroup": "shards",
       "fieldPath": "values",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "timeEntries",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "timeEntries",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chunks",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chunks",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "metrics",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "metrics",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "requests",
+      "fieldPath": "startedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "requests",
+      "fieldPath": "result",
       "indexes": []
     },
     {

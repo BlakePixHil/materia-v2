@@ -15,12 +15,24 @@ import { syncClaims } from './claims';
 import { assertCanGrant } from './invites';
 import { assertAnotherOwner, memberPath } from './shared';
 import { audit } from '../audit/audit';
+import { revokeConnections } from '../connector/grants';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
 import { errorReportFields } from '../core/log';
 import { OAUTH_SECRETS } from '../integrations/providers';
 import { removeMemberConnections } from '../integrations/vault';
 
-type Ctx = CallableContext<unknown>;
+export type MemberCtx = CallableContext<unknown>;
+type Ctx = MemberCtx;
+
+/** Ends a departing member's Claude connections (INT-07). Best effort, like their integrations. */
+export async function endClaudeConnections(ctx: Ctx, uid: string): Promise<number> {
+  return revokeConnections(ctx, ctx.orgId, { uid }, { actor: 'system', reason: 'member_removed' }).catch(
+    (error: unknown) => {
+      ctx.log.warn('member Claude connections not ended', errorReportFields(error));
+      return 0;
+    },
+  );
+}
 
 interface MemberState {
   role: Role;
@@ -32,7 +44,7 @@ interface MemberState {
  * `decide` validate and return the new fields, and keeps at least one active owner whenever an
  * active owner stops being one.
  */
-async function changeMember(
+export async function changeMember(
   ctx: Ctx,
   uid: string,
   decide: (member: MemberState) => Partial<MemberState>,
@@ -55,14 +67,15 @@ async function changeMember(
 }
 
 /** Signs the person out everywhere when the org they lost was their active org (FND-17). */
-async function revokeIfActive(ctx: Ctx, db: Firestore, uid: string): Promise<boolean> {
+export async function revokeIfActive(ctx: Ctx, db: Firestore, uid: string): Promise<boolean> {
   const user = await db.doc(`users/${uid}`).get();
   if (user.get('activeOrgId') !== ctx.orgId) return false;
   await ctx.auth().revokeRefreshTokens(uid);
   return true;
 }
 
-const sync = (ctx: Ctx, uid: string) =>
+/** Recomputes the person's claims, this org included (FND-17). */
+export const syncMember = (ctx: Ctx, uid: string) =>
   syncClaims({ db: ctx.db, auth: ctx.auth(), now: ctx.clock.now() }, uid, { alsoOrgIds: [ctx.orgId] });
 
 /** `orgs-changeRole` (FND-17). Only owners grant or take away the owner role. */
@@ -79,7 +92,7 @@ export const changeRoleDefinition = {
       assertCanGrant(ctx.role, input.role);
       return { role: input.role };
     });
-    await sync(ctx, input.uid);
+    await syncMember(ctx, input.uid);
     await audit(ctx, {
       action: 'member.role_changed',
       entity: { path: memberPath(ctx.orgId, input.uid) },
@@ -104,7 +117,7 @@ export const suspendMemberDefinition = {
       return { status: input.suspended ? 'suspended' : 'active' };
     });
     const revoked = input.suspended ? await revokeIfActive(ctx, ctx.db, input.uid) : false;
-    await sync(ctx, input.uid);
+    await syncMember(ctx, input.uid);
     await audit(ctx, {
       action: input.suspended ? 'member.suspended' : 'member.reinstated',
       entity: { path: memberPath(ctx.orgId, input.uid) },
@@ -134,17 +147,23 @@ export const removeMemberDefinition = {
       return { status: 'removed' };
     });
     const tokensRevoked = await revokeIfActive(ctx, ctx.db, input.uid);
-    await sync(ctx, input.uid);
+    await syncMember(ctx, input.uid);
     // Best effort: a provider being down never blocks removing someone.
     const integrationsRemoved = await removeMemberConnections(ctx, input.uid).catch((error: unknown) => {
       ctx.log.warn('member integrations not removed', errorReportFields(error));
       return 0;
     });
+    // Their Claude connections (INT-07) already stop at the next call; this ends them for good.
+    const claudeConnectionsEnded = await endClaudeConnections(ctx, input.uid);
     await audit(ctx, {
       action: 'member.removed',
       entity: { path: memberPath(ctx.orgId, input.uid) },
       summary: 'Member removed',
-      data: { tokensRevoked, ...(integrationsRemoved ? { integrationsRemoved } : {}) },
+      data: {
+        tokensRevoked,
+        ...(integrationsRemoved ? { integrationsRemoved } : {}),
+        ...(claudeConnectionsEnded ? { claudeConnectionsEnded } : {}),
+      },
     });
     return { ok: true, tokensRevoked };
   },
@@ -177,7 +196,7 @@ export const transferOwnershipDefinition = {
       tx.update(to.ref, { role: 'owner', ...stamp });
       tx.update(from.ref, { role: 'admin', ...stamp });
     });
-    await Promise.all([sync(ctx, input.toUid), sync(ctx, uid)]);
+    await Promise.all([syncMember(ctx, input.toUid), syncMember(ctx, uid)]);
     await audit(ctx, {
       action: 'org.ownership_transferred',
       entity: { path: memberPath(orgId, input.toUid) },

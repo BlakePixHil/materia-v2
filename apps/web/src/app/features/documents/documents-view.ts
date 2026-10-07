@@ -1,5 +1,6 @@
 import type { DocumentItem } from '@materia/data-access/repository';
 import {
+  DOCUMENT_CATEGORY_LABELS,
   DOCUMENT_MAX_BYTES,
   documentDisplayName,
   findVersion,
@@ -20,19 +21,7 @@ import type { MtBadgeTone, MtIconName } from '@materia/ui';
 export type DocumentRow = DocumentItem & { id: string };
 export type DocumentCategory = DocumentItem['category'];
 
-export const DOCUMENT_CATEGORY_LABELS: Readonly<Record<DocumentCategory, string>> = {
-  will: 'Will',
-  codicil: 'Codicil',
-  death_certificate: 'Death certificate',
-  grant: 'Grant',
-  affidavit: 'Affidavit',
-  correspondence: 'Correspondence',
-  court_document: 'Court document',
-  order: 'Order',
-  financial: 'Financial',
-  id: 'Identity document',
-  other: 'Other',
-};
+export { DOCUMENT_CATEGORY_LABELS };
 export const DOCUMENT_CATEGORIES = Object.keys(DOCUMENT_CATEGORY_LABELS) as DocumentCategory[];
 
 /** What kind of file a document is, for the Type filter, its icon and how it previews. */

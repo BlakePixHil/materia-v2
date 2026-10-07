@@ -20,6 +20,7 @@ import {
   stageRequirementsOf,
   type StageRequirements,
 } from './matter-view';
+import { PhoneLayout } from '../../core/layout/phone-layout';
 import { MatterNameDialog, type MatterNameDialogData } from '../matters/matter-name-dialog';
 
 /** A refused move: the stage asked for and what it needs. */
@@ -46,9 +47,11 @@ export const STAGE_BACK_LOCKED = 'Only a lawyer can move a matter back a stage';
   host: { class: 'mt-col', style: 'gap: var(--space-8)' },
   template: `
     @if (stages().length) {
+      <!-- On a phone (MOB-02), the track and "Stage 2 of 6 · …" as a menu: six labels don't fit. -->
       <mt-estate-stepper
         [stages]="stages()"
         [current]="current()"
+        [compact]="phone()"
         [interactive]="movable() && !moving()"
         (stageSelect)="move($event)"
       />
@@ -111,6 +114,7 @@ export class MatterStages {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly dialogs = inject(DialogService);
+  protected readonly phone = inject(PhoneLayout).phone;
 
   protected readonly moving = signal(false);
   /** Stages move while the matter is live and not closed or archived. */

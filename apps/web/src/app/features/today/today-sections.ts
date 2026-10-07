@@ -433,10 +433,14 @@ export class TodayDue extends TodayCard {
           <ul class="tasks" aria-labelledby="mt-today-tasks">
             @for (item of data.myTasks(); track item.key) {
               <li data-today-item data-kind="task" [attr.data-key]="item.key">
+                <!-- On a phone, swipe right to complete and left to snooze to tomorrow (MOB-02). -->
                 <mt-task-row
+                  swipeable
+                  snoozable
                   [task]="item.entry.vm"
                   [disabled]="!item.entry.editable"
                   (done)="tasks.toggleDone(item.entry)"
+                  (snooze)="tasks.snooze(item.entry)"
                   (open)="openTask(item.entry)"
                 />
               </li>

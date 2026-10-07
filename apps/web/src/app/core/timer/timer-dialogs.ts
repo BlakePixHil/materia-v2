@@ -117,10 +117,11 @@ export function askIdle(dialogs: DialogService, since: Date): Promise<'keep' | '
 export async function pickMatter(
   dialogs: DialogService,
   title = 'Switch the timer',
+  description = 'Choose the matter to time.',
 ): Promise<{ matterId: string; matterNumber: string } | null> {
   const { TimeQuickEntry } = await import('../../features/time/time-quick-entry');
   const picked = await dialogs.open<TimeQuickEntryData, TimeQuickEntryResult | undefined>(TimeQuickEntry, {
-    data: { pick: { title, description: 'Choose the matter to time.' } },
+    data: { pick: { title, description } },
   }).result;
   return picked ? { matterId: picked.matterId, matterNumber: picked.number } : null;
 }
@@ -205,7 +206,7 @@ type PickedMatter = WithId<MatterDetail>;
       gap: var(--space-8);
       padding: var(--space-8) var(--space-12);
       border-radius: var(--radius-md);
-      background: var(--bg-subtle);
+      background: var(--bg-sunken);
     }
     .days {
       margin: 0;

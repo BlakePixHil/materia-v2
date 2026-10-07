@@ -16,11 +16,13 @@ import components
 import components_next  # noqa: F401  (registers second-pass components)
 import components_lit  # noqa: F401  (registers litigation components)
 import components_pass4  # noqa: F401  (registers fourth-pass components, DES-01)
+import components_pwa  # noqa: F401  (registers the installable app's components, MOB-01)
 import screens
 import screens_next
 import screens_lit
 import screens_settings
 import screens_pass4
+import screens_connector
 import tokens
 from icons import ICONS, icon_file
 
@@ -44,8 +46,9 @@ SCREEN_DIRS = {"Today": "TodayScreen", "Matter": "MatterScreen", "Matters list":
                "Settings: Audit log": "SettingsAuditScreen",
                "Inbox": "InboxScreen", "Inbox: unfiled email": "UnfiledEmailScreen", "Notifications": "NotificationsScreen",
                "Clerk": "ClerkScreen", "Tablet: Today": "TabletTodayScreen", "Tablet: Matter": "TabletMatterScreen",
-               "Tablet: Matters list": "TabletMattersListScreen", "System states": "SystemStatesScreen"}
-screens.SCREENS += screens_lit.SCREENS + screens_next.SCREENS + screens_settings.SCREENS + screens_pass4.SCREENS
+               "Tablet: Matters list": "TabletMattersListScreen", "System states": "SystemStatesScreen",
+               "Settings: Claude connector": "SettingsClaudeConnectorScreen", "Connect Claude": "ConnectClaudeScreen"}
+screens.SCREENS += screens_lit.SCREENS + screens_next.SCREENS + screens_settings.SCREENS + screens_pass4.SCREENS + screens_connector.SCREENS
 
 
 def write(rel, text):

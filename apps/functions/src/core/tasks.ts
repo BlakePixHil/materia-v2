@@ -6,6 +6,8 @@ import { REGION } from '../config';
 import type { Ports } from '../ports';
 import { adminDb } from './admin';
 import { createLog, type Log } from './log';
+import { purgedTaskOrg } from './purge-guard';
+import { purgeLookup } from './trigger';
 import { ports } from '../ports/container';
 
 export { enqueue, taskId, type EnqueueOptions } from './enqueue';
@@ -27,7 +29,12 @@ export interface QueueDefinition<TSchema extends z.ZodType> {
   ) => Promise<void>;
 }
 
-/** A Cloud Tasks queue and its handler, declared together (retry config lives in code). */
+/**
+ * A Cloud Tasks queue and its handler, declared together (retry config lives in code). A task for
+ * a practice being deleted (its payload's `orgId` has a `deletedOrgs` tombstone, SEC-05) is
+ * dropped, so a late reminder or delivery doesn't write into it; the deletion job's own queue
+ * (`orgs-purge`) is the exception.
+ */
 export function defineQueue<TSchema extends z.ZodType>(def: QueueDefinition<TSchema>) {
   return onTaskDispatched(
     {
@@ -41,6 +48,11 @@ export function defineQueue<TSchema extends z.ZodType>(def: QueueDefinition<TSch
     async (request) => {
       const log = createLog({ fn: def.name, taskId: request.id, attempt: request.retryCount });
       const input = def.input.parse(request.data);
+      const orgId = await purgedTaskOrg(def.name, input, purgeLookup());
+      if (orgId) {
+        log.info('skipped: the practice is being deleted', { orgId });
+        return;
+      }
       await def.handler(input, { log, db: adminDb(), ports: ports(), attempt: request.retryCount });
       log.info('ok');
     },

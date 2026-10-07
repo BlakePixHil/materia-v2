@@ -16,8 +16,9 @@ import { defineCallable, type CallableDefinition } from '../core/callable';
 /**
  * `clerk-updateSettings` (AI-13): owners and admins turn Clerk on or off for the org and per
  * feature, set the monthly spend limit (US cents), the per-person daily request limit and the daily
- * OCR page limit (AI-04), and acknowledge the data-use disclosure. Only the fields sent change;
- * `null` clears a limit (the OCR limit goes back to its default). The
+ * OCR page limit (AI-04), set the house style for Clerk's letters (AI-10), and acknowledge the
+ * data-use disclosure. Only the fields sent change; `null` clears a limit (the OCR limit goes back
+ * to its default) or the house style. The
  * acknowledgement must name the current disclosure version, and records who and when. Each change
  * is audited as `clerk.settings_changed` with what it was and what it became. The gateway reads the
  * result on the next call. A spend limit below this month's spend is allowed (the page confirms
@@ -64,6 +65,11 @@ export const updateSettingsDefinition = {
         if (value === undefined) continue;
         set(field, before[field], value ?? undefined);
         update[`settings.clerk.${field}`] = value ?? null;
+      }
+      if (input.draftingStyle !== undefined) {
+        const style = input.draftingStyle || null;
+        set('draftingStyle', before.draftingStyle, style ?? undefined);
+        update['settings.clerk.draftingStyle'] = style;
       }
       if (input.acknowledgeVersion !== undefined && before.ackVersion !== input.acknowledgeVersion) {
         set('acknowledgement', before.ackVersion, input.acknowledgeVersion);

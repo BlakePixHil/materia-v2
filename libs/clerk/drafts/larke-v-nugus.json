@@ -1,0 +1,17 @@
+{
+  "id": "larke-v-nugus",
+  "title": "Larke v Nugus request",
+  "description": "Asks the will's drafter how the will was prepared and signed.",
+  "matterTypes": ["contest", "fp"],
+  "promptId": "drafting@1.0.0",
+  "template": "system-letterhead",
+  "audience": "third_party",
+  "recipientRoles": ["other_side_solicitor", "witness"],
+  "requiredFacts": [
+    { "fact": "matter.deceased.name", "label": "name of the deceased" },
+    { "fact": "matter.keyFacts.willDate", "label": "date of the will" },
+    { "fact": "party:client", "label": "our client" }
+  ],
+  "guidance": "Write to the solicitor (or firm) who prepared the deceased's will. We act for a person with an interest in the estate who has concerns about the will. You may refer to Larke v Nugus by name; give no citation.\n\n- Say who we act for and their interest (as the matter facts or instructions say), and identify the will by the deceased's name and the will's date.\n- Ask, in line with the practice in Larke v Nugus, for a statement of the circumstances of the will's preparation and signing: who gave the instructions and when, who was present, how the instructions were taken, whether the deceased's capacity was assessed and how, who witnessed the signing, and any earlier wills they hold.\n- Ask for copies of the file notes, attendance notes and drafts on their file.\n- Offer to pay their reasonable costs of answering only if the instructions say so.\n- Keep the tone neutral: don't allege anything against them or the beneficiaries.",
+  "needsInstructions": false
+}

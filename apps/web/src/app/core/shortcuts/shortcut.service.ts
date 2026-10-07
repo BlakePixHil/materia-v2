@@ -120,10 +120,34 @@ export class ShortcutService {
   /** Injected clock, for tests. */
   now: () => number = () => Date.now();
 
+  /** Escape presses that began while a dialog or menu was open: they close that layer and nothing else. */
+  private readonly overlayEscapes = new WeakSet<Event>();
+
   constructor() {
     const listener = (event: Event) => this.handle(event as KeyboardEvent);
+    // Before anything else sees the key (overlays close on the document's capture phase, at once
+    // under reduced motion), note whether this Escape is for an open dialog or menu. Without it, the
+    // Escape that closed a dialog also reached the page and, on New matter, asked to close the
+    // whole intake (SEC-06).
+    const mark = (event: Event) => {
+      if ((event as KeyboardEvent).key === 'Escape' && this.overlayOpen()) this.overlayEscapes.add(event);
+    };
+    const view = this.document.defaultView;
+    view?.addEventListener('keydown', mark, true);
     this.document.addEventListener('keydown', listener);
-    inject(DestroyRef).onDestroy(() => this.document.removeEventListener('keydown', listener));
+    inject(DestroyRef).onDestroy(() => {
+      view?.removeEventListener('keydown', mark, true);
+      this.document.removeEventListener('keydown', listener);
+    });
+  }
+
+  /** Whether this Escape began while a dialog or menu was open, so it was that layer's to handle. */
+  closedOverlay(event: Event): boolean {
+    return this.overlayEscapes.has(event);
+  }
+
+  private overlayOpen(): boolean {
+    return !!this.document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"], [role="menu"]');
   }
 
   /** Registers a shortcut; returns a function that unregisters it. */
@@ -159,6 +183,7 @@ export class ShortcutService {
   /** Handles a keydown (exposed for tests and for components that stop propagation). */
   handle(event: KeyboardEvent): boolean {
     if (event.isComposing || event.key === 'Process' || event.defaultPrevented) return false;
+    if (this.overlayEscapes.has(event)) return false;
     if (['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return false;
     const chord = eventChord(event, this.platform);
     const hasModifier = /(^|\+)(mod|ctrl|alt)\+/.test(chord);

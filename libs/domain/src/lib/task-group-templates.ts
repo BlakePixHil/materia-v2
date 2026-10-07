@@ -9,7 +9,7 @@ import {
   TASK_GROUP_TEMPLATE_TASKS_MAX,
   TASK_GROUP_TEMPLATE_TITLE_MAX,
   type TaskGroupTemplateTask,
-} from './schemas/org-records';
+} from './schemas/task-templates';
 import { addDays, type DateOnly } from './values/date-only';
 import { newId } from './values/ids';
 

@@ -1,13 +1,11 @@
 {
   "id": "draft-006",
-  "fixtures": {
-    "drafting/house-style.txt": "b10f21eb0048ba53"
-  },
+  "fixtures": {},
   "placeholders": {
     "missing": [
       {
         "fact": "publication date",
-        "keywords": ["publication", "date", "published"]
+        "keywords": ["publication", "date", "publish"]
       }
     ],
     "forbidden": ["published on 2"]

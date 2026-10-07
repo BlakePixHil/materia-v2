@@ -16,7 +16,7 @@
  "Contacts": 900,
  "Settings": 1228,
  "Onboarding": 931,
- "Mobile": 1124,
+ "Mobile": 3254,
  "Settings: Team and roles": 1174,
  "Settings: Billing and rates": 972,
  "Settings: Practice": 1028,
@@ -31,5 +31,7 @@
  "Tablet: Today": 1028,
  "Tablet: Matter": 1028,
  "Tablet: Matters list": 1152,
- "System states": 1498
+ "System states": 1498,
+ "Settings: Claude connector": 1096,
+ "Connect Claude": 948
 }

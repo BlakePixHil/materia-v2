@@ -1,6 +1,6 @@
 {
   "id": "draft-007",
-  "description": "Letter to the council: rates account number unknown",
+  "description": "Creditor notification to the council: rates account number unknown",
   "matter": {
     "matterNumber": "HV-2026-0007",
     "title": "Estate of Gwendolyn May Pryce",
@@ -12,7 +12,8 @@
     "responsibleLawyer": "Jordan Price",
     "probate": {
       "applicationFiled": "2026-02-12",
-      "granted": null
+      "granted": null,
+      "grantType": "probate"
     },
     "upcomingDeadlines": [
       {
@@ -22,13 +23,16 @@
     ],
     "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
   },
-  "documents": [
-    {
-      "id": "d-style",
-      "fixture": "drafting/house-style.txt",
-      "title": "Letter house style"
-    }
-  ],
-  "query": "Draft a letter to the City of Greater Geelong asking for a final rates notice for 19 Weddell Road, quoting the rates account number.",
-  "today": "2026-03-20"
+  "documents": [],
+  "query": "Creditor notification to the City of Greater Geelong asking for a final rates notice.",
+  "today": "2026-03-20",
+  "draft": {
+    "typeId": "creditor-notification",
+    "recipients": [
+      {
+        "name": "City of Greater Geelong, Rates Department"
+      }
+    ],
+    "instructions": "Ask for a final rates notice for 19 Weddell Road, North Geelong, quoting the rates account number."
+  }
 }

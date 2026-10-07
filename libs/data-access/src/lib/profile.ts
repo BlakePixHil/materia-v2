@@ -18,13 +18,15 @@ export const UserProfileSchema = /* @__PURE__ */ z.object({
   lastName: z.string().optional(),
   avatarUrl: z.string().optional(),
   prefs: z.record(z.string(), z.unknown()).optional(),
+  /** Pinned matters per org (CORE-23), read loosely: `pinsInOrg` in libs/domain picks the org's ids. */
+  pinnedMatterIds: z.record(z.string(), z.unknown()).optional(),
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;
 
 /**
- * `users/{uid}`, by the uid. The person updates their own names, `prefs` (written whole) and
- * `avatarUrl` client-direct (`User.update`); everything else is server-owned. Call it in an
- * injection context.
+ * `users/{uid}`, by the uid. The person updates their own names, `prefs` (written whole),
+ * `avatarUrl` and `pinnedMatterIds` client-direct (`User.update`); everything else is
+ * server-owned. Call it in an injection context.
  */
 export function userProfileRepository(): Repository<UserProfile> {
   return repo(() => 'users', { schema: UserProfileSchema, version: User.version, update: User.update });

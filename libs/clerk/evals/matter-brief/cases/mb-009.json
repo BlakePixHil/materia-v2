@@ -1,0 +1,42 @@
+{
+  "id": "mb-009",
+  "description": "Administration: the estate house sale settles in five days, an overdue vendor statement task, the contract added.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "deadlines": [
+      {
+        "id": "dl-settlement",
+        "title": "Settlement of 22 Fictional Rd, Belmont",
+        "dueDate": "2026-10-12",
+        "critical": true
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-s32",
+        "title": "Order the section 32 vendor statement",
+        "dueDate": "2026-10-01"
+      },
+      {
+        "id": "t-adjust",
+        "title": "Prepare the statement of adjustments"
+      }
+    ],
+    "documents": [
+      {
+        "id": "doc-contract",
+        "name": "Contract of sale - 22 Fictional Rd, Belmont.pdf",
+        "category": "other",
+        "createdAt": "2026-10-01T03:00:00.000Z"
+      }
+    ]
+  },
+  "tags": ["due"],
+  "matter": {
+    "matterNumber": "M-2026-0160",
+    "title": "Estate of Colin Belmont (fictional)",
+    "type": "admin",
+    "status": "open"
+  }
+}

@@ -54,33 +54,25 @@ export const MigrationMetaShape = {
 export const META_KEYS = ['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'schemaVersion'] as const;
 export const SERVER_KEYS = [...META_KEYS, '_requestId', 'deletedAt', 'deletedBy', 'migration'] as const;
 
-/**
- * Builds the four exports for an entity from its field shape:
- * - schema: the Firestore shape, with common meta fields (and soft-delete fields when deletable);
- * - create: the input for create callables (no meta, no server-owned fields);
- * - update: a partial, whitelisted subset of the create fields.
- */
 type CreateShape<T extends z.ZodRawShape, K extends PropertyKey> = Omit<T, K>;
 type UpdateShape<T extends z.ZodRawShape, N extends PropertyKey, K extends PropertyKey> = {
   [P in Exclude<N, K> & keyof T]: z.ZodOptional<T[P]>;
 };
 
-export function withMeta<
-  T extends z.ZodRawShape,
-  K extends keyof T & string = never,
-  N extends keyof T & string = keyof T & string,
->(
+interface EntityOptions<K extends PropertyKey, N extends PropertyKey> {
+  path: string;
+  version?: number;
+  softDelete?: boolean;
+  migratable?: boolean;
+  /** Fields set by the server only (counters, denormalised fields): excluded from create/update. */
+  serverOwned?: readonly K[];
+  /** Fields that may be changed after creation. Defaults to every create field. */
+  updatable?: readonly N[];
+}
+
+function storedSchema<T extends z.ZodRawShape, K extends PropertyKey, N extends PropertyKey>(
   shape: T,
-  options: {
-    path: string;
-    version?: number;
-    softDelete?: boolean;
-    migratable?: boolean;
-    /** Fields set by the server only (counters, denormalised fields): excluded from create/update. */
-    serverOwned?: readonly K[];
-    /** Fields that may be changed after creation. Defaults to every create field. */
-    updatable?: readonly N[];
-  },
+  options: EntityOptions<K, N>,
 ) {
   const fullShape = {
     ...shape,
@@ -88,21 +80,74 @@ export function withMeta<
     ...(options.softDelete ? SoftDeleteShape : {}),
     ...(options.migratable === false ? {} : MigrationMetaShape),
   };
+  return z.object(fullShape as T & typeof MetaShape).strict();
+}
+
+function createKeys(shape: z.ZodRawShape, options: EntityOptions<PropertyKey, PropertyKey>): string[] {
+  const serverOwned = new Set<PropertyKey>(options.serverOwned ?? []);
+  return Object.keys(shape).filter((key) => !serverOwned.has(key));
+}
+
+const pickShape = (shape: z.ZodRawShape, keys: string[]): z.ZodRawShape =>
+  Object.fromEntries(keys.map((key) => [key, shape[key]])) as z.ZodRawShape;
+
+function createSchema<T extends z.ZodRawShape, K extends keyof T & string, N extends PropertyKey>(
+  shape: T,
+  options: EntityOptions<K, N>,
+) {
+  return z.object(pickShape(shape, createKeys(shape, options))).strict() as unknown as z.ZodObject<
+    CreateShape<T, K>,
+    z.core.$strict
+  >;
+}
+
+function updateSchema<T extends z.ZodRawShape, K extends keyof T & string, N extends keyof T & string>(
+  shape: T,
+  options: EntityOptions<K, N>,
+) {
   const serverOwned = new Set<string>(options.serverOwned ?? []);
-  const createKeys = Object.keys(shape).filter((key) => !serverOwned.has(key));
-  const updateKeys = ((options.updatable as readonly string[] | undefined) ?? createKeys).filter(
+  const updateKeys = ((options.updatable as readonly string[] | undefined) ?? createKeys(shape, options)).filter(
     (key) => !serverOwned.has(key),
   );
-  const pickShape = (keys: string[]): z.ZodRawShape =>
-    Object.fromEntries(keys.map((key) => [key, shape[key]])) as z.ZodRawShape;
-
-  const schema = z.object(fullShape as T & typeof MetaShape).strict();
-  const create = z.object(pickShape(createKeys)).strict() as unknown as z.ZodObject<CreateShape<T, K>, z.core.$strict>;
-  const update = z.object(pickShape(updateKeys)).partial().strict() as unknown as z.ZodObject<
+  return z.object(pickShape(shape, updateKeys)).partial().strict() as unknown as z.ZodObject<
     UpdateShape<T, N, K>,
     z.core.$strict
   >;
-  return { schema, create, update, version: options.version ?? 1, path: options.path };
+}
+
+/**
+ * Builds the four exports for an entity from its field shape:
+ * - schema: the Firestore shape, with common meta fields (and soft-delete fields when deletable);
+ * - create: the input for create callables (no meta, no server-owned fields);
+ * - update: a partial, whitelisted subset of the create fields.
+ *
+ * The shape is a function, and each of the three schemas is built on first use: a page imports
+ * this library's schema files whole, and building every entity's schemas up front made start-up
+ * slower, while a page that only reads never needs `create` or `update` (MOB-02b, ADR-056).
+ */
+export function withMeta<
+  T extends z.ZodRawShape,
+  K extends keyof T & string = never,
+  N extends keyof T & string = keyof T & string,
+>(shape: () => T, options: EntityOptions<K, N>) {
+  let fields: T | undefined;
+  const fieldsOf = () => (fields ??= shape());
+  let schema: ReturnType<typeof storedSchema<T, K, N>> | undefined;
+  let create: ReturnType<typeof createSchema<T, K, N>> | undefined;
+  let update: ReturnType<typeof updateSchema<T, K, N>> | undefined;
+  return {
+    get schema() {
+      return (schema ??= storedSchema(fieldsOf(), options));
+    },
+    get create() {
+      return (create ??= createSchema(fieldsOf(), options));
+    },
+    get update() {
+      return (update ??= updateSchema(fieldsOf(), options));
+    },
+    version: options.version ?? 1,
+    path: options.path,
+  };
 }
 
 /** The longest quote a citation keeps (the API's `cited_text` is cut to this). */

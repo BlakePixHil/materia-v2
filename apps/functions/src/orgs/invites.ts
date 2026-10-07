@@ -205,8 +205,8 @@ export interface AcceptResult {
 /**
  * `orgs-acceptInvite` (FND-17): the signed-in person joins the org with the invited role. Their
  * verified email must match the invite, which must be pending and under seven days old. Accepting
- * again is a no-op. The org becomes their active org. A person-level callable: the invitee has no
- * claim for the org yet.
+ * again is a no-op. The org becomes their active org. A practice scheduled for deletion (SEC-05)
+ * takes no one new. A person-level callable: the invitee has no claim for the org yet.
  */
 export const acceptInviteDefinition = {
   name: 'orgs-acceptInvite',
@@ -223,10 +223,18 @@ export const acceptInviteDefinition = {
     const now = clock.now();
 
     const joined = await db.runTransaction(async (tx) => {
-      const [invite, member] = await Promise.all([tx.get(match.ref), tx.get(db.doc(memberPath(orgId, caller)))]);
+      const [invite, member, org] = await Promise.all([
+        tx.get(match.ref),
+        tx.get(db.doc(memberPath(orgId, caller))),
+        tx.get(orgRef),
+      ]);
       const status = invite.get('status') as string;
       if (status === 'accepted' && invite.get('acceptedBy') === caller) return false;
       if (status !== 'pending') throw new DomainError('INVITE_INVALID', 'The invite is no longer valid');
+      // A practice waiting to be deleted takes no one new (SEC-05).
+      if (!org.exists || org.get('deletionScheduledAt')) {
+        throw new DomainError('INVITE_INVALID', 'The practice is being deleted', { reason: 'org_deleting' });
+      }
       if ((invite.get('expiresAt') as Timestamp).toMillis() <= now.getTime()) {
         throw new DomainError('INVITE_EXPIRED', 'The invite has expired');
       }

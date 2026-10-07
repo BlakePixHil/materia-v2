@@ -62,7 +62,7 @@ test.describe('referrers', () => {
 
     // Flag Tamsin as a referrer, a financial planner.
     await page.goto('/contacts?contact=c-tamsin');
-    await expect(detail.getByRole('heading', { level: 1, name: 'Tamsin Larkwood' })).toBeVisible(FIRST_LOAD);
+    await expect(detail.getByRole('heading', { level: 2, name: 'Tamsin Larkwood' })).toBeVisible(FIRST_LOAD);
     await detail.getByRole('button', { name: 'Edit' }).click();
     // Click, then wait for the state: the checkbox re-renders on the next change detection.
     const referrer = dialog.getByLabel('Refers clients to the practice');

@@ -1,0 +1,41 @@
+{
+  "id": "mb-008",
+  "description": "Family provision claim: court deadlines inside the window; the mediation is outside it and never mentioned.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "deadlines": [
+      {
+        "id": "dl-serve",
+        "title": "Serve the originating motion on the executor",
+        "dueDate": "2026-10-09",
+        "critical": true
+      },
+      {
+        "id": "dl-directions",
+        "title": "Directions hearing, Supreme Court of Victoria",
+        "dueDate": "2026-10-20"
+      },
+      {
+        "id": "dl-mediation",
+        "title": "Court-ordered mediation",
+        "dueDate": "2026-11-03"
+      }
+    ],
+    "documents": [
+      {
+        "id": "doc-affidavit",
+        "name": "Affidavit of the plaintiff (draft, fictional).docx",
+        "category": "affidavit",
+        "createdAt": "2026-10-02T03:00:00.000Z"
+      }
+    ]
+  },
+  "tags": ["litigation", "window"],
+  "matter": {
+    "matterNumber": "M-2026-0151",
+    "title": "Hallett v Whitfield (fictional)",
+    "type": "fp",
+    "status": "open"
+  }
+}

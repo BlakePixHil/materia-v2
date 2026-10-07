@@ -135,6 +135,7 @@ describe('app routes', () => {
       'Document templates',
       'Clerk and AI',
       'Audit log',
+      'Data and deletion',
     ]);
     TestBed.resetTestingModule();
 

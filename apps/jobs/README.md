@@ -1,6 +1,6 @@
 # Cloud Run jobs (`apps/jobs`)
 
-Heavy work runs here, not in functions (ADR-014, FND-24). One image, one entry point: `node main.js <job>` with `pdf` today and `court-book` and `ocr` reserved for later tickets.
+Heavy work runs here, not in functions (ADR-014, FND-24). One image, one entry point: `node main.js <job>` with `pdf` today and `court-book` and `ocr` reserved for later tickets. Cloud Run starts it with no argument and the job's name in `CLOUD_RUN_JOB`, which picks the job (the deployed job `pdf` runs `pdf`).
 
 ## The job contract
 

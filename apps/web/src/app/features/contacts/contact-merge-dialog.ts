@@ -122,7 +122,7 @@ export interface ContactMergeDialogResult {
       cursor: pointer;
     }
     .mt-merge-option[data-selected] {
-      border-color: var(--border-brand, var(--bg-brand));
+      border-color: var(--bg-brand);
       background: var(--bg-selected);
     }
     .mt-merge-option .caption,

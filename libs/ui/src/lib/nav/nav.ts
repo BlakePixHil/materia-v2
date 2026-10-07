@@ -56,8 +56,14 @@ export class MtNavItem {
   /** Shown as is up to 99, then "99+". */
   readonly count = input<number>();
   readonly collapsed = input(false, { transform: booleanAttribute });
+  /**
+   * Not shown as the current page even when the route matches: Matters while one of its matters is
+   * open from the sidebar's Pinned section (CORE-23), so only one item reads as current.
+   */
+  readonly inactive = input(false, { transform: booleanAttribute });
 
-  protected readonly active = routerLinkActiveSignal();
+  private readonly routeActive = routerLinkActiveSignal();
+  protected readonly active = computed(() => this.routeActive() && !this.inactive());
 
   constructor() {
     mtTooltipBinding(
@@ -132,6 +138,8 @@ export interface MtTabBarItem {
   fab?: boolean;
   /** Something actionable (unread), shown as a badge on the icon: as is up to 99, then "99+". */
   count?: number;
+  /** Overrides the router's answer: More stays current on the pages it leads to. */
+  active?: boolean | undefined;
 }
 
 /**
@@ -156,7 +164,8 @@ export interface MtTabBarItem {
       height: 16px;
       padding: 0 4px;
       border-radius: 8px;
-      background: var(--bg-brand);
+      /* brand-600: white 10px text on brand-500 is 4.47:1, under AA; on brand-600 it is 5.76:1 (SEC-06). */
+      background: var(--bg-brand-hover);
       color: var(--text-on-brand);
       font: 500 10px/16px var(--font-mono);
       text-align: center;
@@ -171,8 +180,8 @@ export interface MtTabBarItem {
           [routerLink]="item.link"
           routerLinkActive
           #rla="routerLinkActive"
-          [attr.data-active]="rla.isActive ? '' : null"
-          [attr.aria-current]="rla.isActive ? 'page' : null"
+          [attr.data-active]="(item.active ?? rla.isActive) ? '' : null"
+          [attr.aria-current]="rla.isActive ? 'page' : item.active ? 'true' : null"
           [attr.aria-label]="item.fab ? item.label : null"
         >
           @if (item.fab) {

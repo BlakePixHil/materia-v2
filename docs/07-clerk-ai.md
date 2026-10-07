@@ -138,10 +138,22 @@ See [ADR-044](adr/044-clerk-chat-panel.md). Code: `apps/functions/src/clerk/chat
 - **Privilege (rule 6):** an answer whose context or tools drew on privileged material is `privileged`, and so is its thread. Both need `privileged.view` to read, shared or not.
 - **Panel** (`mt-clerk-chat`, a lazy chunk loaded the first time ⌘J opens the shell's panel):
   - threads per matter (the person's own and the shared ones), "New thread" and "Share with matter team";
-  - the scope chip and attachments, and the `/` commands (`/summarise`; `/chronology`, `/draft` and `/timeline` coming soon);
+  - the scope chip and attachments, and the `/` commands (`/summarise`; `/draft` opens Clerk drafting, AI-10; `/chronology` and `/timeline` coming soon);
   - streamed answers with the working line, Stop, Retry, Copy and Helpful / Not helpful with a reason;
   - suggestion cards and the citation viewer.
 - **Emulator:** the fake model's chat script follows markers in the question: `[fake:tools]` (search, then deadlines), `[fake:slow]` (a slow stream), `[fake:refuse]` and `[fake:propose]` (a task suggestion).
+
+### As built (AI-10): drafting letters
+
+See [ADR-050](adr/050-clerk-drafting.md). Code: `apps/functions/src/clerk/drafts/`, `libs/domain/src/lib/clerk-drafts.ts`, `libs/clerk/drafts/` (the letter types), `libs/data-access/src/lib/clerk-drafts.ts`, `apps/web/src/app/features/clerk-drafts/`.
+
+- **Letter types** (`CLERK_DRAFT_TYPES`, compiled from `libs/clerk/drafts/*.json` by `pnpm materia-scripts clerk-prompts`): asset transfer instructions, bank balance request, client update, costs disclosure cover letter, creditor notification, grant notification to beneficiaries, Larke v Nugus request, letter of demand (family provision), and a letter from the lawyer's instructions. Each says which matter types it fits, whether it goes to the client or a third party, which party roles it writes to, the facts it needs and its guidance. The guidance waits on a practitioner's review (AI-10a).
+- **Callables** (`CLERK_DRAFT_CALLABLES`, idempotent): `clerk-startDraft` and `clerk-redraft` (`clerk.use`) set the draft to `drafting` and queue `clerk-runDraft`; `clerk-rewriteDraft` (`clerk.use`) rewrites a selection; `clerk-saveDraft` (`document.upload`) files it on the letterhead through `generateDocument` (`source: 'clerk_draft'`, correspondence, tag `clerk-draft`). All check `checkClerkAvailable(…, 'drafting')` (except save) and `writableMatter`.
+- **The run** (`drafts/run.ts`): context (feature `drafting`, 40k tokens; privileged material withheld from a third-party letter unless the person allowed it), the type's missing facts (`missingDraftFacts`), then `drafting@1.0.0` streamed into `bodyMd` with Stop. The finished draft keeps `generatedMd`, the provenance, the verified citations, `missingFacts`, `privileged`, the manifest and the prompt and model.
+- **Guardrails:** `[[TO CONFIRM: …]]` for every missing fact; no outcome predictions in client letters (a prospects placeholder instead); no send path; a privileged third-party letter needs a second confirmation on save and is filed privileged.
+- **Editor** (`/matters/:id/drafts/:draftId`): the letter with placeholders highlighted, Rewrite on a selection, Redraft (asks first when edited), Discard and Save to documents; beside it, what to confirm, what the matter lacked and the sources. Edits autosave to the draft with their provenance. The start page is `/matters/:id/drafts/new` (`?type=`, `?instructions=`).
+- **Settings:** "House style for letters" under Settings → Clerk and AI (`settings.clerk.draftingStyle`).
+- **Emulator:** the fake model drafts a short letter with one placeholder; `[fake:refuse]` and `[fake:slow]` in the instructions refuse or stream slowly.
 
 ## Context assembly (AI-03)
 
@@ -186,6 +198,7 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md) and "Clerk suggestions (AI-07
 - **Acceptance rates:** these are counted in the monthly Clerk metrics doc (`metrics/clerk-{YYYY-MM}`) per kind and per `promptId@promptVersion`. Use `suggestionAcceptanceRates(values)` to compare prompt versions (AI-12).
 - **UI:** `mt-suggestion` (`@materia/ui/suggestion`) is the presentational card. `mt-suggestion-card` (web, `features/suggestions`) adds Accept, inline Edit with field errors, Dismiss with a reason and the stale review, and the AI-06 panel and the Inbox should reuse it. The matter Overview's "Clerk suggests…" lists open suggestions by kind, with "Accept all N …" and a "Show expired" switch.
 - **Expiry:** suggestions are open for 14 days, after which the hourly `suggestions-expire` marks them `expired`.
+- **From Claude (INT-07, [ADR-064](adr/064-claude-connector.md)):** the Claude connector's `propose_task`, `propose_note` and `propose_time_entry` tools call `proposeSuggestions` with `promptId: 'connector.claude'` and `requestedBy {uid, name}`, so the card says "Suggested in Claude by …" and acceptance rates count apart from Clerk's. They need `clerk.features.suggestions` on, like Clerk's, but run no model and use none of the practice's Clerk budget or key: the person's own Claude wrote the proposal.
 
 ## Features → tickets
 
@@ -195,6 +208,7 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md) and "Clerk suggestions (AI-07
 | Suggestions engine | AI-07 | `suggestions` per kind | medium |
 | Document classification on ingest | AI-04 | category + title + date | low |
 | Will extraction | AI-08 | testator, date, executors, beneficiaries, gifts, guardians, trusts, attestation red flags | high |
+| Matter brief (Overview) | AI-06c | up to 5 ClerkBrief items, each citing a record | low |
 | Daily brief | AI-09 | ClerkBrief items, each citing a record | low |
 | Drafting | AI-10 | a letter draft (Markdown → docx) | medium |
 | Time capture assist | AI-11 | time-entry suggestions | low |
@@ -224,6 +238,18 @@ See [ADR-054](adr/054-insights-narratives.md). Code: `libs/domain/src/lib/insigh
 - **Cache:** `orgs/{orgId}/insightsNarratives/{narrativeKey}` (server-only) holds the checked paragraphs, `figuresHash`, `promptRef`, `model`, `generatedAt`, the months and `generatedBy`, kept for 24 hours. A different hash makes the kept one `stale`. With no figures in either period the answer is `insufficientData` with no call and nothing kept.
 - **UI:** the "What changed" card under the Stats on Insights. Chips (label and value) pick out the hero, a Stat or a chart, and the bar for a matter type or deadline result. Refresh waits out the 10 minutes. The card is hidden for read-only members and when the practice has turned the feature off.
 
+## Matter brief (AI-06c)
+
+See [ADR-059](adr/059-matter-brief.md). Code: `libs/domain/src/lib/matter-brief.ts` (facts, template, checks), `apps/functions/src/clerk/matter-brief.ts` (callable), `apps/functions/src/clerk/context/brief-facts.ts`, `apps/web/src/app/features/matter-detail/matter-brief.ts` (card).
+
+- **Callable:** `clerk-matterBrief({matterId, mode: 'open'|'refresh'})` (roles with `matter.view`) returns `{brief, outcome: 'kept'|'rebuilt'|'pending'}`. `brief` is `{source: 'clerk'|'template', reason?, headline, items[{kind, text, tone?, refs[{kind, id, label}], at?}], read, day, privileged, generatedAt, pending, refreshesLeft}`. `open` rebuilds it when the facts' hash or the day changed, it is 24 hours old, or the matter's privilege changed; `refresh` rebuilds it now, 3 a day per matter (RATE_LIMITED after).
+- **Switches:** the template is written for everyone; Clerk writes it only when `gateway.assertOn(ctx, 'matterBrief')` passes: role `clerk.use`, `clerk.enabled`, `clerk.features.matterBrief` (server-enforced, off in prod), the practice's Clerk switch and its "Matter brief" toggle (`settings.clerk.features.matterBrief`), and the acknowledgement. A background feature: no per-person rate limit; the monthly budget and an org cap of 300 briefs a day (`counters/clerk-matter-briefs`) apply.
+- **Facts:** `CONTEXT_POLICIES.matterBrief` (`facts: 'brief'`, 8k tokens, matter scope only) sends `<matter_facts kind="brief">`: overdue and next-14-day deadlines and tasks, a few undated tasks, feed lines and documents added in the last 14 days (names and categories, never text), open suggestions. Privileged documents and suggestions only on a privileged matter.
+- **Prompt:** `matter-brief@1.0.0` (low effort, 1,500 output tokens), output `matterBrief`: `{headline, items[{kind: 'due'|'changed'|'next', text, refs[]}]}`.
+- **Checks:** `checkBrief` keeps at most 5 items whose refs are in the facts and whose numbers and dates are in the facts they cite (or the windows and counts); a headline that fails is replaced by the template's. Nothing kept means the template, with a 30-minute wait before opening the matter asks again. The log line `matter brief` carries counts, `costMicros` and tokens, never text.
+- **UI:** top of the Overview's left column. "Clerk brief" (Clerk's) or "Matter brief" (the template, the plain card); sources open the record's tab, a document's page or the "Clerk suggests…" card; "New since your last visit" from this device's last Overview visit; Refresh and "Ask a follow-up" (⌘J, not on phones) for roles that can use Clerk.
+- **Evals:** the `matter-brief` suite (10 cases), graded by `factAccuracy`, `recordRecall`, `privilegeLeak` and `noInventions`.
+
 ## Evals (AI-12)
 
 - **Golden sets** live in `libs/clerk/evals/<suite>/` (`config.json`, `cases/*.json`, `gold/*.json`). They use fictional matters and PDFs, generated or hand-written. **Never real client data.**
@@ -243,15 +269,15 @@ See [ADR-054](adr/054-insights-narratives.md). Code: `libs/domain/src/lib/insigh
 The full guide is `libs/clerk/evals/README.md`. In short:
 
 - **Runner:** `pnpm nx run clerk:eval --feature=<suite>|all [--subset] [--model=…] [--runs=N] [--judge] [--provider=fake] [--accept-baseline]`. It runs each case through the real `createClerkGateway` (prompt rendering, structured-output validation, citation mapping, metering), with an in-memory store, every flag on, the model under test forced, and no availability fallbacks. At most 4 cases run at once. It writes `dist/evals/<suite>/<timestamp>.json` and `.md` (ids, scores and tokens only, never content). Code: `libs/clerk/src/lib/evals/` (datasets, graders, gate, report) and `apps/functions/src/clerk/evals/` (the gateway executor and CLI).
-- **Suites:** chat (AI-06, 13 cases), will extraction (AI-08, 11), injection (15), privilege (17), plus classification (AI-04), brief (AI-09), drafting (AI-10) and time assist (AI-11) with 10 cases each. A suite whose prompt isn't registered yet is reported **pending**; it runs as soon as its ticket adds the prompt.
-- **Graders** (`libs/clerk/src/lib/evals/graders.ts`, all pure): `schemaValid`, `fieldAccuracy` (exact, normalised, set F1 or date per field), `citationPrecision` (quote on the cited page) with the optional LLM judge as `citationSupport` (`eval-citation-judge@1.0.0`), `citationCoverage`, `privilegeLeak` (canaries planted in privileged fixtures), `injectionResistance` and `injectionFlagged`, `outcomePredictionRefusal` (with gold `referTo`, the refusal must also name the responsible lawyer), `placeholderHonesty` (`[[MISSING: …]]`), `noInventions`, `latencyMs` and `costUsd`.
+- **Suites:** chat (AI-06, 13 cases), will extraction (AI-08, 11), injection (15), privilege (17), drafting (AI-10, 16: every letter type, privilege in a third-party letter, a client letter asked for a prediction, a rewrite), plus classification (AI-04), brief (AI-09) and time assist (AI-11) with 10 cases each. A suite whose prompt isn't registered yet is reported **pending**; it runs as soon as its ticket adds the prompt.
+- **Graders** (`libs/clerk/src/lib/evals/graders.ts`, all pure): `schemaValid`, `fieldAccuracy` (exact, normalised, set F1 or date per field), `citationPrecision` (quote on the cited page) with the optional LLM judge as `citationSupport` (`eval-citation-judge@1.0.0`), `citationCoverage`, `privilegeLeak` (canaries planted in privileged fixtures), `injectionResistance` and `injectionFlagged`, `outcomePredictionRefusal` (with gold `referTo`, the refusal must also name the responsible lawyer), `placeholderHonesty` (`[[TO CONFIRM: …]]`), `noInventions`, `latencyMs` and `costUsd`.
 - **Gate:** each suite's `config.json` sets thresholds and the allowed regression per metric. Baselines are in `libs/clerk/evals/baselines.json`, keyed by prompt version; a new prompt version is compared with the suite's latest accepted baseline. Only an explicit "accept baseline" commit changes that file.
 - **Outages** (overloaded, rate-limited, timed out) are retried, then the case is **inconclusive**, not failed. A provider 400 is a defect and fails the suite. Read-only users are refused by the gateway (`clerk.use`), and that refusal is scored as an empty answer.
 - **Budget:** `libs/clerk/evals/config.json` caps each run (subset $3, full $8). Once the cap is reached, no new case starts and the run fails as aborted.
 - **CI** (`.github/workflows/clerk-evals.yml`, check `clerk-evals`): on PRs touching Clerk it checks that fixtures and prompts are in sync and runs the harness on the fake provider (no tokens). When a PR changes a prompt or an eval dataset (and isn't from a fork), it also runs the live subset, comments the report on the PR and fails on a regression. The nightly full run (06:30 Melbourne, two runs per case to report variance) happens only when Clerk changed on main that day, or on Mondays. Manual dispatch can run any suite or model.
 - **Eval key:** the dev Secret Manager secret `ANTHROPIC_API_KEY` holds an eval-only key, read by the dev deployer through WIF (infra/MANUAL.md). It is never an org's key. Without it, live runs are skipped.
 - **Structured output and citations:** the API rejects citations combined with `output_config.format`, so the adapter turns document citations off for structured requests. Will extraction quotes its sources in its own `source` fields, and the evals check those quotes against the page text.
-- **Descoped for now:** the drafting LLM-judge rubric waits for AI-10's prompt. The privilege suite runs through the runner's own context filter (privileged documents and notes are dropped for roles without `privileged.view`) until AI-03's context builder is wired into the runner.
+- **Descoped for now:** the drafting LLM-judge rubric (AI-10 grades placeholders, inventions, privilege and refusal mechanically). The privilege suite runs through the runner's own context filter (privileged documents and notes are dropped for roles without `privileged.view`) until AI-03's context builder is wired into the runner.
 
 ## Kill switches & failure modes
 

@@ -18,6 +18,8 @@ import ts from 'typescript';
  * 3. A class that no stylesheet defines: a made-up type style (`title-s`, `label-m`, `body-m`; the
  *    scale is `title-l`, `title-m`, `heading`, `body`, `label`, `caption`…) or a design-system name
  *    (`mt-stack`), so the text or layout silently falls back to the browser's defaults.
+ * 4. A token that isn't one (`var(--bg-subtle)`, `var(--surface-2)`): the property silently falls
+ *    back, often to transparent, so a fill or a colour that should be there isn't (SEC-06b).
  */
 const root = path.resolve(import.meta.dirname, '../../..');
 const generated = path.join(root, 'libs/ui/src/generated/components');
@@ -190,6 +192,29 @@ function typeScale(): Set<string> {
 /** Names that look like a type style: a scale word with or without a size (`title-l`, `label`). */
 const TYPE_LIKE = /^(display|title|heading|body|label|caption|numeric|eyebrow|mono)(-[a-z0-9]+)?$/;
 
+/** Custom properties declared in CSS or a template (`--name: …`). */
+function declaredProperties(css: string): string[] {
+  return [...css.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1] ?? '');
+}
+
+/**
+ * Every custom property something defines: the tokens, the design system's and the app's global
+ * stylesheets, any component's styles or template, or code that sets one (`style.setProperty('--x')`,
+ * `[style.--x]`, `{ '--x': … }`).
+ */
+function definedProperties(all: readonly ComponentInfo[]): Set<string> {
+  const { globalCss } = designClasses();
+  let css = globalCss + readFileSync(path.join(root, 'libs/ui/src/generated/tokens.css'), 'utf8');
+  for (const sheet of readdirSync(generated)) css += readFileSync(path.join(generated, sheet), 'utf8');
+  for (const component of all) css += component.ownCss + component.template;
+  const defined = new Set(declaredProperties(css));
+  for (const file of sourceFiles()) {
+    const code = readFileSync(path.join(root, file), 'utf8');
+    for (const match of code.matchAll(/(?:\[style\.|['"`])(--[\w-]+)/g)) defined.add(match[1] ?? '');
+  }
+  return defined;
+}
+
 describe('component styles', () => {
   const all = components();
 
@@ -251,5 +276,19 @@ describe('component styles', () => {
       }
     }
     expect(problems).toEqual([]);
+  });
+
+  it('uses only custom properties (tokens) that something defines', () => {
+    const defined = definedProperties(all);
+    const problems: string[] = [];
+    for (const component of all) {
+      for (const match of (component.ownCss + component.template).matchAll(/var\(\s*(--[\w-]+)/g)) {
+        const name = match[1] ?? '';
+        // A name built in a binding (`'var(--matter-' + type + ')'`) needs some token with that start.
+        const known = name.endsWith('-') ? [...defined].some((token) => token.startsWith(name)) : defined.has(name);
+        if (!known) problems.push(`${component.file}: ${name} isn't defined anywhere`);
+      }
+    }
+    expect([...new Set(problems)]).toEqual([]);
   });
 });

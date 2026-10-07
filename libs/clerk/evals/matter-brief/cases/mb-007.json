@@ -1,0 +1,30 @@
+{
+  "id": "mb-007",
+  "description": "Overdue by days, and one deadline due today.",
+  "role": "lawyer",
+  "today": "2026-10-07",
+  "brief": {
+    "deadlines": [
+      {
+        "id": "dl-today",
+        "title": "Respond to the caveator’s letter",
+        "dueDate": "2026-10-07",
+        "critical": true
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-will",
+        "title": "Return the original will to the safe custody packet",
+        "dueDate": "2026-10-05"
+      }
+    ]
+  },
+  "tags": ["due", "dates"],
+  "matter": {
+    "matterNumber": "M-2026-0142",
+    "title": "Estate of Margaret Whitfield (fictional)",
+    "type": "probate",
+    "status": "open"
+  }
+}

@@ -2,6 +2,7 @@
 const COMMANDS = {
   'clerk-bench': 'Clerk provider latency benchmark (AI-01)',
   'clerk-prompts': 'Compile the Clerk prompt registry (libs/clerk/prompts) for Functions (AI-02)',
+  'legal-docs': 'Compile the legal documents (docs/compliance) for the /legal pages (SEC-01; --check)',
   env: 'Write apps/web environment files from Terraform outputs (FND-03)',
   'bundle-size': 'Check the apps/web gzip bundle budgets (FND-04)',
   csp: 'Check the built index.html against the Hosting CSP; write the e2e emulator config (FND-22)',
@@ -10,6 +11,7 @@ const COMMANDS = {
   'rules-sync': 'Sync the Firestore rules role lists and field whitelists from libs/domain (FND-14)',
   stamp: 'Stamp the web and functions builds with the release version and SHA (FND-05)',
   seed: 'Wipe the emulators and seed the fictional practice (FND-06)',
+  'seed-large': 'Seed the synthetic large practice at --scale of the target firm, emulators only (SEC-07)',
   dev: 'Run the emulators, seed and web app together: pnpm dev (FND-06)',
   'fixture-pdfs': 'Regenerate the fictional fixture PDFs in libs/test-utils (FND-06)',
   'make-fixtures': 'Render the Clerk eval fixture PDFs, typed and scanned (AI-12; --check)',
@@ -27,6 +29,11 @@ const COMMANDS = {
   'restore-matter': 'Restore one matter from a PITR time or a restored database (SEC-03; dry run unless --apply)',
   'backup-drill': 'Restore a backup or export into a scratch database and verify the counts (SEC-03; dev)',
   'backup-status': 'List recent backups, exports, the files copy and the export job logs (SEC-03; read-only)',
+  'dependabot-automerge': 'Merge Dependabot’s dev-patch group once ci passes (SEC-02; run by its workflow)',
+  'demo-reset':
+    'Load (or reset) the demo practice and its accounts on dev or the emulators (--dry-run, --verify, --remove)',
+  'demo-lighthouse':
+    'Mobile Lighthouse on a page of dev, signed in to the demo practice (MOB-02b; --path, --runs, --url)',
 } as const;
 
 type Command = keyof typeof COMMANDS;
@@ -50,6 +57,7 @@ export async function run(argv: string[]): Promise<number> {
     const modules = {
       'clerk-bench': () => import('./clerk-bench.ts'),
       'clerk-prompts': () => import('./clerk-prompts.ts'),
+      'legal-docs': () => import('./legal-docs.ts'),
       env: () => import('./env.ts'),
       'bundle-size': () => import('./bundle-size.ts'),
       csp: () => import('./csp.ts'),
@@ -58,6 +66,7 @@ export async function run(argv: string[]): Promise<number> {
       'rules-sync': () => import('./rules-sync.ts'),
       stamp: () => import('./stamp.ts'),
       seed: () => import('./seed.ts'),
+      'seed-large': () => import('./seed-large.ts'),
       dev: () => import('./dev.ts'),
       'fixture-pdfs': () => import('./seed/pdfs.ts'),
       'make-fixtures': () => import('./make-fixtures.ts'),
@@ -74,6 +83,9 @@ export async function run(argv: string[]): Promise<number> {
       'restore-matter': () => import('./backups/restore-matter.ts'),
       'backup-drill': () => import('./backups/drill.ts'),
       'backup-status': () => import('./backups/status.ts'),
+      'dependabot-automerge': () => import('./dependabot-automerge.ts'),
+      'demo-reset': () => import('./demo-reset.ts'),
+      'demo-lighthouse': () => import('./demo-lighthouse.ts'),
     } satisfies Record<Command, () => Promise<{ main: (argv: string[]) => Promise<void> }>>;
     const { main } = await modules[command]();
     await main(rest);

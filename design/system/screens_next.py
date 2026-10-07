@@ -96,12 +96,12 @@ def contacts():
 
 # ------------------------------------------------------------------ Settings
 def settings_sidebar(active="Clerk and AI"):
-    # Sidebar order follows the app's SETTINGS_SECTIONS (CORE-21); Account, Trust, Rule sets, Integrations and Security are designed ahead (DES-01).
+    # Sidebar order follows the app's SETTINGS_SECTIONS (CORE-21); Account, Trust, Rule sets, Integrations and Security are designed ahead (DES-01); Claude connector is INT-07.
     groups = [("Account", [("Profile", "user"), ("Preferences", "settings"), ("Notifications", "bell")]),
               ("Firm", [("Practice", "matters"), ("Team and roles", "contacts"), ("Billing and rates", "billing"), ("Trust account", "lock")]),
               ("Practice", [("Matter numbering", "list"), ("Matter templates", "board"), ("Rule sets", "scale")]),
               ("Clerk", [("Clerk and AI", "sparkle")]),
-              ("Connections", [("Integrations", "link"), ("Security", "shield")]),
+              ("Connections", [("Integrations", "link"), ("Claude connector", "share"), ("Security", "shield")]),
               ("Records", [("Audit log", "eye")])]
     h = ['<aside class="mt-sidebar">', '<a class="mt-nav" href="#" onclick="return false" style="margin-bottom:6px">' + icon("chevron-left") + '<span>Back to materia</span></a>']
     for g, items in groups:
@@ -191,14 +191,21 @@ def statusbar():
 
 
 def tabbar(active):
-    items = [("today", "Today", "today"), ("matters", "Matters", "matters"), ("rec", "", "mic"), ("clerk", "Clerk", "sparkle"), ("inbox", "Inbox", "inbox")]
+    items = [("today", "Today", "today"), ("matters", "Matters", "matters"), ("record", "Record", "mic"), ("inbox", "Inbox", "inbox"), ("more", "More", "more")]
     out = []
     for k, l, i in items:
-        if k == "rec":
-            out.append(f'<a aria-label="Record"><span class="fab">{icon(i)}</span></a>')
+        act = " data-active" if k == active else ""
+        if k == "record":
+            out.append(f'<a aria-label="Record"{act}><span class="fab">{icon(i)}</span></a>')
         else:
-            out.append(f'<a{" data-active" if k == active else ""}>{icon(i)}{l}</a>')
+            out.append(f'<a{act}>{icon(i)}{l}</a>')
     return f'<nav class="mt-tabbar">{"".join(out)}</nav>'
+
+
+def mtop(title, left=None, right=None, mono=False):
+    """The phone top bar: back or your avatar (More), the screen's title, and one action."""
+    t = f'<span class="tl"><span class="mono-s t-3">{title}</span></span>' if mono else f'<span class="tl">{title}</span>'
+    return '<div class="mt-mtop">' + (left or avatar("JP")) + t + (right or '<span style="width:32px"></span>') + "</div>"
 
 
 def phone_today():
@@ -214,36 +221,158 @@ def phone_today():
     return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("today")}</div>'
 
 
-def phone_matter(dim=False):
-    top = '<div class="mt-mtop">' + ibtn("chevron-left", "Back") + '<span class="tl"><span class="mono-s t-3">WE-142</span></span>' + ibtn("more", "More") + "</div>"
-    actions = "".join(f'<button class="mt-btn" data-variant="{v}" style="flex-direction:column;height:64px;flex:1;gap:4px;font-size:12px">{icon(i)}{l}</button>' for i, l, v in [("phone", "Call executor", "secondary"), ("timer", "Record time", "secondary"), ("sparkle", "Ask Clerk", "ai")])
-    body = ('<div class="mt-mbody"><div class="mt-col" style="gap:8px"><div class="mt-row" style="gap:6px">' + tag("probate") + badge("Notice period", "brand") + '</div><span class="title-l" style="font-size:22px;line-height:28px">Estate of Margaret Whitfield</span>'
+def sec(title, n, body="", open_=False):
+    """A collapsible section of the phone matter screen, with its count and a See all link."""
+    head = f'<div class="mt-row" style="min-height:44px"><span class="heading">{title}</span><span class="caption t-3">{n}</span><span class="mt-ml t-3">{icon("chevron-down" if open_ else "chevron-right")}</span></div>'
+    return f'<div class="mt-col" style="gap:0;border-top:1px solid var(--border-subtle)">{head}{body if open_ else ""}</div>'
+
+
+def phone_matter(sheet=False):
+    top = mtop("WE-142", ibtn("chevron-left", "Back"), ibtn("more", "Matter actions"), mono=True)
+    actions = "".join(f'<button class="mt-btn" data-variant="secondary" style="flex-direction:column;height:64px;flex:1;gap:4px;font-size:12px">{icon(i)}{l}</button>' for i, l in [("phone", "Call executor"), ("timer", "Log time"), ("compose", "Add note")])
+    dls = "".join(f'<div class="mt-mrow"><div class="mt-grow"><div class="tt mt-ell">{t}</div><div class="ts mt-ell">{r}</div></div>{c}</div>' for t, r, c in [
+        ("Publish notice of intended application", "A&amp;P Rules 2014", deadline("Today", "today")), ("File probate application", "From 16 Oct", deadline("16 Oct", "upcoming"))])
+    # The matter brief (AI-06c) under the quick actions, as at the top of the Overview; no "Ask a follow-up" (no Clerk panel on a phone).
+    brief_items = "".join(f'<div class="mt-row" style="gap:10px;padding:10px 0;border-top:1px solid var(--border-subtle);align-items:flex-start">{icon(ic, None, "t-" + tn)}<div class="mt-grow body-s t-2"><b class="t-1">{m}</b> {t}</div></div>' for ic, tn, m, t in [
+        ("calendar", "warning", "Due soon.", "Publish the notice of intended application today."), ("arrow-right", "brand", "Next step.", "File the probate application from 16 Oct.")])
+    brief = ('<div class="mt-clerk-card" style="flex:none"><div class="in" style="gap:4px"><div class="mt-clerk-head" style="padding-bottom:6px">' + avatar(kind="clerk", size="sm") + 'Clerk brief<span class="mt-ml">' + btn("Refresh", "ghost", "sm", "refresh") + "</span></div>"
+             + '<span class="tt" style="font:600 15px/20px var(--font-sans)">The notice goes out today; the application can go in from 16 Oct.</span>' + brief_items + "</div></div>")
+    body = ('<div class="mt-mbody" style="gap:12px"><div class="mt-col" style="gap:8px"><div class="mt-row" style="gap:6px">' + tag("probate") + badge("Notice period", "brand") + '</div><span class="title-l" style="font-size:22px;line-height:28px">Estate of Margaret Whitfield</span>'
             '<div class="mt-row" style="gap:10px"><div class="mt-progress mt-grow" data-size="md"><div class="mt-progress-bar" style="width:28%"></div></div><span class="caption t-3">Stage 3 of 9 · Notice</span></div></div>'
-            '<div class="mt-card" data-pad style="background:var(--bg-selected);border-color:transparent"><div class="mt-row"><span class="label">Next</span><span class="mt-ml">' + deadline("Today", "today") + '</span></div><div class="body">Publish notice of intended application</div><div class="caption t-3">A&amp;P Rules 2014 · filing opens 16 Oct</div>'
-            + btn("Publish notice", "primary", "lg", "court").replace('class="mt-btn"', 'class="mt-btn" style="width:100%"') + "</div>"
             f'<div class="mt-row" style="gap:8px">{actions}</div>'
-            '<div class="mt-col" style="gap:0"><span class="heading" style="padding-bottom:4px">Key people</span>'
-            + "".join(f'<div class="mt-mrow">{avatar(a, "lg", hue=h)}<div class="mt-grow"><div class="tt">{n}</div><div class="ts">{r}</div></div>{x}</div>' for a, h, n, r, x in [("CW", None, "Catherine Whitfield", "Executor · daughter", icon("phone", None, "t-brand")), ("PH", "2", "Peter Hale", "Executor · accountant", icon("phone", None, "t-brand")), ("TW", "risk", "Thomas Whitfield", "Son · not provided for", badge("FP risk", "danger"))])
-            + "</div></div>")
+            + brief
+            + sec("Key facts", "", '<div class="mt-row body-s" style="gap:16px;padding-bottom:8px"><span class="t-3">Date of death</span><span class="mt-ml">14 Jul 2026</span></div>', True)
+            + sec("Deadlines", "2", dls, True)
+            + sec("Tasks", "3") + sec("Documents", "12") + sec("Notes", "4")
+            + "</div>")
     ov = ""
-    if dim:
+    if sheet:
+        rows = "".join(f'<div class="mt-mrow">{icon(i)}<div class="mt-grow"><div class="tt mt-ell">{t}</div>{f"<div class=ts>{d}</div>" if d else ""}</div></div>' for i, t, d in [
+            ("compose", "Add note", ""), ("timer", "Log time", "")])
+        people = "".join(f'<div class="mt-mrow">{icon(i)}<div class="mt-grow"><div class="tt mt-ell">{t}</div><div class="ts mt-ell">{d}</div></div></div>' for i, t, d in [
+            ("phone", "Call Catherine Whitfield", "Executor · 0412 345 678"), ("mail", "Email Catherine Whitfield", "Executor · catherine@example.com"), ("phone", "Call Peter Hale", "Executor · 0398 765 432")])
         ov = ('<div class="mt-overlay" style="position:absolute;inset:0"></div><div class="mt-sheet"><span class="grab"></span>'
-              '<div class="mt-row"><span class="title-m">Recording</span><span class="mt-ml mono t-3">0:14</span></div>'
-              '<div class="mt-wave">' + "".join(f'<i style="height:{h}px"></i>' for h in [8, 14, 22, 30, 18, 36, 44, 28, 16, 34, 40, 24, 12, 20, 32, 26, 14, 8, 18, 28, 36, 22, 12, 6]) + "</div>"
-              '<p class="body-l t-2" style="margin:0">“Called Peter Hale about the share registry statements for the Chen estate, about ten minutes.”</p>'
-              '<div class="mt-col" style="gap:6px"><span class="mt-clerk-head">' + avatar(kind="clerk", size="sm") + "Clerk made this entry</span>"
-              + time_entry("Call with Peter Hale re: share registry", "WE-118 · Estate of Robert Chen", "0.2 h", "$88.00", "phone", True, False) + "</div>"
-              '<div class="mt-row" style="gap:8px">' + btn("Discard", "ghost", "lg").replace('class="mt-btn"', 'class="mt-btn" style="flex:1"') + btn("Save entry", "primary", "lg", "check").replace('class="mt-btn"', 'class="mt-btn" style="flex:2"') + "</div></div>")
+              '<span class="title-m mono">WE-142</span><div class="mt-col" style="gap:0">' + rows + '<span class="mt-mgroup">Contact</span>' + people + "</div></div>")
     return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("matters")}{ov}</div>'
+
+
+def phone_matters():
+    top = mtop("Matters", right=ibtn("plus", "New matter"))
+    search = field(None, placeholder="Number, title or client", ic="search")
+
+    def row(t, num, ty, right=None, tag_=None):
+        return (f'<div class="mt-mrow"><span style="flex:none;width:10px;height:10px;border-radius:3px;background:var(--matter-{ty})"></span>'
+                f'<div class="mt-grow"><div class="tt mt-ell">{t}</div><div class="ts mono-s">{num}</div></div>{right or icon("chevron-right", None, "t-3")}</div>')
+    recent = row("Estate of Margaret Whitfield", "WE-142", "probate") + row("Okafor wills and EPAs", "WE-151", "will")
+    view = "".join(row(t, n, ty, r) for t, n, ty, r in [
+        ("Nguyen v Nguyen", "WE-131", "fp", deadline("2d", "overdue")), ("Estate of Margaret Whitfield", "WE-142", "probate", deadline("Today", "today")),
+        ("Okafor wills and EPAs", "WE-151", "will", deadline("Thu", "soon")), ("Estate of Robert Chen", "WE-118", "admin", None), ("Estate of Doris Fairweather", "WE-097", "loa", None)])
+    body = (f'<div class="mt-mbody" style="gap:8px">{search}<span class="mt-mgroup" style="margin-top:8px">Recent</span><div class="mt-col" style="gap:0">{recent}</div>'
+            f'<span class="mt-mgroup">My open matters</span><div class="mt-col" style="gap:0">{view}</div></div>')
+    return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("matters")}</div>'
+
+
+def phone_record():
+    top = mtop("Record")
+    chips = "".join(f'<button class="mt-chip"{" data-selected" if i == 0 else ""} style="min-height:44px;padding:0 12px;font-size:13px;flex:none"><span class="mono-s">{n}</span> {t}</button>' for i, (n, t) in enumerate([("WE-142", "Whitfield"), ("WE-151", "Okafor"), ("WE-118", "Chen")]))
+    tiles = "".join(f'<button class="mt-card" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:16px;min-height:120px;text-align:left;font:inherit;cursor:pointer"><span style="display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--bg-selected);color:var(--icon-brand)">{icon(i)}</span><span class="tt" style="font:600 15px/20px var(--font-sans)">{t}</span><span class="caption t-3">{d}</span></button>' for i, t, d in [
+        ("timer", "Log time", "Units and a narrative"), ("compose", "Note", "A file note on the matter"), ("camera", "Photo document", "Scan paper pages to a PDF")])
+    # A scan saved without a connection waits here until it uploads (MOB-05).
+    waiting = ('<span class="mt-mgroup">Waiting to upload</span><div class="mt-col" style="gap:0;border:1px solid var(--border-default);border-radius:var(--radius-lg)">'
+               f'<div class="mt-mrow" style="padding:8px 8px 8px 12px"><span style="display:grid;place-items:center;width:32px;height:32px;border-radius:var(--radius-md);background:var(--bg-sunken)">{icon("document")}</span>'
+               '<div class="mt-grow"><div class="tt mt-ell">Will – Okafor.pdf</div><div class="ts mt-ell">WE-151 Okafor wills and EPAs · Waiting for a connection</div></div>' + ibtn("trash", "Delete Will – Okafor.pdf") + "</div></div>")
+    body = (f'<div class="mt-mbody" style="gap:20px"><div class="mt-col" style="gap:8px"><span class="mt-mgroup">Matter</span><div class="mt-row" style="gap:8px;overflow:hidden">{chips}</div>'
+            '<span class="caption t-3">For WE-142 · Estate of Margaret Whitfield.</span></div>'
+            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">{tiles}</div><div class="mt-col" style="gap:8px">{waiting}</div></div>')
+    return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("record")}</div>'
+
+
+def scan_photo(w, h, quad, page="#F4F1EA"):
+    """A photo of a page on a dark desk, with the page's corners as found (MOB-05)."""
+    pts = " ".join(f"{x * w:.0f},{y * h:.0f}" for x, y in quad)
+    lines = "".join(f'<line x1="{(quad[0][0] + 0.08) * w:.0f}" y1="{(quad[0][1] + 0.12 + i * 0.05) * h:.0f}" x2="{(quad[1][0] - 0.12 - (i % 3) * 0.06) * w:.0f}" y2="{(quad[1][1] + 0.12 + i * 0.05) * h:.0f}" stroke="#8A8378" stroke-width="3"/>' for i in range(12))
+    return (f'<svg viewBox="0 0 {w} {h}" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'
+            f'<rect width="{w}" height="{h}" fill="#3B3029"/><polygon points="{pts}" fill="{page}"/>{lines}'
+            f'<polygon points="{pts}" fill="none" stroke="var(--border-focus)" stroke-width="4"/></svg>')
+
+
+def phone_scan_camera():
+    """The in-app camera: the back camera full screen, the page's edges as found, the shutter and a page count."""
+    quad = [(0.16, 0.14), (0.84, 0.17), (0.88, 0.83), (0.12, 0.8)]
+    thumb = '<span style="width:44px;height:56px;border:2px solid #fff;border-radius:var(--radius-sm);background:#F4F1EA"></span>'
+    shutter = '<button aria-label="Take photo" style="width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgb(255 255 255 / .85);box-shadow:0 0 0 2px rgb(0 0 0 / .4)"></button>'
+    top = ('<div class="mt-row" style="position:relative;justify-content:space-between;padding:12px 16px;background:rgb(0 0 0 / .45);color:#fff">'
+           + ibtn("x", "Close the camera").replace('class="mt-ibtn"', 'class="mt-ibtn" style="color:#fff"') + '<span style="font:600 15px/20px var(--font-sans)">2 pages</span></div>')
+    bottom = ('<div class="mt-row" style="position:relative;justify-content:space-between;padding:12px 16px 28px;background:rgb(0 0 0 / .45)">'
+              f'<span style="flex:1;display:flex">{thumb}</span>{shutter}<span style="flex:1;display:flex;justify-content:flex-end">' + btn("Done", "secondary") + "</span></div>")
+    view = f'<div style="position:absolute;inset:0">{scan_photo(390, 780, quad)}</div>'
+    bar = statusbar().replace('class="mt-statusbar"', 'class="mt-statusbar" style="position:relative;color:#fff"')
+    return (f'<div class="mt-phone" style="background:#000;position:relative">{bar}'
+            f'{view}<div style="position:relative;flex:1;display:flex;flex-direction:column;justify-content:space-between">{top}{bottom}</div></div>')
+
+
+def phone_scan_pages():
+    """The pages of the scan: drag into order, each straightened (or its corners to adjust), then the details and Add to matter."""
+    top = mtop("Scan a document", ibtn("chevron-left", "Back to Record"))
+    seg = '<div class="mt-seg"><button class="mt-seg-item" data-selected>Colour</button><button class="mt-seg-item">Black and white</button></div>'
+    def row(n, note, tone=None):
+        colour = {"warning": "var(--text-warning)"}.get(tone, "var(--text-tertiary)")
+        return (f'<div class="mt-row" style="gap:12px;min-height:88px;padding:8px 8px 8px 0;border-top:1px solid var(--border-subtle)">'
+                f'<span style="display:grid;place-items:center;width:44px;align-self:stretch" class="t-3">{icon("grip")}</span>'
+                '<span style="flex:none;width:52px;height:68px;border:1px solid var(--border-default);border-radius:var(--radius-sm);background:#FBFAF7;'
+                'background-image:repeating-linear-gradient(transparent 0 9px,#C9C4BA 9px 10px);background-size:70% 100%;background-repeat:no-repeat;background-position:center 8px"></span>'
+                f'<div class="mt-grow"><div style="font:600 15px/20px var(--font-sans)">Page {n}</div><div style="font:400 13px/18px var(--font-sans);color:{colour}">{note}</div></div>'
+                + ibtn("more", f"Page {n} actions") + "</div>")
+    pages = row(1, "Straightened") + row(2, "Straightened") + row(3, "Edges not found. Adjust the corners if it needs cropping.", "warning")
+    lst = f'<div class="mt-col" style="gap:0;border:1px solid var(--border-default);border-radius:var(--radius-lg);overflow:hidden;margin-top:-1px">{pages}</div>'
+    head = f'<div class="mt-row" style="gap:8px"><span class="label">Pages</span><span class="caption t-3">3 pages</span><span class="mt-ml">{seg}</span></div>'
+    add = '<div class="mt-row" style="gap:8px">' + btn("Take photos", "secondary", None, "camera").replace('class="mt-btn"', 'class="mt-btn" style="flex:1"') + btn("Choose photos", "ghost", None, "images").replace('class="mt-btn"', 'class="mt-btn" style="flex:1"') + "</div>"
+    matter = ('<div class="mt-col" style="gap:6px"><span class="label">Matter</span><div class="mt-row" style="gap:8px"><span class="mono-s t-2">WE-142</span>'
+              '<span class="mt-grow mt-ell body-s">Estate of Margaret Whitfield</span>' + btn("Change", "ghost", "sm") + "</div></div>")
+    details = ('<div class="mt-col" style="gap:12px"><span class="label">Details</span>' + matter + field("Name", "Grant of probate – Whitfield", suffix=".pdf")
+               + field("Category", "Grant", select=True) + switch(False, "Privileged") + "</div>")
+    save = ('<div style="margin:0 -16px;padding:12px 16px;border-top:1px solid var(--border-subtle);background:var(--bg-surface)">'
+            + btn("Add to matter", "primary", None, "upload").replace('class="mt-btn"', 'class="mt-btn" style="width:100%"') + "</div>")
+    body = f'<div class="mt-mbody" style="gap:16px">{head}{lst}{add}{details}{save}</div>'
+    return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("record")}</div>'
+
+
+def phone_scan_crop():
+    """Adjust corners: the page's photo in a sheet, a handle on each corner to drag (or move with the arrow keys)."""
+    quad = [(0.1, 0.12), (0.9, 0.08), (0.94, 0.9), (0.06, 0.94)]
+    handles = "".join(f'<span style="position:absolute;left:{x * 100:.0f}%;top:{y * 100:.0f}%;width:20px;height:20px;margin:-10px 0 0 -10px;border:3px solid var(--border-focus);border-radius:50%;background:var(--bg-surface);box-shadow:0 1px 4px rgb(0 0 0 / .35)"></span>' for x, y in quad)
+    frame_ = f'<div style="position:relative;width:260px;height:347px;margin:0 auto">{scan_photo(260, 347, quad)}{handles}</div>'
+    under = phone_scan_pages().replace('<div class="mt-phone">', '<div class="mt-phone" style="position:relative">', 1)
+    sheet = ('<div class="mt-overlay" style="position:absolute;inset:0"></div><div class="mt-sheet" style="gap:12px"><span class="grab"></span>'
+             '<span class="title-m">Adjust the corners of page 3</span><span class="body-s t-2">Drag each corner onto the corner of the page. The page is straightened to fit.</span>'
+             f'{frame_}<div class="mt-row" style="gap:8px">' + btn("Use the whole photo", "ghost") + '<span class="mt-ml mt-row" style="gap:8px">' + btn("Cancel", "ghost") + btn("Apply", "primary") + "</span></div></div>")
+    return under[: -len("</div>")] + sheet + "</div>"
+
+
+def phone_more():
+    top = mtop("More")
+    def row(i, t, tone=None):
+        return f'<div class="mt-mrow"{f" data-tone={tone}" if tone else ""}>{icon(i)}<span class="tt mt-grow">{t}</span>{"" if tone else icon("chevron-right", None, "chev")}</div>'
+    me = f'<div class="mt-mrow">{avatar("JP", "lg")}<div class="mt-grow"><div class="tt">Jordan Price</div><div class="ts">Lawyer · Hale &amp; Price Lawyers</div></div>{icon("chevron-right", None, "chev")}</div>'
+    body = (f'<div class="mt-mbody" style="gap:0">{me}<span class="mt-mgroup">Workspace</span>'
+            + "".join(row(i, t) for i, t in [("check-circle", "My tasks"), ("calendar", "Deadlines"), ("contacts", "Contacts"), ("archive", "Safe custody"), ("billing", "Time &amp; billing"), ("insights", "Insights"), ("settings", "Settings")])
+            + '<span class="mt-mgroup">This device</span>' + row("moon", "Dark theme") + row("log-out", "Sign out", "danger") + "</div>")
+    return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("more")}</div>'
 
 
 def mobile():
     cap = lambda t, d: f'<div class="mt-col" style="gap:2px;width:390px;margin-top:24px"><span class="label">{t}</span><span class="caption t-3">{d}</span></div>'
-    cols = [(phone_today(), "Today", "The brief and this week’s deadlines, readable in one thumb-scroll."),
-            (phone_matter(), "Matter", "The next statutory step first, with one-tap call, record and Ask Clerk."),
-            (phone_matter(True), "Record by voice", "Say what you did. Clerk picks the matter, units and narrative; you save it.")]
-    inner = "".join(f'<div class="mt-col" style="align-items:center;gap:0">{p}{cap(t, d)}</div>' for p, t, d in cols)
-    return f'<div class="mt" style="width:1440px;min-height:1020px;display:flex;justify-content:center;gap:56px;padding:64px 0 40px;background:var(--bg-canvas)">{inner}</div>'
+    rows = [[(phone_today(), "Today", "The brief and this week’s deadlines, readable in one thumb-scroll."),
+             (phone_matters(), "Matters", "Search by number, title or client; recent matters, then your view."),
+             (phone_matter(), "Matter", "One-tap call, log time and add a note, then the matter in sections.")],
+            [(phone_matter(True), "Matter actions", "The top bar’s “…”: a note, time, and calling or emailing the client."),
+             (phone_record(), "Record", "Pick a recent matter, then log time, write a note or scan a document. Voice joins the grid; a scan saved offline waits here."),
+             (phone_more(), "More", "Everything the TabBar doesn’t hold, your account and this device.")],
+            [(phone_scan_camera(), "Scan: camera", "The back camera full screen: each photo is a page, and the count goes on until Done."),
+             (phone_scan_pages(), "Scan: pages", "Each photo found and straightened on the phone. Drag into order, colour or black and white, then add to the matter as one PDF."),
+             (phone_scan_crop(), "Scan: adjust corners", "When the edges weren’t found, or were found wrong: drag a handle onto each corner of the page.")]]
+    out = "".join('<div class="mt-row" style="justify-content:center;gap:56px;align-items:flex-start">' + "".join(f'<div class="mt-col" style="align-items:center;gap:0">{p}{cap(t, d)}</div>' for p, t, d in r) + "</div>" for r in rows)
+    return f'<div class="mt" style="width:1440px;min-height:3150px;display:flex;flex-direction:column;gap:56px;padding:64px 0 40px;background:var(--bg-canvas)">{out}</div>'
 
 
 SCREENS = [
@@ -251,5 +380,5 @@ SCREENS = [
     ("Contacts", "One record per person across every matter: their roles, family, contact details and activity, with Clerk spotting a will that needs review.", contacts),
     ("Settings", "Clerk and AI settings: what Clerk can read, what it can do, and where its work happens. Sending, filing and billing stay with people.", settings),
     ("Onboarding", "First-run setup. Bring matters, contacts and safe-custody wills across from the current materia, with Clerk mapping old boards to matter types and stages.", onboarding),
-    ("Mobile", "Phone screens: Today, a matter, and recording time by voice.", mobile),
+    ("Mobile", "Phone screens: Today, Matters, a matter and its actions, Record, More, and scanning a paper document (camera, pages, adjust corners).", mobile),
 ]

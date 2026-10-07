@@ -11,8 +11,6 @@ import {
   RoleSchema,
   SendClerkMessageInput,
   SetClerkFeedbackInput,
-  clerkAcknowledged,
-  orgClerkFeatureOn,
   type RetryClerkMessageResult,
   type SendClerkMessageResult,
   type SetClerkFeedbackResult,
@@ -30,14 +28,11 @@ import { chunkDocumentText } from '../../documents/ingest/text';
 import { liveMatter, matterPath } from '../../matters/shared';
 import type { Clock, Ports } from '../../ports';
 import { systemClock } from '../../ports/container';
+import { checkClerkAvailable } from '../available';
 import { firestoreContextSource } from '../context/firestore-source';
 import { clerkContext } from '../context/service';
 import { meteringPeriod } from '../features';
-import { firestoreClerkStore } from '../firestore-store';
-import { assertWithinBudget, BYOK_MISSING_SWITCH } from '../gateway';
-import { anthropicKeyPath } from '../keyring';
 import { clerkGateway } from '../service';
-import type { OrgClerkSettings } from '../store';
 
 type Data = Record<string, unknown>;
 
@@ -63,33 +58,8 @@ export function threadTitle(text: string): string {
   return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), CLERK_THREAD_TITLE_MAX / 2)).trimEnd()}…`;
 }
 
-/**
- * Says at once why Clerk can't answer, so the Composer can show it and offer the manual path
- * (AI-06): the kill switches, the org's own settings (its "Ask Clerk" switch and the data-use
- * disclosure, AI-13), no usable key, or the month's token budget or spend limit used.
- * The gateway checks all of these again when the answer runs (and the per-user window then).
- */
-async function checkAvailable(db: Firestore, orgId: string, clock: Clock): Promise<void> {
-  const flags = { orgId, db, clock };
-  for (const flag of ['clerk.enabled', 'clerk.features.chat'] as const)
-    if (!(await isEnabled(flags, flag)))
-      throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: flag });
-  const [org, key] = await Promise.all([db.doc(`orgs/${orgId}`).get(), db.doc(anthropicKeyPath(orgId)).get()]);
-  const settings = (org.get('settings.clerk') as OrgClerkSettings | undefined) ?? {};
-  if (settings.enabled === false)
-    throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: 'org.settings.clerk.enabled' });
-  if (!orgClerkFeatureOn(settings, 'chat'))
-    throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: 'org.settings.clerk.features.chat' });
-  if (!clerkAcknowledged(settings))
-    throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: 'org.settings.clerk.acknowledgement' });
-  if (!key.exists || !key.get('encryptedApiKey'))
-    throw new DomainError('CLERK_DISABLED', 'Clerk is switched off', { switch: BYOK_MISSING_SWITCH });
-  if (key.get('status') === 'invalid')
-    throw new DomainError('CLERK_KEY_INVALID', 'Anthropic rejected the org’s API key; an admin must replace it');
-  // The month's token budget and spend limit, read and checked as the gateway does.
-  const period = meteringPeriod(clock.now());
-  assertWithinBudget(settings, await firestoreClerkStore(db).periodUsage(orgId, period), period);
-}
+/** Says at once why Clerk can't answer (AI-06): see `checkClerkAvailable`. */
+const checkAvailable = (db: Firestore, orgId: string, clock: Clock) => checkClerkAvailable(db, orgId, clock, 'chat');
 
 /** A thread the caller owns, live, on the matter; anything else is NOT_FOUND (never revealed). */
 async function ownThread(db: Firestore, orgId: string, uid: string, threadId: string): Promise<Data> {

@@ -1,6 +1,8 @@
-import { Suggestion, FactCitation, ClerkThread, ClerkMessage } from './clerk';
+import { Suggestion, FactCitation, ClerkThread, ClerkMessage, MatterBrief } from './clerk';
 import { Contact, Matter, MatterNumber } from './contacts-matters';
 import { Job } from './jobs';
+import { ClerkDraft } from '../clerk-drafts';
+import { ConnectorConnection, ConnectorGrant } from '../connector';
 import { DisbursementPresetsDoc } from '../disbursements';
 import { LetterheadDoc } from '../doc-templates';
 import { SignIn } from '../security';
@@ -35,6 +37,8 @@ import {
   Distribution,
 } from './matter-records';
 import { MemberMetrics, MetricsLedger, MetricsShard } from './metrics';
+import { MigrationRun } from './migration-runs';
+import { Notification } from './notification-records';
 import {
   Invoice,
   CreditNote,
@@ -42,26 +46,24 @@ import {
   MatterTemplate,
   MatterTemplateVersion,
   DocTemplate,
-  ChecklistTemplate,
-  TaskGroupTemplate,
   Metrics,
   AuditEntry,
-  Notification,
   Integration,
   IntegrationState,
   IntegrationStatus,
   XeroContactLink,
   SafeCustody,
   TrustSnapshot,
-  MigrationRun,
   MigrationEnrichment,
   RuleSetVersion,
   Calendar,
   Counter,
 } from './org-records';
+import { ChecklistTemplate, TaskGroupTemplate } from './task-templates';
 import { Org, Member, Invite, User, Device } from './tenancy';
 import { RecentMatter, SavedView } from './views';
 import { ConflictCheck } from '../conflicts';
+import { DeletedOrg } from '../data-rights';
 import { IntakeDraft } from '../intake';
 import { DestructionCertificate, DestructionRequest } from '../retention';
 
@@ -179,12 +181,18 @@ export const SuggestionUpdateSchema = Suggestion.update;
 export const FactCitationSchema = FactCitation.schema;
 export const FactCitationCreateSchema = FactCitation.create;
 export const FactCitationUpdateSchema = FactCitation.update;
+export const MatterBriefSchema = MatterBrief.schema;
+export const MatterBriefCreateSchema = MatterBrief.create;
+export const MatterBriefUpdateSchema = MatterBrief.update;
 export const ClerkThreadSchema = ClerkThread.schema;
 export const ClerkThreadCreateSchema = ClerkThread.create;
 export const ClerkThreadUpdateSchema = ClerkThread.update;
 export const ClerkMessageSchema = ClerkMessage.schema;
 export const ClerkMessageCreateSchema = ClerkMessage.create;
 export const ClerkMessageUpdateSchema = ClerkMessage.update;
+export const ClerkDraftSchema = ClerkDraft.schema;
+export const ClerkDraftCreateSchema = ClerkDraft.create;
+export const ClerkDraftUpdateSchema = ClerkDraft.update;
 export const InvoiceSchema = Invoice.schema;
 export const InvoiceCreateSchema = Invoice.create;
 export const InvoiceUpdateSchema = Invoice.update;
@@ -236,6 +244,12 @@ export const IntegrationStatusUpdateSchema = IntegrationStatus.update;
 export const IntegrationStateSchema = IntegrationState.schema;
 export const IntegrationStateCreateSchema = IntegrationState.create;
 export const IntegrationStateUpdateSchema = IntegrationState.update;
+export const ConnectorConnectionSchema = ConnectorConnection.schema;
+export const ConnectorConnectionCreateSchema = ConnectorConnection.create;
+export const ConnectorConnectionUpdateSchema = ConnectorConnection.update;
+export const ConnectorGrantSchema = ConnectorGrant.schema;
+export const ConnectorGrantCreateSchema = ConnectorGrant.create;
+export const ConnectorGrantUpdateSchema = ConnectorGrant.update;
 export const XeroContactLinkSchema = XeroContactLink.schema;
 export const XeroContactLinkCreateSchema = XeroContactLink.create;
 export const XeroContactLinkUpdateSchema = XeroContactLink.update;
@@ -281,6 +295,9 @@ export const DestructionRequestUpdateSchema = DestructionRequest.update;
 export const DestructionCertificateSchema = DestructionCertificate.schema;
 export const DestructionCertificateCreateSchema = DestructionCertificate.create;
 export const DestructionCertificateUpdateSchema = DestructionCertificate.update;
+export const DeletedOrgSchema = DeletedOrg.schema;
+export const DeletedOrgCreateSchema = DeletedOrg.create;
+export const DeletedOrgUpdateSchema = DeletedOrg.update;
 export const RecentMatterSchema = RecentMatter.schema;
 export const RecentMatterCreateSchema = RecentMatter.create;
 export const RecentMatterUpdateSchema = RecentMatter.update;

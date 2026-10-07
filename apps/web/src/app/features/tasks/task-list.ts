@@ -34,7 +34,8 @@ const FOLLOW_MS = 1500;
  * focus on a task's title: ↓/↑ or j/k move between tasks, `x` selects (Ctrl/⌘+A selects them all),
  * Space completes or reopens,
  * Enter edits the title, Alt+↑/↓ moves the task within its section (announced politely), Escape
- * clears the selection. With `reorderable`, tasks drag by their handle within and between sections.
+ * clears the selection. With `reorderable`, tasks drag by their handle within and between sections,
+ * and their details have Move up and Move down (moving without dragging, WCAG 2.5.7).
  * Writes go through the page's `TaskActions`.
  */
 @Component({
@@ -151,6 +152,8 @@ const FOLLOW_MS = 1500;
                     <mt-task-details
                       [entry]="entry"
                       [groups]="groups()"
+                      [reorderable]="reorderable()"
+                      (move)="moveBy(section, entry, $index, $event, true)"
                       (group)="actions.bulk([entry], { op: 'group', group: $event })"
                       (checklist)="actions.setChecklist(entry, $event)"
                       (status)="actions.setStatus([entry], $event)"
@@ -261,7 +264,7 @@ const FOLLOW_MS = 1500;
     }
     .mt-task-list .matter {
       white-space: nowrap;
-      color: var(--text-link, var(--text-brand));
+      color: var(--text-brand);
     }
     /* The preview stays inside the list (cdkDragPreviewContainer="parent") so it keeps the row's styles. */
     .mt-task-list .cdk-drag-preview {
@@ -318,8 +321,11 @@ export class TaskList {
   private readonly flat = computed(() => this.sections().flatMap((section) => section.entries));
   /** The task named by `?task=`, if any. */
   private readonly linked = signal<string | null>(null);
-  /** A moved task keeps focus while the list re-renders around it. */
-  private follow: { key: string; until: number } | null = null;
+  /**
+   * A moved task keeps focus while the list re-renders around it: on its title, or on the Move
+   * button it was moved with from its details.
+   */
+  private follow: { key: string; until: number; button?: -1 | 1 } | null = null;
 
   /** Tasks only move into sections that take a group. */
   protected readonly canEnter = (drag: CdkDrag<TaskEntry>, drop: CdkDropList<TaskSectionVm>) =>
@@ -510,7 +516,7 @@ export class TaskList {
     if (handled) event.preventDefault();
   }
 
-  private moveBy(section: TaskSectionVm, entry: TaskEntry, index: number, delta: -1 | 1): void {
+  protected moveBy(section: TaskSectionVm, entry: TaskEntry, index: number, delta: -1 | 1, fromButton = false): void {
     if (!this.reorderable()) return;
     if (!entry.editable) {
       this.say('You can’t move this task.');
@@ -521,7 +527,7 @@ export class TaskList {
       this.say(`${entry.task.title} is already ${delta < 0 ? 'first' : 'last'} in ${section.label}.`);
       return;
     }
-    this.follow = { key: entry.key, until: Date.now() + FOLLOW_MS };
+    this.follow = { key: entry.key, until: Date.now() + FOLLOW_MS, ...(fromButton ? { button: delta } : {}) };
     this.actions.move(section, entry, to);
   }
 
@@ -564,6 +570,9 @@ export class TaskList {
     // Someone who has moved on elsewhere keeps their focus.
     if (active && active !== document.body && !this.host.nativeElement.contains(active)) return;
     const title = this.titleOf(this.follow.key);
-    if (title && active !== title) title.focus();
+    const target = this.follow.button
+      ? (title?.closest('li.row')?.querySelector<HTMLElement>(`[data-move="${this.follow.button}"]`) ?? title)
+      : title;
+    if (target && active !== target) target.focus();
   }
 }

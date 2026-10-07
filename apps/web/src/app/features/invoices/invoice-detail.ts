@@ -67,6 +67,7 @@ import {
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 import { DOWNLOAD_NAVIGATOR } from '../documents/document-actions';
 import { PdfViewer } from '../documents/pdf-viewer';
 import type { TrustSnapshotDialogData } from '../trust/trust-snapshot-dialog';
@@ -86,7 +87,18 @@ type CreditNote = WithId<CreditNoteItem>;
   selector: 'mt-invoice-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [FormsModule, RouterLink, InvoiceXero, MtBadge, MtButton, MtCheckbox, MtNote, PdfViewer, XeroChip],
+  imports: [
+    FormsModule,
+    RouterLink,
+    InvoiceXero,
+    MtBadge,
+    MtButton,
+    MtCheckbox,
+    MtNeedsConnection,
+    MtNote,
+    PdfViewer,
+    XeroChip,
+  ],
   host: { class: 'mt-col mt-invoice-detail' },
   template: `
     @let inv = invoice();
@@ -120,20 +132,29 @@ type CreditNote = WithId<CreditNoteItem>;
           </button>
         }
         @if (canIssue() && live() && balance() > 0) {
-          <button mtButton variant="secondary" size="sm" iconStart="plus" (click)="pay('payment')">
+          <button mtButton mtNeedsConnection variant="secondary" size="sm" iconStart="plus" (click)="pay('payment')">
             Record payment
           </button>
         }
         @if (canVoid() && live() && balance() < 0) {
-          <button mtButton variant="secondary" size="sm" (click)="pay('refund')">Record refund</button>
+          <button mtButton mtNeedsConnection variant="secondary" size="sm" (click)="pay('refund')">
+            Record refund
+          </button>
         }
         @if (canVoid() && live()) {
-          <button mtButton variant="secondary" size="sm" [disabled]="!creditable()" (click)="credit()">
+          <button
+            mtButton
+            mtNeedsConnection
+            variant="secondary"
+            size="sm"
+            [disabled]="!creditable()"
+            (click)="credit()"
+          >
             Credit note
           </button>
         }
         @if (canVoid() && voidable()) {
-          <button mtButton variant="ghost" size="sm" (click)="voidIt()">Void</button>
+          <button mtButton mtNeedsConnection variant="ghost" size="sm" (click)="voidIt()">Void</button>
         }
       </div>
     </div>
@@ -170,7 +191,13 @@ type CreditNote = WithId<CreditNoteItem>;
             <mt-note tone="danger" data-testid="invoice-pdf-failed">
               The PDF couldn’t be made. The invoice is issued either way.
               @if (canIssue()) {
-                <button mtButton size="sm" [loading]="retrying()" (click)="retry({ invoiceId: inv.id })">
+                <button
+                  mtButton
+                  mtNeedsConnection
+                  size="sm"
+                  [loading]="retrying()"
+                  (click)="retry({ invoiceId: inv.id })"
+                >
                   Try again
                 </button>
               }
@@ -280,7 +307,9 @@ type CreditNote = WithId<CreditNoteItem>;
                       <span class="caption t-3">{{ beforeIssue }}</span>
                     }
                     @if (canVoid() && live()) {
-                      <button mtButton variant="ghost" size="sm" (click)="reverse(payment)">Reverse</button>
+                      <button mtButton mtNeedsConnection variant="ghost" size="sm" (click)="reverse(payment)">
+                        Reverse
+                      </button>
                     }
                   }
                 </li>
@@ -308,7 +337,13 @@ type CreditNote = WithId<CreditNoteItem>;
                     Download PDF
                   </button>
                 } @else if (note.pdfStatus === 'failed' && canIssue()) {
-                  <button mtButton variant="ghost" size="sm" (click)="retry({ creditNoteId: note.id })">
+                  <button
+                    mtButton
+                    mtNeedsConnection
+                    variant="ghost"
+                    size="sm"
+                    (click)="retry({ creditNoteId: note.id })"
+                  >
                     Make the PDF again
                   </button>
                 } @else {

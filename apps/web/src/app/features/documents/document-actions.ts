@@ -5,6 +5,7 @@ import {
   DOCUMENTS_ZIP_MAX,
   DomainError,
   type BulkDocumentChange,
+  type DocumentVersion,
   type DownloadRendition,
   type StartZipResult,
 } from '@materia/domain';
@@ -23,6 +24,37 @@ export const DOWNLOAD_NAVIGATOR = new InjectionToken<(url: string) => void>('DOW
   providedIn: 'root',
   factory: () => (url: string) => window.location.assign(url),
 });
+
+/** The device's share sheet (the Web Share API), when it has one. Tests replace it. */
+export interface WebShare {
+  canShare(data: ShareData): boolean;
+  share(data: ShareData): Promise<void>;
+}
+
+export const WEB_SHARE = new InjectionToken<WebShare | null>('WEB_SHARE', {
+  providedIn: 'root',
+  factory: () => {
+    const nav = typeof navigator === 'undefined' ? null : navigator;
+    if (!nav || typeof nav.share !== 'function' || typeof nav.canShare !== 'function') return null;
+    return { canShare: (data) => nav.canShare(data), share: (data) => nav.share(data) };
+  },
+});
+
+/** Reads a signed URL's bytes. Tests replace it. */
+export const FILE_FETCHER = new InjectionToken<(url: string) => Promise<Blob>>('FILE_FETCHER', {
+  providedIn: 'root',
+  factory: () => async (url: string) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`The file didn’t load (HTTP ${response.status})`);
+    return response.blob();
+  },
+});
+
+/** Bigger files download instead of sharing: the share sheet holds the whole file in memory. */
+export const SHARE_MAX_BYTES = 25 * 1024 * 1024;
+
+/** The version a share sends: its number, file name, type and size. */
+export type SharedVersion = Pick<DocumentVersion, 'version' | 'fileName' | 'mime' | 'sizeBytes'>;
 
 /** The reason a callable gave (`details.reason`), if any. */
 export function errorReason(error: unknown): string | undefined {
@@ -66,6 +98,10 @@ export class DocumentActions {
   private readonly toasts = inject(ToastService);
   private readonly dialogs = inject(DialogService);
   private readonly navigate = inject(DOWNLOAD_NAVIGATOR);
+  private readonly webShare = inject(WEB_SHARE);
+  private readonly fetchFile = inject(FILE_FETCHER);
+  /** The last file read for sharing, so sharing it again doesn't read it again. */
+  private shared: { key: string; file: File } | null = null;
   readonly api = documentCallables(inject(CALLABLES));
   readonly repo = matterDocumentRepository(() => this.screen.id());
 
@@ -87,6 +123,51 @@ export class DocumentActions {
     } catch (error) {
       this.toasts.show({ title: 'Couldn’t save the change', description: errorCopy(error), tone: 'danger' });
       return false;
+    }
+  }
+
+  /** This device has a share sheet (Web Share API): phones, and some desktop browsers. */
+  readonly canShare = !!this.webShare;
+
+  /**
+   * Sends a version through the device's share sheet (MOB-02): the file itself, read through a
+   * 5-minute signed URL, never the link, which would expire and could be forwarded. A file too big
+   * to share, or a device that can't share files, downloads it instead.
+   */
+  async share(docId: string, version: SharedVersion): Promise<void> {
+    const share = this.webShare;
+    if (!share || version.sizeBytes > SHARE_MAX_BYTES) return this.download(docId, version.version);
+    const key = `${docId}@${version.version}`;
+    let file = this.shared?.key === key ? this.shared.file : null;
+    const read = !file;
+    if (!file) {
+      try {
+        const blob = await this.fetchFile(await this.readUrl(docId, version.version, 'original'));
+        file = new File([blob], version.fileName, { type: version.mime });
+        this.shared = { key, file };
+      } catch (error) {
+        this.toasts.show({ title: 'Couldn’t share the file', description: downloadErrorCopy(error), tone: 'danger' });
+        return;
+      }
+    }
+    const data: ShareData = { files: [file], title: version.fileName };
+    if (!share.canShare(data)) return this.download(docId, version.version);
+    try {
+      await share.share(data);
+    } catch (error) {
+      const name = (error as { name?: unknown } | null)?.name;
+      // Closed the share sheet without choosing anything.
+      if (name === 'AbortError') return;
+      if (name === 'NotAllowedError' && read) {
+        // Reading the file took long enough that the browser no longer counts it as the tap: ask for one more.
+        this.toasts.show({
+          title: 'Ready to share',
+          description: version.fileName,
+          action: { label: 'Share', run: () => void share.share(data).catch(() => undefined) },
+        });
+        return;
+      }
+      this.toasts.show({ title: 'Couldn’t share the file', description: errorCopy(error), tone: 'danger' });
     }
   }
 
@@ -141,6 +222,15 @@ export class DocumentActions {
     } catch (error) {
       this.toasts.show({ title: 'Couldn’t download the zip', description: errorCopy(error), tone: 'danger' });
     }
+  }
+
+  /**
+   * The stored text of a version's pages (`documents-citationText`), by page: for a scanned PDF page,
+   * what OCR read from it. Only the current version keeps it. Throws on failure.
+   */
+  async pageText(docId: string, version: number, pages: number[]): Promise<Map<number, string>> {
+    const result = await this.api.citationText({ matterId: this.matterId(), docId, version, pages });
+    return new Map(result.pages.map((page) => [page.page, page.text]));
   }
 
   /** A signed URL to read a version or one of its renditions in the viewer. Throws on failure. */

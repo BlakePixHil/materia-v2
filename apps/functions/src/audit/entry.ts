@@ -29,10 +29,16 @@ export const EXCLUDED_COLLECTIONS = new Set([
   'integrationStatus',
   // Xero (BILL-09): which Xero contact a matter's clients are; the invoices it's used on are audited.
   'xeroContacts',
+  // The Claude connector (INT-07): its tokens, and connections, whose connect, disconnect and every
+  // tool call are audited themselves (`connector.*`).
+  'connectorGrants',
+  'connectorConnections',
   // Legacy migration runs (MIG-06): the tool records each run once itself (`migration.loaded`…).
   'migrations',
   // Clerk reading a run (MIG-09): progress saved after every document; the approval is audited itself.
   'migrationEnrichments',
+  // A matter's brief (AI-06c): rebuilt from records that are audited themselves, whenever they change.
+  'briefs',
 ]);
 
 /**

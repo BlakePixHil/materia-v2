@@ -64,15 +64,22 @@ export function positiveInt(value: string | null): number | null {
           }
         </span>
         @if (readable()) {
-          <button
-            mtButton
-            size="sm"
-            iconStart="arrow-down"
-            class="mt-ml"
-            (click)="actions.download(d.id, previewVersion()?.version)"
-          >
-            Download
-          </button>
+          <span class="mt-ml mt-row file-actions">
+            @if (actions.canShare && previewVersion(); as v) {
+              <!-- The device's share sheet (MOB-02): mail it, message it, save it to Files. -->
+              <button mtButton size="sm" variant="ghost" iconStart="share" data-share (click)="actions.share(d.id, v)">
+                Share
+              </button>
+            }
+            <button
+              mtButton
+              size="sm"
+              iconStart="arrow-down"
+              (click)="actions.download(d.id, previewVersion()?.version)"
+            >
+              Download
+            </button>
+          </span>
         }
       </div>
       @if (d.deletedAt) {
@@ -165,6 +172,9 @@ export function positiveInt(value: string | null): number | null {
     h2 {
       margin: 0;
       overflow-wrap: anywhere;
+    }
+    .file-actions {
+      gap: var(--space-8);
     }
     .layout {
       display: grid;

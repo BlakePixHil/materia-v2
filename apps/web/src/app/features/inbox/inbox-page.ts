@@ -22,6 +22,7 @@ import { DialogService, MtButton, MtEmptyState, MtIcon, MtKbd, MtMatterTag, MtNo
 import { INBOX_FILTER_LABELS, InboxData, inboxSuggestion } from './inbox-data';
 import { InboxSuggestion, InboxSuggestionDialog, type InboxSuggestionDialogData } from './inbox-suggestion';
 import { MtNotificationRow } from '../../core/notifications/notification-row';
+import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { isEditable, ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
 import { DeadlineActions } from '../deadlines/deadline-actions';
@@ -58,6 +59,7 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
     '../../../../../../libs/ui/src/generated/components/notif.css',
   ],
   imports: [
+    MtPageOfflineNote,
     FormsModule,
     InboxSuggestion,
     MtButton,
@@ -119,7 +121,7 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
       </div>
 
       @if (!data.online()) {
-        <mt-note tone="warning" icon="wifi-off"
+        <mt-note tone="warning" icon="wifi-off" mtPageOfflineNote
           >You’re offline. Showing the notifications on this device; changes sync when you reconnect.</mt-note
         >
       }
@@ -136,6 +138,7 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
         @case ('error') {
           <mt-empty-state
             icon="alert"
+            [headingLevel]="2"
             title="Couldn’t load your inbox"
             description="Your notifications are safe; this is a problem fetching them."
           >
@@ -204,12 +207,18 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
               }
             </div>
           } @else if (data.filter() !== 'all' || data.unreadOnly()) {
-            <mt-empty-state icon="filter" title="Nothing matches" description="No notifications match these filters.">
+            <mt-empty-state
+              icon="filter"
+              [headingLevel]="2"
+              title="Nothing matches"
+              description="No notifications match these filters."
+            >
               <button mtButton size="sm" (click)="clearFilters()">Clear filters</button>
             </mt-empty-state>
           } @else {
             <mt-empty-state
               icon="check-check"
+              [headingLevel]="2"
               title="You’re all caught up"
               description="New mentions, assignments, deadlines and finished Clerk work land here."
             />
@@ -318,8 +327,10 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
             <mt-kbd keys="x" /> selects it.
           </p>
         } @else {
+          <!-- The page's sections have no headings of their own, so its empty states are level 2 (SEC-06). -->
           <mt-empty-state
             icon="inbox"
+            [headingLevel]="2"
             title="Nothing selected"
             description="Choose a notification, or press J to start at the top."
           />
@@ -384,10 +395,11 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
       min-height: 0;
       margin: calc(-1 * var(--space-24)) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
     }
-    /* On a phone the shell page's padding is 16px all round; cancelling 32px made the Inbox wider than the screen. */
+    /* On a phone the shell page's padding is 16px all round; cancelling 32px made the Inbox wider than the screen,
+       and cancelling more than 16px at the top slid the filters under the sticky top bar. */
     @media (max-width: 767px) {
       .mt-inbox {
-        margin: calc(-1 * (var(--space-16) + var(--space-20))) calc(-1 * var(--space-16)) calc(-1 * var(--space-16));
+        margin: calc(-1 * var(--space-16));
       }
     }
     .mt-inbox .list-pane {

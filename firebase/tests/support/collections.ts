@@ -62,6 +62,15 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
   },
 
+  // A deleted practice's tombstone (SEC-05): server-only.
+  {
+    collection: 'deletedOrgs',
+    docPath: 'deletedOrgs/org-deleted',
+    entity: 'DeletedOrg',
+    read: 'none',
+    update: 'none',
+  },
+
   { collection: 'users', docPath: `users/${OWNER}`, entity: 'User', read: 'owner', update: 'owner' },
   // MFA recovery code hashes and sign-in stamps: server-only, even for their owner (FND-16).
   {
@@ -197,6 +206,16 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'owner',
     update: 'owner',
     change: { stopRequested: true },
+  },
+  // Clerk's draft letters (AI-10): private to their owner, like a Clerk thread.
+  {
+    collection: 'clerkDrafts',
+    docPath: `${MATTER}/clerkDrafts/draft-1`,
+    entity: 'ClerkDraft',
+    seed: { ownerUid: OWNER, status: 'ready', privileged: false },
+    read: 'owner',
+    update: 'owner',
+    change: { bodyMd: 'Dear Sir or Madam\n\nEdited by the lawyer.' },
   },
   {
     collection: 'invoices',
@@ -432,6 +451,24 @@ export const COLLECTIONS: CollectionSpec[] = [
     read: 'none',
     update: 'none',
   },
+  // Claude connections (INT-07): the person's own, and every one for owners and admins.
+  {
+    collection: 'connectorConnections',
+    docPath: `orgs/${ORG}/connectorConnections/connection-1`,
+    entity: 'ConnectorConnection',
+    seed: { uid: OWNER },
+    read: ['owner', 'admin', 'lawyer'],
+    update: 'none',
+  },
+  // The Claude connector's codes and tokens (INT-07): server-only.
+  {
+    collection: 'connectorGrants',
+    docPath: `orgs/${ORG}/connectorGrants/${'b'.repeat(64)}`,
+    entity: 'ConnectorGrant',
+    seed: { uid: OWNER },
+    read: 'none',
+    update: 'none',
+  },
   // Which Xero contact a matter's clients are invoiced as (BILL-09): server-only.
   {
     collection: 'xeroContacts',
@@ -548,6 +585,14 @@ export const COLLECTIONS: CollectionSpec[] = [
     docPath: `${MATTER}/suggestions/suggestion-1`,
     entity: 'Suggestion',
     seed: { status: 'proposed', privileged: false, orgId: ORG, matterId: 'matter-1' },
+    read: 'members',
+    update: 'none',
+  },
+  // The matter's brief on Overview (AI-06c): written only by clerk-matterBrief; clients only read.
+  {
+    collection: 'briefs',
+    docPath: `${MATTER}/briefs/latest`,
+    entity: 'MatterBrief',
     read: 'members',
     update: 'none',
   },

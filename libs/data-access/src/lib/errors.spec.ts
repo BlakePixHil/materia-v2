@@ -2,7 +2,7 @@ import * as z from 'zod';
 
 import { DomainError } from '@materia/domain';
 
-import { isTransient, toDomainError } from './errors';
+import { isOfflineError, isTransient, offlineError, toDomainError } from './errors';
 
 describe('toDomainError', () => {
   it('keeps a DomainError and reads a callable error’s details.code', () => {
@@ -38,5 +38,16 @@ describe('toDomainError', () => {
     expect(isTransient(new DomainError('UNAVAILABLE'))).toBe(true);
     expect(isTransient(new DomainError('REQUEST_IN_PROGRESS'))).toBe(true);
     expect(isTransient(new DomainError('PERMISSION_DENIED'))).toBe(false);
+  });
+});
+
+describe('offlineError', () => {
+  it('is a transient UNAVAILABLE that isOfflineError recognises, unlike a server outage', () => {
+    const error = offlineError();
+    expect(error.code).toBe('UNAVAILABLE');
+    expect(isTransient(error)).toBe(true);
+    expect(isOfflineError(error)).toBe(true);
+    expect(isOfflineError(new DomainError('UNAVAILABLE'))).toBe(false);
+    expect(isOfflineError({ code: 'UNAVAILABLE', details: { offline: true } })).toBe(false);
   });
 });

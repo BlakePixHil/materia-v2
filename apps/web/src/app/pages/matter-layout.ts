@@ -35,11 +35,15 @@ import { matterCommands } from '../core/commands/matter-commands';
 import { recentRecorder } from '../core/commands/recents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { PhoneLayout } from '../core/layout/phone-layout';
 import { startTrace } from '../core/observability/perf';
+import { PinnedMatters } from '../core/pins/pinned-matters';
+import { MtPageOfflineNote } from '../core/pwa/offline-banner';
 import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterHeader } from '../features/matter-detail/matter-header';
 import { MatterScreen } from '../features/matter-detail/matter-screen';
 import { MatterStages } from '../features/matter-detail/matter-stages';
+import { PhoneMatter } from '../features/matter-detail/phone-matter';
 
 /** The matter commands ⌘K offers for the open matter that act on a tab (CORE-15). */
 const TAB_ACTIONS = new Set(['matter.add-task', 'matter.add-deadline', 'matter.record-event', 'matter.upload']);
@@ -60,6 +64,7 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
   selector: 'mt-matter-layout',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    MtPageOfflineNote,
     MatterHeader,
     MatterStages,
     MtButton,
@@ -69,6 +74,7 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
     MtTabNav,
     MtTabLink,
     NotFoundPage,
+    PhoneMatter,
     RouterLink,
     RouterOutlet,
   ],
@@ -117,7 +123,9 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
         <mt-not-found-page />
       }
       @case ('offline') {
-        <mt-note role="status">You’re offline, and this matter isn’t saved on this device yet.</mt-note>
+        <mt-note role="status" mtPageOfflineNote
+          >You’re offline, and this matter isn’t saved on this device yet.</mt-note
+        >
       }
       @case ('error') {
         <mt-note tone="danger">{{ loadError() }}</mt-note>
@@ -154,12 +162,21 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
             </mt-note>
           }
           <mt-matter-stages #stages />
-          <nav mtTabNav aria-label="Matter sections">
-            @for (tab of tabs(); track tab.path) {
-              <a mtTabLink [routerLink]="tab.path">{{ tab.label }}</a>
+          @if (phoneOverview()) {
+            <!-- A phone's Overview (MOB-02) is one scroll with folding sections, loaded only on a phone. -->
+            @defer (on immediate) {
+              <mt-phone-matter />
+            } @placeholder {
+              <mt-skeleton variant="lines" label="Loading the matter…" [count]="4" />
             }
-          </nav>
-          <router-outlet />
+          } @else {
+            <nav mtTabNav aria-label="Matter sections">
+              @for (tab of tabs(); track tab.path) {
+                <a mtTabLink [routerLink]="tab.path">{{ tab.label }}</a>
+              }
+            </nav>
+            <router-outlet />
+          }
         }
       }
     }
@@ -184,6 +201,9 @@ export class MatterLayout {
   );
   private readonly flags = inject(FeatureFlagService);
   protected readonly tabs = computed(() => matterTabsFor(this.screen.value()?.type, (key) => this.flags.isOn(key)));
+  private readonly phone = inject(PhoneLayout).phone;
+  /** A phone on the Overview: `PhoneMatter` in place of the tabs and the Overview tab (MOB-02). */
+  protected readonly phoneOverview = computed(() => this.phone() && this.activeTab() === 'overview');
 
   protected readonly state = computed<MatterState>(() => {
     const matter = this.screen.matter;
@@ -250,11 +270,12 @@ export class MatterLayout {
     });
 
     // Litigation is for disputes only: elsewhere its URL lands on the overview. A tab's own pages
-    // (a document, `documents/:docId`) belong to their tab.
+    // (a document, `documents/:docId`) belong to their tab; the conflict check and Clerk drafts
+    // (AI-10) are pages of the matter, not tabs.
     effect(() => {
       const tab = this.activeTab()?.split('/')[0];
       const matter = this.screen.value();
-      if (!matter || !tab || tab === 'conflicts') return;
+      if (!matter || !tab || tab === 'conflicts' || tab === 'drafts') return;
       if (!this.tabs().some((t) => t.path === tab)) untracked(() => void this.leaveUnavailableTab(tab));
     });
 
@@ -400,11 +421,35 @@ export class MatterLayout {
       when: () => ready() && !!this.header()?.canClose(),
       run: () => this.header()?.closeMatter(),
     };
+    // Pinning (CORE-23) is personal: any role, on a closed or archived matter too, but not a deleted one.
+    const pins = inject(PinnedMatters);
+    const pinnable = () => this.state() === 'ready' && !this.screen.deleted();
+    const pinned = () => pins.isPinned(this.screen.value()?.id ?? '');
+    const pin: Command = {
+      id: 'this-matter.pin',
+      title: 'Pin matter',
+      group,
+      icon: 'pin',
+      keywords: ['sidebar', 'favourite', 'bookmark', 'star'],
+      when: () => pinnable() && !pinned(),
+      run: () => this.header()?.togglePin(),
+    };
+    const unpin: Command = {
+      id: 'this-matter.unpin',
+      title: 'Unpin matter',
+      group,
+      icon: 'pin-off',
+      keywords: ['sidebar', 'remove', 'favourite'],
+      when: () => pinnable() && pinned(),
+      run: () => this.header()?.togglePin(),
+    };
     return [
       () => releaseActions.forEach((release) => release()),
       commands.register(changeStage),
       commands.register(assign),
       commands.register(close),
+      commands.register(pin),
+      commands.register(unpin),
     ];
   }
 

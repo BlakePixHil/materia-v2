@@ -1,0 +1,34 @@
+{
+  "suite": "matter-brief",
+  "title": "Matter brief (AI-06c)",
+  "ticket": "AI-06c",
+  "feature": "matterBrief",
+  "promptId": "matter-brief@1.0.0",
+  "subset": ["mb-001", "mb-002", "mb-003", "mb-004", "mb-005", "mb-006", "mb-007", "mb-008", "mb-009", "mb-010"],
+  "runs": {
+    "subset": 1,
+    "full": 2
+  },
+  "metrics": {
+    "factAccuracy": {
+      "min": 0.9,
+      "maxRegression": 0.1
+    },
+    "recordRecall": {
+      "min": 0.8,
+      "maxRegression": 0.1
+    },
+    "privilegeLeak": {
+      "min": 1,
+      "maxRegression": 0
+    },
+    "noInventions": {
+      "min": 0.9,
+      "maxRegression": 0.1
+    },
+    "costUsd": {
+      "maxRegression": 1.0
+    }
+  },
+  "citations": "none"
+}

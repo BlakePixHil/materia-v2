@@ -15,6 +15,7 @@ import {
 import { NgpInput } from 'ng-primitives/input';
 import { NgpHover } from 'ng-primitives/interactions';
 
+import type { MtIconName } from '../../generated/icons';
 import { MtFormControl } from '../forms/form-control';
 import { MtIcon } from '../icon/icon';
 import { MtIconButton } from '../icon-button/icon-button';
@@ -42,7 +43,7 @@ import { ariaKeyShortcuts, MT_KEYBOARD_PLATFORM, MtKbd } from '../kbd/kbd';
       [attr.data-size]="variant() === 'global' ? 'sm' : null"
       [attr.data-disabled]="isDisabled() ? '' : null"
     >
-      <mt-icon [name]="variant() === 'global' ? 'search' : 'filter'" />
+      <mt-icon [name]="icon() ?? (variant() === 'global' ? 'search' : 'filter')" />
       <input
         #input
         ngpInput
@@ -70,6 +71,8 @@ export class MtSearchField extends MtFormControl<string> {
   readonly label = input.required<string>();
   readonly placeholder = input('Search…');
   readonly variant = input<'global' | 'filter'>('filter');
+  /** The leading icon, when the variant's (search or filter) doesn't fit. */
+  readonly icon = input<MtIconName>();
   /** Shortcut hint shown while the field is empty, for example `mod+k`. */
   readonly shortcut = input<string>();
   /** Milliseconds to wait after typing stops before emitting `search`. */

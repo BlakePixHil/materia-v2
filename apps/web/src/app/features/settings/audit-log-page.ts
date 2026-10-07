@@ -53,7 +53,13 @@ const ACTION_OPTIONS: MtOption<string>[] = [
   { value: 'matter.status_changed', label: 'Matter status changed' },
   { value: 'matter.renumbered', label: 'Matter renumbered' },
   { value: 'audit.exported', label: 'Audit log exported' },
-  { value: 'export.created', label: 'List exported' },
+  { value: 'export.created', label: 'Export started' },
+  // Data rights (SEC-05).
+  { value: 'export.org_completed', label: 'Full export finished' },
+  { value: 'member.offboarded', label: 'Member offboarded' },
+  { value: 'org.deletion_requested', label: 'Deletion requested' },
+  { value: 'org.deletion_cancelled', label: 'Deletion cancelled' },
+  { value: 'org.deletion_blocked', label: 'Deletion stopped' },
 ];
 
 const actionLabel = (action: string) => ACTION_OPTIONS.find((o) => o.value === action)?.label ?? action;
@@ -150,7 +156,7 @@ interface DetailData {
       padding: var(--space-8, 8px);
       background: var(--bg-canvas);
       border-radius: var(--radius-sm, 4px);
-      font: var(--text-mono-s, 12px/1.5 var(--font-mono));
+      font: 400 12px/1.5 var(--font-mono);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       max-height: 320px;

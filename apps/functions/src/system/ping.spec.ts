@@ -1,5 +1,7 @@
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
+import { CLIENT_COMPAT_VERSION } from '@materia/domain';
+
 import { handlePing, ping } from './ping';
 
 describe('system-ping', () => {
@@ -18,6 +20,7 @@ describe('system-ping', () => {
       version: '1.2.3',
       sha: 'abc1234',
       at: '2026-10-03T00:00:00.000Z',
+      minClientVersion: CLIENT_COMPAT_VERSION,
     });
   });
 

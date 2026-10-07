@@ -195,7 +195,7 @@ describe('matter deadlines tab', () => {
   it('accepts a critical change only with the matter number typed, and rejects another', async () => {
     const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON });
     await page.click('Accept', change(page, 'rule-vic.probate.advert_min-v2') ?? page.body);
-    const dialog = page.dialog();
+    const dialog = await page.openedDialog();
     expect(page.text(dialog)).toContain('Accept a change to a critical deadline?');
     expect(page.text(dialog)).toContain('The new date has already passed.');
     const accept = () => page.buttons('Accept change', dialog ?? page.body)[0] as HTMLButtonElement;
@@ -235,7 +235,7 @@ describe('matter deadlines tab', () => {
     const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON });
     await page.click('More actions for Executor’s year ends');
     await page.click('Override date…');
-    const dialog = page.dialog();
+    const dialog = await page.openedDialog();
     expect(page.text(dialog)).toContain('The rule keeps computing');
     await page.fill('New due date', '01/07/2027', dialog ?? page.body);
     await page.submit(dialog);
@@ -260,7 +260,7 @@ describe('matter deadlines tab', () => {
   it('marks a deadline done, closing its linked task too, and waives another with a reason', async () => {
     const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON });
     await page.click('Mark done', row(page, 'rule-vic.probate.advert_min') ?? page.body);
-    const dialog = page.dialog();
+    const dialog = await page.openedDialog();
     expect(page.text(dialog)).toContain('Also mark its linked task done');
     await page.submit(dialog);
     await page.stable(20);
@@ -278,6 +278,7 @@ describe('matter deadlines tab', () => {
 
     await page.click('More actions for Executor’s year ends');
     await page.click('Waive…');
+    await page.openedDialog();
     await page.submit(page.dialog());
     expect(page.text(page.dialog())).toContain('Say why it’s waived.');
     await page.fill('Why is it waived?', 'The fictional estate was wound up early', page.dialog() ?? page.body);
@@ -308,6 +309,7 @@ describe('matter deadlines tab', () => {
     const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON });
     await page.click('More actions for Lodge the caveat response');
     await page.click('Confirm missed…');
+    await page.openedDialog();
     expect(page.dialog()?.getAttribute('role')).toBe('alertdialog');
     await page.submit(page.dialog());
     await page.stable(20);
@@ -319,7 +321,7 @@ describe('matter deadlines tab', () => {
   it('adds a manual deadline, then edits and deletes it', async () => {
     const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON });
     await page.click('Add deadline');
-    const dialog = page.dialog();
+    const dialog = await page.openedDialog();
     await page.submit(dialog);
     expect(page.text(dialog)).toContain('Give the deadline a title.');
     await page.fill('Title', 'Settle the sale of the fictional house', dialog ?? page.body);
@@ -345,6 +347,7 @@ describe('matter deadlines tab', () => {
 
     await page.click('More actions for Settle the sale of the fictional house');
     await page.click('Edit…');
+    await page.openedDialog();
     await page.fill('Title', 'Settle the fictional house sale', page.dialog() ?? page.body);
     await page.submit(page.dialog());
     await page.stable(20);
@@ -361,7 +364,7 @@ describe('matter deadlines tab', () => {
   it('records, edits and deletes events through the callables', async () => {
     const page = await openMatter(TAB, { configure: seedDeadlines, flags: RULES_ON });
     await page.click('Record event');
-    const dialog = page.dialog();
+    const dialog = await page.openedDialog();
     // A native select's values are the options' indexes: Grant issued is the fifth kind.
     await page.fill('Event', '4', dialog ?? page.body);
     await page.fill('Date', '30/09/2026', dialog ?? page.body);
@@ -373,6 +376,7 @@ describe('matter deadlines tab', () => {
     expect(page.text(page.body.querySelector('[data-event="grant_issued"]'))).toContain('Grant issued');
 
     await page.click('Edit Date of death');
+    await page.openedDialog();
     await page.fill('Date', '01/01/2027', page.dialog() ?? page.body);
     await page.submit(page.dialog());
     expect(page.text(page.dialog())).toContain('A date of death can’t be after today.');
@@ -484,7 +488,7 @@ describe('matter deadlines tab', () => {
         },
       });
       await page.click('Record event');
-      const dialog = page.dialog();
+      const dialog = await page.openedDialog();
       // Newest first; a repeated name is numbered, and removed documents aren't offered.
       expect(options(page, 'Source document')).toEqual([
         'None',
@@ -529,7 +533,7 @@ describe('matter deadlines tab', () => {
       expect(page.text(details(page, 'mt-event-timeline .flat'))).toBe('At 14:30 Source: Death certificate.pdf');
 
       await page.click('Edit Date of death');
-      const dialog = page.dialog();
+      const dialog = await page.openedDialog();
       expect((dialog?.querySelector('mt-text-field[name="time"] input') as HTMLInputElement | null)?.value).toBe(
         '14:30',
       );
@@ -555,6 +559,7 @@ describe('matter deadlines tab', () => {
       expect(details(page)?.querySelector('a')).toBeNull();
 
       await page.click('Edit Date of death');
+      await page.openedDialog();
       expect(options(page, 'Source document')).toEqual([
         'None',
         'Death certificate.pdf',

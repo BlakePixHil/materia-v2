@@ -48,6 +48,11 @@ export interface ProposeOptions {
   model: string;
   /** Days until an unanswered suggestion expires (default 14). */
   ttlDays?: number;
+  /**
+   * A person's own Claude proposed them through the connector (INT-07): they are written by that
+   * person, with their name for the card, instead of by `clerk`.
+   */
+  requestedBy?: { uid: string; name: string };
 }
 
 export type ProposeSkipReason =
@@ -82,7 +87,8 @@ const IN_LIMIT = 30;
  *   already has it;
  * - its `basis` is computed from the sources it depends on (`suggestionBasisParts`);
  * - it is privileged when `options.privileged`, the matter or a cited or targeted document is;
- * - it expires after `ttlDays` (14) and is written as `proposed` by `clerk`.
+ * - it expires after `ttlDays` (14) and is written as `proposed` by `clerk` (or, for the Claude
+ *   connector, by the person whose Claude proposed it: `requestedBy`).
  *
  * Counted as `proposed` in the org's Clerk metrics. Never throws for a bad proposal; the result
  * says what was created and why the rest were skipped.
@@ -104,6 +110,7 @@ export async function proposeSuggestions(
   }
 
   const now = clock.now();
+  const actor = options.requestedBy?.uid ?? CLERK_ACTOR;
   const ttl = options.ttlDays ?? SUGGESTION_TTL_DAYS;
   const expiresAt = new Date(now.getTime() + ttl * 86_400_000);
   const valid: { index: number; proposal: ReturnType<typeof SuggestionProposalSchema.parse>; dedupeKey: string }[] = [];
@@ -190,10 +197,11 @@ export async function proposeSuggestions(
             basisParts: basis.parts,
             dedupeKey,
             expiresAt,
+            requestedBy: options.requestedBy,
             createdAt: now,
-            createdBy: CLERK_ACTOR,
+            createdBy: actor,
             updatedAt: now,
-            updatedBy: CLERK_ACTOR,
+            updatedBy: actor,
             schemaVersion: Suggestion.version,
           }),
         ) as Data,

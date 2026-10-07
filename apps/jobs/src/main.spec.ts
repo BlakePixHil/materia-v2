@@ -27,6 +27,16 @@ describe('main', () => {
     expect(await main(['pdf'], {})).toBe(1);
   });
 
+  it('runs the job Cloud Run names when it passes no arguments', async () => {
+    // Cloud Run starts the deployed job `pdf` as `node main.js`: without the fallback every
+    // execution stopped at the usage line and no job document was ever claimed.
+    expect(await main([], { CLOUD_RUN_JOB: 'pdf' })).toBe(1);
+    expect(console.error).toHaveBeenLastCalledWith('Set JOB_ORG_ID and JOB_ID');
+    expect(await main([], {})).toBe(1);
+    expect(console.error).toHaveBeenLastCalledWith(expect.stringMatching(/^Usage: node main.js/));
+    expect(await main([], { CLOUD_RUN_JOB: 'ocr' })).toBe(1);
+  });
+
   it('runs a job from a local folder and returns 2 when it fails', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'main-'));
     // The input does not exist in storage/, so the download fails and the job records a failure.

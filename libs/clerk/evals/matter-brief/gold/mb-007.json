@@ -1,0 +1,5 @@
+{
+  "id": "mb-007",
+  "briefRefs": ["deadline:dl-today", "task:t-will"],
+  "mustNotContain": ["tomorrow", "next week"]
+}

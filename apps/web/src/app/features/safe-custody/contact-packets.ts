@@ -18,10 +18,10 @@ import { STATUS_TONES } from './safe-custody-view';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, MtBadge, MtButton],
   template: `
-    <h2 id="contact-packets-h">
+    <h3 id="contact-packets-h">
       Safe custody
       <span class="mt-contact-count">{{ rows().length }}</span>
-    </h2>
+    </h3>
     @if (packets.status() === 'loading') {
       <p role="status" class="mt-contact-muted">Loading packets…</p>
     } @else {
@@ -49,7 +49,7 @@ import { STATUS_TONES } from './safe-custody-view';
       flex-direction: column;
       gap: var(--space-12);
     }
-    h2 {
+    h3 {
       display: flex;
       align-items: center;
       gap: var(--space-8);

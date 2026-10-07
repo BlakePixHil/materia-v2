@@ -141,7 +141,8 @@ interface Access {
  * Whether the uploader may add this file (the rules checked the same, but a member can be
  * suspended or a document deleted between the upload and the trigger): an active member with
  * `document.upload` on a live matter they can see, privileged material only with
- * `privileged.view`, and a new version only of a live, scanned document they can see.
+ * `privileged.view`, and a new version only of a live, scanned document they can see; nothing
+ * while the practice waits to be deleted.
  */
 async function checkAccess(
   db: Firestore,
@@ -149,11 +150,14 @@ async function checkAccess(
   matterId: string,
   meta: UploadMetadata,
 ): Promise<Access | { refused: 'not_allowed' | 'target_unavailable' }> {
-  const [member, matter, target] = await db.getAll(
+  const [member, matter, target, org] = await db.getAll(
     db.doc(`orgs/${orgId}/members/${meta.uploaderUid}`),
     db.doc(matterPath(orgId, matterId)),
     db.doc(`${matterPath(orgId, matterId)}/documents/${meta.documentId ?? '-'}`),
+    db.doc(`orgs/${orgId}`),
   );
+  // A practice waiting to be deleted is read-only (SEC-05): the Storage rules can't see that.
+  if (org?.get('deletionScheduledAt')) return { refused: 'not_allowed' };
   const role = member?.get('role') as Role | undefined;
   if (!member?.exists || member.get('status') !== 'active' || !role || !ROLES.includes(role)) {
     return { refused: 'not_allowed' };
@@ -398,7 +402,8 @@ async function beginUpload(
       scan: { status: 'pending' },
       upload,
       ingest: { status: 'pending' },
-      source: 'upload',
+      // A phone scan says so (MOB-05); anything else a person adds is an upload.
+      source: meta.source ?? 'upload',
       encrypted: false,
       accessRestricted: false,
       deletedAt: null,

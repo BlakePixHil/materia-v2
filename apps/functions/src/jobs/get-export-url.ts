@@ -23,10 +23,11 @@ export function exportFileName(name: unknown, extension: ExportExtension = 'pdf'
 }
 
 /**
- * `jobs-getExportUrl` (FND-24, CORE-17, CORE-12b, INS-03; any member): a signed URL for an export
- * job's file (`orgs/{orgId}/exports/{jobId}.pdf`, `.zip` for `documents.zip`, `.csv` for a list
- * export; `jobs-sweepExports` deletes the file and the job after 7 days), valid for 5 minutes and
- * served as an attachment.
+ * `jobs-getExportUrl` (FND-24, CORE-17, CORE-12b, INS-03, SEC-05; any member): a signed URL for an
+ * export job's file (`orgs/{orgId}/exports/{jobId}.pdf`, `.zip` for `documents.zip` and the full
+ * export, `.csv` for a list export; `jobs-sweepExports` deletes the file and the job after 7 days),
+ * valid for 5 minutes and served as an attachment. A full export split into several zips names the
+ * one wanted (`part`, from 1) and answers how many there are (`parts`).
  * Only the member who started the job may fetch it, and only once it succeeded: anyone else's job,
  * or one that isn't an export, is NOT_FOUND; one still running FAILED_PRECONDITION `not_ready`.
  */
@@ -41,22 +42,34 @@ export function getExportUrlDefinition(bucket: () => string = filesBucket) {
       if (!job || job['createdBy'] !== uid || target?.kind !== 'export') {
         throw new DomainError('NOT_FOUND', 'Export not found', { jobId: input.jobId });
       }
-      const output = job['output'] as { storagePath?: string } | undefined;
+      const output = job['output'] as
+        { storagePath?: string; parts?: { storagePath?: string }[] | undefined } | undefined;
       if (job['status'] !== 'succeeded' || !output?.storagePath) {
         throw new DomainError('FAILED_PRECONDITION', 'The export isn’t ready yet', { reason: 'not_ready' });
       }
+      // A full export split into several zips (SEC-05): one link per part.
+      const parts = output.parts?.length ? output.parts : [{ storagePath: output.storagePath }];
+      const part = input.part ?? 1;
+      const storagePath = parts[part - 1]?.storagePath;
+      if (!storagePath) throw new DomainError('NOT_FOUND', 'Export not found', { jobId: input.jobId, part });
       const type = exportFileType(job['type'] as string | undefined);
-      const fileName = exportFileName(target.name, type.extension);
+      const name = parts.length > 1 ? `${String(target.name)} part ${part} of ${parts.length}` : target.name;
+      const fileName = exportFileName(name, type.extension);
       const expiresAt = new Date(clock.now().getTime() + DOWNLOAD_URL_TTL_SECONDS * 1000);
       const url = await ports.signedUrls.sign({
         bucket: bucket(),
-        path: output.storagePath,
+        path: storagePath,
         expiresAt,
         disposition: attachmentDisposition(fileName),
         contentType: type.contentType,
       });
-      log.info('export url', { jobId: input.jobId });
-      return { url, expiresAt: expiresAt.toISOString(), fileName };
+      log.info('export url', { jobId: input.jobId, part });
+      return {
+        url,
+        expiresAt: expiresAt.toISOString(),
+        fileName,
+        ...(job['type'] === 'org.export' ? { parts: parts.length, part } : {}),
+      };
     },
   } satisfies CallableDefinition<typeof GetExportUrlInput, GetExportUrlResult>;
 }

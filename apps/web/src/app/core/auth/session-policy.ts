@@ -39,6 +39,8 @@ export class SessionPolicy {
   /** `undefined` while loading (or without an org), null when it couldn't be read. */
   readonly security = signal<SessionSecurity | null | undefined>(undefined);
   readonly policy = computed<ResolvedSecurity | null>(() => this.security()?.policy ?? null);
+  /** When the practice is to be deleted (SEC-05); null when it isn't. It is read-only until then. */
+  readonly deletionScheduledAt = computed<Date | null>(() => this.security()?.deletionScheduledAt ?? null);
   /** Re-evaluated when a time boundary (grace end, session expiry) passes. */
   private readonly now = signal(this.clock());
   /** Off while this tab signs out everywhere else and confirms it's them again. */
