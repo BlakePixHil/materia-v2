@@ -80,19 +80,6 @@ body {
   outline: none;
 }
 
-/* Links in text are action blue and underlined (brand book: "Links and blue text use text-brand").
-   Without this they were the browser's own blue, unreadable on dark surfaces. Zero specificity, so
-   components that style their own anchors (nav items, buttons, menu items, rows) keep theirs. */
-:where(a) {
-  color: var(--text-brand);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-  transition: text-decoration-color 120ms ease;
-}
-:where(a):hover {
-  text-decoration-thickness: 2px;
-}
-
 /* An icon button inside a chip (a label's remove button) is a small circle that fits within the chip. */
 .mt-chip > .mt-ibtn[data-size] {
   --s: 20px;
