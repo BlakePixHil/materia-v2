@@ -11,6 +11,9 @@
 #   firebase emulators:exec --only auth,firestore,functions,storage --project demo-materia \
 #     --import=.perf-data "K6=$HOME/bin/k6 tools/load/run.sh"
 #
+# Knobs (environment): DURATION (the peak step, default 2m), MULTIPLIER (default 10; 1 runs at peak),
+# CONTENTION=0 (the counters' scripts skip their 5-a-second step), LOAD_OUT (default dist/load).
+#
 # k6 isn't a dependency: download a release from github.com/grafana/k6/releases and check its
 # SHA-256 against the release's checksums file (docs/ops/perf-report-2026-10.md).
 set -euo pipefail

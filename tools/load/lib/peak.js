@@ -63,6 +63,9 @@ export function peakScenario(flow, extra = {}) {
   };
 }
 
+/** The counters' scripts run their contention step too, unless `CONTENTION=0` (the peak step alone). */
+export const WITH_CONTENTION = __ENV.CONTENTION !== '0';
+
 /**
  * The counters' contention step: `CONTENTION_PER_SECOND` for 30 s, once the 10× peak scenario and
  * its graceful stop are over (`CONTENTION_START` when `DURATION` changes it).

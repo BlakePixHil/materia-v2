@@ -1,5 +1,5 @@
 import { COMMON_OPTIONS, accounts, call, callMany, pick, signIn, uuid } from './lib/emulator.js';
-import { contentionScenario, peakScenario } from './lib/peak.js';
+import { WITH_CONTENTION, contentionScenario, peakScenario } from './lib/peak.js';
 
 /**
  * `matters-createMatter` at 10× peak, then 5 a second for the year's matter counter (one
@@ -10,12 +10,12 @@ export const options = {
   ...COMMON_OPTIONS,
   scenarios: {
     peak10x: peakScenario('createMatter'),
-    contention: contentionScenario(),
+    ...(WITH_CONTENTION ? { contention: contentionScenario() } : {}),
   },
   thresholds: {
     'http_req_duration{name:matters-createMatter,step:peak10x}': ['p(95)<1000'],
     'checks{step:peak10x}': ['rate==1'],
-    'checks{step:contention}': ['rate==1'],
+    ...(WITH_CONTENTION ? { 'checks{step:contention}': ['rate==1'] } : {}),
   },
 };
 

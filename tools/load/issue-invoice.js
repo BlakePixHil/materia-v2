@@ -1,5 +1,5 @@
 import { COMMON_OPTIONS, accounts, call, callMany, openMatters, pick, signIn, uuid } from './lib/emulator.js';
-import { contentionScenario, peakScenario } from './lib/peak.js';
+import { WITH_CONTENTION, contentionScenario, peakScenario } from './lib/peak.js';
 
 /**
  * `billing-issueInvoice` at 10× peak, then 5 a second for the invoice counter (one transaction per
@@ -11,13 +11,13 @@ export const options = {
   ...COMMON_OPTIONS,
   scenarios: {
     peak10x: peakScenario('issueInvoice'),
-    contention: contentionScenario(),
+    ...(WITH_CONTENTION ? { contention: contentionScenario() } : {}),
   },
   thresholds: {
     'http_req_duration{name:billing-issueInvoice,step:peak10x}': ['p(95)<1000'],
     'http_req_duration{name:billing-saveDraft,step:peak10x}': ['p(95)<1000'],
     'checks{step:peak10x}': ['rate==1'],
-    'checks{step:contention}': ['rate==1'],
+    ...(WITH_CONTENTION ? { 'checks{step:contention}': ['rate==1'] } : {}),
   },
 };
 
