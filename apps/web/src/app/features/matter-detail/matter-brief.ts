@@ -29,7 +29,7 @@ import { ClerkPanel } from '../../core/clerk/clerk-panel';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCodeOf, errorCopy } from '../../core/error-copy';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
-import { MOBILE_QUERY } from '../../shell/app-shell';
+import { PhoneLayout } from '../../core/layout/phone-layout';
 
 /** The brief as the card shows it: from the listener or from the callable, whichever is newer. */
 export interface BriefShown {
@@ -258,7 +258,7 @@ export class MatterBrief {
   protected readonly failed = signal(false);
   protected readonly announcement = signal('');
   private readonly seen = signal<number | null>(null);
-  private readonly mobile = signal(false);
+  private readonly mobile = inject(PhoneLayout).phone;
   /** The latest call; an answer to an earlier one (another matter since) is dropped. */
   private seq = 0;
 
@@ -335,13 +335,6 @@ export class MatterBrief {
         void this.load();
       });
     });
-    const media = this.document.defaultView?.matchMedia?.(MOBILE_QUERY) ?? null;
-    if (media) {
-      this.mobile.set(media.matches);
-      const onChange = (event: MediaQueryListEvent) => this.mobile.set(event.matches);
-      media.addEventListener('change', onChange);
-      inject(DestroyRef).onDestroy(() => media.removeEventListener('change', onChange));
-    }
     // "Clerk is writing…" clears when the claim lapses, even if no newer brief arrives.
     const timer = setInterval(() => this.now.set(Date.now()), 15_000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));

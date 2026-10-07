@@ -50,11 +50,17 @@ export const SETTINGS_ITEM: NavEntry = {
   key: 's',
 };
 
-/** The phone TabBar: four destinations and Record in the middle (MOB-02 refines it). */
+/**
+ * The phone TabBar (MOB-02): Today, Matters, Record raised in the middle, Inbox, and More (the
+ * account and every other destination).
+ */
 export const TAB_BAR_ITEMS: readonly MtTabBarItem[] = [
   { label: 'Today', icon: 'today', link: '/today' },
   { label: 'Matters', icon: 'matters', link: '/matters' },
-  { label: 'Record', icon: 'timer', link: '/billing', fab: true },
-  { label: 'Deadlines', icon: 'calendar', link: '/deadlines' },
+  { label: 'Record', icon: 'mic', link: '/record', fab: true },
   { label: 'Inbox', icon: 'inbox', link: '/inbox' },
+  { label: 'More', icon: 'more', link: '/more' },
 ];
+
+/** The pages a TabBar tab owns; anything else was reached from More, which stays current. */
+export const TAB_ROOTS: readonly string[] = ['/today', '/matters', '/record', '/inbox'];

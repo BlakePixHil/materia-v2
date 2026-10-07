@@ -6,3 +6,5 @@
 .mt-tabbar a[data-active] .mt-i { color: var(--icon-brand); }
 .mt-tabbar .fab { width: 48px; height: 48px; margin-top: -4px; border-radius: 16px; display: grid; place-items: center; background: var(--bg-brand); color: var(--text-on-brand); box-shadow: var(--shadow-popover); }
 .mt-tabbar .fab .mt-i { width: 22px; height: 22px; color: var(--text-on-brand); }
+.mt-tabbar a[data-active] .fab .mt-i { color: var(--text-on-brand); }
+.mt-tabbar a[data-active] .fab { box-shadow: 0 0 0 3px var(--bg-brand-subtle), var(--shadow-popover); }

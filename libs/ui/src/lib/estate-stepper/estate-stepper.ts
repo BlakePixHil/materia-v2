@@ -8,6 +8,8 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 
+import { MtButton } from '../button/button';
+import { MT_MENU } from '../menu/menu';
 import { MtTooltip } from '../tooltip/tooltip';
 
 /** A stage from the matter template. */
@@ -48,6 +50,10 @@ export function stepStates(
  * current stage is marked `aria-current="step"`. With `interactive`, each stage is a button that emits
  * `stageSelect` (moving a matter's stage is the feature's job). A stage's `description` (its
  * completion criteria) is the button's tooltip; a `locked` stage says why it can't be chosen.
+ *
+ * `compact` (phones, MOB-02) draws the track without labels and names the current stage under it
+ * ("Stage 2 of 6 · Grant application"); when interactive, that line is a 44px button whose menu
+ * lists the stages.
  */
 @Component({
   selector: 'mt-estate-stepper',
@@ -59,37 +65,80 @@ export function stepStates(
       cursor: not-allowed;
     }
   `,
-  imports: [MtTooltip],
+  imports: [MtButton, MtTooltip, ...MT_MENU],
   host: { style: 'display: block' },
   template: `
-    <ol class="mt-stepper" [style.--n]="stages().length" [attr.aria-label]="label()">
-      @for (stage of stages(); track stage.id; let i = $index) {
-        <li
-          [attr.data-state]="states()[i] === 'upcoming' ? null : states()[i]"
-          [attr.aria-current]="states()[i] === 'current' ? 'step' : null"
-        >
-          @if (interactive()) {
+    @if (compact()) {
+      <div class="mt-stepper-compact" [attr.aria-label]="label()" role="group">
+        <span class="mt-stepper-bars" [style.--n]="stages().length" aria-hidden="true">
+          @for (stage of stages(); track stage.id; let i = $index) {
+            <i [attr.data-state]="states()[i] === 'upcoming' ? null : states()[i]"></i>
+          }
+        </span>
+        @if (interactive()) {
+          <button
+            mtButton
+            variant="ghost"
+            size="sm"
+            iconEnd="chevron-down"
+            class="mt-stepper-now"
+            [mtMenuTrigger]="stageMenu"
+            [attr.aria-label]="position() + '. Change stage'"
+          >
+            {{ position() }}
+          </button>
+        } @else {
+          <span class="mt-stepper-now caption">{{ position() }}</span>
+        }
+      </div>
+      <ng-template #stageMenu>
+        <mt-menu aria-label="Move the matter to">
+          @for (stage of stages(); track stage.id; let i = $index) {
             <button
-              type="button"
-              class="mt-stepper-btn"
-              [attr.aria-disabled]="stage.locked ? 'true' : null"
-              [mtTooltip]="tooltip(stage)"
-              [mtTooltipDisabled]="!tooltip(stage)"
+              mtMenuItem
+              [icon]="states()[i] === 'current' ? 'check' : undefined"
+              [attr.aria-current]="states()[i] === 'current' ? 'step' : null"
+              [disabled]="!!stage.locked"
               (click)="choose(stage)"
             >
-              {{ stage.title }}<span class="mt-sr">{{ stateText(states()[i]) }}</span>
-            </button>
-          } @else {
-            <span
-              >{{ stage.title }}<span class="mt-sr">{{ stateText(states()[i]) }}</span>
-              @if (stage.description; as text) {
-                <span class="mt-sr">. {{ text }}</span>
+              {{ stage.title }}
+              @if (stage.locked; as why) {
+                <span class="mt-sr">. {{ why }}</span>
               }
-            </span>
+            </button>
           }
-        </li>
-      }
-    </ol>
+        </mt-menu>
+      </ng-template>
+    } @else {
+      <ol class="mt-stepper" [style.--n]="stages().length" [attr.aria-label]="label()">
+        @for (stage of stages(); track stage.id; let i = $index) {
+          <li
+            [attr.data-state]="states()[i] === 'upcoming' ? null : states()[i]"
+            [attr.aria-current]="states()[i] === 'current' ? 'step' : null"
+          >
+            @if (interactive()) {
+              <button
+                type="button"
+                class="mt-stepper-btn"
+                [attr.aria-disabled]="stage.locked ? 'true' : null"
+                [mtTooltip]="tooltip(stage)"
+                [mtTooltipDisabled]="!tooltip(stage)"
+                (click)="choose(stage)"
+              >
+                {{ stage.title }}<span class="mt-sr">{{ stateText(states()[i]) }}</span>
+              </button>
+            } @else {
+              <span
+                >{{ stage.title }}<span class="mt-sr">{{ stateText(states()[i]) }}</span>
+                @if (stage.description; as text) {
+                  <span class="mt-sr">. {{ text }}</span>
+                }
+              </span>
+            }
+          </li>
+        }
+      </ol>
+    }
   `,
 })
 export class MtEstateStepper {
@@ -98,10 +147,18 @@ export class MtEstateStepper {
   /** Stage ids that are complete; defaults to every stage before the current one. */
   readonly completed = input<readonly string[]>();
   readonly interactive = input(false, { transform: booleanAttribute });
+  /** The phone's form: the track, and the current stage's name under it (a menu when interactive). */
+  readonly compact = input(false, { transform: booleanAttribute });
   readonly label = input('Matter stages');
   readonly stageSelect = output<StageVm>();
 
   protected readonly states = computed(() => stepStates(this.stages(), this.current(), this.completed()));
+  /** "Stage 2 of 6 · Grant application", or "No stage yet" before one is set. */
+  protected readonly position = computed(() => {
+    const stages = this.stages();
+    const i = stages.findIndex((stage) => stage.id === this.current());
+    return i < 0 ? 'No stage yet' : `Stage ${i + 1} of ${stages.length} · ${stages[i]?.title}`;
+  });
 
   protected tooltip(stage: StageVm): string {
     return [stage.description, stage.locked].filter(Boolean).join('. ');

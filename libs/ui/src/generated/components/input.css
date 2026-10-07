@@ -15,4 +15,5 @@
 .mt-input[data-invalid][data-focus] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-danger) 22%, transparent); }
 .mt-input[data-disabled] { background: var(--bg-disabled); border-color: var(--border-default); color: var(--text-disabled); }
 .mt-input[data-size="sm"] { height: var(--control-sm); padding: 0 var(--space-8); font-size: 13px; }
+@media (max-width: 767px) { .mt-input, .mt-input[data-size="sm"] { font-size: 16px; } .mt-input > input { align-self: stretch; margin-block: -1px; } }
 .mt-input .suffix { font: 400 13px/18px var(--font-mono); color: var(--text-tertiary); }

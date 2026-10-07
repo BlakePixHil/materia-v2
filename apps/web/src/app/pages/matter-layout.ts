@@ -35,6 +35,7 @@ import { matterCommands } from '../core/commands/matter-commands';
 import { recentRecorder } from '../core/commands/recents';
 import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { PhoneLayout } from '../core/layout/phone-layout';
 import { startTrace } from '../core/observability/perf';
 import { PinnedMatters } from '../core/pins/pinned-matters';
 import { MtPageOfflineNote } from '../core/pwa/offline-banner';
@@ -42,6 +43,7 @@ import { ShortcutService } from '../core/shortcuts/shortcut.service';
 import { MatterHeader } from '../features/matter-detail/matter-header';
 import { MatterScreen } from '../features/matter-detail/matter-screen';
 import { MatterStages } from '../features/matter-detail/matter-stages';
+import { PhoneMatter } from '../features/matter-detail/phone-matter';
 
 /** The matter commands ⌘K offers for the open matter that act on a tab (CORE-15). */
 const TAB_ACTIONS = new Set(['matter.add-task', 'matter.add-deadline', 'matter.record-event', 'matter.upload']);
@@ -72,6 +74,7 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
     MtTabNav,
     MtTabLink,
     NotFoundPage,
+    PhoneMatter,
     RouterLink,
     RouterOutlet,
   ],
@@ -159,12 +162,21 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
             </mt-note>
           }
           <mt-matter-stages #stages />
-          <nav mtTabNav aria-label="Matter sections">
-            @for (tab of tabs(); track tab.path) {
-              <a mtTabLink [routerLink]="tab.path">{{ tab.label }}</a>
+          @if (phoneOverview()) {
+            <!-- A phone's Overview (MOB-02) is one scroll with folding sections, loaded only on a phone. -->
+            @defer (on immediate) {
+              <mt-phone-matter />
+            } @placeholder {
+              <mt-skeleton variant="lines" label="Loading the matter…" [count]="4" />
             }
-          </nav>
-          <router-outlet />
+          } @else {
+            <nav mtTabNav aria-label="Matter sections">
+              @for (tab of tabs(); track tab.path) {
+                <a mtTabLink [routerLink]="tab.path">{{ tab.label }}</a>
+              }
+            </nav>
+            <router-outlet />
+          }
         }
       }
     }
@@ -189,6 +201,9 @@ export class MatterLayout {
   );
   private readonly flags = inject(FeatureFlagService);
   protected readonly tabs = computed(() => matterTabsFor(this.screen.value()?.type, (key) => this.flags.isOn(key)));
+  private readonly phone = inject(PhoneLayout).phone;
+  /** A phone on the Overview: `PhoneMatter` in place of the tabs and the Overview tab (MOB-02). */
+  protected readonly phoneOverview = computed(() => this.phone() && this.activeTab() === 'overview');
 
   protected readonly state = computed<MatterState>(() => {
     const matter = this.screen.matter;

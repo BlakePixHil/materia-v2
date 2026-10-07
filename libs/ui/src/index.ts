@@ -24,6 +24,7 @@ export * from './lib/toast/toast';
 export * from './lib/tabs/tabs';
 export * from './lib/nav/nav';
 export * from './lib/bottom-sheet/bottom-sheet';
+export * from './lib/pull-refresh/pull-refresh';
 export * from './lib/pipes/format';
 export * from './lib/pipes/pipes';
 export * from './lib/markers/markers';

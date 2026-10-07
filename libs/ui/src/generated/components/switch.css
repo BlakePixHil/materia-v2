@@ -5,3 +5,4 @@
 .mt-switch[data-checked] .mt-switch-thumb { transform: translateX(12px); }
 .mt-switch[data-disabled] { background: var(--bg-disabled); cursor: not-allowed; }
 .mt-switch[data-disabled] .mt-switch-thumb { box-shadow: none; background: var(--bg-surface); }
+@media (max-width: 767px) { .mt-switch { box-sizing: border-box; width: 51px; height: 44px; border-block: 6.5px solid transparent; background-clip: padding-box; } .mt-switch-thumb { width: 27px; height: 27px; } .mt-switch[data-checked] .mt-switch-thumb { transform: translateX(20px); } }

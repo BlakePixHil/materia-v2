@@ -138,6 +138,8 @@ export interface MtTabBarItem {
   fab?: boolean;
   /** Something actionable (unread), shown as a badge on the icon: as is up to 99, then "99+". */
   count?: number;
+  /** Overrides the router's answer: More stays current on the pages it leads to. */
+  active?: boolean | undefined;
 }
 
 /**
@@ -178,8 +180,8 @@ export interface MtTabBarItem {
           [routerLink]="item.link"
           routerLinkActive
           #rla="routerLinkActive"
-          [attr.data-active]="rla.isActive ? '' : null"
-          [attr.aria-current]="rla.isActive ? 'page' : null"
+          [attr.data-active]="(item.active ?? rla.isActive) ? '' : null"
+          [attr.aria-current]="rla.isActive ? 'page' : item.active ? 'true' : null"
           [attr.aria-label]="item.fab ? item.label : null"
         >
           @if (item.fab) {
