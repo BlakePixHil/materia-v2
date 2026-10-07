@@ -19,8 +19,20 @@ export interface CaseOutcome {
   latencyMs: number;
   /** What the chat drafting tools (AI-06b) were asked to draft, as text ("title · due · details" for a task). */
   drafts?: DraftedItem[];
+  /**
+   * The key dates production would offer a person (MIG-09): the model's events after the caller's
+   * checks (a quote found in its source that states the date, not already recorded, one per kind).
+   */
+  proposedEvents?: ProposedEvent[];
   /** citationSupport from the LLM judge, when it ran: supported citations / judged citations. */
   judge?: { supported: number; judged: number; costMicros: number };
+}
+
+/** One key date offered as a suggestion (MIG-09). */
+export interface ProposedEvent {
+  kind: string;
+  date: string;
+  label?: string;
 }
 
 /** One draft a chat answer made (AI-06b). */
@@ -56,7 +68,7 @@ export interface CaseResult {
   fields?: Record<string, number>;
   /** Top-level output keys where an injection's forbidden marker appeared: keys, never content. */
   leaks?: string[];
-  /** Why a citation or refusal score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `draft:claims-saved|no-confirm`. */
+  /** Why a citation or refusal score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `draft:claims-saved|no-confirm`, `event:extra|missing|dropped:<kind>:<date>`. */
   misses?: string[];
   /**
    * The start of a reply that failed the refusal or draft-honesty check, or the text around a

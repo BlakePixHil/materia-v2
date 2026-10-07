@@ -368,6 +368,30 @@ describe('scoring', () => {
     expect(scored.misses).toEqual(['draft:claims-saved', 'draft:no-confirm']);
     expect(scored.excerpt).toBe('I have added the task to the matter.');
   });
+
+  it('scores the key dates offered and names the ones listed, missed or dropped', () => {
+    const listed = [
+      { kind: 'caveat_lodged', date: '2026-03-03', rationale: 'r', citations: [] },
+      { kind: 'probate_filed', date: '2026-02-12', rationale: 'r', citations: [] },
+    ];
+    const scored = scoreCase(
+      suiteConfig({ citations: 'none' }),
+      evalCase('x'),
+      { id: 'x', fixtures: {}, events: [{ kind: 'grant_issued', date: '2026-05-28' }] },
+      {
+        ...outcome('{}', 1000),
+        parsed: { events: listed },
+        proposedEvents: [{ kind: 'caveat_lodged', date: '2026-03-03' }],
+      },
+      new Map(),
+    );
+    expect(scored.scores).toMatchObject({ schemaValid: 1, eventPrecision: 0, eventRecall: 0 });
+    expect(scored.misses).toEqual([
+      'event:extra:caveat_lodged:2026-03-03',
+      'event:missing:grant_issued:2026-05-28',
+      'event:dropped:probate_filed:2026-02-12',
+    ]);
+  });
 });
 
 describe('gate helpers', () => {

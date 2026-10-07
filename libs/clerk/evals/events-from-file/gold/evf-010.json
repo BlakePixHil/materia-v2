@@ -1,0 +1,9 @@
+{
+  "id": "evf-010",
+  "events": [
+    {
+      "kind": "notice_published",
+      "date": "2026-05-04"
+    }
+  ]
+}

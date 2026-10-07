@@ -1,0 +1,26 @@
+{
+  "id": "evf-007",
+  "description": "Dates without a year or a day: nothing to offer",
+  "matter": {
+    "matterNumber": "HV-2026-0058",
+    "title": "Estate of Shirley Margaret Dunn",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Shirley Margaret Dunn",
+    "executors": ["Paula Dunn"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    }
+  },
+  "notes": [
+    {
+      "text": "Paula says her mother died on the 3rd of June. Death certificate not yet received."
+    },
+    {
+      "text": "Will found in the deceased's bedside drawer in March 2026 by a neighbour."
+    }
+  ],
+  "today": "2026-06-15"
+}

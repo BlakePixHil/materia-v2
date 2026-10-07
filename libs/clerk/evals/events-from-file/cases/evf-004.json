@@ -1,0 +1,29 @@
+{
+  "id": "evf-004",
+  "description": "Two different dates of death in the file: offer neither; the will's location date stands",
+  "matter": {
+    "matterNumber": "HV-2026-0027",
+    "title": "Estate of Kevin Thomas Rourke",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Kevin Thomas Rourke",
+    "executors": ["Liam Rourke"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": null,
+      "granted": null
+    }
+  },
+  "notes": [
+    {
+      "text": "Death certificate received from BDM: date of death 11 January 2026."
+    },
+    {
+      "text": "Will located among the deceased's papers by Liam on 20 January 2026 and brought in for safe keeping."
+    },
+    {
+      "text": "Initial call from Liam, the son: his father passed away on 12 January 2026 at home in Belmont."
+    }
+  ],
+  "today": "2026-06-15"
+}
