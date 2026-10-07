@@ -20,6 +20,13 @@ import { ADMIN, cleanUpOverlays, MATTER, ME, meta, openMatter, PARALEGAL, PRIYA 
  * BILL-09: where an invoice stands in Xero. Fictional data only.
  */
 
+// Opens a matter's time page once before the tests (lazy chunks, the shell, the schemas it reads,
+// the first change detection), so the first test doesn't pay for it: on CI it came near 5 s.
+beforeAll(async () => {
+  await open('/matters/m-whitfield/time');
+  TestBed.resetTestingModule();
+  cleanUpOverlays();
+});
 afterEach(cleanUpOverlays);
 
 const ORG = 'org-harbour-vine';
