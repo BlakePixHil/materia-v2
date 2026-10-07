@@ -742,6 +742,8 @@ export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
     ...notificationBase,
   }),
   z.object({ kind: z.literal('export_ready'), exportId: DocIdSchema, ...notificationBase }),
+  // The practice was scheduled for deletion, or the deletion was cancelled (SEC-05): to every member.
+  z.object({ kind: z.literal('org_deletion'), ...notificationBase }),
   // A testator whose original is held in safe custody has died (CORE-17): to the packet's lawyer.
   z.object({ kind: z.literal('safe_custody'), packetId: DocIdSchema, ...notificationBase }),
   z.object({ kind: z.literal('budget_alert'), matterId: DocIdSchema, ...notificationBase }),

@@ -1250,6 +1250,7 @@ service cloud.firestore {
     function fieldsCreditNote() { return []; }
     function fieldsDeadline() { return ['title', 'dueDate', 'dueTime', 'kind', 'critical', 'assigneeUid', 'reminders', 'ackBy', 'ackAt']; }
     function fieldsDeadlineChange() { return []; }
+    function fieldsDeletedOrg() { return []; }
     function fieldsDestructionCertificate() { return []; }
     function fieldsDestructionRequest() { return []; }
     function fieldsDevice() { return ['token', 'platform', 'lastSeenAt']; }

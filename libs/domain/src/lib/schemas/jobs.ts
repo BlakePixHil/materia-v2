@@ -11,9 +11,10 @@ export type JobType = z.infer<typeof JobTypeSchema>;
 
 /**
  * Jobs functions run themselves, on a Cloud Tasks queue rather than Cloud Run (ADR-055): CSV
- * exports of the core lists (INS-03), which read Firestore page by page.
+ * exports of the core lists (INS-03), which read Firestore page by page, and the practice's full
+ * export (SEC-05, ADR-058), a zip per task with a checkpoint between them.
  */
-export const FunctionJobTypeSchema = z.enum(['csv.export']);
+export const FunctionJobTypeSchema = z.enum(['csv.export', 'org.export']);
 export type FunctionJobType = z.infer<typeof FunctionJobTypeSchema>;
 
 export const JobStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed']);
@@ -118,8 +119,11 @@ export type DocumentsZipInput = z.infer<typeof DocumentsZipInputSchema>;
 /** How long an export file is kept: `jobs-sweepExports` deletes it, and its job, after this. */
 export const EXPORT_TTL_DAYS = 7;
 
-/** An export file's path: `[, orgId, jobId, extension]`. */
-export const EXPORT_FILE_PATH = /^orgs\/([^/]+)\/exports\/([^/.]+)\.(pdf|zip|csv)$/;
+/**
+ * An export file's path: `[, orgId, jobId, extension]`. A full export split into several zips
+ * (SEC-05) names its later parts `{jobId}.part-2.zip`, `{jobId}.part-3.zip`…
+ */
+export const EXPORT_FILE_PATH = /^orgs\/([^/]+)\/exports\/([^/.]+)(?:\.part-\d+)?\.(pdf|zip|csv)$/;
 
 /** An export file, `orgs/{orgId}/exports/{jobId}.{pdf|zip|csv}`, downloaded through `jobs-getExportUrl`. */
 export const ExportTargetSchema = z.object({ kind: z.literal('export'), name: NonEmptyString.max(250) }).strict();
@@ -165,6 +169,19 @@ export const JobOutputSchema = z.object({
   documentId: DocIdSchema.optional(),
   /** A CSV export's rows, not counting the header. */
   rows: z.number().int().min(0).optional(),
+  /**
+   * A full export's zips (SEC-05), in order, when there is more than one; `storagePath` is the
+   * first's. Each is a complete zip; the last holds `manifest.json`.
+   */
+  parts: z
+    .array(
+      z.object({
+        storagePath: NonEmptyString,
+        sizeBytes: z.number().int().min(0),
+        sha256: z.string().regex(/^[0-9a-f]{64}$/),
+      }),
+    )
+    .optional(),
 });
 
 /** `jobs/{jobId}`: status and progress, written by functions (create) and the job (everything else). */
@@ -187,6 +204,8 @@ export const Job = withMeta(
     startedAt: InstantSchema.optional(),
     heartbeatAt: InstantSchema.optional(),
     finishedAt: InstantSchema.optional(),
+    /** Where a job run in several tasks stopped (a full export's next part, SEC-05). */
+    checkpoint: z.record(z.string(), z.unknown()).optional(),
   },
   {
     path: `${ORG}/jobs`,
@@ -202,6 +221,7 @@ export const Job = withMeta(
       'startedAt',
       'heartbeatAt',
       'finishedAt',
+      'checkpoint',
     ],
     updatable: [],
   },
@@ -210,12 +230,12 @@ export type Job = z.infer<typeof Job.schema>;
 
 export type ExportExtension = 'zip' | 'pdf' | 'csv';
 
-/** An export job's file type: a zip for `documents.zip`, a CSV for `csv.export`, otherwise a PDF. */
+/** An export job's file type: a zip for `documents.zip` and `org.export`, a CSV for `csv.export`, otherwise a PDF. */
 export function exportFileType(type: JobType | FunctionJobType | string | undefined): {
   extension: ExportExtension;
   contentType: string;
 } {
-  if (type === 'documents.zip') return { extension: 'zip', contentType: 'application/zip' };
+  if (type === 'documents.zip' || type === 'org.export') return { extension: 'zip', contentType: 'application/zip' };
   if (type === 'csv.export') return { extension: 'csv', contentType: 'text/csv; charset=utf-8' };
   return { extension: 'pdf', contentType: 'application/pdf' };
 }
@@ -225,7 +245,11 @@ export function exportFileType(type: JobType | FunctionJobType | string | undefi
  * job's PDF, zip or CSV, for the member who started it, once it has succeeded.
  */
 export const GET_EXPORT_URL_CALLABLE = 'jobs-getExportUrl';
-export const GetExportUrlInput = z.object({ jobId: DocIdSchema });
+export const GetExportUrlInput = z.object({
+  jobId: DocIdSchema,
+  /** Which zip of a full export split into several (SEC-05), from 1; the first when absent. */
+  part: z.number().int().min(1).max(10_000).optional(),
+});
 export type GetExportUrlInput = z.input<typeof GetExportUrlInput>;
 
 export interface GetExportUrlResult {
@@ -233,4 +257,8 @@ export interface GetExportUrlResult {
   /** ISO 8601. */
   expiresAt: string;
   fileName: string;
+  /** How many zips the export has (1 unless a full export was split). */
+  parts?: number;
+  /** Which one this link is for. */
+  part?: number;
 }

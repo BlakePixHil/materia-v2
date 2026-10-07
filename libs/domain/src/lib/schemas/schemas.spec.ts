@@ -32,6 +32,7 @@ describe('entity schemas', () => {
       'CreditNote',
       'Deadline',
       'DeadlineChange',
+      'DeletedOrg',
       'DestructionCertificate',
       'DestructionRequest',
       'Device',
