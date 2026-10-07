@@ -9,7 +9,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { formatKb, type BundleReport } from './bundle-size.ts';
+import { BUDGETS, formatKb, type BundleReport } from './bundle-size.ts';
 
 export const MARKER = '<!-- materia-ci-summary -->';
 const METRICS = ['lines', 'statements', 'functions', 'branches'] as const;
@@ -69,14 +69,20 @@ export function renderSummary(input: {
   lines.push('');
   if (input.bundle) {
     const b = input.bundle;
-    const kb = (bytes: number): number => bytes / 1000;
+    // A main baseline from before a measure existed has no value for it, so that row shows no delta.
+    const row = (label: string, pick: (r: BundleReport) => number | undefined, budgetKb: number): string => {
+      const bytes = pick(b) ?? 0;
+      const base = input.baseBundle && pick(input.baseBundle);
+      return `| ${label} | ${formatKb(bytes)}${delta(bytes / 1000, base === undefined ? undefined : base / 1000, ' kB')} | ${budgetKb} kB |`;
+    };
     lines.push(
       '**Bundle** (`apps/web`, gzip)',
       '',
       '| Measure | Size | Budget |',
       '| -- | -- | -- |',
-      `| Initial | ${formatKb(b.initialGzipBytes)}${delta(kb(b.initialGzipBytes), input.baseBundle && kb(input.baseBundle.initialGzipBytes), ' kB')} | 300 kB |`,
-      `| Largest lazy chunk | ${formatKb(b.largestLazyGzipBytes)}${delta(kb(b.largestLazyGzipBytes), input.baseBundle && kb(input.baseBundle.largestLazyGzipBytes), ' kB')} | 150 kB |`,
+      row('Initial', (r) => r.initialGzipBytes, BUDGETS.initialKb),
+      row('Largest lazy chunk (PDF.js aside)', (r) => r.largestLazyGzipBytes, BUDGETS.lazyChunkKb),
+      row('PDF.js library', (r) => r.pdfJsGzipBytes, BUDGETS.pdfJsChunkKb),
       '',
     );
     if (b.violations.length) lines.push(`⚠️ ${b.violations.join('; ')}`, '');

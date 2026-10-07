@@ -40,6 +40,6 @@
 ## Quality gates (CI)
 
 - Coverage: `domain` and `deadlines` ≥ 90% lines, functions ≥ 75%, web ≥ 60%.
-- Bundle: initial JS ≤ 300 kB gzip, and each lazy route ≤ 150 kB.
+- Bundle: initial JS ≤ 300 kB gzip, and each lazy chunk ≤ 150 kB, except PDF.js's library at 170 kB ([ADR-028](adr/028-document-upload-pipeline.md)).
 - Web Vitals on a mid-tier phone (Lighthouse's mobile profile, signed in, against the emulators with the large practice): LCP ≤ 2.5 s, INP ≤ 200 ms and CLS ≤ 0.1 for Today, the Matters list, a matter and Deadlines; Firestore reads per screen load: Today ≤ 150 and a matter ≤ 100 (SEC-07). CI's `perf` job checks them each morning without blocking the deploy; exceptions are listed in the specs with their follow-up tickets ([perf report](ops/perf-report-2026-10.md)). Accessibility is covered by axe on every e2e page.
 - Zero high or critical findings from `pnpm audit` or CodeQL.

@@ -4,6 +4,17 @@ import path from 'node:path';
 
 import { analyseBundle, initialFilesFromHtml, main } from './bundle-size.ts';
 
+function randomish(bytes: number): string {
+  // Random-looking content barely compresses, so its gzip size stays close to its raw size.
+  let text = '';
+  let seed = 7;
+  while (text.length < bytes) {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    text += seed.toString(36);
+  }
+  return text;
+}
+
 function fixtureDist(lazyChunkBytes: number): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'materia-bundle-'));
   writeFileSync(
@@ -14,14 +25,7 @@ function fixtureDist(lazyChunkBytes: number): string {
   writeFileSync(path.join(dir, 'main-B.js'), 'console.log("main");'.repeat(50));
   writeFileSync(path.join(dir, 'chunk-shared.js'), 'export const shared = 1;');
   writeFileSync(path.join(dir, 'styles-A.css'), 'body { margin: 0; }');
-  // Random-looking content barely compresses, so its gzip size stays close to its raw size.
-  let lazy = '';
-  let seed = 7;
-  while (lazy.length < lazyChunkBytes) {
-    seed = (seed * 1103515245 + 12345) % 2147483648;
-    lazy += seed.toString(36);
-  }
-  writeFileSync(path.join(dir, 'chunk-lazy.js'), lazy);
+  writeFileSync(path.join(dir, 'chunk-lazy.js'), randomish(lazyChunkBytes));
   return dir;
 }
 
@@ -45,6 +49,20 @@ describe('bundle-size', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     await expect(main(['--dist', dist])).rejects.toThrow('Bundle budget exceeded');
     log.mockRestore();
+  });
+
+  it('holds PDF.js to its own budget and leaves it out of the largest lazy chunk', () => {
+    const dist = fixtureDist(1000);
+    writeFileSync(path.join(dist, 'chunk-pdf.js'), `globalThis.pdfjsLib={};${randomish(240_000)}`);
+    const report = analyseBundle(dist);
+    expect(report.pdfJsGzipBytes).toBeGreaterThan(150_000);
+    expect(report.largestLazyGzipBytes).toBeLessThan(2000);
+    expect(report.violations).toEqual([]);
+
+    writeFileSync(path.join(dist, 'chunk-pdf.js'), `globalThis.pdfjsLib={};${randomish(300_000)}`);
+    expect(analyseBundle(dist).violations).toEqual([
+      expect.stringMatching(/^PDF\.js chunk chunk-pdf\.js is .* \(budget 170 kB\)$/),
+    ]);
   });
 
   it('fails a bundle that still carries the development-only reads counter', () => {

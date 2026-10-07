@@ -21,6 +21,7 @@ const bundle = (initial: number): BundleReport => ({
   lazy: [],
   initialGzipBytes: initial,
   largestLazyGzipBytes: 300,
+  pdfJsGzipBytes: 149_700,
   violations: [],
 });
 
@@ -42,7 +43,15 @@ describe('ci-summary', () => {
     expect(md.startsWith(MARKER)).toBe(true);
     expect(md).toContain('| `libs/domain` | 92.5% (+2.5 pp) |');
     expect(md).toContain('| Initial | 60.0 kB (+2.0 kB) | 300 kB |');
+    expect(md).toContain('| PDF.js library | 149.7 kB (±0) | 170 kB |');
     expect(md).not.toContain('No main baseline');
+  });
+
+  it('shows no delta for a measure the main baseline predates', () => {
+    const older: Partial<BundleReport> = bundle(58_000);
+    delete older.pdfJsGzipBytes;
+    const md = renderSummary({ coverage: {}, bundle: bundle(60_000), baseBundle: older as BundleReport });
+    expect(md).toContain('| PDF.js library | 149.7 kB | 170 kB |');
   });
 
   it('says when there is nothing to compare', () => {
