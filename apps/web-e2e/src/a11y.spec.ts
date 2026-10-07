@@ -177,6 +177,11 @@ test.describe('accessibility (WCAG 2.2 AA)', () => {
       await settled(page);
       await expectStructure(page, url);
     }
+    // A contact open beside the list: Contacts stays the page's h1 and the contact's name is an h2.
+    await page.goto('/contacts?contact=c-audit-exec');
+    await settled(page);
+    await expect(page.getByRole('heading', { level: 2, name: 'Tamsin Larkwood' })).toBeVisible(FIRST_LOAD);
+    await expectStructure(page, '/contacts with a contact open');
     // Landmarks are named: the sidebar's navigation and the page.
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
     await expect(page.getByRole('main')).toBeVisible();

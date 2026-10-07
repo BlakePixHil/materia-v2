@@ -78,7 +78,7 @@ const CHANNEL_LABELS: Record<NotificationChannel, string> = { inapp: 'In-app', e
     .matrix th,
     .matrix td {
       padding: 6px 8px;
-      border-bottom: 1px solid var(--border-subtle, var(--border));
+      border-bottom: 1px solid var(--border-subtle);
       text-align: left;
       font-weight: 400;
     }
@@ -93,7 +93,7 @@ const CHANNEL_LABELS: Record<NotificationChannel, string> = { inapp: 'In-app', e
     .matrix input {
       width: 16px;
       height: 16px;
-      accent-color: var(--accent, currentColor);
+      accent-color: var(--bg-brand);
     }
   `,
 })

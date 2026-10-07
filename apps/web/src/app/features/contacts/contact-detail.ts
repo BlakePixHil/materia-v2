@@ -95,7 +95,13 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
               <button mtButton size="sm" (click)="openContact.emit(keepId)">Open the contact kept</button>
             </mt-note>
           }
-          <mt-person-header [name]="name()" [subtitle]="subtitle()" [colorKey]="c.id" [roles]="roles()">
+          <mt-person-header
+            [name]="name()"
+            [subtitle]="subtitle()"
+            [colorKey]="c.id"
+            [roles]="roles()"
+            [headingLevel]="2"
+          >
             @if (c.dateOfDeath) {
               <mt-badge tone="neutral">Deceased</mt-badge>
             }
@@ -126,7 +132,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
 
           <div class="mt-contact-cards">
             <section class="mt-contact-card" aria-labelledby="contact-details-h">
-              <h2 id="contact-details-h">Details</h2>
+              <h3 id="contact-details-h">Details</h3>
               @if (facts().length) {
                 <mt-key-facts [facts]="facts()" />
               } @else {
@@ -135,10 +141,10 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
             </section>
 
             <section class="mt-contact-card" aria-labelledby="contact-matters-h">
-              <h2 id="contact-matters-h">
+              <h3 id="contact-matters-h">
                 Matters
                 <span class="mt-contact-count">{{ matters().length }}</span>
-              </h2>
+              </h3>
               @switch (parties.status()) {
                 @case ('loading') {
                   <p role="status" class="mt-contact-muted">Loading matters…</p>
@@ -174,10 +180,10 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
 
             @if (c.isReferrer || referred().length) {
               <section class="mt-contact-card" aria-labelledby="contact-referrals-h" data-testid="contact-referrals">
-                <h2 id="contact-referrals-h">
+                <h3 id="contact-referrals-h">
                   Referrals
                   <span class="mt-contact-count">{{ totals().count }}</span>
-                </h2>
+                </h3>
                 @switch (referrals.status()) {
                   @case ('loading') {
                     <p role="status" class="mt-contact-muted">Loading referrals…</p>
@@ -208,7 +214,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
             }
 
             <section class="mt-contact-card" aria-labelledby="contact-activity-h">
-              <h2 id="contact-activity-h">Activity</h2>
+              <h3 id="contact-activity-h">Activity</h3>
               <mt-contact-activity [contactId]="c.id" [version]="activityVersion()" />
             </section>
           </div>
@@ -241,7 +247,7 @@ type MatterLookup = (MatterSummary & { id: string }) | 'missing';
       background: var(--bg-surface);
       min-width: 0;
     }
-    .mt-contact-card h2 {
+    .mt-contact-card h3 {
       display: flex;
       align-items: center;
       gap: var(--space-8);

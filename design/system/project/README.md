@@ -120,7 +120,7 @@ From 768 to 1199px the sidebar collapses to a 56px rail of icons with tooltips (
 
 ### Accessibility
 
-Text pairs meet 4.5:1 in both themes, and controls and focus meet 3:1. The one exception is deliberate: white on `bg-brand` #346CFC is 4.47:1, just under AA for small text. Keep primary labels at 13px medium or larger. Where strict AA is required, primary fills can use `bg-brand-hover` (#2459E6, 5.76:1). Every icon-only button has an `aria-label` and a Tooltip.
+Text pairs meet 4.5:1 in both themes, and controls and focus meet 3:1. The one exception is deliberate: white on `bg-brand` #346CFC is 4.47:1, just under AA for small text. Keep primary labels at 13px medium or larger. Where strict AA is required, primary fills can use `bg-brand-hover` (#2459E6, 5.76:1). Small white text on a brand fill always does: the primary button, the brand count, a hearing date, today's deadline and the org avatar. Every icon-only button has an `aria-label` and a Tooltip.
 
 ## Clerk
 
