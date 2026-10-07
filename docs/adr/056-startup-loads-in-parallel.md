@@ -35,9 +35,9 @@ We will:
 ## Consequences
 
 - The first screen arrives about 20% sooner after a deploy, and pages opened later don't wait for chunks. Background preloading downloads the remaining page chunks once per deploy (most of the 1.1 MB of lazy chunks; the PDF viewer and Clerk's heavier pieces load inside their pages and aren't preloaded).
-- The App Check token lifetime is unchanged here. A longer one (12 hours) would spare the reCAPTCHA wait on pages opened after a break; it is a follow-up, because Terraform needs each environment's site key to manage it.
+- App Check tokens last 12 hours instead of one, set by hand in the Firebase console (recorded in `infra/MANUAL.md`, since Terraform would need each environment's site key in tfvars, which CI's secret scan rejects). A page opened after a break no longer waits for a reCAPTCHA assessment. A stolen token stays usable for up to 12 hours; App Check is abuse protection, and rules and callables still check the user, role and membership.
 - Today's data still waits for its server-only reads (counts, one-shot queries and the matter lookups that follow the deadlines). That is Today's own design (ADR-029) and isn't changed here.
-- Callables are separate Cloud Run services (about 130), so the first call to each after it has idled starts a cold instance. That is not addressed here; see the dev performance report in the project thread.
+- Callables are separate Cloud Run services (about 130), so the first call to each after it has idled starts a cold instance (estimated 2–3 s). Keeping one warm costs about A$17 a month per function; the owner chose to leave them as they are (2026-10-07).
 
 ## Alternatives considered
 
