@@ -8,6 +8,7 @@ export * from './lib/repository';
 export * from './lib/members';
 export * from './lib/contacts';
 export * from './lib/matters';
+export * from './lib/pinned-matters';
 export * from './lib/conflicts';
 export * from './lib/matter-detail';
 export * from './lib/templates';

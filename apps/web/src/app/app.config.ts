@@ -8,6 +8,7 @@ import {
   provideZonelessChangeDetection,
 } from '@angular/core';
 import { provideRouter, TitleStrategy, withPreloading } from '@angular/router';
+import { provideInteractionsConfig } from 'ng-primitives/interactions';
 
 import {
   ACCESS_REVOKED_HANDLER,
@@ -57,6 +58,9 @@ const READS_COUNTER = typeof MATERIA_READS_COUNTER !== 'undefined' && MATERIA_RE
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    // When nothing can hover (a phone) ng-primitives skips hover tracking, which gives every button a
+    // ResizeObserver and a style read as it renders: on a phone's Today that was ~30 ms of start-up.
+    ...(globalThis.matchMedia?.('(any-hover: none)').matches ? provideInteractionsConfig({ hover: false }) : []),
     // Zoneless change detection (ADR-002). Do not add zone.js or libraries that depend on it.
     provideZonelessChangeDetection(),
     // Once a page is up, the other pages download in the background (one at a time), so opening

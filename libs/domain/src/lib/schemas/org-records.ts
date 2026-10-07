@@ -1,23 +1,15 @@
 import * as z from 'zod';
 
 import {
-  ActorSchema,
   CentsSchema,
   DateOnlySchema,
   DocIdSchema,
   InstantSchema,
-  MetaShape,
   NonEmptyString,
   SearchTokensSchema,
   withMeta,
 } from './common';
-import {
-  DocTemplateKindSchema,
-  InvoiceStatusSchema,
-  JurisdictionSchema,
-  MatterTypeSchema,
-  PrioritySchema,
-} from './enums';
+import { DocTemplateKindSchema, InvoiceStatusSchema, JurisdictionSchema, MatterTypeSchema } from './enums';
 import {
   AppReturnPathSchema,
   IntegrationAccountSchema,
@@ -139,10 +131,11 @@ const InvoicePdfShape = {
  * `invoice` and `credit-note`, BILL-07). `next` is the next value to hand out. Server-only:
  * written in transactions by functions, so a failed transaction never uses a number up.
  */
-export const Counter = withMeta(
-  { next: z.number().int().min(1) },
-  { path: `${ORG}/counters`, migratable: false, serverOwned: ['next'] },
-);
+export const Counter = withMeta(() => ({ next: z.number().int().min(1) }), {
+  path: `${ORG}/counters`,
+  migratable: false,
+  serverOwned: ['next'],
+});
 export type Counter = z.infer<typeof Counter.schema>;
 
 /**
@@ -152,7 +145,7 @@ export type Counter = z.infer<typeof Counter.schema>;
  * Every write goes through the `billing-*` callables.
  */
 export const Invoice = withMeta(
-  {
+  () => ({
     /** Empty until issued. */
     number: z.string(),
     matterId: DocIdSchema,
@@ -205,7 +198,7 @@ export const Invoice = withMeta(
     paidFromTrust: z.boolean().optional(),
     /** The r 42(3) notice the PDF prints, frozen when given (`billing.trustNotice` on). */
     trustNotice: z.object({ version: z.number().int().min(1), text: z.string() }).optional(),
-  },
+  }),
   {
     path: `${ORG}/invoices`,
     serverOwned: [
@@ -252,7 +245,7 @@ export const Invoice = withMeta(
  * number. Amounts are positive: what is credited. The billed time and disbursements stay billed.
  */
 export const CreditNote = withMeta(
-  {
+  () => ({
     number: z.string(),
     invoiceId: DocIdSchema,
     invoiceNumber: z.string(),
@@ -270,7 +263,7 @@ export const CreditNote = withMeta(
     ...InvoicePdfShape,
     /** Its copy in Xero, allocated against the invoice there (BILL-09). */
     xero: XeroSyncSchema.optional(),
-  },
+  }),
   {
     path: `${ORG}/creditNotes`,
     serverOwned: [
@@ -299,7 +292,7 @@ export type ReminderThreshold = (typeof REMINDER_THRESHOLDS)[number];
  * Read-only to clients (`billing.view`).
  */
 export const InvoiceReminder = withMeta(
-  {
+  () => ({
     invoiceId: DocIdSchema,
     invoiceNumber: z.string(),
     matterId: DocIdSchema,
@@ -322,7 +315,7 @@ export const InvoiceReminder = withMeta(
     closedAt: InstantSchema.optional(),
     closedBy: z.string().optional(),
     closeReason: z.string().optional(),
-  },
+  }),
   {
     path: `${ORG}/invoiceReminders`,
     migratable: false,
@@ -358,7 +351,7 @@ export type InvoiceReminder = z.infer<typeof InvoiceReminder.schema>;
  * `-publish`); system templates ship with the code (`libs/domain/templates/system`).
  */
 export const MatterTemplate = withMeta(
-  {
+  () => ({
     ...templateContentShape,
     version: z.number().int().min(0),
     source: z.enum(['system', 'org']),
@@ -366,7 +359,7 @@ export const MatterTemplate = withMeta(
     published: z.boolean(),
     publishedAt: InstantSchema.optional(),
     publishedBy: DocIdSchema.optional(),
-  },
+  }),
   { path: `${ORG}/templates`, updatable: [] },
 );
 
@@ -376,7 +369,7 @@ export const MatterTemplate = withMeta(
  * them. `stageMapping` maps the stages this version dropped to stages it has (for upgrades).
  */
 export const MatterTemplateVersion = withMeta(
-  {
+  () => ({
     ...templateContentShape,
     templateId: DocIdSchema,
     version: z.number().int().min(1),
@@ -386,7 +379,7 @@ export const MatterTemplateVersion = withMeta(
     publishedAt: InstantSchema,
     publishedBy: DocIdSchema,
     stageMapping: z.record(z.string(), z.string()).optional(),
-  },
+  }),
   { path: `${ORG}/templates/{templateId}/versions`, migratable: false, updatable: [] },
 );
 
@@ -425,7 +418,7 @@ export type DocTemplateVersion = z.infer<typeof DocTemplateVersionSchema>;
  * `docs-*` callables; every member reads them.
  */
 export const DocTemplate = withMeta(
-  {
+  () => ({
     name: NonEmptyString.max(DOC_TEMPLATE_NAME_MAX),
     kind: DocTemplateKindSchema,
     /** The matter types it is offered on; empty means every type. */
@@ -441,64 +434,8 @@ export const DocTemplate = withMeta(
     publishedBy: DocIdSchema.optional(),
     /** The system template this one stands in for (`system-letter`): hidden while this is published. */
     replaces: DocIdSchema.optional(),
-  },
+  }),
   { path: `${ORG}/docTemplates`, softDelete: true, updatable: [] },
-);
-
-/** Limits on checklist templates (CORE-08d); the items match a template task's checklist (CORE-07). */
-export const CHECKLIST_TEMPLATE_NAME_MAX = 100;
-export const CHECKLIST_TEMPLATE_ITEMS_MAX = 30;
-export const CHECKLIST_TEMPLATE_ITEM_MAX = 200;
-export const CHECKLIST_TEMPLATE_DUE_MAX_DAYS = 365;
-
-/** One checklist line: trimmed, non-empty, on a single line. */
-export const ChecklistTemplateItemSchema = NonEmptyString.max(CHECKLIST_TEMPLATE_ITEM_MAX).regex(/^[^\r\n]*$/, {
-  message: 'One item per line',
-});
-
-/**
- * `orgs/{orgId}/checklistTemplates/{id}` (CORE-08d): a reusable checklist ("Probate kick-off")
- * applied to a task from its details. `priority` and `dueInDays` fill in a task's priority and due
- * date when it has none. Every member reads them; task.edit roles create, edit and soft delete them
- * client-direct (the rules validate the values).
- */
-export const ChecklistTemplate = withMeta(
-  {
-    name: NonEmptyString.max(CHECKLIST_TEMPLATE_NAME_MAX),
-    items: z.array(ChecklistTemplateItemSchema).min(1).max(CHECKLIST_TEMPLATE_ITEMS_MAX),
-    priority: PrioritySchema.optional(),
-    dueInDays: z.number().int().min(0).max(CHECKLIST_TEMPLATE_DUE_MAX_DAYS).optional(),
-  },
-  // Migratable: the legacy board checklist templates load here (MIG-03).
-  { path: `${ORG}/checklistTemplates`, softDelete: true },
-);
-
-/** Limits on task group templates (CORE-08f); the name becomes a task's group (≤ 120). */
-export const TASK_GROUP_TEMPLATE_NAME_MAX = 120;
-export const TASK_GROUP_TEMPLATE_TASKS_MAX = 50;
-export const TASK_GROUP_TEMPLATE_TITLE_MAX = 500;
-
-/** One task of a task group template: a single-line title, its checklist lines and defaults. */
-export const TaskGroupTemplateTaskSchema = z.object({
-  title: NonEmptyString.max(TASK_GROUP_TEMPLATE_TITLE_MAX).regex(/^[^\r\n]*$/, { message: 'One task per line' }),
-  checklist: z.array(ChecklistTemplateItemSchema).max(CHECKLIST_TEMPLATE_ITEMS_MAX).default([]),
-  priority: PrioritySchema.optional(),
-  dueInDays: z.number().int().min(0).max(CHECKLIST_TEMPLATE_DUE_MAX_DAYS).optional(),
-});
-export type TaskGroupTemplateTask = z.infer<typeof TaskGroupTemplateTaskSchema>;
-
-/**
- * `orgs/{orgId}/taskGroupTemplates/{id}` (CORE-08f): a reusable group of tasks ("Checklist A":
- * tasks, each with its checklist) applied to a matter's Tasks tab, where the tasks land in a group
- * named after the template. Every member reads them; task.edit roles create, edit and soft delete
- * them client-direct (the rules check the name and the list sizes).
- */
-export const TaskGroupTemplate = withMeta(
-  {
-    name: NonEmptyString.max(TASK_GROUP_TEMPLATE_NAME_MAX),
-    tasks: z.array(TaskGroupTemplateTaskSchema).min(1).max(TASK_GROUP_TEMPLATE_TASKS_MAX),
-  },
-  { path: `${ORG}/taskGroupTemplates`, softDelete: true, migratable: false },
 );
 
 /** Aged-debt buckets, by whole days past the due date (BILL-08): not yet due, 1–30, 31–60, 61–90, over 90. */
@@ -546,7 +483,7 @@ export type DebtorsSnapshot = z.infer<typeof DebtorsSnapshotSchema>;
  * rollups).
  */
 export const Metrics = withMeta(
-  {
+  () => ({
     period: z
       .string()
       .regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4}|clerk-\d{4}-\d{2}|debtors-\d{4}-\d{2}-\d{2})$/),
@@ -554,7 +491,7 @@ export const Metrics = withMeta(
     /** The day the snapshot figures (`wip.`, `active.`, `overdue.`, `debtors.`) were taken (INS-01). */
     snapshotOn: DateOnlySchema.optional(),
     debtors: DebtorsSnapshotSchema.optional(),
-  },
+  }),
   { path: `${ORG}/metrics`, migratable: false },
 );
 
@@ -568,7 +505,7 @@ export const AUDIT_WRITE_ACTIONS = ['create', 'update', 'delete', 'soft_delete',
  * (`retentionYears` on the org).
  */
 export const AuditEntry = withMeta(
-  {
+  () => ({
     at: InstantSchema,
     actor: z.union([z.object({ uid: DocIdSchema }), z.literal('system'), z.literal('clerk')]),
     /** A write (`create`, `update`, `delete`, `soft_delete`, `restore`) or a semantic event (`invoice.issued`). */
@@ -589,179 +526,9 @@ export const AuditEntry = withMeta(
     runId: z.string().optional(),
     source: z.enum(['client', 'callable', 'trigger', 'job', 'migration']),
     expireAt: InstantSchema,
-  },
+  }),
   { path: `${ORG}/audit`, migratable: false, updatable: [] },
 );
-
-export const NOTIFICATION_CHANNELS = ['inapp', 'email', 'push'] as const;
-export const NotificationChannelSchema = z.enum(NOTIFICATION_CHANNELS);
-export type NotificationChannel = z.infer<typeof NotificationChannelSchema>;
-/** `critical` always emails, and is never collapsed or held back for quiet hours (FND-20). */
-export const NOTIFICATION_PRIORITIES = ['normal', 'high', 'critical'] as const;
-export const NotificationPrioritySchema = z.enum(NOTIFICATION_PRIORITIES);
-export type NotificationPriority = z.infer<typeof NotificationPrioritySchema>;
-
-/** One delivery outcome on a channel other than in-app (FND-20), written by `notifications-deliver`. */
-export const NotificationDeliverySchema = z.object({
-  channel: z.enum(['email', 'push']),
-  status: z.enum(['sent', 'skipped', 'failed', 'dropped']),
-  /** Why it was skipped, failed or dropped (`not_configured`, `not_member`, `invalid_token`, …). */
-  reason: z.string().max(64).optional(),
-  at: InstantSchema,
-  /** The Cloud Tasks attempt (0 for the first). */
-  attempt: z.number().int().min(0),
-  /** The provider's message id (Resend, FCM); never content. */
-  providerId: z.string().max(300).optional(),
-  /** The device a push went to (`users/{uid}/devices/{deviceId}`). */
-  deviceId: DocIdSchema.optional(),
-});
-export type NotificationDelivery = z.infer<typeof NotificationDeliverySchema>;
-
-const notificationBase = {
-  recipientUid: DocIdSchema,
-  /** Also the email subject: never matter content ("Deadline in 3 days: M-2026-0142" at most). */
-  title: NonEmptyString,
-  /** Never privileged content: name the thing and link to it instead. */
-  body: z.string(),
-  link: z.string().startsWith('/'),
-  /** `null` until read (stored explicitly, so the unread query can match it). */
-  readAt: InstantSchema.nullable().optional(),
-  /** The channels this recipient gets it on, after their preferences (FND-20). */
-  channels: z.array(NotificationChannelSchema).min(1),
-  /** `high` and `critical` are shown prominently (a toast while online). Absent means normal. */
-  priority: NotificationPrioritySchema.optional(),
-  /** Email and push outcomes, appended by `notifications-deliver` (server-owned). */
-  deliveries: z.array(NotificationDeliverySchema).optional(),
-  /** Email and push wait until then (the recipient's quiet hours). */
-  deliverAfter: InstantSchema.optional(),
-  /**
-   * Part of a burst for this recipient: listed in the inbox but not delivered or counted; its
-   * summary is. `null` otherwise (stored explicitly, so the unread badge can leave bursts out).
-   */
-  summaryId: DocIdSchema.nullable().optional(),
-  /** On a burst summary: how many notifications it stands for. */
-  collapsedCount: z.number().int().min(1).optional(),
-  /** Archived from the inbox by its recipient (CORE-22): hidden from the list, kept until `expireAt`. */
-  hiddenAt: InstantSchema.nullable().optional(),
-  /** Firestore TTL deletes it then: `NOTIFICATION_RETENTION_DAYS` after it was sent (CORE-22). */
-  expireAt: InstantSchema.optional(),
-};
-
-/**
- * `notifications/{id}`, discriminated on `kind`. Written only through `notify()` (FND-20). Each
- * kind's default channels and priority live in `NOTIFICATION_KINDS` (notifications.ts): a new
- * kind is one member here (its payload ids) and one entry there.
- */
-export const NotificationPayloadSchema = z.discriminatedUnion('kind', [
-  // Someone who already has an account was invited to another org (FND-17).
-  z.object({ kind: z.literal('invite'), inviteId: DocIdSchema, ...notificationBase }),
-  z.object({
-    kind: z.literal('deadline_reminder'),
-    deadlineId: DocIdSchema,
-    matterId: DocIdSchema,
-    ...notificationBase,
-  }),
-  z.object({
-    kind: z.literal('deadline_escalation'),
-    deadlineId: DocIdSchema,
-    matterId: DocIdSchema,
-    ...notificationBase,
-  }),
-  // A recompute proposed a date change or removal (`changeId`), or the engine's date fell earlier
-  // than an override (no `changeId`) (CORE-10). A critical deadline moved into the past is `high`.
-  z.object({
-    kind: z.literal('deadline_changed'),
-    deadlineId: DocIdSchema,
-    matterId: DocIdSchema,
-    changeId: DocIdSchema.optional(),
-    ...notificationBase,
-  }),
-  // The daily missed check asks the responsible lawyer to confirm a deadline missed (CORE-10).
-  z.object({
-    kind: z.literal('deadline_missed'),
-    deadlineId: DocIdSchema,
-    matterId: DocIdSchema,
-    ...notificationBase,
-  }),
-  z.object({
-    kind: z.literal('task_assigned'),
-    taskId: DocIdSchema,
-    matterId: DocIdSchema.optional(),
-    ...notificationBase,
-  }),
-  // A task is due soon (CORE-11, reminders-dispatch); `matterId` is absent for personal tasks.
-  z.object({
-    kind: z.literal('task_reminder'),
-    taskId: DocIdSchema,
-    matterId: DocIdSchema.optional(),
-    ...notificationBase,
-  }),
-  z.object({ kind: z.literal('mention'), noteId: DocIdSchema, matterId: DocIdSchema, ...notificationBase }),
-  z.object({ kind: z.literal('suggestion'), suggestionId: DocIdSchema, matterId: DocIdSchema, ...notificationBase }),
-  // A party added to an open matter is on other matters (CORE-02, conflicts-onPartyAdded).
-  z.object({
-    kind: z.literal('conflict_alert'),
-    matterId: DocIdSchema,
-    checkId: DocIdSchema,
-    contactId: DocIdSchema,
-    ...notificationBase,
-  }),
-  // An upload to a matter was infected and deleted (CORE-12): to the uploader and the org's owners
-  // and admins. High priority.
-  z.object({
-    kind: z.literal('document_infected'),
-    matterId: DocIdSchema,
-    documentId: DocIdSchema,
-    ...notificationBase,
-  }),
-  z.object({ kind: z.literal('invite_accepted'), memberUid: DocIdSchema, ...notificationBase }),
-  // A matter, or one of its deadlines, was given to someone (as the responsible lawyer).
-  z.object({
-    kind: z.literal('assignment'),
-    matterId: DocIdSchema,
-    deadlineId: DocIdSchema.optional(),
-    ...notificationBase,
-  }),
-  // Clerk finished something a person asked for on a matter (AI-04 onwards).
-  z.object({
-    kind: z.literal('suggestion_ready'),
-    matterId: DocIdSchema,
-    suggestionId: DocIdSchema.optional(),
-    ...notificationBase,
-  }),
-  // A generated or uploaded document finished processing (CORE-12, DOC tickets).
-  z.object({
-    kind: z.literal('document_ready'),
-    matterId: DocIdSchema,
-    documentId: DocIdSchema,
-    ...notificationBase,
-  }),
-  z.object({
-    kind: z.literal('integration_error'),
-    provider: z.enum(['microsoft', 'google', 'xero']),
-    ...notificationBase,
-  }),
-  z.object({ kind: z.literal('export_ready'), exportId: DocIdSchema, ...notificationBase }),
-  // The practice was scheduled for deletion, or the deletion was cancelled (SEC-05): to every member.
-  z.object({ kind: z.literal('org_deletion'), ...notificationBase }),
-  // A testator whose original is held in safe custody has died (CORE-17): to the packet's lawyer.
-  z.object({ kind: z.literal('safe_custody'), packetId: DocIdSchema, ...notificationBase }),
-  z.object({ kind: z.literal('budget_alert'), matterId: DocIdSchema, ...notificationBase }),
-  // A costs disclosure is due: unsent 7 days on, or an estimate revision made it out of date (BILL-06).
-  z.object({ kind: z.literal('costs_disclosure'), matterId: DocIdSchema, ...notificationBase }),
-  z.object({ kind: z.literal('system'), ...notificationBase }),
-]);
-export type NotificationKind = z.infer<typeof NotificationPayloadSchema>['kind'];
-export const Notification = {
-  schema: NotificationPayloadSchema.and(z.object(MetaShape)),
-  create: NotificationPayloadSchema,
-  update: z.object({ readAt: InstantSchema.nullable(), hiddenAt: InstantSchema.nullable() }).partial().strict(),
-  // v2 (FND-20): `channels` replaces `channel`; adds `critical`, `readAt: null`, deliveries and
-  // bursts. v1 documents (in-app only) are not read by anything.
-  version: 2,
-  path: `${ORG}/notifications`,
-};
-export type Notification = z.infer<typeof Notification.schema>;
 
 /**
  * `integrations/{id}`: server-only; secrets are KMS-encrypted (ADR-019). OAuth connections (INT-01,
@@ -770,7 +537,7 @@ export type Notification = z.infer<typeof Notification.schema>;
  * (AI-02a, ADR-011b), with only its last four characters in clear.
  */
 export const Integration = withMeta(
-  {
+  () => ({
     provider: z.enum(['microsoft', 'google', 'xero', 'anthropic']),
     uid: DocIdSchema.nullable(),
     /**
@@ -800,7 +567,7 @@ export const Integration = withMeta(
     opusAvailable: z.boolean().optional(),
     lastSyncAt: InstantSchema.optional(),
     error: z.string().optional(),
-  },
+  }),
   { path: `${ORG}/integrations`, migratable: false, updatable: [] },
 );
 
@@ -810,7 +577,7 @@ export const Integration = withMeta(
  * read by every member, a person's own only by them. Written only by the vault.
  */
 export const IntegrationStatus = withMeta(
-  {
+  () => ({
     provider: OAuthProviderSchema,
     level: IntegrationLevelSchema,
     /** The person whose connection it is; null for the practice's. */
@@ -827,7 +594,7 @@ export const IntegrationStatus = withMeta(
     reason: IntegrationStatusReasonSchema.optional(),
     /** Xero: when payments were last brought across (BILL-09). Reset by reconnecting. */
     sync: XeroPullStateSchema.optional(),
-  },
+  }),
   { path: `${ORG}/integrationStatus`, migratable: false, updatable: [] },
 );
 
@@ -838,7 +605,7 @@ export const IntegrationStatus = withMeta(
  * to the caller; Firestore TTL deletes abandoned ones after `expireAt`.
  */
 export const IntegrationState = withMeta(
-  {
+  () => ({
     provider: OAuthProviderSchema,
     level: IntegrationLevelSchema,
     uid: DocIdSchema,
@@ -847,7 +614,7 @@ export const IntegrationState = withMeta(
     redirectUri: z.string().url(),
     returnTo: AppReturnPathSchema,
     expireAt: InstantSchema,
-  },
+  }),
   { path: `${ORG}/integrationStates`, migratable: false, updatable: [] },
 );
 
@@ -857,13 +624,13 @@ export const IntegrationState = withMeta(
  * contacts, so joint clients ("A and B") get one contact of their own. Server-only.
  */
 export const XeroContactLink = withMeta(
-  {
+  () => ({
     tenantId: z.string().max(64),
     contactId: z.string().max(64),
     clientContactIds: z.array(DocIdSchema).min(1).max(20),
     /** The name it was created or matched with in Xero. */
     name: z.string().max(255),
-  },
+  }),
   { path: `${ORG}/xeroContacts`, migratable: false, updatable: [] },
 );
 
@@ -929,7 +696,7 @@ export type SafeCustodyMovement = z.infer<typeof SafeCustodyMovementSchema>;
  * `locationKey` are denormalised for the register's search and the stocktake's order.
  */
 export const SafeCustody = withMeta(
-  {
+  () => ({
     /** `SC-000123`, from the `safe-custody` counter. */
     packetNo: NonEmptyString,
     testatorContactId: DocIdSchema,
@@ -959,32 +726,8 @@ export const SafeCustody = withMeta(
     lastVerified: z.object({ on: DateOnlySchema, by: DocIdSchema }).strict().optional(),
     search: SearchTokensSchema,
     locationKey: z.string(),
-  },
+  }),
   { path: `${ORG}/safeCustody`, softDelete: true, updatable: [] },
-);
-
-/**
- * `migrations/{runId}`: migration run records, written by `materia-migrate load` and `rollback`
- * (MIG-06). While a rollback deletes a run's documents its status is `rolling_back`, which the
- * audit trigger reads to leave those deletes out of the audit log.
- */
-export const MigrationRun = withMeta(
-  {
-    runId: NonEmptyString,
-    mode: z.enum(['rehearsal', 'cutover', 'delta']),
-    status: z.enum(['running', 'succeeded', 'failed', 'rolling_back', 'rolled_back']),
-    startedAt: InstantSchema,
-    finishedAt: InstantSchema.optional(),
-    counts: z.record(z.string(), z.number().int().min(0)),
-    warnings: z.array(z.object({ code: z.string(), path: z.string(), message: z.string() })).default([]),
-    /** The gcloud account that ran it. */
-    operator: z.string().optional(),
-    toolVersion: z.string().optional(),
-    /** When no migrated record had a review code left open (MIG-08), and who closed the last one. */
-    reviewedAt: InstantSchema.optional(),
-    reviewedBy: ActorSchema.optional(),
-  },
-  { path: `${ORG}/migrations`, migratable: false, updatable: [] },
 );
 
 const Count = z.number().int().min(0);
@@ -1041,7 +784,7 @@ export type MigrationEnrichmentEstimate = z.infer<typeof MigrationEnrichmentEsti
  * (`migration-*`); owners and admins read it.
  */
 export const MigrationEnrichment = withMeta(
-  {
+  () => ({
     runId: NonEmptyString,
     status: MigrationEnrichmentStatusSchema,
     phase: z.enum(['estimate', 'ingest', 'events', 'finish']),
@@ -1081,14 +824,14 @@ export const MigrationEnrichment = withMeta(
     suggestionsWaiting: Count.optional(),
     unreadable: Count.optional(),
     finishedAt: InstantSchema.optional(),
-  },
+  }),
   { path: `${ORG}/migrationEnrichments`, migratable: false, updatable: [] },
 );
 export type MigrationEnrichment = z.infer<typeof MigrationEnrichment.schema>;
 
 /** `ruleSets/{ruleSetId}/versions/{version}` (global, immutable once published, ADR-009). */
 export const RuleSetVersion = withMeta(
-  {
+  () => ({
     ruleSetId: NonEmptyString,
     version: z.number().int().min(1),
     jurisdiction: JurisdictionSchema,
@@ -1105,7 +848,7 @@ export const RuleSetVersion = withMeta(
         definition: z.record(z.string(), z.unknown()),
       }),
     ),
-  },
+  }),
   { path: 'ruleSets/{ruleSetId}/versions', migratable: false },
 );
 
@@ -1117,7 +860,7 @@ export const RuleSetVersion = withMeta(
  * history. Never put on invoices, client exports or emails.
  */
 export const TrustSnapshot = withMeta(
-  {
+  () => ({
     matterId: DocIdSchema,
     amountCents: CentsSchema.refine((value) => value >= 0, { message: 'A trust balance can’t be negative' }),
     asAt: DateOnlySchema,
@@ -1127,7 +870,7 @@ export const TrustSnapshot = withMeta(
     note: z.string().trim().max(200).optional(),
     recordedBy: DocIdSchema,
     recordedAt: InstantSchema,
-  },
+  }),
   { path: `${ORG}/trustSnapshots`, migratable: false, updatable: [] },
 );
 
@@ -1137,7 +880,7 @@ export const TrustSnapshot = withMeta(
  * (VIC_GREATER_GEELONG). `verified` is set once a person has checked it against official sources.
  */
 export const Calendar = withMeta(
-  {
+  () => ({
     jurisdiction: JurisdictionSchema,
     year: z.number().int().min(2000).max(2100),
     calendarId: z
@@ -1158,7 +901,7 @@ export const Calendar = withMeta(
       .default([]),
     source: z.string(),
     verified: z.boolean().default(false),
-  },
+  }),
   { path: 'calendars', migratable: false },
 );
 
@@ -1167,8 +910,6 @@ export type CreditNote = z.infer<typeof CreditNote.schema>;
 export type MatterTemplate = z.infer<typeof MatterTemplate.schema>;
 export type MatterTemplateVersion = z.infer<typeof MatterTemplateVersion.schema>;
 export type DocTemplate = z.infer<typeof DocTemplate.schema>;
-export type ChecklistTemplate = z.infer<typeof ChecklistTemplate.schema>;
-export type TaskGroupTemplate = z.infer<typeof TaskGroupTemplate.schema>;
 export type Metrics = z.infer<typeof Metrics.schema>;
 export type AuditEntry = z.infer<typeof AuditEntry.schema>;
 export type Integration = z.infer<typeof Integration.schema>;
@@ -1177,6 +918,5 @@ export type IntegrationState = z.infer<typeof IntegrationState.schema>;
 export type XeroContactLink = z.infer<typeof XeroContactLink.schema>;
 export type SafeCustody = z.infer<typeof SafeCustody.schema>;
 export type TrustSnapshot = z.infer<typeof TrustSnapshot.schema>;
-export type MigrationRun = z.infer<typeof MigrationRun.schema>;
 export type RuleSetVersion = z.infer<typeof RuleSetVersion.schema>;
 export type Calendar = z.infer<typeof Calendar.schema>;

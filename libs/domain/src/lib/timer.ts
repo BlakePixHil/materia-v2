@@ -41,7 +41,7 @@ export type TimerForgottenReason = z.infer<typeof TimerForgottenReasonSchema>;
  * writes. `time-stopTimer` deletes it when it saves the entry.
  */
 export const Timer = withMeta(
-  {
+  () => ({
     /** The org the matter is in (the owner's org when the timer started). */
     orgId: DocIdSchema,
     matterId: DocIdSchema,
@@ -64,7 +64,7 @@ export const Timer = withMeta(
     forgotten: z.object({ reason: TimerForgottenReasonSchema, at: InstantSchema }).optional(),
     /** The owner dismissed the forgotten-timer banner (server time). */
     forgottenSeenAt: InstantSchema.optional(),
-  },
+  }),
   {
     path: 'users/{uid}/timer',
     migratable: false,

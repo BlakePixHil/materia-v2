@@ -2,8 +2,6 @@ import {
   abnProblem,
   BillingSettingsInput,
   formatAbn,
-  fyLabel,
-  fyStartYear,
   isValidAbn,
   matterNumberFormatWarning,
   PracticeSettingsInput,
@@ -11,7 +9,7 @@ import {
   UpdateOrgSettingsInput,
 } from './org-settings';
 import { FeeDefaultSchema } from './schemas/tenancy';
-import { dateOnly } from './values/date-only';
+import { dateOnly, fyLabel, fyStartYear } from './values/date-only';
 
 const practice = {
   name: 'Fictional Bayside Legal',

@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -85,6 +86,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     '../../../../../../libs/ui/src/generated/components/tl.css',
   ],
   imports: [
+    NgTemplateOutlet,
     MtPageOfflineNote,
     MtBadge,
     MtButton,
@@ -182,37 +184,54 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
           <mt-today-tasks />
         </div>
         <div class="col side mt-stagger">
+          <ng-template #side>
+            <!--
+              The design system's Stat (stat.css), drawn here rather than with MtStat: the first use of a
+              @materia/ui component from a lazy page puts it in the initial bundle.
+            -->
+            <div class="stats" data-section="stats">
+              <div class="mt-card mt-stat" data-stat="open-matters">
+                <div class="k"><mt-icon name="matters" />Open matters</div>
+                <div class="v">{{ count(data.counts().openMatters) }}</div>
+                <div class="f">You’re responsible for</div>
+              </div>
+              <div class="mt-card mt-stat" data-stat="deadlines">
+                <div class="k"><mt-icon name="calendar" />Deadlines this week</div>
+                <div class="v">{{ count(data.counts().deadlinesThisWeek) }}</div>
+                <div class="f">
+                  @if (overdueCount()) {
+                    <span class="t-danger">{{ overdueCount() }} overdue</span>
+                  } @else {
+                    Assigned to you
+                  }
+                </div>
+              </div>
+              @if (data.wip(); as wip) {
+                <div class="mt-card mt-stat" data-stat="wip">
+                  <div class="k"><mt-icon name="billing" />WIP this month</div>
+                  <div class="v">{{ amount(wip.cents) }}</div>
+                  <div class="f">Your time not yet billed</div>
+                </div>
+              }
+            </div>
+            <mt-today-due />
+            <mt-today-recent />
+          </ng-template>
           <!--
-            The design system's Stat (stat.css), drawn here rather than with MtStat: the first use of a
-            @materia/ui component from a lazy page puts it in the initial bundle.
+            On a phone these cards are below the first screen: they're drawn as they scroll into view, so
+            opening Today draws only what shows (MOB-02b). They're the page's last cards, so nothing below
+            them moves when they arrive. The placeholder is an empty card, not a skeleton: nothing is
+            loading, and they're drawn the moment it shows.
           -->
-          <div class="stats" data-section="stats">
-            <div class="mt-card mt-stat" data-stat="open-matters">
-              <div class="k"><mt-icon name="matters" />Open matters</div>
-              <div class="v">{{ count(data.counts().openMatters) }}</div>
-              <div class="f">You’re responsible for</div>
-            </div>
-            <div class="mt-card mt-stat" data-stat="deadlines">
-              <div class="k"><mt-icon name="calendar" />Deadlines this week</div>
-              <div class="v">{{ count(data.counts().deadlinesThisWeek) }}</div>
-              <div class="f">
-                @if (overdueCount()) {
-                  <span class="t-danger">{{ overdueCount() }} overdue</span>
-                } @else {
-                  Assigned to you
-                }
-              </div>
-            </div>
-            @if (data.wip(); as wip) {
-              <div class="mt-card mt-stat" data-stat="wip">
-                <div class="k"><mt-icon name="billing" />WIP this month</div>
-                <div class="v">{{ amount(wip.cents) }}</div>
-                <div class="f">Your time not yet billed</div>
-              </div>
+          @if (phone()) {
+            @defer (on viewport) {
+              <ng-container [ngTemplateOutlet]="side" />
+            } @placeholder {
+              <div class="mt-card later" aria-hidden="true" data-today-later></div>
             }
-          </div>
-          <mt-today-due />
-          <mt-today-recent />
+          } @else {
+            <ng-container [ngTemplateOutlet]="side" />
+          }
         </div>
       </div>
     }
@@ -254,6 +273,9 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     }
     .mt-today .side {
       gap: var(--space-12);
+    }
+    .mt-today .later {
+      min-height: 240px;
     }
     .mt-today .stats {
       display: grid;

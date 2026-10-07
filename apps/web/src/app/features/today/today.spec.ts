@@ -4,6 +4,7 @@ import { Connectivity, DATA_CLOCK } from '@materia/data-access';
 import { rollupMetrics, timeEntryMetrics } from '@materia/domain';
 
 import { DEVICE_TIME_ZONE } from './today-data';
+import { PhoneLayout } from '../../core/layout/phone-layout';
 import {
   ADMIN,
   cleanUpOverlays,
@@ -454,6 +455,47 @@ describe('today', () => {
     await page.click('Undo');
     await page.stable(20);
     expect(due()).toBe('2026-09-30');
+  });
+
+  it('on a phone, draws the cards after My tasks as they scroll into view (MOB-02b)', async () => {
+    let report: ((entries: { isIntersecting: boolean; target: Element }[]) => void) | undefined;
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: typeof report) {
+          report = callback;
+        }
+        observe(target: Element): void {
+          observed.push(target);
+        }
+        unobserve(): void {
+          // Nothing to release.
+        }
+        disconnect(): void {
+          // Nothing to release.
+        }
+      },
+    );
+    try {
+      const page = await openToday({
+        configure: busyDay,
+        providers: [{ provide: PhoneLayout, useValue: { phone: signal(true).asReadonly() } }],
+      });
+      const sections = () =>
+        [...page.body.querySelectorAll<HTMLElement>('.mt-today [data-section]')].map((node) => node.dataset['section']);
+      expect(sections()).toEqual(['attention', 'tasks']);
+      const later = page.body.querySelector('[data-today-later]');
+      expect(later).not.toBeNull();
+
+      report?.(observed.filter((target) => target === later).map((target) => ({ isIntersecting: true, target })));
+      await page.stable(20);
+      expect(sections()).toEqual(['attention', 'tasks', 'stats', 'due', 'recent']);
+      expect(page.body.querySelector('[data-today-later]')).toBeNull();
+      expect(items(page, 'due')).toContain('Deadline: Advertise notice of intended application');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('lists a critical deadline escalated to me, and acknowledges it (CORE-11)', async () => {

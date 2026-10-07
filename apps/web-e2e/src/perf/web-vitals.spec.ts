@@ -93,7 +93,8 @@ function screens(matterPath: string): Screen[] {
     {
       name: 'today',
       path: '/today',
-      ready: (page) => expect(page.locator('[data-section="stats"]')).toBeVisible(FIRST_LOAD),
+      // My tasks: on a phone the cards after it are drawn as they scroll into view (MOB-02b).
+      ready: (page) => expect(page.locator('[data-section="tasks"]')).toBeVisible(FIRST_LOAD),
       async interact(page) {
         // j and k move through the rows (CORE-14); each key is an interaction.
         for (const key of ['j', 'j', 'j', 'k', 'j']) {

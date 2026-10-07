@@ -36,6 +36,8 @@ import {
   Distribution,
 } from './matter-records';
 import { MemberMetrics, MetricsLedger, MetricsShard } from './metrics';
+import { MigrationRun } from './migration-runs';
+import { Notification } from './notification-records';
 import {
   Invoice,
   CreditNote,
@@ -43,23 +45,20 @@ import {
   MatterTemplate,
   MatterTemplateVersion,
   DocTemplate,
-  ChecklistTemplate,
-  TaskGroupTemplate,
   Metrics,
   AuditEntry,
-  Notification,
   Integration,
   IntegrationState,
   IntegrationStatus,
   XeroContactLink,
   SafeCustody,
   TrustSnapshot,
-  MigrationRun,
   MigrationEnrichment,
   RuleSetVersion,
   Calendar,
   Counter,
 } from './org-records';
+import { ChecklistTemplate, TaskGroupTemplate } from './task-templates';
 import { Org, Member, Invite, User, Device } from './tenancy';
 import { RecentMatter, SavedView } from './views';
 import { ConflictCheck } from '../conflicts';

@@ -186,7 +186,7 @@ export const JobOutputSchema = z.object({
 
 /** `jobs/{jobId}`: status and progress, written by functions (create) and the job (everything else). */
 export const Job = withMeta(
-  {
+  () => ({
     type: z.union([JobTypeSchema, FunctionJobTypeSchema]),
     input: z.record(z.string(), z.unknown()),
     target: JobTargetSchema,
@@ -206,7 +206,7 @@ export const Job = withMeta(
     finishedAt: InstantSchema.optional(),
     /** Where a job run in several tasks stopped (a full export's next part, SEC-05). */
     checkpoint: z.record(z.string(), z.unknown()).optional(),
-  },
+  }),
   {
     path: `${ORG}/jobs`,
     migratable: false,
