@@ -20,6 +20,12 @@ describe('PersonHeader, IntegrationCard, Note and EmptyState', () => {
     expect(screen.getByRole('list', { name: 'Roles' })).toHaveTextContent('Executor WE-142');
   });
 
+  it('renders the name as an h2 beside a page that has its own h1', async () => {
+    await render(`<mt-person-header name="Catherine Whitfield" [headingLevel]="2" />`, { imports: [MtPersonHeader] });
+    expect(screen.getByRole('heading', { level: 2, name: 'Catherine Whitfield' })).toHaveClass('nm');
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+  });
+
   it('renders integration cards in each state, with an initial logo', async () => {
     const reason =
       'Xero refused the connection: the organisation’s subscription has lapsed. Reconnect with a Xero user who has the Standard role or above.';

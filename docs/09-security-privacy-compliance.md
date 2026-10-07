@@ -24,7 +24,7 @@ Client personal information is often sensitive: health information in capacity d
 - Identity Platform. Password policy: minimum 12 characters, breached-password check through the Identity Platform password policy.
 - TOTP MFA, enforceable per org. SSO with Microsoft Entra and Google.
 - Session revocation on member removal or role downgrade.
-- Re-authentication within 5 minutes is required for exports, deletes, role changes and integration connects.
+- Re-authentication within 5 minutes is required for exports, deletes, role changes and integration connects, including connecting Claude and changing the practice's Claude connector settings.
 
 **Authorisation**
 - Custom claims `{orgId, role}`.
@@ -75,7 +75,7 @@ Client personal information is often sensitive: health information in capacity d
 - **Enforcement:** one check in three places. Every callable (`defineCallable`, `core/sessions.ts`), the Firestore rules (`sessionOk()` inside `inOrg()`) and the client (`SessionPolicy`) refuse a sign-in that is older than `maxSessionDays` (the token's `auth_time`), from before the member's `sessionsValidAfter`, or without a second factor (`firebase.sign_in_second_factor`) once MFA is enforced. The org document and the member's own document stay readable so the app can say why. Storage rules check `sessionsValidAfter` only; MFA and session length reach files through the Firestore reads and callables that lead to them.
 - **Client:** past the grace period a member without MFA is sent to set it up; during it a banner shows the deadline. A sign-in the policy refuses signs out to `/auth/signed-out?reason=expired|revoked|mfa`.
 - **Inactivity:** `IdleTimeout` counts from the last click, key, scroll or touch in any tab (a BroadcastChannel shares activity and the sign-out), warns a minute before `sessionIdleMinutes`, then signs every tab out ("Signed out due to inactivity"). Uploads and recordings hold it off (`ActivityHolds`).
-- **Re-authentication:** callables declare `recentLoginMinutes: 5` for sensitive actions (role changes, suspension, removal and offboarding, ownership transfer, policy changes, signing people out, the time-entry CSV and estate inventory exports, the full export, requesting a practice's deletion and deleting an account; the audit-log export, Clerk keys and safe-custody releases check it in their handlers). The client's callable client answers `REAUTH_REQUIRED` with "Confirm it's you" (password, Google popup, then the authenticator code) and retries once.
+- **Re-authentication:** callables declare `recentLoginMinutes: 5` for sensitive actions (role changes, suspension, removal and offboarding, ownership transfer, policy changes, signing people out, the time-entry CSV and estate inventory exports, the full export, requesting a practice's deletion and deleting an account; the audit-log export, Clerk keys and safe-custody releases check it in their handlers). Connecting Claude (`connector-authorize`) and the practice's Claude connector settings (`connector-setPractice`) declare it too. The client's callable client answers `REAUTH_REQUIRED` with "Confirm it's you" (password, Google popup, then the authenticator code) and retries once.
 - **Sessions:** `users/{uid}/signIns` logs each sign-in (time, provider, a coarse device and browser from the user agent, whether a second factor was enrolled; never the IP address or the raw user agent), read only by its owner and deleted by TTL after 90 days. "Sign out everywhere else" and an admin's "Sign out" (`security-revokeSessions`) stamp `sessionsValidAfter` and revoke the refresh tokens. Admins can't sign out an owner.
 
 **Audit log (FND-18)** (`apps/functions/src/audit/`)
@@ -111,6 +111,12 @@ Client personal information is often sensitive: health information in capacity d
 
 **AI**
 - See *Clerk (AI) architecture & guardrails*: scoping, privilege handling, injection defence, no prompt or completion text in logs, and a provider data-retention setting.
+
+**Claude connector (INT-07, [ADR-064](adr/064-claude-connector.md))** (`apps/functions/src/connector/`, `libs/domain/src/lib/connector.ts`)
+- **What it is:** an MCP server (`/mcp`) and OAuth authorization server on the app's own origin, so a person can use Materia from their own Claude or Claude Code. Off unless the `integrations.claudeConnector` flag is on and an owner or admin turns it on in Settings → Claude connector.
+- **Sign-in:** only Claude and Claude Code, pinned with their exact redirect URIs; PKCE `S256`; one-use codes; refresh tokens rotate, and reuse ends the connection. Tokens are opaque and stored only as SHA-256 hashes in `connectorGrants`, which clients can't read and the full export leaves out.
+- **Every call:** re-checks the connection, the member and their current role, sign-out-everywhere, the practice's maximum session length and MFA rule, the practice switch and the flag. Read tools never return privileged matters or document text; money only for roles with `billing.view`. Write tools only create suggestion cards a person accepts (ADR-037). Each call is audited (`connector.tool_used`: tool, matter, count, refused) without what was asked or returned, and limited to 120 a minute per connection.
+- **Data leaving Materia:** what Claude reads is processed by Anthropic under the person's own Claude account, not the firm's agreement. The consent page and Settings say so. The flag stays off in prod until that wording is reviewed with the legal pages (SEC-01a).
 
 **Data rights** (SEC-05, [ADR-058](adr/058-org-export-and-deletion.md); what Materia keeps and for how long: the [retention policy](compliance/retention-policy.md); operations: the [org deletion runbook](runbooks/org-deletion.md))
 - **Full export** (Settings → Data and deletion, owners only, recent sign-in): `exports-orgFull`, after the owner confirms they understand it includes privileged material. Every record as `data/{collection}.jsonl` with `schemas/{collection}.schema.json` (generated from libs/domain), the documents under `files/` (the current version, or every version), the practice's other files, `README.md`, and `manifest.json` with each file's SHA-256. Over 10 GB it is split into self-contained zips. Kept 7 days behind 5-minute signed links, announced by `export_ready`, audited (`export.created`, `export.org_completed`). OAuth tokens, invites, export jobs and Clerk's search chunks are left out.
@@ -152,5 +158,6 @@ To change a document: edit its Markdown, raise `version` and set `effective`, ru
 | Prompt injection from an uploaded document | Read-only tools, suggestions-only writes, untrusted-document framing, evals |
 | A malicious upload | Scan before access, Content-Disposition attachment, no inline HTML rendering, sandboxed PDF.js |
 | Exfiltration through integrations | Explicit per-user connect, scoped OAuth, privileged items excluded from sync by default |
+| Matter data leaving through the Claude connector | Off until the practice turns it on; each person connects their own Claude and sees only what they can; privileged matters and document text never shared; suggestions only; every call audited; disconnect, removal or turning it off ends access on the next request |
 | An insider at the firm | Audit log, export re-auth, role-based access to privileged material |
 | Lost device | Short sessions on mobile, remote sign-out (revoke), Firestore cache cleared on sign-out |

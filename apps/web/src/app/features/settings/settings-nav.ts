@@ -23,7 +23,7 @@ export const SETTINGS_OWNER_ROLES: readonly Role[] = ['owner'];
 /**
  * The Settings pages, in sidebar order. A new settings page adds its route under `settings` in
  * app.routes.ts and an entry here (Clerk settings, AI-13; security, SEC-04; trust account, BILL-11;
- * integrations, BILL-09 and INT-03; document templates, INT-06; the migration import, MIG-08; data and
+ * integrations, BILL-09 and INT-03; the Claude connector, INT-07; document templates, INT-06; the migration import, MIG-08; data and
  * deletion, SEC-05).
  */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
@@ -52,6 +52,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     group: 'Firm',
     roles: SETTINGS_ADMIN_ROLES,
     flag: 'integrations.xero',
+  },
+  // Using Materia from a person's own Claude (INT-07): everyone connects their own.
+  {
+    path: 'claude',
+    label: 'Claude connector',
+    icon: 'share',
+    group: 'Firm',
+    flag: 'integrations.claudeConnector',
   },
   { path: 'numbering', label: 'Matter numbering', icon: 'list', group: 'Practice', roles: SETTINGS_ADMIN_ROLES },
   {

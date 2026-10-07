@@ -16,7 +16,7 @@ import { MtButton, MtEmptyState, MtNote } from '@materia/ui';
 import { DocumentActions, downloadErrorCopy, errorReason } from './document-actions';
 import { previewKind } from './documents-view';
 import { MessagePreview } from './message-preview';
-import { PDF_PROBLEM_COPY, PdfViewer } from './pdf-viewer';
+import { PDF_PROBLEM_COPY, PdfViewer, type PdfStoredText } from './pdf-viewer';
 
 /** The most plain text shown inline (the whole file is always downloadable). */
 export const TEXT_PREVIEW_MAX = 200_000;
@@ -25,7 +25,7 @@ export const PREVIEW_UNAVAILABLE = 'Preview not available yet; download instead.
 
 type PreviewState =
   | { kind: 'loading' }
-  | { kind: 'pdf'; url: string }
+  | { kind: 'pdf'; url: string; original: boolean }
   | { kind: 'image'; url: string }
   | { kind: 'text'; text: string; truncated: boolean }
   | { kind: 'message'; message: MessageRendition }
@@ -49,7 +49,13 @@ type PreviewState =
         <p class="caption t-3" role="status">Loading the preview…</p>
       }
       @case ('pdf') {
-        <mt-pdf-viewer [url]="url()" [label]="name()" [page]="page()" (pageChange)="pageChange.emit($event)" />
+        <mt-pdf-viewer
+          [url]="url()"
+          [label]="name()"
+          [page]="page()"
+          [storedText]="storedText()"
+          (pageChange)="pageChange.emit($event)"
+        />
       }
       @case ('image') {
         @if (imageFailed()) {
@@ -141,6 +147,17 @@ export class DocumentPreview {
     const state = this.state();
     return state.kind === 'pdf' || state.kind === 'image' ? state.url : '';
   });
+  /**
+   * A PDF's scanned pages read out what OCR found (SEC-06b). Only an original PDF: its pages are the
+   * ones ingestion read, which an Office file's PDF rendition's needn't be.
+   */
+  protected readonly storedText = computed<PdfStoredText | null>(() => {
+    const state = this.state();
+    if (state.kind !== 'pdf' || !state.original) return null;
+    const docId = this.docId();
+    const version = this.version().version;
+    return (pages) => this.actions.pageText(docId, version, pages);
+  });
   protected readonly text = computed(() => {
     const state = this.state();
     return state.kind === 'text' ? state.text : '';
@@ -189,11 +206,19 @@ export class DocumentPreview {
     try {
       switch (kind) {
         case 'pdf':
-          return set({ kind: 'pdf', url: await this.actions.readUrl(docId, version.version, 'original') });
+          return set({
+            kind: 'pdf',
+            url: await this.actions.readUrl(docId, version.version, 'original'),
+            original: true,
+          });
         case 'image':
           return set({ kind: 'image', url: await this.actions.readUrl(docId, version.version, 'original') });
         case 'office':
-          return set({ kind: 'pdf', url: await this.actions.readUrl(docId, version.version, 'previewPdf') });
+          return set({
+            kind: 'pdf',
+            url: await this.actions.readUrl(docId, version.version, 'previewPdf'),
+            original: false,
+          });
         case 'heic':
           return set({ kind: 'image', url: await this.actions.readUrl(docId, version.version, 'previewImage') });
         case 'text': {

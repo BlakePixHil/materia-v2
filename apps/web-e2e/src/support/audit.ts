@@ -37,6 +37,21 @@ export const PHONE = (({ viewport, userAgent, deviceScaleFactor, isMobile, hasTo
   isMobile,
   hasTouch,
 }))(devices['iPhone 13']);
+
+/** The phone audit's pages: the TabBar's destinations (MOB-02), then the pages a phone reaches from them. */
+export const PHONE_AUDIT_ROUTES = (matter: string): string[] => [
+  '/today',
+  '/record',
+  '/record/scan',
+  '/more',
+  '/billing',
+  '/matters',
+  `/matters/${matter}/overview`,
+  `/matters/${matter}/tasks`,
+  '/deadlines',
+  '/inbox',
+  '/settings/profile',
+];
 export const MATTER = 'm-audit';
 export const MATTER_NUMBER = 'M-2026-0707';
 export const MATTER_TITLE = 'Estate of Wilhelmina Audit';

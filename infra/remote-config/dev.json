@@ -8,6 +8,7 @@
     "templates.system": true,
     "billing.trustNotice": true,
     "clerk.features.matterBrief": true,
+    "integrations.claudeConnector": true,
     "tours.enabled": true
   }
 }

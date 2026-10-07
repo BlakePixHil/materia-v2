@@ -141,7 +141,7 @@ const choiceOf = (matter: PickedMatter): MatterChoice => ({
       gap: var(--space-8);
       padding: var(--space-8) var(--space-12);
       border-radius: var(--radius-md);
-      background: var(--bg-subtle);
+      background: var(--bg-sunken);
       min-width: 0;
     }
     .results {

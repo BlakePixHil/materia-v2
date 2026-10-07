@@ -235,6 +235,14 @@ export const FLAGS = {
     default: false,
     serverEnforced: true,
   }),
+  'integrations.claudeConnector': defineFlag({
+    key: 'integrations.claudeConnector',
+    description: 'Claude connector: people connect their own Claude to read matters and suggest changes over MCP.',
+    owner: 'INT-07',
+    type: 'boolean',
+    default: false,
+    serverEnforced: true,
+  }),
   'mobile.voice': defineFlag({
     key: 'mobile.voice',
     description: 'Record by voice on mobile.',

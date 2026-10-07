@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 import { OrgClerkSettingsSchema } from '../clerk-settings';
+import { OrgConnectorSettingsSchema } from '../connector-settings';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
 import { BoardWipLimitsSchema } from '../matter-board';
 import { NotificationPrefsSchema } from '../notifications';
@@ -114,6 +115,8 @@ export const Org = withMeta(
             memberVisibility: MemberMetricsVisibilitySchema.optional(),
           })
           .optional(),
+        /** The Claude connector's switches (INT-07); see connector.ts. Only `connector-setPractice` writes it. */
+        connector: OrgConnectorSettingsSchema.optional(),
       })
       .optional(),
     /**

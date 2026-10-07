@@ -2401,6 +2401,12 @@
       "indexes": []
     },
     {
+      "collectionGroup": "connectorGrants",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "invites",
       "fieldPath": "tokenHash",
       "indexes": [

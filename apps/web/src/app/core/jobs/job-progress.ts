@@ -88,7 +88,7 @@ export function jobStatusText(job: JobView | null): string {
     }
     .mt-job-progress-status {
       margin: 0;
-      font-size: var(--text-sm, 13px);
+      font-size: 13px;
       color: var(--text-secondary, inherit);
     }
   `,

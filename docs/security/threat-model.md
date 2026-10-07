@@ -5,7 +5,7 @@
 Materia holds confidential, often privileged, client information for an Australian wills and estates practice: health details in capacity disputes, family and financial details, identity documents. The assets that matter most, in order:
 
 1. **Matter data and documents**, including privileged material (`privileged: true`).
-2. **Credentials and keys**: sessions, MFA factors, recovery codes, OAuth refresh tokens (Xero, Google, Microsoft), each org's own Anthropic key (BYOK), service account credentials.
+2. **Credentials and keys**: sessions, MFA factors, recovery codes, OAuth refresh tokens (Xero, Google, Microsoft), the Claude connector's access and refresh tokens, each org's own Anthropic key (BYOK), service account credentials.
 3. **Integrity of the record**: the audit log, computed deadlines, invoices and their numbering.
 4. **Availability** around legal deadlines (reminders, the Deadlines screen).
 
@@ -44,6 +44,7 @@ flowchart LR
     RS[Resend<br/>email + bounce webhook]
     XE[Xero]
     GO[Google / Microsoft OAuth]
+    CL[Claude, the person's own account<br/>MCP connector]
   end
 
   subgraph Build["Build and deploy"]
@@ -65,6 +66,7 @@ flowchart LR
   FN -- notification email --> RS
   RS -- signed webhook --> FN
   FN <-- OAuth (PKCE), API --> XE & GO
+  CL -- MCP + bearer token, via Hosting --> FN
   FS & ST --> BK
   GH -- WIF, no keys --> FN & H & CR & TF
   TF --> Google & Backup
@@ -89,6 +91,7 @@ S spoofing, T tampering, R repudiation, I information disclosure, D denial of se
 | **Vertex AI embeddings** | I: document text leaving the region. | `australia-southeast1` endpoint (ADR-012). | — |
 | **Resend (email)** | I: matter content in email. | Notification emails carry titles and links, never privileged content or document text; privileged items are never emailed without an explicit action (handbook non-negotiables, FND-20). | Recipient address and subject are processed in the USA (sub-processor list, SEC-01). |
 | **Xero, Google, Microsoft OAuth** | S/I: token theft, CSRF on the callback, over-broad scopes. | Server-side OAuth with PKCE and a single-use `state`; refresh tokens encrypted with Cloud KMS in documents clients can't read; per-user connect; revocation on disconnect and member removal (INT-01, ADR-051, BILL-09, SEC-05). | A compromised integration account at the provider. |
+| **Claude connector (MCP)** | S: a stolen access or refresh token; a consent request from a look-alike client or redirect; clickjacking the Allow button. I: matter data held in a third party's chat history; privileged material leaving Materia; record text steering Claude (injection). E: Claude writing without a person; a removed member's connection living on. D: a client calling in a loop. R: "Claude did that, not me". | Only Claude and Claude Code, with pinned redirect URIs and no dynamic registration; PKCE `S256`; one-use codes; rotating refresh tokens with reuse detection; tokens bound to the MCP resource and stored only as SHA-256 hashes in documents clients can't read. The consent page sits behind sign-in, MFA, org and terms guards, needs a sign-in within 5 minutes, and can't be framed (`frame-ancestors 'none'`). Every call re-checks the connection, member, role, sign-out-everywhere, maximum session length, MFA, the practice switch and the flag. Privileged matters and document text are never returned; record text is framed as data; writes are suggestion cards a person accepts. Every call is audited with no content, and limited to 120 a minute per connection. Disconnecting, removing or offboarding a member, or turning the practice off ends access on the next request (INT-07, ADR-064). | What Claude reads is kept by Anthropic under the person's own Claude account and terms, outside Australia (consent and Settings say so; legal wording before prod, SEC-01a). The rate limit is per instance. |
 | **Secret Manager / KMS** | I: secrets in code, logs or Firestore. | Secrets only via `defineSecret`; gitleaks on every change with custom rules for service account keys (JSON and base64), Anthropic and Resend keys (SEC-02, `.gitleaks.toml`); least-privilege service accounts (FND-03, CORE-12a). | — |
 | **Backups (australia-southeast2)** | I: a second copy of everything. T: restoring a destroyed matter. | Separate buckets with uniform access and no public access; PITR, managed backups, exports and file copies with fixed retention; restore drills must not resurrect destroyed matters (SEC-03, CORE-19). | Destroyed data persists in backups until they expire (stated on certificates). |
 | **CI/CD and supply chain** | T: a malicious dependency or action. T: a deploy from a laptop. I: secrets in the repo. | GitHub-owned actions only; CLI tools pinned and checksum-verified; `pnpm audit` gate; CodeQL (security-extended) daily; gitleaks; Trivy image scans; checkov on Terraform; Dependabot grouped weekly; a CycloneDX SBOM on every release (SEC-02). Deploys only from Actions through Workload Identity Federation (no keys), prod behind a release tag and approval (FND-05). `ci-ok` required on `main`. | Actions are pinned by tag, not SHA (GitHub-owned only). A compromised maintainer account. |
@@ -106,6 +109,7 @@ S spoofing, T tampering, R repudiation, I information disclosure, D denial of se
 | 6 | **Supply chain**: a compromised npm package, action or base image | Medium | High | Lockfile, `pnpm audit`, CodeQL, Dependabot review, Trivy, SBOM, checksum-pinned tools | SEC-02, FND-04 |
 | 7 | **Account takeover** of a lawyer | Medium | High | MFA required per org, breached-password check, session limits, remote sign-out | FND-16, SEC-04 |
 | 8 | **Data loss** or ransomware-style deletion | Low | Critical | PITR, daily/weekly backups, off-region exports, soft delete, destruction needs an admin, drills | SEC-03, CORE-19 |
+| 9 | **Matter data through the Claude connector**: confidential detail ends up in a person's own Claude account, or a stolen token reads it | Medium | High | Off until the practice turns it on; the person's own access as the ceiling, minus privileged matters and document text; hashed, rotating, revocable tokens re-checked on every call; suggestions only; audit of every call | INT-07, ADR-064 |
 
 ## Open items
 
@@ -115,9 +119,11 @@ These are known gaps, each with a home:
 - Product-owner review of this model: SEC-02a.
 - Pinning GitHub Actions by commit SHA (today: GitHub-owned actions by tag): revisit at the next review.
 - Passkeys or phishing-resistant MFA: not planned for v1.
+- The Claude connector's data wording, reviewed with the legal pages, before its flag goes on in prod: INT-07, SEC-01a.
 
 ## Review log
 
 | Date | Reviewer | Changes |
 | --- | --- | --- |
 | 2026-10-07 | Drafted (SEC-02) | First version. Waiting on the product owner's review (SEC-02a). |
+| 2026-10-07 | Updated (INT-07) | Added the Claude connector (ADR-064): its tokens as an asset, a data-flow node, a STRIDE row, risk 9 and an open item. |

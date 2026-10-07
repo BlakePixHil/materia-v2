@@ -89,12 +89,63 @@
             "value": "public, max-age=86400"
           }
         ]
+      },
+      {
+        "source": "/@(mcp|oauth/**)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
       }
     ],
     "rewrites": [
       {
         "source": "/.well-known/security.txt",
         "destination": "/security.txt"
+      },
+      {
+        "source": "/mcp",
+        "function": {
+          "functionId": "connector-api",
+          "region": "australia-southeast1"
+        }
+      },
+      {
+        "source": "/oauth/token",
+        "function": {
+          "functionId": "connector-api",
+          "region": "australia-southeast1"
+        }
+      },
+      {
+        "source": "/oauth/revoke",
+        "function": {
+          "functionId": "connector-api",
+          "region": "australia-southeast1"
+        }
+      },
+      {
+        "source": "/.well-known/oauth-protected-resource",
+        "function": {
+          "functionId": "connector-api",
+          "region": "australia-southeast1"
+        }
+      },
+      {
+        "source": "/.well-known/oauth-protected-resource/mcp",
+        "function": {
+          "functionId": "connector-api",
+          "region": "australia-southeast1"
+        }
+      },
+      {
+        "source": "/.well-known/oauth-authorization-server",
+        "function": {
+          "functionId": "connector-api",
+          "region": "australia-southeast1"
+        }
       },
       {
         "source": "**",
