@@ -27,6 +27,7 @@ import { AuthState } from '../../core/auth/auth-state';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { OrgService, pendingInvite } from '../../core/orgs/org-service';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 
 const JURISDICTIONS: MtOption<Jurisdiction>[] = [
   { value: 'VIC', label: 'Victoria' },
@@ -56,7 +57,7 @@ const TIMEZONES: MtOption<string>[] = ORG_TIMEZONES.map((zone) => ({
 @Component({
   selector: 'mt-onboarding-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, MtButton, MtCheckbox, MtNote, MtSelect, MtTextField],
+  imports: [ReactiveFormsModule, RouterLink, MtButton, MtCheckbox, MtNeedsConnection, MtNote, MtSelect, MtTextField],
   template: `
     <header class="mt-auth-head">
       <h1 class="title-m">Set up your practice</h1>
@@ -114,7 +115,7 @@ const TIMEZONES: MtOption<string>[] = ORG_TIMEZONES.map((zone) => ({
       <button mtButton variant="primary" type="submit" class="mt-auth-wide" [loading]="busy()">Create practice</button>
     </form>
     <p class="mt-auth-foot">
-      <button type="button" class="mt-auth-link" [disabled]="deleting()" (click)="deleteAccount()">
+      <button type="button" class="mt-auth-link" mtNeedsConnection [disabled]="deleting()" (click)="deleteAccount()">
         Delete my account
       </button>
     </p>

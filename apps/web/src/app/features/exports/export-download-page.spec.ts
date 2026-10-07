@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
-import { DomainError } from '@materia/domain';
+import { DomainError, orgExportFileName } from '@materia/domain';
 
 import { ExportDownloadPage, exportDownloadErrorCopy, exportTitle } from './export-download-page';
 import { CALLABLES } from '../../core/data/callables';
@@ -65,12 +65,12 @@ describe('ExportDownloadPage', () => {
     const page = await open(async () => ({
       url: `https://storage.example.test/full-${part}.zip`,
       expiresAt: '2026-10-06T00:05:00Z',
-      fileName: `Harbour & Vine Legal export part ${part} of 3.zip`,
+      fileName: `Harbour Vine Legal export 2026-10-07 part ${part} of 3.zip`,
       parts: 3,
     }));
     expect(page.downloads).toEqual(['https://storage.example.test/full-1.zip']);
-    expect(page.text()).toContain('Harbour & Vine Legal export');
-    expect(page.text()).not.toContain('part 1 of 3.zip');
+    expect(page.text()).toContain('Harbour Vine Legal export 2026-10-07');
+    expect(page.text()).not.toContain('2026-10-07 part 1 of 3');
     expect(page.el().querySelector('[data-export-parts]')?.textContent).toContain('This export is in 3 zip files.');
     expect(page.text()).not.toContain('Download again');
 
@@ -94,7 +94,12 @@ describe('ExportDownloadPage', () => {
 
 describe('exportTitle', () => {
   it('drops the part from a split export’s file name', () => {
-    expect(exportTitle('Harbour & Vine Legal export part 1 of 3.zip')).toBe('Harbour & Vine Legal export');
+    expect(exportTitle(orgExportFileName('Harbour & Vine Legal', '2026-10-07', 1, 3))).toBe(
+      'Harbour & Vine Legal export 2026-10-07',
+    );
+    expect(exportTitle('Harbour Vine Legal export 2026-10-07 part 2 of 3.zip')).toBe(
+      'Harbour Vine Legal export 2026-10-07',
+    );
     expect(exportTitle('Contacts 2026-10-06.csv')).toBe('Contacts 2026-10-06.csv');
   });
 });

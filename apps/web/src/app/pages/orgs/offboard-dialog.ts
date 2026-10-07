@@ -23,6 +23,7 @@ import {
 
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 
 /** A person who could take on the leaver's work. */
 export interface OffboardCandidate {
@@ -77,7 +78,7 @@ const fieldsOf = (error: unknown): Record<string, string[]> =>
 @Component({
   selector: 'mt-offboard-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtDialog, MtNote, MtRadioGroup, MtSelect, MtSkeleton],
+  imports: [FormsModule, MtButton, MtDialog, MtNeedsConnection, MtNote, MtRadioGroup, MtSelect, MtSkeleton],
   template: `
     <mt-dialog
       [title]="'Remove ' + data.displayName"
@@ -136,7 +137,7 @@ const fieldsOf = (error: unknown): Record<string, string[]> =>
             <button mtButton variant="primary" type="button" [disabled]="!stepOneDone()" (click)="next()">Next</button>
           } @else {
             <button mtButton variant="ghost" type="button" (click)="step.set(1)">Back</button>
-            <button mtButton variant="danger" type="button" [loading]="busy()" (click)="remove()">
+            <button mtButton mtNeedsConnection variant="danger" type="button" [loading]="busy()" (click)="remove()">
               Remove {{ data.displayName }}
             </button>
           }

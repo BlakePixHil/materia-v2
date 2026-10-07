@@ -28,6 +28,7 @@ import { SessionPolicy } from '../../core/auth/session-policy';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { JobProgress } from '../../core/jobs/job-progress';
+import { MtNeedsConnection } from '../../core/pwa/needs-connection';
 
 /** "6 November 2026", in the practice's time zone. */
 export function deletionDay(at: Date, timeZone: string): string {
@@ -47,7 +48,17 @@ export function deletionDay(at: Date, timeZone: string): string {
 @Component({
   selector: 'mt-data-deletion-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, JobProgress, MtButton, MtCheckbox, MtNote, MtSettingsRow, MtSettingsSection],
+  imports: [
+    FormsModule,
+    RouterLink,
+    JobProgress,
+    MtButton,
+    MtCheckbox,
+    MtNeedsConnection,
+    MtNote,
+    MtSettingsRow,
+    MtSettingsSection,
+  ],
   host: { class: 'mt-col', style: 'gap: 24px; max-width: 760px' },
   template: `
     <div class="mt-col" style="gap: 6px">
@@ -97,6 +108,7 @@ export function deletionDay(at: Date, timeZone: string): string {
       <div class="mt-row" style="gap: 8px; flex-wrap: wrap; align-items: center">
         <button
           mtButton
+          mtNeedsConnection
           variant="primary"
           type="button"
           iconStart="arrow-down"
@@ -129,7 +141,15 @@ export function deletionDay(at: Date, timeZone: string): string {
           [description]="'On ' + day(at) + '. Until then the practice is read-only, and any owner can cancel.'"
           data-deletion-row
         >
-          <button mtButton variant="secondary" size="sm" type="button" [loading]="cancelling()" (click)="cancel()">
+          <button
+            mtButton
+            mtNeedsConnection
+            variant="secondary"
+            size="sm"
+            type="button"
+            [loading]="cancelling()"
+            (click)="cancel()"
+          >
             Cancel deletion
           </button>
         </mt-settings-row>
@@ -145,13 +165,20 @@ export function deletionDay(at: Date, timeZone: string): string {
           </li>
           <li>People keep their sign-in and any other practices they belong to.</li>
           <li>
-            Owners get a certificate of deletion by email. Backups taken before then expire on their own schedule (at
-            most a year), and are never restored for a deleted practice.
+            Owners get a certificate of deletion by email. Copies in backups taken before then expire on their own
+            schedule (all within about 13 months), and are never restored for a deleted practice.
           </li>
           <li>A legal hold, or an export still being made, stops the deletion.</li>
         </ul>
         <div>
-          <button mtButton variant="danger" type="button" [loading]="deleting()" (click)="requestDeletion()">
+          <button
+            mtButton
+            mtNeedsConnection
+            variant="danger"
+            type="button"
+            [loading]="deleting()"
+            (click)="requestDeletion()"
+          >
             Delete this practice…
           </button>
         </div>

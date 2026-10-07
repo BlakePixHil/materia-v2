@@ -19,9 +19,13 @@ export function exportDownloadErrorCopy(error: unknown): string {
   return errorCopy(error);
 }
 
-/** A split export's title from its first part's file name ("Fictional Legal export part 1 of 3.zip" → "Fictional Legal export"). */
+/**
+ * A split export's title from a part's file name: "Fictional Legal export 2026-10-07 part 1 of
+ * 3.zip" (`jobs-getExportUrl`), or "… (part 1 of 3).zip" (`orgExportFileName`) → "Fictional Legal
+ * export 2026-10-07".
+ */
 export function exportTitle(fileName: string): string {
-  return fileName.replace(/ part \d+ of \d+(\.[a-z]+)$/i, '');
+  return fileName.replace(/ (?:\(part \d+(?: of \d+)?\)|part \d+ of \d+)\.[a-z0-9]+$/i, '');
 }
 
 /**
