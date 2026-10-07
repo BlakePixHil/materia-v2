@@ -107,6 +107,11 @@ export interface AuthPort {
    * `mfaRequired` means answer the challenge with `completeMfa`.
    */
   reauthenticate(method: ReauthMethod): Promise<SignInOutcome>;
+  /**
+   * Gets the Google pop-up ready on phones and in Safari, where it must open the moment it's tapped.
+   * Screens that offer Google to someone signed in call it as they show (MOB-02b).
+   */
+  preparePopups(): Promise<void>;
   /** Forces a token refresh so new custom claims apply. */
   refreshClaims(): Promise<void>;
   call<T>(name: string, data: unknown): Promise<T>;
@@ -140,6 +145,7 @@ export function lazyFirebaseAuthPort(
     'finishTotpEnrolment',
     'reauthenticateWithPassword',
     'reauthenticate',
+    'preparePopups',
     'refreshClaims',
     'call',
     'signOut',

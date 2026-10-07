@@ -155,6 +155,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - Playwright e2e against emulators plus the built app.
 - axe-core in e2e.
 - Storybook for `libs/ui`, with interaction tests.
+- [ADR-061](adr/061-performance-budgets.md) (SEC-07): key screens are held to Web Vitals budgets (LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1 on a mid-tier phone) and Firestore read budgets (Today ≤ 150, a matter ≤ 100), measured every morning by the non-blocking `perf` CI job against `seed-large` on the emulators with a reads counter built only into e2e builds. A screen that misses one is held at a ceiling in `VITALS_EXCEPTIONS` or `READ_BUDGETS` until its follow-up ticket lands. Hot callables are load-tested by hand with k6 (`tools/load/`) to p95 < 1 s at 10× peak. Write hot spots get single-field index exemptions; numbering keeps one counter transaction per org.
 
 **ADR-018: Observability.**
 - Structured JSON logs (`logger` from `firebase-functions`), with a `requestId`, `orgId`, `uid` and `feature` on every line.
@@ -177,6 +178,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - Offline writes are allowed only for client-direct write paths. Callables show "needs connection".
 - [ADR-060](adr/060-installable-app-updates-and-offline-indicators.md) (MOB-01): `sw.js` wraps the Angular service worker, sends API and `/__/` requests straight to the network and gives navigations a 4-second timeout. No API response is cached by the worker. A new version offers a Reload toast and reloads every tab together; `system-ping` returns `minClientVersion`, and a client older than `CLIENT_COMPAT_VERSION` asks to reload, with a chance to save first. A banner shows offline, a "Pending sync" chip counts unsynced documents, and callable buttons read "Needs connection" offline.
 - [ADR-063](adr/063-scanning-paper-on-a-phone.md) (MOB-05): a phone scan finds and straightens each page in the browser (the largest bright region's corners, then a homography), with no library, and writes the PDF itself. Corners can be dragged when the page isn't found. Every scan is kept in IndexedDB (`materia-scans`) until its upload is sent, so one saved offline uploads on reconnect; signing out warns and deletes the queue. Uploads carry `source: 'camera'`.
+- [ADR-065](adr/065-web-push-on-devices.md) (MOB-04): web push uses `sw.js` and FCM's default VAPID key, with no Firebase messaging worker. Each browser keeps a device id in IndexedDB and registers `users/{uid}/devices/{deviceId}`, refreshed daily and deleted on sign-out. Alerts are offered on the first critical deadline or in Settings, never on sign-in, and never asked again once blocked; iOS Safari is sent to install first. A push carries the title and a fixed body, never the notification's text, and a tap opens `/open`, which keeps links inside Materia and asks before switching practice. Devices unseen for 60 days are pruned.
 
 **ADR-035: Trust money is shown, never kept** ([ADR-035](adr/035-trust-accounting.md), BILL-10).
 - Materia never keeps trust records: no receipts, payments, transfers, running balance or "available" amount. The trust ledger stays in the firm's trust software.

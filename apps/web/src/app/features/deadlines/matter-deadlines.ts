@@ -25,6 +25,7 @@ import { rememberEventsView, storedEventsView, type EventsView } from './event-t
 import { PendingChanges } from './pending-changes';
 import { statutoryDisabled } from './statutory-flag';
 import { onIntent } from '../../core/commands/intents';
+import { PushOffer } from '../../core/push/push-offer';
 import { MatterScreen } from '../matter-detail/matter-screen';
 
 /**
@@ -50,6 +51,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
     MtNote,
     MtSegmentedControl,
     PendingChanges,
+    PushOffer,
   ],
   host: { class: 'mt-matter-deadlines' },
   template: `
@@ -70,6 +72,9 @@ import { MatterScreen } from '../matter-detail/matter-screen';
     <p class="mt-sr" aria-live="polite">{{ actions.announcement() }}</p>
     @if (statutoryOff()) {
       <mt-note tone="warning">{{ statutoryMessage }}</mt-note>
+    }
+    @if (hasCritical()) {
+      <mt-push-offer />
     }
 
     @if (changeRows().length) {
@@ -291,6 +296,8 @@ export class MatterDeadlines {
     ),
   );
   protected readonly closedRows = computed(() => this.rows().filter((row) => isClosedDeadline(row.deadline.status)));
+  /** An open critical deadline is in view: the moment to offer deadline alerts on this device (MOB-04). */
+  protected readonly hasCritical = computed(() => this.openRows().some((row) => row.deadline.critical));
   protected readonly changeRows = computed<ChangeRowVm[]>(() => {
     const matterId = this.id() ?? '';
     const matter = this.matterRef();

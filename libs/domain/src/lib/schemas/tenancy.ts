@@ -297,12 +297,15 @@ export const User = withMeta(
 
 /**
  * `users/{uid}/devices/{deviceId}`: a push token (FCM) for one browser or phone (FND-20, MOB-04).
- * Written by its owner; `notifications-deliver` deletes a token FCM reports as invalid.
+ * Written by its owner, whose app refreshes `lastSeenAt` at most daily; `notifications-deliver`
+ * deletes a token FCM reports as invalid, and a device unseen for `PUSH_DEVICE_STALE_DAYS`.
  */
 export const Device = withMeta(
   () => ({
     token: z.string().min(1).max(4096),
     platform: z.enum(['web', 'ios', 'android']),
+    /** What Settings calls it: `Chrome on macOS`, `Safari on iPhone`. */
+    label: z.string().min(1).max(80),
     lastSeenAt: InstantSchema,
   }),
   { path: 'users/{uid}/devices', migratable: false },

@@ -248,6 +248,12 @@ const shellRoutes: Route[] = [
       },
     ],
   },
+  // Where a tapped push notification lands (MOB-04): opens its link, after asking to switch org.
+  {
+    path: 'open',
+    title: 'Opening',
+    loadComponent: () => import('./core/push/open-from-push').then((m) => m.OpenFromPushPage),
+  },
   // More (MOB-02): on a phone, the account and every destination the TabBar has no room for.
   {
     path: 'more',

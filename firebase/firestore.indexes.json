@@ -2468,6 +2468,46 @@
       "indexes": []
     },
     {
+      "collectionGroup": "timeEntries",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "timeEntries",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chunks",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chunks",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "metrics",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "metrics",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "requests",
+      "fieldPath": "startedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "requests",
+      "fieldPath": "result",
+      "indexes": []
+    },
+    {
       "collectionGroup": "members",
       "fieldPath": "migration.runId",
       "indexes": [

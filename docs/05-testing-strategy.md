@@ -11,7 +11,8 @@
 | Functions integration | Vitest + emulators | callables and triggers against emulated Firestore, Auth and Storage; external APIs faked behind ports | `apps/functions/**/*.int.spec.ts` |
 | E2E | Playwright + emulators | user flows, axe scan per page, mobile viewport for MOB tickets | `apps/web-e2e/` |
 | AI evals | custom runner (`libs/clerk/evals`) | golden sets, graded per the Clerk doc. Nightly, plus on prompt changes | `libs/clerk/evals/**` |
-| Load | k6 | hot callables, plus collection-group queries at 10× expected volume | `tools/load/` |
+| Performance | Playwright + Lighthouse + emulators | Firestore reads per screen load and Web Vitals on a mid-tier phone for the key screens, against the large practice (`materia-scripts seed-large`); CI's morning `perf` job (SEC-07) | `apps/web-e2e/src/perf/` |
+| Load | k6 | hot callables at 10× a 50-member firm's busiest minute, plus the palette's search queries, against the Functions emulator with the fakes | `tools/load/` |
 
 ## Rules
 
@@ -40,5 +41,5 @@
 
 - Coverage: `domain` and `deadlines` ≥ 90% lines, functions ≥ 75%, web ≥ 60%.
 - Bundle: initial JS ≤ 300 kB gzip, and each lazy route ≤ 150 kB.
-- Lighthouse CI on the preview: performance ≥ 85 (mobile), accessibility = 100 on the key screens.
+- Web Vitals on a mid-tier phone (Lighthouse's mobile profile, signed in, against the emulators with the large practice): LCP ≤ 2.5 s, INP ≤ 200 ms and CLS ≤ 0.1 for Today, the Matters list, a matter and Deadlines; Firestore reads per screen load: Today ≤ 150 and a matter ≤ 100 (SEC-07). CI's `perf` job checks them each morning without blocking the deploy; exceptions are listed in the specs with their follow-up tickets ([perf report](ops/perf-report-2026-10.md)). Accessibility is covered by axe on every e2e page.
 - Zero high or critical findings from `pnpm audit` or CodeQL.
