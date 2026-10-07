@@ -292,6 +292,15 @@ describe('MtSuggestion', () => {
     });
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
+
+  it('says who asked for one Clerk didn’t make (INT-07)', async () => {
+    const origin = 'Suggested in Claude by Priya Shah';
+    await render(MtSuggestion, {
+      inputs: { suggestion: { id: 's', kind: 'Task', title: 'Call the executor', origin } },
+    });
+    expect(screen.getByRole('group', { name: `Suggestion: Call the executor. ${origin}` })).toBeInTheDocument();
+    expect(screen.getByText(origin)).toBeInTheDocument();
+  });
 });
 
 @Component({
@@ -330,25 +339,38 @@ describe('MtComposer', () => {
     expect(matchCommands('hello', commands)).toEqual([]);
   });
 
-  it('shows the scope and sends with ⌘↵ or Ctrl+Enter, not with an empty message', async () => {
+  it('shows the scope and sends with Enter (or ⌘↵, Ctrl+Enter), not with an empty message', async () => {
     const { fixture } = await render(ComposerHost);
     expect(screen.getByText('Asking about WE-142')).toBeInTheDocument();
     const input = screen.getByRole('textbox', { name: 'Ask Clerk' });
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(fixture.componentInstance.events).toEqual([]);
-    await userEvent.type(input, 'Who might claim?');
-    await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+    await userEvent.click(input);
+    await userEvent.keyboard('{Enter}');
+    expect(fixture.componentInstance.events).toEqual([]);
+    await userEvent.type(input, 'Who might claim?{Enter}');
     expect(fixture.componentInstance.events).toEqual(['send:Who might claim?']);
     expect(input).toHaveValue('');
     await userEvent.type(input, '  Next  ');
+    await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+    await userEvent.type(input, 'Then');
     await userEvent.keyboard('{Control>}{Enter}{/Control}');
-    expect(fixture.componentInstance.events).toEqual(['send:Who might claim?', 'send:Next']);
-    await userEvent.type(input, 'Plain enter{Enter}');
-    expect(fixture.componentInstance.events).toHaveLength(2);
-    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    expect(fixture.componentInstance.events.at(-1)).toBe('send:Plain enter');
+    expect(fixture.componentInstance.events).toEqual(['send:Who might claim?', 'send:Next', 'send:Then']);
     await userEvent.click(screen.getByRole('button', { name: 'Attach a file' }));
     expect(fixture.componentInstance.events.at(-1)).toBe('attach');
+  });
+
+  it('starts a new line with Shift+Enter, and doesn’t send while an input method is composing', async () => {
+    const { fixture } = await render(ComposerHost);
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Ask Clerk' });
+    await userEvent.type(input, 'First line{Shift>}{Enter}{/Shift}second line');
+    expect(fixture.componentInstance.events).toEqual([]);
+    expect(input).toHaveValue('First line\nsecond line');
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true }));
+    expect(fixture.componentInstance.events).toEqual([]);
+    await userEvent.keyboard('{Enter}');
+    expect(fixture.componentInstance.events).toEqual(['send:First line\nsecond line']);
   });
 
   it('becomes Stop while streaming, and Escape stops', async () => {

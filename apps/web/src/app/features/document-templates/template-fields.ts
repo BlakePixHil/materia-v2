@@ -98,7 +98,7 @@ import { MtIconButton, MtSettingsSection, ToastService } from '@materia/ui';
     code {
       font-family: var(--font-mono, ui-monospace, monospace);
       font-size: 0.9em;
-      background: var(--surface-sunken, var(--surface-2));
+      background: var(--bg-sunken);
       border-radius: 4px;
       padding: 0 4px;
       overflow-wrap: anywhere;

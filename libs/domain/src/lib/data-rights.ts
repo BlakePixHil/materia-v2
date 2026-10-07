@@ -45,11 +45,13 @@ export const OrgExportJobInputSchema = z.object({
 export type OrgExportJobInput = z.infer<typeof OrgExportJobInputSchema>;
 
 /**
- * Collections not in the export: OAuth tokens and connect attempts (secrets, useless outside
- * Materia), invites (token hashes, gone in 7 days), export jobs, and Clerk's search chunks (the
- * document text again, cut up for retrieval: the documents themselves are in `files/`).
+ * Collections not in the export: OAuth tokens and connect attempts, and the Claude connector's
+ * token hashes (secrets, useless outside Materia), invites (token hashes, gone in 7 days), export
+ * jobs, and Clerk's search chunks (the document text again, cut up for retrieval: the documents
+ * themselves are in `files/`).
  */
 export const ORG_EXPORT_EXCLUDED = [
+  'connectorGrants',
   'integrations',
   'integrationStates',
   'invites',

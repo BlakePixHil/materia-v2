@@ -165,7 +165,26 @@ export function fakePdfJs(
     },
     getTextContent: () => Promise.resolve({ items: items(number) }),
   });
+  /** PDF.js's text layer, as a span per run of text. */
+  class TextLayer {
+    private readonly items: { str: string }[];
+    private readonly container: HTMLElement;
+    constructor(params: { textContentSource: { items: { str: string }[] }; container: HTMLElement }) {
+      this.items = params.textContentSource.items;
+      this.container = params.container;
+    }
+    render(): Promise<void> {
+      for (const item of this.items) {
+        const span = document.createElement('span');
+        span.setAttribute('role', 'presentation');
+        span.textContent = item.str;
+        this.container.append(span);
+      }
+      return Promise.resolve();
+    }
+  }
   const lib = {
+    TextLayer,
     getDocument: (params: { url: string }) => {
       opened.push(params.url);
       const pdf = {

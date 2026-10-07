@@ -49,7 +49,7 @@ export const TIMER_ANNOUNCE_EVERY_MS = 15 * 60_000;
       padding: 0 10px;
       margin-right: 2px;
       border-radius: var(--radius-md);
-      background: var(--bg-subtle);
+      background: var(--bg-sunken);
       height: 28px;
       line-height: 28px;
     }

@@ -190,6 +190,23 @@ test.describe('matter documents', () => {
     const viewer = page.locator('mt-pdf-viewer');
     await expect(viewer).toContainText('Page 2 of 2', PIPELINE);
     await expect(viewer.locator('[data-page="2"][data-rendered] canvas')).toBeVisible();
+    // The page's text lies over its canvas (PDF.js's text layer, SEC-06b), for screen readers and
+    // find-in-page, and stays the page's size when zoomed.
+    const textLayer = viewer.locator('[data-page="2"] .textLayer');
+    await expect(textLayer).toContainText('I declare that this will is governed by the law of Victoria.');
+    // Within 2 px: the layer rounds down to whole pixels.
+    const fits = async () => {
+      const [layer, canvas] = await Promise.all([
+        textLayer.boundingBox(),
+        viewer.locator('[data-page="2"] canvas').boundingBox(),
+      ]);
+      if (!layer || !canvas) return false;
+      return Math.abs(layer.width - canvas.width) <= 2 && Math.abs(layer.height - canvas.height) <= 2;
+    };
+    await expect.poll(fits).toBe(true);
+    await viewer.getByRole('button', { name: 'Zoom in' }).click();
+    await expect.poll(fits).toBe(true);
+    await viewer.locator('[data-zoom-fit]').click();
     await expectNoA11yViolations(page);
 
     // Rename it.

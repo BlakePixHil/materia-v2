@@ -297,40 +297,46 @@ import { CitationViewer } from '../citations/citation-viewer';
           } @else {
             <div class="answer" [attr.data-message]="message.id">
               @if (working(message); as label) {
-                <mt-clerk-working [label]="label" />
+                <mt-clerk-working class="mt-fade" [label]="label" />
               }
-              <mt-clerk-message
-                [content]="text(message)"
-                [citations]="citations(message)"
-                [state]="state(message)"
-                [error]="errorOf(message)"
-                (retry)="retry(message)"
-                (citationOpen)="openCitation(message, $event)"
-              >
-                <button mtButton variant="ghost" size="sm" iconStart="copy" (click)="copy(message)">Copy</button>
-                <button
-                  mtButton
-                  variant="ghost"
-                  size="sm"
-                  [attr.aria-pressed]="message.feedback?.rating === 'up'"
-                  (click)="rate(message, 'up')"
+              <!-- Until the first words arrive only the working line shows: no empty answer with a lone caret. -->
+              @if (started(message)) {
+                <mt-clerk-message
+                  class="mt-fade"
+                  [content]="text(message)"
+                  [citations]="citations(message)"
+                  [state]="state(message)"
+                  [error]="errorOf(message)"
+                  (retry)="retry(message)"
+                  (citationOpen)="openCitation(message, $event)"
                 >
-                  Helpful
-                </button>
-                <button
-                  mtButton
-                  variant="ghost"
-                  size="sm"
-                  [attr.aria-pressed]="message.feedback?.rating === 'down'"
-                  [attr.aria-expanded]="reasonsFor() === message.id"
-                  (click)="reasonsFor.set(reasonsFor() === message.id ? null : message.id)"
-                >
-                  Not helpful
-                </button>
-                @if (canRetry(message)) {
-                  <button mtButton variant="ghost" size="sm" iconStart="refresh" (click)="retry(message)">Retry</button>
-                }
-              </mt-clerk-message>
+                  <button mtButton variant="ghost" size="sm" iconStart="copy" (click)="copy(message)">Copy</button>
+                  <button
+                    mtButton
+                    variant="ghost"
+                    size="sm"
+                    [attr.aria-pressed]="message.feedback?.rating === 'up'"
+                    (click)="rate(message, 'up')"
+                  >
+                    Helpful
+                  </button>
+                  <button
+                    mtButton
+                    variant="ghost"
+                    size="sm"
+                    [attr.aria-pressed]="message.feedback?.rating === 'down'"
+                    [attr.aria-expanded]="reasonsFor() === message.id"
+                    (click)="reasonsFor.set(reasonsFor() === message.id ? null : message.id)"
+                  >
+                    Not helpful
+                  </button>
+                  @if (canRetry(message)) {
+                    <button mtButton variant="ghost" size="sm" iconStart="refresh" (click)="retry(message)">
+                      Retry
+                    </button>
+                  }
+                </mt-clerk-message>
+              }
               @if (note(message); as note) {
                 <mt-note>{{ note }}</mt-note>
               }
@@ -522,14 +528,20 @@ export class ClerkChatPanel {
 
   constructor() {
     // A new scope (another matter) starts a new conversation; the old thread stays in its list.
+    // Coming back from "How Clerk works" reopens the thread that was showing.
     effect(() => {
-      this.matterId();
+      const matterId = this.matterId();
       untracked(() => {
-        this.threadId.set(null);
+        this.threadId.set(this.panel.takeResume(matterId));
         this.attachments.set([]);
         this.sendError.set(null);
         this.notice.set(null);
       });
+    });
+    effect(() => {
+      const matterId = this.matterId();
+      const threadId = this.threadId();
+      if (matterId && threadId) untracked(() => this.panel.rememberThread(matterId, threadId));
     });
     // Each answer's cited documents are read once, for the chips and the viewer.
     effect(() => {
@@ -601,6 +613,11 @@ export class ClerkChatPanel {
     const label = workingLabel(message);
     if (label) return label;
     return message.status === 'streaming' && !messageText(message) ? 'Reading the matter…' : null;
+  }
+
+  /** Whether the answer shows yet: once its first words arrive, or once it has finished (even empty). */
+  protected started(message: ChatMessage): boolean {
+    return message.status !== 'streaming' || !!messageText(message);
   }
 
   protected citations(message: ChatMessage): CitationVm[] {

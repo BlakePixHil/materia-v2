@@ -11,6 +11,11 @@
 .mt-clerk-card[data-plain]::before { content: none; }
 .mt-clerk-card[data-plain] > .in { background: none; }
 .mt-clerk-card[data-plain] .mt-clerk-head { color: var(--text-secondary); }
-.mt-clerk-panel { margin: var(--space-8) var(--space-8) var(--space-8) 0; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+.mt-clerk-panel { margin: var(--space-8) var(--space-8) var(--space-8) 0; background: linear-gradient(180deg, var(--bg-ai-subtle), var(--bg-surface) 160px) var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
 .mt-clerk-panel > header { display: flex; align-items: center; gap: var(--space-8); height: var(--topbar); padding: 0 var(--space-12) 0 var(--space-16); border-bottom: 1px solid var(--border-default); flex: none; font: 600 13px/18px var(--font-sans); }
 .mt-clerk-panel > .body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-16); display: flex; flex-direction: column; justify-content: center; }
+.mt-clerk-panel > footer { flex: none; display: flex; align-items: center; padding: var(--space-8) var(--space-16); border-top: 1px solid var(--border-subtle); }
+.mt-clerk-help { display: inline-flex; align-items: center; gap: var(--space-4); height: 22px; margin-left: calc(-1 * var(--space-6)); padding: 0 var(--space-6); border-radius: var(--radius-xs); font: 500 12px/16px var(--font-sans); color: var(--text-tertiary); text-decoration: none; transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+.mt-clerk-help .mt-i { width: 12px; height: 12px; color: var(--icon-ai); }
+.mt-clerk-help:hover { color: var(--text-ai); background: var(--bg-ai-subtle); }
+.mt-clerk-help:focus-visible { outline: none; box-shadow: var(--focus-ring); }

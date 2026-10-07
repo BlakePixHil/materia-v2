@@ -2,7 +2,7 @@ import { DOWNLOAD_NAVIGATOR, FILE_FETCHER, SHARE_MAX_BYTES, WEB_SHARE, type WebS
 import { detailsProblem } from './document-details';
 import { PREVIEW_UNAVAILABLE, TEXT_PREVIEW_MAX } from './document-preview';
 import { DOCUMENT_CATEGORIES } from './documents-view';
-import { PDF_PROBLEM_COPY, PDFJS_LOADER, pdfProblem } from './pdf-viewer';
+import { PDF_PROBLEM_COPY, PDFJS_LOADER, pdfProblem, SCANNED_PAGE_COPY } from './pdf-viewer';
 import { fakePdfJs, FakeUploadPort, InViewObserver, pipelineUpload, storedDocument, storedVersion } from './testing';
 import { UPLOAD_PORT } from './upload-port';
 import type { AuthSession } from '../../core/auth/auth-port';
@@ -169,8 +169,10 @@ describe('document viewer', () => {
     expect(page.text(viewer.querySelector('[role="toolbar"]'))).toContain('Page 2 of 3');
     expect(viewer.querySelectorAll('.page')).toHaveLength(3);
     expect(viewer.querySelectorAll('.page[data-rendered] canvas[aria-hidden="true"]')).toHaveLength(3);
-    // The text of each page is there for screen readers.
-    expect(page.text(viewer.querySelector('[data-page="1"]'))).toContain('Fictional page 1');
+    // Each page's text is PDF.js's text layer over the canvas: there for screen readers, find and select.
+    expect(page.text(viewer.querySelector('[data-page="1"] .textLayer'))).toBe('Fictional page 1');
+    expect(viewer.querySelectorAll('.textLayer')).toHaveLength(3);
+    expect(page.calls('documents-citationText')).toEqual([]);
 
     await page.click('Next page', viewer);
     await settle(page);
@@ -178,6 +180,43 @@ describe('document viewer', () => {
     expect(page.text(viewer.querySelector('[role="toolbar"]'))).toContain('Page 3 of 3');
     await page.click('Previous page', viewer);
     expect(page.router.url).toBe(`${BASE}/d-will?page=2`);
+  });
+
+  it('reads out a scanned page’s OCR text, asking for the next pages’ in the same call (SEC-06b)', async () => {
+    const page = await view(`${BASE}/d-will`, {
+      pdf: fakePdfJs({ pages: 3, texts: { 2: null, 3: ' ' } }),
+      callables: {
+        'documents-citationText': (data) => ({
+          version: data['version'],
+          pages: [{ page: 2, text: 'Fictional affidavit of\nexecution', ocr: true }],
+          truncated: false,
+        }),
+      },
+    });
+    const viewer = page.body.querySelector<HTMLElement>('mt-pdf-viewer') as HTMLElement;
+    expect(viewer.querySelectorAll('.textLayer')).toHaveLength(1);
+    expect(page.text(viewer.querySelector('[data-page="2"] [data-scan-text].mt-sr'))).toBe(
+      `${SCANNED_PAGE_COPY.text} Fictional affidavit of execution`,
+    );
+    // Nothing stored for page 3 (a blank or unread page).
+    expect(page.text(viewer.querySelector('[data-page="3"] [data-scan-text]'))).toBe(SCANNED_PAGE_COPY.none);
+    expect(page.calls('documents-citationText')).toEqual([
+      expect.objectContaining({ matterId: 'm-whitfield', docId: 'd-will', version: 2, pages: [2, 3] }),
+    ]);
+  });
+
+  it('says when a scanned page’s text didn’t load', async () => {
+    const page = await view(`${BASE}/d-will`, {
+      pdf: fakePdfJs({ pages: 2, texts: { 1: null } }),
+      callables: {
+        'documents-citationText': () => {
+          throw { code: 'functions/unavailable', message: 'offline' };
+        },
+      },
+    });
+    const viewer = page.body.querySelector<HTMLElement>('mt-pdf-viewer') as HTMLElement;
+    expect(page.text(viewer.querySelector('[data-page="1"] [data-scan-text]'))).toBe(SCANNED_PAGE_COPY.failed);
+    expect(page.text(viewer.querySelector('[data-page="2"] .textLayer'))).toBe('Fictional page 2');
   });
 
   it('shows an older version when asked, with a way back', async () => {

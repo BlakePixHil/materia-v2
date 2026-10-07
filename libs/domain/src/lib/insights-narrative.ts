@@ -58,7 +58,7 @@ export interface NarrativeCitation {
 // ---------- the figures ----------
 
 /** Matter types as the design system names them (MATTER_TYPE_LABELS in @materia/ui). */
-const MATTER_TYPE_NAMES: Readonly<Record<MatterType, string>> = {
+export const MATTER_TYPE_NAMES: Readonly<Record<MatterType, string>> = {
   will: 'Will',
   poa: 'Power of attorney',
   probate: 'Probate',

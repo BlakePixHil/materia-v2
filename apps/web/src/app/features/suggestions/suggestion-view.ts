@@ -22,7 +22,7 @@ import type { SuggestionVm } from '@materia/ui/suggestion';
 
 export type SuggestionRecord = SuggestionItem & { id: string };
 
-/** The card's view model: kind label, one-line summary, rationale and citations. */
+/** The card's view model: kind label, one-line summary, rationale, citations and who asked for it. */
 export function suggestionVm(item: SuggestionRecord): SuggestionVm {
   return {
     id: item.id,
@@ -41,6 +41,8 @@ export function suggestionVm(item: SuggestionRecord): SuggestionVm {
       ...(citation.verified === false ? { verified: false } : {}),
     })),
     acceptLabel: SUGGESTION_ACCEPT_LABELS[item.kind],
+    // Made by a person's own Claude through the connector (INT-07), not by Clerk.
+    ...(item.requestedBy ? { origin: `Suggested in Claude by ${item.requestedBy.name}` } : {}),
   };
 }
 

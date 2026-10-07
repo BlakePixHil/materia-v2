@@ -189,6 +189,11 @@ export const SuggestionMetaShape = {
   appliedPayload: z.record(z.string(), z.unknown()).optional(),
   dismissReason: z.string().max(500).optional(),
   staleReview: SuggestionStaleReviewSchema.optional(),
+  /**
+   * A person's own Claude suggested it through the connector (INT-07, ADR-064), at their request:
+   * who, with their name when it was made, so the card can say so. Absent for Clerk's suggestions.
+   */
+  requestedBy: z.object({ uid: DocIdSchema, name: z.string().max(120) }).optional(),
 };
 
 /** What a Clerk feature proposes (`proposeSuggestions`): a kind and payload, with its sources. */

@@ -422,11 +422,11 @@ const PUSH_REFRESH_DELAY_MS = 8000;
               <p class="caption t-2" role="alert">Clerk didn’t load. Reload the page to try again.</p>
             </div>
           }
-          <footer
-            class="clerk-panel-foot"
-            style="flex: none; padding: 8px 16px; border-top: 1px solid var(--border-default); font-size: 13px"
-          >
-            <a routerLink="/help/clerk" (click)="toggleClerk()">How Clerk works</a>
+          <!-- The guide's Back returns here and opens the panel again (the state says it came from Clerk). -->
+          <footer class="clerk-panel-foot">
+            <a class="mt-clerk-help" routerLink="/help/clerk" [state]="{ fromClerk: true }" (click)="toggleClerk()"
+              ><mt-icon name="help" />How Clerk works</a
+            >
           </footer>
         </aside>
       }

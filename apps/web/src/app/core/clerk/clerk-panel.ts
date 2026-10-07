@@ -18,6 +18,10 @@ export class ClerkPanel {
   private readonly openState = signal(false);
   private readonly scopeState = signal<ClerkScope | null>(null);
 
+  /** The thread last open on each matter, so coming back from "How Clerk works" resumes it. */
+  private readonly lastThreads = new Map<string, string>();
+  private resumePending = false;
+
   readonly open = this.openState.asReadonly();
   readonly scope = this.scopeState.asReadonly();
 
@@ -25,8 +29,22 @@ export class ClerkPanel {
     this.openState.update((open) => !open);
   }
 
-  show(): void {
+  /** Opens the panel; with `resume`, the chat reopens the thread it last showed on the next matter it's scoped to. */
+  show(options: { resume?: boolean } = {}): void {
+    if (options.resume) this.resumePending = true;
     this.openState.set(true);
+  }
+
+  /** The chat noting which thread it shows on a matter. */
+  rememberThread(matterId: string, threadId: string): void {
+    this.lastThreads.set(matterId, threadId);
+  }
+
+  /** The thread to reopen on this matter after `show({ resume: true })`, once; otherwise null (a new thread). */
+  takeResume(matterId: string | null): string | null {
+    if (!matterId || !this.resumePending) return null;
+    this.resumePending = false;
+    return this.lastThreads.get(matterId) ?? null;
   }
 
   close(): void {

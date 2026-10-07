@@ -214,7 +214,7 @@ const EMPTY: ProfileForm = {
       outline-offset: 2px;
     }
     .swatch:has(input:focus-visible) {
-      outline: 2px solid var(--focus, var(--text-primary));
+      outline: 2px solid var(--border-focus);
       outline-offset: 2px;
     }
   `,
