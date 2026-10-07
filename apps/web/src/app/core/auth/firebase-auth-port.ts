@@ -167,11 +167,15 @@ export function onDemandPopups(firebasePopups: new () => PopupHelper) {
 /** The Identity Platform implementation of AuthPort (FND-16), connected to the emulators locally. */
 export function createFirebaseAuthPort(): AuthPort {
   const app = firebaseApp();
-  // getAuth's persistence and pop-up helper, the helper loaded on demand.
-  const popups = onDemandPopups(browserPopupRedirectResolver as unknown as new () => PopupHelper);
+  // getAuth's persistence and pop-up helper, the helper loaded on demand. Firebase's Node build
+  // (unit tests) has no helper, and getAuth there starts Auth without one.
+  const popups =
+    typeof browserPopupRedirectResolver === 'function'
+      ? onDemandPopups(browserPopupRedirectResolver as unknown as new () => PopupHelper)
+      : undefined;
   const auth: Auth = initializeAuth(app, {
     persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
-    popupRedirectResolver: popups as unknown as PopupRedirectResolver,
+    ...(popups && { popupRedirectResolver: popups as unknown as PopupRedirectResolver }),
   });
   const functions = getFunctions(app, REGION);
   if (environment.useEmulators) {
@@ -189,7 +193,7 @@ export function createFirebaseAuthPort(): AuthPort {
     current = user ? await toSession(user) : null;
     for (const listener of listeners) listener(current);
   };
-  const preparePopups = () => popups.latest?.prepare(auth) ?? Promise.resolve();
+  const preparePopups = () => popups?.latest?.prepare(auth) ?? Promise.resolve();
   onIdTokenChanged(auth, (user) => {
     void publish(user);
     // Signed out: the sign-in screen, which offers Google, is next.

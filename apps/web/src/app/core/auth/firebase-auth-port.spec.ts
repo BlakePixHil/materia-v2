@@ -1,6 +1,6 @@
 import type { Auth } from 'firebase/auth';
 
-import { onDemandPopups } from './firebase-auth-port';
+import { createFirebaseAuthPort, onDemandPopups } from './firebase-auth-port';
 
 /** Stands in for Firebase's pop-up helper, which unit tests (Firebase Auth's Node build) don't have. */
 class FirebasePopups {
@@ -49,5 +49,12 @@ describe('onDemandPopups', () => {
       throw new TypeError('renamed');
     });
     await expect(popups.prepare(auth)).resolves.toBeUndefined();
+  });
+});
+
+describe('createFirebaseAuthPort', () => {
+  it('starts Auth without the pop-up helper where Firebase has none (its Node build)', async () => {
+    const port = createFirebaseAuthPort();
+    await expect(port.preparePopups()).resolves.toBeUndefined();
   });
 });
