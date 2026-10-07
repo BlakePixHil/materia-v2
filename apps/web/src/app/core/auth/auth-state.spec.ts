@@ -71,6 +71,18 @@ describe('AuthState', () => {
     expect(auth.isRecentLogin()).toBe(false);
   });
 
+  it('counts a test session as signed in just now, however long ago it was made', async () => {
+    // Spec files make their sessions as they load, and the unit tests run without isolation.
+    const { auth } = setup(new FakeAuthPort(testSession()));
+    await auth.whenReady();
+    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60 * 60_000);
+    try {
+      expect(auth.isRecentLogin()).toBe(true);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('delegates flows to the port', async () => {
     const { auth, port } = setup(new FakeAuthPort(null));
     await auth.whenReady();
