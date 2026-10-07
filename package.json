@@ -136,7 +136,10 @@
   "pnpm": {
     "overrides": {
       "axios": "^1.20.0",
-      "@grpc/grpc-js@<1.13.6": "^1.14.5"
+      "@grpc/grpc-js@<1.13.6": "^1.14.5",
+      "brace-expansion@>=4.0.0 <5.0.12": "^5.0.12",
+      "smol-toml@<1.9.0": "^1.9.0",
+      "@modelcontextprotocol/sdk@>=1.12.0 <1.31.0": "^1.31.0"
     },
     "patchedDependencies": {
       "firebase-tools@15.32.1": "patches/firebase-tools@15.32.1.patch"
