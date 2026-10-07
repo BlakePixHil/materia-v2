@@ -66,5 +66,5 @@ These are created by the tickets that introduce them:
 - restore from PITR, a backup or an export ([restore.md](runbooks/restore.md), SEC-03);
 - rotate secret;
 - incident response;
-- migration cutover, starting with the auth import ([migration-auth-import.md](runbooks/migration-auth-import.md), MIG-04);
+- migration rehearsals and cutover ([migration-cutover.md](runbooks/migration-cutover.md), MIG-07), with a runbook per step (export, transform, copy, auth import, load);
 - disable Clerk (kill switch).

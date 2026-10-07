@@ -1,6 +1,6 @@
 # Legacy migration CLI
 
-`pnpm materia-migrate <step>` moves one user's legacy materia data into Materia v2 ([plan](../../docs/08-legacy-migration-plan.md), [decision log](../../docs/migration/decisions.md)). Nothing in this tool writes to the legacy project. MIG-01 adds `audit` and `check-profile`, MIG-02 adds `export`, MIG-03 adds `transform`, MIG-04 adds `auth-import`, MIG-05 adds `copy-files`, and MIG-06 adds `load`, `verify`, `rollback` and `delta`. The other steps print a placeholder until their tickets land.
+`pnpm materia-migrate <step>` moves one user's legacy materia data into Materia v2 ([plan](../../docs/08-legacy-migration-plan.md), [decision log](../../docs/migration/decisions.md)). Nothing in this tool writes to the legacy project. MIG-01 adds `audit` and `check-profile`, MIG-02 adds `export`, MIG-03 adds `transform`, MIG-04 adds `auth-import`, MIG-05 adds `copy-files`, MIG-06 adds `load`, `verify`, `rollback` and `delta`, and MIG-07 adds `preflight`. The other steps print a placeholder until their tickets land.
 
 ## `audit` (MIG-01)
 
@@ -199,6 +199,21 @@ NODE_USE_ENV_PROXY=1 pnpm materia-migrate delta --run <deltaRunId> --env prod --
 - **Prod** needs `--confirm-prod` and the org's name typed back, for `load`, `rollback` and `delta`. `--dry-run` writes nothing and needs neither.
 - **Credentials:** Application Default Credentials: your account in Cloud Shell. Firestore takes no others through the Admin SDK.
 - **Logs:** counts and paths only. **Exit codes:** 0 done (conflicts are reported, not errors); 5 some writes failed (run it again) or verify failed; 1 refused or an error, with nothing written when refused.
+
+## `preflight` (MIG-07)
+
+Checks, before a rehearsal or the cutover moves any real data, that every account the steps run as holds what its steps need. The [cutover runbook](../../docs/runbooks/migration-cutover.md#preflight) has the checks and what each grant fixes, and [D-23](../../docs/migration/decisions.md#d-23-rehearsals-and-cutover-new) the choices.
+
+```sh
+pnpm materia-migrate preflight --env dev
+```
+
+- **Asks IAM only** (`testIamPermissions` on the buckets, the service accounts, the `clamav` service and the project), plus the target's sign-in config for Google. It never reads a record, a file or an account.
+- **Checks, in the order the steps run:** you can impersonate the writer (prod) and the legacy reader; the reader can read legacy and write nothing (the audit's own check); the writer can write the run, read the legacy bucket and write the files; you can call the scanner, import the account and load; and Google sign-in is on. In prod it also checks you can use both buckets, since the load and the rollback run as you.
+- **Prod's legacy bucket grant** is made only for the cutover copy, so in prod a missing one shows as `·` (needed later) rather than failing.
+- **Every check runs** even after one fails, and each failure names the missing permissions and the grant that fixes them.
+- **Options:** `--env dev|prod`; `--impersonate <email>` for the writer (default: `migration-runner` in prod, your gcloud account in dev); `--adc` to check Application Default Credentials. `MIGRATION_OPERATOR_TOKEN`, `MIGRATION_WRITER_TOKEN` and `MIGRATION_ACCESS_TOKEN` (the legacy reader's) supply tokens.
+- **Exit codes:** 0 ready; 5 a check failed; 1 bad arguments.
 
 ## Fixtures
 
