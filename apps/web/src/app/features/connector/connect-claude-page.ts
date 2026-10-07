@@ -129,7 +129,7 @@ const OFF_COPY = 'Your practice hasn’t turned on the Claude connector.';
       width: 32px;
       height: 32px;
       border-radius: var(--radius-md);
-      background: var(--bg-subtle);
+      background: var(--bg-sunken);
       color: var(--text-secondary);
     }
   `,
