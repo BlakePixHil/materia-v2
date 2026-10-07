@@ -14,7 +14,7 @@ import {
   type SuggestionProposal,
 } from '@materia/domain';
 
-import type { Log } from '../../core/log';
+import { errorReportFields, type Log } from '../../core/log';
 import type { ClerkContentBlock, Clock } from '../../ports';
 import { proposeSuggestions } from '../../suggestions/propose';
 import type { ClerkContext, ContextBuilder } from '../context/build-context';
@@ -361,7 +361,7 @@ async function fail(deps: ChatRunDeps, ref: DocumentReference, error: unknown): 
   const flag = known ? (error.details as { switch?: unknown } | undefined)?.switch : undefined;
   const detail = { code, ...(typeof flag === 'string' ? { switch: flag } : {}) };
   if (known) deps.log.warn('clerk chat failed', { messageId: ref.id, code });
-  else deps.log.error('clerk chat failed', { messageId: ref.id, code });
+  else deps.log.error('clerk chat failed', { messageId: ref.id, code, ...causeFields(error) });
   try {
     await deps.db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
@@ -376,4 +376,17 @@ async function fail(deps: ChatRunDeps, ref: DocumentReference, error: unknown): 
   } catch {
     deps.log.error('clerk chat failure not recorded', { messageId: ref.id });
   }
+}
+
+/**
+ * What an unexpected error was, for the log: its type and frames (grouped in Error Reporting) and,
+ * for a Firestore call, its gRPC status (5 NOT_FOUND, 10 ABORTED, 4 DEADLINE_EXCEEDED). Never the
+ * message, which can quote data.
+ */
+function causeFields(error: unknown): Record<string, unknown> {
+  const status = (error as { code?: unknown } | null | undefined)?.code;
+  return {
+    ...errorReportFields(error),
+    ...(typeof status === 'number' || typeof status === 'string' ? { causeCode: status } : {}),
+  };
 }
