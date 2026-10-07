@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { DataLifecycle } from '@materia/data-access';
 import { DialogService, ThemeService, ToastService } from '@materia/ui';
 
+import { waitingScans } from '../../features/scan/scan-db';
 import { AuthState } from '../auth/auth-state';
 import { errorCopy } from '../error-copy';
 import { OfflineError, OrgService } from '../orgs/org-service';
@@ -26,8 +27,23 @@ export class AccountActions {
 
   readonly themeLabel = computed(() => (this.theme.resolved() === 'dark' ? 'Use light theme' : 'Use dark theme'));
 
-  /** Signs out, after a warning when changes made offline haven't synced (FND-19). */
+  /**
+   * Signs out, after a warning when changes made offline haven't synced (FND-19) or scans saved on
+   * this phone haven't uploaded (MOB-05): sign-out deletes them.
+   */
   async signOut(): Promise<void> {
+    const uid = this.auth.session()?.uid;
+    const scans = uid ? await waitingScans(uid) : 0;
+    if (scans) {
+      const discard = await this.dialogs.confirm({
+        title: scans === 1 ? 'A scan hasn’t uploaded' : `${scans} scans haven’t uploaded`,
+        body: `${scans === 1 ? 'A scan' : 'Scans'} saved on this device without a connection ${scans === 1 ? 'hasn’t' : 'haven’t'} reached Materia yet. Signing out deletes ${scans === 1 ? 'it' : 'them'}.`,
+        confirmLabel: 'Sign out anyway',
+        cancelLabel: 'Keep signed in',
+        tone: 'danger',
+      });
+      if (!discard) return;
+    }
     if (await this.data.hasUnsyncedChanges()) {
       const discard = await this.dialogs.confirm({
         title: 'You have unsynced changes',

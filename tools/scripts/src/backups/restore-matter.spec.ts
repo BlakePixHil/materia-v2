@@ -113,6 +113,13 @@ describe('restoreMatter', () => {
     expect(other.target.writes).toEqual([]);
   });
 
+  it('refuses any matter of a deleted practice (SEC-05)', async () => {
+    const { source, target } = backupAndLive();
+    target.docs.set('deletedOrgs/o1', { orgId: 'o1', name: 'Fictional Legal', status: 'deleted' });
+    await expect(restoreMatter(source, target, opts({ apply: true }))).rejects.toThrow('was deleted');
+    expect(target.writes).toEqual([]);
+  });
+
   it('refuses a matter the source doesn’t have', async () => {
     const { target } = backupAndLive();
     await expect(restoreMatter(new FakeDb(), target, opts())).rejects.toThrow('isn’t in the source');

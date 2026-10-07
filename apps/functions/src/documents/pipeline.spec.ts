@@ -166,6 +166,21 @@ describe('processUpload', () => {
     });
   });
 
+  it('records a phone scan’s source (MOB-05)', async () => {
+    const w = world();
+    const event = w.upload(await samplePdf({ pages: 3 }), {
+      fileName: 'Scan 7 Oct 2026.pdf',
+      extra: { source: 'camera', category: 'death_certificate' },
+    });
+    expect(await processUpload(event, w.deps())).toMatchObject({ outcome: 'stored' });
+    expect(w.doc(`${DOCS}/${event.uploadId}`)).toMatchObject({
+      name: 'Scan 7 Oct 2026.pdf',
+      source: 'camera',
+      category: 'death_certificate',
+      pageCount: 3,
+    });
+  });
+
   it('documents uploaded to a privileged matter are privileged', async () => {
     const w = world();
     const event = w.upload(fakePdf('advice'), { matterId: 'm2' });
@@ -333,6 +348,14 @@ describe('processUpload', () => {
   ])('refuses uploads from %s', async (_label, options) => {
     const w = world();
     const event = w.upload(fakePdf('r'), options as never);
+    expect(await processUpload(event, w.deps())).toMatchObject({ outcome: 'not_allowed', reason: 'not_allowed' });
+    expect(w.files.objects.size).toBe(0);
+  });
+
+  it('refuses uploads while the practice waits to be deleted (SEC-05)', async () => {
+    const w = world();
+    await w.db.doc(`orgs/${ORG}`).set({ deletionScheduledAt: new Date('2026-11-06T00:00:00Z') }, { merge: true });
+    const event = w.upload(fakePdf('d'));
     expect(await processUpload(event, w.deps())).toMatchObject({ outcome: 'not_allowed', reason: 'not_allowed' });
     expect(w.files.objects.size).toBe(0);
   });

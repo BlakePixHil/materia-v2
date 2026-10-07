@@ -416,6 +416,10 @@ jobs:
           E2E_CHROMIUM_ONLY: ${{ matrix.browser == 'chromium' && '1' || '' }}
           E2E_PROJECT: ${{ matrix.browser == 'chromium' && 'chromium' || 'webkit-mobile' }}
           E2E_LOAD: ${{ matrix.browser == 'chromium' && format('&& pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=chromium-load --no-deps --shard={0}/2', matrix.shard) || '' }}
+          # The exhaustive accessibility audit (a11y-audit.spec.ts, tagged @audit: every route in both
+          # themes, 7 to 9 minutes of test time) runs in the morning run and dispatches; PRs run the
+          # faster checks in a11y.spec.ts (SEC-06).
+          E2E_GREP: ${{ github.event_name == 'pull_request' && '--grep-invert @audit' || '' }}
         # The browser projects are named so they shard on their own: with no --project, chromium-load's
         # dependency on them put every test in shard 1 and none in shard 2. The load test then runs
         # after its shard's browser tests (--no-deps; a shard without it exits at once).
@@ -423,7 +427,7 @@ jobs:
           pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting
           --project demo-materia --config firebase.e2e.json
           "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=$E2E_PROJECT --shard=${{ matrix.shard }}/2
-          $E2E_LOAD"
+          $E2E_GREP $E2E_LOAD"
       - name: Upload the Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
@@ -431,6 +435,74 @@ jobs:
           name: playwright-report-${{ matrix.browser }}-${{ matrix.shard }}
           path: dist/.playwright/apps/web-e2e
           retention-days: 7
+
+  # Performance budgets (SEC-07): Firestore reads per screen and Web Vitals on a mid-tier phone
+  # (Lighthouse's mobile profile; INP from Event Timing with the CPU slowed 4x) for Today, Matters,
+  # a matter and Deadlines, signed in to the large practice (`seed-large --scale 0.05`) in the
+  # emulators. The morning run and dispatches only (like CodeQL), and like WebKit a failure shows
+  # red on this job without failing the run or holding the dev deploy (it isn't in ci-ok).
+  # Budgets and their exceptions: docs/ops/perf-report-2026-10.md.
+  perf:
+    name: perf
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [gate, changes, build]
+    if: needs.gate.outputs.mode == 'full' && github.event_name != 'pull_request' && needs.changes.outputs.e2e == 'true'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+        with:
+          base: ${{ needs.gate.outputs.base }}
+          java: 'true'
+      - name: Download the e2e web app
+        uses: actions/download-artifact@v4
+        with:
+          name: web-e2e-dist
+          path: dist/apps/web/browser
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Install Playwright system dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+      - name: Write the e2e Firebase config
+        run: pnpm -s materia-scripts csp emulator-config --out firebase.e2e.json
+      # No Functions: the screens measured call none while loading, and the seed's writes would
+      # set off every trigger. The seed writes about 136,000 documents in under a minute.
+      - name: Seed the large practice and measure (project demo-materia)
+        timeout-minutes: 12
+        env:
+          BASE_URL: http://127.0.0.1:5000
+          CI: 'true'
+          E2E_PERF: '1'
+          E2E_CHROMIUM_ONLY: '1'
+          PERF_OUT_DIR: dist/perf
+        run: >-
+          pnpm exec firebase emulators:exec --only auth,firestore,hosting
+          --project demo-materia --config firebase.e2e.json
+          "pnpm -s materia-scripts seed-large --scale 0.05 &&
+          pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=chromium-perf"
+      - name: Upload the perf reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-reports
+          path: |
+            dist/perf
+            dist/.playwright/apps/web-e2e/playwright-report
+          retention-days: 30
 
   terraform:
     name: terraform

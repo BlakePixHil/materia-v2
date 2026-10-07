@@ -164,7 +164,10 @@ export class MfaEnrolPage implements OnInit {
   async ngOnInit(): Promise<void> {
     await this.auth.whenReady();
     if (this.auth.isRecentLogin(5)) await this.start();
-    else this.step.set('reauth');
+    else {
+      this.step.set('reauth');
+      if (this.google()) void this.auth.api.preparePopups();
+    }
   }
 
   protected async reauth(): Promise<void> {

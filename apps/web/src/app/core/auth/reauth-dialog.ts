@@ -83,6 +83,10 @@ export class ReauthDialog {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
 
+  constructor() {
+    if (this.google()) void this.auth.api.preparePopups();
+  }
+
   protected submit(): void {
     if (this.mfa()) void this.finishMfa();
     else void this.signIn({ kind: 'password', password: this.secret() });

@@ -59,25 +59,6 @@ export const MatterListItemSchema = /* @__PURE__ */ z.object({
 });
 export type MatterListItem = z.infer<typeof MatterListItemSchema>;
 
-/**
- * A pinned matter as the sidebar names it (CORE-23): its number, title and type, its status, and
- * whether it is still live. Read one document at a time, by id.
- */
-export const PinnedMatterSchema = /* @__PURE__ */ z.object({
-  number: matter.number,
-  title: matter.title,
-  type: matter.type,
-  status: matter.status,
-  deletedAt: SoftDeleteShape.deletedAt,
-  destroyedAt: matter.destroyedAt,
-});
-export type PinnedMatter = z.infer<typeof PinnedMatterSchema>;
-
-/** The active org's matters, watched one at a time for the sidebar's Pinned section (CORE-23). */
-export function pinnedMatterRepository(): Repository<PinnedMatter> {
-  return repo((orgId) => `orgs/${orgId}/matters`, { schema: PinnedMatterSchema, version: Matter.version });
-}
-
 /** Rows per page of the Matters list (infinite scroll loads the next page). */
 export const MATTER_PAGE_SIZE = MATTER_LIST_PAGE_SIZE;
 /** When the query can't carry every filter, at most this many matters are read and filtered here. */

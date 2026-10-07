@@ -268,7 +268,7 @@ export type ClerkDraftStatus = (typeof CLERK_DRAFT_STATUSES)[number];
  * `privileged.view` to read, and a letter to a third party needs the owner's confirmation to save.
  */
 export const ClerkDraft = withMeta(
-  {
+  () => ({
     typeId: z.string().max(60),
     title: z.string().max(CLERK_DRAFT_TITLE_MAX),
     ownerUid: DocIdSchema,
@@ -300,7 +300,7 @@ export const ClerkDraft = withMeta(
     savedAt: InstantSchema.optional(),
     /** Why drafting failed (`status: error`): an error code, and the switch for CLERK_DISABLED. */
     error: z.object({ code: z.string().max(60), switch: z.string().max(100).optional() }).optional(),
-  },
+  }),
   {
     path: 'orgs/{orgId}/matters/{matterId}/clerkDrafts',
     softDelete: true,

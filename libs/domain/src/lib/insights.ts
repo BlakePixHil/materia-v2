@@ -1,7 +1,6 @@
 import { centsToDecimal, csvCell } from './billing';
 import { medianDays, periodTargetMinutes, utilisationPct, type MetricValues } from './metrics';
-import { fyLabel, fyStartYear } from './org-settings';
-import { addDays, addMonths, dateOnly, type DateOnly } from './values/date-only';
+import { addDays, addMonths, dateOnly, fyLabel, fyStartYear, type DateOnly } from './values/date-only';
 
 /**
  * The Insights screen (INS-02): which months a period covers, what it is compared with, and the

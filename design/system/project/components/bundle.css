@@ -107,7 +107,7 @@ html, body { background: var(--bg-surface); }
 .mt-input[data-invalid][data-focus] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-danger) 22%, transparent); }
 .mt-input[data-disabled] { background: var(--bg-disabled); border-color: var(--border-default); color: var(--text-disabled); }
 .mt-input[data-size="sm"] { height: var(--control-sm); padding: 0 var(--space-8); font-size: 13px; }
-@media (max-width: 767px) { .mt-input, .mt-input[data-size="sm"] { font-size: 16px; } .mt-input > input { align-self: stretch; margin-block: -1px; } }
+@media (max-width: 767px) { .mt-input, .mt-input[data-size="sm"] { font-size: 16px; } .mt-input > input, .mt-input > select { align-self: stretch; margin-block: -1px; } }
 .mt-input .suffix { font: 400 13px/18px var(--font-mono); color: var(--text-tertiary); }
 .mt-textarea { height: auto; min-height: 88px; padding: var(--space-8) var(--space-12); align-items: flex-start; line-height: 20px; white-space: normal; }
 .mt-select { cursor: pointer; }
@@ -132,14 +132,14 @@ html, body { background: var(--bg-surface); }
 .mt-check[data-focus-visible], .mt-radio[data-focus-visible], .mt-switch[data-focus-visible] { box-shadow: var(--focus-ring); }
 .mt-check[data-disabled], .mt-radio[data-disabled] { background: var(--bg-disabled); border-color: var(--border-default); color: var(--icon-muted); }
 .mt-radio[data-disabled]::after { background: var(--icon-muted); }
-.mt-switch { width: 30px; height: 18px; padding: 2px; flex: none; display: inline-flex; border-radius: var(--radius-full); background: var(--border-control); outline: none; cursor: pointer; transition: background-color var(--motion-base) var(--ease-out); margin-top: 1px; }
+.mt-switch { width: 30px; height: 18px; padding: 2px; flex: none; display: inline-flex; align-items: center; border: 0; border-radius: var(--radius-full); background-color: var(--border-control); outline: none; cursor: pointer; transition: background-color var(--motion-base) var(--ease-out); margin-top: 1px; }
 .mt-switch-thumb { width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform var(--motion-base) var(--ease-out); }
-.mt-switch[data-checked] { background: var(--bg-brand); }
+.mt-switch[data-checked] { background-color: var(--bg-brand); }
 .mt-switch[data-checked] .mt-switch-thumb { transform: translateX(12px); }
-.mt-switch[data-disabled] { background: var(--bg-disabled); cursor: not-allowed; }
+.mt-switch[data-disabled] { background-color: var(--bg-disabled); cursor: not-allowed; }
 .mt-switch[data-disabled] .mt-switch-thumb { box-shadow: none; background: var(--bg-surface); }
-/* Phones: an iOS-sized switch in a 44px-tall target (the border above and below is clear). */
-@media (max-width: 767px) { .mt-switch { box-sizing: border-box; width: 51px; height: 44px; border-block: 6.5px solid transparent; background-clip: padding-box; } .mt-switch-thumb { width: 27px; height: 27px; } .mt-switch[data-checked] .mt-switch-thumb { transform: translateX(20px); } }
+/* Phones: an iOS-sized switch in a 44px-tall target (the border above and below is clear). The radius is 15.5px / 22px so the visible 31px track inside the border has round ends, and the label centres on it. The focus ring hugs the track, not the target. Colours are set as background-color: the background shorthand would reset the clip and fill the clear border. */
+@media (max-width: 767px) { .mt-switch { position: relative; box-sizing: border-box; width: 51px; height: 44px; margin-top: 0; border-block: 6.5px solid transparent; border-radius: 15.5px / 22px; background-clip: padding-box; } .mt-switch-thumb { width: 27px; height: 27px; } .mt-switch[data-checked] .mt-switch-thumb { transform: translateX(20px); } .mt-choice:has(> .mt-switch) { align-items: center; } .mt-choice > .mt-switch:is(:focus-visible, [data-focus-visible]) { box-shadow: none; } .mt-choice > .mt-switch:is(:focus-visible, [data-focus-visible])::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-full); box-shadow: var(--focus-ring); pointer-events: none; } }
 
 /* ---------- Badge ---------- */
 .mt-badge { display: inline-flex; align-items: center; gap: var(--space-6); height: 20px; padding: 0 var(--space-6); border-radius: var(--radius-xs); font: 500 12px/16px var(--font-sans); white-space: nowrap; background: var(--bg-sunken); color: var(--text-secondary); }
@@ -289,7 +289,7 @@ ol.mt-crumbs { list-style: none; margin: 0; padding: 0; }
 .mt-table .group td { height: 32px; background: var(--bg-canvas); font: 500 12px/16px var(--font-sans); color: var(--text-secondary); border-bottom: 1px solid var(--border-default); }
 .mt-table .group td .mt-row { gap: var(--space-8); }
 .mt-table-host { display: block; min-width: 0; }
-.mt-table-scroll { overflow: auto; min-width: 0; }
+.mt-table-scroll { position: relative; overflow: auto; min-width: 0; }
 .mt-table-scroll .mt-table thead th { position: sticky; top: 0; z-index: 1; }
 .mt-table[data-density="compact"] { --row: 32px; }
 .mt-table tbody tr { outline: none; }
@@ -635,7 +635,7 @@ button.mt-search:focus-visible { box-shadow: var(--focus-ring); }
 @media (max-width: 767px) { .mt-app-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; flex-direction: column; } .mt-app[data-shell] { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 100dvh; padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); } .mt-app[data-shell] .mt-sidebar, .mt-app[data-shell] .mt-clerk-panel { display: none; } .mt-app[data-shell] .mt-main { margin: 0; border: 0; border-radius: 0; box-shadow: none; overflow: visible; } .mt-app[data-shell] .mt-page { padding: var(--space-16); overflow: visible; } }
 /* A phone on its side gets the rail layout; keep it clear of the notch (`viewport-fit=cover`). */
 @media (min-width: 768px) { .mt-app[data-shell] { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); } }
-@media (max-width: 767px) { .mt-app[data-shell] .mt-topbar { position: sticky; top: 0; z-index: 5; height: calc(52px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) max(var(--space-8), env(safe-area-inset-right, 0px)) 0 max(var(--space-8), env(safe-area-inset-left, 0px)); background: var(--bg-surface); } .mt-app[data-shell] .mt-page { padding-left: max(var(--space-16), env(safe-area-inset-left, 0px)); padding-right: max(var(--space-16), env(safe-area-inset-right, 0px)); } .mt-app-tabbar .mt-tabbar { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); } }
+@media (max-width: 767px) { .mt-app[data-shell] .mt-topbar { position: sticky; top: 0; z-index: 5; flex-wrap: wrap; row-gap: var(--space-4); height: auto; min-height: calc(52px + env(safe-area-inset-top, 0px)); padding: calc(env(safe-area-inset-top, 0px) + 3.5px) max(var(--space-8), env(safe-area-inset-right, 0px)) 3.5px max(var(--space-8), env(safe-area-inset-left, 0px)); background: var(--bg-surface); } .mt-app[data-shell] .mt-page { padding-left: max(var(--space-16), env(safe-area-inset-left, 0px)); padding-right: max(var(--space-16), env(safe-area-inset-right, 0px)); } .mt-app-tabbar .mt-tabbar { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); } }
 .mt-topbar-title { flex: 1; min-width: 0; text-align: center; font: 600 16px/22px var(--font-sans); color: var(--text-primary); }
 .mt-topbar-title.mono { font: 500 15px/22px var(--font-mono); }
 .mt-topbar-me { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: var(--radius-full); text-decoration: none; outline: none; }

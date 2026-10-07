@@ -55,4 +55,13 @@ export const LEGAL_DOCUMENT_LIST = [
     status: "draft",
     source: "docs/compliance/retention-policy.md",
   },
+  {
+    key: "accessibility",
+    title: "Accessibility statement",
+    summary: "How accessible Materia is, the standard it aims for, what isn't accessible yet, and how to tell us about a problem.",
+    version: "0.1",
+    effectiveDate: "2026-10-07",
+    status: "draft",
+    source: "docs/compliance/accessibility-statement.md",
+  },
 ] as const;

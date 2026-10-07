@@ -7,6 +7,7 @@ import {
   DOCUMENT,
   effect,
   inject,
+  Injector,
   signal,
   untracked,
   viewChild,
@@ -53,6 +54,7 @@ import { FeatureFlagService } from '../core/flags/feature-flags';
 import { PhoneLayout } from '../core/layout/phone-layout';
 import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
+import { MtDeletionBanner } from '../core/orgs/deletion-banner';
 import { OrgService } from '../core/orgs/org-service';
 import { PinnedMatters } from '../core/pins/pinned-matters';
 import { UserPrefsService } from '../core/profile/user-prefs';
@@ -70,6 +72,8 @@ import { ClerkChatPanel } from '../features/clerk/clerk-chat-panel';
 export const SIDEBAR_STORAGE_PREFIX = 'materia.shell.sidebar-collapsed.';
 /** Where the collapsed-Pinned-section choice is kept, per user (CORE-23). */
 export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
+/** How long after the shell opens this device's push registration is refreshed (MOB-04). */
+const PUSH_REFRESH_DELAY_MS = 8000;
 
 /**
  * The app shell (FND-12): sidebar, inset main panel with the header (breadcrumbs, page actions and
@@ -100,14 +104,17 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
     '../../../../../libs/ui/src/generated/components/nav.css',
   ],
   // On a phone the page's actions in the top bar show just their icons (the label stays for screen
-  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page.
+  // readers) and no shortcut hints, so the bar fits the screen instead of widening the page. When
+  // they still don't fit (Time & billing's, or a 320 px screen), they wrap onto a second row and the
+  // bar grows to hold it (app.css) rather than scrolling the page sideways (WCAG 1.4.10, SEC-06).
   styles: `
     /* The page column spaces banners and the routed page. The outlet element and an empty banner take
        no room, so a page starts at the column's padding instead of two gaps further down. */
     .mt-page > router-outlet {
       display: none;
     }
-    .mt-page > mt-mfa-grace-banner {
+    .mt-page > mt-mfa-grace-banner,
+    .mt-page > mt-deletion-banner {
       display: contents;
     }
     @media (max-width: 767px) {
@@ -123,8 +130,14 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
         clip: rect(0 0 0 0);
         white-space: nowrap;
       }
-      .mt-topbar .mt-btn mt-kbd {
+      /* The key caps, not the mt-kbd host: its inline display: contents outranks a stylesheet rule. */
+      .mt-topbar .mt-btn .mt-kbd {
         display: none;
+      }
+      .mt-topbar > .mt-ml {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
       }
     }
   `,
@@ -137,6 +150,7 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
     MtButton,
     MtBrandMark,
     MtClerkMark,
+    MtDeletionBanner,
     MtIcon,
     MtIconButton,
     MtKbd,
@@ -360,6 +374,7 @@ export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
         <mt-offline-banner />
         <div class="mt-page">
           <mt-mfa-grace-banner />
+          <mt-deletion-banner />
           @if (timer.forgotten(); as flag) {
             <mt-note tone="warning" data-testid="timer-forgotten">
               {{ forgottenText() }}
@@ -623,6 +638,18 @@ export class AppShellComponent {
 
     const cleanups = [...this.registerShortcuts(), ...this.registerCommands()];
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+
+    // This device's push registration (MOB-04) keeps its token and last-seen date fresh, once the
+    // first page has settled. Loaded then, so push stays off the start-up path.
+    const injector = inject(Injector);
+    const refresh = setTimeout(
+      () =>
+        void import('../core/push/push-devices')
+          .then(({ PushDevices }) => injector.get(PushDevices).refresh())
+          .catch(() => undefined),
+      PUSH_REFRESH_DELAY_MS,
+    );
+    destroyRef.onDestroy(() => clearTimeout(refresh));
 
     // The installed app's "New time entry" shortcut (MOB-01) opens quick time entry over Today.
     onIntent(

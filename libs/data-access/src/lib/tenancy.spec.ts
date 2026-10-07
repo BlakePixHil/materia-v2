@@ -89,7 +89,7 @@ describe('firestoreTenancyPort', () => {
     expect(await NULL_TENANCY_PORT.invites('o')).toEqual([]);
   });
 
-  it('follows the org’s security policy, the member’s sign-out time and the accepted terms (SEC-04, SEC-01)', async () => {
+  it('follows the org’s security policy, the member’s sign-out time, the accepted terms and a scheduled deletion (SEC-04, SEC-01, SEC-05)', async () => {
     const fs = fakeFirestore();
     const registry = TestBed.inject(ListenerRegistry);
     const port = firestoreTenancyPort(fs.source, registry);
@@ -101,12 +101,24 @@ describe('firestoreTenancyPort', () => {
     expect(seen).toEqual([]);
     fs.emit('orgs/org-1/members/u1', {});
     expect(seen).toEqual([
-      { policy: expect.objectContaining({ sessionIdleMinutes: 30 }), validAfter: null, termsAcceptedVersion: null },
+      {
+        policy: expect.objectContaining({ sessionIdleMinutes: 30 }),
+        validAfter: null,
+        termsAcceptedVersion: null,
+        deletionScheduledAt: null,
+      },
     ]);
     fs.emit('orgs/org-1', { security: { mfaRequired: false, sessionIdleMinutes: 30 }, termsAcceptedVersion: '1.0' });
     expect(seen.at(-1)).toMatchObject({ termsAcceptedVersion: '1.0' });
     fs.emit('orgs/org-1', { security: { mfaRequired: false, sessionIdleMinutes: 30 }, termsAcceptedVersion: '1.0' });
     expect(seen).toHaveLength(2);
+    const deletion = new Date('2026-11-06T02:00:00Z');
+    fs.emit('orgs/org-1', {
+      security: { mfaRequired: false, sessionIdleMinutes: 30 },
+      termsAcceptedVersion: '1.0',
+      deletionScheduledAt: deletion,
+    });
+    expect(seen.at(-1)).toMatchObject({ termsAcceptedVersion: '1.0', deletionScheduledAt: deletion });
     fs.listeners.get('orgs/org-1')?.error({ code: 'permission-denied' });
     expect(seen.at(-1)).toBeNull();
     stop?.();

@@ -58,7 +58,9 @@ describe('DocumentUploads', () => {
     const files = Array.from({ length: 22 }, (_, i) => file(`note-${i + 1}.txt`));
     files[1] = file('tool.exe');
     const result = uploads.add('m-whitfield', files);
-    expect(result).toEqual({ added: 20, dropped: 2 });
+    expect(result).toMatchObject({ added: 20, dropped: 2 });
+    // Each new row's key, in the files' order, for following them (a phone scan, MOB-05).
+    expect(result.keys).toEqual(uploads.items().map((item) => item.key));
     await settle();
     expect(port.transfers).toHaveLength(3);
     expect(phases().slice(0, 5)).toEqual([

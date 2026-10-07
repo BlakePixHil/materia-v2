@@ -50,6 +50,7 @@ import { MtClerkMessage, MtUserMessage } from '@materia/ui/markdown';
 
 import { ClerkChatSuggestion } from './clerk-chat-suggestion';
 import {
+  answerAnnouncement,
   answerError,
   blocksComposer,
   CHAT_COMMANDS,
@@ -276,7 +277,9 @@ import { CitationViewer } from '../citations/citation-viewer';
         </ul>
       }
 
-      <div class="log" #log role="log" aria-label="Conversation with Clerk">
+      <!-- Not a live region: an answer streaming in would be read out token by token. Each finished
+           answer is announced once by the status below (SEC-06). -->
+      <div class="log" #log role="log" aria-live="off" aria-label="Conversation with Clerk">
         @if (thread()?.continuedFrom; as from) {
           <mt-note>
             This thread continues an earlier one that got too long; Clerk was given a summary of it.
@@ -376,6 +379,8 @@ import { CitationViewer } from '../citations/citation-viewer';
           }
         }
       </div>
+
+      <p class="mt-sr" role="status" aria-atomic="true" data-clerk-announcement>{{ announcement() }}</p>
 
       <div class="foot">
         @if (!enabled()) {
@@ -480,6 +485,10 @@ export class ClerkChatPanel {
   protected readonly sending = signal(false);
   protected readonly notice = signal<string | null>(null);
   protected readonly reasonsFor = signal<string | null>(null);
+  /** What the status line last announced: a finished answer (SEC-06). */
+  protected readonly announcement = signal('');
+  /** Answers seen streaming in this panel, announced when they finish. */
+  private readonly answering = new Set<string>();
   /** The clerk_first_token trace (FND-21): from Send or Retry to the answer's first words. */
   private readonly firstToken = signal<{ done: () => void; messageId: string | null } | null>(null);
   private readonly log = viewChild<ElementRef<HTMLElement>>('log');
@@ -547,6 +556,23 @@ export class ClerkChatPanel {
       if (!timing || !answer) return;
       if (messageText(answer)) timing.done();
       if (messageText(answer) || answer.status !== 'streaming') untracked(() => this.firstToken.set(null));
+    });
+    // An answer seen streaming is announced once it finishes; answers already finished when a
+    // thread opens are not read out.
+    effect(() => {
+      const messages = this.messages();
+      untracked(() => {
+        for (const message of messages) {
+          if (message.role !== 'assistant') continue;
+          if (message.status === 'streaming') this.answering.add(message.id);
+          else if (this.answering.delete(message.id)) {
+            const said = answerAnnouncement(message);
+            // Cleared first, so the same words (a retried answer) are announced again.
+            this.announcement.set('');
+            if (said) queueMicrotask(() => this.announcement.set(said));
+          }
+        }
+      });
     });
     // Keep the newest message in view as it streams.
     effect(() => {

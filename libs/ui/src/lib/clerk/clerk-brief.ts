@@ -52,8 +52,9 @@ export interface BriefItemVm {
         {{ label() }}
         <span class="mt-ml mt-row"><ng-content select="[mtBriefActions]" /></span>
       </div>
+      <!-- A level-2 heading: the card sits right under the page's h1 (the matter Overview). -->
       @if (title(); as text) {
-        <h3 class="mt-clerk-title">{{ text }}</h3>
+        <h2 class="mt-clerk-title">{{ text }}</h2>
       }
       <ul class="mt-brief">
         @for (item of items(); track item.id) {

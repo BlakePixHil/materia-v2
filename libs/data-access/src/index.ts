@@ -9,6 +9,7 @@ export * from './lib/connectivity';
 export * from './lib/errors';
 export * from './lib/firebase-setup';
 export * from './lib/firestore/firestore-client';
+export * from './lib/firestore/read-counter';
 export * from './lib/query';
 export * from './lib/tokens';
 export * from './lib/callable-client';

@@ -36,6 +36,8 @@ import {
   Distribution,
 } from './matter-records';
 import { MemberMetrics, MetricsLedger, MetricsShard } from './metrics';
+import { MigrationRun } from './migration-runs';
+import { Notification } from './notification-records';
 import {
   Invoice,
   CreditNote,
@@ -43,26 +45,24 @@ import {
   MatterTemplate,
   MatterTemplateVersion,
   DocTemplate,
-  ChecklistTemplate,
-  TaskGroupTemplate,
   Metrics,
   AuditEntry,
-  Notification,
   Integration,
   IntegrationState,
   IntegrationStatus,
   XeroContactLink,
   SafeCustody,
   TrustSnapshot,
-  MigrationRun,
   MigrationEnrichment,
   RuleSetVersion,
   Calendar,
   Counter,
 } from './org-records';
+import { ChecklistTemplate, TaskGroupTemplate } from './task-templates';
 import { Org, Member, Invite, User, Device } from './tenancy';
 import { RecentMatter, SavedView } from './views';
 import { ConflictCheck } from '../conflicts';
+import { DeletedOrg } from '../data-rights';
 import { IntakeDraft } from '../intake';
 import { DestructionCertificate, DestructionRequest } from '../retention';
 
@@ -288,6 +288,9 @@ export const DestructionRequestUpdateSchema = DestructionRequest.update;
 export const DestructionCertificateSchema = DestructionCertificate.schema;
 export const DestructionCertificateCreateSchema = DestructionCertificate.create;
 export const DestructionCertificateUpdateSchema = DestructionCertificate.update;
+export const DeletedOrgSchema = DeletedOrg.schema;
+export const DeletedOrgCreateSchema = DeletedOrg.create;
+export const DeletedOrgUpdateSchema = DeletedOrg.update;
 export const RecentMatterSchema = RecentMatter.schema;
 export const RecentMatterCreateSchema = RecentMatter.create;
 export const RecentMatterUpdateSchema = RecentMatter.update;

@@ -19,11 +19,11 @@ export const MetricValuesSchema = z.record(z.string(), z.number());
  * the org's `settings.insights.memberVisibility` (lawyers and above by default).
  */
 export const MemberMetrics = withMeta(
-  {
+  () => ({
     period: z.string().regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4})$/),
     uid: DocIdSchema,
     values: MetricValuesSchema,
-  },
+  }),
   { path: `${ORG}/metrics/{period}/byMember`, migratable: false, updatable: [] },
 );
 export type MemberMetrics = z.infer<typeof MemberMetrics.schema>;
@@ -39,7 +39,7 @@ export const METRIC_SHARD_MEMBER_THRESHOLD = 20;
  * recompute folds the shards back into the period document.
  */
 export const MetricsShard = withMeta(
-  {
+  () => ({
     period: z.string().regex(/^(day-\d{4}-\d{2}-\d{2}|month-\d{4}-\d{2}|fy-\d{4})$/),
     shard: z
       .number()
@@ -47,7 +47,7 @@ export const MetricsShard = withMeta(
       .min(0)
       .max(METRIC_SHARDS - 1),
     values: MetricValuesSchema,
-  },
+  }),
   { path: `${ORG}/metrics/{period}/shards`, migratable: false, updatable: [] },
 );
 export type MetricsShard = z.infer<typeof MetricsShard.schema>;
@@ -72,14 +72,14 @@ export type StageVisit = z.infer<typeof StageVisitSchema>;
  * destroyed matter's ledger goes with it). The matter's own ledger also keeps its stage history.
  */
 export const MetricsLedger = withMeta(
-  {
+  () => ({
     orgId: DocIdSchema,
     matterId: DocIdSchema,
     kind: MetricsSourceKindSchema,
     sourceId: DocIdSchema,
     counted: z.record(z.string(), MetricValuesSchema),
     stages: z.array(StageVisitSchema).optional(),
-  },
+  }),
   { path: `${MATTER}/metrics`, migratable: false, updatable: [] },
 );
 export type MetricsLedger = z.infer<typeof MetricsLedger.schema>;

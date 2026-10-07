@@ -12,7 +12,7 @@ import {
   reviewPatch,
 } from './migration-review';
 import { MigrationMetaShape } from './schemas/common';
-import { MigrationRun } from './schemas/org-records';
+import { MigrationRun } from './schemas/migration-runs';
 
 const DELETE = Symbol('delete');
 

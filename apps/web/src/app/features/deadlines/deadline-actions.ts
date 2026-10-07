@@ -17,25 +17,25 @@ import {
 } from '@materia/domain';
 import { DialogService, MT_TODAY, ToastService } from '@materia/ui';
 
-import {
-  CompleteDeadlineDialog,
-  ConfirmChangeDialog,
-  OverrideDeadlineDialog,
-  type CompleteDeadlineDialogData,
-  type CompleteDeadlineDialogResult,
-  type ConfirmChangeDialogData,
-  type OverrideDeadlineDialogData,
-  type OverrideDeadlineDialogResult,
+// The dialogs load when one opens (`import()`), so pages that only show deadlines, like Today,
+// don't download them.
+import type {
+  CompleteDeadlineDialogData,
+  CompleteDeadlineDialogResult,
+  ConfirmChangeDialogData,
+  OverrideDeadlineDialogData,
+  OverrideDeadlineDialogResult,
 } from './deadline-dialogs';
-import { deadlineErrorCopy, recomputeSummaryText, type ChangeRowVm, type DeadlineRowVm } from './deadline-view';
-import { EventDialog, type EventDialogData, type EventDialogResult } from './event-dialog';
 import {
-  ManualDeadlineDialog,
-  type ManualDeadlineDialogData,
-  type ManualDeadlineDialogResult,
-} from './manual-deadline-dialog';
+  deadlineErrorCopy,
+  eventKindLabel,
+  recomputeSummaryText,
+  type ChangeRowVm,
+  type DeadlineRowVm,
+} from './deadline-view';
+import type { EventDialogData, EventDialogResult } from './event-dialog';
+import type { ManualDeadlineDialogData, ManualDeadlineDialogResult } from './manual-deadline-dialog';
 import { CALLABLES } from '../../core/data/callables';
-import { eventKindLabel } from '../matter-detail/matter-view';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -130,6 +130,7 @@ export class DeadlineActions {
   /** Done, waived or missed (`deadlines-complete`), offering to close its linked task too. */
   async complete(row: DeadlineRowVm, outcome: DeadlineOutcome): Promise<boolean> {
     const { deadline, matterId } = row;
+    const { CompleteDeadlineDialog } = await import('./deadline-dialogs');
     const answer = await this.dialogs.open<CompleteDeadlineDialogData, CompleteDeadlineDialogResult | undefined>(
       CompleteDeadlineDialog,
       { data: { title: deadline.title, outcome, today: this.today(), linkedTask: !!deadline.taskId } },
@@ -172,6 +173,7 @@ export class DeadlineActions {
   async override(row: DeadlineRowVm): Promise<void> {
     const { deadline } = row;
     const computedDate = deadline.computed?.dueDate;
+    const { OverrideDeadlineDialog } = await import('./deadline-dialogs');
     const answer = await this.dialogs.open<OverrideDeadlineDialogData, OverrideDeadlineDialogResult | undefined>(
       OverrideDeadlineDialog,
       {
@@ -232,6 +234,7 @@ export class DeadlineActions {
         this.toasts.show({ title: 'Open the matter to accept this change', tone: 'neutral' });
         return false;
       }
+      const { ConfirmChangeDialog } = await import('./deadline-dialogs');
       confirmation = await this.dialogs.open<ConfirmChangeDialogData, string | undefined>(ConfirmChangeDialog, {
         data: { title: change.title, summary: deadlineChangeSummary(change), matterNumber, intoPast: change.intoPast },
       }).result;
@@ -260,6 +263,7 @@ export class DeadlineActions {
 
   /** Adds a manual deadline (written directly; queued offline). */
   async addManual(matterId: string, context: NewManualDeadlineContext): Promise<void> {
+    const { ManualDeadlineDialog } = await import('./manual-deadline-dialog');
     const fields = await this.dialogs.open<ManualDeadlineDialogData, ManualDeadlineDialogResult | undefined>(
       ManualDeadlineDialog,
       { data: { people: context.people, assigneeUid: context.assigneeUid } },
@@ -275,6 +279,7 @@ export class DeadlineActions {
 
   async editManual(row: DeadlineRowVm, context: ManualDeadlineContext): Promise<void> {
     const { deadline } = row;
+    const { ManualDeadlineDialog } = await import('./manual-deadline-dialog');
     const fields = await this.dialogs.open<ManualDeadlineDialogData, ManualDeadlineDialogResult | undefined>(
       ManualDeadlineDialog,
       { data: { deadline, people: context.people, assigneeUid: context.assigneeUid } },
@@ -312,6 +317,7 @@ export class DeadlineActions {
 
   /** Records an event, or edits one, and says what the recompute changed. */
   async recordEvent(matterId: string, event?: WithId<MatterEventItem>): Promise<RecomputeSummary | undefined> {
+    const { EventDialog } = await import('./event-dialog');
     const answer = await this.dialogs.open<EventDialogData, EventDialogResult | undefined>(EventDialog, {
       data: { event, today: this.today(), matterId },
     }).result;
