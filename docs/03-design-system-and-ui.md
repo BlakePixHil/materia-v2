@@ -173,7 +173,7 @@ Every Clerk component renders the Clerk mark (`<mt-clerk-mark>`, the violet spar
 
 ### App shell, shortcuts and commands (FND-12)
 
-The shell lives in `apps/web/src/app/shell/` and matches the Today screen frame. It has a 240px sidebar (`[` collapses it to icons, remembered per user), the inset main panel with breadcrumbs, page actions and a loading bar, and a Clerk panel slot (`⌘J`). Under 768px the TabBar replaces the sidebar. Only signed-in, org-scoped routes get the shell (`orgScopedGuard`, a stub `AuthState` until FND-16). `/auth/**` and `/onboarding` use a minimal layout.
+The shell lives in `apps/web/src/app/shell/` and matches the Today screen frame. It has a 240px sidebar (`[` collapses it to icons, remembered per user), the inset main panel with breadcrumbs, page actions and a loading bar, and a Clerk panel slot (`⌘J`). Under 768px the TabBar replaces the sidebar. Only signed-in, org-scoped routes get the shell (`orgGuard`). `/auth/**` and `/onboarding` use a minimal layout.
 
 - **Nav:** `NAV_ITEMS` in `shell/nav.ts` is the one list of destinations, each with a `g` key. Feature flags (FND-23) filter it.
 - **Routes:** everything is lazy. Unbuilt pages are `planned(path, title, { ticket })` placeholders ("Coming in CORE-14"). Matter tabs live under `/matters/:id/<tab>`; an unknown tab redirects to `overview`. Titles read root to leaf, then "Materia": `Matter · M-2026-0142 · Materia`, and other tabs add their name. Breadcrumbs come from each route's own `data.crumb` or title.
