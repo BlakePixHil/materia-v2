@@ -386,12 +386,14 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      # Both browsers whatever the leg: e2e, perf and storybook share this cache.
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium webkit
+        run: pnpm exec playwright install chromium webkit
+      # Only this leg's browser: WebKit's packages are most of the download, and PRs test Chromium only.
       - name: Install Playwright system dependencies
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium webkit
+        timeout-minutes: 11
+        run: .github/scripts/playwright-deps.sh ${{ matrix.browser }}
       # The Hosting emulator serves the app with the real CSP plus the emulator origins (FND-22).
       - name: Write the e2e Firebase config
         run: pnpm -s materia-scripts csp emulator-config --out firebase.e2e.json
@@ -471,12 +473,13 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      # Both browsers: the e2e job shares this cache.
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium webkit
+        run: pnpm exec playwright install chromium webkit
       - name: Install Playwright system dependencies
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+        timeout-minutes: 11
+        run: .github/scripts/playwright-deps.sh chromium
       - name: Write the e2e Firebase config
         run: pnpm -s materia-scripts csp emulator-config --out firebase.e2e.json
       # No Functions: the screens measured call none while loading, and the seed's writes would
@@ -712,12 +715,13 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      # Both browsers: the e2e job shares this cache.
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium webkit
+        run: pnpm exec playwright install chromium webkit
       - name: Install Playwright system dependencies
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+        timeout-minutes: 11
+        run: .github/scripts/playwright-deps.sh chromium
       # Every story's play function plus the a11y checks (violations fail, parameters.a11y.test = 'error').
       - name: Storybook test-runner
         run: |
