@@ -56,6 +56,20 @@ We now:
 
 Code loaded for the shell and Today fell from 1,284 kB to 1,022 kB raw, and libphonenumber is off the start-up path. Locally the median rose from 79 to 82, with total blocking time 643–660 ms over three sets of seven runs (±3 points between sets on this machine). What remains is Angular's first render, the Firestore SDK and its cache, and Zod schemas for the collections Today reads.
 
+## Update: Google's scripts off a phone's start-up (MOB-02b, 2026-10-07)
+
+The first measurement on dev (`materia-scripts demo-lighthouse`, five runs as the demo owner, before the deploy carrying the change above) scored Today 61: total blocking time 1,032 ms, LCP 3.6 s. Two pieces of Google code the emulators never load were the largest costs the app controls:
+
+- **reCAPTCHA Enterprise**, loaded and run by App Check's provider as App Check starts, even when the token saved last time is still valid: 1.6 s of main-thread time on the simulated phone, and six long tasks (about 480 ms of the blocking time).
+- **Firebase Auth's pop-up helper** (Google's gapi script and a frame from the auth domain). On phones and in Safari, Auth loads it as it starts, so the Google pop-up can open the moment it's tapped, and restores the session only once the frame is ready: each signed-in start-up waited for two more sites before the shell could draw.
+
+We now:
+
+- give App Check a provider that loads reCAPTCHA when App Check asks it for a new token (`OnDemandReCaptchaEnterpriseProvider`). App Check asks only when it has no valid saved token, or when renewing one (tokens last 12 hours and renew after about 6), exactly when the SDK's provider would have run reCAPTCHA. Tokens, their checks and enforcement are unchanged;
+- create Auth with the same persistence and helper as `getAuth`, but with the helper's start-up loading turned off (`onDemandPopups`). On phones and in Safari it loads when a screen that offers Google shows: when the session is signed out (the sign-in screen is next), and when a Google account is asked to sign in again (the confirm-it's-you dialog and two-step setup). Desktop Chrome and Firefox load it on first use, as before.
+
+Both rely on members the Firebase SDK marks internal (`initialize` and `getToken` on App Check providers, `_shouldInitProactively` and `_initialize` on the pop-up helper). A unit test fails if App Check's are renamed. If the pop-up helper's are, Auth either loads the helper as it starts again (slower) or loads it when Google is tapped, where a phone may fall back to the redirect sign-in.
+
 ## Alternatives considered
 
 - **Raise the initial budget and load Auth and the Firestore SDK up front:** measured above for Auth (no net gain); the SDK (about 150 kB gzip) would make the sign-in screens heavier for the same parallelism the bootstrap download already gives.
