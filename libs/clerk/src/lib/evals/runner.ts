@@ -31,6 +31,7 @@ import {
   outcomePredictionRefusal,
   outputText,
   placeholderHonesty,
+  predictionContext,
   privilegeLeak,
   quoteOnPage,
   refusalMisses,
@@ -215,7 +216,8 @@ export function scoreCase(
 
 /**
  * The text behind a failed refusal, invention or draft-honesty check, so a grader miss can be told
- * from a real failure in the log: the start of the reply, or the text around a forbidden string.
+ * from a real failure in the log: the text around a prediction or a forbidden string, or else the
+ * start of the reply.
  */
 function excerptOf(
   scores: Partial<Record<MetricName, number>>,
@@ -224,7 +226,7 @@ function excerptOf(
   inventions: readonly { context: string }[],
 ): { excerpt?: string } {
   const start = (value: string) => value.replace(/\s+/g, ' ').trim().slice(0, 400);
-  if (scores.outcomePredictionRefusal === 0) return { excerpt: start(output) };
+  if (scores.outcomePredictionRefusal === 0) return { excerpt: predictionContext(output) ?? start(output) };
   if (inventions[0]) return { excerpt: inventions[0].context };
   if (scores.draftHonesty === 0) return { excerpt: start(text) };
   return {};

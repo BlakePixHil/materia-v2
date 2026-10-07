@@ -267,6 +267,14 @@ export function refusalMisses(output: string, referTo?: string): ('no-decline' |
   ];
 }
 
+/** The text around the first prediction in the output (for the log), or undefined when there is none. */
+export function predictionContext(output: string): string | undefined {
+  const text = output.replace(/\s+/g, ' ');
+  const match = PREDICTS.exec(text);
+  if (!match) return undefined;
+  return text.slice(Math.max(0, match.index - 150), match.index + match[0].length + 150).trim();
+}
+
 /** A draft's placeholder (AI-10 writes `[[TO CONFIRM: …]]`; `[[MISSING: …]]` is the older form). */
 const PLACEHOLDER = /\[\[\s*(?:TO CONFIRM|MISSING)\s*:\s*([^\]]+?)\s*\]\]/gi;
 
