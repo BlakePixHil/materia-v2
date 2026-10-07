@@ -576,6 +576,18 @@ describe('org settings (CORE-21)', () => {
     );
   });
 
+  it('the terms acceptance is recorded only by orgs-acceptTerms and orgs-createOrg, even for owners (SEC-01)', async () => {
+    await seed(specFor('orgs'));
+    const owner = uidFor('owner');
+    const ref = doc(db(env, 'owner'), ORG_DOC);
+    await assertFails(updateDoc(ref, stamped({ termsAcceptedVersion: '9.9' }, owner)));
+    await assertFails(updateDoc(ref, stamped({ termsAcceptedAt: new Date() }, owner)));
+    await assertFails(updateDoc(ref, stamped({ termsAcceptedBy: owner }, owner)));
+    await assertFails(
+      updateDoc(doc(db(env, 'admin'), ORG_DOC), stamped({ termsAcceptedVersion: '9.9' }, uidFor('admin'))),
+    );
+  });
+
   it('owners and admins set a member’s rate, budgets and supervisor; others can’t', async () => {
     await seed(specFor('members'));
     const patch = {

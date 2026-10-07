@@ -16,7 +16,7 @@ Client personal information is often sensitive: health information in capacity d
   - Trust money: out of scope for v1. Materia never keeps trust records; it may only show a labelled balance snapshot ([ADR-035](adr/035-trust-accounting.md)).
   - **(sign-off)**
 - **Privilege.** Privilege is never waived by the system: no automatic sharing, and privileged flags carry through exports, AI outputs and emails.
-- **Data residency.** Primary data stays in `australia-southeast1`, backups in `australia-southeast2`. AI processing follows ADR-011a. Sub-processors are listed in the privacy policy.
+- **Data residency.** Primary data stays in `australia-southeast1`, backups in `australia-southeast2`. AI processing follows ADR-011a. Sub-processors are listed in the [sub-processor list](compliance/subprocessors.md), which the privacy policy links to.
 
 ## Controls
 
@@ -112,10 +112,33 @@ Client personal information is often sensitive: health information in capacity d
 **AI**
 - See *Clerk (AI) architecture & guardrails*: scoping, privilege handling, injection defence, no prompt or completion text in logs, and a provider data-retention setting.
 
-**Data rights**
+**Data rights** (what Materia keeps and for how long: the [retention policy](compliance/retention-policy.md))
 - Org export as a zip of JSON plus files, owner only.
 - Member removal.
 - Org deletion: a 30-day grace period, then purge, except records under legal hold or retention. A deletion certificate is produced.
+
+## Legal documents and terms acceptance (SEC-01)
+
+The privacy and legal documents are Markdown in [`docs/compliance/`](compliance/). Each is a **draft** until a lawyer or privacy professional signs it off (SEC-01a) **(sign-off)**. Square brackets mark placeholders, such as the operator's legal name, ABN, address and contact emails.
+
+| Document | Source | In the app |
+|---|---|---|
+| Privacy policy | [privacy-policy.md](compliance/privacy-policy.md) | `/legal/privacy` |
+| Collection notice (APP 5), with wording firms can adapt for their clients | [collection-notice.md](compliance/collection-notice.md) | `/legal/collection-notice` |
+| Terms of service | [terms-of-service.md](compliance/terms-of-service.md) | `/legal/terms` |
+| Data processing addendum, part of the terms (breach notice to firms within [72] hours) | [dpa.md](compliance/dpa.md) | `/legal/dpa` |
+| Sub-processor list | [subprocessors.md](compliance/subprocessors.md) | `/legal/subprocessors` |
+| Retention and deletion policy | [retention-policy.md](compliance/retention-policy.md) | `/legal/retention` |
+| Privacy impact assessment (internal) | [pia.md](compliance/pia.md) | Not published |
+| Data breach response plan (internal) | [runbooks/data-breach.md](runbooks/data-breach.md) | Not published |
+
+**One source.** A published document has front-matter (`key`, `title`, `summary`, `version`, `effective`, `status`, `order`). `pnpm materia-scripts legal-docs` compiles them into the registry (`libs/domain/src/lib/legal-documents.generated.ts`, behind `LEGAL_DOCUMENTS` in `legal.ts`), the terms' version (`terms-version.generated.ts`, behind `TERMS_VERSION` in `terms.ts`, kept apart so the app's terms check doesn't put the registry in the initial bundle) and the web app's text (`apps/web/src/app/features/legal/legal-content.generated.ts`). The scripts unit test fails while the generated files are out of date, and the CI gate treats `docs/compliance/` as code, so a change to a document runs the tests and deploys. The pages under `/legal` are public and lazy-loaded, use the minimal layout, and show each document's version, effective date and, while `status: draft`, a "Draft — not yet reviewed" notice. A new document (the accessibility statement, SEC-06) is one more Markdown file with front-matter. Links between published documents (`[DPA](dpa.md)`) become `/legal/...` links; a link to anything else in the repository fails the compile.
+
+To change a document: edit its Markdown, raise `version` and set `effective`, run `pnpm materia-scripts legal-docs`, and commit the generated files with it. Once signed off, set `status: final` and remove the draft notice from the top of the Markdown.
+
+**Terms acceptance.** The terms of service and the DPA are one agreement, versioned together (`TERMS_VERSION`, the compile refuses different versions). The org's owner accepts it on the practice's behalf: by ticking the box when creating the practice (`orgs-createOrg` with `acceptTermsVersion`), or on `/accept-terms`, where `termsGuard` sends an owner whose org hasn't accepted the current version, after org selection and before the app. `orgs-acceptTerms` (owner only, idempotent) records `termsAcceptedVersion`, `termsAcceptedAt` and `termsAcceptedBy` on the org and audits `org.terms_accepted`; the fields are server-owned, so the rules refuse them from clients. Admins, lawyers, paralegals and read-only members are never blocked. The check reads the org document `SessionPolicy` already follows, so it adds no read, and it doesn't block when that document can't be read. Raising the terms' version asks every owner again on their next visit.
+
+**Breaches.** The [data breach response plan](runbooks/data-breach.md) covers containment, the NDB assessment (30 days), notifying firms (the DPA's [72] hours), the OAIC and individuals, and the review. [Incident response](runbooks/incident-response.md) says when to open it.
 
 ## Threat model highlights (the full model: [docs/security/threat-model.md](security/threat-model.md))
 

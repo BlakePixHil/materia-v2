@@ -21,3 +21,7 @@ pnpm-lock.yaml
 /libs/domain/src/lib/clerk-disclosure.generated.ts
 # Golden transform output (MIG-03): byte-for-byte what materia-migrate transform writes.
 /tools/migration/fixtures/golden
+# Generated from docs/compliance by `materia-scripts legal-docs` (SEC-01)
+/libs/domain/src/lib/legal-documents.generated.ts
+/libs/domain/src/lib/terms-version.generated.ts
+/apps/web/src/app/features/legal/legal-content.generated.ts

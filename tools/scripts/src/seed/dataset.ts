@@ -1062,6 +1062,11 @@ export function buildDataset(options: {
       holidayLocality: 'VIC_GREATER_GEELONG',
       matterNumberFormat: SEED_MATTER_NUMBER_FORMAT,
       security: { mfaRequired: false, sessionIdleMinutes: 60 },
+      // The owner has accepted the current terms of service (SEC-01), so signing in as Priya doesn't
+      // stop at the acceptance page.
+      termsAcceptedVersion: domain.TERMS_VERSION,
+      termsAcceptedAt: now,
+      termsAcceptedBy: PRIYA,
       // The owner has acknowledged the current data-use disclosure (AI-13), so Clerk runs on the seed.
       settings: {
         clerk: {

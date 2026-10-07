@@ -6,6 +6,7 @@ import type { Role } from '@materia/domain';
 import { AuthState } from './core/auth/auth-state';
 import { authGuard, mfaGuard, orgGuard, roleGuard, signedOutGuard, unverifiedGuard } from './core/auth/guards';
 import { flagGuard } from './core/flags/flag';
+import { acceptTermsGuard, termsGuard } from './core/legal/terms';
 import { startPagePath } from './core/profile/start-page';
 import { readLayout } from './features/matters/matters-layout';
 import { SETTINGS_ADMIN_ROLES } from './features/settings/settings-nav';
@@ -546,12 +547,34 @@ export const appRoutes: Route[] = [
       },
     ],
   },
-  // The shell needs a signed-in, verified person with an active org (and MFA where required).
+  // The legal documents (SEC-01): public, signed in or not, in a wider card for reading.
+  {
+    path: 'legal',
+    loadComponent: minimalLayout,
+    data: { width: 'wide' },
+    loadChildren: () => import('./features/legal/legal.routes').then((m) => m.LEGAL_ROUTES),
+  },
+  // An owner accepts the current terms for their practice before using the app (SEC-01).
+  {
+    path: 'accept-terms',
+    loadComponent: minimalLayout,
+    data: { width: 'wide' },
+    canActivate: [orgGuard, acceptTermsGuard],
+    children: [
+      {
+        path: '',
+        title: 'Accept the terms',
+        loadComponent: () => import('./features/legal/accept-terms-page').then((m) => m.AcceptTermsPage),
+      },
+    ],
+  },
+  // The shell needs a signed-in, verified person with an active org (and MFA where required), and
+  // an owner whose practice has accepted the current terms (SEC-01).
   // canActivate rather than canMatch, so the router knows the target pages while the guard waits
   // and their chunks download meanwhile (prefetchPagesDuringGuards).
   {
     path: '',
-    canActivate: [orgGuard],
+    canActivate: [orgGuard, termsGuard],
     loadComponent: () => import('./shell/app-shell').then((m) => m.AppShellComponent),
     children: shellRoutes,
   },

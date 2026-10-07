@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { OrgContext } from '@materia/data-access';
 import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
+import { TERMS_VERSION } from '@materia/domain';
 import { MT_KEYBOARD_PLATFORM } from '@materia/ui';
 
 import { App } from '../../app';
@@ -103,6 +104,14 @@ async function open(url: string, session: AuthSession | null, options: Options =
     el.querySelector('form')?.dispatchEvent(new Event('submit'));
     await stable();
   };
+  const tick = async (label: string) => {
+    const box = [...el.querySelectorAll('mt-checkbox')]
+      .find((c) => c.textContent?.trim().startsWith(label))
+      ?.querySelector<HTMLElement>('[role="checkbox"]');
+    if (!box) throw new Error(`No checkbox "${label}"`);
+    box.click();
+    await stable();
+  };
   return {
     port,
     tenancy,
@@ -116,6 +125,7 @@ async function open(url: string, session: AuthSession | null, options: Options =
     choose,
     click,
     submit,
+    tick,
     stable,
     text: () => el.textContent?.replace(/\s+/g, ' ') ?? '',
   };
@@ -124,7 +134,7 @@ async function open(url: string, session: AuthSession | null, options: Options =
 afterEach(() => forgetInvite());
 
 describe('onboarding', () => {
-  it('creates the practice, refreshes the claims and opens Today', async () => {
+  it('creates the practice, accepting the terms for it, refreshes the claims and opens Today', async () => {
     const page = await open('/onboarding', NO_ORG, {
       configure: (port) => {
         port.callResults['orgs-createOrg'] = { orgId: 'org-new' };
@@ -137,10 +147,14 @@ describe('onboarding', () => {
     await page.type('ABN', '123');
     await page.submit();
     expect(page.text()).toContain('An ABN is 11 digits.');
+    // The terms (SEC-01) must be accepted to create a practice.
+    expect(page.text()).toContain('Tick this box to continue.');
+    expect(page.el.querySelector('a[href="/legal/terms"]')?.getAttribute('target')).toBe('_blank');
     expect(page.port.calls).toEqual([]);
     await page.type('ABN', '00 000 000 001');
     await page.choose('Primary jurisdiction', 'New South Wales');
     await page.choose('Time zone', 'Sydney');
+    await page.tick('I accept the terms of service');
     await page.submit();
     expect(page.port.calls[0]).toMatchObject({
       name: 'orgs-createOrg',
@@ -149,6 +163,7 @@ describe('onboarding', () => {
         abn: '00 000 000 001',
         primaryJurisdiction: 'NSW',
         timezone: 'Australia/Sydney',
+        acceptTermsVersion: TERMS_VERSION,
       },
     });
     expect((page.port.calls[0]?.data as { requestId: string }).requestId).toMatch(/^[0-9a-f-]{36}$/);
@@ -165,6 +180,7 @@ describe('onboarding', () => {
       },
     });
     await page.type('Practice name', 'Fictional Legal');
+    await page.tick('I accept the terms of service');
     await page.submit();
     expect(page.text()).toContain('Confirm your email first');
   });
