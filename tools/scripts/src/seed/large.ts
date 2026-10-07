@@ -268,6 +268,10 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
         'clerk.features.chat': true,
       },
       settings: { clerk: { ackVersion: domain.CLERK_DISCLOSURE_VERSION } },
+      // The owner has accepted the current terms (SEC-01), so signing in as them doesn't stop there.
+      termsAcceptedVersion: domain.TERMS_VERSION,
+      termsAcceptedAt: now,
+      termsAcceptedBy: 'lg-owner',
     } as Partial<D.Org>) as unknown as Data,
   );
   const rates: Record<string, number> = {};
