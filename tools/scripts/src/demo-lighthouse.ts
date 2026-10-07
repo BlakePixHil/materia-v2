@@ -1,6 +1,6 @@
 /**
  * `materia-scripts demo-lighthouse --project <id> [--path /today] [--runs 5] [--account owner]
- *   [--url <origin>] [--dry-run]`
+ *   [--url <origin>] [--app-check saved|none] [--dry-run]`
  *
  * Mobile Lighthouse on a signed-in page (MOB-02b): signs in to the demo practice (`demo-reset`) in
  * a headless Chrome, then runs Lighthouse's mobile preset (simulated throttling, 4× CPU) on the page
@@ -12,6 +12,11 @@
  * valid saved token when the runs began: without one, every start-up runs reCAPTCHA, which a
  * returning person's phone mostly skips.
  *
+ * - `--app-check saved` (the default, dev only): the headless browser scores too low with reCAPTCHA
+ *   to get an App Check token itself, so the run registers a debug token (`app-check-debug.ts`),
+ *   signs in with it and removes it before Lighthouse starts. The runs then find a saved token, as
+ *   a phone that passed reCAPTCHA in the last few hours does. `--app-check none` measures a
+ *   start-up without one (the first visit after the token expired).
  * - On dev (through the `dev-script` workflow) the password is the `demo-login-password` secret,
  *   never printed. `--url` measures a Hosting preview channel of dev instead of the live site
  *   (`https://materia-v2-dev--<channel>.web.app`, from the PR's preview comment).
@@ -32,6 +37,8 @@ import { parseArgs, promisify } from 'node:util';
 
 import type { Page } from '@playwright/test';
 
+import { addDebugToken, removeDebugToken, webAppId } from './app-check-debug.ts';
+import { apiDeps } from './backups/firestore.ts';
 import { DEMO_APP_URL, DEMO_EMAILS, type DemoTarget, demoPassword, resolveDemoTarget } from './demo-reset.ts';
 
 const run = promisify(execFile);
@@ -55,6 +62,7 @@ export interface LighthouseArgs {
   runs: number;
   account: string;
   url: string | undefined;
+  appCheck: 'saved' | 'none';
   dryRun: boolean;
 }
 
@@ -67,6 +75,7 @@ export function parseLighthouseArgs(argv: string[]): LighthouseArgs {
       runs: { type: 'string', default: '5' },
       account: { type: 'string', default: 'owner' },
       url: { type: 'string' },
+      'app-check': { type: 'string', default: 'saved' },
       'dry-run': { type: 'boolean', default: false },
     },
     strict: true,
@@ -77,12 +86,15 @@ export function parseLighthouseArgs(argv: string[]): LighthouseArgs {
     throw new Error(`--path is an app path such as /today (got "${values.path}").`);
   if (!Object.hasOwn(DEMO_ACCOUNTS, values.account))
     throw new Error(`--account is one of ${Object.keys(DEMO_ACCOUNTS).join(', ')}.`);
+  const appCheck = values['app-check'];
+  if (appCheck !== 'saved' && appCheck !== 'none') throw new Error('--app-check is saved or none.');
   return {
     project: values.project ?? process.env['GCLOUD_PROJECT'],
     path: values.path,
     runs,
     account: values.account,
     url: values.url,
+    appCheck,
     dryRun: values['dry-run'],
   };
 }
@@ -361,6 +373,13 @@ export async function skipTour(page: Page): Promise<void> {
 
 const log = (line: string) => console.log(line);
 
+/** A debug token for this run's sign-in (`--app-check saved`); never printed. */
+async function debugToken(project: string): Promise<{ project: string; token: string; name: string }> {
+  const deps = apiDeps();
+  const appId = await webAppId(project, deps);
+  return { project, ...(await addDebugToken(project, appId, deps)) };
+}
+
 export async function main(argv: string[] = []): Promise<void> {
   const args = parseLighthouseArgs(argv);
   const target = resolveDemoTarget(args.project, process.env);
@@ -385,21 +404,40 @@ export async function main(argv: string[] = []): Promise<void> {
   });
   try {
     const page = context.pages()[0] ?? (await context.newPage());
-    log(`Signing in to ${origin} as the demo ${args.account} (${email}).`);
-    try {
-      await signIn(page, origin, email, password);
-    } catch (err) {
-      await page.screenshot({ path: path.join(OUT_DIR, 'sign-in-failed.png') }).catch(() => undefined);
-      throw new Error(`Sign-in failed at ${page.url()}: ${err instanceof Error ? err.message : String(err)}`);
+    // Only this page runs App Check in debug mode; Lighthouse opens its own tab, without it.
+    const debug = target.kind === 'dev' && args.appCheck === 'saved' ? await debugToken(target.projectId) : null;
+    if (debug) {
+      await page.addInitScript((token) => {
+        (globalThis as { FIREBASE_APPCHECK_DEBUG_TOKEN?: string }).FIREBASE_APPCHECK_DEBUG_TOKEN = token;
+      }, debug.token);
     }
-    await skipTour(page);
-    // One visit first, so the runs find what a returning person's browser has (and the tour seen).
-    await page.goto(pageUrl);
-    await page.waitForTimeout(5_000);
-    await skipTour(page);
-    await page.screenshot({ path: path.join(OUT_DIR, 'warm-up.png') });
+    try {
+      log(`Signing in to ${origin} as the demo ${args.account} (${email}).`);
+      try {
+        await signIn(page, origin, email, password);
+      } catch (err) {
+        await page.screenshot({ path: path.join(OUT_DIR, 'sign-in-failed.png') }).catch(() => undefined);
+        throw new Error(`Sign-in failed at ${page.url()}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      await skipTour(page);
+      // One visit first, so the runs find what a returning person's browser has (and the tour seen).
+      await page.goto(pageUrl);
+      await page.waitForTimeout(5_000);
+      await skipTour(page);
+      await page.screenshot({ path: path.join(OUT_DIR, 'warm-up.png') });
+    } finally {
+      if (debug) await removeDebugToken(debug.project, debug.name, apiDeps());
+    }
     const appCheck = appCheckNote(await page.evaluate<SavedAppCheckToken[] | null>(SAVED_APP_CHECK_TOKENS), Date.now());
     log(appCheck);
+    const notes = debug
+      ? [
+          appCheck,
+          'The browser got that token with a debug token registered for this run and removed before the runs ' +
+            '(`--app-check saved`), as a phone that passed reCAPTCHA recently has one. `--app-check none` ' +
+            'measures a start-up without one.',
+        ]
+      : [appCheck];
     await page.goto('about:blank');
     if (args.dryRun) {
       log(`Dry run: signed in and opened ${pageUrl}; Lighthouse would run ${args.runs} times.`);
@@ -435,7 +473,7 @@ export async function main(argv: string[] = []): Promise<void> {
     }
     const mid = medianRun(rows);
     const heading = `Mobile Lighthouse: ${args.path} on ${origin} (${args.runs} runs, signed in as the demo ${args.account})`;
-    const report = summary(rows, mid ? reports[mid.run - 1] : undefined, heading, [appCheck]);
+    const report = summary(rows, mid ? reports[mid.run - 1] : undefined, heading, notes);
     writeFileSync(path.join(OUT_DIR, 'summary.md'), `${report}\n`);
     if (mid) log(`Median report: dist/lighthouse/run-${mid.run}.report.html`);
     log(report);
