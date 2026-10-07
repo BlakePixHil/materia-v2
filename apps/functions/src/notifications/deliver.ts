@@ -5,7 +5,7 @@ import { DocIdSchema, NOTIFICATION_KINDS, type NotificationDelivery, type Notifi
 
 import { DELIVER_QUEUE } from './notify';
 import type { Log } from '../core/log';
-import { POSTMARK_TOKEN } from '../core/secrets';
+import { RESEND_API_KEY } from '../core/secrets';
 import { defineQueue } from '../core/tasks';
 import { appUrl } from '../orgs/shared';
 import { MailError, type Ports } from '../ports';
@@ -57,7 +57,7 @@ const kindLabel = (kind: unknown) => {
  * - a recipient who has left the org since is dropped (`not_member`); one who has read it in-app
  *   meanwhile isn't emailed or pushed (`read`), unless it is critical;
  * - email goes through the MailPort to the account's address (`no_address`, `undeliverable` after a
- *   hard bounce or complaint, `not_configured` until Postmark has a token);
+ *   hard bounce or complaint, `not_configured` until Resend has a key);
  * - push goes to each of the person's devices; a token FCM reports gone deletes the device;
  * - a transient failure is recorded and retried with backoff, up to `DELIVERY_MAX_ATTEMPTS`.
  *
@@ -186,7 +186,7 @@ export const deliver = defineQueue({
   input: DeliveryTaskSchema,
   retry: { maxAttempts: DELIVERY_MAX_ATTEMPTS, minBackoffSeconds: 30, maxBackoffSeconds: 3600 },
   rateLimits: { maxConcurrentDispatches: 20 },
-  secrets: [POSTMARK_TOKEN],
+  secrets: [RESEND_API_KEY],
   handler: async (task, { db, ports, log, attempt }) => {
     await deliverNotification(task, { db, ports, log, attempt });
   },

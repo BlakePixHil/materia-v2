@@ -10,7 +10,7 @@ export function devMailUrl(env: { useEmulators: boolean; firebase: { projectId: 
 
 /**
  * `/__dev/mail` (dev builds against the emulators only, FND-20): every email and push the
- * emulator captured instead of sending, rendered as Postmark would send it. Production builds drop
+ * emulator captured instead of sending, rendered as Resend would send it. Production builds drop
  * this page, and the function behind it only exists in the emulator.
  */
 @Component({

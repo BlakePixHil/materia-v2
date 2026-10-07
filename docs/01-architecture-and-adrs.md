@@ -129,9 +129,10 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - [ADR-055](adr/055-csv-exports-weekly-report.md) (INS-03): list exports are `csv.export` jobs from one callable, `exports-create`, written in the callable up to 5,000 rows and streamed by the `exports-run` queue beyond. Access is re-checked at the end, privileged matters go in only when a lawyer or above asks, and every export is audited. The weekly practice report is an opt-in Monday 07:00 (org time) email of figures and matter numbers only.
 
 **ADR-015: Email.**
-- Transactional email goes through Postmark via a function, with templates in the repo.
-- Inbound email-to-matter uses Postmark inbound webhooks.
+- Transactional email goes through Resend via a function, with templates in the repo.
+- Inbound email-to-matter uses Resend's inbound webhook (`email.received`).
 - The provider is swappable behind `MailPort`.
+- [ADR-057](adr/057-resend-email.md) (FND-20b): Resend replaces Postmark (Blake, 2026-10-07): cheaper, and simpler to set up. Mail goes through Resend's HTTP API with no SDK, and its Svix-signed webhook (`notifications-resendWebhook`) marks hard-bounced, suppressed and complaining addresses undeliverable. The key and signing secret are `RESEND_API_KEY` and `RESEND_WEBHOOK_SECRET`.
 
 **ADR-016: Feature flags.**
 - Remote Config, read through `FeatureFlagService`.
@@ -141,6 +142,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
   - **Never authorisation.** Flags hide or reveal features. Roles and rules decide who may do what. A `serverEnforced` flag is also checked by its callables with `requireFlag(ctx, key)`, which throws `FEATURE_DISABLED`.
   - **Precedence:** local override (dev builds only, `materia.flags.local` in localStorage, edited at `/__dev/flags`) > org override (`orgs/{orgId}.flags`) > Remote Config > registry default.
   - **Remote Config keys** can't contain dots: `clerk.features.brief` is the parameter `clerk_features_brief` (`remoteConfigKey`). Create parameters in the dev or prod console only when a flag must differ from its default for everyone. The client fetches at most hourly in prod and each minute in dev; functions cache the server template for 60 s.
+  - **Dev values from CI (FND-23a):** the `remote-config` workflow prints every flag as the dev client and server templates have it, and what the app ends up with. Dev flags agents change go in `infra/remote-config/dev.json`: merging a change publishes the listed flags to both dev templates (`null` removes one, unlisted flags are left alone). Prod flags stay a person's change in the console.
   - **Org overrides** are written only by the `flags-setOrgOverride` callable, which requires the `platformAdmin` claim. Grant it with `pnpm materia-scripts platform-admin --project <id> --uid <uid>` (add `--revoke` to remove). Each change writes a `flag.override_set` or `flag.override_cleared` audit entry in that org.
   - **Web:** `FeatureFlagService.flag(key)` gives a signal, `*mtFlag="key"` renders while on, `flagGuard(key)` keeps a route behind its flag, and nav items carry `flag`.
   - **Removal.** When a flag is fully on everywhere, set `fullyOnSince`. The CI flag report (`pnpm materia-scripts flags-report`) warns once that is over 90 days, and the owning ticket removes the flag.

@@ -3,7 +3,7 @@
  * `{{field}}` is filled from the message model (HTML-escaped in the HTML body); `{{#list}}…{{/list}}`
  * repeats for each item of an array (or shows once when the value is truthy) and `{{^field}}…{{/field}}`
  * shows when it is empty. Every `link` or `…Link` value must be http(s). The MailPort adapter
- * (Postmark) renders with `renderMail`; the emulator's dev mail page does too.
+ * (Resend, ADR-057) renders with `renderMail`; the emulator's dev mail page does too.
  *
  * Subjects never carry matter content (names, facts): at most a matter number, as notification
  * titles do ("Deadline in 3 days: M-2026-0142").
