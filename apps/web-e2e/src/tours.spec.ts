@@ -53,6 +53,11 @@ async function practice(page: Page, request: APIRequestContext) {
       daysAgo: 1,
     }),
   ]);
+  // The welcome tour waits for the profile, which auth-syncClaims writes (slow while the
+  // emulators are busy with other workers' tests).
+  await expect
+    .poll(async () => (await request.get(`${USER_DOCS}/${account.uid}`, { headers: ADMIN })).status(), FIRST_CALL)
+    .toBe(200);
   // The flags load with the org: reload so the practice's override applies.
   await page.reload();
   return { orgId, uid: account.uid };
