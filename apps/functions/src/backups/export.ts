@@ -6,8 +6,10 @@ import { createLog, errorReportFields, functionsSink, type Log } from '../core/l
 
 /**
  * The nightly Firestore export (SEC-03): a consistent copy of the whole database, as of a whole
- * minute, in the backups bucket in australia-southeast2 (`<project>-backups`, Terraform). It is the
- * copy that survives losing australia-southeast1, where PITR and the managed backups live. On the
+ * minute, written to the exports bucket in the database's region (`<project>-exports`, Terraform;
+ * Firestore exports nowhere else), which Storage Transfer copies an hour later into the backups
+ * bucket in australia-southeast2 (`<project>-backups`). That copy survives losing
+ * australia-southeast1, where PITR and the managed backups live. On the
  * 1st of the month (Melbourne) it goes under `monthly/` (kept 400 days), otherwise `daily/` (kept 35);
  * the folder is named after the snapshot time, `daily/2026-10-05T15-00-00Z`, which is what the
  * restore drill and the runbook read the snapshot time from (docs/runbooks/restore.md).
@@ -25,8 +27,8 @@ export interface ExportPlan {
   outputUriPrefix: string;
 }
 
-/** The backups bucket Terraform creates for a project. */
-export const backupsBucket = (projectId: string) => `${projectId}-backups`;
+/** The bucket in the database's region that Terraform creates for a project's exports. */
+export const exportsBucket = (projectId: string) => `${projectId}-exports`;
 
 /** `2026-10-05T15:00:00Z` → `2026-10-05T15-00-00Z` (no colons in object names). */
 export const exportFolder = (snapshotTime: string) => snapshotTime.replace(/\.\d+Z$/, 'Z').replaceAll(':', '-');
@@ -44,7 +46,7 @@ export function exportPlan(projectId: string, now: Date): ExportPlan {
   return {
     kind,
     snapshotTime,
-    outputUriPrefix: `gs://${backupsBucket(projectId)}/${kind}/${exportFolder(snapshotTime)}`,
+    outputUriPrefix: `gs://${exportsBucket(projectId)}/${kind}/${exportFolder(snapshotTime)}`,
   };
 }
 

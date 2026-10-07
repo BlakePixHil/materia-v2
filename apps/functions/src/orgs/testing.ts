@@ -178,8 +178,11 @@ export function memoryFirestore(initial: Record<string, Data> = {}) {
       // Field masks don't change what the fakes return; results are always in document-path order.
       select: () => query(matches, filters, max, after),
       orderBy: () => query(matches, filters, max, after),
-      /** Pages by document id (with `orderBy(FieldPath.documentId())`). */
-      startAfter: (id: string) => query(matches, filters, max, id),
+      /**
+       * Pages by document id (with `orderBy(FieldPath.documentId())`), or after a document snapshot
+       * (results are always in document-path order here, whatever the `orderBy`).
+       */
+      startAfter: (at: string | { id: string }) => query(matches, filters, max, typeof at === 'string' ? at : at.id),
       get: async () => {
         const found = select().map(snapshot);
         return { docs: found, empty: found.length === 0, size: found.length };

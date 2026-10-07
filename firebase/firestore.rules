@@ -354,6 +354,7 @@ service cloud.firestore {
           && n.get('kinds', {}).get('deadline_escalation', {}).get('email', true) == true
           && n.get('kinds', {}).get('deadline_escalation', {}).get('inapp', true) == true
           && n.get('taskReminderDays', 1) is int && n.get('taskReminderDays', 1) >= 0 && n.get('taskReminderDays', 1) <= 14
+          && n.get('weeklyReport', false) is bool
         );
       }
       allow read: if isSignedIn() && uid() == userId;

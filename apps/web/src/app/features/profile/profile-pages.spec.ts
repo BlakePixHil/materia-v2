@@ -96,11 +96,15 @@ describe('NotificationMatrix', () => {
   });
 });
 
-async function open(url: string, seed: (firestore: InMemoryFirestore) => void = () => undefined) {
+async function open(
+  url: string,
+  seed: (firestore: InMemoryFirestore) => void = () => undefined,
+  role: 'lawyer' | 'owner' = 'lawyer',
+) {
   const firestore = new InMemoryFirestore();
   firestore.set(`orgs/${ORG}`, { name: 'Harbour & Vine Legal', timezone: 'Australia/Melbourne', ...meta });
   firestore.set(`orgs/${ORG}/members/${UID}`, {
-    role: 'lawyer',
+    role,
     status: 'active',
     displayName: 'Jordan Price',
     initials: 'JP',
@@ -119,7 +123,10 @@ async function open(url: string, seed: (firestore: InMemoryFirestore) => void = 
     providers: [
       provideRouter(appRoutes),
       { provide: MT_KEYBOARD_PLATFORM, useValue: 'other' },
-      { provide: AUTH_PORT, useValue: new FakeAuthPort(SESSION) },
+      {
+        provide: AUTH_PORT,
+        useValue: new FakeAuthPort(role === 'lawyer' ? SESSION : testSession({ claims: { ...SESSION.claims, role } })),
+      },
       { provide: TENANCY_PORT, useValue: new FakeTenancyPort() },
       {
         provide: AVATAR_STORE,
@@ -257,6 +264,24 @@ describe('Settings → Preferences', () => {
     expect(page.user().prefs['timezone']).toBe('Australia/Perth');
     await page.choose('Time zone', 'The practice’s (Australia/Melbourne)');
     expect(page.user().prefs).not.toHaveProperty('timezone');
+  });
+
+  it('lets owners and admins opt in to the weekly practice report (INS-03)', async () => {
+    const lawyer = await open('/settings/preferences');
+    expect(lawyer.text()).not.toContain('Weekly practice report');
+    TestBed.resetTestingModule();
+
+    const page = await open('/settings/preferences', undefined, 'owner');
+    expect(page.text()).toContain('Weekly practice report');
+    const toggle = () =>
+      page.el.querySelector<HTMLButtonElement>('mt-switch[name="weeklyReport"] button') as HTMLButtonElement;
+    expect(toggle().getAttribute('aria-checked')).toBe('false');
+    toggle().click();
+    await page.stable();
+    expect(page.user().prefs['notifications']).toEqual({ ...DEFAULT_NOTIFICATION_PREFS, weeklyReport: true });
+    toggle().click();
+    await page.stable();
+    expect((page.user().prefs['notifications'] as NotificationPrefs).weeklyReport).toBe(false);
   });
 
   it('sets how many days before they’re due task reminders come (CORE-11)', async () => {

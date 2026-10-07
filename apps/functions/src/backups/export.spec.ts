@@ -1,4 +1,4 @@
-import { backupsBucket, exportFirestore, exportFolder, exportPlan, type ExportDeps } from './export';
+import { exportsBucket, exportFirestore, exportFolder, exportPlan, type ExportDeps } from './export';
 import { createLog, type LogSink } from '../core/log';
 
 const silent: LogSink = () => undefined;
@@ -27,7 +27,7 @@ describe('exportPlan', () => {
     expect(plan).toEqual({
       kind: 'daily',
       snapshotTime: '2026-10-05T14:59:00Z',
-      outputUriPrefix: 'gs://materia-v2-dev-backups/daily/2026-10-05T14-59-00Z',
+      outputUriPrefix: 'gs://materia-v2-dev-exports/daily/2026-10-05T14-59-00Z',
     });
   });
 
@@ -38,7 +38,7 @@ describe('exportPlan', () => {
   });
 
   it('names the bucket and folder', () => {
-    expect(backupsBucket('materia-v2-prod')).toBe('materia-v2-prod-backups');
+    expect(exportsBucket('materia-v2-prod')).toBe('materia-v2-prod-exports');
     expect(exportFolder('2026-10-05T14:59:00.000Z')).toBe('2026-10-05T14-59-00Z');
   });
 });
@@ -62,7 +62,7 @@ describe('exportFirestore', () => {
       'https://firestore.googleapis.com/v1/projects/materia-v2-dev/databases/(default):exportDocuments',
     );
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
-      outputUriPrefix: 'gs://materia-v2-dev-backups/daily/2026-10-05T14-59-00Z',
+      outputUriPrefix: 'gs://materia-v2-dev-exports/daily/2026-10-05T14-59-00Z',
       snapshotTime: '2026-10-05T14:59:00Z',
     });
     expect((calls[0]?.init?.headers as Record<string, string>)['authorization']).toBe('Bearer token');
