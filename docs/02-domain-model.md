@@ -157,7 +157,7 @@ The list queries `orgs/{orgId}/matters` with `deletedAt == null`, plus `privileg
 | `offers/{id}` | `kind: 'calderbank'\|'offer_of_compromise'\|'without_prejudice'\|'open'`, `by: 'us'\|'them'`, `madeOn`, `expiresOn?`, `amountCents?`, `termsMd`, `status: 'open'\|'accepted'\|'rejected'\|'lapsed'\|'withdrawn'`, `deadlineId?`, `privileged: true` |
 | `courtBooks/{id}` | `title`, `tabs[] {title, entries[] {documentId, version, pageFrom?, pageTo?}}`, `status: 'draft'\|'building'\|'built'\|'failed'`, `outputDocumentId?`, `builtFromHash` |
 
-Migrated documents also carry `migration: {runId, legacyPath, loadedAt}`, `needsReview?: string[]` and, on matters, `legacyBilling?` (read-only). See the *Legacy migration plan*.
+Migrated documents also carry `migration: {runId, legacyPath, loadedAt}`, `needsReview?: string[]`, `reviewed?: string[]` and, on matters, `legacyBilling?` (read-only). See the *Legacy migration plan*. The review codes are `MIGRATION_REVIEW_CODES` (MIG-08, D-22): a code moves from `needsReview` to `reviewed` when the person fixes the record (the triggers on matters, contacts, documents and members, and `orgs-updateSettings` for the practice's name) or marks it reviewed (`migration-resolveReview`). `migration-review` counts and lists them.
 
 ### Matter templates (CORE-07)
 
@@ -420,7 +420,7 @@ See [ADR-037](adr/037-clerk-suggestions-engine.md). Domain: `libs/domain/src/lib
 | `integrationStates/{sha256(state)}` | **Server-only.** One OAuth connect attempt (INT-01): `provider`, `level`, `uid`, `codeVerifier` (PKCE), `redirectUri`, `returnTo`, `expireAt` (10 minutes; Firestore TTL). Used once by `integrations-complete`, which checks it is the caller's |
 | `safeCustody/{id}` | Original will packets (CORE-17, `SafeCustody`; see Will safe custody below). `packetNo` (`SC-000123`), `testatorContactId`, `testatorName`, `responsibleUid`, `matterId?` (the will matter), `items[] {kind:'will'\|'codicil'\|'poa'\|'eg'\|'other', date?, description, document? {matterId, documentId}}`, `location {site, cabinet, slot}`, `receivedOn`, `status:'held'\|'out'\|'released'\|'destroyed'`, `movements[] {at, by, kind:'in'\|'out'\|'returned'\|'released'\|'destroyed', reason, to?, toContactId?, authority? {matterId, documentId}, location?, approvedBy?}`, `pendingDestruction?`, `lastVerified? {on, by}`, `search`, `locationKey`, soft delete. Members read; only the `safeCustody-*` callables write |
 | `trustSnapshots/{matterId}` | A matter's trust balance as copied from the firm's own trust records (BILL-11, `TrustSnapshot`; see Trust balance snapshots below). `matterId`, `amountCents` (≥ 0), `asAt: DateOnly`, `source: 'manual'`, `sourceSystemName`, `note?` (≤ 200), `recordedBy`, `recordedAt`. One per matter, replaced on update. Only `billing.view` roles read it; only `trust-recordSnapshot` writes it |
-| `migrations/{runId}` | Migration run reports (see the migration doc) |
+| `migrations/{runId}` | Migration run reports (see the migration doc), read by owners and admins (`org.settings`); `reviewedAt?`/`reviewedBy?` once nothing is left to review (MIG-08) |
 
 ## Global (read-only to clients)
 

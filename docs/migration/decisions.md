@@ -281,6 +281,20 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
   - **Not set:** the user's `avatarUrl`. The photo is copied (D-18), and the user picks it in Settings → Profile.
   - **Evidence:** the emulator test loads MIG-03's golden output (D-19) with its files copied, verifies it reading every record as the member through the rules, keeps a v2 edit on a reload, and rolls back to what was there before. The ticket's staging rehearsal becomes the dev rehearsal in MIG-07 (D-15).
 
+### D-22 In-app review (new)
+
+- **Status:** Default, from MIG-08 on 2026-10-07. It acts on the review codes D-19 and D-20 leave on migrated records and changes nothing they decided, so the sign-off above stands. D-21 is MIG-09's.
+- **Decision:**
+  - **Where:** Settings → Import from materia (`/settings/migration`), shown to owners and admins once the org has a migration run, rather than a step in onboarding. Tristan's practice is created by the load, not by the onboarding wizard, so he never sees that wizard; Today shows a "Check your import" card until the import is reviewed. The page shows what came across per file, what's left to check by reason, and the run's own conflicts and failures (`MIG_C_*`, `MIG_E_*`). The transform's other warnings stay in `report.json` for the operator.
+  - **Review queue:** `/settings/migration/review`, filtered by reason (`?code=`). The callable `migration-review` (`org.settings`) counts each code with `count()` queries and lists up to 200 records with one open, plus whether there are more. Documents are found by a collection group query on `orgId`, which needs two composite indexes.
+  - **Fix paths:** every code in `MIGRATION_REVIEW_CODES` (`libs/domain`) names its fix. An untitled matter and an unnamed referrer are renamed in the queue. The practice's name is confirmed in Settings → Practice (`orgs-updateSettings` clears it). A member's budgets go to Settings → Team. The rest open the matter on the right tab (overview, parties, time) or the document. Any code can be marked "Looks right" as it is, one at a time, for the selected records, or for every record with that reason ("Mark all", up to 500 a call). These go through `migration-resolveReview` (`org.settings`, idempotent), which writes one `migration.reviewed` audit entry per call.
+  - **Cleared elsewhere:** a code moves from `needsReview` to `reviewed` when the person fixes the record anywhere in the app: the triggers already running on matters, contacts, documents and members compare the fields each code names (`clearedBy`), and deleting or merging a record clears all of its codes. The migration's own writes (D-20) never clear one.
+  - **Delta loads:** marking a code reviewed doesn't stamp `updatedAt`, so a later delta still updates the record (D-20's conflict rule). The load keeps `reviewed`, re-opens only codes not yet reviewed, and keeps codes the app added.
+  - **Progress:** reviewed ÷ (open + reviewed), rounded down. When nothing is open, every succeeded run gets `reviewedAt` and `reviewedBy`, which is when the import counts as reviewed and the Today card goes.
+  - **Rollback:** while the latest run is rolling back or rolled back, the queue is empty and a note says why.
+  - **Costs disclosures:** not a review code. Open matters show the disclosure as required (D-11, D-19), and Tristan settles them on each matter before `billing.costsDisclosure` goes on in prod.
+  - **Evidence:** the callables and the clearing triggers have unit and emulator tests, the load's reconcile has unit tests, every code's fix path has a page test, and the e2e reviews a seeded import to "All reviewed".
+
 ## Descoped
 
 - **No staging rehearsals.** The plan's staging rehearsals move to dev (D-15).
@@ -292,3 +306,5 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
 - **A staging rehearsal of the load.** It moves to the MIG-07 dev rehearsal (D-20).
 - **Reading every record through the rules on dev and prod.** The emulator test does it; real environments check claims and membership (D-20).
 - **`delta` running the export and transform itself.** It applies a delta run made by those steps (D-20).
+- **Clerk assist in the review queue.** The ticket made it optional; the fix paths need no AI (D-22).
+- **An onboarding import step.** The load creates the practice, so the step is Settings → Import from materia and a Today card (D-22).
