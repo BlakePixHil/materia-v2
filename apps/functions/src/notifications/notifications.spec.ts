@@ -3,13 +3,19 @@ import { Notification, NOTIFICATION_BURST_LIMIT, notificationExpiry } from '@mat
 import { DELIVERY_MAX_ATTEMPTS, deliverNotification, RetryDelivery } from './deliver';
 import { digestContent, digestModel, runDigests } from './digest';
 import { DELIVER_QUEUE, notify, type NotifyInput } from './notify';
-import { authorised, classifyPostmarkEvent, handlePostmarkWebhook, WEBHOOK_USER } from './webhook';
+import {
+  classifyResendEvent,
+  handleResendWebhook,
+  svixSignature,
+  verifySignature,
+  type WebhookRequest,
+} from './webhook';
 import { createLog } from '../core/log';
 import { memoryFirestore } from '../orgs/testing';
 import { MailError, type MailMessage, type MailPort } from '../ports';
 import { FakeClock, FakeMail, FakePush, FakeTaskQueue } from '../ports/fakes';
 
-/** Unit tests for notify(), delivery, the digest and the Postmark webhook (FND-20). All fictional. */
+/** Unit tests for notify(), delivery, the digest and the Resend webhook (FND-20, ADR-057). All fictional. */
 
 const ORG = 'org-n';
 const N = `orgs/${ORG}/notifications`;
@@ -650,57 +656,74 @@ describe('digest', () => {
   });
 });
 
-describe('Postmark webhook', () => {
-  const SECRET = 'fictional-webhook-secret';
-  const basic = (credentials: string) => `Basic ${Buffer.from(credentials).toString('base64')}`;
-  const good = basic(`${WEBHOOK_USER}:${SECRET}`);
-  const bounce = (extra: Data = {}) => ({
-    RecordType: 'Bounce',
-    Type: 'HardBounce',
-    Email: 'Ada.Fictional@example.com',
-    ID: 42,
-    ...extra,
+describe('Resend webhook', () => {
+  const SECRET = `whsec_${Buffer.from('fictional-webhook-signing-key').toString('base64')}`;
+  const bounce = (bounceType = 'Permanent', to: string | string[] = ['Ada.Fictional@example.com']) => ({
+    type: 'email.bounced',
+    created_at: '2026-03-14T00:00:00.000Z',
+    data: { email_id: 'em-42', to, subject: 'Task assigned to you', bounce: { type: bounceType, subType: 'General' } },
   });
-  const call = (
-    w: ReturnType<typeof world>,
-    body: unknown,
-    authorization: string | undefined = good,
-    secret = SECRET,
-  ) =>
-    handlePostmarkWebhook(
-      { method: 'POST', authorization, body },
-      { db: w.db, clock: w.clock, log: w.log, ports: { tasks: w.tasks }, secret },
-    );
-
-  it('checks basic auth against the secret', () => {
-    expect(authorised(good, SECRET)).toBe(true);
-    expect(authorised(basic(`${WEBHOOK_USER}:wrong`), SECRET)).toBe(false);
-    expect(authorised(basic(`someone:${SECRET}`), SECRET)).toBe(false);
-    expect(authorised(`Bearer ${SECRET}`, SECRET)).toBe(false);
-    expect(authorised(undefined, SECRET)).toBe(false);
-    expect(authorised(good, '')).toBe(false);
+  /** A request signed as Resend (Svix) signs it, at the world's time unless told otherwise. */
+  const signed = (w: ReturnType<typeof world>, body: unknown, secret = SECRET, at = w.clock.now()): WebhookRequest => {
+    const rawBody = typeof body === 'string' ? body : JSON.stringify(body);
+    const timestamp = String(Math.floor(at.getTime() / 1000));
+    const signature = `v1,${svixSignature(secret, 'msg_1', timestamp, rawBody).toString('base64')}`;
+    return { method: 'POST', headers: { id: 'msg_1', timestamp, signature }, rawBody };
+  };
+  const deps = (w: ReturnType<typeof world>, secret = SECRET) => ({
+    db: w.db,
+    clock: w.clock,
+    log: w.log,
+    ports: { tasks: w.tasks },
+    secret,
   });
+  const call = (w: ReturnType<typeof world>, body: unknown) => handleResendWebhook(signed(w, body), deps(w));
 
-  it('classifies hard bounces and spam complaints; soft bounces and others mean nothing', () => {
-    expect(classifyPostmarkEvent({ RecordType: 'SpamComplaint' })).toBe('spam_complaint');
-    expect(classifyPostmarkEvent({ RecordType: 'Bounce', Type: 'HardBounce' })).toBe('hard_bounce');
-    expect(classifyPostmarkEvent({ RecordType: 'Bounce', Type: 'BadEmailAddress' })).toBe('hard_bounce');
-    expect(classifyPostmarkEvent({ RecordType: 'Bounce', Type: 'SoftBounce', Inactive: true })).toBe('hard_bounce');
-    expect(classifyPostmarkEvent({ RecordType: 'Bounce', Type: 'SoftBounce' })).toBeNull();
-    expect(classifyPostmarkEvent({ RecordType: 'Delivery' })).toBeNull();
-  });
-
-  it('refuses other methods, an unconfigured secret, bad credentials and bad bodies', async () => {
+  it('checks the Svix signature, its version and its timestamp', () => {
     const w = world();
-    expect(
-      await handlePostmarkWebhook(
-        { method: 'GET', authorization: good, body: {} },
-        { db: w.db, clock: w.clock, log: w.log, ports: { tasks: w.tasks }, secret: SECRET },
-      ),
-    ).toEqual({ status: 405, body: { ok: false } });
-    expect((await call(w, bounce(), good, '')).status).toBe(503);
-    expect((await call(w, bounce(), basic('postmark:nope'))).status).toBe(401);
-    expect((await call(w, bounce(), '')).status).toBe(401);
+    const now = w.clock.now();
+    const good = signed(w, bounce());
+    expect(verifySignature(good, SECRET, now)).toBe(true);
+    // Resend may send several signatures (during a secret rotation): any v1 match passes.
+    const rotated = { ...good, headers: { ...good.headers, signature: `v1,bm9wZQ== ${good.headers.signature}` } };
+    expect(verifySignature(rotated, SECRET, now)).toBe(true);
+    // The bare base64 secret (without `whsec_`) is the same key.
+    expect(verifySignature(good, SECRET.slice(6), now)).toBe(true);
+    expect(verifySignature({ ...good, rawBody: `${good.rawBody} ` }, SECRET, now)).toBe(false);
+    expect(verifySignature(signed(w, bounce(), `whsec_${Buffer.from('other').toString('base64')}`), SECRET, now)).toBe(
+      false,
+    );
+    const v2 = { ...good, headers: { ...good.headers, signature: good.headers.signature?.replace('v1,', 'v2,') } };
+    expect(verifySignature(v2, SECRET, now)).toBe(false);
+    expect(verifySignature({ ...good, headers: { ...good.headers, id: 'msg_2' } }, SECRET, now)).toBe(false);
+    expect(verifySignature({ ...good, headers: {} }, SECRET, now)).toBe(false);
+    expect(verifySignature(good, '', now)).toBe(false);
+    // A replay more than five minutes later (or a clock five minutes ahead) is refused.
+    expect(verifySignature(good, SECRET, new Date(now.getTime() + 4 * 60_000))).toBe(true);
+    expect(verifySignature(good, SECRET, new Date(now.getTime() + 6 * 60_000))).toBe(false);
+    expect(verifySignature(good, SECRET, new Date(now.getTime() - 6 * 60_000))).toBe(false);
+  });
+
+  it('classifies permanent bounces, suppressions and complaints; other bounces and events mean nothing', () => {
+    expect(classifyResendEvent({ type: 'email.complained' })).toBe('spam_complaint');
+    expect(classifyResendEvent({ type: 'email.suppressed' })).toBe('hard_bounce');
+    expect(classifyResendEvent(bounce())).toBe('hard_bounce');
+    expect(classifyResendEvent(bounce('Transient'))).toBeNull();
+    expect(classifyResendEvent(bounce('Undetermined'))).toBeNull();
+    expect(classifyResendEvent({ type: 'email.delivered' })).toBeNull();
+  });
+
+  it('refuses other methods, an unconfigured secret, bad signatures and bad bodies', async () => {
+    const w = world();
+    expect(await handleResendWebhook({ ...signed(w, bounce()), method: 'GET' }, deps(w))).toEqual({
+      status: 405,
+      body: { ok: false },
+    });
+    expect((await handleResendWebhook(signed(w, bounce()), deps(w, ''))).status).toBe(503);
+    const forged = signed(w, bounce(), `whsec_${Buffer.from('forged').toString('base64')}`);
+    expect((await handleResendWebhook(forged, deps(w))).status).toBe(401);
+    expect((await handleResendWebhook({ ...signed(w, bounce()), headers: {} }, deps(w))).status).toBe(401);
+    expect((await call(w, 'not json')).status).toBe(400);
     expect((await call(w, { nothing: true })).status).toBe(400);
     expect(w.doc('users/user-ada')?.['emailDeliverability']).toBeUndefined();
   });
@@ -721,22 +744,25 @@ describe('Postmark webhook', () => {
       link: '/settings',
     });
     expect(w.tasks.queued).toEqual([]);
-    // Postmark retries and repeats: nothing more.
+    // Resend retries and repeats: nothing more.
     expect((await call(w, bounce())).body).toMatchObject({ users: 0 });
     expect(w.notifications()).toHaveLength(1);
     expectCleanLogs(w.logged, 'ada.fictional@example.com', 'Ada.Fictional');
   });
 
-  it('handles spam complaints and acknowledges soft bounces without changing anything', async () => {
+  it('handles complaints and suppressions, and acknowledges soft bounces without changing anything', async () => {
     const w = world();
-    expect((await call(w, bounce({ Type: 'SoftBounce' }))).body).toEqual({ ok: true, result: 'ignored' });
-    expect(w.doc('users/user-ben')?.['emailDeliverability']).toBeUndefined();
-    expect((await call(w, { RecordType: 'SpamComplaint', Email: 'ben.fictional@example.com' })).body).toMatchObject({
-      result: 'spam_complaint',
-      users: 1,
+    expect((await call(w, bounce('Transient', ['ben.fictional@example.com']))).body).toEqual({
+      ok: true,
+      result: 'ignored',
     });
+    expect(w.doc('users/user-ben')?.['emailDeliverability']).toBeUndefined();
+    const complained = { type: 'email.complained', data: { to: ['ben.fictional@example.com'] } };
+    expect((await call(w, complained)).body).toMatchObject({ result: 'spam_complaint', users: 1 });
     expect(w.doc('users/user-ben')?.['emailDeliverability']).toMatchObject({ reason: 'spam_complaint' });
-    expect((await call(w, { RecordType: 'SpamComplaint', Email: 'nobody@example.com' })).body).toMatchObject({
+    const suppressed = { type: 'email.suppressed', data: { to: 'Ada.Fictional@example.com' } };
+    expect((await call(w, suppressed)).body).toMatchObject({ result: 'hard_bounce', users: 1 });
+    expect((await call(w, { type: 'email.complained', data: { to: ['nobody@example.com'] } })).body).toMatchObject({
       users: 0,
     });
   });

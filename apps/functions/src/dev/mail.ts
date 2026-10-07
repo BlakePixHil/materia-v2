@@ -35,7 +35,7 @@ const page = (title: string, body: string) => `<!doctype html>
 
 /**
  * The dev mail preview (FND-20, emulator only): the emails the fake MailPort captured in
- * `emulatorOutbox`, newest first, each rendered as Postmark would send it (HTML in a sandboxed
+ * `emulatorOutbox`, newest first, each rendered as Resend would send it (HTML in a sandboxed
  * frame, and the text version), plus the pushes in `emulatorPushOutbox`.
  */
 export async function devMailPage(db: Firestore, id: string | undefined): Promise<{ status: number; html: string }> {
