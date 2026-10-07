@@ -33,6 +33,17 @@ export const CLERK_FEATURES = {
   // Rewriting a passage of a draft (AI-10): a person waits on it, so it has a shorter timeout.
   draftingRewrite: { flag: 'clerk.features.drafting', timeoutMs: 90_000, orgFeature: 'drafting' },
   timeAssist: { flag: 'clerk.features.timeAssist', timeoutMs: 60_000, orgFeature: 'timeAssist' },
+  /**
+   * Key dates from a migrated estate matter's file (MIG-09): `event` suggestions, run in the
+   * background after the owner approves the migration's enrichment. The org's Suggestions switch
+   * covers it.
+   */
+  eventsExtraction: {
+    flag: 'clerk.features.suggestions',
+    timeoutMs: 120_000,
+    background: true,
+    orgFeature: 'suggestions',
+  },
   /** Explain on Insights (INS-04): the practice's figures only, never a matter. */
   insightsNarrative: {
     flag: 'clerk.features.insightsNarrative',

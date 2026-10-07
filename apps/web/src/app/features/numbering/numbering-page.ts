@@ -13,7 +13,15 @@ import {
   MatterTypeSchema,
   type MatterType,
 } from '@materia/domain';
-import { MATTER_TYPE_LABELS, MtButton, MtNote, MtSettingsSection, MtTextField, ToastService } from '@materia/ui';
+import {
+  MATTER_TYPE_LABELS,
+  MtButton,
+  MtNote,
+  MtSettingsSection,
+  MtSkeleton,
+  MtTextField,
+  ToastService,
+} from '@materia/ui';
 
 import { errorCopy } from '../../core/error-copy';
 import { warnBeforeUnload, type HasUnsavedChanges } from '../settings/unsaved-changes';
@@ -33,7 +41,7 @@ const emptyCodes = (): Codes => Object.fromEntries(TYPES.map((type) => [type, ''
 @Component({
   selector: 'mt-numbering-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MtButton, MtNote, MtSettingsSection, MtTextField],
+  imports: [FormsModule, MtButton, MtNote, MtSettingsSection, MtSkeleton, MtTextField],
   host: { class: 'mt-col', style: 'gap: 24px; max-width: 760px' },
   template: `
     <div class="mt-col" style="gap: 6px">
@@ -46,7 +54,7 @@ const emptyCodes = (): Codes => Object.fromEntries(TYPES.map((type) => [type, ''
 
     @switch (org.status()) {
       @case ('loading') {
-        <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading settings…</p>
+        <mt-skeleton variant="fields" framed label="Loading settings…" />
       }
       @case ('error') {
         <mt-note tone="danger">{{ loadError() }}</mt-note>

@@ -1,6 +1,9 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-menu). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-menu { z-index: var(--layer-popover); min-width: 220px; padding: var(--space-4); border-radius: var(--radius-md); background: var(--bg-raised); box-shadow: var(--shadow-popover); display: flex; flex-direction: column; gap: 1px; font: 400 13px/18px var(--font-sans); }
 .mt-menu[data-overlay] { position: absolute; top: 0; left: 0; }
+.mt-menu[data-overlay] { transform-origin: var(--ngp-menu-transform-origin, var(--ngp-select-transform-origin, var(--ngp-popover-transform-origin, top))); transition: opacity var(--motion-slow) var(--ease-out), transform var(--motion-slow) var(--ease-out); }
+.mt-menu[data-overlay]:not([data-enter]) { opacity: 0; transform: scale(.97); }
+.mt-menu[data-overlay][data-exit] { transition-duration: var(--motion-fast); transition-timing-function: var(--ease-in); pointer-events: none; }
 .mt-menu[data-overlay][role="listbox"] { min-width: max(220px, var(--ngp-select-width, 0px)); max-height: min(320px, var(--ngp-select-available-height, 320px)); overflow-y: auto; }
 .mt-menu-item { appearance: none; border: 0; background: none; width: 100%; font: inherit; text-align: left; text-decoration: none; display: flex; align-items: center; gap: var(--space-8); height: 30px; padding: 0 var(--space-8); border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; outline: none; }
 .mt-menu-item .mt-i { color: var(--icon-default); }

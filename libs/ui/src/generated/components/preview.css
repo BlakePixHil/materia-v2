@@ -5,3 +5,4 @@
 .pv-group { display: flex; flex-direction: column; gap: var(--space-8); }
 .pv-label { font: 500 11px/14px var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--text-tertiary); }
 .pv-grid { display: grid; gap: var(--space-12) var(--space-16); align-items: center; }
+.pv .mt-skeleton, .pv .mt-stagger > *, .pv .mt-rise, .pv .mt-fade { animation: none; }

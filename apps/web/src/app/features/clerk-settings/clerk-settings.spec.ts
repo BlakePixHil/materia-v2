@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { TENANCY_PORT } from '@materia/data-access';
 import { InMemoryFirestore, provideInMemoryFirestore } from '@materia/data-access/repository';
 import { CLERK_DISCLOSURE_VERSION, clerkMeteringPeriod, type ClerkKeyStatus } from '@materia/domain';
+import { makeMigrationEnrichment } from '@materia/test-utils';
 import { MT_KEYBOARD_PLATFORM } from '@materia/ui';
 
 import { recentPeriods } from './clerk-usage';
@@ -315,6 +316,99 @@ describe('Settings → Clerk and AI', () => {
     expect(page.text()).not.toContain('House style');
     expect(page.page().querySelector('mt-clerk-usage')).toBeNull();
     expect(page.calls('clerk-getApiKeyStatus')).toHaveLength(0);
+  });
+});
+
+describe('Settings → Clerk and AI: migrated files (MIG-09)', () => {
+  const ACK = { ackVersion: CLERK_DISCLOSURE_VERSION };
+  const seedRun =
+    (over: Parameters<typeof makeMigrationEnrichment>[0] = {}) =>
+    (firestore: InMemoryFirestore) =>
+      firestore.set(`orgs/${ORG}/migrationEnrichments/run-1`, {
+        ...makeMigrationEnrichment({ runId: 'run-1', ...over }),
+        ...meta,
+      });
+  const card = (page: Awaited<ReturnType<typeof open>>) => page.page().querySelector('mt-migration-enrichment-card');
+
+  it('shows the estimate and approves it with the allowance typed', async () => {
+    const page = await open('/settings/clerk', ADMIN, ACK, seedRun());
+    expect(page.text()).toContain('Migrated files');
+    expect(page.text(card(page))).toContain(
+      'Clerk can read 1 document (about 12 pages, 2 of them scanned) and 1 estate matter: about',
+    );
+    expect(page.text(card(page))).toContain('Nothing changes until a person accepts a suggestion.');
+
+    await page.type('Allowance', '25');
+    await page.click('Approve', card(page) ?? undefined);
+    expect(page.calls('migration-decideEnrichment')).toEqual([
+      { runId: 'run-1', decision: 'approve', allowanceCents: 2_500 },
+    ]);
+  });
+
+  it('declines for now, and refuses an allowance out of range', async () => {
+    const page = await open('/settings/clerk', ADMIN, ACK, seedRun());
+    await page.type('Allowance', '0.5');
+    expect(page.text(card(page))).toContain('Enter from');
+    expect(page.button('Approve', card(page) ?? undefined).hasAttribute('disabled')).toBe(true);
+
+    await page.click('Not now', card(page) ?? undefined);
+    expect(page.calls('migration-decideEnrichment')).toEqual([{ runId: 'run-1', decision: 'decline' }]);
+  });
+
+  it('says why it paused and offers to resume with more than it spent', async () => {
+    const page = await open(
+      '/settings/clerk',
+      ADMIN,
+      ACK,
+      seedRun({ status: 'paused', pausedFor: 'allowance', allowanceCents: 500, spentMicros: 5_100_000 }),
+    );
+    expect(page.text(card(page))).toContain('Clerk stopped reading. It used the allowance you approved.');
+    await page.click('Resume', card(page) ?? undefined);
+    expect(page.calls('migration-decideEnrichment')).toEqual([
+      { runId: 'run-1', decision: 'approve', allowanceCents: 1_000 },
+    ]);
+  });
+
+  it('shows progress while it reads, and what is waiting once done', async () => {
+    const running = await open(
+      '/settings/clerk',
+      ADMIN,
+      ACK,
+      seedRun({
+        status: 'running',
+        allowanceCents: 2_500,
+        spentMicros: 1_200_000,
+        documents: ['m-1/d-1', 'm-1/d-2'],
+        progress: { read: 1, skipped: 0, failed: 0, mattersRead: 0, events: 0 },
+      }),
+    );
+    expect(running.text(card(running))).toContain('1 of 2 documents read');
+    expect(running.text(card(running))).toContain('About US$1.20 of the US$25.00 allowance spent.');
+    TestBed.resetTestingModule();
+
+    const done = await open(
+      '/settings/clerk',
+      ADMIN,
+      ACK,
+      seedRun({
+        status: 'done',
+        progress: { read: 2, skipped: 0, failed: 0, mattersRead: 1, events: 3 },
+        suggestionsWaiting: 4,
+        unreadable: 1,
+      }),
+    );
+    expect(done.text(card(done))).toContain(
+      'Clerk read 2 documents and found 3 key dates. 4 suggestions are waiting for review. 1 document couldn’t be read and is listed for migration review.',
+    );
+    expect(done.button('Review the suggestions', card(done) ?? undefined).getAttribute('href')).toBe('/inbox');
+  });
+
+  it('is for owners and admins only, and leaves a cancelled run out', async () => {
+    const lawyer = await open('/settings/clerk', LAWYER, ACK, seedRun());
+    expect(lawyer.text()).not.toContain('Migrated files');
+    TestBed.resetTestingModule();
+    const cancelled = await open('/settings/clerk', ADMIN, ACK, seedRun({ status: 'cancelled' }));
+    expect(cancelled.text()).not.toContain('Migrated files');
   });
 });
 

@@ -31,6 +31,8 @@ export const CONTEXT_POLICIES = {
   drafting: { budgetTokens: 40_000, scopes: ['matter'] },
   draftingRewrite: { budgetTokens: 24_000, scopes: ['matter'] },
   timeAssist: { budgetTokens: 12_000, scopes: ['matter'] },
+  /** A migrated matter's notes and the excerpts its key dates are likely in (MIG-09). */
+  eventsExtraction: { budgetTokens: 40_000, scopes: ['matter'] },
   /** Two periods' figures: about 40 figures of a line each, far under the budget. */
   insightsNarrative: { budgetTokens: 16_000, scopes: ['metrics'] },
   /** The eval harness's citation judge (AI-12): sent only test items, never a matter's context. */

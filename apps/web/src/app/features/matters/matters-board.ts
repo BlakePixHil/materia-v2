@@ -169,7 +169,7 @@ const SETTLE_MS = 15_000;
                   }
                 </div>
                 <div
-                  class="cards"
+                  class="cards mt-stagger"
                   role="list"
                   [attr.aria-label]="listLabel(lane, cell)"
                   cdkDropList

@@ -55,6 +55,8 @@ function seed(): FakeStore {
   store.set(doc('d-deleted'), { ...clean, deletedAt: '2026-10-01T00:00:00Z' });
   store.set(doc('d-unscanned'), { scan: { status: 'pending' }, version: 1 });
   store.set(doc('d-infected'), { scan: { status: 'infected' }, version: 1 });
+  // Migrated and not read yet: the migration's enrichment reads it once approved (MIG-09).
+  store.set(doc('d-migrated'), { ...clean, ingest: { status: 'pending' }, migration: { runId: 'run-1' } });
   // Not a matter document: org-level documents aren't ingested.
   store.set('orgs/org-a/documents/d-org', { ...clean });
   store.withEmbeddings.add(doc('d-done'));
@@ -73,6 +75,11 @@ describe('backfill-ingest', () => {
     expect(ingestState({ ...clean, deletedAt: '2026-10-01T00:00:00Z' })).toBe('notReady');
     expect(ingestState({ scan: { status: 'clean' }, version: 0 })).toBe('notReady');
     expect(ingestState({ scan: { status: 'pending' }, version: 1 })).toBe('notReady');
+    const migration = { runId: 'run-1' };
+    expect(ingestState({ ...clean, migration })).toBe('migrated');
+    expect(ingestState({ ...clean, migration, ingest: { status: 'pending' } })).toBe('migrated');
+    // Once the enrichment has tried it, it is an ordinary document.
+    expect(ingestState({ ...clean, migration, ingest: { status: 'failed', version: 2 } })).toBe('due');
   });
 
   it('reports without writing on a dry run', async () => {
@@ -80,7 +87,7 @@ describe('backfill-ingest', () => {
     const lines: string[] = [];
     const report = await backfillIngest(store, { dryRun: true, log: (line) => lines.push(line) });
     expect(report).toEqual({
-      read: 11,
+      read: 12,
       notReady: 3,
       done: 2,
       chunks: 6,
@@ -88,6 +95,7 @@ describe('backfill-ingest', () => {
       skipped: 1,
       inProgress: 2,
       due: 3,
+      migrated: 1,
       ocrPages: 1,
       reasons: {
         'due: failed (Timeout)': 1,

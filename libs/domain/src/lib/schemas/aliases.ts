@@ -55,6 +55,7 @@ import {
   SafeCustody,
   TrustSnapshot,
   MigrationRun,
+  MigrationEnrichment,
   RuleSetVersion,
   Calendar,
   Counter,
@@ -251,6 +252,9 @@ export const TrustSnapshotUpdateSchema = TrustSnapshot.update;
 export const MigrationRunSchema = MigrationRun.schema;
 export const MigrationRunCreateSchema = MigrationRun.create;
 export const MigrationRunUpdateSchema = MigrationRun.update;
+export const MigrationEnrichmentSchema = MigrationEnrichment.schema;
+export const MigrationEnrichmentCreateSchema = MigrationEnrichment.create;
+export const MigrationEnrichmentUpdateSchema = MigrationEnrichment.update;
 export const RuleSetVersionSchema = RuleSetVersion.schema;
 export const RuleSetVersionCreateSchema = RuleSetVersion.create;
 export const RuleSetVersionUpdateSchema = RuleSetVersion.update;

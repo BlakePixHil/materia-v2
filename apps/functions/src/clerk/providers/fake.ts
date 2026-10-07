@@ -1,3 +1,5 @@
+import { datesInText } from '@materia/domain';
+
 import {
   ClerkModelError,
   type ClerkModelPort,
@@ -167,8 +169,58 @@ export function narrativeStep(request: ClerkModelRequest): FakeStep {
   return { chunks: [JSON.stringify(output)] };
 }
 
+/** Words that tell the fake model which key date a sentence states (fictional files only). */
+const EVENT_WORDS: [kind: string, pattern: RegExp][] = [
+  ['date_of_death', /\b(died|death|passed away)\b/i],
+  ['grant_issued', /\bgrant(ed)?\b.*\b(probate|letters of administration)\b|\bprobate\b.*\bgranted\b/i],
+  ['notice_published', /\bnotice of intention\b/i],
+  ['probate_filed', /\bapplication\b.*\bfiled\b|\bfiled\b.*\bapplication\b/i],
+  ['statutory_notice_published', /\bnotice to (creditors|claimants)\b/i],
+  ['caveat_lodged', /\bcaveat\b.*\blodged\b/i],
+];
+
+/** Every block's text a request carries: our text blocks and the excerpts (`search_result`). */
+function requestTexts(request: ClerkModelRequest): string[] {
+  return request.messages.flatMap((turn) =>
+    ((turn.content ?? []) as { type?: string; text?: string }[])
+      .filter((block) => block.type === 'text' || block.type === 'search_result')
+      .map((block) => block.text ?? ''),
+  );
+}
+
+/**
+ * Key dates (MIG-09, `events-from-file@1`): each sentence of a `<matter_note>` or an `<excerpt>`
+ * that states a full date beside words for an estate step (`EVENT_WORDS`) becomes an event, cited
+ * with that sentence verbatim. The first sentence for a kind wins.
+ */
+export function eventsStep(request: ClerkModelRequest): FakeStep {
+  const sources: { source: 'note' | 'excerpt'; id: string; page?: number; text: string }[] = [];
+  for (const text of requestTexts(request)) {
+    for (const m of text.matchAll(/<matter_note id="([^"]+)"[^>]*>\n([\s\S]*?)\n<\/matter_note>/g))
+      sources.push({ source: 'note', id: m[1] ?? '', text: m[2] ?? '' });
+    for (const m of text.matchAll(/<excerpt document="([^"]+)" version="\d+" page="(\d+)">\n([\s\S]*?)\n<\/excerpt>/g))
+      sources.push({ source: 'excerpt', id: m[1] ?? '', page: Number(m[2]), text: m[3] ?? '' });
+  }
+  const events = new Map<string, unknown>();
+  for (const { text, ...cited } of sources) {
+    for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+      const [date] = datesInText(sentence);
+      const kind = EVENT_WORDS.find(([, pattern]) => pattern.test(sentence))?.[0];
+      if (!date || !kind || events.has(kind)) continue;
+      events.set(kind, {
+        kind,
+        date,
+        rationale: 'The file states this date (fake Clerk model).',
+        citations: [{ ...cited, quote: sentence.trim().slice(0, 300) }],
+      });
+    }
+  }
+  return { chunks: [JSON.stringify({ events: [...events.values()] })] };
+}
+
 function defaultStep(request: ClerkModelRequest): FakeStep {
   if (request.output?.name === 'insightsNarrative') return narrativeStep(request);
+  if (request.output?.name === 'eventsFromFile') return eventsStep(request);
   const draft = draftStep(request);
   if (draft) return draft;
   const chat = chatStep(request);
