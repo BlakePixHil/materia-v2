@@ -71,7 +71,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
           </p>
 
           <fieldset class="mt-col recipients">
-            <legend class="label-m">To</legend>
+            <legend class="label">To</legend>
             @for (option of recipients(); track option.partyId) {
               <mt-checkbox
                 [name]="'to-' + option.partyId"
@@ -145,7 +145,7 @@ import { MatterScreen } from '../matter-detail/matter-screen';
 
       @if (drafts().length) {
         <section class="mt-col" aria-labelledby="mt-drafts-recent">
-          <h3 id="mt-drafts-recent" class="label-m">Your drafts on this matter</h3>
+          <h3 id="mt-drafts-recent" class="label">Your drafts on this matter</h3>
           <ul class="drafts">
             @for (draft of drafts(); track draft.id) {
               <li>

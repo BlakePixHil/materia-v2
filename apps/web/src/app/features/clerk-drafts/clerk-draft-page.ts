@@ -182,7 +182,7 @@ const AUTOSAVE_MS = 800;
 
         <aside class="mt-col side" aria-label="Checking the draft">
           <section class="mt-col">
-            <h3 class="label-m">{{ placeholders().length ? toConfirm() : 'Nothing marked to confirm' }}</h3>
+            <h3 class="label">{{ placeholders().length ? toConfirm() : 'Nothing marked to confirm' }}</h3>
             @for (item of placeholders(); track item.start) {
               <button type="button" class="confirm" (click)="selectRange(item.start, item.end)">
                 {{ item.label }}
@@ -191,7 +191,7 @@ const AUTOSAVE_MS = 800;
           </section>
           @if (d.missingFacts.length) {
             <section class="mt-col">
-              <h3 class="label-m">Not on the matter</h3>
+              <h3 class="label">Not on the matter</h3>
               <p class="caption t-3">Clerk had none of these when it drafted, so it left placeholders for them.</p>
               <ul>
                 @for (fact of d.missingFacts; track fact) {
@@ -201,7 +201,7 @@ const AUTOSAVE_MS = 800;
             </section>
           }
           <section class="mt-col">
-            <h3 class="label-m">Sources</h3>
+            <h3 class="label">Sources</h3>
             @for (vm of citations(); track $index) {
               <mt-citation [citation]="vm" (open)="openCitation($event)" />
             } @empty {
@@ -214,7 +214,7 @@ const AUTOSAVE_MS = 800;
           </section>
           @if (d.documentIds.length) {
             <section class="mt-col">
-              <h3 class="label-m">Saved</h3>
+              <h3 class="label">Saved</h3>
               @for (id of d.documentIds; track id) {
                 <a class="body-s" [routerLink]="['/matters', matterId(), 'documents', id]"
                   >Saved letter {{ $index + 1 }}</a
