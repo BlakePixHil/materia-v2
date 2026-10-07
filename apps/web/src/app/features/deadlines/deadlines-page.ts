@@ -39,6 +39,7 @@ import { matterLookup } from './matter-lookup';
 import { PendingChanges } from './pending-changes';
 import { statutoryDisabled } from './statutory-flag';
 import { MtExportButton } from '../../core/exports/export-button';
+import { PushOffer } from '../../core/push/push-offer';
 
 type View = 'list' | 'calendar';
 const VIEW_KEY = 'materia.deadlines.view';
@@ -75,6 +76,7 @@ function storedView(): View {
     MtNote,
     MtSegmentedControl,
     PendingChanges,
+    PushOffer,
   ],
   host: { class: 'mt-deadlines-page' },
   template: `
@@ -91,6 +93,9 @@ function storedView(): View {
     <p class="mt-sr" aria-live="polite">{{ actions.announcement() }}</p>
     @if (statutoryOff()) {
       <mt-note tone="warning">{{ statutoryMessage }}</mt-note>
+    }
+    @if (hasCritical()) {
+      <mt-push-offer />
     }
 
     @if (changeRows().length) {
@@ -410,6 +415,8 @@ export class DeadlinesPage {
   protected readonly reviewRows = computed(() => this.rows().filter((row) => needsReview(row.deadline)));
   /** The list and calendar leave out the review queue's deadlines (they're above). */
   protected readonly visibleRows = computed(() => this.rows().filter((row) => !needsReview(row.deadline)));
+  /** A critical deadline is in view: the moment to offer deadline alerts on this device (MOB-04). */
+  protected readonly hasCritical = computed(() => this.visibleRows().some((row) => row.deadline.critical));
   protected readonly groups = computed(() => {
     const byKey = new Map(this.visibleRows().map((row) => [row.key, row] as const));
     const like = this.visibleRows().map((row) => ({ ...row.deadline, id: row.key }));

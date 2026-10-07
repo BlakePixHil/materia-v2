@@ -110,9 +110,13 @@ export const makeUser = (o: Partial<D.User> = {}) =>
     o,
   );
 
-/** A browser's push token (FND-20). The token is a made-up string, not a real FCM token. */
+/** A browser's push token (FND-20, MOB-04). The token is a made-up string, not a real FCM token. */
 export const makeDevice = (o: Partial<D.Device> = {}) =>
-  build(D.Device, { token: 'fake-fcm-token-0001', platform: 'web', lastSeenAt: FIXED_INSTANT }, o);
+  build(
+    D.Device,
+    { token: 'fake-fcm-token-0001', platform: 'web', label: 'Chrome on macOS', lastSeenAt: FIXED_INSTANT },
+    o,
+  );
 
 export const makeTimer = (o: Partial<D.Timer> = {}) =>
   build(

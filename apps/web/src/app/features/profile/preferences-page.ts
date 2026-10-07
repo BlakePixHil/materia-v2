@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { OrgContext } from '@materia/data-access';
 import { myDevicesRepository, orgSettingsReadRepository, type DeviceItem } from '@materia/data-access/repository';
 import {
   DEFAULT_ORG_TIMEZONE,
+  DomainError,
   DEFAULT_QUIET_HOURS,
   DEFAULT_TASK_REMINDER_DAYS,
   TASK_REMINDER_DAYS_MAX,
@@ -33,8 +34,12 @@ import {
 } from '@materia/ui';
 
 import { NotificationMatrix } from './notification-matrix';
+import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { UserPrefsService } from '../../core/profile/user-prefs';
+import { PushDevices, type PushStatus } from '../../core/push/push-devices';
+import { PUSH_BLOCKED_HELP, PushSetup } from '../../core/push/push-setup';
+import { InstallPrompt } from '../../core/pwa/install-prompt';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 
 const THEMES: MtOption<ThemePref>[] = [
@@ -77,12 +82,29 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
   android: 'Android',
 };
 
+/** "This device" in Settings → Devices (MOB-04), by where push stands on it. */
+const THIS_DEVICE: Record<PushStatus, string> = {
+  on: 'Gets push notifications, even when Materia is closed.',
+  off: 'Get deadline alerts and your other push notifications here, even when Materia is closed.',
+  denied: `Notifications are blocked for Materia in this browser. ${PUSH_BLOCKED_HELP}`,
+  install:
+    'On iPhone and iPad, push needs Materia on your Home Screen. Install it, open it from there, and turn this on.',
+  unsupported: 'This browser can’t get push notifications. Try Chrome, Edge, Firefox or Safari.',
+};
+
+/** Why a test push didn't go, by the callable's reason. */
+const TEST_PUSH_FAILURES: Record<string, string> = {
+  no_device: 'That device no longer gets push notifications.',
+  invalid_token: 'That device stopped accepting notifications, so it was removed. Turn push on there again.',
+};
+
 /**
  * Settings → Preferences (`/settings/preferences`, CORE-20; everyone): appearance, the start page,
  * notifications (kinds × channels, how early task reminders come (CORE-11), quiet hours, the daily
  * digest and the time zone they follow),
- * the keyboard shortcuts and the devices that get push notifications. Every change saves at once
- * to `users/{uid}.prefs` (client-direct, so it queues offline) and applies in every open tab.
+ * the keyboard shortcuts and the devices that get push notifications: this one turned on or off
+ * (MOB-04), and a test push to any. Every change saves at once to `users/{uid}.prefs`
+ * (client-direct, so it queues offline) and applies in every open tab.
  */
 @Component({
   selector: 'mt-preferences-page',
@@ -272,9 +294,40 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
 
     <mt-settings-section
       title="Devices"
-      description="Where you get push notifications. Signing a device out here stops its pushes."
+      description="Where you get push notifications. Removing a device stops its pushes."
       [headingLevel]="2"
     >
+      <mt-settings-row
+        title="This device"
+        [description]="thisDeviceText()"
+        data-this-device
+        [attr.data-push]="thisDevice()"
+      >
+        @switch (thisDevice()) {
+          @case ('on') {
+            <button
+              mtButton
+              size="sm"
+              variant="secondary"
+              type="button"
+              [loading]="push.busy()"
+              (click)="setup.turnOff()"
+            >
+              Turn off
+            </button>
+          }
+          @case ('off') {
+            <button mtButton size="sm" variant="primary" type="button" [loading]="push.busy()" (click)="setup.turnOn()">
+              Turn on
+            </button>
+          }
+          @case ('install') {
+            <button mtButton size="sm" variant="secondary" type="button" (click)="installer.install()">
+              How to install
+            </button>
+          }
+        }
+      </mt-settings-row>
       @switch (devices.status()) {
         @case ('loading') {
           <mt-skeleton variant="fields" framed label="Loading devices…" [count]="2" />
@@ -284,10 +337,34 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
         }
         @default {
           @for (device of devices.value(); track device.id) {
-            <mt-settings-row [title]="platform(device)" [description]="'Last seen ' + lastSeen(device)">
-              <button mtButton size="sm" variant="ghost" type="button" (click)="signOutDevice(device)">
-                Sign out of this device
-              </button>
+            <mt-settings-row
+              [title]="deviceTitle(device)"
+              [description]="'Last seen ' + lastSeen(device)"
+              data-device
+              [attr.data-this]="device.id === push.deviceId() ? '' : null"
+            >
+              <div class="mt-row device-actions">
+                <button
+                  mtButton
+                  size="sm"
+                  variant="ghost"
+                  type="button"
+                  [loading]="testing() === device.id"
+                  (click)="sendTest(device)"
+                >
+                  Send a test
+                </button>
+                <button
+                  mtButton
+                  size="sm"
+                  variant="ghost"
+                  type="button"
+                  [attr.aria-label]="'Remove ' + deviceTitle(device)"
+                  (click)="removeDevice(device)"
+                >
+                  Remove
+                </button>
+              </div>
             </mt-settings-row>
           } @empty {
             <p style="margin: 0; color: var(--text-tertiary)">No devices get push notifications yet.</p>
@@ -318,6 +395,11 @@ const PLATFORMS: Record<DeviceItem['platform'], string> = {
     .shortcuts dd {
       margin: 0;
     }
+    .device-actions {
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
   `,
 })
 export class PreferencesPage {
@@ -328,6 +410,19 @@ export class PreferencesPage {
   private readonly org = orgSettingsReadRepository().watch(() => this.context.orgId());
   private readonly deviceRepo = myDevicesRepository();
   protected readonly devices = this.deviceRepo.watchQuery({ orderBy: [['lastSeenAt', 'desc']], pageSize: 20 });
+  private readonly callables = inject(CALLABLES);
+  protected readonly push = inject(PushDevices);
+  protected readonly setup = inject(PushSetup);
+  protected readonly installer = inject(InstallPrompt);
+  /** The device a test push is going to. */
+  protected readonly testing = signal<string | null>(null);
+  /** Push on this browser; `on` only while the device is still listed (another device may remove it). */
+  protected readonly thisDevice = computed<PushStatus>(() => {
+    const status = this.push.status();
+    if (status !== 'on' || this.devices.status() !== 'ready') return status;
+    return this.devices.value().some((device) => device.id === this.push.deviceId()) ? 'on' : 'off';
+  });
+  protected readonly thisDeviceText = computed(() => THIS_DEVICE[this.thisDevice()]);
 
   protected readonly themes = THEMES;
   protected readonly densities = DENSITIES;
@@ -380,8 +475,13 @@ export class PreferencesPage {
       .catch((error: unknown) => this.failed(error));
   }
 
-  protected platform(device: DeviceItem): string {
-    return PLATFORMS[device.platform] ?? 'Device';
+  constructor() {
+    void this.push.load();
+  }
+
+  protected deviceTitle(device: DeviceItem & { id: string }): string {
+    const name = device.label || PLATFORMS[device.platform] || 'Device';
+    return device.id === this.push.deviceId() ? `${name} (this device)` : name;
   }
 
   protected lastSeen(device: DeviceItem): string {
@@ -389,12 +489,33 @@ export class PreferencesPage {
     return at instanceof Date ? at.toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' }) : 'unknown';
   }
 
-  protected async signOutDevice(device: DeviceItem & { id: string }): Promise<void> {
+  /** Stops pushes to a device; removing this one also turns push off here. */
+  protected async removeDevice(device: DeviceItem & { id: string }): Promise<void> {
+    if (device.id === this.push.deviceId()) return this.setup.turnOff();
     try {
       await this.deviceRepo.hardDelete(device.id);
-      this.toasts.show({ title: 'Device signed out of push notifications', tone: 'success' });
+      this.toasts.show({ title: 'Device removed from push notifications', tone: 'success' });
     } catch (error) {
-      this.toasts.show({ title: 'The device wasn’t signed out', description: errorCopy(error), tone: 'danger' });
+      this.toasts.show({ title: 'The device wasn’t removed', description: errorCopy(error), tone: 'danger' });
+    }
+  }
+
+  /** A test push to one device (`notifications-testPush`, MOB-04). */
+  protected async sendTest(device: DeviceItem & { id: string }): Promise<void> {
+    this.testing.set(device.id);
+    try {
+      await this.callables.call('notifications-testPush', { deviceId: device.id });
+      this.toasts.show({
+        title: 'Test sent',
+        description: `It should reach ${device.label || 'the device'} in a few seconds.`,
+        tone: 'success',
+      });
+    } catch (error) {
+      const reason = error instanceof DomainError ? error.details?.['reason'] : undefined;
+      const description = (typeof reason === 'string' && TEST_PUSH_FAILURES[reason]) || errorCopy(error);
+      this.toasts.show({ title: 'The test didn’t send', description, tone: 'danger' });
+    } finally {
+      this.testing.set(null);
     }
   }
 

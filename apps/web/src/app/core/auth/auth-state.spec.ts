@@ -1,11 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, type UrlTree } from '@angular/router';
 
+import { DataLifecycle } from '@materia/data-access';
+
 import { AUTH_PORT, AuthFlowError, lazyFirebaseAuthPort, type AuthPort } from './auth-port';
 import { AuthState, clearFirestoreCaches, SIGN_OUT_CLEANUP, statusOf } from './auth-state';
 import { authErrorCode } from './firebase-auth-port';
 import { authGuard, mfaGuard, orgGuard, roleGuard, signedOutGuard, STATUS_ROUTES, unverifiedGuard } from './guards';
 import { FakeAuthPort, SlowAuthPort, testSession } from './testing';
+import { PushDevices } from '../push/push-devices';
 
 function setup(port = new FakeAuthPort(), cleanups: (() => void)[] = []) {
   TestBed.configureTestingModule({
@@ -137,6 +140,41 @@ describe('AuthState', () => {
     expect(calls).toEqual(['a', 'c']);
     expect(port.session).toBeNull();
     expect(localStorage.getItem('materia.commands.recent')).toBeNull();
+  });
+});
+
+describe('SIGN_OUT_CLEANUP', () => {
+  function cleanups(pushSignOut: () => Promise<void>) {
+    const calls: string[] = [];
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: PushDevices, useValue: { signOut: () => (calls.push('push'), pushSignOut()) } },
+        { provide: DataLifecycle, useValue: { signOut: async () => void calls.push('data') } },
+      ],
+    });
+    return { calls, run: TestBed.inject(SIGN_OUT_CLEANUP) };
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('deletes this browser’s push device before the data layer closes Firestore (MOB-04)', async () => {
+    vi.stubGlobal('PushManager', Object);
+    const { calls, run } = cleanups(async () => undefined);
+    for (const cleanup of run) await cleanup();
+    expect(calls).toEqual(['push', 'data']);
+  });
+
+  it('carries on when the push device can’t be deleted', async () => {
+    vi.stubGlobal('PushManager', Object);
+    const { calls, run } = cleanups(() => Promise.reject(new Error('offline')));
+    for (const cleanup of run) await cleanup();
+    expect(calls).toEqual(['push', 'data']);
+  });
+
+  it('skips push in a browser that can’t get push notifications', async () => {
+    const { calls, run } = cleanups(async () => undefined);
+    for (const cleanup of run) await cleanup();
+    expect(calls).toEqual(['data']);
   });
 });
 

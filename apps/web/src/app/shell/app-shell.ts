@@ -7,6 +7,7 @@ import {
   DOCUMENT,
   effect,
   inject,
+  Injector,
   signal,
   untracked,
   viewChild,
@@ -71,6 +72,8 @@ import { ClerkChatPanel } from '../features/clerk/clerk-chat-panel';
 export const SIDEBAR_STORAGE_PREFIX = 'materia.shell.sidebar-collapsed.';
 /** Where the collapsed-Pinned-section choice is kept, per user (CORE-23). */
 export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
+/** How long after the shell opens this device's push registration is refreshed (MOB-04). */
+const PUSH_REFRESH_DELAY_MS = 8000;
 
 /**
  * The app shell (FND-12): sidebar, inset main panel with the header (breadcrumbs, page actions and
@@ -635,6 +638,18 @@ export class AppShellComponent {
 
     const cleanups = [...this.registerShortcuts(), ...this.registerCommands()];
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+
+    // This device's push registration (MOB-04) keeps its token and last-seen date fresh, once the
+    // first page has settled. Loaded then, so push stays off the start-up path.
+    const injector = inject(Injector);
+    const refresh = setTimeout(
+      () =>
+        void import('../core/push/push-devices')
+          .then(({ PushDevices }) => injector.get(PushDevices).refresh())
+          .catch(() => undefined),
+      PUSH_REFRESH_DELAY_MS,
+    );
+    destroyRef.onDestroy(() => clearTimeout(refresh));
 
     // The installed app's "New time entry" shortcut (MOB-01) opens quick time entry over Today.
     onIntent(

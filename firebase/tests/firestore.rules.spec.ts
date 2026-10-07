@@ -2042,6 +2042,7 @@ describe('notifications (FND-20)', () => {
   const device = (uid: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
     token: 'fake-fcm-token-rules',
     platform: 'web',
+    label: 'Chrome on macOS',
     lastSeenAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     createdBy: uid,
@@ -2083,6 +2084,8 @@ describe('notifications (FND-20)', () => {
       { token: 'x'.repeat(4097) },
       { token: 42 },
       { platform: 'fax' },
+      { label: '' },
+      { label: 'x'.repeat(81) },
       { lastSeenAt: '2026-10-05' },
       { createdBy: 'someone-else' },
       { updatedBy: 'someone-else' },
