@@ -8,6 +8,7 @@ import {
   ElementRef,
   inject,
   Injector,
+  signal,
   untracked,
   ViewEncapsulation,
 } from '@angular/core';
@@ -15,12 +16,23 @@ import { RouterLink } from '@angular/router';
 
 import { can } from '@materia/data-access';
 import type { OnboardingStep } from '@materia/domain';
-import { formatAud, MT_TODAY, MtBadge, MtButton, MtEmptyState, MtIcon, MtNote, MtSkeleton } from '@materia/ui';
+import {
+  formatAud,
+  MT_TODAY,
+  MtBadge,
+  MtButton,
+  MtEmptyState,
+  MtIcon,
+  MtNote,
+  MtPullToRefresh,
+  MtSkeleton,
+} from '@materia/ui';
 
 import { MONTH_ENTRY_LIMIT, TodayData } from './today-data';
 import { TodayAttention, TodayDue, TodayRecent, TodayTasks } from './today-sections';
 import { timeZoneHintText, TODAY_COPY } from './today-view';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { PhoneLayout } from '../../core/layout/phone-layout';
 import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
 import { MtPageActions } from '../../shell/page-header';
@@ -30,6 +42,8 @@ import { TaskActions } from '../tasks/task-actions';
 
 /** How long focus waits for a completed task to leave the list. */
 const REFOCUS_MS = 5000;
+/** How long pull to refresh says "Refreshing…": the reads are usually quicker than that. */
+const PULL_REFRESH_MS = 800;
 
 const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; action: string }>> = {
   matter: { link: '/matters/new', action: 'Create a matter' },
@@ -78,6 +92,7 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
     MtIcon,
     MtNote,
     MtPageActions,
+    MtPullToRefresh,
     MtSkeleton,
     RouterLink,
     TodayAttention,
@@ -94,6 +109,9 @@ const ONBOARDING_LINKS: Partial<Record<OnboardingStep['id'], { link: string; act
       }
     </ng-template>
 
+    @if (phone()) {
+      <mt-pull-refresh [refreshing]="refreshing()" (refresh)="pullRefresh()" />
+    }
     <header class="head">
       <span class="eyebrow t-3" data-today-date>{{ data.dateLabel() }}</span>
       <h1 class="display">{{ data.greeting() }}</h1>
@@ -416,6 +434,9 @@ export class TodayPage {
   private readonly injector = inject(Injector);
   protected readonly copy = TODAY_COPY;
   protected readonly monthLimit = MONTH_ENTRY_LIMIT;
+  /** Phones get pull to refresh (MOB-02). */
+  protected readonly phone = inject(PhoneLayout).phone;
+  protected readonly refreshing = signal(false);
   /** The checklist, each open step with where it's done. */
   protected readonly onboarding = computed(() =>
     this.data
@@ -476,6 +497,14 @@ export class TodayPage {
       }),
     ];
     inject(DestroyRef).onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
+  }
+
+  /** Pull to refresh: reads the sections again, as coming back to the tab does. */
+  protected pullRefresh(): void {
+    if (this.refreshing()) return;
+    this.refreshing.set(true);
+    this.data.refresh(true);
+    setTimeout(() => this.refreshing.set(false), PULL_REFRESH_MS);
   }
 
   protected hintText(hint: { org: string; device: string }): string {

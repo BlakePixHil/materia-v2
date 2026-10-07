@@ -420,6 +420,19 @@ describe('today', () => {
     expect(focused(page)).toBe('Draft the will');
   });
 
+  it('snoozes one of my tasks to tomorrow from its row, with an Undo (MOB-02)', async () => {
+    const page = await openToday({ configure: busyDay });
+    const due = () => (page.firestore.get(`${MATTER}/tasks/t-late`) as Seed)['dueDate'];
+    await page.click('Snooze to tomorrow: Chase the bank valuation');
+    await page.stable(20);
+    // Monday 5 October in Melbourne, so due Tuesday.
+    expect(due()).toBe('2026-10-06');
+    expect(page.text(page.body.querySelector('.mt-toast'))).toContain('Snoozed to tomorrow');
+    await page.click('Undo');
+    await page.stable(20);
+    expect(due()).toBe('2026-09-30');
+  });
+
   it('lists a critical deadline escalated to me, and acknowledges it (CORE-11)', async () => {
     const escalated = (fs: Fs) => {
       busyDay(fs);

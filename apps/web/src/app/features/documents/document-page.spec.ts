@@ -1,4 +1,4 @@
-import { DOWNLOAD_NAVIGATOR } from './document-actions';
+import { DOWNLOAD_NAVIGATOR, FILE_FETCHER, SHARE_MAX_BYTES, WEB_SHARE, type WebShare } from './document-actions';
 import { detailsProblem } from './document-details';
 import { PREVIEW_UNAVAILABLE, TEXT_PREVIEW_MAX } from './document-preview';
 import { DOCUMENT_CATEGORIES } from './documents-view';
@@ -83,6 +83,33 @@ interface ViewerOptions {
   docs?: Record<string, Seed>;
   callables?: Record<string, FakeCallable>;
   pdf?: ReturnType<typeof fakePdfJs>;
+  /** The device's share sheet (none by default, as on most desktops). */
+  share?: WebShare | null;
+}
+
+/** A file's text (jsdom's `File` has no `text()`). */
+function readText(blob: Blob | undefined): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => resolve('');
+    if (blob) reader.readAsText(blob);
+    else resolve('');
+  });
+}
+
+/** A share sheet that records what it was given, and fails the way `fail` names. */
+function fakeShare(fail?: () => string | undefined) {
+  const shared: ShareData[] = [];
+  const share: WebShare = {
+    canShare: (data) => !!data.files?.length,
+    share: async (data) => {
+      const name = fail?.();
+      if (name) throw Object.assign(new Error(name), { name });
+      shared.push(data);
+    },
+  };
+  return { share, shared };
 }
 
 /** Opens a document in the viewer with the fakes wired in. */
@@ -100,6 +127,8 @@ async function view(url: string, options: ViewerOptions = {}) {
       { provide: PDFJS_LOADER, useValue: pdf.load },
       { provide: DOWNLOAD_NAVIGATOR, useValue: (href: string) => downloads.push(href) },
       { provide: UPLOAD_PORT, useValue: uploads },
+      { provide: WEB_SHARE, useValue: options.share ?? null },
+      { provide: FILE_FETCHER, useValue: (url: string) => Promise.resolve(new Blob([`bytes of ${url}`])) },
     ],
   });
   await settle(page);
@@ -303,6 +332,115 @@ describe('document viewer', () => {
     await page.click('Download', head);
     await settle(page);
     expect(page.downloads).toEqual(['https://files.example.test/d-will/v2/download?X-Goog-Expires=300']);
+  });
+
+  it('shares the file itself through the device’s share sheet, never the link (MOB-02)', async () => {
+    const device = fakeShare();
+    const page = await view(`${BASE}/d-will`, { share: device.share });
+    const head = page.body.querySelector<HTMLElement>('mt-document-page .head') as HTMLElement;
+    await page.click('Share', head);
+    await settle(page);
+    expect(getUrlCalls(page).at(-1)).toEqual(
+      expect.objectContaining({ docId: 'd-will', version: 2, rendition: 'original' }),
+    );
+    expect(device.shared).toHaveLength(1);
+    const [file] = device.shared[0]?.files ?? [];
+    expect(file?.name).toBe('Will of Margaret Whitfield.pdf');
+    expect(file?.type).toBe('application/pdf');
+    expect(await readText(file)).toBe('bytes of https://files.example.test/d-will/v2/original?X-Goog-Expires=300');
+    expect(device.shared[0]?.url).toBeUndefined();
+    // Again: the file is already read.
+    const reads = getUrlCalls(page).length;
+    await page.click('Share', head);
+    await settle(page);
+    expect(device.shared).toHaveLength(2);
+    expect(getUrlCalls(page)).toHaveLength(reads);
+  });
+
+  it('asks for one more tap when reading the file took too long to share at once', async () => {
+    let failures = ['NotAllowedError'];
+    const device = fakeShare(() => failures.shift());
+    const page = await view(`${BASE}/d-will`, { share: device.share });
+    await page.click('Share', page.body.querySelector('mt-document-page .head') ?? page.body);
+    await settle(page);
+    const toast = page.body.querySelector<HTMLElement>('.mt-toast') as HTMLElement;
+    expect(page.text(toast)).toContain('Ready to share');
+    await page.click('Share', toast);
+    await settle(page);
+    expect(device.shared).toHaveLength(1);
+
+    // Closing the share sheet says nothing.
+    failures = ['AbortError'];
+    cleanUpOverlays();
+    await page.click('Share', page.body.querySelector('mt-document-page .head') ?? page.body);
+    await settle(page);
+    expect(page.body.querySelector('.mt-toast')).toBeNull();
+  });
+
+  it('downloads instead of sharing a file too big for the share sheet', async () => {
+    const big = will({
+      versions: [storedVersion('d-will', 2, 'Will of Margaret Whitfield.pdf', { sizeBytes: SHARE_MAX_BYTES + 1 })],
+    });
+    const device = fakeShare();
+    const page = await view(`${BASE}/d-will`, { share: device.share, docs: { 'd-will': big } });
+    await page.click('Share', page.body.querySelector('mt-document-page .head') ?? page.body);
+    await settle(page);
+    expect(device.shared).toEqual([]);
+    expect(page.downloads).toEqual(['https://files.example.test/d-will/v2/download?X-Goog-Expires=300']);
+  });
+
+  it('offers no Share on a device without a share sheet', async () => {
+    const page = await view(`${BASE}/d-will`);
+    expect(page.body.querySelector('mt-document-page [data-share]')).toBeNull();
+    expect(page.buttons('Download', page.body.querySelector('mt-document-page .head') ?? page.body)).toHaveLength(1);
+  });
+
+  it('zooms a PDF with the buttons, the keyboard and a pinch, and redraws it sharp (MOB-02)', async () => {
+    const page = await view(`${BASE}/d-will`);
+    const viewer = page.body.querySelector<HTMLElement>('mt-pdf-viewer') as HTMLElement;
+    const pages = viewer.querySelector<HTMLElement>('.pages') as HTMLElement;
+    const zoom = () => pages.style.getPropertyValue('--mt-pdf-zoom');
+    const fit = () => viewer.querySelector<HTMLButtonElement>('[data-zoom-fit]') as HTMLButtonElement;
+    expect(page.text(fit())).toBe('100%');
+    expect(fit().disabled).toBe(true);
+    expect(viewer.querySelector<HTMLButtonElement>('[data-zoom-out]')?.disabled).toBe(true);
+    const drawn = page.pdf.rendered.length;
+
+    await page.click('Zoom in', viewer);
+    await page.click('Zoom in', viewer);
+    expect(zoom()).toBe('1.5');
+    expect(fit().getAttribute('aria-label')).toBe('Zoom 150%. Fit to width');
+    await page.stable(300);
+    await settle(page);
+    // The pages in view redraw at the new size.
+    expect(page.pdf.rendered.length).toBe(drawn + 3);
+    expect(viewer.querySelectorAll('.page canvas')).toHaveLength(3);
+
+    await page.press('-', {}, pages);
+    expect(zoom()).toBe('1.25');
+    await page.press('0', {}, pages);
+    expect(zoom()).toBe('1');
+
+    // Two fingers spreading to twice as far apart: 200%.
+    const fingers = (type: string, apart: number) => {
+      const event = new Event(type);
+      const touches = [
+        { clientX: 100, clientY: 200 },
+        { clientX: 100 + apart, clientY: 200 },
+      ];
+      Object.defineProperty(event, 'touches', { value: type === 'touchend' ? [] : touches });
+      pages.dispatchEvent(event);
+    };
+    fingers('touchstart', 100);
+    fingers('touchmove', 200);
+    fingers('touchend', 200);
+    await page.stable();
+    expect(zoom()).toBe('2');
+    fingers('touchstart', 100);
+    fingers('touchmove', 1000);
+    await page.stable();
+    expect(zoom()).toBe('3');
+    expect(viewer.querySelector<HTMLButtonElement>('[data-zoom-in]')?.disabled).toBe(true);
   });
 
   it('says why a download failed', async () => {

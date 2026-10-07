@@ -17,7 +17,6 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { NgpPopover, NgpPopoverTrigger } from 'ng-primitives/popover';
 import { filter, map } from 'rxjs';
 
-import { DataLifecycle } from '@materia/data-access';
 import { UNREAD_BADGE_LIMIT } from '@materia/data-access/repository';
 import { can, type Action } from '@materia/domain';
 import {
@@ -37,24 +36,24 @@ import {
   MtNavItem,
   MtNote,
   MtTabBar,
-  ThemeService,
-  ToastService,
+  type MtTabBarItem,
 } from '@materia/ui';
 
 import { MtLoadingBar } from './loading-bar';
-import { NAV_ITEMS, type NavEntry, SETTINGS_ITEM, TAB_BAR_ITEMS } from './nav';
+import { NAV_ITEMS, type NavEntry, SETTINGS_ITEM, TAB_BAR_ITEMS, TAB_ROOTS } from './nav';
 import { PageHeader } from './page-header';
 import { ShortcutsDialog } from './shortcuts-dialog';
+import { AccountActions } from '../core/account/account-actions';
 import { AuthState } from '../core/auth/auth-state';
 import { MtMfaGraceBanner } from '../core/auth/mfa-grace-banner';
 import { ClerkPanel } from '../core/clerk/clerk-panel';
 import { CommandRegistry, type Command } from '../core/commands/command-registry';
 import { intentUrl, onIntent } from '../core/commands/intents';
-import { errorCopy } from '../core/error-copy';
 import { FeatureFlagService } from '../core/flags/feature-flags';
+import { PhoneLayout } from '../core/layout/phone-layout';
 import { MtNotificationsPopover } from '../core/notifications/notifications-popover';
 import { NotificationsStore } from '../core/notifications/notifications-store';
-import { OfflineError, OrgService } from '../core/orgs/org-service';
+import { OrgService } from '../core/orgs/org-service';
 import { PinnedMatters } from '../core/pins/pinned-matters';
 import { UserPrefsService } from '../core/profile/user-prefs';
 import { InstallPrompt, INSTALL_COPY } from '../core/pwa/install-prompt';
@@ -72,13 +71,13 @@ export const SIDEBAR_STORAGE_PREFIX = 'materia.shell.sidebar-collapsed.';
 /** Where the collapsed-Pinned-section choice is kept, per user (CORE-23). */
 export const PINS_STORAGE_PREFIX = 'materia.shell.pins-collapsed.';
 
-/** Phones get the TabBar instead of the sidebar (MOB-02 refines this). */
-export const MOBILE_QUERY = '(max-width: 767px)';
-
 /**
  * The app shell (FND-12): sidebar, inset main panel with the header (breadcrumbs, page actions and
- * the loading bar), and the Clerk panel (its chat, AI-06, loads the first time it opens). Under 768px
- * the TabBar replaces the sidebar.
+ * the loading bar), and the Clerk panel (its chat, AI-06, loads the first time it opens).
+ *
+ * Under 768px (MOB-02) the TabBar replaces the sidebar, and the header is compact: a back button to
+ * the page above (or my avatar, which opens More, on a tab's own page) and the page's name, cut short
+ * when it doesn't fit. It sticks to the top, clear of the notch.
  *
  * Registers the global shortcuts (⌘K, [, ⌘J, ?, `g` + key) and the built-in commands.
  */
@@ -321,7 +320,18 @@ export const MOBILE_QUERY = '(max-width: 767px)';
       <main class="mt-main" id="main" tabindex="-1">
         <mt-loading-bar />
         <div class="mt-topbar">
-          <mt-breadcrumb [items]="crumbs()" />
+          @if (mobile()) {
+            @if (back(); as up) {
+              <a mtIconButton icon="chevron-left" data-back [routerLink]="up.link" [label]="'Back to ' + up.label"></a>
+            } @else {
+              <a class="mt-topbar-me" routerLink="/more" [attr.aria-label]="'More, and your account: ' + userName()">
+                <mt-avatar [name]="userName()" [colorKey]="userId()" [src]="avatarUrl()" size="sm" />
+              </a>
+            }
+            <span class="mt-topbar-title mt-ell" [class.mono]="!!pageTitle()?.ref">{{ pageTitle()?.label }}</span>
+          } @else {
+            <mt-breadcrumb [items]="crumbs()" />
+          }
           <div class="mt-ml mt-row" style="gap: 6px">
             <!-- Changes saved on this device that haven't synced yet (MOB-01). -->
             <mt-pending-sync />
@@ -459,13 +469,12 @@ export class AppShellComponent {
   private readonly shortcuts = inject(ShortcutService);
   private readonly commands = inject(CommandRegistry);
   private readonly dialogs = inject(DialogService);
-  private readonly theme = inject(ThemeService);
   /** The person's profile and preferences (CORE-20): applies their theme and density as they load. */
   private readonly userPrefs = inject(UserPrefsService);
   private readonly document = inject(DOCUMENT);
   private readonly orgs = inject(OrgService);
-  private readonly toasts = inject(ToastService);
-  private readonly data = inject(DataLifecycle);
+  /** Sign out, switch org and theme: the same from the user menu and the phone's More tab. */
+  private readonly account = inject(AccountActions);
   protected readonly header = inject(PageHeader);
   /** Unread in-app notifications (FND-20). */
   protected readonly notifications = inject(NotificationsStore);
@@ -483,9 +492,16 @@ export class AppShellComponent {
   protected readonly orgChoices = this.orgs.orgs;
 
   protected readonly settings = SETTINGS_ITEM;
-  protected readonly tabBarItems = computed(() =>
-    TAB_BAR_ITEMS.map((item) => (item.link === '/inbox' ? { ...item, count: this.notifications.count() } : item)),
-  );
+  protected readonly tabBarItems = computed((): MtTabBarItem[] => {
+    const path = this.path();
+    const underTab = TAB_ROOTS.some((root) => path === root || path.startsWith(root + '/'));
+    return TAB_BAR_ITEMS.map((item) => {
+      if (item.link === '/inbox') return { ...item, count: this.notifications.count() };
+      // Pages reached from More (Contacts, Settings…) keep More current.
+      if (item.link === '/more') return { ...item, active: !underTab };
+      return item;
+    });
+  });
   private readonly flags = inject(FeatureFlagService);
   /** Settings → Templates (CORE-07): owners and admins, while matter templates are on. */
   /** Matter numbering settings (CORE-21a): owners and admins. */
@@ -508,9 +524,7 @@ export class AppShellComponent {
   );
   protected readonly avatarUrl = computed(() => this.userPrefs.profile.value()?.avatarUrl ?? null);
   protected readonly orgName = computed(() => this.auth.user()?.orgName ?? 'Materia');
-  protected readonly themeLabel = computed(() =>
-    this.theme.resolved() === 'dark' ? 'Use light theme' : 'Use dark theme',
-  );
+  protected readonly themeLabel = this.account.themeLabel;
 
   readonly collapsed = signal(false);
   /** Whether the Pinned section is expanded (remembered per user). */
@@ -521,7 +535,8 @@ export class AppShellComponent {
   readonly clerkOpen = this.clerk.open;
   /** The page's subject Clerk is asked about (a matter), if any. */
   protected readonly clerkScope = this.clerk.scope;
-  readonly mobile = signal(false);
+  /** Phone-sized: the TabBar and the compact header (MOB-02). */
+  readonly mobile = inject(PhoneLayout).phone;
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -567,6 +582,28 @@ export class AppShellComponent {
     this.url();
     return routeCrumbs(this.router.routerState.snapshot.root, (id) => this.matterRefs.label(id));
   });
+  /** The URL's path, without the query or fragment. */
+  private readonly path = computed(() => this.url().split(/[?#]/)[0] ?? '');
+  /** The phone header's crumbs: a matter's Overview is the matter itself (its number, back to Matters). */
+  private readonly phoneCrumbs = computed(() => {
+    const crumbs = this.crumbs();
+    const matter = crumbs.at(-2);
+    return matter?.ref && this.path() === `${matter.link}/overview` ? crumbs.slice(0, -1) : crumbs;
+  });
+  /** The phone header's title: the page's own crumb. */
+  protected readonly pageTitle = computed(() => this.phoneCrumbs().at(-1) ?? null);
+  /**
+   * Where the phone header's back button goes: the page above in the crumbs, or More for a page
+   * reached from it. A tab's own page has none (my avatar opens More instead).
+   */
+  protected readonly back = computed((): { label: string; link: string } | null => {
+    const crumbs = this.phoneCrumbs();
+    const parent = crumbs.at(-2);
+    if (parent) return { label: parent.label, link: parent.link };
+    const path = this.path();
+    if (path === '/more' || TAB_ROOTS.includes(path) || path === '/') return null;
+    return { label: 'More', link: '/more' };
+  });
 
   private paletteOpen = false;
   private shortcutsOpen = false;
@@ -583,14 +620,6 @@ export class AppShellComponent {
         this.pinsOpen.set(!readFlag(PINS_STORAGE_PREFIX + uid));
       });
     });
-
-    const media = this.document.defaultView?.matchMedia?.(MOBILE_QUERY);
-    if (media) {
-      this.mobile.set(media.matches);
-      const onChange = (event: MediaQueryListEvent) => this.mobile.set(event.matches);
-      media.addEventListener('change', onChange);
-      destroyRef.onDestroy(() => media.removeEventListener('change', onChange));
-    }
 
     const cleanups = [...this.registerShortcuts(), ...this.registerCommands()];
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
@@ -620,46 +649,18 @@ export class AppShellComponent {
     this.clerk.toggle();
   }
 
-  /**
-   * Signs out (clearing cached data) and returns to sign-in. Edits made offline that haven't
-   * reached the server yet would be lost, so the person can choose to wait for them (FND-19).
-   */
-  async signOut(): Promise<void> {
-    if (await this.data.hasUnsyncedChanges()) {
-      const discard = await this.dialogs.confirm({
-        title: 'You have unsynced changes',
-        body: 'Some changes you made offline haven’t reached Materia yet. If you sign out now, they’re lost.',
-        confirmLabel: 'Sign out anyway',
-        cancelLabel: 'Wait for them to sync',
-        tone: 'danger',
-      });
-      if (!discard) {
-        void this.data
-          .waitForSync()
-          .then(() => this.toasts.show({ title: 'Your changes are synced', tone: 'success' }));
-        return;
-      }
-    }
-    await this.auth.signOut();
-    await this.router.navigateByUrl('/auth/sign-in');
+  /** Signs out, after a warning when changes made offline haven't synced (FND-19). */
+  signOut(): Promise<void> {
+    return this.account.signOut();
   }
 
   /** Switches the active org; the page then reloads on Today (FND-17). Blocked while offline. */
-  async switchOrg(orgId: string, active: boolean): Promise<void> {
-    if (active) return;
-    try {
-      await this.orgs.switchOrg(orgId);
-    } catch (error) {
-      this.toasts.show({
-        title: error instanceof OfflineError ? error.message : errorCopy(error),
-        tone: 'danger',
-      });
-    }
+  switchOrg(orgId: string, active: boolean): Promise<void> {
+    return this.account.switchOrg(orgId, active);
   }
 
   toggleTheme(): void {
-    // Saved to the profile too, so it follows the person to other tabs and devices (CORE-20).
-    void this.userPrefs.save({ theme: this.theme.resolved() === 'dark' ? 'light' : 'dark' }).catch(() => undefined);
+    this.account.toggleTheme();
   }
 
   /** Opens the ⌘K palette on top of whatever is open; focus returns to the opener on close. */

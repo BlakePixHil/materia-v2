@@ -1,2 +1,6 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-topbar). Regenerate with `pnpm materia-scripts sync-design`. */
 .mt-topbar { display: flex; align-items: center; gap: var(--space-8); height: var(--topbar); padding: 0 var(--space-12) 0 var(--space-20); border-bottom: 1px solid var(--border-default); flex: none; }
+.mt-topbar-title { flex: 1; min-width: 0; text-align: center; font: 600 16px/22px var(--font-sans); color: var(--text-primary); }
+.mt-topbar-title.mono { font: 500 15px/22px var(--font-mono); }
+.mt-topbar-me { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: var(--radius-full); text-decoration: none; outline: none; }
+.mt-topbar-me:focus-visible { box-shadow: var(--focus-ring); }

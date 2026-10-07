@@ -226,9 +226,19 @@ const shellRoutes: Route[] = [
       },
     ],
   },
-  // The installed app's Record shortcut (MOB-01) opens /record: Time & billing until the phone's
-  // Record screen (MOB-02) takes the path.
-  { path: 'record', pathMatch: 'full', redirectTo: 'billing' },
+  // Record (MOB-02): the phone's capture screen, the TabBar's centre button and the installed app's
+  // Record shortcut (MOB-01).
+  {
+    path: 'record',
+    title: 'Record',
+    loadComponent: () => import('./features/record/record-page').then((m) => m.RecordPage),
+  },
+  // More (MOB-02): on a phone, the account and every destination the TabBar has no room for.
+  {
+    path: 'more',
+    title: 'More',
+    loadComponent: () => import('./features/more/more-page').then((m) => m.MorePage),
+  },
   // My time, WIP by matter and approvals (BILL-03).
   {
     path: 'billing',

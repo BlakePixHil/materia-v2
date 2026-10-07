@@ -409,6 +409,8 @@ comp("Citation", "Clerk", 110, """
 Points from a Clerk claim to its source: a document and pinpoint, an email, or a provision. Opens the source at that spot in a side panel.
 
 Format: `Source · pinpoint` in mono (“Will · cl. 6”, “APA 1958 (Vic) s 99”, “File note 14 Aug”). Numbered when the text uses superscripts.
+
+On a phone (under 768px) each chip is at least 44px tall, at 12px, with 8px between chips, so a finger can open one source without catching the next.
 """, cite("Will · cl. 6", 1) + cite("Death certificate") + cite("Administration and Probate Act 1958 (Vic) s 99") + cite("Email · K. Ho 30 Sep") + cite("Westpac statement p 3"))
 
 comp("Suggestion", "Clerk", 170, """
@@ -439,13 +441,20 @@ A matter on a board: status glyph and ref, the estate’s name, type, next deadl
 Cards are 12px padded on `bg-surface` with `border-default`; hover lifts the border to `border-strong`. Names wrap to two lines, never truncate mid-word.
 """, '<div class="mt-row" style="gap:12px;align-items:flex-start"><div style="width:280px">' + matter_card("WE-142", "Estate of Margaret Whitfield", "probate", ("active", .25), "Notice", deadline("Today", "today"), avatar("JP") + avatar("PS", hue="2"), "Publish the notice today so filing can open 16 Oct.") + '</div><div style="width:280px">' + matter_card("WE-097", "Nguyen v Nguyen", "fp", ("blocked", 0), "Mediation", deadline("Overdue 2d", "overdue"), avatar("DK", hue="3")) + "</div></div>", canvas=True)
 
-comp("TaskRow", "Matter patterns", 210, """
+comp("TaskRow", "Matter patterns", 330, """
 # TaskRow
 
 A to-do on Today or a matter: checkbox, title, the matter it belongs to, due date and owner.
 
 Done tasks strike through in `text-tertiary`. Clerk-proposed tasks use Suggestion until accepted. Rows are 40px minimum.
-""", '<div class="mt-col" style="gap:2px;width:620px">' + task("Send estate asset questionnaire to executors", "Estate of Margaret Whitfield", deadline("Today", "today") + avatar("JP")) + task("Search for next of kin for the Fairweather intestacy", "Estate of Doris Fairweather", deadline("Mon 12 Oct", "upcoming") + avatar("PS", hue="2")) + task("Obtain original will from safe custody", "Estate of George Lambert", deadline("Done 2 Oct", "done") + avatar("JP"), True) + "</div>")
+
+**Snooze.** Where a row can be moved (Today's My tasks), a “Snooze to tomorrow” icon button shows on hover or focus, and always on touch screens. It moves the due date to tomorrow in the practice's time zone, with Undo in the toast.
+
+**Swipe (phones).** Swipe right past 72px to finish the task and left to snooze it, each with Undo. The row follows the finger, says what letting go will do (“Done” on green, “Tomorrow” on amber) and springs back if it isn't far enough. Vertical scrolls, short drags and the mouse are left alone; with reduced motion the row doesn't animate back.
+""", '<div class="mt-col" style="gap:2px;width:620px">' + task("Send estate asset questionnaire to executors", "Estate of Margaret Whitfield", deadline("Today", "today") + avatar("JP")) + task("Search for next of kin for the Fairweather intestacy", "Estate of Doris Fairweather", deadline("Mon 12 Oct", "upcoming") + avatar("PS", hue="2")) + task("Obtain original will from safe custody", "Estate of George Lambert", deadline("Done 2 Oct", "done") + avatar("JP"), True)
+    + task("Call the bank about the estate account", "Estate of Margaret Whitfield", deadline("Today", "today") + avatar("JP")).replace('<div class="mt-task">', '<div class="mt-task" data-swipeable data-swipe="done" style="--mt-swipe:96px">', 1)
+    + task("Chase the valuer for the Toorak house", "Estate of Robert Chen", deadline("Today", "today") + avatar("JP")).replace('<div class="mt-task">', '<div class="mt-task" data-swipeable data-swipe="snooze" style="--mt-swipe:-96px">', 1)
+    + "</div>")
 
 comp("Timeline", "Matter patterns", 290, """
 # Timeline
@@ -464,13 +473,17 @@ Manual entries are solid. Clerk-captured entries are dashed `border-ai` with the
 """, '<div class="mt-col" style="gap:8px;width:600px">' + time_entry("Drafted probate application and affidavit", "WE-142 · Whitfield · 1 Oct", "1.8 h", "$792.00") + time_entry("Emails with executor re: asset schedule", "3 emails · 10:42–11:05 · WE-142", "0.4 h", "$176.00", "mail", True) + time_entry("Conference with Ms Okafor re: attorneys", "Calendar · 25 min · WE-151", "0.5 h", "Fixed fee", "calendar", True) + "</div>")
 
 STAGES = ["Intake", "Will & assets", "Notice", "Filed", "Grant", "Collect", "Debts & tax", "Distribute", "Finalise"]
-comp("EstateStepper", "Matter patterns", 110, """
+comp("EstateStepper", "Matter patterns", 190, """
 # EstateStepper
 
 The nine stages of a deceased estate, under the matter title. Done stages fill blue; the current stage is half-filled and its label is primary.
 
 Stages: Intake · Will & assets · Notice · Filed · Grant · Collect · Debts & tax · Distribute · Finalise. Letters of administration uses the same track; family provision claims use their own (Instructions · Notice · Filed · Mediation · Hearing · Orders).
-""", '<ol class="mt-stepper" style="width:100%">' + "".join(f'<li data-state="{"done" if i < 2 else "current" if i == 2 else ""}">{s}</li>' for i, s in enumerate(STAGES)) + "</ol>", col=True)
+
+**Phones** (under 768px, `compact`): nine labels don't fit side by side, so the track keeps its segments without labels and the current stage is named under it: “Stage 3 of 9 · Notice”. Where the stage can be changed, that line is a 44px ghost button whose menu lists the stages, with the current one checked and locked ones disabled with their reason.
+""", '<div class="mt-col" style="gap:24px;width:100%"><ol class="mt-stepper" style="width:100%">' + "".join(f'<li data-state="{"done" if i < 2 else "current" if i == 2 else ""}">{s}</li>' for i, s in enumerate(STAGES)) + "</ol>"
+    + '<div class="mt-stepper-compact" style="width:358px"><span class="mt-stepper-bars" style="--n:9">' + "".join(f'<i{" data-state=done" if i < 2 else " data-state=current" if i == 2 else ""}></i>' for i in range(9)) + "</span>"
+    + btn("Stage 3 of 9 · Notice", "ghost", "sm", trail="chevron-down").replace('class="mt-btn"', 'class="mt-btn mt-stepper-now"', 1) + "</div></div>", col=True)
 
 comp("KeyFacts", "Matter patterns", 220, """
 # KeyFacts

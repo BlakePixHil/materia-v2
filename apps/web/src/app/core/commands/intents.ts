@@ -18,6 +18,8 @@ export type Intent =
   | 'close'
   | 'new-contact'
   | 'log-time'
+  // A matter's Notes tab with the editor ready (the phone's Record tab and matter actions, MOB-02).
+  | 'add-note'
   // Quick time entry over whatever page is open: the installed app's shortcut (MOB-01).
   | 'new-time-entry';
 

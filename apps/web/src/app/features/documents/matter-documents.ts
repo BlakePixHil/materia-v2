@@ -65,7 +65,7 @@ import { UploadList } from './upload-list';
 import { onIntent } from '../../core/commands/intents';
 import { errorCopy } from '../../core/error-copy';
 import { JobProgress } from '../../core/jobs/job-progress';
-import { MOBILE_QUERY } from '../../shell/app-shell';
+import { MOBILE_QUERY } from '../../core/layout/phone-layout';
 import { missingText } from '../document-templates/document-templates-view';
 import type { GenerateDocumentData } from '../document-templates/generate-document-dialog';
 import { MatterScreen } from '../matter-detail/matter-screen';

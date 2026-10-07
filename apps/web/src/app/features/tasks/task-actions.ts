@@ -11,6 +11,7 @@ import {
   type TaskItem,
 } from '@materia/data-access/repository';
 import {
+  addDays,
   applyChecklistTemplate,
   asksToCompleteDeadline,
   newId,
@@ -109,6 +110,30 @@ export class TaskActions {
     const next = toggledStatus(entry.task.status);
     if (next === 'done') await this.complete([entry]);
     else await this.setStatus([entry], next);
+  }
+
+  /**
+   * Snooze (MOB-02, a swipe or the row's button on Today): due tomorrow, in the org's day, with an
+   * Undo. Queued offline like any edit.
+   */
+  snooze(entry: TaskEntry): void {
+    if (!entry.editable || isClosed(entry.task.status)) return;
+    const before = entry.task.dueDate ?? null;
+    const tomorrow = addDays(this.today(), 1);
+    if (before === tomorrow) return;
+    this.writeOne(entry.task, { op: 'dueDate', dueDate: tomorrow });
+    this.toasts.show({
+      title: 'Snoozed to tomorrow',
+      tone: 'success',
+      action: {
+        label: 'Undo',
+        run: () => {
+          this.writeOne({ ...entry.task, dueDate: tomorrow }, { op: 'dueDate', dueDate: before });
+          this.say('Undone.');
+        },
+      },
+    });
+    this.say(`${entry.task.title} is due tomorrow.`);
   }
 
   rename(entry: TaskEntry, title: string): void {

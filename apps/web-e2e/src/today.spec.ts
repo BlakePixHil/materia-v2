@@ -193,7 +193,10 @@ test.describe('today', () => {
       attention.getByRole('link', { name: 'Change to review: Send the costs disclosure update' }),
     ).toBeFocused();
     await page.keyboard.press('j');
-    const task = region(page, 'My tasks').getByRole('button', { name: 'Call the executor about the bank accounts' });
+    const task = region(page, 'My tasks').getByRole('button', {
+      name: 'Call the executor about the bank accounts',
+      exact: true,
+    });
     await expect(task).toBeFocused();
     await page.keyboard.press('k');
     await expect(

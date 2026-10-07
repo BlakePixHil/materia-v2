@@ -97,11 +97,13 @@ import {
   type MatterViewOption,
   type MatterViewState,
 } from './matters-view';
+import { PhoneMatters } from './phone-matters';
 import { CommandRegistry, type Command } from '../../core/commands/command-registry';
 import { CALLABLES } from '../../core/data/callables';
 import { errorCopy } from '../../core/error-copy';
 import { MtExportButton } from '../../core/exports/export-button';
 import { FeatureFlagService } from '../../core/flags/feature-flags';
+import { PhoneLayout } from '../../core/layout/phone-layout';
 import { PinnedMatters } from '../../core/pins/pinned-matters';
 import { MtPageOfflineNote } from '../../core/pwa/offline-banner';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
@@ -155,18 +157,24 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
     MtTable,
     MtTableCell,
     MattersBulkBar,
+    PhoneMatters,
   ],
   template: `
     <ng-template mtPageActions>
-      <mt-segmented-control
-        label="Matters layout"
-        [options]="layoutOptions"
-        [ngModel]="layout"
-        (ngModelChange)="setLayout($event)"
-      />
-      <mt-export-button kind="matters" [filters]="exportFilters()" />
-      @if (destructionOn()) {
-        <a mtButton variant="ghost" size="sm" iconStart="trash" routerLink="/matters/destruction">Destruction queue</a>
+      <!-- A phone has the list only: the board, exports and the destruction queue stay on bigger screens. -->
+      @if (!phone()) {
+        <mt-segmented-control
+          label="Matters layout"
+          [options]="layoutOptions"
+          [ngModel]="layout"
+          (ngModelChange)="setLayout($event)"
+        />
+        <mt-export-button kind="matters" [filters]="exportFilters()" />
+        @if (destructionOn()) {
+          <a mtButton variant="ghost" size="sm" iconStart="trash" routerLink="/matters/destruction"
+            >Destruction queue</a
+          >
+        }
       }
       @if (canCreate()) {
         <a mtButton variant="primary" size="sm" iconStart="plus" kbd="c" routerLink="/matters/new">New matter</a>
@@ -186,253 +194,268 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
       </nav>
     }
 
-    <div class="mt-matters-bar" role="group" aria-label="View and filters">
-      <button type="button" class="mt-chip" data-selected [mtMenuTrigger]="viewMenu" aria-haspopup="menu">
-        <mt-icon name="list" />{{ viewName() }}{{ modified() ? ' (edited)' : '' }}<mt-icon name="chevron-down" />
-      </button>
-      <button type="button" class="mt-chip" [attr.data-selected]="on(f().status)" [mtMenuTrigger]="statusMenu">
-        {{ statusText() }}<mt-icon name="chevron-down" />
-      </button>
-      <button type="button" class="mt-chip" [attr.data-selected]="on(f().type)" [mtMenuTrigger]="typeMenu">
-        {{ typeText() }}<mt-icon name="chevron-down" />
-      </button>
-      <button type="button" class="mt-chip" [attr.data-selected]="on(f().responsible)" [mtMenuTrigger]="ownerMenu">
-        <mt-icon name="user" />{{ responsibleText() }}<mt-icon name="chevron-down" />
-      </button>
-      <button type="button" class="mt-chip" [attr.data-selected]="on(f().label)" [mtMenuTrigger]="labelMenu">
-        {{ f().label ? 'Label: ' + f().label : 'Label' }}<mt-icon name="chevron-down" />
-      </button>
-      <button type="button" class="mt-chip" [attr.data-selected]="on(f().jurisdiction)" [mtMenuTrigger]="placeMenu">
-        {{ f().jurisdiction ?? 'Jurisdiction' }}<mt-icon name="chevron-down" />
-      </button>
-      <button
-        type="button"
-        class="mt-chip"
-        [attr.data-selected]="on(f().hasOverdue)"
-        [attr.aria-pressed]="!!f().hasOverdue"
-        (click)="setFilters({ hasOverdue: !f().hasOverdue })"
-      >
-        <mt-icon name="alert" />Has overdue
-      </button>
-      @if (layout === 'board') {
-        <button
-          type="button"
-          class="mt-chip"
-          [attr.data-selected]="on(swimlanes())"
-          [attr.aria-pressed]="swimlanes()"
-          (click)="toggleSwimlanes()"
-        >
-          <mt-icon name="user" />Swimlanes by responsible
-        </button>
-      } @else {
-        <button
-          type="button"
-          class="mt-chip"
-          [attr.data-selected]="on(groupBy() !== 'none')"
-          [mtMenuTrigger]="groupMenu"
-        >
-          Group: {{ groupLabels[groupBy()] }}<mt-icon name="chevron-down" />
-        </button>
-      }
-      @if (filtered()) {
-        <button mtButton variant="ghost" size="sm" (click)="clearFilters()">Clear filters</button>
-      }
-      @if (modified()) {
-        <button mtButton variant="secondary" size="sm" iconStart="plus" (click)="saveView()">Save view</button>
-      }
-      <span class="mt-ml mt-matters-search">
-        <mt-search-field
-          #search
-          label="Filter matters"
-          placeholder="Number, title or client"
-          shortcut="/"
-          [ngModel]="query()"
-          (queryChange)="query.set($event)"
-        />
-      </span>
-    </div>
-
-    @if (plan()?.notice; as notice) {
-      <p class="mt-matters-notice" role="status"><mt-icon name="info" />{{ notice }}</p>
-    }
-    @if (layout === 'board' && boardBy() === 'status' && f().status?.length) {
-      <p class="mt-matters-notice">
-        <mt-icon name="info" />The board shows every status as a column, so the status filter applies to the list only.
-      </p>
-    }
-
-    @if (layout === 'board') {
-      <div class="mt-matters-board">
-        @switch (matters.status()) {
-          @case ('error') {
-            <mt-note tone="danger">
-              {{ listError() }}
-              <button mtButton size="sm" (click)="matters.refresh()">Try again</button>
-            </mt-note>
-          }
-          @case ('offline') {
-            <mt-note role="status" mtPageOfflineNote
-              >You’re offline. These are the matters as they were when you were last connected.</mt-note
-            >
-          }
-        }
-        @if (ready()) {
-          <ng-container #boardHost />
-          @if (!board()) {
-            <mt-skeleton variant="cards" label="Loading the board…" [count]="4" />
-          }
-        } @else if (matters.status() === 'loading') {
-          <mt-skeleton variant="cards" label="Loading matters…" [count]="4" />
-        }
-      </div>
+    @if (phoneList()) {
+      <mt-phone-matters
+        [rows]="rows()"
+        [status]="matters.status()"
+        [heading]="viewName()"
+        [filtered]="filtered()"
+        [error]="listError()"
+        [hasMore]="plan()?.mode === 'paged' && matters.hasMore()"
+        [loadingMore]="matters.loadingMore()"
+        (more)="loadMore()"
+        (retry)="matters.refresh()"
+      />
     } @else {
-      <div class="mt-matters-rows">
-        @switch (matters.status()) {
-          @case ('error') {
-            <mt-note tone="danger">
-              {{ listError() }}
-              <button mtButton size="sm" (click)="matters.refresh()">Try again</button>
-            </mt-note>
-          }
-          @case ('offline') {
-            <mt-note role="status" mtPageOfflineNote
-              >You’re offline. These are the matters as they were when you were last connected.</mt-note
-            >
-          }
-          @case ('loading') {
-            <mt-skeleton label="Loading matters…" [count]="6" />
-          }
-        }
-        @if (matters.newItems(); as count) {
-          <button mtButton size="sm" (click)="matters.refresh()">
-            {{ count === 1 ? '1 new matter' : count + ' new matters' }}
-          </button>
-        }
-        @if (ready()) {
-          <mt-table
-            #table
-            class="mt-fade"
-            label="Matters"
-            density="compact"
-            sortMode="external"
-            maxHeight="none"
-            [selectable]="true"
-            [rows]="rows()"
-            [columns]="columns"
-            [rowKey]="rowKey"
-            [rowLabel]="rowLabel"
-            [groupBy]="groupOf()"
-            [sort]="tableSort()"
-            (sortChange)="sortBy($event)"
-            [(selection)]="selection"
-            (open)="openMatter($event)"
-            (endReached)="loadMore()"
-            (focusin)="onRowFocus($event)"
+      <div class="mt-matters-bar" role="group" aria-label="View and filters">
+        <button type="button" class="mt-chip" data-selected [mtMenuTrigger]="viewMenu" aria-haspopup="menu">
+          <mt-icon name="list" />{{ viewName() }}{{ modified() ? ' (edited)' : '' }}<mt-icon name="chevron-down" />
+        </button>
+        <button type="button" class="mt-chip" [attr.data-selected]="on(f().status)" [mtMenuTrigger]="statusMenu">
+          {{ statusText() }}<mt-icon name="chevron-down" />
+        </button>
+        <button type="button" class="mt-chip" [attr.data-selected]="on(f().type)" [mtMenuTrigger]="typeMenu">
+          {{ typeText() }}<mt-icon name="chevron-down" />
+        </button>
+        <button type="button" class="mt-chip" [attr.data-selected]="on(f().responsible)" [mtMenuTrigger]="ownerMenu">
+          <mt-icon name="user" />{{ responsibleText() }}<mt-icon name="chevron-down" />
+        </button>
+        <button type="button" class="mt-chip" [attr.data-selected]="on(f().label)" [mtMenuTrigger]="labelMenu">
+          {{ f().label ? 'Label: ' + f().label : 'Label' }}<mt-icon name="chevron-down" />
+        </button>
+        <button type="button" class="mt-chip" [attr.data-selected]="on(f().jurisdiction)" [mtMenuTrigger]="placeMenu">
+          {{ f().jurisdiction ?? 'Jurisdiction' }}<mt-icon name="chevron-down" />
+        </button>
+        <button
+          type="button"
+          class="mt-chip"
+          [attr.data-selected]="on(f().hasOverdue)"
+          [attr.aria-pressed]="!!f().hasOverdue"
+          (click)="setFilters({ hasOverdue: !f().hasOverdue })"
+        >
+          <mt-icon name="alert" />Has overdue
+        </button>
+        @if (layout === 'board') {
+          <button
+            type="button"
+            class="mt-chip"
+            [attr.data-selected]="on(swimlanes())"
+            [attr.aria-pressed]="swimlanes()"
+            (click)="toggleSwimlanes()"
           >
-            <ng-template mtCell="number" let-cell>
-              @let row = asRow(cell);
-              @if (linkOf(row); as url) {
-                <a
-                  class="mt-matters-link"
-                  [href]="url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  [attr.aria-label]="row.number + '. Open the linked matter in a new tab'"
-                  (click)="$event.stopPropagation()"
-                  (keydown.enter)="$event.stopPropagation()"
-                  >{{ row.number }}<mt-icon name="link" [size]="14"
-                /></a>
-              } @else {
-                {{ row.number }}
-              }
-            </ng-template>
-            <ng-template mtCell="title" let-cell>
-              @let row = asRow(cell);
-              <span class="mt-matters-title">
-                <mt-priority-icon [level]="row.priority" />
-                <span class="title mt-ell">{{ row.title }}</span>
-                @if (pins.isPinned(row.id)) {
-                  <span class="mt-matters-pinned"><mt-icon name="pin" [size]="14" label="Pinned" /></span>
-                }
-              </span>
-            </ng-template>
-            <ng-template mtCell="actions" let-cell>
-              @let row = asRow(cell);
-              <button
-                mtIconButton
-                class="mt-matters-row-menu"
-                icon="more"
-                size="sm"
-                tabindex="-1"
-                [label]="'More actions for ' + row.number"
-                [mtMenuTrigger]="rowMenu"
-              ></button>
-              <ng-template #rowMenu>
-                <mt-menu [attr.aria-label]="row.number">
-                  <button
-                    mtMenuItem
-                    [icon]="pins.isPinned(row.id) ? 'pin-off' : 'pin'"
-                    kbd="p"
-                    (click)="togglePin(row)"
-                  >
-                    {{ pins.isPinned(row.id) ? 'Unpin matter' : 'Pin matter' }}
-                  </button>
-                  <button mtMenuItem icon="external" (click)="openInNewTab(row)">Open in new tab</button>
-                </mt-menu>
-              </ng-template>
-            </ng-template>
-            <ng-template mtCell="type" let-cell>
-              @let row = asRow(cell);
-              <mt-matter-tag [type]="row.type" />
-            </ng-template>
-            <ng-template mtCell="responsible" let-cell>
-              @let row = asRow(cell);
-              <mt-avatar
-                size="sm"
-                [name]="memberName(row.responsibleUid)"
-                [colorKey]="row.responsibleUid"
-                [tooltip]="true"
-              />
-            </ng-template>
-            <ng-template mtCell="nextDeadline" let-cell>
-              @let row = asRow(cell);
-              @if (row.nextDeadline; as next) {
-                <mt-deadline-chip [due]="next.dueDate" [critical]="next.critical" [trace]="next.title" />
-              } @else {
-                <span class="mt-matters-muted">—</span>
-              }
-            </ng-template>
-            <div mtTableEmpty>
-              @if (filtered()) {
-                <mt-empty-state
-                  title="No matters match"
-                  description="Nothing matches these filters. Clear them to see every matter in this view."
-                  icon="search"
-                  [headingLevel]="2"
-                >
-                  <button mtButton size="sm" (click)="clearFilters()">Clear filters</button>
-                </mt-empty-state>
-              } @else {
-                <mt-empty-state
-                  title="No matters yet"
-                  description="Matters you open, from intake to grant, show here."
-                  icon="matters"
-                  [headingLevel]="2"
-                >
-                  @if (canCreate()) {
-                    <a mtButton variant="primary" size="sm" iconStart="plus" routerLink="/matters/new">New matter</a>
-                  }
-                </mt-empty-state>
-              }
-            </div>
-          </mt-table>
-        }
-        @if (plan()?.mode === 'paged' && matters.hasMore()) {
-          <button mtButton size="sm" class="mt-matters-more" [loading]="matters.loadingMore()" (click)="loadMore()">
-            Show more matters
+            <mt-icon name="user" />Swimlanes by responsible
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="mt-chip"
+            [attr.data-selected]="on(groupBy() !== 'none')"
+            [mtMenuTrigger]="groupMenu"
+          >
+            Group: {{ groupLabels[groupBy()] }}<mt-icon name="chevron-down" />
           </button>
         }
+        @if (filtered()) {
+          <button mtButton variant="ghost" size="sm" (click)="clearFilters()">Clear filters</button>
+        }
+        @if (modified()) {
+          <button mtButton variant="secondary" size="sm" iconStart="plus" (click)="saveView()">Save view</button>
+        }
+        <span class="mt-ml mt-matters-search">
+          <mt-search-field
+            #search
+            label="Filter matters"
+            placeholder="Number, title or client"
+            shortcut="/"
+            [ngModel]="query()"
+            (queryChange)="query.set($event)"
+          />
+        </span>
       </div>
+
+      @if (plan()?.notice; as notice) {
+        <p class="mt-matters-notice" role="status"><mt-icon name="info" />{{ notice }}</p>
+      }
+      @if (layout === 'board' && boardBy() === 'status' && f().status?.length) {
+        <p class="mt-matters-notice">
+          <mt-icon name="info" />The board shows every status as a column, so the status filter applies to the list
+          only.
+        </p>
+      }
+
+      @if (layout === 'board') {
+        <div class="mt-matters-board">
+          @switch (matters.status()) {
+            @case ('error') {
+              <mt-note tone="danger">
+                {{ listError() }}
+                <button mtButton size="sm" (click)="matters.refresh()">Try again</button>
+              </mt-note>
+            }
+            @case ('offline') {
+              <mt-note role="status" mtPageOfflineNote
+                >You’re offline. These are the matters as they were when you were last connected.</mt-note
+              >
+            }
+          }
+          @if (ready()) {
+            <ng-container #boardHost />
+            @if (!board()) {
+              <mt-skeleton variant="cards" label="Loading the board…" [count]="4" />
+            }
+          } @else if (matters.status() === 'loading') {
+            <mt-skeleton variant="cards" label="Loading matters…" [count]="4" />
+          }
+        </div>
+      } @else {
+        <div class="mt-matters-rows">
+          @switch (matters.status()) {
+            @case ('error') {
+              <mt-note tone="danger">
+                {{ listError() }}
+                <button mtButton size="sm" (click)="matters.refresh()">Try again</button>
+              </mt-note>
+            }
+            @case ('offline') {
+              <mt-note role="status" mtPageOfflineNote
+                >You’re offline. These are the matters as they were when you were last connected.</mt-note
+              >
+            }
+            @case ('loading') {
+              <mt-skeleton label="Loading matters…" [count]="6" />
+            }
+          }
+          @if (matters.newItems(); as count) {
+            <button mtButton size="sm" (click)="matters.refresh()">
+              {{ count === 1 ? '1 new matter' : count + ' new matters' }}
+            </button>
+          }
+          @if (ready()) {
+            <mt-table
+              #table
+              class="mt-fade"
+              label="Matters"
+              density="compact"
+              sortMode="external"
+              maxHeight="none"
+              [selectable]="true"
+              [rows]="rows()"
+              [columns]="columns"
+              [rowKey]="rowKey"
+              [rowLabel]="rowLabel"
+              [groupBy]="groupOf()"
+              [sort]="tableSort()"
+              (sortChange)="sortBy($event)"
+              [(selection)]="selection"
+              (open)="openMatter($event)"
+              (endReached)="loadMore()"
+              (focusin)="onRowFocus($event)"
+            >
+              <ng-template mtCell="number" let-cell>
+                @let row = asRow(cell);
+                @if (linkOf(row); as url) {
+                  <a
+                    class="mt-matters-link"
+                    [href]="url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    [attr.aria-label]="row.number + '. Open the linked matter in a new tab'"
+                    (click)="$event.stopPropagation()"
+                    (keydown.enter)="$event.stopPropagation()"
+                    >{{ row.number }}<mt-icon name="link" [size]="14"
+                  /></a>
+                } @else {
+                  {{ row.number }}
+                }
+              </ng-template>
+              <ng-template mtCell="title" let-cell>
+                @let row = asRow(cell);
+                <span class="mt-matters-title">
+                  <mt-priority-icon [level]="row.priority" />
+                  <span class="title mt-ell">{{ row.title }}</span>
+                  @if (pins.isPinned(row.id)) {
+                    <span class="mt-matters-pinned"><mt-icon name="pin" [size]="14" label="Pinned" /></span>
+                  }
+                </span>
+              </ng-template>
+              <ng-template mtCell="actions" let-cell>
+                @let row = asRow(cell);
+                <button
+                  mtIconButton
+                  class="mt-matters-row-menu"
+                  icon="more"
+                  size="sm"
+                  tabindex="-1"
+                  [label]="'More actions for ' + row.number"
+                  [mtMenuTrigger]="rowMenu"
+                ></button>
+                <ng-template #rowMenu>
+                  <mt-menu [attr.aria-label]="row.number">
+                    <button
+                      mtMenuItem
+                      [icon]="pins.isPinned(row.id) ? 'pin-off' : 'pin'"
+                      kbd="p"
+                      (click)="togglePin(row)"
+                    >
+                      {{ pins.isPinned(row.id) ? 'Unpin matter' : 'Pin matter' }}
+                    </button>
+                    <button mtMenuItem icon="external" (click)="openInNewTab(row)">Open in new tab</button>
+                  </mt-menu>
+                </ng-template>
+              </ng-template>
+              <ng-template mtCell="type" let-cell>
+                @let row = asRow(cell);
+                <mt-matter-tag [type]="row.type" />
+              </ng-template>
+              <ng-template mtCell="responsible" let-cell>
+                @let row = asRow(cell);
+                <mt-avatar
+                  size="sm"
+                  [name]="memberName(row.responsibleUid)"
+                  [colorKey]="row.responsibleUid"
+                  [tooltip]="true"
+                />
+              </ng-template>
+              <ng-template mtCell="nextDeadline" let-cell>
+                @let row = asRow(cell);
+                @if (row.nextDeadline; as next) {
+                  <mt-deadline-chip [due]="next.dueDate" [critical]="next.critical" [trace]="next.title" />
+                } @else {
+                  <span class="mt-matters-muted">—</span>
+                }
+              </ng-template>
+              <div mtTableEmpty>
+                @if (filtered()) {
+                  <mt-empty-state
+                    title="No matters match"
+                    description="Nothing matches these filters. Clear them to see every matter in this view."
+                    icon="search"
+                    [headingLevel]="2"
+                  >
+                    <button mtButton size="sm" (click)="clearFilters()">Clear filters</button>
+                  </mt-empty-state>
+                } @else {
+                  <mt-empty-state
+                    title="No matters yet"
+                    description="Matters you open, from intake to grant, show here."
+                    icon="matters"
+                    [headingLevel]="2"
+                  >
+                    @if (canCreate()) {
+                      <a mtButton variant="primary" size="sm" iconStart="plus" routerLink="/matters/new">New matter</a>
+                    }
+                  </mt-empty-state>
+                }
+              </div>
+            </mt-table>
+          }
+          @if (plan()?.mode === 'paged' && matters.hasMore()) {
+            <button mtButton size="sm" class="mt-matters-more" [loading]="matters.loadingMore()" (click)="loadMore()">
+              Show more matters
+            </button>
+          }
+        </div>
+      }
     }
 
     @if (selectedRows().length) {
@@ -706,12 +729,14 @@ const LAYOUT_OPTIONS: MtOption<MattersLayout>[] = [
         gap: var(--space-6);
         overflow-x: auto;
         scrollbar-width: none;
-        padding: 10px var(--space-20) 0;
+        /* Edge to edge, so a long row of pins scrolls under the page's padding. */
+        margin: 0 calc(-1 * var(--space-16));
+        padding: 0 var(--space-16) var(--space-4);
       }
       .mt-matters-pins .mt-chip {
         flex: none;
         max-width: 220px;
-        min-height: 36px;
+        min-height: 44px;
         text-decoration: none;
       }
       .mt-matters-pins .dot {
@@ -760,10 +785,14 @@ export class MattersPage {
   private readonly flags = inject(FeatureFlagService);
   /** My pinned matters (CORE-23). */
   protected readonly pins = inject(PinnedMatters);
+  /** A phone (MOB-02): no sidebar, and the list is search first. */
+  protected readonly phone = inject(PhoneLayout).phone;
 
   /** List (`/matters`) or board (`/matters/board`, CORE-04). */
   protected readonly layout: MattersLayout = this.route.snapshot.data['layout'] === 'board' ? 'board' : 'list';
   protected readonly layoutOptions = LAYOUT_OPTIONS;
+  /** The phone's search-first list (`PhoneMatters`) in place of the filter bar and table. */
+  protected readonly phoneList = computed(() => this.phone() && this.layout === 'list');
   protected readonly swimlanes = signal(readSwimlanes());
   protected readonly templatesOn = computed(() => this.flags.isOn('templates.system'));
 
