@@ -91,3 +91,13 @@ jobs:
           path: dist/lighthouse
           if-no-files-found: ignore
           retention-days: 14
+
+      # demo-phone-check saves a screenshot of each page it checks here.
+      - name: Upload the phone check screenshots
+        if: always() && inputs.command == 'demo-phone-check'
+        uses: actions/upload-artifact@v6
+        with:
+          name: phone-check-${{ github.run_id }}
+          path: dist/phone-check
+          if-no-files-found: ignore
+          retention-days: 14
