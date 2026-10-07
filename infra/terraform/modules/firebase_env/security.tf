@@ -103,14 +103,19 @@ resource "google_secret_manager_secret" "this" {
   # ANTHROPIC_API_KEY: no longer used by the app since AI-02a (each org brings its own key,
   # KMS-encrypted above). On dev it holds the eval-only key the clerk-evals workflow uses (AI-12,
   # infra/MANUAL.md); on prod it stays empty.
-  # POSTMARK_TOKEN: the Postmark server token; POSTMARK_WEBHOOK_SECRET: the basic-auth password
-  # Postmark's bounce webhook sends (FND-20, infra/MANUAL.md).
+  # RESEND_API_KEY: the Resend API key; RESEND_WEBHOOK_SECRET: the signing secret (`whsec_…`) of
+  # Resend's bounce webhook (FND-20, ADR-057, infra/MANUAL.md).
+  # POSTMARK_TOKEN, POSTMARK_WEBHOOK_SECRET: unused since ADR-057. They stay until dev's deployed
+  # functions no longer reference them (a deleted secret stops their new instances starting), then
+  # a follow-up removes them.
   # XERO_CLIENT_ID, XERO_CLIENT_SECRET: the Xero app the OAuth token vault connects through
   # (INT-01, BILL-09, docs/runbooks/integrations.md).
   for_each = toset([
     "ANTHROPIC_API_KEY",
     "POSTMARK_TOKEN",
     "POSTMARK_WEBHOOK_SECRET",
+    "RESEND_API_KEY",
+    "RESEND_WEBHOOK_SECRET",
     "XERO_CLIENT_ID",
     "XERO_CLIENT_SECRET",
   ])
@@ -130,12 +135,20 @@ resource "google_secret_manager_secret" "this" {
   depends_on = [time_sleep.services_ready]
 }
 
-# The functions that read the Postmark and Xero secrets don't deploy while a secret has no version,
+# The functions that read the Resend and Xero secrets don't deploy while a secret has no version,
 # so each starts with the placeholder `unset` (FND-20: email is then recorded `skipped: not_configured`
-# and the webhook answers 503; INT-01: Xero answers INTEGRATION_NOT_CONFIGURED). Not a secret value. The owner's real token is a newer version, which
-# `latest` picks up; Terraform never changes or removes this one.
+# and the webhook answers 503; INT-01: Xero answers INTEGRATION_NOT_CONFIGURED). Not a secret value.
+# The owner's real value is a newer version, which `latest` picks up; Terraform never changes or
+# removes this one.
 resource "google_secret_manager_secret_version" "placeholder" {
-  for_each = toset(["POSTMARK_TOKEN", "POSTMARK_WEBHOOK_SECRET", "XERO_CLIENT_ID", "XERO_CLIENT_SECRET"])
+  for_each = toset([
+    "POSTMARK_TOKEN",
+    "POSTMARK_WEBHOOK_SECRET",
+    "RESEND_API_KEY",
+    "RESEND_WEBHOOK_SECRET",
+    "XERO_CLIENT_ID",
+    "XERO_CLIENT_SECRET",
+  ])
 
   secret          = google_secret_manager_secret.this[each.value].id
   secret_data     = "unset"

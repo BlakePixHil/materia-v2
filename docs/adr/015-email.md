@@ -1,6 +1,6 @@
 # ADR-015: Email
 
-- **Status:** Accepted
+- **Status:** Accepted; the provider superseded by [ADR-057](057-resend-email.md) (Resend, 2026-10-07)
 - **Date:** 2026-10-03
 - **Source of truth:** [Architecture & ADRs](https://linear.app/materia-web/document/architecture-and-adrs-b15e1eb322dc) (mirrored in [`docs/01-architecture-and-adrs.md`](../01-architecture-and-adrs.md))
 

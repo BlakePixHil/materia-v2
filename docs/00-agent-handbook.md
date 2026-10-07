@@ -82,7 +82,7 @@ When a ticket says **(Human step)**, use the MVP fallback below instead of waiti
 | FND-03 | Three projects (dev, staging, prod), org policies, budgets | **Two projects (dev and prod)**, with staging deferred. Terraform still applies, using the billing account and service account the owner provides. Skip the org-policy constraint |
 | FND-05 | Staging deploys, then prod with approval | Merges to `main` deploy to **dev**; a `v*` tag deploys to prod. No approval gate unless the owner asks for one |
 | FND-16 | Microsoft and Google SSO app registrations | **Email/password with TOTP MFA, plus Google sign-in** (Firebase-native). Microsoft SSO is deferred, unless the legacy user signs in with Microsoft, in which case it's a must-do item |
-| FND-20 | Postmark sender domain and DNS | Firebase Auth's built-in emails for verification and reset. `MailPort` uses the console and in-app fake: invite links are shown to the inviter to copy and send. Postmark comes later |
+| FND-20 | Resend sending domain and DNS (ADR-057) | Firebase Auth's built-in emails for verification and reset. `MailPort` uses the console and in-app fake: invite links are shown to the inviter to copy and send. Resend comes later |
 | FND-21 | Alert channels (email or Slack) | Email the owner's address only |
 | FND-22 | reCAPTCHA Enterprise key | Create it with gcloud or Terraform yourself. If you can't, ship App Check in monitor-only mode |
 | AI-01 | Provider agreements and residency sign-off | Use the provider the owner has given credentials for. If there are none, build against the fake model, keep `clerk.enabled` off, and list it as a must-do item |

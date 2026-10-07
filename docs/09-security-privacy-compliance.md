@@ -97,10 +97,17 @@ Client personal information is often sensitive: health information in capacity d
 - A quarterly restore drill (the `backup-drill` workflow on dev).
 - Destroying a matter (CORE-19) deletes its live data only. Backups, PITR, Storage soft-delete, non-current versions and the nightly Storage copy keep it until they expire (35 days for daily exports, 1 year for the monthly copies), and a restore drill must not bring a destroyed matter back into the live database. The destruction certificate says so.
 
-**Supply chain**
-- Renovate or Dependabot with grouped updates, `pnpm audit`, CodeQL and gitleaks.
-- Actions pinned by SHA.
-- SBOM (CycloneDX) generated on release.
+**Supply chain and security assurance (SEC-02)**
+- **Threat model:** [docs/security/threat-model.md](security/threat-model.md), STRIDE per element, reviewed quarterly. **Pentest:** [docs/security/pentest-plan.md](security/pentest-plan.md), before GA, with a 7-day (critical) and 30-day (high) remediation SLA.
+- **Dependencies:** Dependabot (`.github/dependabot.yml`) groups npm and Actions updates weekly; every update waits for review. `pnpm audit --prod --audit-level=high` gates every PR.
+- **Code:** CodeQL with the `security-extended` queries, daily in the morning run; high-severity findings fail it.
+- **Secrets:** gitleaks on every change, with custom rules (`.gitleaks.toml`) for Google service account keys (JSON and base64), Anthropic and Resend keys; `.github/scripts/gitleaks-selftest.sh` proves the rules still fire.
+- **Containers:** the jobs, scanner and preview images are scanned with Trivy in CI whenever they change (`.github/actions/trivy`); fixable high and critical findings fail the change. This replaces Artifact Registry's on-push scanning, which is off because it was billed per image on every deploy. The images run `apt-get upgrade` and ship without npm.
+- **Terraform:** checkov and tflint in CI.
+- **Rules:** the generated per-collection, per-role suite (cross-org denials included) plus a fuzz test of random paths, identities and operations (`firebase/tests/rules-fuzz.spec.ts`).
+- **SBOM:** a CycloneDX SBOM (`sbom.cdx.json`, from the lockfile) is attached to every GitHub release (`sbom.yml`, dispatched by `release.yml`).
+- **Actions:** GitHub-owned actions only; CLI tools pinned and checksum-verified.
+- **Disclosure:** [SECURITY.md](../SECURITY.md), published with the app at `/SECURITY.md`, and `/.well-known/security.txt` (RFC 9116; renew `Expires` yearly, a unit test fails a month before).
 
 **AI**
 - See *Clerk (AI) architecture & guardrails*: scoping, privilege handling, injection defence, no prompt or completion text in logs, and a provider data-retention setting.
@@ -110,7 +117,7 @@ Client personal information is often sensitive: health information in capacity d
 - Member removal.
 - Org deletion: a 30-day grace period, then purge, except records under legal hold or retention. A deletion certificate is produced.
 
-## Threat model highlights (SEC-02 expands on these)
+## Threat model highlights (the full model: [docs/security/threat-model.md](security/threat-model.md))
 
 | Threat | Mitigation |
 |---|---|

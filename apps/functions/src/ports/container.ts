@@ -10,14 +10,14 @@ import { cloudTasks } from '../core/enqueue';
 import { isEmulator, useFakes } from '../core/env';
 import { cloudKms } from '../core/kms';
 import { clamavScanUrl, previewServiceUrl } from '../core/params';
-import { POSTMARK_TOKEN, secretValue } from '../core/secrets';
+import { RESEND_API_KEY, secretValue } from '../core/secrets';
 import { clamavScanner } from '../documents/clamav';
 import { vertexEmbeddings } from '../documents/ingest/vertex';
 import { previewService } from '../documents/preview';
 import { emulatorSignedUrls, storageSignedUrls } from '../documents/signed-urls';
 import { httpOAuth } from '../integrations/oauth';
 import { cloudRunJobs } from '../jobs/cloud-run';
-import { mailFrom, postmarkMail } from '../mail/postmark';
+import { mailFrom, resendMail } from '../mail/resend';
 import { emulatorPush, fcmPush } from '../notifications/push';
 import { httpXero } from '../xero/client';
 
@@ -37,9 +37,9 @@ function notConfigured<T extends object>(port: string): T {
 function realPorts(): Ports {
   return {
     clock: systemClock,
-    // FND-20. The token is read on each send, so only functions that declare the secret can email;
-    // without a value every send is `not_configured`.
-    mail: postmarkMail({ token: () => secretValue(() => POSTMARK_TOKEN.value()), from: mailFrom }),
+    // FND-20, ADR-057. The key is read on each send, so only functions that declare the secret can
+    // email; without a value every send is `not_configured`.
+    mail: resendMail({ apiKey: () => secretValue(() => RESEND_API_KEY.value()), from: mailFrom }),
     push: fcmPush(), // FND-20
     tasks: cloudTasks,
     // AI-02a (ADR-011b): no platform key. Each call carries the org's own key, decrypted with KMS.

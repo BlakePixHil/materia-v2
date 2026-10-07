@@ -8,11 +8,11 @@ import { createLog } from '../../src/core/log';
 import { deliverNotification, RetryDelivery } from '../../src/notifications/deliver';
 import { runOrgDigests } from '../../src/notifications/digest';
 import { DELIVER_QUEUE, notify, type NotifyInput } from '../../src/notifications/notify';
-import { handlePostmarkWebhook, WEBHOOK_USER } from '../../src/notifications/webhook';
+import { handleResendWebhook, svixSignature, type WebhookRequest } from '../../src/notifications/webhook';
 import { FakeClock, FakeMail, FakePush, FakeTaskQueue } from '../../src/ports/fakes';
 
 /**
- * FND-20 against the emulators. notify(), delivery, the digest and the Postmark webhook run here
+ * FND-20 against the emulators. notify(), delivery, the digest and the Resend webhook run here
  * against the emulator's Firestore (real queries, count aggregations, transforms and transactions)
  * with fake mail, push and task ports and an injected clock; one task assignment goes all the way
  * through the deployed trigger, Cloud Tasks and `notifications-deliver` to the emulator's outbox.
@@ -355,29 +355,25 @@ describe('notifications-digest', () => {
   });
 });
 
-describe('Postmark bounce webhook', () => {
-  const SECRET = 'fictional-webhook-secret';
-  const auth = `Basic ${Buffer.from(`${WEBHOOK_USER}:${SECRET}`).toString('base64')}`;
+describe('Resend bounce webhook', () => {
+  const SECRET = `whsec_${Buffer.from('fictional-webhook-signing-key').toString('base64')}`;
+  const signed = (body: unknown, secret: string, at: Date): WebhookRequest => {
+    const rawBody = JSON.stringify(body);
+    const timestamp = String(Math.floor(at.getTime() / 1000));
+    const signature = `v1,${svixSignature(secret, 'msg_1', timestamp, rawBody).toString('base64')}`;
+    return { method: 'POST', headers: { id: 'msg_1', timestamp, signature }, rawBody };
+  };
+  const bounce = (to: string) => ({ type: 'email.bounced', data: { to: [to], bounce: { type: 'Permanent' } } });
 
   it('marks the address undeliverable, tells the person in-app, and stops email to it', async () => {
     const w = world();
     const deps = { db, clock: w.clock, log: w.log, ports: { tasks: w.tasks }, secret: SECRET };
-    const refused = await handlePostmarkWebhook(
-      {
-        method: 'POST',
-        authorization: 'Basic bm9wZTpub3Bl',
-        body: { RecordType: 'Bounce', Type: 'HardBounce', Email: emailOf('cy') },
-      },
-      deps,
-    );
+    const forged = `whsec_${Buffer.from('forged').toString('base64')}`;
+    const refused = await handleResendWebhook(signed(bounce(emailOf('cy')), forged, w.clock.now()), deps);
     expect(refused.status).toBe(401);
 
-    const response = await handlePostmarkWebhook(
-      {
-        method: 'POST',
-        authorization: auth,
-        body: { RecordType: 'Bounce', Type: 'HardBounce', Email: emailOf('cy').toUpperCase() },
-      },
+    const response = await handleResendWebhook(
+      signed(bounce(emailOf('cy').toUpperCase()), SECRET, w.clock.now()),
       deps,
     );
     expect(response).toEqual({ status: 200, body: { ok: true, result: 'hard_bounce', users: 1 } });
@@ -454,12 +450,17 @@ describe('end to end through the emulators', () => {
     const page = await fetch(`${base}/dev-mail`);
     expect(page.status).toBe(200);
     expect(await page.text()).toContain('Dev mail');
-    const hook = await fetch(`${base}/notifications-postmarkWebhook`, {
+    const hook = await fetch(`${base}/notifications-resendWebhook`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: 'Basic cG9zdG1hcms6' },
-      body: JSON.stringify({ RecordType: 'Bounce', Type: 'HardBounce', Email: emailOf('ada') }),
+      headers: {
+        'content-type': 'application/json',
+        'svix-id': 'msg_1',
+        'svix-timestamp': '0',
+        'svix-signature': 'v1,',
+      },
+      body: JSON.stringify({ type: 'email.bounced', data: { to: [emailOf('ada')], bounce: { type: 'Permanent' } } }),
     });
-    // No POSTMARK_WEBHOOK_SECRET in the emulator: every call is refused.
+    // No RESEND_WEBHOOK_SECRET in the emulator: every call is refused.
     expect(hook.status).toBe(503);
   });
 });
