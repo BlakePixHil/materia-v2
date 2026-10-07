@@ -145,8 +145,9 @@ test.describe('scan a document on a phone', () => {
     await page.getByRole('button', { name: 'Add to matter' }).click();
     await expect(page).toHaveURL(/\/matters\/m-larch\/documents$/);
 
-    // Ingested: a three-page PDF, stored as a camera scan.
-    const link = page.getByRole('link', { name: /Grant of probate – Larch/ });
+    // Ingested: a three-page PDF, stored as a camera scan. The Uploads tray links to it too while
+    // it's open, so the link is the Documents table's.
+    const link = page.getByRole('table', { name: 'Documents' }).getByRole('link', { name: /Grant of probate – Larch/ });
     await expect(link).toBeVisible(PIPELINE);
     await expect
       .poll(async () => (await storedDocument(request, orgId, 'Grant of probate – Larch.pdf'))?.['source'], PIPELINE)
