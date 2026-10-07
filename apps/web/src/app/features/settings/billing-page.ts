@@ -20,13 +20,14 @@ import {
   MATTER_TYPE_LABELS,
   MtButton,
   MtNote,
+  type MtOption,
   MtSelect,
   MtSettingsRow,
   MtSettingsSection,
+  MtSkeleton,
   MtSwitch,
   MtTextField,
   ToastService,
-  type MtOption,
 } from '@materia/ui';
 
 import { dollarsText, parseDollars } from './money';
@@ -151,6 +152,7 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
     MtSelect,
     MtSettingsRow,
     MtSettingsSection,
+    MtSkeleton,
     MtSwitch,
     MtTextField,
   ],
@@ -166,7 +168,7 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
 
     @switch (org.status()) {
       @case ('loading') {
-        <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading settings…</p>
+        <mt-skeleton variant="fields" framed label="Loading settings…" [count]="4" />
       }
       @case ('error') {
         <mt-note tone="danger">{{ loadError() }}</mt-note>
@@ -175,7 +177,7 @@ function feeDefaultsOf(fees: Record<MatterType, FeeRow>): {
 
     <!-- Shown once the org has loaded, so nothing typed is overwritten when the settings arrive. -->
     @if (org.value()) {
-      <form class="mt-col" style="gap: 24px" (submit)="$event.preventDefault(); save()">
+      <form class="mt-col mt-fade" style="gap: 24px" (submit)="$event.preventDefault(); save()">
         <mt-settings-section title="Time" [headingLevel]="2">
           <mt-text-field
             name="defaultRate"

@@ -1,0 +1,14 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-skeleton). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-skeleton { display: flex; flex-direction: column; min-width: 0; animation: mt-fade-in var(--motion-slow) var(--ease-out) 150ms backwards; }
+.mt-skeleton > .row { display: flex; align-items: center; gap: var(--space-12); min-height: var(--row); border-bottom: 1px solid var(--border-subtle); }
+.mt-skeleton > .row:last-child { border-bottom: 0; }
+.mt-skeleton > .row > :last-child:not(:first-child) { margin-inline-start: auto; }
+.mt-skeleton > .row > .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-8); }
+.mt-skeleton[data-variant="fields"] > .row { min-height: 60px; }
+.mt-skeleton[data-framed] { border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-surface); box-shadow: var(--shadow-card); overflow: hidden; }
+.mt-skeleton[data-framed] > .row { padding: 0 var(--space-16); }
+.mt-skeleton[data-variant="lines"] { gap: var(--space-12); padding-block: var(--space-4); }
+.mt-skeleton[data-variant="cards"] { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: var(--space-12); }
+.mt-skeleton > .card { display: flex; flex-direction: column; gap: var(--space-12); padding: var(--space-12); border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface); }
+.mt-skeleton > .card > .chips { display: flex; gap: var(--space-6); }
+@media (prefers-reduced-motion: reduce) { .mt-skeleton { animation: none; } }

@@ -3,6 +3,6 @@
 .mt-facts dt { color: var(--text-tertiary); } .mt-facts dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
 .mt-facts dd { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
 .mt-facts-value { min-width: 0; }
-.mt-facts-copy { margin: -5px 0; opacity: 0; transition: opacity .12s; }
+.mt-facts-copy { margin: -5px 0; opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
 .mt-facts dd:hover .mt-facts-copy, .mt-facts-copy:focus-visible { opacity: 1; }
 @media (hover: none) { .mt-facts-copy { opacity: 1; } }

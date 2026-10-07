@@ -316,6 +316,12 @@
   --layer-popover: 1300;
   --layer-toast: 1400;
   --layer-tooltip: 1500;
+  --motion-fast: 120ms;
+  --motion-base: 150ms;
+  --motion-slow: 200ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }

@@ -150,6 +150,7 @@ describe('insights figures', () => {
       }),
     ).toEqual({
       billedCents: 2_000_000,
+      legacyBilledCents: 0,
       collectedCents: 900_000,
       wipCents: 428_600,
       mattersOpened: 4,
@@ -162,6 +163,18 @@ describe('insights figures', () => {
     });
     expect(wipCentsOf(july)).toBeNull();
     expect(deadlinesMetPct({})).toBeNull();
+  });
+
+  it('counts the legacy system’s billing, imported by the migration, as billed in its month (MIG-09)', () => {
+    const legacy = { 'billing.invoicedCents': 100_000, 'legacy.billed': 2, 'legacy.billedCents': 350_000 };
+    const summary = insightsSummary({
+      values: legacy,
+      months: ['2024-03'],
+      dailyTargetMinutes: 360,
+      feeEarners: 1,
+      today,
+    });
+    expect(summary).toMatchObject({ billedCents: 450_000, legacyBilledCents: 350_000 });
   });
 
   it('counts this month’s target only to today', () => {

@@ -18,5 +18,5 @@
 .mt-chart-host { position: relative; display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
 .mt-chart .line.cmp { stroke: var(--text-tertiary); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .mt-chart-empty { display: grid; place-items: center; border: 1px dashed var(--border-default); border-radius: var(--radius-md); font: 400 13px/18px var(--font-sans); color: var(--text-tertiary); }
-.mt-chart-loading { border-radius: var(--radius-md); background: linear-gradient(90deg, var(--bg-sunken) 0%, var(--bg-hover) 50%, var(--bg-sunken) 100%); background-size: 200% 100%; animation: mt-shimmer 1.6s linear infinite; }
+.mt-chart-loading { border-radius: var(--radius-md); background: linear-gradient(90deg, var(--bg-hover) 0%, var(--bg-pressed) 50%, var(--bg-hover) 100%); background-size: 200% 100%; animation: mt-shimmer 1.6s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .mt-chart-loading { animation: none; } }

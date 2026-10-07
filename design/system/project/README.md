@@ -83,7 +83,15 @@ Every list has the same six states, shown together on the System states screen:
 
 ### Motion
 
-120ms for hover and colour changes, 150ms for switches and toggles, 200ms ease-out for popovers and panels. Nothing bounces. Clerk’s working state is three pulsing dots plus a named step. With `prefers-reduced-motion`, animations stop and transitions drop to instant.
+Motion says where something came from and that the app heard you. It is quick and quiet: nothing bounces, nothing loops except a loading state, and nothing makes you wait.
+
+- **Tokens.** `motion-fast` 120ms for hover, press and colour changes; `motion-base` 150ms for switches, toggles, tabs and anything leaving; `motion-slow` 200ms for menus, popovers, dialogs, panels, pages and list items arriving. `ease-out` for arriving (the default), `ease-in` for leaving, `ease-in-out` for moving between two places (the sidebar, a sheet's snap point).
+- **Overlays.** Menus, selects and popovers scale up from 97% on the trigger's side and fade in over `motion-slow`; they fade out over `motion-fast` and stop taking clicks the moment they start leaving. Tooltips fade in over `motion-fast`. Dialogs and the command palette fade their scrim and rise 8px; sheets slide up from the bottom edge. Toasts rise in and fade out.
+- **Pages.** A page rises 4px and fades in over `motion-slow` when you arrive, and so does a matter's tab. Leaving is instant, so navigation never waits on an animation.
+- **Lists and cards.** Content that replaces a skeleton fades in. Short lists and card columns rise in one after another, 30ms apart, capped at 150ms; long tables fade in as one so scrolling never re-animates rows.
+- **Hover and focus.** Rows, nav items, tabs, chips and cards ease their fill, border and focus ring over `motion-fast`. Menu items highlight instantly, so arrowing through a menu never lags.
+- **Loading.** Skeletons wait 150ms before fading in, so a fast load never flashes one. Clerk's working state is three pulsing dots plus a named step.
+- **Reduced motion.** With `prefers-reduced-motion`, animations stop and transitions drop to instant; overlays and pages simply appear.
 
 ### Charts
 

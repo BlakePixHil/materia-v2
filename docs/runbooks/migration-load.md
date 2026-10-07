@@ -99,3 +99,7 @@ It deletes everything the run loaded, what v2 hung under it, the run's matter nu
    ```
 
 3. Read `delta/deletions.json`: `deleted`, `reported` (without `--apply-deletes`), `kept_edited` and `kept_has_v2_records` (left alone; tell the user). Then verify the delta run.
+
+## Next
+
+Once a run (or a delta) has loaded, Clerk can read its files: an owner or admin approves the cost in Settings → Clerk and AI ([runbook](migration-enrichment.md), MIG-09).

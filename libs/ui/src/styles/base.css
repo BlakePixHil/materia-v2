@@ -105,6 +105,13 @@ body {
   background: transparent;
 }
 
+/* Pages arrive with a short rise (brand book, Motion): the routed page in the shell's column, and each
+   nested routed view inside it (a matter's tabs). Only arrival animates; leaving is instant, so
+   navigation never waits on an animation. */
+.mt-page router-outlet + * {
+  animation: mt-rise-in var(--motion-slow) var(--ease-out) backwards;
+}
+
 /* Reduced motion: animations stop and transitions drop to instant (brand book, Motion). */
 @media (prefers-reduced-motion: reduce) {
   *,

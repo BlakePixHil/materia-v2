@@ -10,6 +10,7 @@ import {
   MtNote,
   MtSettingsRow,
   MtSettingsSection,
+  MtSkeleton,
   ToastService,
 } from '@materia/ui';
 
@@ -25,7 +26,7 @@ import { errorCopy } from '../../core/error-copy';
 @Component({
   selector: 'mt-templates-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, MtBadge, MtButton, MtNote, MtSettingsRow, MtSettingsSection],
+  imports: [RouterLink, MtBadge, MtButton, MtNote, MtSettingsRow, MtSettingsSection, MtSkeleton],
   host: { class: 'mt-col', style: 'gap: 24px; max-width: 760px' },
   template: `
     <div class="mt-col" style="gap: 6px">
@@ -43,7 +44,7 @@ import { errorCopy } from '../../core/error-copy';
     <mt-settings-section title="Your templates" [headingLevel]="2">
       @switch (templates.status()) {
         @case ('loading') {
-          <p role="status" style="margin: 0; color: var(--text-tertiary)">Loading templates…</p>
+          <mt-skeleton variant="fields" framed label="Loading templates…" />
         }
         @case ('error') {
           <mt-note tone="danger">

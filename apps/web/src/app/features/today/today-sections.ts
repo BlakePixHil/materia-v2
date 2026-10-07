@@ -12,6 +12,7 @@ import {
   MtIconButton,
   MtMatterTag,
   MtNote,
+  MtSkeleton,
   MtTaskRow,
 } from '@materia/ui';
 
@@ -82,7 +83,7 @@ abstract class TodayCard {
     '../../../../../../libs/ui/src/generated/components/timeline.css',
     '../../../../../../libs/ui/src/generated/components/tl.css',
   ],
-  imports: [MtBadge, MtButton, MtDeadlineChip, MtEmptyState, MtIcon, MtNote, RouterLink],
+  imports: [MtBadge, MtButton, MtDeadlineChip, MtEmptyState, MtIcon, MtNote, MtSkeleton, RouterLink],
   host: {
     class: 'mt-card mt-today-card',
     role: 'region',
@@ -108,7 +109,7 @@ abstract class TodayCard {
     }
     @switch (data.attentionStatus()) {
       @case ('loading') {
-        <p class="caption t-3" role="status">Loading…</p>
+        <mt-skeleton label="Loading what needs attention…" [count]="3" />
       }
       @case ('error') {
         <mt-note tone="danger">Overdue deadlines and changes didn’t load. They show again once you reload.</mt-note>
@@ -278,7 +279,7 @@ export class TodayAttention extends TodayCard {
     '../../../../../../libs/ui/src/generated/components/timeline.css',
     '../../../../../../libs/ui/src/generated/components/tl.css',
   ],
-  imports: [MtDeadlineChip, MtEmptyState, MtIcon, MtIconButton, MtNote, RouterLink],
+  imports: [MtDeadlineChip, MtEmptyState, MtIcon, MtIconButton, MtNote, MtSkeleton, RouterLink],
   host: {
     class: 'mt-card mt-today-card',
     role: 'region',
@@ -293,7 +294,7 @@ export class TodayAttention extends TodayCard {
     </div>
     @switch (data.dueStatus()) {
       @case ('loading') {
-        <p class="caption t-3" role="status">Loading…</p>
+        <mt-skeleton label="Loading this week…" [count]="3" />
       }
       @case ('error') {
         <mt-note tone="danger">This week’s deadlines and tasks didn’t load. They show again once you reload.</mt-note>
@@ -404,7 +405,7 @@ export class TodayDue extends TodayCard {
   selector: 'mt-today-tasks',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [MtEmptyState, MtNote, MtTaskRow, RouterLink],
+  imports: [MtEmptyState, MtNote, MtSkeleton, MtTaskRow, RouterLink],
   host: {
     class: 'mt-card mt-today-card',
     role: 'region',
@@ -422,7 +423,7 @@ export class TodayDue extends TodayCard {
     </div>
     @switch (data.myTasksStatus()) {
       @case ('loading') {
-        <p class="caption t-3" role="status">Loading your tasks…</p>
+        <mt-skeleton label="Loading your tasks…" [count]="3" />
       }
       @case ('error') {
         <mt-note tone="danger">Your tasks didn’t load. They show again once you reload.</mt-note>
@@ -462,7 +463,7 @@ export class TodayTasks extends TodayCard {}
   selector: 'mt-today-recent',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [MtEmptyState, MtMatterTag, RouterLink],
+  imports: [MtEmptyState, MtMatterTag, MtSkeleton, RouterLink],
   host: {
     class: 'mt-card mt-today-card',
     role: 'region',
@@ -476,7 +477,7 @@ export class TodayTasks extends TodayCard {}
       <a class="mt-ml caption" routerLink="/matters">All matters</a>
     </div>
     @if (data.recentStatus() === 'loading') {
-      <p class="caption t-3" role="status">Loading…</p>
+      <mt-skeleton label="Loading recent matters…" [count]="3" />
     } @else if (data.recentMatters().length) {
       <ul class="recent" aria-labelledby="mt-today-recent">
         @for (matter of data.recentMatters(); track matter.id) {

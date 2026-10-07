@@ -1053,6 +1053,10 @@ service cloud.firestore {
       match /migrations/{runId} {
         allow read: if can(orgId, 'org.settings') && isActiveMember(orgId);
       }
+      // Clerk reading a run (MIG-09): its estimate, approval and progress. Written only by functions.
+      match /migrationEnrichments/{runId} {
+        allow read: if can(orgId, 'org.settings') && isActiveMember(orgId);
+      }
       match /integrations/{integrationId} {
         allow read, write: if false;
       }
@@ -1237,6 +1241,7 @@ service cloud.firestore {
     function fieldsMetrics() { return ['period', 'values', 'snapshotOn', 'debtors']; }
     function fieldsMetricsLedger() { return []; }
     function fieldsMetricsShard() { return []; }
+    function fieldsMigrationEnrichment() { return []; }
     function fieldsMigrationRun() { return []; }
     function fieldsNote() { return ['pinned']; }
     function fieldsNoteRevision() { return []; }

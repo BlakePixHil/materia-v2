@@ -161,6 +161,50 @@ export const InsightsNarrativeOutput = z.object({
 });
 export type InsightsNarrativeOutput = z.infer<typeof InsightsNarrativeOutput>;
 
+/** The key dates `events-from-file@1` may propose: the estate's steps (`custom` takes a label). */
+export const EVENTS_FROM_FILE_KINDS = [
+  'date_of_death',
+  'will_located',
+  'notice_published',
+  'probate_filed',
+  'grant_issued',
+  'statutory_notice_published',
+  'caveat_lodged',
+  'grant_served',
+  'fp_claim_filed',
+  'custom',
+] as const;
+
+/**
+ * Key dates from a matter's file (MIG-09, `events-from-file@1`): each event a note or an excerpt
+ * states outright, with the verbatim quotes that state it (`source` and `id` as the context tags
+ * them, the excerpt's `page`). The caller checks every quote against its source and keeps only
+ * events with a checked quote that contains the date, then proposes them as `event` suggestions.
+ */
+export const EventsFromFileOutput = z.object({
+  events: z
+    .array(
+      z.object({
+        kind: z.enum(EVENTS_FROM_FILE_KINDS),
+        date: z.string().describe('YYYY-MM-DD'),
+        label: z.string().max(200).optional().describe('For a custom event: what happened, in a few words'),
+        rationale: z.string().max(500),
+        citations: z
+          .array(
+            z.object({
+              source: z.enum(['note', 'excerpt']),
+              id: z.string().describe('The id of the matter_note, or the document of the excerpt'),
+              page: z.number().int().min(1).optional().describe("The excerpt's page"),
+              quote: z.string().max(500),
+            }),
+          )
+          .max(3),
+      }),
+    )
+    .max(15),
+});
+export type EventsFromFileOutput = z.infer<typeof EventsFromFileOutput>;
+
 export const OUTPUT_SCHEMAS = {
   hello: HelloOutput,
   willExtraction: WillExtractionOutput,
@@ -169,6 +213,7 @@ export const OUTPUT_SCHEMAS = {
   documentClassification: DocumentClassificationOutput,
   chatProposals: ChatProposalsOutput,
   insightsNarrative: InsightsNarrativeOutput,
+  eventsFromFile: EventsFromFileOutput,
 } as const satisfies Record<string, z.ZodType>;
 
 export type OutputSchemaName = keyof typeof OUTPUT_SCHEMAS;

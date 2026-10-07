@@ -54,6 +54,8 @@ export interface IngestReport {
   inProgress: number;
   /** Pending (never ingested, or an older version) or failed: queued by this run. */
   due: number;
+  /** Migrated and not read yet: left to the migration's enrichment (MIG-09). */
+  migrated: number;
   ocrPages: number;
   /** Why documents are due, skipped or in progress (`failed: TypeError`, `skipped: encrypted`, …). Counts only. */
   reasons: Record<string, number>;
@@ -63,7 +65,18 @@ export interface IngestReport {
 
 const isDeleted = (doc: Data) => doc['deletedAt'] !== undefined && doc['deletedAt'] !== null;
 
-export type IngestState = 'notReady' | 'done' | 'skipped' | 'inProgress' | 'due';
+export type IngestState = 'notReady' | 'done' | 'skipped' | 'inProgress' | 'due' | 'migrated';
+
+/**
+ * A migrated document Clerk hasn't read: the migration's enrichment reads it once an owner approves
+ * the cost (MIG-09), so the backfill leaves it alone. Mirrors `awaitsMigrationEnrichment` in @materia/domain.
+ */
+function awaitsEnrichment(doc: Data): boolean {
+  const runId = (doc['migration'] as { runId?: unknown } | undefined)?.runId;
+  if (typeof runId !== 'string' || !runId) return false;
+  const ingest = doc['ingest'] as { status?: unknown; version?: unknown } | undefined;
+  return !ingest || (ingest.status === 'pending' && ingest.version === undefined);
+}
 
 /** Where a document's current version stands. Mirrors `needsIngest` in apps/functions. */
 export function ingestState(doc: Data): IngestState {
@@ -71,6 +84,7 @@ export function ingestState(doc: Data): IngestState {
   if (isDeleted(doc) || (doc['scan'] as { status?: string } | undefined)?.status !== 'clean' || version < 1) {
     return 'notReady';
   }
+  if (awaitsEnrichment(doc)) return 'migrated';
   const ingest = (doc['ingest'] ?? { status: 'pending' }) as { status?: string; version?: number };
   if (ingest.version !== undefined && ingest.version !== version) return 'due';
   switch (ingest.status) {
@@ -120,6 +134,7 @@ export async function backfillIngest(
     skipped: 0,
     inProgress: 0,
     due: 0,
+    migrated: 0,
     ocrPages: 0,
     reasons: {},
   };
@@ -160,6 +175,7 @@ export async function backfillIngest(
     );
     log(`skipped: ${report.skipped}, in progress: ${report.inProgress}`);
     log(`due (never ingested, older version or failed): ${report.due} ${options.dryRun ? 'to queue' : 'queued'}`);
+    if (report.migrated) log(`migrated, waiting for the migration's Clerk reading (MIG-09): ${report.migrated}`);
     for (const [reason, count] of Object.entries(report.reasons).sort()) log(`  ${reason}: ${count}`);
     if (report.triggerRuns) {
       const runs = Object.entries(report.triggerRuns).map(([fn, count]) => `${fn} ${count}`);

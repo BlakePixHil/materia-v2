@@ -27,6 +27,8 @@ export async function writeDocumentMetaSuggestion(
     output: DocumentClassificationOutput;
     model: string;
     promptRef: string;
+    /** Tell the matter's lawyer (default); false when a summary goes out instead (MIG-09). */
+    notify?: boolean;
   },
 ): Promise<'created' | 'exists' | 'skipped'> {
   const { output } = input;
@@ -57,6 +59,7 @@ export async function writeDocumentMetaSuggestion(
     { privileged: false, promptId, promptVersion, model: input.model },
   );
   if (result.created.length) {
+    if (input.notify === false) return 'created';
     await notifyNewSuggestions(
       ctx,
       input.matterId,

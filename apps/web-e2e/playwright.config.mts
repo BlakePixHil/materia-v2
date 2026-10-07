@@ -36,6 +36,9 @@ export default defineConfig({
   use: {
     baseURL: baseURL ?? 'http://localhost:4200',
     trace: 'retain-on-failure',
+    // Tests check behaviour, not motion. With reduced motion the app's animations finish at once
+    // (libs/ui base.css), so a closing dialog or menu is gone before the next step looks for one.
+    reducedMotion: 'reduce',
   },
   ...(baseURL
     ? {}

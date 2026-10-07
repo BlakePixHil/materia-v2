@@ -9,10 +9,12 @@ import { unwrap } from '../seed/interop.ts';
 const domain = unwrap(D);
 
 /**
- * `materia-scripts backfill-metrics --project <id> --from YYYY-MM [--org <orgId>] [--dry-run]`
+ * `materia-scripts backfill-metrics --project <id> --from YYYY-MM|earliest [--org <orgId>] [--dry-run]`
  * (INS-01, ADR-048): restates the practice metrics rollups from the start of the financial year
  * containing `--from` to today, from the records themselves. Run it after a migration (MIG), when
- * an org's time zone or FY start changes, or after the metric definitions change.
+ * an org's time zone or FY start changes, or after the metric definitions change. `--from earliest`
+ * starts each org at the FY of its earliest dated figure, so a migrated practice's history (its
+ * legacy billing by billing date, MIG-09) reaches Insights however far back it goes.
  *
  * For each org it reads every matter, time entry, disbursement, deadline, invoice and credit note
  * (and each record's ledger), works out what each adds, and then:
@@ -86,6 +88,20 @@ const same = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 const FIGURE_FIELDS = ['period', 'uid', 'values', 'snapshotOn'] as const;
 const sameFigures = (a: Data, b: Data) => FIGURE_FIELDS.every((field) => same(a[field], b[field]));
 
+/** `--from earliest`: each org from the FY of its earliest dated figure. */
+export const FROM_EARLIEST = 'earliest';
+
+/** The earliest day any of the contributions counts a figure on, if any. */
+export function earliestDay(contributions: readonly D.MetricContribution[]): D.DateOnly | undefined {
+  let earliest: D.DateOnly | undefined;
+  for (const contribution of contributions)
+    for (const cell of Object.keys(contribution)) {
+      const date = domain.parseMetricCell(cell)?.date;
+      if (date && (!earliest || date < earliest)) earliest = date;
+    }
+  return earliest;
+}
+
 /** The first day of the FY containing `YYYY-MM`. */
 export function restateFrom(month: string, fyStartMonth: number): D.DateOnly {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('--from is a month: YYYY-MM');
@@ -141,16 +157,13 @@ export async function backfillOrgMetrics(
   orgId: string,
   fromMonth: string,
   options: { now: Date; dryRun?: boolean },
-): Promise<Omit<MetricsBackfillReport, 'orgs'>> {
+): Promise<Omit<MetricsBackfillReport, 'orgs'> & { from: D.DateOnly }> {
   const org = (await store.get(`orgs/${orgId}`)) ?? {};
   const timeZone = str(org['timezone']) ?? domain.DEFAULT_ORG_TIMEZONE;
   const startMonth = (org['fy'] as { startMonth?: unknown } | undefined)?.startMonth;
   const fyStartMonth = typeof startMonth === 'number' && startMonth >= 1 && startMonth <= 12 ? startMonth : 7;
-  const from = restateFrom(fromMonth, fyStartMonth);
   const today = domain.dateOnlyAt(options.now, timeZone);
   const yesterday = domain.addDays(today, -1);
-  const fromOn = (day: D.DateOnly) => day >= from;
-  const before = (day: D.DateOnly) => day < from;
 
   const { matters, sources } = await loadSources(store, orgId);
   const referrerIds = [...new Set([...matters.values()].map((m) => str(m['referrerContactId'])).filter(Boolean))];
@@ -159,11 +172,8 @@ export async function backfillOrgMetrics(
   const [referrerRows, ledgerRows] = await Promise.all([store.getAll(referrerPaths), store.getAll(ledgerPaths)]);
   const referrers = new Map(referrerPaths.map((path, i) => [path, referrerRows[i] ?? null]));
 
-  // Each record's figures from `from` on, and its ledger.
-  const restated: D.MetricContribution[] = [];
-  const writes: MetricsWrite[] = [];
-  let ledgers = 0;
-  sources.forEach((source, i) => {
+  // What each record adds, on every day it counts.
+  const contributions = sources.map((source, i) => {
     const ledger = ledgerRows[i];
     const matter = matters.get(source.matterId);
     const referrerId = str(matter?.['referrerContactId']);
@@ -175,6 +185,21 @@ export async function backfillOrgMetrics(
       timeZone,
       stages,
     });
+    return { fresh, stages, previousStages };
+  });
+  const start =
+    fromMonth === FROM_EARLIEST ? (earliestDay(contributions.map((c) => c.fresh)) ?? today).slice(0, 7) : fromMonth;
+  const from = restateFrom(start, fyStartMonth);
+  const fromOn = (day: D.DateOnly) => day >= from;
+  const before = (day: D.DateOnly) => day < from;
+
+  // Each record's figures from `from` on, and its ledger.
+  const restated: D.MetricContribution[] = [];
+  const writes: MetricsWrite[] = [];
+  let ledgers = 0;
+  sources.forEach((source, i) => {
+    const ledger = ledgerRows[i];
+    const { fresh, stages, previousStages } = contributions[i] as (typeof contributions)[number];
     const recent = domain.filterContribution(fresh, fromOn);
     restated.push(recent);
     const counted = {
@@ -282,7 +307,7 @@ export async function backfillOrgMetrics(
     shards++;
   }
   if (!options.dryRun && writes.length) await store.write(writes);
-  return { records: sources.length, ledgers, documents, shards };
+  return { records: sources.length, ledgers, documents, shards, from };
 }
 
 /** Restates every org (or one); with `dryRun`, counts what it would write. */
@@ -304,7 +329,7 @@ export async function backfillMetrics(
     report.shards += counts.shards;
     const verb = options.dryRun ? 'to write' : 'written';
     options.log?.(
-      `${orgId}: ${counts.records} records, ${counts.ledgers} ledgers, ${counts.documents} documents and ${counts.shards} shards ${verb}`,
+      `${orgId} (from ${counts.from}): ${counts.records} records, ${counts.ledgers} ledgers, ${counts.documents} documents and ${counts.shards} shards ${verb}`,
     );
   }
   return report;
@@ -371,9 +396,10 @@ export function parseArgs(argv: string[]): { project: string; from: string; org?
   };
   const project = value('project') ?? process.env['GCLOUD_PROJECT'];
   const from = value('from');
-  const usage = 'Usage: materia-scripts backfill-metrics --project <id> --from YYYY-MM [--org <orgId>] [--dry-run]';
+  const usage =
+    'Usage: materia-scripts backfill-metrics --project <id> --from YYYY-MM|earliest [--org <orgId>] [--dry-run]';
   if (!project || !from) throw new Error(usage);
-  restateFrom(from, 7);
+  if (from !== FROM_EARLIEST) restateFrom(from, 7);
   const org = value('org');
   return { project, from, ...(org ? { org } : {}), dryRun: argv.includes('--dry-run') };
 }

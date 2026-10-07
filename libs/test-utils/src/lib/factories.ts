@@ -842,6 +842,31 @@ export const makeMigrationRun = (o: Partial<D.MigrationRun> = {}) =>
     o,
   );
 
+export const makeMigrationEnrichment = (o: Partial<D.MigrationEnrichment> = {}) =>
+  build(
+    D.MigrationEnrichment,
+    {
+      runId: 'run-test-1',
+      status: 'awaiting_approval',
+      phase: 'ingest',
+      seq: 2,
+      documents: ['m-test-1/d-test-1'],
+      matters: ['m-test-1'],
+      estimate: {
+        documents: 1,
+        pages: 12,
+        ocrPages: 2,
+        chars: 24_000,
+        unreadable: 0,
+        matters: 1,
+        costCents: 12,
+        model: 'claude-sonnet-5-5',
+      },
+      suggestedAllowanceCents: 500,
+    },
+    o,
+  );
+
 export const makeRuleSetVersion = (o: Partial<D.RuleSetVersion> = {}) =>
   build(
     D.RuleSetVersion,
@@ -1050,6 +1075,7 @@ export const ENTITY_FACTORIES = {
   SafeCustody: [D.SafeCustody, makeSafeCustody],
   TrustSnapshot: [D.TrustSnapshot, makeTrustSnapshot],
   MigrationRun: [D.MigrationRun, makeMigrationRun],
+  MigrationEnrichment: [D.MigrationEnrichment, makeMigrationEnrichment],
   RuleSetVersion: [D.RuleSetVersion, makeRuleSetVersion],
   Calendar: [D.Calendar, makeCalendar],
   Job: [D.Job, makeJob],
