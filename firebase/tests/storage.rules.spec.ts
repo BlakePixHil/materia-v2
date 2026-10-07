@@ -202,7 +202,7 @@ describe('uploads to pending/ (CORE-12)', () => {
       sha256: SHA,
       source: 'camera',
     });
-    await assertSucceeds(uploadBytes(ref(storage, `${MATTER}/pending/scan-1`), bytes(64), settings));
+    await assertSucceeds(uploadBytes(ref(storage, `${MATTER}/pending/scan-0001`), bytes(64), settings));
   });
 
   it('a new version targets a live, clean document the uploader can see', async () => {
