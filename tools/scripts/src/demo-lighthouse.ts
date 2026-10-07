@@ -246,7 +246,7 @@ export function summary(rows: RunRow[], median: Lhr | undefined, heading: string
 
 // ---------- the browser ----------
 
-async function signIn(page: Page, origin: string, email: string, password: string): Promise<void> {
+export async function signIn(page: Page, origin: string, email: string, password: string): Promise<void> {
   await page.goto(`${origin}/auth/sign-in`);
   await page.getByLabel('Work email').fill(email);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -256,7 +256,7 @@ async function signIn(page: Page, origin: string, email: string, password: strin
 }
 
 /** A first sign-in can open the welcome tour (CORE-24): skip it, so the runs measure the page. */
-async function skipTour(page: Page): Promise<void> {
+export async function skipTour(page: Page): Promise<void> {
   const skip = page.getByRole('button', { name: /^Skip/ });
   await skip
     .waitFor({ state: 'visible', timeout: 4_000 })

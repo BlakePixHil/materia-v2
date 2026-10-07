@@ -208,7 +208,7 @@ import { MtNeedsConnection } from '../../core/pwa/needs-connection';
       padding: 8px 8px 8px 12px;
       border: 1px solid var(--border-default);
       border-radius: var(--radius-md);
-      background: var(--bg-subtle);
+      background: var(--bg-sunken);
     }
     .mt-connector-url code {
       flex: 1 1 220px;
