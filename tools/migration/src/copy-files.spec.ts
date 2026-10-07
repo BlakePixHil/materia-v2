@@ -1,4 +1,4 @@
-import { copyFilesCommand } from './copy-files.ts';
+import { copyFilesCommand, identityToken } from './copy-files.ts';
 
 async function run(argv: string[], env: NodeJS.ProcessEnv = {}) {
   const out: string[] = [];
@@ -44,5 +44,48 @@ describe('materia-migrate copy-files', () => {
       expect({ argv, code }).toEqual({ argv, code: 1 });
       expect(err).toMatch(message);
     }
+  });
+});
+
+describe("the scanner's ID token", () => {
+  const URL = 'https://clamav-abc-ts.a.run.app';
+  /** gcloud, signed in as `account`: records each call and answers with a numbered token. */
+  function gcloud(account: string) {
+    const calls: string[][] = [];
+    const exec = async (_file: string, args: string[]) => {
+      calls.push(args);
+      return { stdout: args[0] === 'config' ? `${account}\n` : `token-${calls.length}\n` };
+    };
+    return { calls, exec };
+  }
+
+  it('asks for a token for gcloud itself as a person, and caches it', async () => {
+    const { calls, exec } = gcloud('operator@example.com');
+    const token = identityToken(URL, undefined, {}, exec);
+    expect(await token()).toBe('token-2');
+    expect(await token()).toBe('token-2');
+    expect(calls).toEqual([
+      ['config', 'get-value', 'account'],
+      ['auth', 'print-identity-token'],
+    ]);
+  });
+
+  it('names the service as a service account, signed in or impersonated', async () => {
+    const agent = gcloud('terraform-agent@materia-v2-admin.iam.gserviceaccount.com');
+    await identityToken(URL, undefined, {}, agent.exec)();
+    expect(agent.calls[1]).toEqual(['auth', 'print-identity-token', `--audiences=${URL}`]);
+
+    const person = gcloud('operator@example.com');
+    const runner = 'migration-runner@materia-v2-prod.iam.gserviceaccount.com';
+    await identityToken(URL, runner, {}, person.exec)();
+    expect(person.calls).toEqual([
+      ['auth', 'print-identity-token', `--impersonate-service-account=${runner}`, `--audiences=${URL}`],
+    ]);
+  });
+
+  it('uses MIGRATION_SCANNER_TOKEN without asking gcloud', async () => {
+    const { calls, exec } = gcloud('operator@example.com');
+    expect(await identityToken(URL, undefined, { MIGRATION_SCANNER_TOKEN: 'given' }, exec)()).toBe('given');
+    expect(calls).toEqual([]);
   });
 });

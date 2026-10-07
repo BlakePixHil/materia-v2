@@ -27,7 +27,7 @@ Each final copy carries `migrationRunId`, `legacyPath`, `sha256`, `scan` and `sc
 - **Copying:** one account does the server-side copy, so it needs read on the legacy bucket and write on the files bucket.
   - **prod:** `migration-runner@materia-v2-prod.iam.gserviceaccount.com`, impersonated. Terraform gives it object admin on `materia-v2-prod-files`. **At cutover**, grant it `roles/storage.objectViewer` on `matt-r-1fe15.firebasestorage.app` in the legacy project, and remove the grant once the copy and the final delta are done.
   - **dev:** your own gcloud account, which needs read on the legacy bucket, the run, and object admin on `materia-v2-dev-files`.
-- **Scanning:** an ID token for your gcloud account calls the `clamav` Cloud Run service, so you need `run.invoker` on it (owners have it). `--scanner-impersonate` uses a service account instead.
+- **Scanning:** an ID token for your gcloud account calls the `clamav` Cloud Run service, so you need `run.invoker` on it (owners have it). When gcloud is signed in as a service account (an agent's `terraform-agent`), the token names the service, as Cloud Run requires. `--scanner-impersonate` uses another service account instead.
 - **Where to run it:** Cloud Shell, so the bytes it reads back for the sha256 and the scan stay in Google Cloud. It keeps them in memory only, never on disk.
 
 ## Run it
