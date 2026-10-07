@@ -17,9 +17,10 @@ import { signInForPerf, writeReport } from './support';
  *   4× CPU slowdown and slow 4G (150 ms RTT, 1.6 Mbps), simulated. Each run starts with an empty
  *   HTTP cache (as after a deploy) and keeps the sign-in and Firestore's local cache (as for a
  *   returning user). TBT is reported beside them, as INP's lab proxy.
- * - INP from the Event Timing API while Playwright works each screen (taps on filters and tabs,
- *   keyboard moves, typing in a filter) with the CPU slowed 4× and a phone-sized viewport: the
- *   slowest interaction, as web-vitals reports INP for fewer than 50 interactions.
+ * - INP from the Event Timing API while Playwright works each screen (taps on filters, sections and
+ *   tabs, keyboard moves, typing a search) with the CPU slowed 4× on a phone-sized screen, so in the
+ *   phone layouts (MOB-02): the slowest interaction, as web-vitals reports INP for fewer than 50
+ *   interactions.
  *
  * Budgets fail the test. Reports (Lighthouse HTML per screen, vitals.json) go to PERF_OUT_DIR.
  * Run with E2E_PERF=1 (see docs/ops/perf-report-2026-10.md).
@@ -37,17 +38,18 @@ type Metric = keyof typeof VITALS_BUDGETS;
 export const VITALS_EXCEPTIONS: Partial<Record<ScreenName, Partial<Record<Metric, number>>>> = {
   // SEC-07b (MAT-177), "Trim the signed-in critical path for LCP on mid-tier phones": about
   // 750 kB of compressed JavaScript and the org policy read come before the first paint of any
-  // signed-in screen. Measured 7.1–9.3 s simulated over seven runs (0.7–1.6 s unthrottled).
+  // signed-in screen. Measured on the phone layouts over six runs: Today 8.0–9.0 s simulated, the
+  // Matters list 10.3–10.7 s and a matter 9.5–9.8 s (0.8–2.3 s unthrottled).
   // Today's CLS, SEC-07e (MAT-180), "Denormalise matter number and title onto deadline and task
   // rows (Today lookups)": Today draws its sections once every source has answered, or after 2.5 s.
   // On the emulators its rows' matter lookups can land just after that, and each row appears when
-  // its matter does. Measured 0 in four of seven runs, 0.128–0.225 in the others.
+  // its matter does. Measured 0.128–0.225 in three of seven runs on the desktop layout; 0 since.
   today: { lcpMs: 11_000, cls: 0.25 },
-  matters: { lcpMs: 11_000 },
-  matter: { lcpMs: 11_000 },
+  matters: { lcpMs: 12_500 },
+  matter: { lcpMs: 12_000 },
   // SEC-07c (MAT-178), "Window the Deadlines page and denormalise matter fields onto deadlines":
-  // 500 rows drawn at once, each growing when its matter is read. Measured LCP 12.5–13.1 s, CLS
-  // 0.295, INP 2.5–3.2 s.
+  // 500 rows drawn at once, each growing when its matter is read. Measured LCP 13.0–13.2 s, CLS
+  // 0.273, INP 2.7–3.2 s.
   deadlines: { lcpMs: 15_000, cls: 0.35, inpMs: 4_000 },
 };
 
@@ -58,6 +60,8 @@ export function vitalsBudget(screen: ScreenName, metric: Metric): number {
 
 /** Lighthouse's mobile CPU slowdown, used for the INP runs too. */
 const CPU_SLOWDOWN = 4;
+/** Lighthouse's mobile screen (a Moto G Power), for the INP runs: below 768 px, the phone layouts (MOB-02). */
+const PHONE = { width: 412, height: 823 };
 /** The Chrome DevTools port Lighthouse connects to (the perf project runs one worker). */
 const DEBUG_PORT = Number(process.env['PERF_DEBUG_PORT'] ?? 9339);
 
@@ -101,14 +105,11 @@ function screens(matterPath: string): Screen[] {
     {
       name: 'matters',
       path: '/matters',
-      ready: (page) => expect(page.locator('mt-table tbody tr[data-index]').first()).toBeVisible(FIRST_LOAD),
+      // The phone list (MOB-02): search first, then recents and "My open matters".
+      ready: (page) => expect(page.locator('[data-matter]').first()).toBeVisible(FIRST_LOAD),
       async interact(page) {
-        const overdue = page.getByRole('button', { name: 'Has overdue' });
-        await overdue.click();
-        await settle(page);
-        await overdue.click();
-        await settle(page);
-        const search = page.getByRole('searchbox', { name: 'Filter matters' });
+        // Typing searches; clearing the field draws the view's rows again.
+        const search = page.getByRole('searchbox', { name: 'Search matters' });
         await search.click();
         await search.pressSequentially('estate', { delay: 120 });
         await settle(page);
@@ -119,13 +120,19 @@ function screens(matterPath: string): Screen[] {
     {
       name: 'matter',
       path: matterPath,
-      ready: (page) => expect(page.getByRole('navigation', { name: 'Matter sections' })).toBeVisible(FIRST_LOAD),
+      // A phone's Overview (MOB-02): folding sections, with the other tabs under "More on this matter".
+      ready: (page) => expect(page.locator('.mt-phone-matter [data-section="deadlines"]')).toBeVisible(FIRST_LOAD),
       async interact(page) {
-        const tabs = page.getByRole('navigation', { name: 'Matter sections' });
-        for (const name of ['Tasks', 'Time', 'Deadlines', 'Overview']) {
-          await tabs.getByRole('link', { name, exact: true }).click();
+        for (const section of ['facts', 'deadlines', 'tasks', 'facts', 'deadlines', 'tasks']) {
+          await page.locator(`.mt-phone-matter [data-section="${section}"] > summary`).click();
           await settle(page);
         }
+        await page
+          .getByRole('navigation', { name: 'More on this matter' })
+          .getByRole('link', { name: 'Tasks', exact: true })
+          .click();
+        await expect(page.getByRole('navigation', { name: 'Matter sections' })).toBeVisible();
+        await settle(page);
       },
     },
     {
@@ -188,7 +195,7 @@ function inpOf(timings: readonly Timing[]): { inpMs: number | null; interactions
 async function measureInp(context: BrowserContext, baseURL: string, screen: Screen) {
   const page = await context.newPage();
   try {
-    await page.setViewportSize({ width: 412, height: 823 });
+    await page.setViewportSize(PHONE);
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_SLOWDOWN });
     await page.goto(new URL(screen.path, baseURL).toString());
@@ -225,7 +232,11 @@ async function runLighthouse(context: BrowserContext, baseURL: string, screen: S
     // default 45 s; every screen has painted long before 20 s.
     maxWaitForLoad: 20_000,
   };
-  const result = await lighthouse(new URL(screen.path, baseURL).toString(), flags);
+  const url = new URL(screen.path, baseURL).toString();
+  let result = await lighthouse(url, flags);
+  // Now and then Chrome's trace misses the navigation's start (NO_NAVSTART), and Lighthouse asks to
+  // be run again. Once: a second failure is real.
+  if (result?.lhr.runtimeError) result = await lighthouse(url, flags);
   if (!result) throw new Error(`Lighthouse returned nothing for ${screen.name}`);
   const { lhr } = result;
   if (lhr.runtimeError) throw new Error(`Lighthouse failed on ${screen.name}: ${lhr.runtimeError.message}`);
@@ -270,8 +281,9 @@ test.describe('Web Vitals on a mid-tier phone', () => {
       await row.click();
       await expect(page).toHaveURL(/\/matters\/m-lg-\d+\/overview$/);
       const all = screens(new URL(page.url()).pathname);
-      // Visit each screen once, as a returning user has (Firestore's local cache), then leave the
-      // app, so the measured tabs don't share a Firestore client with this one.
+      // Visit each screen once on the phone, as a returning user has (Firestore's local cache), then
+      // leave the app, so the measured tabs don't share a Firestore client with this one.
+      await page.setViewportSize(PHONE);
       for (const screen of all) {
         await page.goto(screen.path);
         await screen.ready(page);

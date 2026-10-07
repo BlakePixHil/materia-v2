@@ -12,9 +12,9 @@ Raw outputs (Lighthouse HTML and JSON, `vitals.json`, `reads.json`, k6 summaries
 | Firestore reads, a matter | ≤ 100 | 63: **met** |
 | Firestore reads, Matters list | set from measurement: 200 | 165: met, but 63 of them are an N+1 to remove in "Denormalise client names onto matters" (then about 100) |
 | Firestore reads, Deadlines | set from measurement: 800 | 688 (about 1,050 at the target scale): exception until "Window the Deadlines page and denormalise matter fields onto deadlines" (then about 200) |
-| LCP ≤ 2.5 s on a mid-tier phone | Today, Matters, matter, Deadlines | **Not met** on any screen (7.1–13.1 s simulated); exception until "Trim the signed-in critical path for LCP on mid-tier phones" |
-| INP ≤ 200 ms | same | **Met** on Today, Matters and a matter (32–168 ms); Deadlines 2.5–3.2 s: exception (Deadlines ticket) |
-| CLS ≤ 0.1 | same | **Met** on Matters and a matter (0–0.049); Today 0–0.225 depending on timing (0 in four of seven runs): exception (Today lookups ticket); Deadlines 0.295: exception (Deadlines ticket) |
+| LCP ≤ 2.5 s on a mid-tier phone | Today, Matters, matter, Deadlines | **Not met** on any screen (8.0–13.2 s simulated); exception until "Trim the signed-in critical path for LCP on mid-tier phones" |
+| INP ≤ 200 ms | same | **Met** on Today, Matters and a matter (24–80 ms); Deadlines 2.7–3.2 s: exception (Deadlines ticket) |
+| CLS ≤ 0.1 | same | **Met** on Today, Matters and a matter (0–0.04), after fixing a shift on the phone's Matters list. Today stays held at 0.25 because its rows' late lookups can still shift it (Today lookups ticket); Deadlines 0.273: exception (Deadlines ticket) |
 | Hot callables, p95 < 1 s at 10× peak, no errors | six flows | **Met** for `matters-createMatter` (512 ms), `deadlines-recompute` (397 ms) and `clerk-sendMessage` (322 ms), with no errors. The notification fan-out (1.45 s, no errors), invoicing and search are exceptions: the emulator can't run them at 10× peak, so they move to the perf-project ticket |
 | Write hot spots | review | Reviewed: 8 unqueried timestamps exempted from indexing; Clerk metering moved to blind increments; the counters measured (one transaction per org stays) |
 | Cost model | published | [cost-model.md](cost-model.md): ≈ US$90 a month for a target-scale firm (≈ US$240 with every document ingested by Clerk), most of it backups, plus Clerk tokens on the firm's own key |
@@ -43,9 +43,11 @@ For each screen:
 - **Lighthouse 13.5** in navigation mode with its mobile defaults: a Moto G Power screen, 4× CPU slowdown, and slow 4G at 150 ms RTT and 1.6 Mbps, simulated. It drives the same Chromium (141) over its debugging port, with the sign-in kept and the HTTP cache cleared, as after a deploy. This gives LCP, CLS, TBT and FCP.
 - **INP:** a fresh 412 × 823 tab with the CPU slowed 4×, where Playwright waits for the screen's content (on Deadlines, its rows) and then works it as a person would. INP is the slowest interaction from Event Timing (`durationThreshold` 16 ms), which is how web-vitals reports INP below 50 interactions.
   - Today: j, j, j, k, j through the rows.
-  - Matters: "Has overdue" on and off, then typing "estate" into the filter and clearing it.
-  - A matter: the Tasks, Time, Deadlines and Overview tabs.
+  - Matters, the phone list: typing "estate" into the search and clearing it.
+  - A matter, the phone Overview: folding and unfolding Key facts, Deadlines and Tasks, then opening Tasks from "More on this matter".
   - Deadlines: "Mine" and "Critical" on and off.
+
+Both screens are 412 px wide, so since MOB-02 they get the phone layouts: the TabBar, Matters as search, recents and a list, and a matter's Overview as folding sections. Deadlines has no phone layout of its own.
 
 The lab is pessimistic in three ways:
 
@@ -119,14 +121,14 @@ What changed and why:
 
 ### Web Vitals (mid-tier phone, scale 0.05)
 
-Seven runs of the CI step on the shared machine (six for Deadlines): five on the branch as first built, and two after rebasing it onto `main` at `d0c3d0c`, which brought MOB-01's service worker, CORE-23's pinned matters and AI-06c's matter brief. Ranges are lowest to highest; the reads were the same in every run but for the brief's one read.
+Six runs of the CI step on the shared machine, on `main` at `ee6d4e1` with MOB-02's phone layouts: three as the branch stood, then three after the phone Matters fix below. Ranges are lowest to highest. Seven earlier runs, before MOB-02, measured the desktop layout squeezed to a phone; their LCP was 7.1–13.1 s, and their reports are in the SEC-07 outputs folder.
 
 | Screen | LCP, simulated (budget 2.5 s) | Observed LCP | FCP | TBT | CLS (budget 0.1) | INP (budget 200 ms) | Held at until its ticket |
 | -- | --: | --: | --: | --: | --: | --: | -- |
-| Today | 7.6–8.2 s | 0.8–1.1 s | 5.0–5.2 s | 360–612 ms | 0–0.225 | 32–96 ms | LCP 11 s, CLS 0.25 |
-| Matters list | 7.1–9.3 s | 0.7–1.6 s | 4.4–5.1 s | 489 ms–1.2 s | 0 | 72–168 ms | LCP 11 s |
-| A matter | 8.5–9.1 s | 0.9–1.0 s | 5.1–5.4 s | 342–461 ms | 0.019–0.049 | 96–152 ms | LCP 11 s |
-| Deadlines | 12.5–13.1 s | 2.8–3.9 s | 4.5–4.7 s | 3.5–4.5 s | 0.295 | 2.5–3.2 s | LCP 15 s, CLS 0.35, INP 4 s |
+| Today | 8.0–9.0 s | 0.8–0.9 s | 4.9–5.0 s | 321–476 ms | 0 | 24–32 ms | LCP 11 s, CLS 0.25 |
+| Matters list (phone) | 10.3–10.7 s | 2.1–2.3 s | 4.5–4.7 s | 284–339 ms | 0 (0.286 before the fix) | 40 ms | LCP 12.5 s |
+| A matter (phone Overview) | 9.5–9.8 s | 1.0–1.2 s | 5.2–5.3 s | 189–336 ms | 0.04 | 40–80 ms | LCP 12 s |
+| Deadlines | 13.0–13.2 s | 2.8–3.0 s | 4.7 s | 3.3–3.8 s | 0.273 | 2.7–3.2 s | LCP 15 s, CLS 0.35, INP 4 s |
 
 "Observed LCP" is the unthrottled time on the test machine; Lighthouse's simulated LCP is the budgeted figure.
 
@@ -142,13 +144,13 @@ Seven runs of the CI step on the shared machine (six for Deadlines): five on the
   - the router (96 kB), the WebChannel transport (63 kB), forms (60 kB) and Remote Config (32 kB).
 - **Then the guards wait for Auth to restore the session and for the org policy read.**
 
-On slow 4G that is about 4.5–5 s to first paint (FCP) and 7–9 s to LCP. ADR-056 already made these loads parallel; what remains is their size and the waits. The fix is several pieces of work, so it is a follow-up, **"Trim the signed-in critical path for LCP on mid-tier phones"**:
+On slow 4G that is about 4.5–5.3 s to first paint (FCP) and 8–10.7 s to LCP. ADR-056 already made these loads parallel; what remains is their size and the waits. The fix is several pieces of work, so it is a follow-up, **"Trim the signed-in critical path for LCP on mid-tier phones"**:
 
 - keep `libphonenumber-js` and the heavier zod schemas off the start-up path;
 - render the shell from the cached session and policy before the network answers;
 - re-measure on the production CDN (Brotli, HTTP/2), which alone should take a few hundred kB off.
 
-The budgets are held at 11 s (15 s on Deadlines) until then.
+The budgets are held at 11 s on Today, 12 s on a matter and 12.5 s on Matters (15 s on Deadlines) until then.
 
 **Deadlines** draws up to 500 rows at once:
 
@@ -156,9 +158,12 @@ The budgets are held at 11 s (15 s on Deadlines) until then.
 - Toggling a filter re-renders the whole list, which is the INP. The profile of the "Mine" toggle shows about 630 ms in the Firestore SDK applying the 136 matter reads' events, and 195 ms in ng-primitives' hover measurement. The hover measurement is on hover-capable devices only.
 - The Deadlines follow-up above fixes both.
 
-**Today's CLS depends on timing.** Today draws its sections together once every source has answered, or after 2.5 s at most, so that nothing moves as each answer lands. Its rows wait for their matters (the 28 lookups above). On the emulators those lookups sometimes land just after the 2.5 s, and then each row appears as its matter does and pushes the rest down: CLS 0 in four of seven runs, 0.128–0.225 in the others. A slow phone network could do the same in the field. The Today lookups follow-up removes the lookups and so the wait; until then Today's CLS is held at 0.25.
+**Today's CLS depends on timing.** Today draws its sections together once every source has answered, or after 2.5 s at most, so that nothing moves as each answer lands. Its rows wait for their matters (the 28 lookups above). On the emulators those lookups sometimes land just after the 2.5 s, and then each row appears as its matter does and pushes the rest down. On the desktop layout CLS was 0 in four of seven runs and 0.128–0.225 in the others; on the phone it was 0 in all six. A slow phone network could still do the same in the field. The Today lookups follow-up removes the lookups and so the wait; until then Today's CLS is held at 0.25.
 
-**Fixed in SEC-07:** `MtButton` measured its width (`offsetWidth`, a forced layout) when every button was created, so a list of 500 rows forced 500 layouts. It now measures only when a button starts loading (`libs/ui/src/lib/button/button.ts`, with a spec proving no button measures until it loads). Deadlines' toggle went from 590 ms of forced layouts to none: INP 7.1 s → 2.8 s and TBT 10.3 s → 4.2 s.
+**Fixed in SEC-07:**
+
+- **The phone's Matters list** (`apps/web/src/app/features/matters/phone-matters.ts`) drew the view's matters first, then pushed them down when "Recent" landed above them: the recents read a list and then each matter, so they answer later. That is a layout shift of 0.286 in every run. The recents and the view now appear together, with one skeleton until the recents have answered: CLS 0. A spec holds the recents' answer and proves nothing is drawn until it arrives.
+- `MtButton` measured its width (`offsetWidth`, a forced layout) when every button was created, so a list of 500 rows forced 500 layouts. It now measures only when a button starts loading (`libs/ui/src/lib/button/button.ts`, with a spec proving no button measures until it loads). Deadlines' toggle went from 590 ms of forced layouts to none: INP 7.1 s → 2.8 s and TBT 10.3 s → 4.2 s.
 
 ### Load tests (10× peak, scale 0.05, emulators)
 
@@ -245,8 +250,8 @@ The exemptions are proven by `firebase/tests/indexes.spec.ts`. They deploy with 
 
 | Ticket | What it fixes | Budget held at until then |
 | -- | -- | -- |
-| [SEC-07b](https://linear.app/materia-web/issue/MAT-177): Trim the signed-in critical path for LCP on mid-tier phones | LCP on every signed-in screen (≈ 750 kB of JavaScript plus the guards' waits before first paint) | LCP ≤ 11 s (Deadlines 15 s) |
-| [SEC-07c](https://linear.app/materia-web/issue/MAT-178): Window the Deadlines page and denormalise matter fields onto deadlines | Deadlines reads (688 here and about 1,050 at the target scale → about 200), INP (2.5–3.2 s) and CLS (0.295) | reads ≤ 800, LCP ≤ 15 s, INP ≤ 4 s, CLS ≤ 0.35 |
+| [SEC-07b](https://linear.app/materia-web/issue/MAT-177): Trim the signed-in critical path for LCP on mid-tier phones | LCP on every signed-in screen (≈ 750 kB of JavaScript plus the guards' waits before first paint) | LCP ≤ 11 s on Today, 12 s on a matter, 12.5 s on Matters, 15 s on Deadlines |
+| [SEC-07c](https://linear.app/materia-web/issue/MAT-178): Window the Deadlines page and denormalise matter fields onto deadlines | Deadlines reads (688 here and about 1,050 at the target scale → about 200), INP (2.7–3.2 s) and CLS (0.273) | reads ≤ 800, LCP ≤ 15 s, INP ≤ 4 s, CLS ≤ 0.35 |
 | [SEC-07d](https://linear.app/materia-web/issue/MAT-179): Denormalise client names onto matters | Matters list reads (165 → about 100) | reads ≤ 200 |
 | [SEC-07e](https://linear.app/materia-web/issue/MAT-180): Denormalise matter number and title onto deadline and task rows (Today lookups) | Today's per-row matter reads (28), and its CLS (0–0.225): rows appear as their matters arrive, when that is after Today's 2.5 s limit for drawing its sections together | CLS ≤ 0.25 (reads within budget already) |
 | [SEC-07f](https://linear.app/materia-web/issue/MAT-181): Load-test numbering, invoicing, search and the notification fan-out on a perf project | What the emulator can't measure: counter contention at 5 a second, and invoicing, search and the note fan-out at 10× peak | `attempts` logged in production |

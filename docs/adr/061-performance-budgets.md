@@ -22,6 +22,7 @@ We will keep four budgets and check them in code:
 1. **Web Vitals on a mid-tier phone**: LCP ≤ 2.5 s, INP ≤ 200 ms and CLS ≤ 0.1 for Today, the Matters list, a matter and Deadlines.
    - `apps/web-e2e/src/perf/web-vitals.spec.ts` uses Lighthouse's mobile profile in navigation mode for LCP, CLS and TBT. That profile is a Moto G Power-class screen, 4× CPU slowdown, and a slow 4G link at 150 ms RTT and 1.6 Mbps.
    - INP is measured from Event Timing in Playwright, with the CPU slowed 4×, over a fixed script of real interactions per screen.
+   - Both use a 412 px screen, so since MOB-02 they measure the phone layouts, as a phone shows them.
    - A screen that misses a budget is listed in `VITALS_EXCEPTIONS` with the follow-up ticket that removes it. Anything worse than its exception fails.
 2. **Firestore reads per screen load**: Today ≤ 150 (warm) and a matter ≤ 100.
    - The Matters list and Deadlines are set from measurement with headroom, in `READ_BUDGETS` (`apps/web-e2e/src/perf/reads.spec.ts`).
