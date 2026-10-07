@@ -130,13 +130,15 @@ PITR and the managed backups live in australia-southeast1 with the database. The
 
 The `backup-drill` workflow runs quarterly on dev (1 January, April, July and October) and on demand (Actions → backup-drill → Run workflow; source `all`, `backup`, `export` or `pitr`). For each source it restores the newest backup or export into a scratch database `drill-…`, compares every collection group's count with the live database as it was at the snapshot time (PITR; a managed backup's snapshot falls mid-minute, so its counts must lie between the live counts at the minutes either side), writes the RPO and restore time to the run summary, and deletes the scratch database. It first deletes any `drill-…` database a cancelled run left behind. Locally: `pnpm materia-scripts backup-drill --project materia-v2-dev --source backup` (refuses prod).
 
-To see what the backups have done lately without restoring anything, run the workflow with source `status` (or `pnpm materia-scripts backup-status --project <project>`, read-only, prod too). It lists the managed backups, the export folders in the exports bucket (and any that never finished) and their copies in the backups bucket, the files copy, the export's scheduler job and its last 8 days of log lines (including why a failed export failed), and the Storage Transfer jobs' latest runs. A run with source `all` prints it first. Use it for the 7-day evidence and when an export alert fires. Once the cause is fixed, source `run-export` starts the nightly export straight away instead of waiting for 02:00.
+To see what the backups have done lately without restoring anything, run the workflow with source `status` (or `pnpm materia-scripts backup-status --project <project>`, read-only, prod too). It lists the managed backups, the export folders in the exports bucket (and any that never finished) and their copies in the backups bucket, the files copy, the export's scheduler job and its last 8 days of log lines (including why a failed export failed), and the Storage Transfer jobs' latest runs. A run with source `all` prints it first. Use it for the 7-day evidence and when an export alert fires. Once the cause is fixed, source `run-export` starts the nightly export straight away instead of waiting for 02:00. Source `restore-matter` dry-runs [Single matter](#single-matter) on dev from PITR an hour ago, for the matter given as `<orgId>/<matterId>` (or the first one found): it prints what a restore would write and writes nothing.
 
 After each drill, add a row:
 
 | Date | Source | Snapshot age (RPO) | Restore time | Counts | Run |
 | ---- | ------ | ------------------ | ------------ | ------ | --- |
 | 2026-10-07 (dev) | backup | 690 min (daily backup of 11:14 UTC) | 793 s, plus 38 s to verify | ✅ 1,150 documents in 38 groups, within the snapshot minute | [37541934598](https://github.com/BlakePixHil/materia-v2/actions/runs/37541934598) |
+| 2026-10-07 (dev) | export | 11 min (export run by hand at 00:18 UTC) | 46 s, plus 27 s to verify | ✅ 2,529 documents in 37 groups, exact | [37552119233](https://github.com/BlakePixHil/materia-v2/actions/runs/37552119233) |
+| 2026-10-07 (dev) | pitr | 2 min (clone of 00:42 UTC) | 899 s, plus 27 s to verify | ✅ 2,529 documents in 37 groups, exact | [37553458893](https://github.com/BlakePixHil/materia-v2/actions/runs/37553458893) |
 
 ## Retention and destruction
 

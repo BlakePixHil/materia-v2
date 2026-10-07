@@ -24,8 +24,11 @@ import { AuthState } from '../auth/auth-state';
 
 /** Where flag values come from: Remote Config and the org document. */
 export interface FlagValueSource {
-  /** Remote Config values for the registry's flags; empty when unavailable. */
-  remote(): Promise<Record<string, FlagValue>>;
+  /**
+   * Remote Config values for the registry's flags; empty when unavailable. Resolves with the values
+   * this device fetched last when it has any, and calls `updated` if a newer fetch changes them.
+   */
+  remote(updated?: (values: Record<string, FlagValue>) => void): Promise<Record<string, FlagValue>>;
   /** The org's overrides (`orgs/{orgId}.flags`). */
   org(orgId: string): Promise<Record<string, unknown>>;
 }
@@ -42,7 +45,7 @@ export function lazyFirebaseFlagSource(
   let source: Promise<FlagValueSource> | undefined;
   const get = () => (source ??= load());
   return {
-    remote: () => get().then((s) => s.remote()),
+    remote: (updated) => get().then((s) => s.remote(updated)),
     org: (orgId) => get().then((s) => s.org(orgId)),
   };
 }
@@ -80,9 +83,15 @@ export class FeatureFlagService {
   private orgLoad: { orgId: string | null; done: Promise<void> } = { orgId: null, done: Promise.resolve() };
 
   constructor() {
+    let fresh = false;
     this.remoteLoaded = this.source
-      .remote()
-      .then((values) => this.remote.set(values))
+      .remote((values) => {
+        fresh = true;
+        this.remote.set(values);
+      })
+      .then((values) => {
+        if (!fresh) this.remote.set(values);
+      })
       .catch(() => console.warn('Remote Config unavailable; using flag defaults'));
     // Reload the org's overrides whenever the active org changes (sign-in, switch, sign-out).
     effect(() => {

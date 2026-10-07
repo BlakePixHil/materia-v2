@@ -310,6 +310,20 @@ Signing records the same names and dates in the profile's `signOff`. Changing an
   - **Costs disclosures:** not a review code. Open matters show the disclosure as required (D-11, D-19), and Tristan settles them on each matter before `billing.costsDisclosure` goes on in prod.
   - **Evidence:** the callables and the clearing triggers have unit and emulator tests, the load's reconcile has unit tests, every code's fix path has a page test, and the e2e reviews a seeded import to "All reviewed".
 
+### D-23 Rehearsals and cutover (new)
+
+- **Status:** Default, from MIG-07's preparation on 2026-10-07. It applies D-15 and changes nothing it decided. Who operates the rehearsals is Blake's call (asked on 2026-10-07). The [runbook](../runbooks/migration-cutover.md) has the steps.
+- **Decision:**
+  - **Where:** every step runs in Cloud Shell, as an owner of the target project, so the run's data stays in Google Cloud in Australia, as the step runbooks already say. Not on a laptop, an agent's container or a CI runner.
+  - **Preflight:** `materia-migrate preflight --env dev|prod` asks IAM whether each account holds what its steps need before any real data moves, so a run doesn't stop halfway with the data already in the bucket. It reads IAM and the sign-in config only. In prod, the runner's read on the legacy bucket shows as needed later, since it is granted only for the cutover (D-18).
+  - **Dev backups:** a rehearsal's data also lands in dev's SEC-03 backups, which the rollback doesn't reach: managed backups (weekly ones kept 14 weeks), nightly exports (35 days, or 400 on the 1st of a month), the files copy, and old versions in the files bucket (90 days). The cleanup deletes the ones taken between the load and the rollback, and every version of the run's files, so D-15 holds. PITR (7 days) and soft-deleted objects (30 days at most) expire on their own and can only be read by restoring them. The backup jobs don't change.
+  - **Order:** the auth import runs after the copy, just before the load, which is the first step that needs the account. A stop earlier leaves no account behind.
+  - **Cutover:** one full export after Tristan stops using legacy, rather than an export the day before and a delta. A delta runs only if he edits legacy after the export. Rehearsal 2's timings check that the window fits; if it doesn't, the export and copy move to the day before and T0 runs a delta.
+  - **Legacy read-only rules:** optional and off by default. Tristan agrees not to edit, and the rules would be a legacy change for Blake to approve and undo on a rollback.
+  - **Calendar:** v2 has no calendar sync yet (INT-02 and INT-04 wait on INT-01b). If that is still so at cutover, his legacy events stay in his calendar (D-14) and he is told so.
+  - **Evidence for "no writes to legacy":** each session's command log and preflight output, attached to MIG-07. The tools only send reads to the legacy project, through an account IAM confirms can't write.
+  - **Archive:** before day 80 after the cutover, the raw export moves to an encrypted Coldline archive kept for the org's retention period, through a Terraform ticket filed at T0. The migration bucket deletes runs at 90 days.
+
 ## Descoped
 
 - **No staging rehearsals.** The plan's staging rehearsals move to dev (D-15).

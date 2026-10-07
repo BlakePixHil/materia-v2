@@ -6,7 +6,9 @@
 # or by hand. A failed run (mismatched counts, nothing to restore) emails the repository's watchers
 # like any failed workflow. Source `status` only lists what the backups have done lately
 # (`materia-scripts backup-status`); `all` lists it before drilling; `run-export` lists it and then
-# starts the nightly export now.
+# starts the nightly export now. `restore-matter` dry-runs the single-matter restore of one matter
+# (the `matter` input, `<orgId>/<matterId>`, or the first matter found) from PITR an hour ago: it
+# reads and compares, and writes nothing.
 #
 # Runs `materia-scripts backup-drill` from main as terraform-agent, through the same Workload
 # Identity pool as infra.yml (GitHub environment infra-dev). Dev only: the script refuses prod.
@@ -22,8 +24,13 @@ on:
         description: What to restore
         required: true
         type: choice
-        options: [all, backup, export, pitr, status, run-export]
+        options: [all, backup, export, pitr, status, run-export, restore-matter]
         default: all
+      matter:
+        description: 'restore-matter only: <orgId>/<matterId> (blank: the first matter found)'
+        required: false
+        type: string
+        default: ''
 
 concurrency:
   group: backup-drill
@@ -69,5 +76,25 @@ jobs:
         run: pnpm -s materia-scripts backup-status --project "$PROJECT" ${{ env.SOURCE == 'run-export' && '--run-export' || '' }}
 
       - name: Restore drill (${{ env.SOURCE }})
-        if: env.SOURCE != 'status' && env.SOURCE != 'run-export'
+        if: env.SOURCE != 'status' && env.SOURCE != 'run-export' && env.SOURCE != 'restore-matter'
         run: pnpm -s materia-scripts backup-drill --project "$PROJECT" --source "$SOURCE"
+
+      # Dry run only (no --apply): reads the matter as of an hour ago and the live one, prints the diff.
+      - name: Single-matter restore (dry run)
+        if: env.SOURCE == 'restore-matter'
+        env:
+          MATTER: ${{ inputs.matter }}
+        run: |
+          if [ -z "$MATTER" ]; then
+            token=$(gcloud auth print-access-token)
+            MATTER=$(curl -fsS -X POST -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+              "https://firestore.googleapis.com/v1/projects/$PROJECT/databases/(default)/documents:runQuery" \
+              -d '{"structuredQuery":{"from":[{"collectionId":"matters","allDescendants":true}],"select":{"fields":[{"fieldPath":"__name__"}]},"limit":1}}' \
+              | jq -r '.[0].document.name // empty' | sed -E 's#.*/documents/orgs/([^/]+)/matters/([^/]+)$#\1/\2#')
+          fi
+          if ! [[ "$MATTER" =~ ^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+$ ]]; then
+            echo "::error::No matter to restore (give the matter input as <orgId>/<matterId>)."
+            exit 1
+          fi
+          read_time=$(date -u -d '-60 min' +%Y-%m-%dT%H:%M:00Z)
+          pnpm -s materia-scripts restore-matter --project "$PROJECT" --org "${MATTER%%/*}" --matter "${MATTER##*/}" --read-time "$read_time"

@@ -104,6 +104,21 @@
         "costUsd": 0.0083,
         "outcomePredictionRefusal": 1
       }
+    },
+    "chat@1.1.0": {
+      "model": "claude-sonnet-5-5",
+      "acceptedAt": "2026-10-07",
+      "source": "2026-10-07T00-58-11-000Z",
+      "metrics": {
+        "citationPrecision": 1,
+        "citationCoverage": 0.4553,
+        "noInventions": 1,
+        "latencyMs": 3917.5,
+        "costUsd": 0.0115,
+        "outcomePredictionRefusal": 1,
+        "draftAccuracy": 1,
+        "draftHonesty": 1
+      }
     }
   },
   "injection": {

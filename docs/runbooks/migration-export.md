@@ -69,7 +69,7 @@ pnpm materia-migrate export --profile tools/migration/fixtures/legacy/mapping-pr
 
 Run it under `firebase emulators:exec --only auth,firestore,storage` with the fixtures loaded. A `demo-` source can never go to prod.
 
-**With the real user** (a MIG-07 rehearsal): the same command as the cutover export below, with `--env dev`. Afterwards, delete the run with every version of every file, so his data doesn't stay on dev (D-15):
+**With the real user** (a MIG-07 rehearsal): follow the [cutover runbook](migration-cutover.md#rehearse-on-dev), which runs `preflight` first. The export is the same command as the cutover export below, with `--env dev`. Afterwards, delete the run with every version of every file, so his data doesn't stay on dev (D-15):
 
 ```sh
 gcloud storage rm --all-versions --recursive gs://materia-v2-dev-migration/runs/<runId>/
