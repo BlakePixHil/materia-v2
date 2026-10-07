@@ -39,7 +39,8 @@ export const VITALS_EXCEPTIONS: Partial<Record<ScreenName, Partial<Record<Metric
   // SEC-07b (MAT-177), "Trim the signed-in critical path for LCP on mid-tier phones": about
   // 750 kB of compressed JavaScript and the org policy read come before the first paint of any
   // signed-in screen. Measured on the phone layouts over six runs: Today 8.0–9.0 s simulated, the
-  // Matters list 10.3–10.7 s and a matter 9.5–9.8 s (0.8–2.3 s unthrottled).
+  // Matters list 10.3–10.7 s and a matter 9.5–9.8 s (0.8–2.3 s unthrottled). Deadlines 9.3 s once
+  // SEC-07c windowed it (13.0–13.2 s before).
   // Today's CLS, SEC-07e (MAT-180), "Denormalise matter number and title onto deadline and task
   // rows (Today lookups)": Today draws its sections once every source has answered, or after 2.5 s.
   // On the emulators its rows' matter lookups can land just after that, and each row appears when
@@ -47,10 +48,7 @@ export const VITALS_EXCEPTIONS: Partial<Record<ScreenName, Partial<Record<Metric
   today: { lcpMs: 11_000, cls: 0.25 },
   matters: { lcpMs: 12_500 },
   matter: { lcpMs: 12_000 },
-  // SEC-07c (MAT-178), "Window the Deadlines page and denormalise matter fields onto deadlines":
-  // 500 rows drawn at once, each growing when its matter is read. Measured LCP 13.0–13.2 s, CLS
-  // 0.273, INP 2.7–3.2 s.
-  deadlines: { lcpMs: 15_000, cls: 0.35, inpMs: 4_000 },
+  deadlines: { lcpMs: 11_500 },
 };
 
 /** The budget a screen is held to: its exception's ceiling, or the ticket's. */
@@ -139,8 +137,8 @@ function screens(matterPath: string): Screen[] {
     {
       name: 'deadlines',
       path: '/deadlines',
-      // The rows, not just the heading: the toggles re-render them. Up to 500 of them, with the CPU
-      // slowed 4x in the INP tab, can take longer than a first load usually does.
+      // The rows, not just the heading: the toggles filter them. A page of them, with the CPU slowed
+      // 4x in the INP tab, can take longer than a first load usually does.
       ready: (page) => expect(page.locator('mt-deadline-row').first()).toBeVisible({ timeout: 60_000 }),
       async interact(page) {
         const filters = page.getByRole('group', { name: 'Filters' });
