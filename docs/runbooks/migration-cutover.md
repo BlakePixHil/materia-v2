@@ -4,14 +4,14 @@ How Tristan Burke's legacy data moves into Materia v2 for real: rehearsals on de
 
 **Who:**
 
-- **The operator** runs the commands, in Cloud Shell, as an owner of the target v2 project who can impersonate the legacy reader.
+- **The operator** runs the commands as an owner of the target v2 project who can impersonate the legacy reader. Blake chose an agent for the dev rehearsals (D-23): it runs them from its session as `terraform-agent` ([Set up an agent session](#set-up-an-agent-session)). A person runs them in [Cloud Shell](#set-up-cloud-shell).
 - **Tristan** (the user) reviews his data on dev and accepts it, stops using legacy at cutover, and signs in to prod.
 - **Blake** agrees the date with Tristan, grants access in the legacy project, and approves anything that deletes data in prod or changes legacy.
 
 **Rules for every session:**
 
 - **Nothing writes to legacy.** Every legacy read goes through `legacy-migration-reader`, and every tool checks with IAM that it can't write before it reads. The copy reads the legacy bucket server side and never writes to it.
-- **Real data stays in Google Cloud, in Australia.** Run the steps in Cloud Shell, never on a laptop, an agent or a CI runner. Reports hold legacy paths and counts only, but they are still about his practice: they go on the ticket or in project files, never in the repo or a chat.
+- **Real data stays in memory.** The tools hold the records and files they move in memory and write them only to Google Cloud. On an agent's session they pass through its machine, outside Australia (Blake's choice, D-23); nowhere else: never a laptop or a CI runner. Reports hold legacy paths and counts only, but they are still about his practice: they go on the ticket or in project files, never in the repo or a chat.
 - **Dev keeps none of it** (D-15, D-23). Each rehearsal is rolled back and its run deleted, along with the dev backups taken while it was there ([Clean up a dev rehearsal](#clean-up-a-dev-rehearsal)).
 - **Keep the command log** ([Command log](#command-log)). It is the evidence that nothing wrote to legacy.
 
@@ -26,7 +26,7 @@ How Tristan Burke's legacy data moves into Materia v2 for real: rehearsals on de
 | 4 | Import the account | `auth-import --target materia-v2-<env> --profile <profile>` | [migration-auth-import.md](migration-auth-import.md) |
 | 5 | Load | `load --run <runId> --env <env>` | [migration-load.md](migration-load.md#load) |
 | 6 | Verify | `verify --run <runId> --env <env>` | [migration-load.md](migration-load.md#verify) |
-| 7 | Clerk reads the files, and Insights gets its history | An owner approves in Settings → Clerk and AI; `pnpm materia-scripts backfill-metrics` | `migration-enrichment.md` (MIG-09) |
+| 7 | Clerk reads the files, and Insights gets its history | An owner approves in Settings → Clerk and AI; `pnpm materia-scripts backfill-metrics` | [migration-enrichment.md](migration-enrichment.md) (MIG-09) |
 | 8 | Review | Tristan, in Settings → Import from materia | [D-22](../migration/decisions.md#d-22-in-app-review-new) |
 
 The profile is `tools/migration/profiles/tristan-burke.json`. Exit codes, stops and re-runs are in each step's runbook: every step can be run again and picks up where it stopped.
@@ -47,6 +47,16 @@ gcloud config set project materia-v2-$MIG_ENV
 
 - Cloud Shell's Application Default Credentials are already the operator's, which the load, verify and rollback use. Cloud Shell has no proxy, so `NODE_USE_ENV_PROXY` isn't needed.
 - On a later day: `tmux new -A -s mig07`, `cd materia-v2 && git pull && pnpm install --frozen-lockfile`, then `script` and the exports again.
+
+## Set up an agent session
+
+An agent runs the steps as `terraform-agent` (Owner on dev and prod), once Blake has OK'd its thread using that account.
+
+- Set `NODE_USE_ENV_PROXY=1` behind the session's proxy, and `export MIG_ENV=dev PROFILE=tools/migration/profiles/tristan-burke.json`.
+- Application Default Credentials must be `terraform-agent` too, for the load, verify and rollback.
+- The scanner's ID token names the `clamav` service, since a service account's token must.
+- **The command log:** append each command and its output to a log in the session's scratch space (never the repo or project files), and attach it to MAT-101 at the end of the session.
+- The tools hold what they move in memory; nothing of Tristan's is written to the session's disk.
 
 ## Preflight
 
@@ -76,8 +86,8 @@ The writer is you on dev (dev has no runner account) and `migration-runner` in p
 | Need | Dev |
 | -- | -- |
 | Writer | Your own account: `enable_migration_runner = false` in `infra/terraform/envs/dev.tfvars` |
-| The legacy reader | Only `terraform-agent` holds Token Creator on it (MIG-01). The operator needs it too: in `matt-r-1fe15`, IAM → Service accounts → `legacy-migration-reader` → Permissions → grant the operator **Service Account Token Creator**. Remove it after the cutover with the account itself |
-| The legacy bucket | Your account copies from it, so it needs object read on `matt-r-1fe15.firebasestorage.app`. An owner of `matt-r-1fe15` has it. `terraform-agent` doesn't |
+| The legacy reader | `terraform-agent` holds Token Creator on it (MIG-01). A person operating needs it too: in `matt-r-1fe15`, IAM → Service accounts → `legacy-migration-reader` → Permissions → grant them **Service Account Token Creator**. Remove it after the cutover with the account itself |
+| The legacy bucket | The writer copies from it, so it needs object read on `matt-r-1fe15.firebasestorage.app`. An owner of `matt-r-1fe15` has it. `terraform-agent` has no access to `matt-r-1fe15`: Blake grants it **Storage Object Viewer** on that bucket for the rehearsals, and removes it after the cutover |
 | Buckets, scanner, Firestore, Auth | Terraform makes `materia-v2-dev-migration` (CMEK, versioned, objects deleted after 90 days), `materia-v2-dev-files` and `clamav`; a project owner holds every permission the steps need |
 | Google sign-in | On since 2026-10-04 |
 | Email | Dev sends email only once Postmark is set up there. Until then Tristan gets in-app notifications only. If it is set up before a rehearsal, tell him dev may email him reminders about his real matters |
@@ -121,8 +131,8 @@ Run them one at a time and read each one's output before the next; the step runb
    gcloud storage cp gs://materia-v2-$MIG_ENV-migration/runs/$RUN/verify/verify-report.md ~/verify-$RUN.md
    ```
 
-   Cloud Shell's ⋮ → Download saves it. It holds counts and legacy paths, no names or content.
-2. **Clerk and Insights:** follow `migration-enrichment.md` (MIG-09). Tristan approves Clerk reading the files only if he wants to see it on dev: it sends his documents to the AI provider. Insights' history comes from `backfill-metrics`, which agents can run on dev through the `dev-script` workflow.
+   In Cloud Shell, ⋮ → Download saves it; an agent attaches it to the ticket. It holds counts and legacy paths, no names or content.
+2. **Clerk and Insights:** follow the [enrichment runbook](migration-enrichment.md) (MIG-09). Tristan approves Clerk reading the files only if he wants to see it on dev: it sends his documents to the AI provider. Insights' history comes from `backfill-metrics`, which agents can run on dev through the `dev-script` workflow.
 3. **Check the review queue:** Settings → Import from materia shows the run, and its open items match the transform report's `needsReview` totals.
 4. **Tristan reviews.** He signs in to https://materia-v2-dev.web.app with Google and works through the review queue (the Today card "Check your import", or Settings → Import from materia). He sets the practice's real name in Settings → Practice: legacy holds the app's name (D-09). Keep the review to a week or less.
 5. **Record his feedback** as Linear tickets related to MAT-101, one per problem, without client details.
@@ -245,7 +255,7 @@ gcloud config set project materia-v2-prod
    Verify must pass. Attach `verify/verify-report.md` to MAT-101. A failure that a second load and verify don't fix is a [rollback](#rollback).
 6. **If Tristan edited legacy after the export:** a delta (`export --since <the manifest's readTime>`, `transform --base-run $RUN`, `copy-files`, `delta --confirm-prod`, verify), as the [load runbook](migration-load.md#delta-cutover) says.
 7. **Remove the legacy bucket grant** from step 2.
-8. **Clerk and Insights:** `migration-enrichment.md` (MIG-09). Tristan, or Blake for him, approves the cost. Then `backfill-metrics --project materia-v2-prod --org <orgId> --from earliest` from Cloud Shell (the `dev-script` workflow is dev only).
+8. **Clerk and Insights:** the [enrichment runbook](migration-enrichment.md) (MIG-09). Tristan, or Blake for him, approves the cost. Then `backfill-metrics --project materia-v2-prod --org <orgId> --from earliest` from Cloud Shell (the `dev-script` workflow is dev only).
 9. **Tristan signs in** to prod with Google. His row in Authentication › Users shows the legacy uid and a sign-in time. He sets up his authenticator app when asked.
 10. **Smoke checklist,** with him:
     - [ ] The number of matters (open and closed) matches the verify report's.
@@ -280,7 +290,7 @@ If prod data was damaged beyond what the rollback removes, the [restore runbook]
 
 - **Days 0 to 90:** legacy stays readable and unchanged, and `legacy-migration-reader` stays for any re-check. The migration review and the disclosures are Tristan's: `billing.costsDisclosure` goes on in prod once each imported open matter's disclosure is settled.
 - **Before day 80:** archive the raw export. The migration bucket deletes the run at 90 days, so copy `runs/<runId>/raw/` and `manifest.json` into an encrypted Coldline archive kept for the org's retention period (`retentionYears`, 7 by default), and adjust the migration bucket's lifecycle to match. It is a Terraform change: file it as a ticket at T0.
-- **Day 90:** Blake deletes `legacy-migration-reader` and the operator's Token Creator grants in `matt-r-1fe15`. Decommissioning legacy is MIG-10.
+- **Day 90:** Blake deletes `legacy-migration-reader` and the operator's grants in `matt-r-1fe15` (Token Creator, and `terraform-agent`'s read on the bucket). Decommissioning legacy is MIG-10.
 
 ## Messages for Tristan
 

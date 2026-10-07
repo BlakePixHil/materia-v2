@@ -62,18 +62,29 @@ export function storageEmulator(env: NodeJS.ProcessEnv): string {
   return `${host.includes('://') ? host : `http://${host}`}/storage/v1`;
 }
 
+type Exec = (file: string, args: string[]) => Promise<{ stdout: string }>;
+const execGcloud: Exec = (file, args) => promisify(execFile)(file, args);
+
 /** A Google ID token for the scanner, from gcloud (or MIGRATION_SCANNER_TOKEN). */
-function identityToken(url: string, impersonate: string | undefined, env: NodeJS.ProcessEnv): () => Promise<string> {
+export function identityToken(
+  url: string,
+  impersonate: string | undefined,
+  env: NodeJS.ProcessEnv,
+  exec: Exec = execGcloud,
+): () => Promise<string> {
   const fixed = env['MIGRATION_SCANNER_TOKEN'];
   if (fixed) return async () => fixed;
   let cached: { token: string; until: number } | undefined;
   return async () => {
     if (cached && cached.until > Date.now()) return cached.token;
-    const { stdout } = await promisify(execFile)('gcloud', [
+    // A user account's token is for gcloud itself, which Cloud Run accepts; a service account's
+    // (impersonated, or gcloud's own, as when an agent runs it) must name the service.
+    const account = impersonate ?? (await exec('gcloud', ['config', 'get-value', 'account'])).stdout.trim();
+    const { stdout } = await exec('gcloud', [
       'auth',
       'print-identity-token',
-      // A user account's token is for gcloud itself, which Cloud Run accepts; a service account's names the service.
-      ...(impersonate ? [`--impersonate-service-account=${impersonate}`, `--audiences=${url}`] : []),
+      ...(impersonate ? [`--impersonate-service-account=${impersonate}`] : []),
+      ...(account.endsWith('.gserviceaccount.com') ? [`--audiences=${url}`] : []),
     ]);
     cached = { token: stdout.trim(), until: Date.now() + 45 * 60 * 1000 };
     return cached.token;
