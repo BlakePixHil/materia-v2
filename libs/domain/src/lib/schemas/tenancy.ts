@@ -4,6 +4,7 @@ import { OrgClerkSettingsSchema } from '../clerk-settings';
 import { DEFAULT_ORG_TIMEZONE } from '../constants';
 import { BoardWipLimitsSchema } from '../matter-board';
 import { NotificationPrefsSchema } from '../notifications';
+import { PinnedMatterIdsSchema } from '../pins';
 import { OrgSecuritySchema } from '../security';
 import { XeroSettingsSchema } from '../xero';
 import { CentsSchema, DateOnlySchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
@@ -247,6 +248,11 @@ export const User = withMeta(
      */
     avatarUrl: z.url().max(2048).optional(),
     /**
+     * The matters pinned to the sidebar (CORE-23), per org, in pinning order (at most 10 each).
+     * Written by their owner, one org at a time (the rules allow only the current org's list).
+     */
+    pinnedMatterIds: PinnedMatterIdsSchema.optional(),
+    /**
      * Set by the Resend bounce and complaint webhook (FND-20, ADR-057): mail to this address
      * bounced hard or was reported as spam, so nothing more is emailed to it.
      */
@@ -263,7 +269,7 @@ export const User = withMeta(
     path: 'users',
     // The active org changes only through `orgs-switchActiveOrg`, which also sets the claims.
     serverOwned: ['orgIds', 'activeOrgId', 'claimsVersion', 'memberships', 'emailDeliverability', 'legacy'],
-    updatable: ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl'],
+    updatable: ['displayName', 'firstName', 'lastName', 'prefs', 'avatarUrl', 'pinnedMatterIds'],
   },
 );
 

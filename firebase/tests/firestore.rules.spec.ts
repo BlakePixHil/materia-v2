@@ -759,6 +759,41 @@ describe('profile (CORE-20)', () => {
   });
 });
 
+describe('pinned matters (CORE-23)', () => {
+  const tenIds = Array.from({ length: 10 }, (_, i) => `matter-${i + 1}`);
+
+  it('a person pins up to ten matters in their current org, and nobody else writes their pins', async () => {
+    const uid = uidFor('lawyer');
+    const elsewhere = { [OTHER_ORG]: ['matter-9'] };
+    for (const who of [uid, uidFor('paralegal')]) {
+      await seedAdmin(env, (f) =>
+        setDoc(doc(f, `users/${who}`), { ...seedData(specFor('users')), pinnedMatterIds: elsewhere }),
+      );
+    }
+    const ref = doc(db(env, 'lawyer'), `users/${uid}`);
+    const pins = (ids: unknown, extra: Record<string, unknown> = {}) =>
+      stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ids, ...extra } }, uid);
+
+    await assertSucceeds(updateDoc(ref, pins(['matter-1', 'matter-2'])));
+    await assertSucceeds(updateDoc(ref, pins(tenIds)));
+    await assertSucceeds(updateDoc(ref, pins(tenIds.slice(1))));
+    await assertFails(updateDoc(ref, pins([...tenIds, 'matter-11'])));
+    await assertFails(updateDoc(ref, pins('matter-1')));
+    // Only the current org's list changes: another org's stays as it was.
+    await assertFails(updateDoc(ref, pins(['matter-1'], { [OTHER_ORG]: ['matter-1'] })));
+    await assertFails(updateDoc(ref, stamped({ pinnedMatterIds: { [ORG]: ['matter-1'] } }, uid)));
+    await assertFails(updateDoc(ref, stamped({ pinnedMatterIds: 'matter-1' }, uid)));
+    // Unpinning the last one drops the org's list.
+    await assertSucceeds(updateDoc(ref, stamped({ pinnedMatterIds: elsewhere }, uid)));
+    // Another person's pins are theirs alone.
+    const other = doc(db(env, 'lawyer'), `users/${uidFor('paralegal')}`);
+    await assertFails(updateDoc(other, stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ['matter-1'] } }, uid)));
+    await assertFails(
+      updateDoc(other, stamped({ pinnedMatterIds: { ...elsewhere, [ORG]: ['matter-1'] } }, uidFor('paralegal'))),
+    );
+  });
+});
+
 describe('soft delete', () => {
   const softDelete = (uid: string) => ({
     deletedAt: serverTimestamp(),

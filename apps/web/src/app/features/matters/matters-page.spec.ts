@@ -474,6 +474,74 @@ describe('keyboard', () => {
   });
 });
 
+describe('pinning (CORE-23)', () => {
+  /** My profile, with these pins in the practice. */
+  const profile = (ids: string[]) => (_port: FakeAuthPort, fs: InMemoryFirestore) => {
+    seed(fs);
+    fs.set(`users/${ME}`, {
+      email: 'lawyer@harbourvine.example',
+      displayName: 'Jordan Price',
+      orgIds: [ORG],
+      activeOrgId: ORG,
+      pinnedMatterIds: { [ORG]: ids },
+      ...meta,
+    });
+  };
+  const pins = (page: Awaited<ReturnType<typeof open>>) =>
+    (page.firestore.get(`users/${ME}`) as { pinnedMatterIds: Record<string, string[]> }).pinnedMatterIds[ORG] ?? [];
+  const marked = (page: Awaited<ReturnType<typeof open>>) =>
+    page
+      .rows()
+      .flatMap((row) =>
+        row.querySelector('.mt-matters-pinned')
+          ? [row.querySelector('.mt-matters-title .title')?.textContent?.trim()]
+          : [],
+      );
+
+  it('pins and unpins from a row’s menu, and marks pinned rows', async () => {
+    const page = await open('/matters?view=all-open', LAWYER, { configure: profile(['m-chen']) });
+    expect(marked(page)).toEqual(['Estate of Robert Chen']);
+    const menu = page.body.querySelector<HTMLElement>('button[aria-label="More actions for M-2026-0151"]');
+    expect(menu?.getAttribute('tabindex')).toBe('-1');
+    menu?.click();
+    await page.stable();
+    await page.click('Pin matter', page.body.querySelector('[role="menu"]') ?? page.body);
+    expect(pins(page)).toEqual(['m-chen', 'm-okafor']);
+    expect(marked(page)).toEqual(['Harriet and Paul Okafor', 'Estate of Robert Chen']);
+    expect(page.text()).toContain('Pinned M-2026-0151');
+
+    page.body.querySelector<HTMLElement>('button[aria-label="More actions for M-2026-0118"]')?.click();
+    await page.stable();
+    await page.click('Unpin matter', page.body.querySelector('[role="menu"]') ?? page.body);
+    expect(pins(page)).toEqual(['m-okafor']);
+  });
+
+  it('pins the focused row with p', async () => {
+    const page = await open('/matters?view=all-open', LAWYER, { configure: profile([]) });
+    await page.press('j', page.body);
+    await page.press('p');
+    expect(pins(page)).toEqual(['m-whitfield']);
+    await page.press('p');
+    expect(pins(page)).toEqual([]);
+  });
+
+  it('read-only members pin too: pins are their own', async () => {
+    const page = await open('/matters?view=all-open', READONLY, { configure: profile([]) });
+    page.body.querySelector<HTMLElement>('button[aria-label="More actions for M-2026-0142"]')?.click();
+    await page.stable();
+    await page.click('Pin matter', page.body.querySelector('[role="menu"]') ?? page.body);
+    expect(pins(page)).toEqual(['m-whitfield']);
+  });
+
+  it('leads the list with my pinned matters, for phones', async () => {
+    const page = await open('/matters', LAWYER, { configure: profile(['m-okafor', 'm-deleted', 'm-chen']) });
+    const strip = page.body.querySelector('.mt-matters-pins');
+    const links = [...(strip?.querySelectorAll('a') ?? [])];
+    expect(links.map((link) => link.textContent?.trim())).toEqual(['Harriet and Paul Okafor', 'Estate of Robert Chen']);
+    expect(links[0]?.getAttribute('href')).toBe('/matters/m-okafor');
+  });
+});
+
 describe('saved views', () => {
   it('saves, reopens, updates, renames and deletes a view of my own', async () => {
     const page = await open('/matters', LAWYER, { configure: (_p, fs) => seed(fs) });
