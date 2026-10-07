@@ -201,6 +201,9 @@ describe('Clerk chat panel', () => {
     ]);
     expect(page.text(page.panel()?.querySelector('mt-user-message'))).toBe('Who is the executor?');
     expect(page.text(page.panel())).toContain('Reading the matter…');
+    // Until its first words arrive, the answer is only the working line: no empty answer with a caret.
+    expect(page.panel()?.querySelector('mt-clerk-message')).toBeNull();
+    expect(page.panel()?.querySelector('.mt-caret')).toBeNull();
 
     const path = `${THREADS}/t-new-1/messages/a-1`;
     await page.answer(path, { toolCalls: [{ id: 'x', name: 'search_documents', status: 'running' }] });
@@ -212,6 +215,7 @@ describe('Clerk chat panel', () => {
       content: [{ type: 'text', text: 'Avery Quill is the executor.' }],
     });
     expect(page.panel()?.querySelector('mt-clerk-working')).toBeNull();
+    expect(page.panel()?.querySelector('mt-clerk-message .mt-caret')).not.toBeNull();
     // The conversation isn't read out as it streams; the finished answer is announced once (SEC-06).
     const log = page.panel()?.querySelector('[role="log"]');
     const announcement = () => page.text(page.panel()?.querySelector('[data-clerk-announcement]'));
