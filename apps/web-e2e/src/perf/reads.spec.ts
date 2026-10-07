@@ -28,8 +28,8 @@ export const READ_BUDGETS = {
   today: 150,
   /**
    * Measured 165: one page of matters, the firm's 50 members, and one read per client contact on
-   * the page (63, an N+1 bounded by the page size). Exception until "Denormalise client names onto
-   * matters" lands; then about 100.
+   * the page (63, an N+1 bounded by the page size). Exception until SEC-07d (MAT-179), "Denormalise
+   * client names onto matters", lands; then about 100.
    */
   matters: 200,
   /** The ticket's. Measured 63, 50 of them the firm's members (fewer when that listener resumes). */
@@ -37,8 +37,8 @@ export const READ_BUDGETS = {
   /**
    * Measured 688: the firm-wide list reads up to 500 upcoming deadlines live, the firm's 50
    * members, then each deadline's matter (136 here: an N+1 of up to 500 at the target scale, so
-   * about 1,050 there). Exception until "Window the Deadlines page and denormalise matter fields
-   * onto deadlines" lands; the target is then 200.
+   * about 1,050 there). Exception until SEC-07c (MAT-178), "Window the Deadlines page and
+   * denormalise matter fields onto deadlines", lands; the target is then 200.
    */
   deadlines: 800,
 } as const;

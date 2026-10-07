@@ -155,6 +155,7 @@ These module boundaries are enforced by `@nx/enforce-module-boundaries`:
 - Playwright e2e against emulators plus the built app.
 - axe-core in e2e.
 - Storybook for `libs/ui`, with interaction tests.
+- [ADR-061](adr/061-performance-budgets.md) (SEC-07): key screens are held to Web Vitals budgets (LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1 on a mid-tier phone) and Firestore read budgets (Today ≤ 150, a matter ≤ 100), measured every morning by the non-blocking `perf` CI job against `seed-large` on the emulators with a reads counter built only into e2e builds. A screen that misses one is held at a ceiling in `VITALS_EXCEPTIONS` or `READ_BUDGETS` until its follow-up ticket lands. Hot callables are load-tested by hand with k6 (`tools/load/`) to p95 < 1 s at 10× peak. Write hot spots get single-field index exemptions; numbering keeps one counter transaction per org.
 
 **ADR-018: Observability.**
 - Structured JSON logs (`logger` from `firebase-functions`), with a `requestId`, `orgId`, `uid` and `feature` on every line.

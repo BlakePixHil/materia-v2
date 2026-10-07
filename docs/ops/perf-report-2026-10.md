@@ -1,6 +1,6 @@
 # Performance report, October 2026 (SEC-07)
 
-Is Materia fast and affordable for a firm of up to 50 users, 10,000 matters, 500,000 documents and 2 million time entries? This report sets out the budgets, what was measured, what was fixed, and the exceptions that remain with their follow-up tickets. Costs are in [cost-model.md](cost-model.md), and the decision record is [ADR-0XX](../adr/0XX-performance-budgets.md).
+Is Materia fast and affordable for a firm of up to 50 users, 10,000 matters, 500,000 documents and 2 million time entries? This report sets out the budgets, what was measured, what was fixed, and the exceptions that remain with their follow-up tickets. Costs are in [cost-model.md](cost-model.md), and the decision record is [ADR-061](../adr/061-performance-budgets.md).
 
 Raw outputs (Lighthouse HTML and JSON, `vitals.json`, `reads.json`, k6 summaries and emulator logs, CPU profiles, the cost script) are in the SEC-07 outputs folder (`sec-07/`) beside this repository's other ticket outputs.
 
@@ -243,15 +243,15 @@ The exemptions are proven by `firebase/tests/indexes.spec.ts`. They deploy with 
 
 ## Exceptions and follow-up tickets
 
-| Ticket (proposed) | What it fixes | Budget held at until then |
+| Ticket | What it fixes | Budget held at until then |
 | -- | -- | -- |
-| Trim the signed-in critical path for LCP on mid-tier phones | LCP on every signed-in screen (≈ 750 kB of JavaScript plus the guards' waits before first paint) | LCP ≤ 11 s (Deadlines 15 s) |
-| Window the Deadlines page and denormalise matter fields onto deadlines | Deadlines reads (688 here and about 1,050 at the target scale → about 200), INP (2.5–3.2 s) and CLS (0.295) | reads ≤ 800, LCP ≤ 15 s, INP ≤ 4 s, CLS ≤ 0.35 |
-| Denormalise client names onto matters | Matters list reads (165 → about 100) | reads ≤ 200 |
-| Denormalise matter number and title onto deadline and task rows (Today lookups) | Today's per-row matter reads (28), and its CLS (0–0.225): rows appear as their matters arrive, when that is after Today's 2.5 s limit for drawing its sections together | CLS ≤ 0.25 (reads within budget already) |
-| Load-test numbering, invoicing, search and the notification fan-out on a perf project | What the emulator can't measure: counter contention at 5 a second, and invoicing, search and the note fan-out at 10× peak | `attempts` logged in production |
-| Size the Clerk reply queue for concurrent firms | `clerk-runMessage` runs at most 10 replies at a time per project (the queue default), shared by every firm: with a real model's 5–20 s replies that is 0.5–2 a second for all firms together, against 0.33 a second for one firm's peak | n/a: with the fake model, replies kept up at 10× peak |
-| Leave derivable Clerk chunks out of the nightly export and cut the export cadence at scale | The largest cost line at the target scale (cost model) | n/a |
+| [SEC-07b](https://linear.app/materia-web/issue/MAT-177): Trim the signed-in critical path for LCP on mid-tier phones | LCP on every signed-in screen (≈ 750 kB of JavaScript plus the guards' waits before first paint) | LCP ≤ 11 s (Deadlines 15 s) |
+| [SEC-07c](https://linear.app/materia-web/issue/MAT-178): Window the Deadlines page and denormalise matter fields onto deadlines | Deadlines reads (688 here and about 1,050 at the target scale → about 200), INP (2.5–3.2 s) and CLS (0.295) | reads ≤ 800, LCP ≤ 15 s, INP ≤ 4 s, CLS ≤ 0.35 |
+| [SEC-07d](https://linear.app/materia-web/issue/MAT-179): Denormalise client names onto matters | Matters list reads (165 → about 100) | reads ≤ 200 |
+| [SEC-07e](https://linear.app/materia-web/issue/MAT-180): Denormalise matter number and title onto deadline and task rows (Today lookups) | Today's per-row matter reads (28), and its CLS (0–0.225): rows appear as their matters arrive, when that is after Today's 2.5 s limit for drawing its sections together | CLS ≤ 0.25 (reads within budget already) |
+| [SEC-07f](https://linear.app/materia-web/issue/MAT-181): Load-test numbering, invoicing, search and the notification fan-out on a perf project | What the emulator can't measure: counter contention at 5 a second, and invoicing, search and the note fan-out at 10× peak | `attempts` logged in production |
+| [SEC-07g](https://linear.app/materia-web/issue/MAT-182): Size the Clerk reply queue for concurrent firms | `clerk-runMessage` runs at most 10 replies at a time per project (the queue default), shared by every firm: with a real model's 5–20 s replies that is 0.5–2 a second for all firms together, against 0.33 a second for one firm's peak | n/a: with the fake model, replies kept up at 10× peak |
+| [SEC-07h](https://linear.app/materia-web/issue/MAT-183): Leave derivable Clerk chunks out of the nightly export and cut the export cadence at scale | The largest cost line at the target scale (cost model) | n/a |
 
 ## Reproducing
 

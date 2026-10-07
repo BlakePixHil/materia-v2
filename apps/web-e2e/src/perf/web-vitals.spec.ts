@@ -35,18 +35,19 @@ type Metric = keyof typeof VITALS_BUDGETS;
  * goes. Measured at seed-large scale 0.05 on the Hosting emulator (HTTP/1.1, gzip).
  */
 export const VITALS_EXCEPTIONS: Partial<Record<ScreenName, Partial<Record<Metric, number>>>> = {
-  // "Trim the signed-in critical path for LCP on mid-tier phones": about 750 kB of compressed
-  // JavaScript and the org policy read come before the first paint of any signed-in screen.
-  // Measured 7.1–9.3 s simulated over seven runs (0.7–1.6 s unthrottled).
-  // Today's CLS, "Denormalise matter number and title onto deadline and task rows (Today lookups)":
-  // Today draws its sections once every source has answered, or after 2.5 s. On the emulators its
-  // rows' matter lookups can land just after that, and each row appears when its matter does.
-  // Measured 0 in four of seven runs, 0.128–0.225 in the others.
+  // SEC-07b (MAT-177), "Trim the signed-in critical path for LCP on mid-tier phones": about
+  // 750 kB of compressed JavaScript and the org policy read come before the first paint of any
+  // signed-in screen. Measured 7.1–9.3 s simulated over seven runs (0.7–1.6 s unthrottled).
+  // Today's CLS, SEC-07e (MAT-180), "Denormalise matter number and title onto deadline and task
+  // rows (Today lookups)": Today draws its sections once every source has answered, or after 2.5 s.
+  // On the emulators its rows' matter lookups can land just after that, and each row appears when
+  // its matter does. Measured 0 in four of seven runs, 0.128–0.225 in the others.
   today: { lcpMs: 11_000, cls: 0.25 },
   matters: { lcpMs: 11_000 },
   matter: { lcpMs: 11_000 },
-  // "Window the Deadlines page and denormalise matter fields onto deadlines": 500 rows drawn at
-  // once, each growing when its matter is read. Measured LCP 12.5–13.1 s, CLS 0.295, INP 2.5–3.2 s.
+  // SEC-07c (MAT-178), "Window the Deadlines page and denormalise matter fields onto deadlines":
+  // 500 rows drawn at once, each growing when its matter is read. Measured LCP 12.5–13.1 s, CLS
+  // 0.295, INP 2.5–3.2 s.
   deadlines: { lcpMs: 15_000, cls: 0.35, inpMs: 4_000 },
 };
 

@@ -1,8 +1,6 @@
-# ADR-0XX: Performance budgets, measured on the emulators
+# ADR-061: Performance budgets, measured on the emulators
 
-> Needs an ADR number: take the next free one when this merges, and rename the file to match.
-
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-07
 - **Ticket:** [SEC-07](https://linear.app/materia-web/issue/MAT-117)
 - **Builds on:** [ADR-029](029-today-screen-reads.md) (Today's reads), [ADR-048](048-metrics-rollups.md) (metrics rollups), [ADR-056](056-startup-loads-in-parallel.md) (start-up loads in parallel)
