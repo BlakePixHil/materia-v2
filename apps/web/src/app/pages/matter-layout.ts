@@ -170,7 +170,7 @@ type MatterState = 'loading' | 'ready' | 'restricted' | 'not-found' | 'offline' 
               <mt-skeleton variant="lines" label="Loading the matter…" [count]="4" />
             }
           } @else {
-            <nav mtTabNav aria-label="Matter sections">
+            <nav mtTabNav aria-label="Matter sections" data-tour="matter-tabs">
               @for (tab of tabs(); track tab.path) {
                 <a mtTabLink [routerLink]="tab.path">{{ tab.label }}</a>
               }

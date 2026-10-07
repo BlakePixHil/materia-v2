@@ -41,6 +41,7 @@ import { PushDevices, type PushStatus } from '../../core/push/push-devices';
 import { PUSH_BLOCKED_HELP, PushSetup } from '../../core/push/push-setup';
 import { InstallPrompt } from '../../core/pwa/install-prompt';
 import { ShortcutService } from '../../core/shortcuts/shortcut.service';
+import { TourService, WELCOME_TOUR_ID } from '../../core/tours/tour-service';
 
 const THEMES: MtOption<ThemePref>[] = [
   { value: 'system', label: 'System' },
@@ -100,6 +101,7 @@ const TEST_PUSH_FAILURES: Record<string, string> = {
 
 /**
  * Settings → Preferences (`/settings/preferences`, CORE-20; everyone): appearance, the start page,
+ * guided tours (CORE-24),
  * notifications (kinds × channels, how early task reminders come (CORE-11), quiet hours, the daily
  * digest and the time zone they follow),
  * the keyboard shortcuts and the devices that get push notifications: this one turned on or off
@@ -165,6 +167,39 @@ const TEST_PUSH_FAILURES: Record<string, string> = {
         <span data-date-preview style="color: var(--text-secondary)">{{ datePreview() }}</span>
       </mt-settings-row>
     </mt-settings-section>
+
+    <!-- Guided tours (CORE-24). -->
+    @if (tours.enabled()) {
+      <mt-settings-section
+        title="Guided tours"
+        description="A spotlight on each feature with a short explanation. Start one any time with Shift+H, or “Tour this page” in search."
+        [headingLevel]="2"
+        data-tour="tours-settings"
+      >
+        <mt-settings-row title="Page tours" description="Play a page’s tour the first time you open it.">
+          <mt-switch
+            name="pageTours"
+            label="Page tours"
+            labelHidden
+            [ngModel]="tours.prefs().auto"
+            (ngModelChange)="setPageTours($event)"
+          />
+        </mt-settings-row>
+        <mt-settings-row
+          title="Welcome tour"
+          description="Where things live: your pages, search, the timer, Clerk and Settings."
+        >
+          <button mtButton size="sm" variant="secondary" type="button" data-tour-welcome (click)="takeWelcomeTour()">
+            Take it again
+          </button>
+        </mt-settings-row>
+        <mt-settings-row title="Seen them already?" description="Play each page’s tour again as you next open it.">
+          <button mtButton size="sm" variant="ghost" type="button" data-tour-replay (click)="replayPageTours()">
+            Replay page tours
+          </button>
+        </mt-settings-row>
+      </mt-settings-section>
+    }
 
     <mt-settings-section
       title="Notifications"
@@ -407,6 +442,8 @@ export class PreferencesPage {
   private readonly context = inject(OrgContext);
   private readonly toasts = inject(ToastService);
   private readonly shortcuts = inject(ShortcutService);
+  /** Guided tours (CORE-24). */
+  protected readonly tours = inject(TourService);
   private readonly org = orgSettingsReadRepository().watch(() => this.context.orgId());
   private readonly deviceRepo = myDevicesRepository();
   protected readonly devices = this.deviceRepo.watchQuery({ orderBy: [['lastSeenAt', 'desc']], pageSize: 20 });
@@ -463,6 +500,19 @@ export class PreferencesPage {
 
   protected save(patch: Partial<UserPrefs>): void {
     this.userPrefs.save(patch).catch((error: unknown) => this.failed(error));
+  }
+
+  protected setPageTours(auto: boolean): void {
+    void this.tours.setAuto(auto);
+  }
+
+  protected takeWelcomeTour(): void {
+    void this.tours.start(WELCOME_TOUR_ID);
+  }
+
+  protected async replayPageTours(): Promise<void> {
+    await this.tours.resetPageTours();
+    this.toasts.show({ title: 'Page tours will play as you open each page', tone: 'success' });
   }
 
   protected saveNotifications(patch: Partial<NotificationPrefs>): void {

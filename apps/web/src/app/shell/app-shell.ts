@@ -66,6 +66,7 @@ import { clockLabel } from '../core/timer/clock-label';
 import { TimerStore, type TimerTarget } from '../core/timer/timer-store';
 import { MtTimerWidget } from '../core/timer/timer-widget';
 import { MatterRefs, routeCrumbs } from '../core/title-strategy';
+import { TourService } from '../core/tours/tour-service';
 import { ClerkChatPanel } from '../features/clerk/clerk-chat-panel';
 
 /** Where the collapsed-sidebar choice is kept, per user. */
@@ -83,7 +84,8 @@ const PUSH_REFRESH_DELAY_MS = 8000;
  * the page above (or my avatar, which opens More, on a tab's own page) and the page's name, cut short
  * when it doesn't fit. It sticks to the top, clear of the notch.
  *
- * Registers the global shortcuts (⌘K, [, ⌘J, ?, `g` + key) and the built-in commands.
+ * Registers the global shortcuts (⌘K, [, ⌘J, ?, `g` + key) and the built-in commands, and connects
+ * the guided tours (CORE-24).
  */
 @Component({
   selector: 'mt-app-shell',
@@ -212,12 +214,20 @@ const PUSH_REFRESH_DELAY_MS = 8000;
           </div>
           <div style="padding: 4px 0 8px" [style.align-self]="collapsed() ? 'center' : null">
             @if (collapsed()) {
-              <button mtIconButton icon="search" label="Search" tooltipKbd="mod+k" (click)="openPalette()"></button>
+              <button
+                mtIconButton
+                icon="search"
+                label="Search"
+                tooltipKbd="mod+k"
+                data-tour="search"
+                (click)="openPalette()"
+              ></button>
             } @else {
               <button
                 type="button"
                 class="mt-input mt-search"
                 data-size="sm"
+                data-tour="search"
                 aria-keyshortcuts="Meta+K Control+K"
                 (click)="openPalette()"
               >
@@ -227,7 +237,7 @@ const PUSH_REFRESH_DELAY_MS = 8000;
               </button>
             }
           </div>
-          <nav aria-label="Main" class="mt-col" style="gap: 1px">
+          <nav aria-label="Main" class="mt-col" style="gap: 1px" data-tour="nav">
             @for (item of primaryNav(); track item.id) {
               <a
                 mtNavItem
@@ -297,6 +307,7 @@ const PUSH_REFRESH_DELAY_MS = 8000;
                 variant="clerk"
                 label="Ask Clerk"
                 tooltipKbd="mod+j"
+                data-tour="clerk"
                 (click)="toggleClerk()"
               ></button>
             } @else {
@@ -305,6 +316,7 @@ const PUSH_REFRESH_DELAY_MS = 8000;
                 variant="clerk"
                 iconStart="sparkle"
                 kbd="mod+j"
+                data-tour="clerk"
                 style="justify-content: flex-start; width: 100%"
                 [attr.aria-expanded]="clerkOpen()"
                 aria-controls="clerk-panel"
@@ -317,6 +329,7 @@ const PUSH_REFRESH_DELAY_MS = 8000;
               type="button"
               class="mt-ws"
               style="font-weight: 500"
+              data-tour="account"
               [attr.aria-label]="'Account menu for ' + userName()"
               [mtMenuTrigger]="userMenu"
               mtMenuPlacement="top-start"
@@ -338,7 +351,12 @@ const PUSH_REFRESH_DELAY_MS = 8000;
             @if (back(); as up) {
               <a mtIconButton icon="chevron-left" data-back [routerLink]="up.link" [label]="'Back to ' + up.label"></a>
             } @else {
-              <a class="mt-topbar-me" routerLink="/more" [attr.aria-label]="'More, and your account: ' + userName()">
+              <a
+                class="mt-topbar-me"
+                routerLink="/more"
+                data-tour="account"
+                [attr.aria-label]="'More, and your account: ' + userName()"
+              >
                 <mt-avatar [name]="userName()" [colorKey]="userId()" [src]="avatarUrl()" size="sm" />
               </a>
             }
@@ -350,12 +368,19 @@ const PUSH_REFRESH_DELAY_MS = 8000;
             <!-- Changes saved on this device that haven't synced yet (MOB-01). -->
             <mt-pending-sync />
             <!-- The global timer (BILL-02): on every page. -->
-            <mt-timer-widget [compact]="mobile()" [currentMatter]="currentMatter()" />
+            <mt-timer-widget data-tour="timer" [compact]="mobile()" [currentMatter]="currentMatter()" />
             @if (header.actions(); as actions) {
               <ng-container [ngTemplateOutlet]="actions" />
             }
             @if (mobile()) {
-              <button mtIconButton icon="search" size="sm" label="Search" (click)="openPalette()"></button>
+              <button
+                mtIconButton
+                icon="search"
+                size="sm"
+                label="Search"
+                data-tour="search"
+                (click)="openPalette()"
+              ></button>
             } @else {
               <!-- The bell (CORE-22): the newest unread notifications, and the way into the Inbox. -->
               <button
@@ -433,7 +458,7 @@ const PUSH_REFRESH_DELAY_MS = 8000;
     </div>
 
     @if (mobile()) {
-      <div class="mt-app-tabbar"><mt-tab-bar [items]="tabBarItems()" /></div>
+      <div class="mt-app-tabbar" data-tour="tabbar"><mt-tab-bar [items]="tabBarItems()" /></div>
     }
 
     <ng-template #bellPopover>
@@ -636,7 +661,8 @@ export class AppShellComponent {
       });
     });
 
-    const cleanups = [...this.registerShortcuts(), ...this.registerCommands()];
+    // Guided tours (CORE-24): the welcome tour, page tours, ⌘K "Tour this page" and ⇧H.
+    const cleanups = [...this.registerShortcuts(), ...this.registerCommands(), inject(TourService).connect()];
     destroyRef.onDestroy(() => cleanups.forEach((cleanup) => cleanup()));
 
     // This device's push registration (MOB-04) keeps its token and last-seen date fresh, once the
