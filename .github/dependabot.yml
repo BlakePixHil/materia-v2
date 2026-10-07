@@ -1,0 +1,60 @@
+# Dependency updates (SEC-02): grouped and weekly, so a week's updates arrive as a few pull requests
+# (each runs CI, which costs Actions minutes). Every update waits for review before it merges.
+# Security updates (GitHub's Dependabot alerts) still arrive as soon as they're published.
+version: 2
+
+updates:
+  - package-ecosystem: npm # pnpm: one version policy, everything is in the root package.json
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Australia/Melbourne
+    open-pull-requests-limit: 6
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      # Frameworks that must move together get one pull request each, patch and minor.
+      angular:
+        patterns: ['@angular/*', '@angular-devkit/*', '@angular-eslint/*', '@schematics/angular', 'ng-packagr']
+        update-types: [minor, patch]
+      nx:
+        patterns: ['nx', '@nx/*']
+        update-types: [minor, patch]
+      firebase:
+        patterns: ['firebase', 'firebase-admin', 'firebase-functions', '@firebase/*']
+        update-types: [minor, patch]
+      dev-patch:
+        dependency-type: development
+        update-types: [patch]
+      dev-minor:
+        dependency-type: development
+        update-types: [minor]
+      prod-minor-and-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+    ignore:
+      # Patched (patches/firebase-tools@*.patch): an upgrade needs the patch redone (AGENTS.md).
+      - dependency-name: firebase-tools
+      # Pinned to 6.0.x, Angular 22's supported range (AGENTS.md).
+      - dependency-name: typescript
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      # Node 22 everywhere (ADR-001); move with the runtime, not on its own.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+
+  # The workflows and the local composite actions they use.
+  - package-ecosystem: github-actions
+    directories: ['/', '/.github/actions/*']
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Australia/Melbourne
+    commit-message:
+      prefix: 'ci(deps)'
+    groups:
+      actions:
+        patterns: ['*']

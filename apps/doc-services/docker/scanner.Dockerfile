@@ -9,6 +9,11 @@ FROM docker.io/library/node:22-bookworm-slim AS node
 
 FROM docker.io/clamav/clamav-debian:stable
 USER root
+# The base image lags Debian's security fixes; apply them (the image scan, SEC-02, fails on fixable
+# high and critical vulnerabilities).
+RUN apt-get update \
+  && apt-get upgrade -y \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY docker/clamd.conf docker/freshclam.conf /etc/clamav/
 RUN mkdir -p /app && chown -R clamav:clamav /var/lib/clamav

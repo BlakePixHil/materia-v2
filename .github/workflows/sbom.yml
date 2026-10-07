@@ -1,0 +1,73 @@
+# SBOM (SEC-02): a CycloneDX bill of materials of everything the release ships, from the lockfile
+# (every pnpm dependency with its version and package URL). release.yml dispatches this
+# with the new tag after release-please publishes a release, and it attaches `sbom.cdx.json` to
+# that GitHub release. Dispatched by hand without a tag, it builds the SBOM for main and uploads it
+# as a workflow artifact only.
+name: sbom
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build the SBOM for and attach it to (empty = main, artifact only)
+        type: string
+        default: ''
+
+permissions:
+  contents: write # attach the SBOM to the release
+
+concurrency:
+  group: sbom-${{ inputs.tag || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  sbom:
+    name: sbom
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || 'main' }}
+      # Pinned release with its tarball checksum committed here.
+      - name: Install syft (checksum-pinned)
+        env:
+          SYFT_VERSION: 1.52.0
+          SYFT_SHA256: caeedb81fb0491615f1ebd1761e4145d41ee86dd2cc7bf80669f9f5ad9d6133d
+        run: |
+          cd "$RUNNER_TEMP"
+          tarball="syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/${tarball}"
+          echo "${SYFT_SHA256}  ${tarball}" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/syft-bin"
+          tar -xzf "$tarball" -C "$RUNNER_TEMP/syft-bin" syft
+          echo "$RUNNER_TEMP/syft-bin" >> "$GITHUB_PATH"
+      # The lockfile, not node_modules: every pnpm package (plus the Actions and Terraform
+      # providers the repo uses), exactly as the release resolves them.
+      - name: Build the SBOM
+        env:
+          VERSION: ${{ inputs.tag || 'main' }}
+          SYFT_CHECK_FOR_APP_UPDATE: 'false'
+        run: |
+          syft scan dir:. \
+            --source-name materia-v2 --source-version "$VERSION" \
+            --exclude './node_modules' --exclude './**/node_modules' --exclude './dist' \
+            -o cyclonedx-json=sbom.cdx.json
+          node -e '
+            const sbom = JSON.parse(require("fs").readFileSync("sbom.cdx.json", "utf8"));
+            const count = (sbom.components || []).length;
+            console.log(`${sbom.bomFormat} ${sbom.specVersion}: ${count} components`);
+            if (sbom.bomFormat !== "CycloneDX" || count < 100) { console.error("The SBOM looks incomplete."); process.exit(1); }
+          '
+          echo "SBOM for $VERSION: $(node -p 'JSON.parse(require("fs").readFileSync("sbom.cdx.json","utf8")).components.length') components." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ inputs.tag || 'main' }}
+          path: sbom.cdx.json
+          retention-days: 90
+      - name: Attach to the release
+        if: inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" sbom.cdx.json --clobber --repo "$GITHUB_REPOSITORY"

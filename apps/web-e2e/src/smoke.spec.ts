@@ -26,6 +26,19 @@ test('the system-ping callable answers with its release @smoke', async ({ reques
   if (expectedSha) expect(result.sha).toBe(expectedSha);
 });
 
+test('security.txt and the disclosure policy are published @smoke', async ({ request }) => {
+  // SEC-02: RFC 9116 at its well-known path, pointing at the vulnerability disclosure policy.
+  const txt = await request.get('/.well-known/security.txt');
+  expect(txt.ok()).toBe(true);
+  expect(txt.headers()['content-type']).toMatch(/^text\/plain/);
+  const body = await txt.text();
+  expect(body).toMatch(/^Contact: \S+$/m);
+  expect(body).toMatch(/^Expires: \S+$/m);
+  const policy = await request.get('/SECURITY.md');
+  expect(policy.ok()).toBe(true);
+  expect(await policy.text()).toContain('# Security policy');
+});
+
 test('sign-in runs under the Hosting CSP: Firebase, App Check and the Google popup @smoke', async ({ page }) => {
   // FND-22: on a deployed site this loads the Firebase SDK, App Check's reCAPTCHA and the Google
   // sign-in popup's scripts and auth iframe, which the emulators can't stand in for. Any popup is

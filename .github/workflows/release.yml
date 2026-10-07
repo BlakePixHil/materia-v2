@@ -51,3 +51,12 @@ jobs:
             echo "Dispatched deploy-prod for $TAG."
           fi
           echo "Released $TAG. Approve the production deploy in Actions → deploy-prod." >> "$GITHUB_STEP_SUMMARY"
+
+      # SEC-02: attach a CycloneDX SBOM to the release (sbom.yml). A release made with GITHUB_TOKEN
+      # can't start workflows by event, so dispatch it either way.
+      - name: Build the release's SBOM
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run sbom.yml --repo "$GITHUB_REPOSITORY" --ref main -f tag="$TAG"
