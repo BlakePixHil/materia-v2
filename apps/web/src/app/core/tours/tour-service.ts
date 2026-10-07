@@ -1,4 +1,14 @@
-import { computed, DOCUMENT, effect, EnvironmentInjector, inject, Injectable, signal, untracked } from '@angular/core';
+import {
+  computed,
+  DestroyRef,
+  DOCUMENT,
+  effect,
+  EnvironmentInjector,
+  inject,
+  Injectable,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -46,6 +56,8 @@ export class TourService {
   readonly active = signal<string | null>(null);
 
   private chunk: Promise<TourChunk> | undefined;
+  /** Set when the app is torn down, so a tour still waiting to start never opens. */
+  private destroyed = false;
   private welcomeOffered = false;
   /** Counts arrivals on pages, so a page tour waiting to start can tell the person has moved on. */
   private arrival = 0;
@@ -58,6 +70,10 @@ export class TourService {
     ),
     { initialValue: this.router.url },
   );
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => (this.destroyed = true));
+  }
 
   /**
    * Called by the app shell: offers the welcome tour, plays page tours on first visits, and adds
@@ -162,6 +178,7 @@ export class TourService {
       const steps = tour ? await chunk.availableSteps(tour, this.document) : [];
       // An automatic page tour stands down if the person has moved to another page meanwhile.
       const movedOn = options.auto && !tour?.intro && this.path() !== page;
+      if (this.destroyed) return;
       if (!tour || !steps.length || movedOn) {
         if (!options.auto && tour) {
           this.toasts.show({
@@ -205,7 +222,7 @@ export class TourService {
     if (this.path() === this.quietOn) return;
     this.quietOn = null;
     await new Promise((resolve) => setTimeout(resolve, AUTO_START_DELAY_MS));
-    if (arrival !== this.arrival || this.active()) return;
+    if (this.destroyed || arrival !== this.arrival || this.active()) return;
     const { tourForPath } = await this.load();
     const tour = tourForPath(url);
     if (!tour || this.prefs().seen.includes(tour.id) || arrival !== this.arrival) return;
@@ -220,6 +237,7 @@ export class TourService {
   }
 
   private save(tours: TourPrefs): Promise<void> {
+    if (this.destroyed) return Promise.resolve();
     return this.userPrefs.save({ tours }).catch(() => {
       this.toasts.show({ title: 'Your tour settings didn’t save', tone: 'danger' });
     });
