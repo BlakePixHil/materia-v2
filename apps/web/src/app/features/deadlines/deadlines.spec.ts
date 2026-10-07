@@ -720,6 +720,7 @@ describe('deadlines screen', () => {
     const later = (page: Page) => page.text(page.body.querySelector('section[data-group="later"] h2'));
     const more = (page: Page) => page.body.querySelector('.mt-deadlines-page .more');
 
+    // It draws 211 rows: about 6 s with coverage on, as CI runs it, past Vitest’s 5 s default.
     it('loads a page at a time as the list scrolls, or on the button while filtered', async () => {
       const observers: { report: IntersectionObserverCallback; targets: Element[]; live: boolean }[] = [];
       vi.stubGlobal(
@@ -790,7 +791,7 @@ describe('deadlines screen', () => {
       } finally {
         vi.unstubAllGlobals();
       }
-    });
+    }, 30_000);
 
     it('reads the calendar a month at a time', async () => {
       localStorage.setItem('materia.deadlines.view', 'calendar');
