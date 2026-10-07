@@ -39,6 +39,10 @@ We will:
 - Today's data still waits for its server-only reads (counts, one-shot queries and the matter lookups that follow the deadlines). That is Today's own design (ADR-029) and isn't changed here.
 - Callables are separate Cloud Run services (about 130), so the first call to each after it has idled starts a cold instance (estimated 2–3 s). Keeping one warm costs about A$17 a month per function; the owner chose to leave them as they are (2026-10-07).
 
+## Update: side-effect-free libraries (MOB-02, 2026-10-07)
+
+`libs/ui` and `libs/data-access` now carry a `package.json` with `"sideEffects": false`, as `libs/domain` has since CORE-01. Without it the bundler kept every module a barrel re-exports, because importing a module might have run code: the whole UI library (543 kB raw) sat in the initial chunks, and the repository barrel pulled every collection's schemas into Today's first load. With it, a page gets only the components and repositories it uses: the initial JS fell from 264 kB to 121 kB gzip, and building Zod schemas at start-up from about 470 ms to 270 ms of main-thread time on a 4× slower CPU. None of the three libraries runs code at import time; a new library with a barrel gets the same `package.json`, and a module that must run on import doesn't belong in one.
+
 ## Alternatives considered
 
 - **Raise the initial budget and load Auth and the Firestore SDK up front:** measured above for Auth (no net gain); the SDK (about 150 kB gzip) would make the sign-in screens heavier for the same parallelism the bootstrap download already gives.

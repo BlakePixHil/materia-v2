@@ -58,6 +58,8 @@ export type MtDialogSize = 'sm' | 'md' | 'lg';
   // the title and footer in view; centring an overflowing panel would cut off its top.
   // On a phone narrower than the dialog, it fits the screen: the overlay's single grid column would
   // otherwise grow to the dialog's 480px, so `max-width: 100%` capped nothing and it ran off the side.
+  // Under 768px (MOB-02) a dialog is a sheet: full width at the bottom, within thumb reach, sliding
+  // up, and lifted clear of the on-screen keyboard (`--mt-keyboard-inset`, kept by the app).
   styles: `
     .mt-modal-root:has(> .mt-dialog) {
       grid-template-columns: minmax(0, 1fr);
@@ -73,6 +75,24 @@ export type MtDialogSize = 'sm' | 'md' | 'lg';
     .mt-dialog > .mt-dialog-h,
     .mt-dialog > .mt-dialog-f {
       flex: none;
+    }
+    @media (max-width: 767px) {
+      .mt-modal-root:has(> .mt-dialog) {
+        place-items: end stretch;
+        padding: env(safe-area-inset-top, 0px) 0 var(--mt-keyboard-inset, 0px);
+      }
+      .mt-modal-root > .mt-dialog {
+        width: 100%;
+        max-height: calc(100dvh - var(--mt-keyboard-inset, 0px) - env(safe-area-inset-top, 0px) - var(--space-24));
+        border-radius: 24px 24px 0 0;
+      }
+      .mt-modal-root > .mt-dialog:not([data-enter]) {
+        opacity: 1;
+        transform: translateY(100%);
+      }
+      .mt-dialog > .mt-dialog-f {
+        padding-bottom: calc(var(--space-12) + env(safe-area-inset-bottom, 0px));
+      }
     }
   `,
   imports: [NgpDialogOverlay, NgpDialog, NgpDialogTitle, NgpDialogDescription, MtIconButton],

@@ -1,0 +1,7 @@
+/* generated — do not edit. Source: design/system/project/components/bundle.css (mt-ptr). Regenerate with `pnpm materia-scripts sync-design`. */
+.mt-ptr { position: fixed; z-index: 4; left: 50%; top: calc(52px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: var(--space-6); padding: var(--space-6) var(--space-12); border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: var(--shadow-popover); color: var(--text-secondary); font: 500 13px/18px var(--font-sans); white-space: nowrap; pointer-events: none; opacity: 0; transform: translate(-50%, calc(var(--mt-pull, 0px) - 100%)); transition: opacity var(--motion-base) var(--ease-out), transform var(--motion-base) var(--ease-out); }
+.mt-ptr[data-pulling], .mt-ptr[data-refreshing] { opacity: 1; }
+.mt-ptr[data-pulling] { transition: none; }
+.mt-ptr[data-ready] { color: var(--text-brand); }
+.mt-ptr[data-refreshing] .mt-i { animation: mt-spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .mt-ptr { transition: none; } .mt-ptr[data-refreshing] .mt-i { animation: none; } }
