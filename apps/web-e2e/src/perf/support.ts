@@ -47,9 +47,10 @@ export async function resetReads(page: Page): Promise<void> {
 
 /**
  * Waits until the screen stops reading: the count unchanged for `quietMs` (listeners answered,
- * lookups done). Returns the snapshot then.
+ * lookups done). Returns the snapshot then. On a busy emulator a screen's lookups can pause for
+ * more than 2.5 s partway, hence 5 s.
  */
-export async function settledReads(page: Page, quietMs = 2500, timeoutMs = 45_000): Promise<ReadSnapshot> {
+export async function settledReads(page: Page, quietMs = 5000, timeoutMs = 60_000): Promise<ReadSnapshot> {
   const deadline = Date.now() + timeoutMs;
   let last = await readSnapshot(page);
   let since = Date.now();

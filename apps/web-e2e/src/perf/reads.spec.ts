@@ -21,21 +21,26 @@ import {
  * (see docs/ops/perf-report-2026-10.md).
  */
 export const READ_BUDGETS = {
-  /** The ticket's (warm). Measured 75 at seed-large scale 0.05, after WIP moved to the month rollup. */
+  /**
+   * The ticket's (warm). Measured 75 at seed-large scale 0.05 with the firm's 50 members, after WIP
+   * moved to the month rollup.
+   */
   today: 150,
   /**
-   * Measured 119: one page of matters plus one read per client contact on it (an N+1, bounded by
-   * the page size). Exception until "Denormalise client names onto matters" lands; then ≤ 60.
+   * Measured 165: one page of matters, the firm's 50 members, and one read per client contact on
+   * the page (63, an N+1 bounded by the page size). Exception until "Denormalise client names onto
+   * matters" lands; then about 100.
    */
-  matters: 150,
-  /** The ticket's. Measured 16. */
+  matters: 200,
+  /** The ticket's. Measured 62, 50 of them the firm's members (fewer when that listener resumes). */
   matter: 100,
   /**
-   * Measured 642: the firm-wide list reads up to 500 upcoming deadlines live, then each one's
-   * matter (N+1, up to 500 more at the target scale). Exception until "Window the Deadlines page
-   * and denormalise matter fields onto deadlines" lands; the target is then 150.
+   * Measured 688: the firm-wide list reads up to 500 upcoming deadlines live, the firm's 50
+   * members, then each deadline's matter (136 here: an N+1 of up to 500 at the target scale, so
+   * about 1,050 there). Exception until "Window the Deadlines page and denormalise matter fields
+   * onto deadlines" lands; the target is then 200.
    */
-  deadlines: 700,
+  deadlines: 800,
 } as const;
 
 type Screen = keyof typeof READ_BUDGETS;
@@ -51,11 +56,15 @@ function record(name: string, snapshot: ReadSnapshot, budget?: number) {
   writeReport('reads.json', results);
 }
 
-/** Opens a screen from the nav after resetting the counter, and waits for its reads to settle. */
+/**
+ * Opens a screen from the nav after resetting the counter, and waits for its reads to settle: its
+ * first server answer, then quiet (on a busy emulator that answer can take longer than the quiet).
+ */
 async function open(page: Page, screen: Screen, go: () => Promise<void>, ready: () => Promise<void>) {
   await resetReads(page);
   await go();
   await ready();
+  await expect.poll(async () => (await readSnapshot(page)).reads, FIRST_LOAD).toBeGreaterThan(0);
   const snapshot = await settledReads(page);
   record(screen, snapshot, READ_BUDGETS[screen]);
   return snapshot;
@@ -103,7 +112,7 @@ test.describe('reads per screen', () => {
       page,
       'deadlines',
       () => nav('/deadlines').click(),
-      () => expect(page.getByRole('heading', { level: 1, name: 'Deadlines' })).toBeVisible(FIRST_LOAD),
+      () => expect(page.locator('mt-deadline-row').first()).toBeVisible(FIRST_LOAD),
     );
 
     expect.soft(today.reads, `Today: ${topLabels(today).join('; ')}`).toBeLessThanOrEqual(READ_BUDGETS.today);
