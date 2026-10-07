@@ -35,6 +35,13 @@ import { DelayedPreloading, prefetchPagesDuringGuards } from './core/routing/pre
 import { MateriaTitleStrategy } from './core/title-strategy';
 import { environment } from '../environments/environment';
 import { RELEASE } from '../environments/version';
+import { anyScansWaiting } from './features/scan/scan-db';
+
+async function resumeScans(injector: Injector): Promise<void> {
+  if (!(await anyScansWaiting())) return;
+  const { ScanQueue } = await import('./features/scan/scan-queue');
+  injector.get(ScanQueue);
+}
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -112,6 +119,12 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(SessionPolicy);
       inject(IdleTimeout);
+    }),
+    // Scans saved on this device without a connection (MOB-05) upload when it's back, after a
+    // reload too. The queue loads only when a scan is waiting.
+    provideAppInitializer(() => {
+      const injector = inject(Injector);
+      setTimeout(() => void resumeScans(injector).catch(() => undefined), 5000);
     }),
   ],
 };
