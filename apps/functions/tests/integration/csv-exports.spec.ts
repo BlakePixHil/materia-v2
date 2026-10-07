@@ -4,7 +4,7 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp, type 
 import { getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage as getAdminStorage } from 'firebase-admin/storage';
 
-import type { CreateExportResult, Role } from '@materia/domain';
+import { contactDerivedFields, type Contact, type CreateExportResult, type Role } from '@materia/domain';
 
 import { runCallable, type CallableDefinition, type CallableDeps } from '../../src/core/callable';
 import { firestoreIdempotency } from '../../src/core/idempotency';
@@ -78,19 +78,23 @@ const matter = (number: string, extra: Record<string, unknown> = {}) => ({
   deletedAt: null,
   ...extra,
 });
-const contact = (sortName: string, extra: Record<string, unknown> = {}) => ({
-  ...meta(),
-  kind: 'person',
-  givenNames: 'Fictional',
-  familyName: sortName,
-  sortName,
-  emails: [],
-  phones: [],
-  addresses: [],
-  tags: [],
-  matterRoles: [],
-  ...extra,
-});
+const contact = (familyName: string, extra: Record<string, unknown> = {}) => {
+  const fields = {
+    ...meta(),
+    kind: 'person',
+    givenNames: 'Fictional',
+    familyName,
+    emails: [],
+    phones: [],
+    addresses: [],
+    tags: [],
+    matterRoles: [],
+    ...extra,
+  };
+  // The server-owned fields as `contacts-onWrite` derives them, so the trigger doesn't rewrite
+  // `sortName` while an export is paging on it (a moved key skips a row).
+  return { ...fields, ...contactDerivedFields(fields as Partial<Contact>) };
+};
 
 async function seed(paths: Record<string, Record<string, unknown>>) {
   const entries = Object.entries(paths);
