@@ -395,10 +395,11 @@ const FILTER_ICONS: Partial<Record<InboxFilter, 'at-sign' | 'user-plus' | 'clock
       min-height: 0;
       margin: calc(-1 * var(--space-24)) calc(-1 * var(--space-32)) calc(-1 * var(--space-32));
     }
-    /* On a phone the shell page's padding is 16px all round; cancelling 32px made the Inbox wider than the screen. */
+    /* On a phone the shell page's padding is 16px all round; cancelling 32px made the Inbox wider than the screen,
+       and cancelling more than 16px at the top slid the filters under the sticky top bar. */
     @media (max-width: 767px) {
       .mt-inbox {
-        margin: calc(-1 * (var(--space-16) + var(--space-20))) calc(-1 * var(--space-16)) calc(-1 * var(--space-16));
+        margin: calc(-1 * var(--space-16));
       }
     }
     .mt-inbox .list-pane {

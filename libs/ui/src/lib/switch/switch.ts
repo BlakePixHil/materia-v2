@@ -17,14 +17,8 @@ import { MtFormControl } from '../forms/form-control';
     '../../generated/components/switch.css',
     '../../generated/components/check.css',
   ],
-  // The design system draws the switch on a <span>; on a <button> the browser's own border would
-  // shrink the track and push the thumb off centre.
-  styles: `
-    .mt-switch {
-      border: 0;
-      align-items: center;
-    }
-  `,
+  // The button's border reset and thumb centring live in the design's switch.css, not here: a rule
+  // here loads after it and undid its phone size (a 44px target whose clear border shows a 31px track).
   imports: [NgpSwitch, NgpSwitchThumb, NgpLabel, NgpDescription],
   hostDirectives: [NgpFormField],
   host: { style: 'display: contents' },
