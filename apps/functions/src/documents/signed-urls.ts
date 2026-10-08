@@ -37,6 +37,9 @@ export const googDate = (date: Date) =>
  * object gets a download token and the URL points at the Storage emulator. It carries the same
  * `X-Goog-Date`/`X-Goog-Expires` and disposition parameters as a real V4 URL, so tests and the
  * web app see the same shape; the emulator doesn't enforce the expiry.
+ *
+ * Two first signings at the same moment each add a token, and the emulator keeps both as one
+ * comma-separated list ("a,b"). A URL carries one of them: the emulator refuses the whole list.
  */
 export function emulatorSignedUrls(now: () => Date = () => new Date()): SignedUrlPort {
   return {
@@ -45,7 +48,7 @@ export function emulatorSignedUrls(now: () => Date = () => new Date()): SignedUr
       const file = getStorage(adminApp()).bucket(bucket).file(path);
       const [meta] = await file.getMetadata();
       const existing = (meta.metadata as Record<string, unknown> | undefined)?.['firebaseStorageDownloadTokens'];
-      let token = typeof existing === 'string' && existing ? existing : '';
+      let token = typeof existing === 'string' ? (existing.split(',')[0] ?? '') : '';
       if (!token) {
         token = randomUUID();
         await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
