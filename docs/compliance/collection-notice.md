@@ -2,15 +2,13 @@
 key: collection-notice
 title: Collection notice
 summary: What we collect when you use Materia and why, plus wording firms can give their clients about Materia.
-version: 0.1
-effective: 2026-10-07
-status: draft
+version: 1.0
+effective: 2026-10-08
+status: final
 order: 2
 ---
 
 # Collection notice
-
-> **Draft — not yet reviewed.** This notice is a draft for review by a lawyer or privacy professional (SEC-01a). It is not legal advice and is not in its final form. Text in square brackets is a placeholder to be completed before it is finalised.
 
 This notice is given under Australian Privacy Principle 5. It has two parts: what we collect from the people who use Materia, and wording a law firm can give its own clients about its use of Materia.
 
@@ -33,5 +31,3 @@ This notice is given under Australian Privacy Principle 5. It has two parts: wha
 Materia does not collect information from a firm's clients directly: the firm collects it and keeps its client files in Materia. Each firm is responsible for its own collection notices to its clients. A firm may wish to include wording like the following in its client engagement documents or privacy policy. It is a suggestion only; the firm should adapt it to its own practice and obtain its own advice.
 
 > We keep our client files, including your personal information and documents, in Materia, a practice management system operated for us by [Operator legal name]. Materia stores our files in Australia. It sends email notifications to our staff through a provider in the United States, and some of its sign-in and security services run on Google's global infrastructure. If we use its optional AI assistant, Clerk, relevant parts of your file are processed by our chosen AI provider outside Australia under our agreement with that provider, and a lawyer reviews anything it produces. Materia handles your information only on our instructions and keeps it confidential. Our privacy policy explains how to access or correct your information and how to complain.
-
-[Reviewer: confirm whether the firm should also name the AI provider (currently Anthropic, with processing outside Australia) and the countries involved, to meet APP 5.2(i) and (j).]

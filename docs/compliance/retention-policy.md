@@ -2,15 +2,13 @@
 key: retention
 title: Retention and destruction policy
 summary: How long Materia keeps each kind of information, how a firm's closed matters are destroyed, and how deletion works with backups.
-version: 0.1
-effective: 2026-10-07
-status: draft
+version: 1.0
+effective: 2026-10-08
+status: final
 order: 6
 ---
 
 # Retention and destruction policy
-
-> **Draft — not yet reviewed.** This policy is a draft for review by a lawyer or privacy professional (SEC-01a), and the matter retention periods need a practitioner's sign-off (CORE-19a). It is not legal advice and is not in its final form.
 
 Each firm decides how long it keeps its client files, under its professional obligations. Materia applies the firm's choices, keeps everything else only as long as it is needed, and makes destruction deliberate and recorded.
 

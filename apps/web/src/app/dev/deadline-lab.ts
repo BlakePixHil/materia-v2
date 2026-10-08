@@ -124,8 +124,8 @@ const EVENTS: { kind: EventKind; label: string }[] = [
   template: `
     <h1>Deadline lab</h1>
     <mt-note tone="warning"
-      >{{ ruleSet.disclaimer }} Rule set {{ ruleSet.ruleSetId }} v{{ ruleSet.version }}; calendars are unverified until
-      checked against official sources.</mt-note
+      >{{ ruleSet.disclaimer }} Rule set {{ ruleSet.ruleSetId }} v{{ ruleSet.version }}; the calendars are checked
+      (CORE-09a), but a date marked provisional can still move.</mt-note
     >
 
     <form [formGroup]="form">

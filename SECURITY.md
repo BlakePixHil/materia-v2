@@ -7,7 +7,7 @@ This policy is published with the app at `/SECURITY.md`, and `/.well-known/secur
 ## Reporting a vulnerability
 
 - **If you can see this repository:** use GitHub's [private vulnerability reporting](https://github.com/BlakePixHil/materia-v2/security/advisories/new).
-- **Otherwise:** contact the owner privately through the `Contact` in [`/.well-known/security.txt`](https://materia-v2-prod.web.app/.well-known/security.txt).
+- **Otherwise:** email [blakelinnell96@gmail.com](mailto:blakelinnell96@gmail.com), the monitored security contact (also the `Contact` in [`/.well-known/security.txt`](https://materia-v2-prod.web.app/.well-known/security.txt)).
 
 Please **do not** open a public issue, pull request or Linear ticket for a vulnerability, and do not include real client data in your report.
 

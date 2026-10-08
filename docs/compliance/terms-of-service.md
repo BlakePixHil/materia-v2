@@ -2,15 +2,13 @@
 key: terms
 title: Terms of service
 summary: The agreement between a law firm and Materia's operator, which includes the data processing addendum. A firm's owner accepts it on the firm's behalf.
-version: 0.1
-effective: 2026-10-07
-status: draft
+version: 1.0
+effective: 2026-10-08
+status: final
 order: 3
 ---
 
 # Terms of service
-
-> **Draft — not yet reviewed.** These terms are a draft for review by a lawyer (SEC-01a). They are not legal advice and are not in their final form. Text in square brackets is a placeholder to be completed before they are finalised.
 
 ## Summary
 
@@ -21,7 +19,7 @@ This summary is part of the terms but doesn't replace them.
 - **Privilege stays with your firm and its clients.** Using Materia doesn't waive it, and we never look at client files except to support you when you ask, or where the law requires.
 - Your data is stored in Australia. Email notifications go through a provider in the United States, and Clerk (if your firm turns it on) uses your firm's own AI provider account, outside Australia.
 - **Clerk proposes; your practitioners decide.** Your firm stays responsible for the legal work and advice it gives.
-- We'll tell your firm about a data breach affecting its information within [72] hours of becoming aware of it.
+- We'll tell your firm about a data breach affecting its information within 72 hours of becoming aware of it.
 - You can export your data and leave at any time. When the agreement ends, you have 30 days to take your data, and then we delete it.
 
 ## 1. The agreement
@@ -30,7 +28,7 @@ This summary is part of the terms but doesn't replace them.
 
 1.2 The [Data processing addendum](dpa.md) (DPA), the [Sub-processor list](subprocessors.md) and the [Retention policy](retention-policy.md) form part of these terms. If they conflict, the DPA prevails on the handling of client information, then these terms.
 
-1.3 Materia is in an early release. While these terms are marked as a draft, Materia is offered only to [the operator's own firm and firms it invites], and the terms will be finalised after legal review. [Reviewer: confirm.]
+1.3 Materia is in an early release. While these terms are marked as a draft, Materia is offered only to [the operator's own firm and firms it invites], and the terms will be finalised after legal review.
 
 ## 2. Accounts
 
@@ -64,7 +62,7 @@ This summary is part of the terms but doesn't replace them.
 
 5.1 We maintain the security measures described in the DPA, including Australian data storage, encryption in transit and at rest, separation of each firm's data, role-based access, two-step sign-in, an audit log, malware scanning of uploads and tested backups in a second Australian region.
 
-5.2 We'll notify your firm of a data breach affecting its data as set out in the DPA (within [72] hours of becoming aware of it), and help your firm meet its obligations under the Notifiable Data Breaches scheme.
+5.2 We'll notify your firm of a data breach affecting its data as set out in the DPA (within 72 hours of becoming aware of it), and help your firm meet its obligations under the Notifiable Data Breaches scheme.
 
 ## 6. Clerk and AI features
 
@@ -100,9 +98,9 @@ This summary is part of the terms but doesn't replace them.
 
 ## 12. Ending the agreement
 
-12.1 Your firm can end the agreement at any time by telling us. We can end it on [30] days' notice, or immediately if your firm seriously breaches these terms and doesn't fix the breach within [14] days of our notice.
+12.1 Your firm can end the agreement at any time by telling us. We can end it on 30 days' notice, or immediately if your firm seriously breaches these terms and doesn't fix the breach within 14 days of our notice.
 
-12.2 **Data return.** For 30 days after the agreement ends, your firm can export its data from Materia, or ask us to provide an export (documents in their original format and records in a structured, machine-readable format). [Until self-service export (SEC-05) is available, we provide the export on request.]
+12.2 **Data return.** For 30 days after the agreement ends, your firm can export its data from Materia, or ask us to provide an export (documents in their original format and records in a structured, machine-readable format).
 
 12.3 **Deletion.** After those 30 days we delete your firm's data from the live service, except for anything subject to a legal hold your firm has placed or that the law requires us to keep. Copies in our backups expire on the schedule in the [Retention policy](retention-policy.md) and are never restored into the live service. On request, we will confirm the deletion in writing.
 

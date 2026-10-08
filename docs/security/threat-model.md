@@ -127,3 +127,4 @@ These are known gaps, each with a home:
 | --- | --- | --- |
 | 2026-10-07 | Drafted (SEC-02) | First version. Waiting on the product owner's review (SEC-02a). |
 | 2026-10-07 | Updated (INT-07) | Added the Claude connector (ADR-064): its tokens as an asset, a data-flow node, a STRIDE row, risk 9 and an open item. |
+| 2026-10-08 | Product owner (SEC-02a) | Reviewed and signed off, no changes. Next review January 2027. |

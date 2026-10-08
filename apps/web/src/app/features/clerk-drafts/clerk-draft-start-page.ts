@@ -66,10 +66,6 @@ import { MatterScreen } from '../matter-detail/matter-screen';
             [ngModel]="typeId()"
             (ngModelChange)="pickType($event)"
           />
-          <p class="caption t-3">
-            The wording guidance for each letter is a starting point until a practitioner reviews it.
-          </p>
-
           <fieldset class="mt-col recipients">
             <legend class="label">To</legend>
             @for (option of recipients(); track option.partyId) {

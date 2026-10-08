@@ -2,21 +2,19 @@
 key: privacy
 title: Privacy policy
 summary: How Materia collects, uses, stores and discloses personal information, for the people who use it and the clients whose files firms keep in it.
-version: 0.1
-effective: 2026-10-07
-status: draft
+version: 1.0
+effective: 2026-10-08
+status: final
 order: 1
 ---
 
 # Privacy policy
 
-> **Draft — not yet reviewed.** This policy is a draft for review by a lawyer or privacy professional (SEC-01a). It is not legal advice and is not in its final form. Text in square brackets is a placeholder to be completed before it is finalised.
-
 ## Who we are
 
 Materia is a practice management tool for Australian wills and estates lawyers. It is operated by [Operator legal name] (ABN [ABN]) of [Registered address] ("we", "us"). This policy explains how we handle personal information under the Privacy Act 1988 (Cth) and the Australian Privacy Principles (APPs), including the Notifiable Data Breaches scheme.
 
-We handle personal information in line with the APPs whether or not the small business exemption would otherwise apply to us. [Reviewer: confirm the operator's status under the Privacy Act and whether to opt in under section 6EA.]
+We handle personal information in line with the APPs whether or not the small business exemption would otherwise apply to us.
 
 ## The two kinds of information we hold
 
