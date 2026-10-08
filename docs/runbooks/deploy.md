@@ -64,6 +64,7 @@ Previews deploy hosting only. The preview app calls the dev project's functions,
    | Backfill | From | What it fills |
    | --- | --- | --- |
    | `backfill-matter-copies` | SEC-07c, SEC-07e | The copy of its matter's name that each live deadline, pending proposal, live matter task and recent matter carries (deadlines also its people and jurisdiction). Until it runs, the Deadlines and Today screens read older records' matters one by one, as they did before. |
+   | `backfill-search-tokens` | CORE-15, SEC-07d | Every matter's, contact's, task's and document's search tokens, the `kind` of older recent entries, and each live matter's clients' names (`clientNames`). Until it runs, the Matters list reads older matters' clients one by one, as it did before. |
 
 A tag on a commit with no successful `deploy-dev` run, or one whose artifact has expired after 90 days, is refused.
 

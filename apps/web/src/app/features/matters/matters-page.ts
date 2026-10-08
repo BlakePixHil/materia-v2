@@ -1152,9 +1152,11 @@ export class MattersPage {
       if (!restore) writeLastView({ viewId, draft });
     });
 
-    // Client names for the rows on screen, read once per contact.
+    // Client names for the rows on screen that don't carry them yet (written before SEC-07d, until
+    // the backfill runs), read once per contact.
     effect(() => {
-      const ids = [...new Set(this.matters.value().flatMap((row) => row.clientContactIds))].filter(
+      const unnamed = this.matters.value().filter((row) => !row.clientNames);
+      const ids = [...new Set(unnamed.flatMap((row) => row.clientContactIds))].filter(
         (id) => !this.requestedClients.has(id),
       );
       if (!ids.length) return;
@@ -1176,7 +1178,9 @@ export class MattersPage {
     return this.memberNames().get(uid) ?? (uid === this.context.uid() ? 'You' : 'Former member');
   }
 
+  /** The row's client names: its own copy (SEC-07d), or the contacts read for an older row. */
   protected clientsOf(row: MatterRow): string {
+    if (row.clientNames) return row.clientNames.join(', ');
     const names = this.clientNames();
     return row.clientContactIds
       .map((id) => names.get(id))

@@ -1,7 +1,8 @@
-import type { Contact } from '@materia/domain';
+import { contactDisplayName, type Contact } from '@materia/domain';
 
 import { staleDerived } from './shared';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
+import { refreshMattersNaming } from '../matters/denormalise';
 import { clearFixedReviewCodes } from '../migration/clear';
 
 /**
@@ -34,6 +35,14 @@ export const onWriteDefinition: TriggerDefinition = {
   on: 'written',
   handler: async (change, ctx) => {
     await maintainDerived(change, ctx);
+    // A renamed client or deceased: the matters naming them show the new name (SEC-07d).
+    const before = change.before?.data() as Partial<Contact> | undefined;
+    const after = change.after?.data() as Partial<Contact> | undefined;
+    if (before && after && contactDisplayName(before) !== contactDisplayName(after)) {
+      const contactId = ctx.params['contactId'] as string;
+      const matters = await refreshMattersNaming(ctx.db, ctx.params['orgId'] as string, contactId);
+      if (matters) ctx.log.info('matters renamed', { contactId, matters });
+    }
     // A migrated referrer named, or a contact merged or deleted, loses its review codes (MIG-08).
     await clearFixedReviewCodes(change, ctx);
   },

@@ -80,10 +80,43 @@ describe('backfillSearchTokens', () => {
     );
     expect(m1['search']).toEqual(expect.arrayContaining(['141', '20260141', 'angstrom']));
     expect(m1['search']).not.toContain('other');
+    expect(m1['clientNames']).toEqual(['Zoë Ångström']);
     expect((store.docs.get('orgs/org-a/matters/m-1/tasks/t-1') as Data)['search']).toContain('inventory');
     expect((store.docs.get('orgs/org-a/matters/m-1/documents/d-1') as Data)['search']).toContain('probate');
     expect(store.docs.get('users/u-1/recent/org-a_m-1')).toMatchObject({ kind: 'matter', matterId: 'm-1' });
     expect(store.docs.get('users/u-1/recent/org-a_contact_c-zoe')).toMatchObject({ kind: 'contact' });
+  });
+
+  it('names each matter’s clients, writing only what is stale, and leaves a tombstone alone (SEC-07d)', async () => {
+    const store = seed();
+    const tokens = domain.matterSearchTokens({
+      number: 'M-2026-0142',
+      title: 'Estate of Example 2',
+      clientNames: ['Zoë Ångström'],
+    });
+    // Current search, no names yet: only the names are written.
+    store.set('orgs/org-a/matters/m-2', {
+      number: 'M-2026-0142',
+      title: 'Estate of Example 2',
+      clientContactIds: ['c-zoe', 'c-gone'],
+      search: tokens,
+    });
+    // Destroyed (CORE-19): keeps only what matters-destroy wrote.
+    const tombstone = { number: 'M-2026-0100', type: 'probate', destroyedAt: new Date('2026-09-01T00:00:00Z') };
+    store.set('orgs/org-a/matters/m-0', tombstone);
+    const writes: { path: string; patch: Data }[] = [];
+    const update = store.update.bind(store);
+    store.update = async (batch) => {
+      writes.push(...batch);
+      await update(batch);
+    };
+    const report = await backfillSearchTokens(store);
+    expect(report.matters).toEqual({ read: 8, updated: 7 });
+    // A missing contact has no name to show.
+    expect(writes.find((write) => write.path === 'orgs/org-a/matters/m-2')?.patch).toEqual({
+      clientNames: ['Zoë Ångström'],
+    });
+    expect(store.docs.get('orgs/org-a/matters/m-0')).toEqual(tombstone);
   });
 
   it('is idempotent: a second run reads everything and writes nothing', async () => {

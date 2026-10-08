@@ -163,6 +163,54 @@ describe('contacts-onWrite', () => {
     });
   });
 
+  it('renames a client or the deceased on the matters naming them, leaving a destroyed one alone (SEC-07d)', async () => {
+    const matter = (extra: Record<string, unknown>) => ({
+      ...meta,
+      number: 'M-2026-0001',
+      title: 'Estate of Fictional Wren',
+      clientContactIds: ['c1', 'c2'],
+      clientNames: ['Ada Quill', 'Ben Lark'],
+      deletedAt: null,
+      ...extra,
+    });
+    const w = world({
+      [`${C}/c1`]: person('Ada', 'Quillon'),
+      [`${C}/c2`]: person('Ben', 'Lark'),
+      [`${M}/m1`]: matter({}),
+      [`${M}/m2`]: matter({ clientContactIds: ['c2'], clientNames: ['Ben Lark'], deceased: { contactId: 'c1' } }),
+      [`${M}/m3`]: matter({ clientContactIds: ['c2'], clientNames: ['Ben Lark'] }),
+      [`${M}/m4`]: { ...meta, clientContactIds: ['c1'], clientNames: ['Ada Quill'], destroyedAt: new Date() },
+    });
+    const change = (before: Record<string, unknown>) =>
+      ({
+        before: { ref: { path: `${C}/c1` }, data: () => before },
+        after: { ref: { path: `${C}/c1` }, data: () => w.doc(`${C}/c1`) },
+      }) as unknown as TriggerChange;
+    const ctx = {
+      eventId: 'e1',
+      time: new Date(),
+      params: { orgId: ORG, contactId: 'c1' },
+      log: w.log,
+      clock: w.clock,
+      db: w.db,
+      ports: fakePorts(),
+    } as unknown as TriggerContext;
+
+    await onWriteDefinition.handler(change(person('Ada', 'Quill')), ctx);
+    expect(w.doc(`${M}/m1`)?.['clientNames']).toEqual(['Ada Quillon', 'Ben Lark']);
+    expect(w.doc(`${M}/m1`)?.['search']).toEqual(expect.arrayContaining(['quillon']));
+    // The deceased's name is in the search; the clients' names are not theirs.
+    expect(w.doc(`${M}/m2`)?.['search']).toEqual(expect.arrayContaining(['quillon']));
+    expect(w.doc(`${M}/m2`)?.['clientNames']).toEqual(['Ben Lark']);
+    expect(w.doc(`${M}/m3`)?.['search']).toBeUndefined();
+    expect(w.doc(`${M}/m4`)?.['clientNames']).toEqual(['Ada Quill']);
+
+    // A write that leaves the name alone touches no matter.
+    await w.db.doc(`${M}/m1`).update({ clientNames: ['stale'] });
+    await onWriteDefinition.handler(change(person('Ada', 'Quillon')), ctx);
+    expect(w.doc(`${M}/m1`)?.['clientNames']).toEqual(['stale']);
+  });
+
   it('reports exactly which derived fields are stale', () => {
     expect(staleDerived({ kind: 'organisation', orgName: 'Acme', search: ['ac', 'acm', 'acme'] } as never)).toEqual({
       dedupeKey: 'org:acme',

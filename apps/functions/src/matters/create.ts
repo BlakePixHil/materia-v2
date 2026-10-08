@@ -15,6 +15,7 @@ import {
   isDateOnly,
   initialMatterStatus,
   Matter,
+  matterClientNames,
   matterCounterId,
   MatterNumber,
   matterNumberKey,
@@ -518,6 +519,7 @@ export const createMatterDefinition = {
             number: candidate,
             status,
             search: matterSearch({ ...matter, number: candidate }, names),
+            clientNames: matterClientNames(matter.clientContactIds, names),
             lastActivityAt: now,
             ...(template && templated
               ? { templateId: template.id, templateVersion: template.version, ...templated }

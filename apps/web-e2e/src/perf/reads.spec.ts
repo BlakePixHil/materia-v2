@@ -28,11 +28,11 @@ export const READ_BUDGETS = {
    */
   today: 150,
   /**
-   * Measured 165: one page of matters, the firm's 50 members, and one read per client contact on
-   * the page (63, an N+1 bounded by the page size). Exception until SEC-07d (MAT-179), "Denormalise
-   * client names onto matters", lands; then about 100.
+   * The ticket's (SEC-07d, MAT-179). Measured 102: one page of matters (plus one, to know there are
+   * more), the firm's 50 members and the saved views. Each matter carries its clients' names, so no
+   * contact is read (165 before, 63 of them the page's client contacts, one by one).
    */
-  matters: 200,
+  matters: 120,
   /** The ticket's. Measured 63, 50 of them the firm's members (fewer when that listener resumes). */
   matter: 100,
   /**
@@ -123,6 +123,10 @@ test.describe('reads per screen', () => {
       .soft(today.byLabel['orgs/*/matters/* (doc)']?.reads ?? 0, `Today: ${topLabels(today, 12).join('; ')}`)
       .toBeLessThanOrEqual(1);
     expect.soft(matters.reads, `Matters: ${topLabels(matters).join('; ')}`).toBeLessThanOrEqual(READ_BUDGETS.matters);
+    // Each matter carries its clients' names (SEC-07d): the list reads no contact. It read 63 before.
+    expect
+      .soft(matters.byLabel['orgs/*/contacts/* (doc)']?.reads ?? 0, `Matters: ${topLabels(matters, 12).join('; ')}`)
+      .toBe(0);
     expect.soft(matter.reads, `Matter: ${topLabels(matter).join('; ')}`).toBeLessThanOrEqual(READ_BUDGETS.matter);
     expect
       .soft(deadlines.reads, `Deadlines: ${topLabels(deadlines).join('; ')}`)

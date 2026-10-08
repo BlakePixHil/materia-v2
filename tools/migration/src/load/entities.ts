@@ -72,6 +72,7 @@ export const PHASES: readonly Phase[] = [
     group: 'matters',
     reconciled: [
       'search',
+      'clientNames',
       'nextDeadline',
       'openTaskCount',
       'wipCents',

@@ -28,8 +28,8 @@ const matter = Matter.schema.shape;
 /**
  * What the Matters list reads from `orgs/{orgId}/matters/{id}` (CORE-03): the fields it shows,
  * filters and sorts by, validated by the `libs/domain` Matter schema. Other fields (fees, the
- * conflict check, the estate) are dropped, not rejected. `search` and `lastActivityAt` are kept by
- * `matters-denormalise`.
+ * conflict check, the estate) are dropped, not rejected. `search`, `clientNames` and
+ * `lastActivityAt` are kept by `matters-denormalise`.
  */
 export const MatterListItemSchema = /* @__PURE__ */ z.object({
   number: matter.number,
@@ -41,6 +41,8 @@ export const MatterListItemSchema = /* @__PURE__ */ z.object({
   responsibleUid: matter.responsibleUid,
   teamUids: matter.teamUids,
   clientContactIds: matter.clientContactIds,
+  /** The clients' display names (SEC-07d), so the list names them without reading each contact. */
+  clientNames: matter.clientNames,
   privileged: matter.privileged,
   priority: matter.priority,
   labels: matter.labels,

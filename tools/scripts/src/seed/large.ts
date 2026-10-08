@@ -619,6 +619,7 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
       conflictCheck: { status: status === 'lead' ? 'pending' : 'clear' },
       privileged,
       labels: i % 9 === 0 ? ['referral'] : [],
+      clientNames: [clientName],
       search: domain.matterSearchTokens({ number, title, clientNames: [clientName] }),
       nextDeadline: next,
       openTaskCount: openTasks,

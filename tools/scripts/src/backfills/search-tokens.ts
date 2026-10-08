@@ -11,8 +11,10 @@ const domain = unwrap(D);
 /**
  * `materia-scripts backfill-search-tokens --project <id> [--dry-run] [--page-size <n>]` (CORE-15):
  * brings every `search` array up to the CORE-15 tokeniser (NFKD, prefixes 2–10, the matter number
- * in every form) and gives the documents and tasks written before CORE-15 theirs; stamps the
+ * in every form) and gives the documents and tasks written before CORE-15 theirs; gives each matter
+ * its clients' display names, `clientNames`, which the Matters list shows (SEC-07d); stamps the
  * recent entries CORE-14 wrote with `kind: 'matter'` (Today's Recent matters reads by kind).
+ * A destroyed matter's tombstone (CORE-19) is left as `matters-destroy` wrote it.
  *
  * It pages through each collection group in document-path order and writes only what differs, so
  * it is idempotent: a second run writes nothing, and a run stopped part-way can simply be run again.
@@ -101,10 +103,11 @@ type Planner = (page: readonly BackfillDoc[], store: BackfillStore) => Promise<(
 
 const PLANNERS: Record<keyof BackfillReport, Planner> = {
   matters: async (page, store) => {
-    const names = await contactNames(store, page);
+    const live = page.filter((doc) => !doc.data['destroyedAt']);
+    const names = await contactNames(store, live);
     return page.map((doc) => {
       const orgId = orgOf(doc.path);
-      if (!orgId) return null;
+      if (!orgId || doc.data['destroyedAt']) return null;
       const scoped = new Map(
         contactIds(doc.data).flatMap((id) => {
           const name = names.get(`orgs/${orgId}/contacts/${id}`);
@@ -112,7 +115,12 @@ const PLANNERS: Record<keyof BackfillReport, Planner> = {
         }),
       );
       const search = matterTokens(doc.data, scoped);
-      return same(doc.data['search'], search) ? null : { search };
+      const clientNames = domain.matterClientNames(doc.data['clientContactIds'], scoped);
+      const patch = {
+        ...(same(doc.data['search'], search) ? {} : { search }),
+        ...(same(doc.data['clientNames'], clientNames) ? {} : { clientNames }),
+      };
+      return Object.keys(patch).length ? patch : null;
     });
   },
   contacts: async (page) =>

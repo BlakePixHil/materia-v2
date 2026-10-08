@@ -62,6 +62,8 @@ export const NOISE_FIELDS = new Set([
   'wipCountedCents',
   'lastActivityAt',
   'search',
+  // Matters (SEC-07d): their clients' names, kept by matters-denormalise for the Matters list.
+  'clientNames',
   'order',
   // The Matters board's card order (CORE-04).
   'boardOrder',
