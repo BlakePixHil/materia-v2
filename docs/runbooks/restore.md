@@ -8,15 +8,15 @@ How Materia's data is backed up and how to get it back (SEC-03). Never restore o
 | ------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------- | ---------------------- |
 | Firestore PITR            | Every version of every document                                                               | The database (australia-southeast1)                | 7 days                                               | Any minute (RPO ≤ 1 min) |
 | Firestore managed backups | Whole database, daily and weekly (Sunday)                                                     | Firestore, australia-southeast1                    | Daily 7 days, weekly 14 weeks (Firestore's maximums) | Once a day (RPO ≤ 24 h) |
-| Firestore export          | Whole database as of a whole minute, nightly at 02:00 Melbourne (`backups-exportFirestore`)   | Written to `gs://<project>-exports/` (australia-southeast1), copied at 16:00 UTC by Storage Transfer to `gs://<project>-backups/daily/` and `monthly/` (australia-southeast2) | Exports bucket 8 days; `daily/` 35 days, `monthly/` (the 1st) 400 days | Once a day (RPO ≤ 24 h) |
+| Firestore export          | Every collection but Clerk's search chunks (see [Chunks](#clerks-search-chunks)), as of a whole minute, nightly at 02:00 Melbourne (`backups-exportFirestore`) | Written to `gs://<project>-exports/` (australia-southeast1), copied at 16:00 UTC by Storage Transfer to `gs://<project>-backups/daily/` and `monthly/` (australia-southeast2) | Exports bucket 8 days; `daily/` 35 days, `monthly/` (the 1st) 400 days | Once a day (RPO ≤ 24 h) |
 | Files bucket              | Soft delete for deleted objects; non-current versions for overwritten or deleted ones         | `gs://<project>-files`                             | Soft delete 30 days, versions 90 days                | Any change             |
 | Files copy                | Nightly Storage Transfer copy of the files bucket (Coldline), mirroring deletions              | `gs://<project>-backups/files/` (australia-southeast2) | Current copy; what it replaced or deleted 35 days | Once a day             |
 
-Everything is in Terraform (`infra/terraform/modules/firebase_env/backups.tf` and `data.tf`). Firestore exports to and imports from buckets in its own region only, which is why exports land in the exports bucket first and every import below reads from it. The export folder is named after its snapshot time in UTC: `daily/2026-10-05T15-00-00Z` holds the database as it was at 15:00 UTC.
+Everything is in Terraform (`infra/terraform/modules/firebase_env/backups.tf` and `data.tf`), except what the export takes and how often, which the export job decides (`apps/functions/src/backups/export.ts`). Firestore exports to and imports from buckets in its own region only, which is why exports land in the exports bucket first and every import below reads from it. The export folder is named after its snapshot time in UTC: `daily/2026-10-05T15-00-00Z` holds the database as it was at 15:00 UTC.
 
 **Alerts** (email, FND-21; `backup-status` below shows why): "Scheduled job backups-exportFirestore not running" when no export has finished for 24.5 hours, and "Backup copy failed" when either Storage Transfer job (files, or exports to the backup region) logs a failed copy or delete. Firestore's managed backups have no alert; the drill checks them.
 
-**Targets.** RPO: ≤ 1 minute for the last 7 days (PITR), ≤ 24 hours after that (backups and exports). RTO: ≤ 4 hours for a full restore. The quarterly drill measures both.
+**Targets.** RPO: ≤ 1 minute for the last 7 days (PITR), ≤ 24 hours after that (backups and exports). RTO: ≤ 4 hours for a full restore; from an export, Clerk's search inside documents then takes longer to rebuild (see [Chunks](#clerks-search-chunks)). The quarterly drill measures both.
 
 All commands below need owner credentials (or `terraform-agent`) and `--project <project>`; examples use dev.
 
@@ -42,7 +42,7 @@ All commands below need owner credentials (or `terraform-agent`) and `--project 
      --read-time 2026-10-05T03:15:00Z
    ```
 
-   Older than 7 days, restore a backup or an export next to the live database first (see [Scratch database](#scratch-database)) and use `--from-database restore-20261006` instead of `--read-time`.
+   Older than 7 days, restore a backup or an export next to the live database first (see [Scratch database](#scratch-database)) and use `--from-database restore-20261006` instead of `--read-time`. A backup is better than an export here: an export has no search chunks, so after restoring from one, rebuild them ([Chunks](#clerks-search-chunks)).
 
 3. Run it again with `--apply`. Documents added since the restore point are kept; add `--delete-extra` to delete them too. The restore is audited as `matter.restored` with its run id (and each written document gets its usual audit entry).
 4. Bring back the matter's document files if they were deleted too ([Storage objects](#storage-objects)); each document's `storagePath` and `versions[].storagePath` say which.
@@ -116,12 +116,37 @@ For damage across the database. Firestore can't rename a database, so the restor
    2. Prod only: turn off delete protection, `gcloud firestore databases update --database='(default)' --no-delete-protection`.
    3. Delete `(default)`: `gcloud firestore databases delete --database='(default)'`. Its PITR history goes with it, which is why step 2 exported it.
    4. Recreate it with Terraform (Actions → infra → Run workflow; dev also applies on any infra merge): PITR, delete protection and the backup schedules come back with it. Then import: `gcloud firestore import gs://<project>-exports/restores/<date>`.
-   5. Redeploy indexes and rules (Actions → deploy-dev, or the prod release), and re-run the backfills that rebuild derived fields (`materia-scripts backfill-search-tokens` and `backfill-matter-roles` through the `dev-script` workflow on dev).
+   5. Redeploy indexes and rules (Actions → deploy-dev, or the prod release), and re-run the backfills that rebuild derived fields (`materia-scripts backfill-search-tokens` and `backfill-matter-roles` through the `dev-script` workflow on dev). If the restore came from an export, also rebuild Clerk's search chunks ([Chunks](#clerks-search-chunks)) once the functions are back.
 6. **Resume** the scheduled jobs (`gcloud scheduler jobs resume <job>`) and check the app (`/health`, Today, a matter, a document preview).
 7. **Re-apply destructions.** A restore from before a destruction brings that matter back. For each certificate from step 2 whose matter is back without a tombstone, copy `destructionCertificates/dc-{matterId}` and `destructionQueue/{matterId}` from the step 2 export (or the scratch copy) and run the destruction again (CORE-19's `matters-destroy` resumes from its stage and leaves the tombstone). The certificate PDFs live in Storage and are unaffected. For each practice in `deletedOrgs` from step 2 whose `orgs/{orgId}` is back, copy its tombstone back, set `status: 'purging'` and `stage: 'marked'` on it, and queue its deletion again (`orgs-purge` with `{orgId}`; see [org deletion](org-deletion.md)): the purge deletes it again, keeps the existing certificate and emails it to the owners again.
 8. **Record** the times (stop, restore built, switched, resumed) and the restore point on the incident's Linear ticket, and delete the scratch database once the owner is happy.
 
 Restores overlapping a migration run: check `orgs/{orgId}/migrations` for runs after the restore point and re-run them by run id (MIG CLI) after the switch.
+
+## Clerk's search chunks
+
+The nightly export leaves out Clerk's search chunks (`documents/{docId}/chunks`, SEC-07h): they hold the documents' text and embeddings, are most of the database's bytes, and are rebuilt from the documents. Everything in a chunk comes from the document's file (its text, or OCR of a scanned page) and the document's own fields (version, privileged), so nothing is lost: the files bucket keeps every file, and its nightly copy in the backups bucket keeps them outside the region. PITR and the managed backups keep the chunks, so prefer a managed backup when its restore point will do (daily for 7 days, weekly for 14 weeks); restore from an export for region loss, or for a day between weekly backups.
+
+A database restored from an export has every document marked as ingested but no chunks, so Clerk can't search inside documents until they are rebuilt. Once the functions are running against it:
+
+```sh
+pnpm materia-scripts backfill-ingest --project materia-v2-dev --rechunk --dry-run   # counts, writes nothing
+pnpm materia-scripts backfill-ingest --project materia-v2-dev --rechunk
+```
+
+(On dev, through the `dev-script` workflow.) It queues every ingested document that has no chunks for its current version, and the ingest trigger reads, chunks and embeds it again. Until a document is back, Clerk answers without it, and search still finds it by name.
+
+**How long.** Not yet timed: dev's database has its chunks, and a timing needs a database without them, so record the first real figure here. Ingest's recent pace is in the backup-drill workflow's `status` output, "Clerk ingest (last 30 days)": its latency and its busiest run in requests an hour (from a bulk upload or a migration load; a long PDF is a few requests). The estimate: `documents-ingest` runs 3 documents at a time per project, at an assumed 2 to 5 seconds a document, so about 2,000 to 5,000 documents an hour. A dev-sized practice of a few hundred documents is back within the hour; a target-scale practice (500,000 documents) takes 4 to 10 days. Two things change that:
+
+- **Scanned pages** are read again by OCR, within each practice's daily OCR limit (200 pages by default; Settings → Clerk and AI, "Scanned pages read per day", up to 10,000). The dry run says how many OCR pages are waiting; divide by the limit for the days it takes. OCR runs on the practice's own Clerk key, so agree a higher limit with its owner.
+- **The queue's concurrency.** To go faster, raise it for the rebuild, watching the Vertex embedding quota and Clerk's rate limits; the next functions deploy puts it back to 3:
+
+  ```sh
+  gcloud tasks queues update documents-ingest --max-concurrent-dispatches=20 \
+    --location=australia-southeast1 --project materia-v2-dev
+  ```
+
+The 4-hour RTO covers the records and the app. After a restore from an export, Clerk's answers about document contents come back over the time above; tell the practice so. A single-matter restore needs the rebuild only when it came from an export and the matter's documents have no chunks for the restored version.
 
 ## Region loss
 
@@ -129,9 +154,9 @@ PITR and the managed backups live in australia-southeast1 with the database. The
 
 ## Drill
 
-The `backup-drill` workflow runs quarterly on dev (1 January, April, July and October) and on demand (Actions → backup-drill → Run workflow; source `all`, `backup`, `export` or `pitr`). For each source it restores the newest backup or export into a scratch database `drill-…`, compares every collection group's count with the live database as it was at the snapshot time (PITR; a managed backup's snapshot falls mid-minute, so its counts must lie between the live counts at the minutes either side), writes the RPO and restore time to the run summary, and deletes the scratch database. It first deletes any `drill-…` database a cancelled run left behind. Locally: `pnpm materia-scripts backup-drill --project materia-v2-dev --source backup` (refuses prod).
+The `backup-drill` workflow runs quarterly on dev (1 January, April, July and October) and on demand (Actions → backup-drill → Run workflow; source `all`, `backup`, `export` or `pitr`). For each source it restores the newest backup or export into a scratch database `drill-…`, compares every collection group's count with the live database as it was at the snapshot time (PITR; a managed backup's snapshot falls mid-minute, so its counts must lie between the live counts at the minutes either side), writes the RPO and restore time to the run summary, and deletes the scratch database. The export drill doesn't compare Clerk's search chunks, which the export leaves out, and says so in the summary. It first deletes any `drill-…` database a cancelled run left behind. Locally: `pnpm materia-scripts backup-drill --project materia-v2-dev --source backup` (refuses prod).
 
-To see what the backups have done lately without restoring anything, run the workflow with source `status` (or `pnpm materia-scripts backup-status --project <project>`, read-only, prod too). It lists the managed backups, the export folders in the exports bucket (and any that never finished) and their copies in the backups bucket, the files copy, the export's scheduler job and its last 8 days of log lines (including why a failed export failed), and the Storage Transfer jobs' latest runs. A run with source `all` prints it first. Use it for the 7-day evidence and when an export alert fires. Once the cause is fixed, source `run-export` starts the nightly export straight away instead of waiting for 02:00. Source `restore-matter` dry-runs [Single matter](#single-matter) on dev from PITR an hour ago, for the matter given as `<orgId>/<matterId>` (or the first one found): it prints what a restore would write and writes nothing.
+To see what the backups have done lately without restoring anything, run the workflow with source `status` (or `pnpm materia-scripts backup-status --project <project>`, read-only, prod too). It lists the managed backups, the export folders in the exports bucket (and any that never finished) and their copies in the backups bucket, the files copy, the export's scheduler job and its last 8 days of log lines (including why a failed export failed), the Storage Transfer jobs' latest runs, and Clerk ingest's pace over 30 days ([how long the chunk rebuild takes](#clerks-search-chunks)). A run with source `all` prints it first. Use it for the 7-day evidence and when an export alert fires. Once the cause is fixed, source `run-export` starts the nightly export straight away instead of waiting for 02:00. Source `restore-matter` dry-runs [Single matter](#single-matter) on dev from PITR an hour ago, for the matter given as `<orgId>/<matterId>` (or the first one found): it prints what a restore would write and writes nothing.
 
 After each drill, add a row:
 

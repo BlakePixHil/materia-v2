@@ -1,4 +1,7 @@
+import * as D from '@materia/domain';
+
 import type { AdminApi, Operation } from './admin-api.ts';
+import { unwrap } from '../seed/interop.ts';
 
 /**
  * `materia-scripts backup-drill --project <id> [--source backup|export|pitr|all] [--keep]` (SEC-03):
@@ -6,7 +9,8 @@ import type { AdminApi, Operation } from './admin-api.ts';
  * exports bucket in the database's region, the only place Firestore imports from) or a PITR clone
  * into a scratch database `drill-…`,
  * checks every collection group's document count against the live database as of the same
- * snapshot time (PITR), records how long it took, and deletes the scratch database. The
+ * snapshot time (PITR), records how long it took, and deletes the scratch database. An export
+ * leaves Clerk's chunks out (SEC-07h), so its drill doesn't compare them. The
  * quarterly `backup-drill` workflow runs it on dev with `--source all`; results go to the run
  * summary (docs/runbooks/restore.md, "Drill").
  *
@@ -36,6 +40,8 @@ export interface DrillResult {
   documents: number;
   /** Live counts at the snapshot time, or at the minutes either side when it isn't a whole minute. */
   groups: { group: string; restored: number; live: number; liveNextMinute?: number }[];
+  /** Groups the source leaves out on purpose (an export's chunks, SEC-07h), so not compared. */
+  notCompared: string[];
   mismatches: string[];
   /** False when the snapshot is outside the PITR window, so counts compare against today's data. */
   exact: boolean;
@@ -145,10 +151,15 @@ export async function drill(
     const snapshotMs = new Date(picked.snapshotTime).getTime();
     const exact = restored - snapshotMs < PITR_WINDOW_MS - 10 * 60 * 1000;
     const readTimes = exact ? liveReadTimes(picked.snapshotTime) : [undefined];
-    const ids = [
+    const found = [
       ...new Set([...(await dbs.collectionIds(database)), ...(await dbs.collectionIds('(default)'))]),
     ].sort();
+    // The export leaves Clerk's chunks out (SEC-07h): a restore rebuilds them from the documents.
+    const notCompared =
+      source === 'export' ? found.filter((id) => unwrap(D).EXPORT_SKIPPED_COLLECTIONS.includes(id)) : [];
+    const ids = found.filter((id) => !notCompared.includes(id));
     opts.log(`  comparing ${ids.length} collection groups`);
+    if (notCompared.length) opts.log(`  not compared, left out of the export: ${notCompared.join(', ')}`);
     const groups = [];
     for (const group of ids) {
       const live = [];
@@ -180,6 +191,7 @@ export async function drill(
       verifySeconds: Math.round((verified - restored) / 1000),
       documents: groups.reduce((sum, g) => sum + g.restored, 0),
       groups,
+      notCompared,
       mismatches,
       exact,
       liveReadTimes: readTimes.filter((t) => t !== undefined),
@@ -221,6 +233,12 @@ export function summary(results: readonly DrillResult[]): string {
   }
   const mismatched = results.flatMap((r) => r.mismatches.map((m) => `- ${r.source}: ${m}`));
   if (mismatched.length) lines.push('', '**Mismatches**', '', ...mismatched);
+  const left = results.filter((r) => r.notCompared.length);
+  for (const r of left)
+    lines.push(
+      '',
+      `Not compared for ${r.source}: ${r.notCompared.join(', ')} (left out of the export; \`backfill-ingest --rechunk\` rebuilds them after a restore).`,
+    );
   return lines.join('\n');
 }
 

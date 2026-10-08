@@ -154,6 +154,30 @@ describe('drill', () => {
     expect(calls[3]?.body).toEqual({ inputUriPrefix: 'gs://materia-v2-dev-exports/daily/2026-10-05T14-59-00Z' });
   });
 
+  it('leaves Clerk’s chunks out of an export’s comparison, which the export leaves out (SEC-07h)', async () => {
+    const { deps, clock } = scripted([
+      { items: [{ name: 'daily/2026-10-05T14-59-00Z/2026-10-05T14-59-00Z.overall_export_metadata' }] },
+      { items: [] },
+      op('ops/create'),
+      op('ops/import'),
+      { collectionIds: [] },
+      op('ops/delete'),
+    ]);
+    const db = 'drill-20261006-0000-export';
+    const lines: string[] = [];
+    const result = await drill(
+      new AdminApi(deps, 'p'),
+      databases({ [db]: { matters: 3, documents: 4 }, '(default)': { matters: 3, documents: 4, chunks: 40 } }),
+      'export',
+      options(clock, lines),
+    );
+    expect(result.groups.map((g) => g.group)).toEqual(['documents', 'matters']);
+    expect(result.notCompared).toEqual(['chunks']);
+    expect(result.mismatches).toEqual([]);
+    expect(lines).toContain('  not compared, left out of the export: chunks');
+    expect(summary([result])).toContain('Not compared for export: chunks');
+  });
+
   it('clones a PITR snapshot and keeps the scratch database with --keep', async () => {
     const { deps, calls, clock } = scripted([op('ops/clone'), { collectionIds: [] }]);
     const lines: string[] = [];
@@ -232,6 +256,7 @@ describe('summary', () => {
       verifySeconds: 12,
       documents: 13,
       groups: [{ group: 'matters', restored: 3, live: 3 }],
+      notCompared: [],
       liveReadTimes: ['2026-10-05T14:00:00Z'],
       deleted: true,
     };

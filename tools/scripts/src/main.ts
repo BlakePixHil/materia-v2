@@ -19,7 +19,8 @@ const COMMANDS = {
   'remote-config': 'Report every flag in Remote Config; --apply a flags file to dev (FND-23a)',
   'platform-admin': 'Grant or revoke the platformAdmin claim (FND-23; humans only)',
   'backfill-search-tokens': 'Rewrite search tokens and stamp recent entries (CORE-15; idempotent)',
-  'backfill-ingest': 'Have Clerk ingest documents from before AI-04 or that failed, and report ingest status (AI-04)',
+  'backfill-ingest':
+    'Have Clerk ingest documents from before AI-04 or that failed, and report ingest status (AI-04); --rechunk rebuilds chunks after a restore (SEC-07h)',
   'backfill-metrics': 'Restate the practice metrics rollups from an FY start, from the records (INS-01; idempotent)',
   'backfill-matter-roles':
     'Give every contact its roles in live matters for the contacts filter (CORE-01a; idempotent)',

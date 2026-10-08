@@ -1,4 +1,4 @@
-# Cost model: a target-scale firm, per month (SEC-07)
+# Cost model: a target-scale firm, per month (SEC-07, SEC-07h)
 
 What one firm at SEC-07's target scale costs to run each month: 50 members, 10,000 matters, 500,000 documents and 2 million time entries. The model splits what Materia's Google Cloud project pays from what the firm pays Anthropic for Clerk (BYOK, [ADR-011b](../adr/ADR-011b-clerk-byok.md)). It also covers the per-deploy cost that every firm shares.
 
@@ -13,8 +13,8 @@ What one firm at SEC-07's target scale costs to run each month: 50 members, 10,0
 | Per month, one target-scale firm | Clerk ingestion off | Clerk ingests every document |
 | -- | --: | --: |
 | Running the app: Firestore reads, writes, storage and egress; Functions; Tasks; document storage and downloads; embeddings | **≈ US$20** | **≈ US$27** |
-| Backups (SEC-03): nightly export reads, PITR, managed backups, export storage and the copy to Melbourne | **≈ US$69** | **≈ US$213** |
-| **Materia's Google Cloud bill for the firm** | **≈ US$90** | **≈ US$240** |
+| Backups (SEC-03): nightly export reads, PITR, managed backups, export storage and the copy to Melbourne | **≈ US$69** | **≈ US$115** |
+| **Materia's Google Cloud bill for the firm** | **≈ US$90** | **≈ US$142** |
 | Clerk tokens, paid by the firm to Anthropic (BYOK): default model / opt-in model | ≈ US$517 / ≈ US$987 | same |
 | Shared by all firms: rebuilding every function on each deploy (dev and prod) | ≈ US$170–200 | same |
 
@@ -24,8 +24,9 @@ What the model shows:
 - **Backups are most of the bill**, and they grow with the data, not with use:
   - The nightly export (SEC-03) is billed one read per document. At about 4 million documents that is 122 million reads a month, about 20 times what the firm's people read.
   - Each export is then kept 35 days in Melbourne (13 monthly copies for 400 days) and copied there across regions every night.
-  - Clerk's ingest chunks carry 768-dimension vectors, so they are most of the bytes in the database once every document is ingested. This triples the backup line.
-  - Follow-up ticket: "Leave derivable Clerk chunks out of the nightly export and cut the export cadence at scale". Chunks can be rebuilt from the documents; re-embedding all 500,000 costs about US$150.
+  - Clerk's ingest chunks carry 768-dimension vectors, so they are most of the bytes in the database once every document is ingested. With them in the export, the backup line tripled (US$213 a month).
+  - Since SEC-07h the export leaves the chunks out: they are rebuilt from the documents after a restore from an export ([restore runbook](../runbooks/restore.md#clerks-search-chunks)). That takes about US$98 a month off, so Clerk now adds about US$46 to the backup line, all of it PITR and the managed backups, which can't leave a collection out. Rebuilding after a restore costs about US$150 in embeddings for all 500,000 documents, plus OCR of scanned pages on the firm's Clerk key; only a restore from an export needs it.
+  - The export still runs every night: see [Export cadence](#export-cadence).
 - **Clerk is the largest cost for a firm that uses it, and the firm pays it.** The default model costs half as much as the opt-in one on input and output; cached input is the same price on both.
 - **Deploys are the largest fixed cost.** On today's cadence, the per-deploy function rebuild costs more than a whole target-scale firm. It is per project, not per firm, so it shrinks per firm as firms are added.
 
@@ -98,7 +99,7 @@ Reads are where a careless screen would show up, so they are modelled screen by 
 
 - **People:** 6,590 × 45 × 21 ≈ **6.2 million reads**, about **US$2.40** a month. Deadlines is a fifth of it. Its follow-up ("Window the Deadlines page and denormalise matter fields onto deadlines") would take about US$0.35 off at this scale, and more for firms that live on that page. The firm's 50 member documents are read by the Matters list, a matter and Deadlines alike; that counts each listener as new, though Firestore bills a listener resumed within 30 minutes only for what changed, so these screens are upper bounds.
 - **Functions:** transactions, triggers and rollups read about 2.5 documents per write, about 1.06 million. Scheduled jobs (reminders, digests, debtors, sweeps) read about 600,000. Together about **US$0.63**.
-- **Nightly export:** one read per document per night, about 122 million reads without chunks and 188 million with them. That is **US$46–72**.
+- **Nightly export:** one read per document per night, about 122 million reads. That is **US$46**. With the chunks it was 188 million reads, US$72; the export leaves them out since SEC-07h.
 
 ## Monthly estimate, line by line
 
@@ -106,22 +107,39 @@ Reads are where a careless screen would show up, so they are modelled screen by 
 | -- | --: | --: | -- |
 | Firestore reads: people | 2.37 | 2.37 | 6.2 million reads |
 | Firestore reads: functions and scheduled jobs | 0.63 | 0.63 | 1.66 million reads |
-| Firestore reads: nightly export | 46.43 | 71.51 | one read per document, 30 nights |
+| Firestore reads: nightly export | 46.43 | 46.43 | one read per document but chunks, 30 nights |
 | Firestore writes and deletes | 0.46 | 0.49 | 424,000 writes, deletes at 5% |
 | Firestore storage | 0.84 | 6.08 | 7.3 / 52.9 GiB |
 | Firestore PITR (7 days) | 1.48 | 10.71 | about the database size |
 | Firestore managed backups (7 daily, 14 weekly) | 5.84 | 42.19 | 21 copies of the database size |
 | Firestore egress to browsers | 1.32 | 1.32 | 6.9 GiB (before the project's 10 GiB free) |
 | Storage: document files | 4.50 | 4.50 | 196 GiB |
-| Storage: exports bucket (8 nights kept) | 0.54 | 4.17 | 8 exports of 2.9 / 22.7 GiB |
-| Storage: backups bucket (35 daily, 13 monthly exports, plus the files copy) | 7.73 | 29.54 | 48 exports plus 196 GiB |
-| Storage: nightly copy to australia-southeast2 | 7.19 | 54.61 | 30 exports plus new files, at $0.08 per GiB |
+| Storage: exports bucket (8 nights kept) | 0.54 | 0.54 | 8 exports of 2.9 GiB (no chunks) |
+| Storage: backups bucket (35 daily, 13 monthly exports, plus the files copy) | 7.73 | 7.73 | 48 exports plus 196 GiB |
+| Storage: nightly copy to australia-southeast2 | 7.19 | 7.19 | 30 exports plus new files, at $0.08 per GiB |
 | Storage: operations | 0.17 | 0.17 | uploads, renditions, downloads |
 | Storage: downloads to browsers | 1.76 | 1.76 | 30 documents per member-day at 350 kB |
 | Functions (Cloud Run, request-based) | 8.31 | 8.31 | 650,000 invocations (about 1.2 per write, plus callables), about 228,000 vCPU-seconds |
 | Cloud Tasks | 0.01 | 0.01 | 28,000 operations |
 | Vertex embeddings for new documents | 0 | 1.56 | 5,200 documents × 4 pages × 3,000 characters |
-| **Total** | **≈ 89.58** | **≈ 239.93** | |
+| **Total** | **≈ 89.58** | **≈ 141.99** | |
+
+Before SEC-07h the export took the chunks too: in the right-hand column, its reads were US$71.51, the exports bucket US$4.17, the backups bucket US$29.54 and the copy US$54.61 (22.7 GiB an export), for a total of about US$240.
+
+### Export cadence
+
+The export could run less often than nightly (`EXPORT_EVERY_DAYS` in `apps/functions/src/backups/export.ts`; the export on the 1st always runs, and a night it skips still logs `ok` for the alert). PITR (7 days) and the daily managed backups already cover the database's own region, so the export adds two things: the copy in another region, and restore points beyond the managed backups (daily for 35 days, then monthly for 400). Its cost per month at the target scale, chunks left out:
+
+| Export every | Exports a month | Reads | Copy | Storage | Total | Restore point if the region is lost, and 8 to 35 days back |
+| -- | --: | --: | --: | --: | --: | -- |
+| night (now) | 30 | 46.40 | 7.03 | 3.77 | **≈ US$57** | 24 hours |
+| 2 days | 16 | 24.75 | 3.75 | 2.33 | ≈ US$31 | 2 days |
+| 3 days | 11 | 17.01 | 2.58 | 1.84 | ≈ US$21 | 3 days |
+| week | 5 | 7.73 | 1.17 | 1.29 | ≈ US$10 | a week (the same as the weekly managed backups, in-region) |
+
+**Decision (SEC-07h): keep it nightly.** About US$57 a month buys a 24-hour restore point outside the region and for the five weeks after PITR, which a law firm's records want more than the saving. Revisit when one database's export reads pass US$100 a month (about 8.8 million documents, twice the target scale) in the billing report, or if the owner prefers the saving. Changing it is the one constant, plus the RPOs in the [restore runbook](../runbooks/restore.md).
+
+The largest backup line left for a firm that uses Clerk is the managed backups (US$42 a month, 21 copies of the database with its chunks); Firestore's backup schedules can't leave a collection out either, so the lever there is the weekly backups' 14 weeks.
 
 The invocations follow the writes because most writes set off triggers. In the load tests, creating a matter set off about 52 trigger invocations for its 60 or so writes (audit, activity, metrics, search and conflict triggers). A Clerk message set off about 8, six of them `audit-onOrgWrite` on the thread, rate-limit, meter and idempotency documents, which it then skips.
 

@@ -2,9 +2,14 @@ import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { FieldPath, getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 /**
- * `materia-scripts backfill-ingest --project <id> [--dry-run] [--page-size <n>]` (AI-04): has Clerk
- * ingest the documents uploaded before AI-04 (and any whose ingest failed), and reports where every
- * document's ingest stands, so a dry run doubles as the live check that ingestion works.
+ * `materia-scripts backfill-ingest --project <id> [--dry-run] [--rechunk] [--page-size <n>]` (AI-04):
+ * has Clerk ingest the documents uploaded before AI-04 (and any whose ingest failed), and reports
+ * where every document's ingest stands, so a dry run doubles as the live check that ingestion works.
+ *
+ * `--rechunk` (SEC-07h) also re-ingests the documents that were ingested but whose chunks are gone:
+ * after a restore from the nightly export, which leaves Clerk's chunks out. It re-reads their text
+ * (OCR pages again, within the org's daily OCR budget) and re-embeds them; the report says how many
+ * documents and OCR pages that is, so run it with `--dry-run` first.
  *
  * It doesn't enqueue tasks itself: it moves each due document's `ingest` to `queued`, then back to
  * `pending` for its current version. That is a transition into "needs ingesting", so the deployed
@@ -29,6 +34,8 @@ export interface IngestStore {
   setIngest(path: string, ingest: Data): Promise<void>;
   /** Whether one of the document's chunks for this version carries a 768-dimension embedding. */
   embedded(path: string, version: number): Promise<boolean>;
+  /** Whether the document has any chunk for this version (`--rechunk`, SEC-07h). */
+  chunked(path: string, version: number): Promise<boolean>;
   /** How many times each trigger function ran in the last week, from its `eventGuards` (optional). */
   triggerRuns?(fns: readonly string[]): Promise<Record<string, number>>;
 }
@@ -61,6 +68,8 @@ export interface IngestReport {
   reasons: Record<string, number>;
   /** Runs of the document triggers in the last week (when the store can count them). */
   triggerRuns?: Record<string, number>;
+  /** With `--rechunk` (SEC-07h): ingested documents whose chunks are gone, queued again, and their OCR pages. */
+  rechunk?: { documents: number; ocrPages: number };
 }
 
 const isDeleted = (doc: Data) => doc['deletedAt'] !== undefined && doc['deletedAt'] !== null;
@@ -122,7 +131,7 @@ export function stateReason(doc: Data, state: IngestState): string | null {
 /** Runs the backfill; with `dryRun`, only reports. */
 export async function backfillIngest(
   store: IngestStore,
-  options: { pageSize?: number; dryRun?: boolean; log?: (line: string) => void } = {},
+  options: { pageSize?: number; dryRun?: boolean; rechunk?: boolean; log?: (line: string) => void } = {},
 ): Promise<IngestReport> {
   const pageSize = options.pageSize ?? 300;
   const report: IngestReport = {
@@ -137,6 +146,11 @@ export async function backfillIngest(
     migrated: 0,
     ocrPages: 0,
     reasons: {},
+    ...(options.rechunk ? { rechunk: { documents: 0, ocrPages: 0 } } : {}),
+  };
+  const queue = async (path: string, version: number) => {
+    await store.setIngest(path, { status: 'queued', version });
+    await store.setIngest(path, { status: 'pending', version });
   };
   let after: string | null = null;
   for (;;) {
@@ -156,11 +170,14 @@ export async function backfillIngest(
         report.chunks += ingest.chunks ?? 0;
         report.ocrPages += ingest.ocrPages ?? 0;
         if ((ingest.chunks ?? 0) > 0 && (await store.embedded(doc.path, version))) report.embedded++;
+        else if (report.rechunk && (ingest.chunks ?? 0) > 0 && !(await store.chunked(doc.path, version))) {
+          // Ingested, but its chunks are gone (a restore from the export, SEC-07h): ingest it again.
+          report.rechunk.documents++;
+          report.rechunk.ocrPages += ingest.ocrPages ?? 0;
+          if (!options.dryRun) await queue(doc.path, version);
+        }
       }
-      if (state === 'due' && !options.dryRun) {
-        await store.setIngest(doc.path, { status: 'queued', version });
-        await store.setIngest(doc.path, { status: 'pending', version });
-      }
+      if (state === 'due' && !options.dryRun) await queue(doc.path, version);
     }
     after = page[page.length - 1]?.path ?? null;
     if (page.length < pageSize) break;
@@ -176,6 +193,11 @@ export async function backfillIngest(
     log(`skipped: ${report.skipped}, in progress: ${report.inProgress}`);
     log(`due (never ingested, older version or failed): ${report.due} ${options.dryRun ? 'to queue' : 'queued'}`);
     if (report.migrated) log(`migrated, waiting for the migration's Clerk reading (MIG-09): ${report.migrated}`);
+    if (report.rechunk)
+      log(
+        `ingested but without chunks (restored from the export): ${report.rechunk.documents} ` +
+          `${options.dryRun ? 'to queue' : 'queued'}, ${report.rechunk.ocrPages} OCR pages to read again`,
+      );
     for (const [reason, count] of Object.entries(report.reasons).sort()) log(`  ${reason}: ${count}`);
     if (report.triggerRuns) {
       const runs = Object.entries(report.triggerRuns).map(([fn, count]) => `${fn} ${count}`);
@@ -208,6 +230,10 @@ export function adminStore(db: Firestore): IngestStore {
       const embedding = snap.docs[0]?.get('embedding') as { toArray?: () => number[] } | undefined;
       return embedding?.toArray?.().length === EMBEDDING_DIMENSIONS;
     },
+    async chunked(path, version) {
+      const snap = await db.collection(`${path}/chunks`).where('docVersion', '==', version).select().limit(1).get();
+      return !snap.empty;
+    },
     async triggerRuns(fns) {
       const counts = await Promise.all(
         fns.map(async (fn) => (await db.collection('eventGuards').where('fn', '==', fn).count().get()).data().count),
@@ -217,23 +243,29 @@ export function adminStore(db: Firestore): IngestStore {
   };
 }
 
-export function parseArgs(argv: string[]): { project: string; dryRun: boolean; pageSize: number } {
+export function parseArgs(argv: string[]): { project: string; dryRun: boolean; rechunk: boolean; pageSize: number } {
   const value = (name: string) => {
     const index = argv.indexOf(`--${name}`);
     return index >= 0 ? argv[index + 1] : undefined;
   };
   const project = value('project') ?? process.env['GCLOUD_PROJECT'];
-  if (!project) throw new Error('Usage: materia-scripts backfill-ingest --project <id> [--dry-run] [--page-size <n>]');
+  if (!project)
+    throw new Error('Usage: materia-scripts backfill-ingest --project <id> [--dry-run] [--rechunk] [--page-size <n>]');
   const pageSize = Number(value('page-size') ?? 300);
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 500) throw new Error('--page-size is 1 to 500');
-  return { project, dryRun: argv.includes('--dry-run'), pageSize };
+  return { project, dryRun: argv.includes('--dry-run'), rechunk: argv.includes('--rechunk'), pageSize };
 }
 
 export async function main(argv: string[] = []): Promise<void> {
-  const { project, dryRun, pageSize } = parseArgs(argv);
+  const { project, dryRun, rechunk, pageSize } = parseArgs(argv);
   const app = initializeApp({ projectId: project }, `backfill-ingest-${Date.now()}`);
   try {
-    await backfillIngest(adminStore(getFirestore(app)), { dryRun, pageSize, log: (line) => console.log(line) });
+    await backfillIngest(adminStore(getFirestore(app)), {
+      dryRun,
+      rechunk,
+      pageSize,
+      log: (line) => console.log(line),
+    });
   } finally {
     await deleteApp(app);
   }
