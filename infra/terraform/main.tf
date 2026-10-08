@@ -57,6 +57,7 @@ module "env" {
   budget_amount                = var.budget_amount
   budget_currency              = var.budget_currency
   budget_alert_emails          = var.budget_alert_emails
+  custom_domain                = var.custom_domain
 }
 
 # Observability (FND-21): log-based metrics, alerts, uptime checks, the Ops overview dashboard and

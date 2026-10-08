@@ -42,3 +42,8 @@ output "doc_services" {
   description = "Cloud Run document services (CORE-12a): runtime accounts and URLs."
   value       = module.env.doc_services
 }
+
+output "custom_domain_dns" {
+  description = "DNS records for the custom domain, to add where its DNS is hosted (infra/MANUAL.md)."
+  value       = module.env.custom_domain_dns
+}

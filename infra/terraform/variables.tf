@@ -101,3 +101,9 @@ variable "adopt_budget_id" {
   type        = string
   default     = null
 }
+
+variable "custom_domain" {
+  description = "The app's own address on Hosting, such as dev.materia.au. Empty: the Firebase domains only."
+  type        = string
+  default     = ""
+}
