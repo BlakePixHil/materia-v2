@@ -1,8 +1,10 @@
 import type { Firestore } from 'firebase-admin/firestore';
 
+import { matterClientNames } from '@materia/domain';
+
 import { matterCopiesChanged, syncMatterCopies } from './copies';
 import { clearStaleFactCitations } from './fact-citations';
-import { contactNames, matterPath, matterSearch, searchContactIds } from './shared';
+import { contactNames, matterPath, mattersPath, matterSearch, searchContactIds } from './shared';
 import { changedFields } from '../audit/entry';
 import { refreshMatterRoles } from '../contacts/matter-roles';
 import { defineTrigger, type TriggerChange, type TriggerContext, type TriggerDefinition } from '../core/trigger';
@@ -18,6 +20,7 @@ type Data = Record<string, unknown>;
  */
 export const NON_ACTIVITY_FIELDS: ReadonlySet<string> = new Set([
   'search',
+  'clientNames',
   'lastActivityAt',
   'nextDeadline',
   'openTaskCount',
@@ -51,6 +54,7 @@ const millis = (value: unknown): number | undefined => {
 /**
  * The denormalised fields of a matter that are out of date (empty when all are current):
  * - `search` from the number, title, client and deceased names and the external reference;
+ * - `clientNames`, the clients' display names for the Matters list (SEC-07d);
  * - `lastActivityAt`, filled when missing and moved forward to `activityAt` (never backwards);
  * - `deletedAt: null` on a matter written without it (seed, migration), so live lists find it.
  */
@@ -58,6 +62,9 @@ export function staleMatterFields(current: Data, names: ReadonlyMap<string, stri
   const patch: Data = {};
   const search = matterSearch(current, names);
   if (JSON.stringify(current['search'] ?? null) !== JSON.stringify(search)) patch['search'] = search;
+  const clientNames = matterClientNames(current['clientContactIds'], names);
+  if (JSON.stringify(current['clientNames'] ?? null) !== JSON.stringify(clientNames))
+    patch['clientNames'] = clientNames;
   const last = millis(current['lastActivityAt']);
   if (last === undefined) {
     patch['lastActivityAt'] = activityAt ?? current['createdAt'] ?? new Date();
@@ -88,6 +95,42 @@ export async function recordMatterActivity(db: Firestore, orgId: string, matterI
     tx.update(ref, { lastActivityAt: at });
     return true;
   });
+}
+
+/** Writes per batch (Firestore allows 500). */
+const BATCH_SIZE = 400;
+
+/**
+ * A contact's display name changed: the matters that name it, as a client or the deceased, get
+ * their `search` and `clientNames` again (SEC-07d), so the Matters list and search show the new
+ * name. Destroyed matters' tombstones are left alone. Writes only what differs; the matters'
+ * own `matters-denormalise` run then finds nothing stale. Returns how many matters it rewrote.
+ */
+export async function refreshMattersNaming(db: Firestore, orgId: string, contactId: string): Promise<number> {
+  const matters = db.collection(mattersPath(orgId));
+  const [clients, deceased] = await Promise.all([
+    matters.where('clientContactIds', 'array-contains', contactId).get(),
+    matters.where('deceased.contactId', '==', contactId).get(),
+  ]);
+  const docs = [...new Map([...clients.docs, ...deceased.docs].map((doc) => [doc.id, doc])).values()].filter(
+    (doc) => !doc.get('destroyedAt'),
+  );
+  const names = await contactNames(
+    db,
+    orgId,
+    docs.flatMap((doc) => searchContactIds(doc.data())),
+  );
+  const writes = docs.flatMap((doc) => {
+    const { search, clientNames } = staleMatterFields(doc.data(), names);
+    const patch = { ...(search ? { search } : {}), ...(clientNames ? { clientNames } : {}) };
+    return Object.keys(patch).length ? [{ ref: doc.ref, patch }] : [];
+  });
+  for (let i = 0; i < writes.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    for (const { ref, patch } of writes.slice(i, i + BATCH_SIZE)) batch.update(ref, patch);
+    await batch.commit();
+  }
+  return writes.length;
 }
 
 /**

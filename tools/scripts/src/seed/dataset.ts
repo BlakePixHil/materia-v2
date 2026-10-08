@@ -1524,6 +1524,8 @@ export function buildDataset(options: {
             : { sentOn: spec.openedDaysAgo === undefined ? rel(-30) : rel(-Math.max(0, spec.openedDaysAgo - 2)) }),
         },
         conflictCheck: { status: spec.status === 'lead' ? 'pending' : 'clear' },
+        // The clients' names as matters-denormalise keeps them (SEC-07d), for the Matters list.
+        clientNames: spec.clients.map(nameOf).filter((name): name is string => !!name),
         search: domain.matterSearchTokens({
           number,
           title: spec.title,

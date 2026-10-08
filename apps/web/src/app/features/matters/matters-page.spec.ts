@@ -283,6 +283,32 @@ describe('matters list', () => {
     expect(page.firestore.listenerCount).toBeGreaterThan(0);
   });
 
+  it('names clients from the matter’s own copy, reading only the contacts of older rows (SEC-07d)', async () => {
+    const contactReads = (fs: InMemoryFirestore) => fs.docReads.filter((path) => path.includes('/contacts/'));
+    const named = await open('/matters', LAWYER, {
+      configure: (_p, fs) => {
+        seed(fs);
+        // The copy wins over the contact: here it still has the name the matter last wrote.
+        fs.set(`${MATTERS}/m-whitfield`, { ...fs.get(`${MATTERS}/m-whitfield`), clientNames: ['Avery Quill-Marsh'] });
+        fs.set(`${MATTERS}/m-okafor`, { ...fs.get(`${MATTERS}/m-okafor`), clientNames: ['Bram Ostler'] });
+      },
+    });
+    expect(named.rows()[0]?.textContent).toContain('Avery Quill-Marsh');
+    expect(named.rows()[1]?.textContent).toContain('Bram Ostler');
+    expect(contactReads(named.firestore)).toEqual([]);
+    TestBed.resetTestingModule();
+
+    // Written before SEC-07d and not yet backfilled: the Okafor matter's client is read.
+    const older = await open('/matters', LAWYER, {
+      configure: (_p, fs) => {
+        seed(fs);
+        fs.set(`${MATTERS}/m-whitfield`, { ...fs.get(`${MATTERS}/m-whitfield`), clientNames: ['Avery Quill'] });
+      },
+    });
+    expect(older.rows()[1]?.textContent).toContain('Bram Ostler');
+    expect(contactReads(older.firestore)).toEqual([`orgs/${ORG}/contacts/c-bram`]);
+  });
+
   it('shows the loading and error states', async () => {
     const loading = await open('/matters', LAWYER, {
       configure: (_p, fs) => {

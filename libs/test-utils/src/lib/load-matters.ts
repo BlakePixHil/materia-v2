@@ -130,6 +130,8 @@ export function buildLoadMatters(options: LoadMattersOptions): LoadMatters {
       conflictCheck: { status: status === 'lead' ? 'pending' : 'clear' },
       privileged: i % 25 === 0,
       labels,
+      // Without names, the Matters list reads the contacts, as for a matter written before SEC-07d.
+      ...(options.contactNames ? { clientNames: clientName ? [clientName] : [] } : {}),
       search: D.matterSearchTokens({ number, title, clientNames: clientName ? [clientName] : [] }),
       lastActivityAt,
       ...(closed ? { closedAt: lastActivityAt, closeReason: 'Matter completed' } : {}),

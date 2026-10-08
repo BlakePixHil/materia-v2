@@ -359,6 +359,13 @@ export const Matter = withMeta(
     budget: MatterBudgetSchema.optional(),
     // Denormalised and server-maintained
     search: SearchTokensSchema,
+    /**
+     * The clients' display names, in `clientContactIds` order (SEC-07d), kept by
+     * `matters-denormalise` and refreshed when a client is renamed, so the Matters list reads no
+     * contact. A client whose contact is missing is left out. Absent on matters from before it until
+     * `backfill-search-tokens` runs.
+     */
+    clientNames: z.array(z.string()).optional(),
     nextDeadline: z
       .object({ id: DocIdSchema, dueDate: DateOnlySchema, title: z.string(), critical: z.boolean() })
       .optional(),
@@ -417,6 +424,7 @@ export const Matter = withMeta(
     serverOwned: [
       'number',
       'search',
+      'clientNames',
       'nextDeadline',
       'openTaskCount',
       'wipCents',

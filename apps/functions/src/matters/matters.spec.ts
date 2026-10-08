@@ -706,11 +706,13 @@ describe('matters-denormalise', () => {
     createdAt: new Date('2026-10-01T00:00:00Z'),
   };
 
-  it('fills search, lastActivityAt and deletedAt on a matter written without them, then stops', async () => {
+  it('fills search, clientNames, lastActivityAt and deletedAt on a matter written without them, then stops', async () => {
     const w = world({ [PATH]: raw });
     expect(await trigger(w, undefined, '2026-10-04T02:00:00Z')).toBe('updated');
     const stored = w.doc(PATH);
     expect(stored?.['search']).toEqual(expect.arrayContaining(['hv20260042', 'ada', 'quill', 'bertram']));
+    // The clients only, not the deceased (SEC-07d).
+    expect(stored?.['clientNames']).toEqual(['Ada Quill']);
     expect(stored?.['deletedAt']).toBeNull();
     expect((stored?.['lastActivityAt'] as Timestamp).toDate()).toEqual(new Date('2026-10-01T00:00:00Z'));
     expect(stored?.['updatedBy']).toBe('seed');
@@ -726,6 +728,15 @@ describe('matters-denormalise', () => {
     expect(await trigger(w, before, '2026-10-04T03:00:00Z')).toBe('updated');
     expect((w.doc(PATH)?.['lastActivityAt'] as Timestamp).toDate()).toEqual(new Date('2026-10-04T03:00:00Z'));
     expect(w.doc(PATH)?.['search']).toContain('quillon');
+
+    // A client added: their name joins the list, and that is activity too.
+    const added = { ...w.doc(PATH) };
+    await w.db.doc(PATH).update({ clientContactIds: ['c-ada', 'c-bertram'] });
+    expect(await trigger(w, added, '2026-10-04T03:30:00Z')).toBe('updated');
+    expect(w.doc(PATH)?.['clientNames']).toEqual(['Ada Quill', 'Bertram Quill']);
+    await w.db.doc(PATH).update({ clientContactIds: ['c-ada'] });
+    await trigger(w, { ...w.doc(PATH), clientContactIds: ['c-ada', 'c-bertram'] }, '2026-10-04T03:40:00Z');
+    expect(w.doc(PATH)?.['clientNames']).toEqual(['Ada Quill']);
 
     const again = { ...w.doc(PATH) };
     await w.db.doc(PATH).update({ openTaskCount: 3, boardOrder: 2 });
@@ -749,6 +760,7 @@ describe('matters-denormalise', () => {
     expect(isActivity({ title: 'a' }, { title: 'b' })).toBe(true);
     expect(isActivity({ status: 'open' }, { status: 'closed', updatedAt: 1 })).toBe(true);
     expect(isActivity({ search: [] }, { search: ['x'], lastActivityAt: 1, deletedAt: null })).toBe(false);
+    expect(isActivity({ clientNames: [] }, { clientNames: ['Ada Quill'] })).toBe(false);
     expect(isActivity({ updatedAt: 1 }, { updatedAt: 2, updatedBy: 'x' })).toBe(false);
   });
 
@@ -761,8 +773,14 @@ describe('matters-denormalise', () => {
       lastActivityAt: new Date('2026-10-01T00:00:00Z'),
       deletedAt: null,
     };
-    expect(staleMatterFields({ ...current, search: matterSearch(current, names) }, names)).toEqual({});
-    expect(staleMatterFields({ ...current, search: [] }, names)).toEqual({ search: matterSearch(current, names) });
+    const search = matterSearch(current, names);
+    expect(staleMatterFields({ ...current, search, clientNames: ['Ada Quill'] }, names)).toEqual({});
+    expect(staleMatterFields({ ...current, search: [], clientNames: ['Ada Quill'] }, names)).toEqual({ search });
+    // Written before SEC-07d, or the client renamed since (SEC-07d).
+    expect(staleMatterFields({ ...current, search }, names)).toEqual({ clientNames: ['Ada Quill'] });
+    expect(staleMatterFields({ ...current, search, clientNames: ['Ada Quil'] }, names)).toEqual({
+      clientNames: ['Ada Quill'],
+    });
   });
 
   it('recordMatterActivity moves lastActivityAt forward only', async () => {

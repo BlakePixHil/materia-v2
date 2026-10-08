@@ -332,6 +332,7 @@ export function buildConflictFixture(options: ConflictFixtureOptions): ConflictF
         fee: { arrangement: 'hourly', history: [] },
         costsDisclosure: { status: 'sent' },
         conflictCheck: { status: 'clear', checkedAt: at, checkedBy: uid },
+        clientNames: clientName ? [clientName] : [],
         search: D.matterSearchTokens({ number, title: spec.title, clientNames: clientName ? [clientName] : [] }),
         lastActivityAt: at,
         ...(closed ? { closedAt: at, closeReason: 'Matter completed' } : {}),

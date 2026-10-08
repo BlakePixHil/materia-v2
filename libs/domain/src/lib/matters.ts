@@ -221,6 +221,18 @@ export function matterSearchTokens(fields: MatterSearchFields): string[] {
   );
 }
 
+/**
+ * A matter's `clientNames` (SEC-07d): its clients' display names in `clientContactIds` order, from
+ * the names `matters-denormalise` read for the search tokens. A client without a name is left out.
+ */
+export function matterClientNames(clientContactIds: unknown, names: ReadonlyMap<string, string>): string[] {
+  const ids = Array.isArray(clientContactIds) ? clientContactIds : [];
+  return ids.flatMap((id) => {
+    const name = typeof id === 'string' ? names.get(id) : undefined;
+    return name ? [name] : [];
+  });
+}
+
 // ---------- saved views ----------
 
 export interface MatterViewDefinition {

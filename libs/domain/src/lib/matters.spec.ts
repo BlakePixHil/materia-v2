@@ -20,6 +20,7 @@ import {
   matterNumberKey,
   matterNumberProblem,
   matterNumberYear,
+  matterClientNames,
   matterSearchTokens,
   matterTypeCode,
   normaliseMatterLink,
@@ -151,6 +152,17 @@ describe('matter search tokens', () => {
     expect(tokens).toEqual(
       expect.arrayContaining(['m2026', 'm20260007', '2026', '0007', 'estate', 'nguyen', 'obrien', 'leg', 'leg481']),
     );
+  });
+});
+
+describe('matter client names (SEC-07d)', () => {
+  it('names the clients in their order, leaving out any without a name', () => {
+    const names = new Map([
+      ['c2', 'Wren Fictional'],
+      ['c1', 'Ada Placeholder'],
+    ]);
+    expect(matterClientNames(['c1', 'gone', 'c2'], names)).toEqual(['Ada Placeholder', 'Wren Fictional']);
+    expect(matterClientNames(undefined, names)).toEqual([]);
   });
 });
 
