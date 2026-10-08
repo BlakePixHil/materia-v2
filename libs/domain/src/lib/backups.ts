@@ -12,8 +12,14 @@
  */
 export const EXPORT_SKIPPED_COLLECTIONS: readonly string[] = ['chunks'];
 
-/** Collections only functions use, which firestore.rules leaves to its catch-all deny. */
-export const SERVER_ONLY_COLLECTION_IDS: readonly string[] = ['clientErrorLimits', 'eventGuards', 'ruleSetUpgrades'];
+/**
+ * Collections only functions use, which firestore.rules leaves to its catch-all deny: among them
+ * `heartbeats/{job}` (scheduled jobs' last runs), `orgs/{orgId}/requests` and `users/{uid}/requests`
+ * (idempotency records) and `orgs/{orgId}/jobs/{jobId}/manifest` (a full export's file list).
+ */
+export const SERVER_ONLY_COLLECTION_IDS: readonly string[] = [
+  'clientErrorLimits', 'eventGuards', 'heartbeats', 'manifest', 'requests', 'ruleSetUpgrades',
+]; // prettier-ignore
 
 /**
  * Every collection id: each one with a `match` block in firestore.rules (firebase/tests/backups.spec.ts
