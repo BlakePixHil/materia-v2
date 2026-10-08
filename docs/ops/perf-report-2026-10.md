@@ -8,13 +8,13 @@ Raw outputs (Lighthouse HTML and JSON, `vitals.json`, `reads.json`, k6 summaries
 
 | Budget | Target | Result |
 | -- | -- | -- |
-| Firestore reads, Today (warm) | ≤ 150 | 75: **met** (was 531 before SEC-07) |
+| Firestore reads, Today (warm) | ≤ 150 | 46: **met**, with one matter read instead of 28, since "Denormalise matter number and title onto deadline and task rows" (SEC-07e). It was 75 before that, and 531 before SEC-07 |
 | Firestore reads, a matter | ≤ 100 | 63: **met** |
 | Firestore reads, Matters list | set from measurement: 200 | 165: met, but 63 of them are an N+1 to remove in "Denormalise client names onto matters" (then about 100) |
 | Firestore reads, Deadlines | 200 since SEC-07c (800 before) | 153: **met** since "Window the Deadlines page and denormalise matter fields onto deadlines" (SEC-07c). It was 688 here, and about 1,050 at the target scale |
 | LCP ≤ 2.5 s on a mid-tier phone | Today, Matters, matter, Deadlines | **Not met** on the emulators on any screen (8.0–13.2 s simulated, 7.7 s on Today after SEC-07b, 9.3 s on Deadlines after SEC-07c): held at measured ceilings, as the Hosting emulator's HTTP/1.1 sets the floor (see SEC-07b below); the CDN is measured on dev |
 | INP ≤ 200 ms | same | **Met** on Today, Matters and a matter (24–80 ms), and on Deadlines since SEC-07c (104–136 ms; it was 2.7–3.2 s) |
-| CLS ≤ 0.1 | same | **Met** on Today, Matters and a matter (0–0.04), after fixing a shift on the phone's Matters list. Today stays held at 0.25 because its rows' late lookups can still shift it (Today lookups ticket). Deadlines **met** since SEC-07c (0; it was 0.273) |
+| CLS ≤ 0.1 | same | **Met** on Today, Matters and a matter (0–0.04), after fixing a shift on the phone's Matters list. Today is held to 0.1 since SEC-07e: its rows no longer wait for their matters, and its CLS was 0 in seven runs (0–0.225 before, held at 0.25). Deadlines **met** since SEC-07c (0; it was 0.273) |
 | Hot callables, p95 < 1 s at 10× peak, no errors | six flows | **Met** for `matters-createMatter` (512 ms), `deadlines-recompute` (397 ms) and `clerk-sendMessage` (322 ms), with no errors. The notification fan-out (1.45 s, no errors), invoicing and search are exceptions: the emulator can't run them at 10× peak, so they move to the perf-project ticket |
 | Write hot spots | review | Reviewed: 8 unqueried timestamps exempted from indexing; Clerk metering moved to blind increments; the counters measured (one transaction per org stays) |
 | Cost model | published | [cost-model.md](cost-model.md): ≈ US$90 a month for a target-scale firm (≈ US$240 with every document ingested by Clerk), most of it backups, plus Clerk tokens on the firm's own key |
@@ -104,8 +104,10 @@ The counters also ran a contention step at **5 a second for 30 s**, the ticket's
 
 | Screen | Reads | Answered from the local cache | Budget | Where the reads go |
 | -- | --: | --: | --: | -- |
-| Today, from another screen (warm) | 75 | 38 | 150 | 28 matters looked up one by one for the rows; 18 tasks; 12 deadlines; 9 recent matters; 5 counts; the org; the deadline changes |
-| Today, page load (shell included) | 78 | 43 | | the same, plus the user's own document |
+| Today, from another screen (warm), before SEC-07e | 75 | 38 | 150 | 28 matters looked up one by one for the rows; 18 tasks; 12 deadlines; 9 recent matters; 5 counts; the org; the deadline changes |
+| Today, page load (shell included), before SEC-07e | 78 | 43 | | the same, plus the user's own document |
+| Today, from another screen (warm), since SEC-07e | 46 | 36 | 150 | 16 tasks; 12 deadlines; 9 recent matters; the counts, the org, the WIP rollup and the deadline changes; 1 matter, for a task on a privileged matter |
+| Today, page load (shell included), since SEC-07e | 49 | 41 | | the same, plus the user's own document and timer |
 | Matters list | 165 | 29 | 200 | 63 client contacts looked up one by one; 51 matters (one page); the firm's 50 members; the saved views |
 | A matter | 63 | 1 | 100 | the firm's 50 members; 4 deadlines; 4 tasks; the matter; its activity, notes, Clerk brief (AI-06c) and fact citations |
 | Deadlines, before SEC-07c | 688 | 15 | 800 | 501 upcoming deadlines (the 500-row cap plus one); 136 matters looked up one by one; the firm's 50 members; the deadline changes |
@@ -120,6 +122,7 @@ What changed and why:
 - **Deadlines:** the firm-wide list listens to up to 500 upcoming deadlines, then reads each one's matter (136 matters here; up to 500 at the target scale). Windowing the page (the next 2–4 weeks first, the rest on scroll) and copying the matter's number, title and responsible lawyer onto each deadline (kept current by a trigger, as `matters-denormalise` does for search) takes it to about 200. Follow-up: **"Window the Deadlines page and denormalise matter fields onto deadlines"**.
   - **Done in SEC-07c: 688 → 153.** The list reads 100 deadlines at a time by due date (the overdue ones and the next few weeks first) and loads the next 100 as it scrolls; the calendar reads only the month it shows. Each deadline carries a copy of its matter's number, title, people and jurisdiction (`Deadline.matter`). The writers that read the matter stamp it, `deadlines-onWrite` fills or refreshes it after any other write, and `matters-denormalise` rewrites it when the matter changes. `materia-scripts backfill-deadline-matters` copies it onto older deadlines (deploy runbook, step 6); until it runs, the screen reads those deadlines' matters as before.
 - **Today's matter lookups:** Today reads each of its rows' matters individually (28 here). That is within budget, but the same denormalisation would remove it, and with it a source of layout shift (see Web Vitals). Follow-up: **"Denormalise matter number and title onto deadline and task rows (Today lookups)"**.
+  - **Done in SEC-07e: 75 → 46, with 1 matter read instead of 28.** Every row Today lists carries a copy of its matter, each saying whether the matter is deleted. Deadlines and pending proposals get SEC-07c's copy. Tasks get the number, title and type, or only `privileged: true` on a privileged matter, since a task's assignee can read it whatever their role (ADR-026). Recent matters get the number, title, type and privileged flag, written when the person opens the matter. `matters-denormalise` rewrites them all when the matter changes. `materia-scripts backfill-matter-copies` (which replaces `backfill-deadline-matters`, deploy runbook step 6) copies them onto older records; until it runs, Today looks those rows' matters up as before. Today still reads the matter of a task on a privileged matter, whose copy names nothing, for someone who can see privileged matters: the 1 read here (the fee earner's task on the one privileged matter among their rows).
 
 ### Web Vitals (mid-tier phone, scale 0.05)
 
@@ -136,6 +139,8 @@ Six runs of the CI step on the shared machine, on `main` at `ee6d4e1` with MOB-0
 Two more runs after merging MOB-02b (#300), which draws a phone's Today cards below My tasks only as they scroll into view: Today's LCP was 7.7 s and its FCP 4.6 s. The other screens were close to the figures above (a matter's INP 48–96 ms), all within their ceilings.
 
 The "since SEC-07c" row is two runs of the CI step on that ticket's branch, with Deadlines' INP and CLS exceptions removed.
+
+Seven runs on SEC-07e's branch (on `main` at `43a3d1c`), with Today's CLS exception removed: Today's CLS was 0 in all seven, its LCP 7.3–8.4 s simulated (1.1 s observed), TBT 259–539 ms and INP 24–32 ms. The other screens stayed within their ceilings (Matters LCP 9.9–10.3 s, a matter 9.4–10.0 s with CLS 0.04, Deadlines 7.8–9.2 s).
 
 "Observed LCP" is the unthrottled time on the test machine; Lighthouse's simulated LCP is the budgeted figure.
 
@@ -183,6 +188,8 @@ The emulator can't show 2.5 s. Before the first paint about 100 requests load (t
 - Rows off screen skip rendering (`content-visibility: auto`). Rows a filter hides use `content-visibility: hidden` rather than `display: none`: ng-primitives watches the size of every button for its hover state, and each button that went to 0 × 0 ran that watcher, which then read its style: two style reads per hidden row on every toggle. That took INP from 176–192 ms to 104–136 ms.
 
 **Today's CLS depends on timing.** Today draws its sections together once every source has answered, or after 2.5 s at most, so that nothing moves as each answer lands. Its rows wait for their matters (the 28 lookups above). On the emulators those lookups sometimes land just after the 2.5 s, and then each row appears as its matter does and pushes the rest down. On the desktop layout CLS was 0 in four of seven runs and 0.128–0.225 in the others; on the phone it was 0 in all six. A slow phone network could still do the same in the field. The Today lookups follow-up removes the lookups and so the wait; until then Today's CLS is held at 0.25.
+
+- **Fixed in SEC-07e.** Today's rows name their matters from their own copies, so a section is drawn whole when its rows arrive and nothing waits for a lookup. Today's CLS was 0 in seven runs, and it is held to the 0.1 budget again.
 
 **Fixed in SEC-07:**
 
@@ -277,7 +284,7 @@ The exemptions are proven by `firebase/tests/indexes.spec.ts`. They deploy with 
 | [SEC-07b](https://linear.app/materia-web/issue/MAT-177): Trim the signed-in critical path for LCP on mid-tier phones | Done: the guards' waits are gone (cached session and policy) and libphonenumber and the heavier schemas are off the start-up path. On the emulators LCP is bounded by HTTP/1.1, so it stays at measured ceilings | LCP ≤ 10 s on Today, 12 s on a matter, 12.5 s on Matters, 11.5 s on Deadlines (measured ceilings) |
 | [SEC-07c](https://linear.app/materia-web/issue/MAT-178): Window the Deadlines page and denormalise matter fields onto deadlines | Deadlines reads (688 here and about 1,050 at the target scale → about 200), INP (2.7–3.2 s) and CLS (0.273) | **Done**: reads 153 (budget 200), INP 104–136 ms, CLS 0. Its LCP is SEC-07b's |
 | [SEC-07d](https://linear.app/materia-web/issue/MAT-179): Denormalise client names onto matters | Matters list reads (165 → about 100) | reads ≤ 200 |
-| [SEC-07e](https://linear.app/materia-web/issue/MAT-180): Denormalise matter number and title onto deadline and task rows (Today lookups) | Today's per-row matter reads (28), and its CLS (0–0.225): rows appear as their matters arrive, when that is after Today's 2.5 s limit for drawing its sections together | CLS ≤ 0.25 (reads within budget already) |
+| [SEC-07e](https://linear.app/materia-web/issue/MAT-180): Denormalise matter number and title onto deadline and task rows (Today lookups) | Today's per-row matter reads (28), and its CLS (0–0.225): rows appear as their matters arrive, when that is after Today's 2.5 s limit for drawing its sections together | **Done**: reads 46 with 1 matter read, for a privileged matter's task (75 and 28 before), CLS 0 in seven runs; the 0.25 exception is gone. Its LCP is SEC-07b's |
 | [SEC-07f](https://linear.app/materia-web/issue/MAT-181): Load-test numbering, invoicing, search and the notification fan-out on a perf project | What the emulator can't measure: counter contention at 5 a second, and invoicing, search and the note fan-out at 10× peak | `attempts` logged in production |
 | [SEC-07g](https://linear.app/materia-web/issue/MAT-182): Size the Clerk reply queue for concurrent firms | `clerk-runMessage` runs at most 10 replies at a time per project (the queue default), shared by every firm: with a real model's 5–20 s replies that is 0.5–2 a second for all firms together, against 0.33 a second for one firm's peak | n/a: with the fake model, replies kept up at 10× peak |
 | [SEC-07h](https://linear.app/materia-web/issue/MAT-183): Leave derivable Clerk chunks out of the nightly export and cut the export cadence at scale | The largest cost line at the target scale (cost model) | n/a |

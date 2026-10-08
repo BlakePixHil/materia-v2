@@ -22,8 +22,9 @@ import {
  */
 export const READ_BUDGETS = {
   /**
-   * The ticket's (warm). Measured 75 at seed-large scale 0.05 with the firm's 50 members, after WIP
-   * moved to the month rollup.
+   * The ticket's (warm). Measured 46 at seed-large scale 0.05 with the firm's 50 members: WIP is the
+   * month rollup's, and each row names its matter from its copy (SEC-07e), so the only matter read
+   * is a privileged matter's, for a task (75 before, 28 of them the rows' matters).
    */
   today: 150,
   /**
@@ -115,6 +116,12 @@ test.describe('reads per screen', () => {
     );
 
     expect.soft(today.reads, `Today: ${topLabels(today).join('; ')}`).toBeLessThanOrEqual(READ_BUDGETS.today);
+    // Today's rows carry copies of their matters (SEC-07e), so it reads only the matters of tasks on
+    // privileged matters, whose copies carry no name (ADR-026): here the fee earner's task on
+    // m-lg-00001, the one privileged matter among their rows. It read 28 matters before.
+    expect
+      .soft(today.byLabel['orgs/*/matters/* (doc)']?.reads ?? 0, `Today: ${topLabels(today, 12).join('; ')}`)
+      .toBeLessThanOrEqual(1);
     expect.soft(matters.reads, `Matters: ${topLabels(matters).join('; ')}`).toBeLessThanOrEqual(READ_BUDGETS.matters);
     expect.soft(matter.reads, `Matter: ${topLabels(matter).join('; ')}`).toBeLessThanOrEqual(READ_BUDGETS.matter);
     expect

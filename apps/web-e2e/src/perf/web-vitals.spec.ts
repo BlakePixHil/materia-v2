@@ -43,11 +43,7 @@ export const VITALS_EXCEPTIONS: Partial<Record<ScreenName, Partial<Record<Metric
   // 7.7–7.8 s simulated (0.9 s unthrottled), the Matters list 10.7 s and a matter 9.6–10.1 s. The
   // CDN (HTTP/2, Brotli) is measured on dev: docs/ops/perf-report-2026-10.md. Deadlines 9.3 s once
   // SEC-07c windowed it (13.0–13.2 s before), measured before SEC-07b's start-up change.
-  // Today's CLS, SEC-07e (MAT-180), "Denormalise matter number and title onto deadline and task
-  // rows (Today lookups)": Today draws its sections once every source has answered, or after 2.5 s.
-  // On the emulators its rows' matter lookups can land just after that, and each row appears when
-  // its matter does. Measured 0.128–0.225 in three of seven runs on the desktop layout; 0 since.
-  today: { lcpMs: 10_000, cls: 0.25 },
+  today: { lcpMs: 10_000 },
   matters: { lcpMs: 12_500 },
   matter: { lcpMs: 12_000 },
   deadlines: { lcpMs: 11_500 },
