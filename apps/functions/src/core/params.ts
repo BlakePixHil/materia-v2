@@ -1,3 +1,5 @@
+import { SUPPORT_EMAIL } from '../config';
+
 /**
  * Non-secret runtime configuration, read from the functions' environment variables (set in the
  * deployed `.env`, or on the Cloud Run service). Not firebase-functions params: a deploy without an
@@ -18,4 +20,9 @@ export function clamavScanUrl(env: NodeJS.ProcessEnv = process.env): string {
  */
 export function previewServiceUrl(env: NodeJS.ProcessEnv = process.env): string {
   return env['PREVIEW_SERVICE_URL']?.trim() ?? '';
+}
+
+/** The support mailbox Help & feedback emails (SEC-08): `MATERIA_SUPPORT_EMAIL`, else `SUPPORT_EMAIL`. */
+export function supportEmail(env: NodeJS.ProcessEnv = process.env): string {
+  return env['MATERIA_SUPPORT_EMAIL']?.trim() || SUPPORT_EMAIL;
 }

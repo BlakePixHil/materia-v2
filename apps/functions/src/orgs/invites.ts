@@ -15,6 +15,7 @@ import { activeOrgPatch, syncClaims } from './claims';
 import { appUrl, hashToken, invitePath, memberPath, newInviteToken, newMember, verifiedUser } from './shared';
 import { audit } from '../audit/audit';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
+import { RESEND_API_KEY } from '../core/secrets';
 import { defineUserCallable, type UserCallableDefinition } from '../core/user-callable';
 
 const INVITE_TTL_MS = INVITE_TTL_DAYS * 24 * 60 * 60 * 1000;
@@ -77,6 +78,7 @@ export const inviteMemberDefinition = {
   input: InviteMemberInput,
   roles: PERMISSIONS['members.manage'],
   idempotent: true,
+  secrets: [RESEND_API_KEY],
   handler: async (ctx): Promise<InviteResult> => {
     const { input, uid, orgId, role, db, clock, requestId, log } = ctx;
     assertCanGrant(role, input.role);
@@ -177,6 +179,7 @@ export const resendInviteDefinition = {
   input: InviteRefInput,
   roles: PERMISSIONS['members.manage'],
   idempotent: true,
+  secrets: [RESEND_API_KEY],
   handler: async (ctx): Promise<InviteResult> => {
     const { input, uid, orgId, role, db, clock, requestId } = ctx;
     const ref = db.doc(`orgs/${orgId}/invites/${input.inviteId}`);

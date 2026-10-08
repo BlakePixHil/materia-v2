@@ -1169,6 +1169,11 @@ service cloud.firestore {
       match /digests/{digestId} {
         allow read, write: if false;
       }
+      // Help & feedback (SEC-08): written by feedback-submit, read only by the people who run Materia
+      // (the console), never by the practice's clients.
+      match /feedback/{feedbackId} {
+        allow read, write: if false;
+      }
       match /counters/{counterId} {
         allow read, write: if false;
       }
@@ -1308,6 +1313,7 @@ service cloud.firestore {
     function fieldsDocumentHash() { return []; }
     function fieldsEvidence() { return ['documentId', 'witnessPartyId', 'issueIds', 'supports', 'strength', 'admissibilityNote']; }
     function fieldsFactCitation() { return []; }
+    function fieldsFeedback() { return []; }
     function fieldsIntakeDraft() { return ['orgId', 'kind', 'step', 'stateJson', 'expireAt']; }
     function fieldsIntegration() { return []; }
     function fieldsIntegrationState() { return []; }

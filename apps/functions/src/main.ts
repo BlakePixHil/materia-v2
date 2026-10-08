@@ -38,5 +38,6 @@ export * as connector from './connector/index';
 export * as xero from './xero/index';
 export * as migration from './migration/index';
 export * as exports from './exports/index';
+export * as feedback from './feedback/index';
 // Emulator-only tools (the dev mail preview): undefined, so never deployed, anywhere else.
 export * as dev from './dev/index';

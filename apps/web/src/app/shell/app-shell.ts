@@ -494,6 +494,7 @@ const PUSH_REFRESH_DELAY_MS = 8000;
         <a mtMenuItem icon="settings" routerLink="/settings">Settings</a>
         <button mtMenuItem icon="moon" (click)="toggleTheme()">{{ themeLabel() }}</button>
         <button mtMenuItem icon="keyboard" kbd="?" (click)="openShortcuts()">Keyboard shortcuts</button>
+        <button mtMenuItem icon="help" (click)="openHelp()">Help & feedback</button>
         @if (install.available()) {
           <button mtMenuItem icon="download" (click)="installApp()">{{ installLabel }}</button>
         }
@@ -710,6 +711,11 @@ export class AppShellComponent {
   /** Switches the active org; the page then reloads on Today (FND-17). Blocked while offline. */
   switchOrg(orgId: string, active: boolean): Promise<void> {
     return this.account.switchOrg(orgId, active);
+  }
+
+  /** Help & feedback (SEC-08): what to read, and a message to support. */
+  openHelp(): Promise<void> {
+    return this.account.openHelp();
   }
 
   toggleTheme(): void {
@@ -977,6 +983,14 @@ export class AppShellComponent {
         keywords: ['help', 'keys'],
         shortcut: '?',
         run: () => void this.openShortcuts(),
+      },
+      {
+        id: 'help.feedback',
+        title: 'Help & feedback',
+        group: 'General',
+        icon: 'help',
+        keywords: ['feedback', 'support', 'contact', 'problem', 'bug', 'idea', 'question'],
+        run: () => void this.openHelp(),
       },
       {
         id: 'clerk.toggle',

@@ -316,6 +316,15 @@ export const COLLECTIONS: CollectionSpec[] = [
     update: 'none',
   },
   {
+    // Help & feedback (SEC-08): server-only, written by feedback-submit.
+    collection: 'feedback',
+    docPath: `orgs/${ORG}/feedback/fb-1`,
+    entity: 'Feedback',
+    seed: { uid: OWNER, kind: 'idea', body: 'A fictional suggestion.' },
+    read: 'none',
+    update: 'none',
+  },
+  {
     // Background job progress (FND-24): only the member who started the job reads it.
     collection: 'jobs',
     docPath: `orgs/${ORG}/jobs/job-1`,

@@ -64,6 +64,7 @@ export * from './lib/time-entries';
 export * from './lib/timer';
 export * from './lib/trust';
 export * from './lib/fees';
+export * from './lib/feedback';
 export * from './lib/costs-disclosure';
 export * from './lib/billing';
 export * from './lib/disbursements';

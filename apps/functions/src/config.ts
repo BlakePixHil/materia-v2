@@ -6,3 +6,9 @@ export const REGION = 'australia-southeast1' as const;
  * Resend has verified (infra/MANUAL.md, "Email: Resend"); `.example` addresses are never deliverable.
  */
 export const MAIL_FROM = 'Materia <notifications@materia.example>';
+
+/**
+ * Where Help & feedback is emailed (SEC-08). Empty until the support mailbox exists: feedback is
+ * then only kept in `orgs/{orgId}/feedback`. `MATERIA_SUPPORT_EMAIL` on the functions overrides it.
+ */
+export const SUPPORT_EMAIL = '';

@@ -2,8 +2,10 @@ import { computed, inject, Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { DataLifecycle } from '@materia/data-access';
+import type { SubmitFeedbackResult } from '@materia/domain';
 import { DialogService, ThemeService, ToastService } from '@materia/ui';
 
+import type { HelpDialogData } from '../../features/help/help-dialog';
 import { waitingScans } from '../../features/scan/scan-db';
 import { AuthState } from '../auth/auth-state';
 import { errorCopy } from '../error-copy';
@@ -12,7 +14,7 @@ import { UserPrefsService } from '../profile/user-prefs';
 
 /**
  * What the person can do with their account: from the desktop user menu and the phone's More tab
- * (MOB-02), so both behave the same.
+ * (MOB-02), so both behave the same. Help & feedback (SEC-08) is here too, for ⌘K as well.
  */
 @Injectable({ providedIn: 'root' })
 export class AccountActions {
@@ -79,5 +81,23 @@ export class AccountActions {
   toggleTheme(): void {
     // Saved to the profile too, so it follows the person to other tabs and devices (CORE-20).
     void this.prefs.save({ theme: this.theme.resolved() === 'dark' ? 'light' : 'dark' }).catch(() => undefined);
+  }
+
+  private helpOpen = false;
+
+  /** Help & feedback (SEC-08): the dialog, sent from the page it was opened on, then a thank-you. */
+  async openHelp(): Promise<void> {
+    if (this.helpOpen) return;
+    this.helpOpen = true;
+    try {
+      const page = this.router.url.split(/[?#]/)[0] || '/';
+      const { HelpDialog } = await import('../../features/help/help-dialog');
+      const sent = await this.dialogs.open<HelpDialogData, SubmitFeedbackResult | undefined>(HelpDialog, {
+        data: { page },
+      }).result;
+      if (sent) this.toasts.show({ title: 'Thanks. Your message was sent.', tone: 'success' });
+    } finally {
+      this.helpOpen = false;
+    }
   }
 }

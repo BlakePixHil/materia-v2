@@ -19,6 +19,7 @@ import { audit } from '../audit/audit';
 import { stamp } from '../contacts/shared';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { requireFlag } from '../core/flags';
+import { RESEND_API_KEY } from '../core/secrets';
 import { storageFiles, type FileStore } from '../documents/files';
 import { liveMatter, matterPath } from '../matters/shared';
 import { MailError } from '../ports';
@@ -79,6 +80,7 @@ export const sendDefinition = {
   input: SendInvoiceInput,
   roles: PERMISSIONS['billing.issue'],
   idempotent: true,
+  secrets: [RESEND_API_KEY],
   handler: async (ctx): Promise<SendInvoiceResult> => {
     const { input, orgId, uid, role, db, clock, requestId, ports, log } = ctx;
     await requireFlag({ orgId, db, clock }, 'billing.invoicing');

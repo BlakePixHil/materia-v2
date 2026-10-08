@@ -11,6 +11,7 @@ What to do when an alert fires or something is broken (FND-21). Materia is a sin
 | Logs | Cloud console → Logging. Every function line carries `fn` (and `requestId` for callables); filter `jsonPayload.fn="matters-createMatter"`. |
 | Uptime | Monitoring → Uptime checks: **Hosting /health** and **system-ping callable**. |
 | Deploys | GitHub Actions → `deploy-dev` / `deploy-prod`. Rollback: [rollback.md](rollback.md). |
+| What people report | Help & feedback (SEC-08): the support mailbox once `SUPPORT_EMAIL` is set, and always Firestore → collection group `feedback` (`orgs/{orgId}/feedback`), newest `createdAt` first. A report of something broken there is often the first sign of an incident. |
 
 ## Severity levels
 

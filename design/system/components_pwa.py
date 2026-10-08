@@ -1,4 +1,4 @@
-"""The installable app's components (MOB-01): the update toast, Pending sync, Needs connection and the install steps; and push alerts (MOB-04)."""
+"""The installable app's components (MOB-01): the update toast, Pending sync, Needs connection and the install steps; push alerts (MOB-04); and Help & feedback (SEC-08)."""
 from components import comp, lab
 from icons import icon
 from markup import *
@@ -85,7 +85,7 @@ Installing Materia as an app, offered where people look for it and never as a ba
 
 The installed app opens at Today in its own window, with shortcuts to Today, New time entry and Record from its icon.
 """, '<div class="mt-row" style="gap:24px;align-items:flex-start">'
-    + '<div class="mt-menu" style="width:220px">' + menu_item("Profile", "user") + menu_item("Settings", "settings") + menu_item("Dark theme", "moon") + menu_item("Keyboard shortcuts", "keyboard", "?") + menu_item("Install Materia", "download", highlighted=True) + '<div class="mt-menu-sep"></div>' + menu_item("Sign out", "log-out") + "</div>"
+    + '<div class="mt-menu" style="width:220px">' + menu_item("Profile", "user") + menu_item("Settings", "settings") + menu_item("Dark theme", "moon") + menu_item("Keyboard shortcuts", "keyboard", "?") + menu_item("Help &amp; feedback", "help") + menu_item("Install Materia", "download", highlighted=True) + '<div class="mt-menu-sep"></div>' + menu_item("Sign out", "log-out") + "</div>"
     + '<div style="position:relative;width:390px;height:330px;border-radius:16px;overflow:hidden;background:var(--bg-canvas);border:1px solid var(--border-default)"><div class="mt-sheet"><span class="grab"></span><div class="title-m">Install Materia on this device</div>'
     + _steps + btn("Done", "primary", "lg").replace('class="mt-btn"', 'class="mt-btn" style="width:100%"') + "</div></div>"
     + "</div>", canvas=True)
@@ -125,3 +125,30 @@ Push notifications on a device (MOB-04): deadline alerts, and the other notifica
     + f'<div class="mt-setting"><div class="tx"><div class="tt">Materia app on iPhone</div><div class="ts">Last seen 3 days ago</div></div><span class="mt-row" style="gap:8px">{btn("Send a test", "ghost", "sm")}{btn("Remove", "ghost", "sm")}</span></div></div>'
     + _notification
     + "</div>", canvas=True)
+
+
+def _kind(label, on=False):
+    checked = ' aria-checked="true" data-checked' if on else ' aria-checked="false"'
+    return f'<label class="mt-choice"><span class="mt-radio" role="radio" tabindex="0"{checked}></span><span>{label}</span></label>'
+
+
+comp("HelpFeedback", "Actions", 560, """
+# HelpFeedback
+
+Help & feedback (SEC-08): where to read more, and a message to the people who run Materia. The same Dialog opens from the user menu (after Keyboard shortcuts), from ⌘K (“Help & feedback”) and from More on a phone, where it is a BottomSheet.
+
+**Read more.** Links along the top: How Clerk works (only while Clerk is on), the accessibility statement and the legal pages. Following one closes the Dialog.
+
+**The message.** What it is about (Something isn’t working, An idea, A question; the first is chosen) and the message, up to 4,000 characters. The description says what support sees: the person’s name, email and practice, and the page they were on (a path, never a query string). It asks them to leave out clients’ details.
+
+**Sending.** Send keeps the message (`feedback-submit`) and emails support once a support address is set. The Dialog closes and a success toast says “Thanks. Your message was sent.” An empty message shows “Write a message”. Past ten in an hour: “You’ve sent a lot of messages in the last hour. Try again later.”, keeping what was written.
+
+```ts
+await account.openHelp();
+```
+""", '<div class="mt-dialog" role="dialog" aria-labelledby="help-t" style="width:520px"><div class="mt-dialog-h"><div class="mt-grow"><h2 id="help-t">Help &amp; feedback</h2><p>Tell the people who run Materia what isn’t working, what would help, or what you’d like to know.</p></div></div>'
+    + '<div class="mt-dialog-b mt-col" style="gap:16px"><div class="mt-row" style="gap:16px;flex-wrap:wrap">'
+    + "".join(f'<a class="label mt-row" style="gap:6px;color:var(--text-brand)">{icon(i)}{t}</a>' for i, t in [("sparkle", "How Clerk works"), ("document", "Accessibility"), ("shield", "Privacy and terms")])
+    + '</div><div role="radiogroup" class="mt-col" style="gap:12px"><span class="mt-label">What is it about?</span>' + _kind("Something isn’t working", True) + _kind("An idea") + _kind("A question") + "</div>"
+    + field("Message", placeholder="", help="Leave out clients’ details. Support sees your name, email and practice, and the page you were on.").replace('class="mt-input"', 'class="mt-input mt-textarea"')
+    + '</div><div class="mt-dialog-f">' + btn("Cancel", "ghost") + btn("Send", "primary") + "</div></div>", canvas=True)
