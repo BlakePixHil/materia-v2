@@ -161,6 +161,12 @@ describe('the eval executor', () => {
     const model = new FakeClerkModel([{ error: new ClerkModelError('bad_request', 'bad', 400) }]);
     const execute = createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' });
     await expect(execute(request(restricted))).rejects.toMatchObject({ code: 'CLERK_UNAVAILABLE:bad_request' });
+    const explained = new FakeClerkModel([
+      { error: new ClerkModelError('bad_request', 'bad', 400, undefined, 'output_config.format: too complex') },
+    ]);
+    await expect(
+      createEvalExecutor({ model: explained, apiKey: 'k', modelId: 'claude-sonnet-5-5' })(request(restricted)),
+    ).rejects.toMatchObject({ code: 'CLERK_UNAVAILABLE:bad_request (output_config.format: too complex)' });
     const busy = new FakeClerkModel(Array.from({ length: 3 }, () => ({ error: new ClerkModelError('rate_limited') })));
     await expect(
       createEvalExecutor({ model: busy, apiKey: 'k', modelId: 'claude-sonnet-5-5', sleep: async () => undefined })(
@@ -287,6 +293,49 @@ describe('citations and the judge', () => {
       'caveat_lodged',
     ]);
     expect(outcome.proposedEvents).toEqual([{ kind: 'caveat_lodged', date: '2026-03-03' }]);
+  });
+
+  it('offers letters through production’s checks (AI-10b): only this matter’s types, to its parties', async () => {
+    const suite = loadSuite('chat-proposals');
+    const evalCase = suite.cases.find((c) => c.id === 'cp-001') as EvalCase;
+    const letter = (typeId: string, partyIds: string[], instructions = '') => ({
+      typeId,
+      partyIds,
+      instructions,
+      rationale: 'The grant has issued.',
+      citations: [],
+    });
+    const letters = [
+      letter('grant-notification', ['p-beneficiary-1', 'p-beneficiary-2', 'p-nobody-9'], 'Say the grant issued.'),
+      // Not a letter Clerk drafts on a probate matter, and not a letter at all.
+      letter('larke-v-nugus', []),
+      letter('made-up', []),
+      // The general letter needs instructions.
+      letter('letter', []),
+    ];
+    const reply = { tasks: [], deadlines: [], events: [], notes: [], keyFacts: [], letters };
+    const model = new FakeClerkModel([{ chunks: [JSON.stringify(reply)] }]);
+    const outcome = await createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' })({
+      suite: suite.config,
+      evalCase,
+      promptRef: suite.config.promptId,
+      feature: 'chatProposals',
+      run: 1,
+    });
+    expect(outcome.status).toBe('done');
+    expect(outcome.proposals).toEqual([
+      {
+        kind: 'letter',
+        text: 'grant-notification · Say the grant issued.',
+        typeId: 'grant-notification',
+        partyIds: ['p-beneficiary-1', 'p-beneficiary-2'],
+      },
+    ]);
+    const sent = JSON.stringify(model.requests[0]?.messages);
+    expect(sent).toContain('- grant-notification: ');
+    expect(sent).not.toContain('larke-v-nugus');
+    expect(sent).toContain('Who do we need to tell?');
+    expect(sent).toContain('Megan Ashby and Paul Ashby, should be told');
   });
 
   it('writes a matter brief from production’s facts and checks, without privileged records (AI-06c)', async () => {

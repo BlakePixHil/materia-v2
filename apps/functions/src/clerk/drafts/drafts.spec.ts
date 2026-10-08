@@ -9,6 +9,8 @@ import {
   type ClerkDraftType,
   type RewriteClerkDraftResult,
   type Role,
+  type AcceptManySuggestionsResult,
+  type AcceptSuggestionResult,
   type SaveClerkDraftResult,
   type StartClerkDraftResult,
 } from '@materia/domain';
@@ -31,6 +33,8 @@ import { docxPart, docxText, doyleSources } from '../../docs/testing';
 import { MemoryFiles } from '../../documents/testing';
 import { memoryFirestore } from '../../orgs/testing';
 import { FakeClock, FakeKms, FakeTaskQueue, fakePorts } from '../../ports/fakes';
+import { acceptDefinition, acceptManyDefinition } from '../../suggestions/accept';
+import { proposeSuggestions } from '../../suggestions/propose';
 import { createContextBuilder } from '../context/build-context';
 import { firestoreContextSource } from '../context/firestore-source';
 import { charEstimateCounter } from '../context/ports';
@@ -632,5 +636,158 @@ describe('the prompt’s inputs', () => {
         { name: 'Bo Vance', address: '2 Fictional Way' },
       ]),
     ).toEqual({ name: 'Ari Vance', address: '1 Fictional Way\n\nBo Vance\n2 Fictional Way' });
+  });
+});
+
+describe('starting a letter from a Clerk suggestion (AI-10b)', () => {
+  const SUGGESTIONS = `${MATTERS}/m1/suggestions`;
+  const PROPOSED = {
+    typeId: 'grant-notification',
+    recipients: [{ partyId: 'p-beneficiary', name: 'Thomas Doyle' }],
+    instructions: 'Say we expect to distribute before Christmas.',
+  };
+
+  async function suggested(payload: Data = PROPOSED) {
+    const w = await world({ flags: { ...FLAGS, 'clerk.features.suggestions': true } });
+    const log = createLog({ fn: 'test' }, () => undefined);
+    const { created } = await proposeSuggestions(
+      { db: w.store.db, orgId: ORG, clock: w.clock, log },
+      'm1',
+      [{ kind: 'letter', payload, rationale: 'The grant issued (fictional).' }],
+      { privileged: false, promptId: 'chat-proposals', promptVersion: '1.1.0', model: 'claude-sonnet-5-5' },
+    );
+    const id = created[0]?.id as string;
+    expect(id).toBeTruthy();
+    const suggestion = () => w.store.docs.get(`${SUGGESTIONS}/${id}`) as Data;
+    return { ...w, id, suggestion };
+  }
+
+  it('starts the draft and accepts the suggestion with it, in one go', async () => {
+    const w = await suggested();
+    const { draftId } = await w.start({
+      typeId: 'grant-notification',
+      recipients: [{ partyId: 'p-beneficiary' }],
+      instructions: 'Say we expect to distribute before Christmas.',
+      suggestionId: w.id,
+    });
+    expect(w.draft(draftId)).toMatchObject({
+      typeId: 'grant-notification',
+      status: 'drafting',
+      ownerUid: 'user-lawyer',
+    });
+    expect(w.suggestion()).toMatchObject({
+      status: 'accepted',
+      resolvedBy: 'user-lawyer',
+      resultRef: `${DRAFTS}/${draftId}`,
+    });
+    expect(w.suggestion()['appliedPayload']).toBeUndefined();
+    expect(w.audits()).toContainEqual(
+      expect.objectContaining({ action: 'suggestion.accepted', data: expect.objectContaining({ kind: 'letter' }) }),
+    );
+    expect(await w.runNext()).toBe('drafted');
+  });
+
+  it('is edited when the person changed the letter on the start page', async () => {
+    const w = await suggested();
+    const { draftId } = await w.start({
+      typeId: 'grant-notification',
+      recipients: [{ partyId: 'p-beneficiary' }, { partyId: 'p-executor' }],
+      instructions: 'Say we expect to distribute in the new year.',
+      includePrivileged: true,
+      suggestionId: w.id,
+    });
+    expect(w.suggestion()).toMatchObject({
+      status: 'edited',
+      resultRef: `${DRAFTS}/${draftId}`,
+      appliedPayload: {
+        typeId: 'grant-notification',
+        // The party Clerk named keeps its name for the card; the one the person added has none.
+        recipients: [{ partyId: 'p-beneficiary', name: 'Thomas Doyle' }, { partyId: 'p-executor' }],
+        instructions: 'Say we expect to distribute in the new year.',
+      },
+    });
+    // What the person chose on the start page is what starts, privileged material included.
+    expect(w.draft(draftId)).toMatchObject({ includePrivileged: true, recipients: [{}, { partyId: 'p-executor' }] });
+  });
+
+  it('asks again when the matter changed since Clerk suggested it, then starts as reviewed', async () => {
+    const w = await suggested();
+    await w.store.db.doc(`${MATTERS}/m1`).update({ stageId: 'grant' });
+    const letter = {
+      typeId: 'grant-notification',
+      recipients: [{ partyId: 'p-beneficiary' }],
+      instructions: PROPOSED.instructions,
+      suggestionId: w.id,
+    };
+    const stale = await failure(w.start(letter));
+    expect(stale.details).toMatchObject({ code: 'SUGGESTION_STALE', changed: [{ key: 'matter.stageId' }] });
+    expect(w.suggestion()).toMatchObject({ status: 'stale' });
+    expect([...w.store.docs.keys()].filter((path) => path.startsWith(`${DRAFTS}/`))).toHaveLength(0);
+    expect(w.tasks.queued).toHaveLength(0);
+
+    const { draftId } = await w.start({ ...letter, expectedBasis: stale.details['basis'] });
+    expect(w.suggestion()).toMatchObject({ status: 'accepted', resultRef: `${DRAFTS}/${draftId}` });
+  });
+
+  it('starts on its own when the suggestion was already dealt with, or is gone', async () => {
+    const w = await suggested();
+    await w.store.db.doc(`${SUGGESTIONS}/${w.id}`).update({ status: 'dismissed' });
+    const { draftId } = await w.start({ typeId: 'client-update', suggestionId: w.id });
+    expect(w.draft(draftId)).toMatchObject({ typeId: 'client-update', status: 'drafting' });
+    expect(w.suggestion()).toMatchObject({ status: 'dismissed' });
+    expect((await w.start({ typeId: 'client-update', suggestionId: 's-missing' })).draftId).toBeTruthy();
+  });
+
+  it('refuses a suggestion that isn’t a letter, and a letter Clerk can’t draft on the matter', async () => {
+    const w = await suggested();
+    const log = createLog({ fn: 'test' }, () => undefined);
+    const { created } = await proposeSuggestions(
+      { db: w.store.db, orgId: ORG, clock: w.clock, log },
+      'm1',
+      [{ kind: 'task', payload: { title: 'Call the bank' } }],
+      { privileged: false, promptId: 'chat-proposals', promptVersion: '1.1.0', model: 'claude-sonnet-5-5' },
+    );
+    expect(await failure(w.start({ typeId: 'client-update', suggestionId: created[0]?.id as string }))).toMatchObject({
+      code: 'invalid-argument',
+      details: { reason: 'suggestion_kind', kind: 'task' },
+    });
+    // Nothing is created or resolved when the letter itself is refused.
+    expect(await failure(w.start({ typeId: 'larke-v-nugus', suggestionId: w.id }))).toMatchObject({
+      details: { reason: 'draft_type' },
+    });
+    expect(w.suggestion()).toMatchObject({ status: 'proposed' });
+    expect(w.tasks.queued).toHaveLength(0);
+  });
+
+  it('accepting it as proposed (suggestions-accept) starts the draft without privileged material', async () => {
+    const w = await suggested();
+    const result = await w.call<AcceptSuggestionResult>(acceptDefinition, { matterId: 'm1', suggestionId: w.id });
+    expect(result).toMatchObject({ status: 'accepted', resultRef: expect.stringContaining(`${DRAFTS}/cd-`) });
+    expect(w.store.docs.get(result.resultRef)).toMatchObject({
+      typeId: 'grant-notification',
+      instructions: PROPOSED.instructions,
+      recipients: [{ partyId: 'p-beneficiary', name: 'Thomas Doyle' }],
+      includePrivileged: false,
+    });
+    expect(await w.runNext()).toBe('drafted');
+    // A read-only member can't start a draft, so can't accept one.
+    const other = await suggested({ ...PROPOSED, instructions: 'Another letter.' });
+    expect(
+      (await failure(other.call(acceptDefinition, { matterId: 'm1', suggestionId: other.id }, 'readonly'))).code,
+    ).toBe('permission-denied');
+  });
+
+  it('isn’t accepted in bulk: the person checks each letter on the start page', async () => {
+    const w = await suggested();
+    const result = await w.call<AcceptManySuggestionsResult>(acceptManyDefinition, {
+      matterId: 'm1',
+      suggestionIds: [w.id],
+    });
+    expect(result).toMatchObject({
+      accepted: 0,
+      results: [{ ok: false, code: 'INVALID_ARGUMENT', details: { reason: 'suggestion_bulk', kind: 'letter' } }],
+    });
+    expect(w.suggestion()).toMatchObject({ status: 'proposed' });
+    expect(w.tasks.queued).toHaveLength(0);
   });
 });

@@ -293,6 +293,19 @@ describe('MtSuggestion', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('leaves out Edit where accepting opens the proposal to check (a letter, AI-10b)', async () => {
+    await render(MtSuggestion, {
+      inputs: {
+        suggestion: { id: 's', kind: 'Letter', title: 'Client update', acceptLabel: 'Draft letter' },
+        canEdit: false,
+      },
+    });
+    expect(screen.getAllByRole('button').map((button) => button.textContent?.trim())).toEqual([
+      'Dismiss',
+      'Draft letter',
+    ]);
+  });
+
   it('says who asked for one Clerk didn’t make (INT-07)', async () => {
     const origin = 'Suggested in Claude by Priya Shah';
     await render(MtSuggestion, {

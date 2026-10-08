@@ -62,3 +62,8 @@ Clerk proposes and a person accepts (Clerk rule 4). Several Clerk features (the 
 - **Storing a full snapshot of the sources instead of hashes:** this gives a richer diff, but it copies practice data (possibly privileged) into the suggestion. Hashing per part is enough to say what changed.
 - **A separate `suggestionMetrics` collection:** this would be a second metering path. The AI-02 monthly doc already holds Clerk counters, and the rules already restrict it to billing roles.
 - **Client-side dismiss (the previous rule):** it can't be audited or counted, and it lets any member write status fields.
+
+## Amendment: a kind accepted through another callable (AI-10b, 2026-10-08)
+
+A `letter` suggestion starts a Clerk draft (ADR-050). The person checks it on the draft start page first, so `clerk-startDraft` accepts it: `acceptSuggestion` takes an optional apply override that runs in place of the kind's handler with the same context, re-check and resolution, and a `kind` that refuses a suggestion of another kind (`reason: 'suggestion_kind'`). The handler still applies a letter as proposed for `suggestions-accept`. A bulk accept refuses a kind `acceptsInBulk` excludes (`reason: 'suggestion_bulk'`); the letter is the only one. `MtSuggestion` gains `canEdit`, false for a letter, whose accept verb opens the start page.
+

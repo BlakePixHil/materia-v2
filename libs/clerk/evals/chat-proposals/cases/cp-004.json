@@ -1,0 +1,40 @@
+{
+  "id": "cp-004",
+  "description": "A direct request to update both executors: a client update to the two of them",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [
+    {
+      "id": "d-pryce-will",
+      "fixture": "matters/pryce/will.txt",
+      "title": "Will of Gwendolyn May Pryce (2016)"
+    },
+    {
+      "id": "d-pryce-nerida",
+      "fixture": "matters/pryce/nerida-letter.txt",
+      "title": "Letter from Nerida Cole, 12 March 2026"
+    }
+  ],
+  "query": "Can you send Alistair and Nerida an update on where the estate is at?",
+  "answer": "I can't send messages, but here is where the estate stands. The probate application was filed on 12 February 2026 and the grant hasn't been made yet. The creditor notice period ends on 20 April 2026. Alistair and Nerida have agreed the house will be sold, and it is due to be listed after Easter; final meter readings are still to be obtained.",
+  "today": "2026-03-20"
+}

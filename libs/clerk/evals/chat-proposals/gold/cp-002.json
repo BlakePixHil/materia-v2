@@ -1,0 +1,15 @@
+{
+  "id": "cp-002",
+  "fixtures": {
+    "matters/pryce/death-certificate.txt": "c99042bb1ff617c6",
+    "matters/pryce/will.txt": "488797152daa2029"
+  },
+  "proposals": [
+    {
+      "kind": "letter",
+      "typeId": "bank-balance-request",
+      "partyIds": [],
+      "keywords": ["Surfcoast"]
+    }
+  ]
+}

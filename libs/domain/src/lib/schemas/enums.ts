@@ -144,6 +144,7 @@ export const SuggestionKindSchema = z.enum([
   'order',
   'document_meta',
   'evidence',
+  'letter',
 ]);
 export type SuggestionKind = z.infer<typeof SuggestionKindSchema>;
 export const SuggestionStatusSchema = z.enum(['proposed', 'accepted', 'edited', 'dismissed', 'expired', 'stale']);

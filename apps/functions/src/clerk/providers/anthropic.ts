@@ -67,13 +67,28 @@ function toApiBlock(block: ClerkContentBlock, citable: boolean): ApiBlock {
   }
 }
 
-/** The JSON schema for structured output, via the SDK's zod helper. */
+/**
+ * The JSON schema for structured output, via the SDK's zod helper. The helper describes what the
+ * schema parses to, which it can't for a field the domain transforms as it reads it (a date in the
+ * chat proposals' task, deadline and event payloads): such a schema is described by what it reads,
+ * which is what the model writes, the same way the helper strictens it. The gateway parses the
+ * reply with the schema itself either way.
+ */
 async function outputFormat(
   schema: import('zod').ZodType,
 ): Promise<{ type: 'json_schema'; schema: Record<string, unknown> }> {
   const { zodOutputFormat } = await import('@anthropic-ai/sdk/helpers/zod');
-  const format = zodOutputFormat(schema as never) as unknown as { schema: Record<string, unknown> };
-  return { type: 'json_schema', schema: format.schema };
+  try {
+    const format = zodOutputFormat(schema as never) as unknown as { schema: Record<string, unknown> };
+    return { type: 'json_schema', schema: format.schema };
+  } catch {
+    const [{ transformJSONSchema }, z] = await Promise.all([
+      import('@anthropic-ai/sdk/lib/transform-json-schema'),
+      import('zod'),
+    ]);
+    const input = z.toJSONSchema(schema, { reused: 'ref', io: 'input' }) as Record<string, unknown>;
+    return { type: 'json_schema', schema: transformJSONSchema(input) as Record<string, unknown> };
+  }
 }
 
 /**
@@ -176,7 +191,20 @@ export function mapError(error: unknown, aborted: boolean): ClerkModelError {
   if (status >= 500) return new ClerkModelError('server', `Provider error ${status}`, status);
   if (status === 401 || status === 403)
     return new ClerkModelError('auth', `Provider rejected the credentials (${status})`, status);
-  return new ClerkModelError('bad_request', `Provider rejected the request (${status})`, status);
+  return new ClerkModelError(
+    'bad_request',
+    `Provider rejected the request (${status})`,
+    status,
+    undefined,
+    providerReason(error),
+  );
+}
+
+/** The API's reason for a rejected request (`error.message` in its body), cut short. */
+function providerReason(error: unknown): string | undefined {
+  const e = error as { error?: { error?: { message?: unknown } }; message?: unknown } | undefined;
+  const reason = e?.error?.error?.message ?? e?.message;
+  return typeof reason === 'string' && reason ? reason.slice(0, 300) : undefined;
 }
 
 /** The slice of the SDK client the adapter uses (so tests can pass a stand-in). */

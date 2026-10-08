@@ -490,6 +490,67 @@ export function eventMisses(
   ];
 }
 
+/** A suggestion the chat proposals step made (AI-10b): its kind, its text, and a letter's type and parties. */
+export interface MadeProposal {
+  kind: string;
+  text: string;
+  typeId?: string | undefined;
+  partyIds?: readonly string[] | undefined;
+}
+/** A suggestion the gold expects: of its kind, with one of the keywords, and a letter's type and parties when given. */
+export interface ExpectedProposal {
+  kind: string;
+  keywords?: readonly string[] | undefined;
+  typeId?: string | undefined;
+  partyIds?: readonly string[] | undefined;
+}
+
+const idSet = (ids: readonly string[] | undefined) => [...new Set(ids ?? [])].sort().join(',');
+
+function sameProposal(made: MadeProposal, want: ExpectedProposal): boolean {
+  if (made.kind !== want.kind) return false;
+  if (want.typeId !== undefined && made.typeId !== want.typeId) return false;
+  if (want.partyIds && idSet(made.partyIds) !== idSet(want.partyIds)) return false;
+  if (!want.keywords?.length) return true;
+  const text = normalise(made.text);
+  return want.keywords.some((keyword) => text.includes(normalise(keyword)));
+}
+
+/**
+ * proposalPrecision (AI-10b): the share of the suggestions the chat proposals step made that the
+ * gold expects. A suggestion nobody needs costs the person a dismissal, and a wrong letter a draft.
+ * Nothing made: not applicable (proposalRecall covers an answer whose suggestion was missed).
+ */
+export function proposalPrecision(
+  made: readonly MadeProposal[] | undefined,
+  expected: readonly ExpectedProposal[] | undefined,
+): Score {
+  if (!expected || !made?.length) return null;
+  return made.filter((proposal) => expected.some((want) => sameProposal(proposal, want))).length / made.length;
+}
+
+/** proposalRecall (AI-10b): the share of the suggestions the gold expects that were made. None expected: not applicable. */
+export function proposalRecall(
+  made: readonly MadeProposal[] | undefined,
+  expected: readonly ExpectedProposal[] | undefined,
+): Score {
+  if (!expected?.length) return null;
+  const list = made ?? [];
+  return expected.filter((want) => list.some((proposal) => sameProposal(proposal, want))).length / expected.length;
+}
+
+/** Why the proposals fell short, as `extra:<kind>[:<typeId>]` (made, not expected) and `missing:…` (expected, not made). */
+export function proposalMisses(made: readonly MadeProposal[], expected: readonly ExpectedProposal[]): string[] {
+  const key = (proposal: { kind: string; typeId?: string | undefined }) =>
+    proposal.typeId ? `${proposal.kind}:${proposal.typeId}` : proposal.kind;
+  return [
+    ...made.filter((proposal) => !expected.some((want) => sameProposal(proposal, want))).map((p) => `extra:${key(p)}`),
+    ...expected
+      .filter((want) => !made.some((proposal) => sameProposal(proposal, want)))
+      .map((w) => `missing:${key(w)}`),
+  ];
+}
+
 /** A matter brief after production's checks (AI-06c), as the executor reports it. */
 export interface CheckedBrief {
   written: number;

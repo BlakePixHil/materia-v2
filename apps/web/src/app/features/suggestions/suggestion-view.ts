@@ -46,6 +46,32 @@ export function suggestionVm(item: SuggestionRecord): SuggestionVm {
   };
 }
 
+/**
+ * Where a letter suggestion (AI-10b) opens: the draft start page's query, with the letter filled in
+ * (`type`, `instructions`, the parties as `to`, someone typed in as `toName`/`toAddress`), the
+ * suggestion it accepts as the draft starts (`suggestion`) and, after a re-review, the basis it
+ * accepts against (`basis`).
+ */
+export function letterStartParams(item: SuggestionRecord, basis?: string): Record<string, string> {
+  const payload = item.payload as {
+    typeId?: string;
+    recipients?: readonly { partyId?: string; name?: string; address?: string }[];
+    instructions?: string;
+  };
+  const recipients = payload.recipients ?? [];
+  const partyIds = recipients.flatMap((recipient) => (recipient.partyId ? [recipient.partyId] : []));
+  const typed = recipients.find((recipient) => !recipient.partyId && recipient.name);
+  return {
+    type: payload.typeId ?? '',
+    ...(payload.instructions?.trim() ? { instructions: payload.instructions.trim() } : {}),
+    ...(partyIds.length ? { to: partyIds.join(',') } : {}),
+    ...(typed?.name ? { toName: typed.name } : {}),
+    ...(typed?.address ? { toAddress: typed.address } : {}),
+    suggestion: item.id,
+    ...(basis ? { basis } : {}),
+  };
+}
+
 /** An open suggestion past its expiry (the hourly sweep may not have marked it yet), or an expired one. */
 export const isExpired = (item: Pick<SuggestionItem, 'status' | 'expiresAt'>, now: number) =>
   item.status === 'expired' ||

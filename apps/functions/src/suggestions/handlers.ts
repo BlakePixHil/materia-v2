@@ -27,6 +27,7 @@ import {
 
 import { registerSuggestionHandler, type ApplyContext, type SuggestionHandler } from './registry';
 import { type Data } from './shared';
+import { letterHandler } from '../clerk/drafts/letter-suggestion';
 import { compact, stamp } from '../contacts/shared';
 import type { CallableContext } from '../core/callable';
 import { recordEvent } from '../deadlines/events';
@@ -45,7 +46,8 @@ import { rateOrg } from '../time/shared';
  * `notes-create`'s, key facts through `keyFactPatch` (or their event) with what Clerk cited kept
  * beside them (CORE-06a), a document's category and title as the documents screen edits them, and
  * time as a draft entry of the person accepting (BILL-01; `time-onWrite` prices it and counts it
- * into WIP). The litigation kinds (`chronology`, `order`, `evidence`; LIT tickets) have none yet.
+ * into WIP), and a letter by starting its Clerk draft (AI-10b, `clerk/drafts/letter-suggestion.ts`).
+ * The litigation kinds (`chronology`, `order`, `evidence`; LIT tickets) have none yet.
  */
 
 /** What the shared helpers use of a handler's context (everything but the typed payload). */
@@ -440,7 +442,7 @@ const timeEntry: SuggestionHandler<'time_entry'> = {
 
 /** Registers the built-in handlers (idempotent). */
 export function registerBuiltInHandlers(): void {
-  for (const handler of [task, deadline, event, keyFact, note, party, documentMeta, timeEntry]) {
+  for (const handler of [task, deadline, event, keyFact, note, party, documentMeta, timeEntry, letterHandler]) {
     registerSuggestionHandler(handler as unknown as SuggestionHandler);
   }
 }

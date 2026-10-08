@@ -1,0 +1,14 @@
+{
+  "id": "cp-006",
+  "fixtures": {
+    "matters/pryce/will.txt": "488797152daa2029"
+  },
+  "proposals": [
+    {
+      "kind": "letter",
+      "typeId": "letter",
+      "partyIds": [],
+      "keywords": ["meter"]
+    }
+  ]
+}

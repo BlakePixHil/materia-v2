@@ -1,0 +1,25 @@
+{
+  "id": "cp-007",
+  "description": "A will contest: asking the will's drafter for their file is a Larke v Nugus request to them",
+  "matter": {
+    "matterNumber": "CB-2026-0044",
+    "title": "Kerr will dispute",
+    "type": "contest",
+    "status": "active",
+    "deceased": "Graham Kerr",
+    "dateOfDeath": "2026-02-03",
+    "executors": ["Fiona Kerr"],
+    "parties": [
+      {
+        "name": "Hollis & Partners Lawyers",
+        "role": "other_side_solicitor"
+      }
+    ],
+    "responsibleLawyer": "Jordan Price",
+    "willDate": "2019-06-11"
+  },
+  "documents": [],
+  "query": "Hollis & Partners drew Graham's 2019 will. Can we ask them for their file on how it was prepared and signed?",
+  "answer": "Yes. Hollis & Partners Lawyers, who prepared the will dated 11 June 2019, are on the matter. A request to the drafter for their file and an account of how the will was prepared and signed is usually the first step in a will dispute. I can't send it, but Materia can offer to start that letter for you to check.",
+  "today": "2026-05-12"
+}

@@ -233,6 +233,55 @@ describe('Clerk drafting', () => {
     expect(page.calls('clerk-startDraft')).toEqual([]);
   });
 
+  it('starts a letter Clerk suggested, filled in, and accepts the suggestion with it (AI-10b)', async () => {
+    const bram = partyDocId('beneficiary', 'c-bram');
+    let first = true;
+    const page = await open(
+      `/matters/m-whitfield/drafts/new?type=grant-notification&instructions=Say%20the%20grant%20issued.&to=${bram},p-gone&suggestion=s-letter`,
+      {
+        callables: {
+          'clerk-startDraft': (data, fs) => {
+            if (first) {
+              first = false;
+              throw {
+                code: 'functions/failed-precondition',
+                details: { code: 'SUGGESTION_STALE', basis: 'b-2', changed: [{ key: 'matter.status' }] },
+              };
+            }
+            return draftCallables()['clerk-startDraft']?.(data, fs);
+          },
+        },
+      },
+    );
+    const start = () => page.body.querySelector<HTMLElement>('mt-clerk-draft-start-page');
+    expect(page.text(start())).toContain('Clerk suggested this letter.');
+    // Bram is chosen; a party no longer on the matter isn't offered.
+    const people = [...(start()?.querySelectorAll('fieldset mt-checkbox') ?? [])];
+    expect(page.text(people[0])).toContain('Bram Ostler');
+    expect(people[0]?.querySelector('[aria-checked]')?.getAttribute('aria-checked')).toBe('true');
+
+    // Its sources changed since: say what, and accept it against the current data next time.
+    await page.submit(start());
+    await page.stable(10);
+    expect(page.text(start())).toContain('Since Clerk suggested this letter, these changed: matter status.');
+    expect(page.router.url).toContain('/drafts/new');
+    await page.submit(start());
+    await page.stable(10);
+
+    const sent = page.calls('clerk-startDraft');
+    expect(sent).toEqual([
+      expect.objectContaining({
+        typeId: 'grant-notification',
+        recipients: [{ partyId: bram }],
+        instructions: 'Say the grant issued.',
+        suggestionId: 's-letter',
+      }),
+      expect.objectContaining({ suggestionId: 's-letter', expectedBasis: 'b-2' }),
+    ]);
+    expect(sent[0]).not.toHaveProperty('expectedBasis');
+    expect(page.router.url).toBe('/matters/m-whitfield/drafts/cd-1');
+  });
+
   it('says why Clerk can’t draft and points to the manual way', async () => {
     const page = await open('/matters/m-whitfield/drafts/new', {
       callables: {

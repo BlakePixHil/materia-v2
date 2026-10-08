@@ -33,6 +33,8 @@ export const METRICS = [
   'numberAccuracy',
   'eventPrecision',
   'eventRecall',
+  'proposalPrecision',
+  'proposalRecall',
   'factAccuracy',
   'recordRecall',
   'latencyMs',
@@ -81,6 +83,7 @@ export const SuiteConfigSchema = z
       'insightsNarrative',
       'eventsExtraction',
       'matterBrief',
+      'chatProposals',
     ]),
     /** `id@version` of the prompt under test. A case may name its own (injection, privilege). */
     promptId: z.string().regex(/^[a-z][a-zA-Z0-9-]*@\d+\.\d+\.\d+$/),
@@ -210,6 +213,11 @@ export const EvalCaseSchema = z
     /** The user's request (the chat question, the drafting instruction, the time-capture notes, …). */
     query: z.string().default(''),
     /**
+     * The chat proposals step (AI-06, AI-10b): Clerk's answer to `query`, as the step reads it. Fixed
+     * in the case, so the suite tests what is proposed from an answer, not the answer.
+     */
+    answer: z.string().optional(),
+    /**
      * Drafting cases (AI-10): the letter as the person asks for it in the drafting screen. `query`
      * describes the case; the instructions are what the person typed. `rewrite` makes it a rewrite
      * of one passage (`drafting-rewrite@*`) rather than a whole letter.
@@ -313,6 +321,24 @@ export const GoldSchema = z
             kind: z.string().min(1),
             date: z.iso.date(),
             keywords: z.array(z.string().min(2)).min(1).optional(),
+          })
+          .strict(),
+      )
+      .optional(),
+    /**
+     * proposalPrecision and proposalRecall (AI-10b): exactly the suggestions the chat proposals step
+     * should make from the answer, after production's checks. Each matches a proposal of its kind
+     * whose text contains one of its keywords; a letter's type and, when given, its recipients (the
+     * eval matter's party ids, in any order) must match too. Empty: propose nothing.
+     */
+    proposals: z
+      .array(
+        z
+          .object({
+            kind: z.enum(['task', 'deadline', 'event', 'note', 'key_fact', 'letter']),
+            keywords: z.array(z.string().min(2)).min(1).optional(),
+            typeId: z.string().min(1).optional(),
+            partyIds: z.array(z.string().min(1)).optional(),
           })
           .strict(),
       )

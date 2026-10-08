@@ -34,7 +34,8 @@ export interface SuggestionVm {
  * Suggestion (`mt-suggestion`): a Clerk proposal (or one a person's Claude made through the
  * connector, which `origin` names) with Accept, Edit and Dismiss. Project a preview or
  * diff as content. `stale` means the underlying data changed since Clerk suggested it: the card says
- * so and Accept becomes "Review". `canAccept`/`canDismiss` hide the actions a person can't take.
+ * so and Accept becomes "Review". `canAccept`/`canDismiss` hide the actions a person can't take, and
+ * `canEdit` hides Edit where the accept verb opens the proposal to check first (a letter, AI-10b).
  * Import it from `@materia/ui/suggestion` (not the barrel), so it stays out of the initial bundle.
  */
 @Component({
@@ -73,7 +74,9 @@ export interface SuggestionVm {
         <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="dismiss.emit()">Dismiss</button>
       }
       @if (canAccept()) {
-        <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="edit.emit()">Edit</button>
+        @if (canEdit()) {
+          <button mtButton variant="ghost" size="sm" [disabled]="busy()" (click)="edit.emit()">Edit</button>
+        }
         <button mtButton variant="clerk" size="sm" [loading]="busy()" (click)="stale() ? edit.emit() : accept.emit()">
           {{ stale() ? 'Review' : (suggestion().acceptLabel ?? 'Accept') }}
         </button>
@@ -97,6 +100,8 @@ export class MtSuggestion {
   /** The person may accept (and edit) it: false hides both, e.g. for a role without the underlying action. */
   readonly canAccept = input(true, { transform: booleanAttribute });
   readonly canDismiss = input(true, { transform: booleanAttribute });
+  /** Offers Edit beside Accept: false for a proposal the accept verb opens to check first (a letter, AI-10b). */
+  readonly canEdit = input(true, { transform: booleanAttribute });
 
   readonly accept = output();
   readonly edit = output();

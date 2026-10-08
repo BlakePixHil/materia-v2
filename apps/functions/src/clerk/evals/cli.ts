@@ -121,6 +121,27 @@ const FAKE_OUTPUT: Record<string, unknown> = {
   citationJudge: { verdicts: [] },
 };
 
+/**
+ * The chat proposals step (AI-10b): a letter of the first type `<letter_types>` lists, to the first
+ * executor, so production's `toChatProposals` checks run.
+ */
+function chatProposalsStep(request: ClerkModelRequest): FakeStep {
+  const asked = JSON.stringify(request.messages);
+  const typeId = /<letter_types>\\n- ([a-z][a-z0-9-]*):/.exec(asked)?.[1];
+  const letters = typeId
+    ? [
+        {
+          typeId,
+          partyIds: ['p-executor-1'],
+          instructions: 'A letter from the fake provider.',
+          rationale: 'The fake provider proposes a letter.',
+          citations: [],
+        },
+      ]
+    : [];
+  return { chunks: [JSON.stringify({ tasks: [], deadlines: [], events: [], notes: [], keyFacts: [], letters })] };
+}
+
 export function fakeModel(): ClerkModelPort {
   return new FakeClerkModel([], (request: ClerkModelRequest): FakeStep => {
     // An Insights narrative (INS-04) built from the figures it was given, so the number check runs.
@@ -129,6 +150,7 @@ export function fakeModel(): ClerkModelPort {
     if (request.output?.name === 'eventsFromFile') return eventsStep(request);
     // A matter brief (AI-06c) from the facts it was given, so the ref and date checks run.
     if (request.output?.name === 'matterBrief') return matterBriefStep(request);
+    if (request.output?.name === 'chatProposals') return chatProposalsStep(request);
     const sample = request.output ? FAKE_OUTPUT[request.output.name] : undefined;
     return { chunks: [sample ? JSON.stringify(sample) : 'I don’t have that information in this conversation.'] };
   });

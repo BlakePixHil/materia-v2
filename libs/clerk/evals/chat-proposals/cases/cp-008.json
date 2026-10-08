@@ -1,0 +1,44 @@
+{
+  "id": "cp-008",
+  "description": "The beneficiaries were already told about the grant: nothing to propose",
+  "matter": {
+    "matterNumber": "CB-2026-0031",
+    "title": "Estate of Doreen Ivy Ashby",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Doreen Ivy Ashby",
+    "dateOfDeath": "2025-11-20",
+    "executors": ["Colin Ashby"],
+    "parties": [
+      {
+        "name": "Megan Ashby",
+        "role": "beneficiary"
+      },
+      {
+        "name": "Paul Ashby",
+        "role": "beneficiary"
+      }
+    ],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-03-02",
+      "granted": "2026-04-14",
+      "grantType": "probate"
+    }
+  },
+  "notes": [
+    {
+      "text": "17 April 2026: wrote to Megan Ashby and Paul Ashby telling them the grant of probate was made on 14 April 2026 and what happens next. Jordan Price."
+    }
+  ],
+  "documents": [
+    {
+      "id": "d-ashby-grant",
+      "fixture": "matters/ashby/grant-letter.txt",
+      "title": "Letter from the Probate Office, 16 April 2026"
+    }
+  ],
+  "query": "Did we tell the beneficiaries about the grant?",
+  "answer": "Yes. A file note says Jordan Price wrote to Megan Ashby and Paul Ashby on 17 April 2026, telling them the grant of probate was made on 14 April 2026 and what happens next.",
+  "today": "2026-04-28"
+}

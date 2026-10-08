@@ -51,6 +51,10 @@ import type { StoredExchange } from '../store';
 
 type Data = Record<string, unknown>;
 
+/** The proposals step's reply (`ChatProposalsReply`): one list per kind, empty unless given. */
+const proposalsReply = (lists: Data = {}) =>
+  JSON.stringify({ tasks: [], deadlines: [], events: [], notes: [], keyFacts: [], letters: [], ...lists });
+
 const NOW = new Date('2026-10-05T00:00:00.000Z');
 const FLAGS = { 'clerk.enabled': true, 'clerk.features.chat': true, 'clerk.features.suggestions': true };
 const meta = { createdBy: 'seed', updatedBy: 'seed', schemaVersion: 1 };
@@ -331,11 +335,13 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
         { chunks: ['Certified copies are still needed.'] },
         {
           chunks: [
-            JSON.stringify({
-              proposals: [
+            proposalsReply({
+              tasks: [
                 {
-                  kind: 'task',
-                  payload: { title: 'Request certified copies of the death certificate', priority: 'medium' },
+                  title: 'Request certified copies of the death certificate',
+                  details: '',
+                  dueDate: '',
+                  priority: 'medium',
                   rationale: 'The answer says copies are still needed.',
                   citations: [
                     { documentId: 'd-will', page: 1, quote: 'This is the last will of Rowan Ashdown.' },
@@ -357,7 +363,7 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
       status: 'proposed',
       privileged: false,
       promptId: 'chat-proposals',
-      promptVersion: '1.0.0',
+      promptVersion: '1.1.0',
     });
     expect(suggestion['citations']).toEqual([
       expect.objectContaining({ kind: 'document', documentId: 'd-will', docVersion: 2, page: 1 }),
@@ -366,6 +372,61 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
     const proposals = w.model.requests.find((request) => request.output?.name === 'chatProposals');
     expect(proposals?.tools).toBeUndefined();
     expect(JSON.stringify(proposals?.messages)).toContain('Certified copies are still needed.');
+  });
+
+  describe('letters (AI-10b)', () => {
+    const letters = (proposals: Data[]): FakeStep[] => [
+      { chunks: ['The grant has issued, so the beneficiaries should be told.'] },
+      { chunks: [proposalsReply({ letters: proposals })] },
+    ];
+    const letter = (payload: Data) => ({ ...payload, rationale: 'The grant has issued.', citations: [] });
+    const DRAFTING = { ...FLAGS, 'clerk.features.drafting': true };
+
+    it('offers the matter’s letter types and proposes a letter to the parties the facts name', async () => {
+      const w = await world({
+        flags: DRAFTING,
+        script: letters([
+          letter({
+            typeId: 'grant-notification',
+            partyIds: ['p-beneficiary', 'p-invented', 'p-beneficiary'],
+            instructions: ' Tell them the grant issued and what happens next. ',
+          }),
+          // Not a type the matter offers, and a general letter without instructions: both dropped.
+          letter({ typeId: 'fp-letter-of-demand', partyIds: [], instructions: 'Demand.' }),
+          letter({ typeId: 'letter', partyIds: [], instructions: '' }),
+        ]),
+      });
+      const sent = await w.ask('Who needs to hear about the grant?');
+      const ids = w.message(sent.threadId, sent.messageId)['suggestionIds'] as string[];
+      expect(ids).toHaveLength(1);
+      expect(w.store.docs.get(`orgs/${ORG}/matters/${MATTER}/suggestions/${ids[0]}`)).toMatchObject({
+        kind: 'letter',
+        status: 'proposed',
+        payload: {
+          typeId: 'grant-notification',
+          recipients: [{ partyId: 'p-beneficiary', name: 'Quinn Ashdown' }],
+          instructions: 'Tell them the grant issued and what happens next.',
+        },
+      });
+      const asked = JSON.stringify(w.model.requests.find((request) => request.output?.name === 'chatProposals'));
+      expect(asked).toContain('- grant-notification: Grant notification to beneficiaries.');
+      expect(asked).toContain('Usually to: beneficiary.');
+      expect(asked).toContain('- letter: Letter from your instructions.');
+      expect(asked).not.toContain('fp-letter-of-demand');
+    });
+
+    it('offers no letters while Clerk drafting is off for the practice', async () => {
+      for (const options of [{ flags: FLAGS }, { flags: DRAFTING, settings: { features: { drafting: false } } }]) {
+        const w = await world({
+          ...options,
+          script: letters([letter({ typeId: 'client-update', partyIds: ['p-executor'], instructions: 'Update.' })]),
+        });
+        const sent = await w.ask('Should we update the executor?');
+        expect(w.message(sent.threadId, sent.messageId)['suggestionIds']).toEqual([]);
+        const asked = JSON.stringify(w.model.requests.find((request) => request.output?.name === 'chatProposals'));
+        expect(asked).toContain('None: Clerk can’t draft letters on this matter.');
+      }
+    });
   });
 
   it('asks for no proposals when suggestions are switched off', async () => {
@@ -440,7 +501,7 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
         script: [
           { toolUses: [{ name: 'search_documents', input: { query: 'advice' } }] },
           { chunks: ['Counsel advised on the claim.'] },
-          { chunks: ['{"proposals":[]}'] },
+          { chunks: [proposalsReply()] },
           ...drafting(),
         ],
       });
@@ -624,9 +685,9 @@ describe('conversation history', () => {
           toolUses: [{ name: 'search_documents', input: { query: 'executor' } }],
         },
         { thinking: 'The passage names the executor.', chunks: ['Morgan Ashdown is the executor.'] },
-        { chunks: ['{"proposals":[]}'] },
+        { chunks: [proposalsReply()] },
         { thinking: 'A follow-up.', chunks: ['The residue goes to Quinn Ashdown.'] },
-        { chunks: ['{"proposals":[]}'] },
+        { chunks: [proposalsReply()] },
         { chunks: ['Nothing else is outstanding.'] },
       ],
     });
@@ -666,9 +727,9 @@ describe('conversation history', () => {
     const w = await world({
       script: [
         { chunks: ['First attempt.'] },
-        { chunks: ['{"proposals":[]}'] },
+        { chunks: [proposalsReply()] },
         { chunks: ['Second attempt.'] },
-        { chunks: ['{"proposals":[]}'] },
+        { chunks: [proposalsReply()] },
         { chunks: ['Follow-up answer.'] },
       ],
     });
@@ -703,7 +764,7 @@ describe('conversation history', () => {
     const w = await world({
       script: [
         { chunks: ['A long answer.'], usage: { inputTokens: CHAT_HISTORY_BUDGET_TOKENS } },
-        { chunks: ['{"proposals":[]}'] },
+        { chunks: [proposalsReply()] },
         { chunks: ['Summary: the executor is Morgan Ashdown (fictional).'] },
         { chunks: ['Continued answer.'] },
       ],

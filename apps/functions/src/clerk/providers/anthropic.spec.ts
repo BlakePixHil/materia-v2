@@ -1,5 +1,7 @@
 import * as z from 'zod';
 
+import { OUTPUT_SCHEMAS } from '@materia/clerk';
+
 import {
   anthropicModel,
   buildParams,
@@ -101,6 +103,46 @@ describe('Anthropic adapter', () => {
     });
     expect(params).not.toHaveProperty('fallbacks');
     expect(params).not.toHaveProperty('betas');
+  });
+
+  it('describes every Clerk output schema, by what it reads when what it parses to has no JSON schema', async () => {
+    for (const [name, schema] of Object.entries(OUTPUT_SCHEMAS)) {
+      const params = (await buildParams(request({ output: { name, schema } }))) as unknown as {
+        output_config: { format: { type: string; schema: Record<string, unknown> } };
+      };
+      expect(params.output_config.format.type, name).toBe('json_schema');
+      expect(params.output_config.format.schema['type'], name).toBe('object');
+    }
+    // Chat proposals (AI-06, AI-10b): the reply the model writes, which becomes the proposals on receipt.
+    const params = (await buildParams(
+      request({ output: { name: 'chatProposals', schema: OUTPUT_SCHEMAS.chatProposals } }),
+    )) as unknown as { output_config: { format: { schema: Record<string, unknown> } } };
+    const text = JSON.stringify(params.output_config.format.schema);
+    expect(text).toContain('"dueDate"');
+    expect(text).toContain('"typeId"');
+    expect(text).not.toContain('"additionalProperties":true');
+  });
+
+  it('keeps the chat proposals grammar small: no unions, and every field required', async () => {
+    // The API refused the earlier union of six kinds with optional fields: "The compiled grammar is
+    // too large". Optional fields and unions are what grow it.
+    const params = (await buildParams(
+      request({ output: { name: 'chatProposals', schema: OUTPUT_SCHEMAS.chatProposals } }),
+    )) as unknown as { output_config: { format: { schema: Record<string, unknown> } } };
+    const objects: { properties: Record<string, unknown>; required?: string[] }[] = [];
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      expect(record).not.toHaveProperty('anyOf');
+      expect(record).not.toHaveProperty('oneOf');
+      if (record['type'] === 'object' && record['properties'])
+        objects.push(record as { properties: Record<string, unknown>; required?: string[] });
+      Object.values(record).forEach(walk);
+    };
+    walk(params.output_config.format.schema);
+    expect(objects.length).toBeGreaterThan(6);
+    for (const object of objects)
+      expect([...(object.required ?? [])].sort()).toEqual(Object.keys(object.properties).sort());
   });
 
   it('turns citations off with structured output (the API rejects the two together)', async () => {
@@ -229,6 +271,23 @@ describe('Anthropic adapter', () => {
     );
     expect(mapped.retryAfterMs).toBe(3000);
     expect(mapped.message).not.toContain('Avery');
+    expect(mapped.providerDetail).toBeUndefined();
+    // A rejected request keeps the API's reason apart, for the eval report.
+    const rejected = mapError(
+      {
+        name: 'BadRequestError',
+        status: 400,
+        message: '400 {"type":"error"}',
+        error: { type: 'error', error: { type: 'invalid_request_error', message: 'output_config.format: bad schema' } },
+      },
+      false,
+    );
+    expect(rejected).toMatchObject({
+      kind: 'bad_request',
+      status: 400,
+      message: 'Provider rejected the request (400)',
+    });
+    expect(rejected.providerDetail).toBe('output_config.format: bad schema');
     const existing = new ClerkModelError('server');
     expect(mapError(existing, false)).toBe(existing);
   });

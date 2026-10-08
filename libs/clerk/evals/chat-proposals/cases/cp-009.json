@@ -1,0 +1,35 @@
+{
+  "id": "cp-009",
+  "description": "A direct request to tell a creditor of the death and ask what is owing: a creditor notification",
+  "matter": {
+    "matterNumber": "HV-2026-0007",
+    "title": "Estate of Gwendolyn May Pryce",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Gwendolyn May Pryce",
+    "dateOfDeath": "2026-01-02",
+    "executors": ["Alistair Pryce", "Nerida Cole"],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-02-12",
+      "granted": null
+    },
+    "upcomingDeadlines": [
+      {
+        "title": "Creditor notice period ends",
+        "due": "2026-04-20"
+      }
+    ],
+    "openTasks": ["Obtain final meter readings", "List the house for sale after Easter"]
+  },
+  "documents": [
+    {
+      "id": "d-pryce-will",
+      "fixture": "matters/pryce/will.txt",
+      "title": "Will of Gwendolyn May Pryce (2016)"
+    }
+  ],
+  "query": "We found an unpaid Geelong Energy bill in Gwendolyn's name. Can you write to them about her death and ask what's owing?",
+  "answer": "I can't write or send letters from the chat, but Materia can offer to start one for you to check. Geelong Energy isn't on the matter yet, so the letter will need their address.",
+  "today": "2026-03-20"
+}

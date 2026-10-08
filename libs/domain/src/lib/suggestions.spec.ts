@@ -1,6 +1,7 @@
 import { Suggestion, SUGGESTION_PAYLOADS, SuggestionProposalSchema, type SuggestionPayload } from './schemas/clerk';
 import { SuggestionKindSchema } from './schemas/enums';
 import {
+  acceptsInBulk,
   AcceptSuggestionInput,
   basisChanges,
   basisDocumentIds,
@@ -45,6 +46,11 @@ const PAYLOADS: Record<string, unknown> = {
     status: 'pending',
   },
   evidence: { documentId: 'd-1', supports: 'us', strength: 2 },
+  letter: {
+    typeId: 'grant-notification',
+    recipients: [{ partyId: 'p-1', name: 'Thomas Fictional' }],
+    instructions: 'Say the grant issued on 1 October.',
+  },
 };
 
 describe('suggestion payloads', () => {
@@ -90,6 +96,49 @@ describe('suggestion payloads', () => {
     );
   });
 
+  it('a letter names its type and recipients, and says what it covers (AI-10b)', () => {
+    expect(suggestionSummary({ kind: 'letter', payload: PAYLOADS['letter'] })).toBe(
+      'Grant notification to beneficiaries: Thomas Fictional · Say the grant issued on 1 October.',
+    );
+    // The general letter is named by its instructions; recipients without a name aren't listed.
+    expect(
+      suggestionSummary({
+        kind: 'letter',
+        payload: { typeId: 'letter', recipients: [{ partyId: 'p-1' }], instructions: 'Ask for the signed form' },
+      }),
+    ).toBe('Letter · Ask for the signed form');
+    const letter = SUGGESTION_PAYLOADS.letter;
+    expect(letter.safeParse({ typeId: 'Grant Notification' }).success).toBe(false);
+    expect(
+      letter.safeParse({ typeId: 'client-update', recipients: [{ name: 'Fictional Bank', address: '1 St' }] }),
+    ).toMatchObject({ success: true, data: { instructions: '' } });
+    expect(
+      letter.safeParse({ typeId: 'client-update', recipients: [{ partyId: 'p-1', address: '1 St' }] }).success,
+    ).toBe(false);
+  });
+
+  it('a letter to the same people is one proposal; a general letter is also its instructions (AI-10b)', () => {
+    const key = (payload: Record<string, unknown>) =>
+      defaultDedupeKey({ kind: 'letter', payload } as SuggestionPayload);
+    const to = (...ids: string[]) => ids.map((partyId) => ({ partyId }));
+    expect(key({ typeId: 'grant-notification', recipients: to('p-1', 'p-2'), instructions: 'A' })).toBe(
+      key({ typeId: 'grant-notification', recipients: to('p-2', 'p-1'), instructions: 'B' }),
+    );
+    expect(key({ typeId: 'grant-notification', recipients: to('p-1') })).not.toBe(
+      key({ typeId: 'grant-notification', recipients: to('p-2') }),
+    );
+    expect(key({ typeId: 'letter', recipients: [], instructions: 'Ask for the form' })).toBe(
+      key({ typeId: 'letter', recipients: [], instructions: 'ask for  the form' }),
+    );
+    expect(key({ typeId: 'letter', recipients: [], instructions: 'Ask for the form' })).not.toBe(
+      key({ typeId: 'letter', recipients: [], instructions: 'Ask for the rates notice' }),
+    );
+  });
+
+  it('a letter is accepted one at a time, every other kind in bulk too (AI-10b)', () => {
+    expect(SuggestionKindSchema.options.filter((kind) => !acceptsInBulk(kind))).toEqual(['letter']);
+  });
+
   it('accept input takes an edited payload and an expected basis', () => {
     const base = { requestId: '7f8f9d5e-1c2b-4a3d-9e8f-0a1b2c3d4e5f', matterId: 'm-1', suggestionId: 's-1' };
     expect(
@@ -105,6 +154,9 @@ describe('permissions and lifecycle', () => {
     expect(canAcceptSuggestion('paralegal', 'task')).toBe(true);
     expect(canAcceptSuggestion('paralegal', 'task', true)).toBe(false);
     expect(canAcceptSuggestion('lawyer', 'note', true)).toBe(true);
+    // A letter only starts a Clerk draft (AI-10b).
+    expect(canAcceptSuggestion('paralegal', 'letter')).toBe(true);
+    expect(canAcceptSuggestion('readonly', 'letter')).toBe(false);
   });
 
   it('open statuses and expiry', () => {

@@ -67,17 +67,19 @@ function chatStep(request: ClerkModelRequest): FakeStep | undefined {
     .map(turnText)
     .join('\n');
   if (request.output?.name === 'chatProposals') {
-    const proposals = asked.includes('[fake:propose]')
+    const tasks = asked.includes('[fake:propose]')
       ? [
           {
-            kind: 'task',
-            payload: { title: 'Request certified copies of the death certificate', priority: 'medium' },
+            title: 'Request certified copies of the death certificate',
+            details: '',
+            dueDate: '',
+            priority: 'medium',
             rationale: 'The answer says certified copies are still needed (fictional).',
             citations: [],
           },
         ]
       : [];
-    return { chunks: [JSON.stringify({ proposals })] };
+    return { chunks: [JSON.stringify({ tasks, deadlines: [], events: [], notes: [], keyFacts: [], letters: [] })] };
   }
   if (!request.tools?.length) return undefined;
   const toolResults = ((last?.content ?? []) as { type?: string }[]).some((block) => block.type === 'tool_result');

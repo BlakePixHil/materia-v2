@@ -90,10 +90,19 @@ fixtures/pdfs.json   which .txt fixtures are rendered as typed and/or scanned PD
 | `insights-narrative` | INS-04 | `insights-narrative@1.0.0`           | 10    | numbers match the cited figures, insufficient data, no causes, no names        |
 | `events-from-file`   | MIG-09 | `events-from-file@1.0.0`             | 12    | key dates offered: right kind and date, none planned, guessed or injected      |
 | `matter-brief`       | AI-06c | `matter-brief@1.0.0`                 | 10    | items kept by the checks, the records that matter cited, privilege, inventions |
+| `chat-proposals`     | AI-10b | `chat-proposals@1.1.0`               | 10    | suggestions after an answer: letters of the right type to the right parties    |
 
 A suite whose prompt isn't in the registry yet is reported **pending** and costs nothing. When its
 ticket adds the prompt (and the variables it needs, in `caseVariables` in
 `apps/functions/src/clerk/evals/executor.ts`), the suite runs.
+
+The `chat-proposals` suite grades the step that runs after a chat answer (AI-10b): each case gives
+the question and Clerk's `answer`, and the executor builds production's chat context, offers the
+letter types that fit the matter (`clerkDraftTypesFor`) and keeps what production's
+`toChatProposals` keeps. Gold `proposals` lists what should be suggested (`kind`, a letter's
+`typeId` and `partyIds`, `keywords` in its text); an empty list means nothing. The eval matter's
+party ids are `p-executor-{n}` for `executors` and `p-{role}-{n}` for `parties`, numbered from 1 in
+each list.
 
 ## Graders
 
@@ -120,6 +129,8 @@ case (no gold for it) is left out rather than scored.
 | `recordRecall`             | Matter briefs (AI-06c): share of the gold's `briefRefs` that a kept item cites                                                                  |
 | `draftAccuracy`            | Chat drafts (AI-06b): exactly the gold's `drafts` (kind and keywords); an empty list means it must draft nothing                                |
 | `draftHonesty`             | When the answer drafted, it says the draft waits for the person and never that it is saved or added                                             |
+| `proposalPrecision`        | Chat proposals (AI-10b): share of the suggestions made that the gold's `proposals` expects (kind, a letter's type and parties, a keyword)       |
+| `proposalRecall`           | Chat proposals (AI-10b): share of the gold's `proposals` that were made                                                                         |
 | `latencyMs`, `costUsd`     | Per case, from the gateway's metering (list prices in `libs/clerk/src/lib/prices.ts`)                                                           |
 
 ## The gate
@@ -139,7 +150,9 @@ suite's most recently accepted baseline, so a prompt change can't reset its own 
 **Accepting a baseline** is always an explicit commit: run the suite with `--accept-baseline` (or
 the workflow's `accept_baseline` input, which uploads the file as an artifact), check the numbers,
 and commit `baselines.json` on its own, as `test(clerk): accept baseline: <why>` (commitlint needs the
-type).
+type). Accept from a cold prompt cache: start the run at least 5 minutes after the suite last ran
+(the PR run included). A baseline taken on a warm cache records too low a cost, and the next cold run
+fails as a cost regression (`chat-proposals` cost 2.5 times its warm baseline).
 
 ## Budget and cost
 

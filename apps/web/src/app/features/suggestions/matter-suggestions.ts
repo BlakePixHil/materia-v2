@@ -18,6 +18,7 @@ import {
   suggestionCallables,
 } from '@materia/data-access/repository';
 import {
+  acceptsInBulk,
   canAcceptSuggestion,
   SUGGESTION_ACCEPT_MANY_MAX,
   SUGGESTION_KIND_LABELS,
@@ -38,7 +39,7 @@ interface KindGroup {
   /** "Task suggestions". */
   label: string;
   items: SuggestionRecord[];
-  /** Ids a bulk accept takes: proposed (not stale, not expired) ones, up to the callable's limit. */
+  /** Ids a bulk accept takes: proposed (not stale, not expired) ones, up to the callable's limit; never letters. */
   bulkIds: string[];
 }
 
@@ -193,7 +194,10 @@ export class MatterSuggestions {
       label: `${SUGGESTION_KIND_LABELS[kind]} suggestions`,
       items,
       bulkIds: items
-        .filter((item) => item.status === 'proposed' && !this.expired(item) && this.mayAccept(item))
+        .filter(
+          (item) =>
+            item.status === 'proposed' && acceptsInBulk(item.kind) && !this.expired(item) && this.mayAccept(item),
+        )
         .slice(0, SUGGESTION_ACCEPT_MANY_MAX)
         .map((item) => item.id),
     }));

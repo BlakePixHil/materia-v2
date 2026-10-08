@@ -24,6 +24,9 @@ import {
   placeholderMisses,
   placeholders,
   privilegeLeak,
+  proposalMisses,
+  proposalPrecision,
+  proposalRecall,
   quoteOnPage,
   recordRecall,
   schemaValid,
@@ -457,6 +460,56 @@ describe('key-date graders (MIG-09)', () => {
     expect(eventMisses([], [{ kind: 'grant_issued', date: '2026-01-01' }], [])).toEqual([
       'extra:grant_issued:2026-01-01',
     ]);
+  });
+});
+
+describe('proposal graders (AI-10b)', () => {
+  const expected = [
+    { kind: 'letter', typeId: 'grant-notification', partyIds: ['p-beneficiary-1', 'p-beneficiary-2'] },
+    { kind: 'task', keywords: ['valuation'] },
+  ];
+  const letter = {
+    kind: 'letter',
+    text: 'grant-notification Tell them the grant issued.',
+    typeId: 'grant-notification',
+    partyIds: ['p-beneficiary-2', 'p-beneficiary-1'],
+  };
+
+  it('scores precision on what was proposed and recall on what the gold expects', () => {
+    const task = { kind: 'task', text: 'Order a valuation of the house' };
+    const extra = { kind: 'note', text: 'The grant issued on 1 October' };
+    expect(proposalPrecision([letter, task, extra], expected)).toBeCloseTo(2 / 3);
+    expect(proposalRecall([letter, task, extra], expected)).toBe(1);
+    expect(proposalRecall([task], expected)).toBe(0.5);
+  });
+
+  it('needs a letter’s type and its parties (in any order), and a keyword in the text', () => {
+    const wrongType = { ...letter, typeId: 'client-update' };
+    const oneParty = { ...letter, partyIds: ['p-beneficiary-1'] };
+    const otherTask = { kind: 'task', text: 'File the inventory' };
+    expect(proposalPrecision([wrongType, oneParty, otherTask], expected)).toBe(0);
+    expect(proposalRecall([wrongType, oneParty, otherTask], expected)).toBe(0);
+    // A gold letter that names no parties takes any; one that names none takes only none.
+    expect(proposalRecall([oneParty], [{ kind: 'letter', typeId: 'grant-notification' }])).toBe(1);
+    expect(proposalRecall([oneParty], [{ kind: 'letter', typeId: 'grant-notification', partyIds: [] }])).toBe(0);
+  });
+
+  it('is not applicable when nothing was proposed (precision) or nothing is expected (recall)', () => {
+    expect(proposalPrecision([], [])).toBeNull();
+    expect(proposalPrecision(undefined, expected)).toBeNull();
+    expect(proposalPrecision([letter], undefined)).toBeNull();
+    expect(proposalPrecision([letter], [])).toBe(0);
+    expect(proposalRecall([letter], [])).toBeNull();
+    expect(proposalRecall(undefined, expected)).toBe(0);
+  });
+
+  it('names the extra and missing proposals, with a letter’s type', () => {
+    expect(proposalMisses([{ ...letter, typeId: 'client-update' }], expected)).toEqual([
+      'extra:letter:client-update',
+      'missing:letter:grant-notification',
+      'missing:task',
+    ]);
+    expect(proposalMisses([letter, { kind: 'task', text: 'Valuation' }], expected)).toEqual([]);
   });
 });
 
