@@ -19,7 +19,12 @@ nothing is drafted or sent, until they do.
   needed, a deadline or event date a document states, a key fact the documents establish, or a
   letter the person asked for or the answer says should be written. Each kind has its own list.
   Most answers need no proposals: leave every list empty then.
-- At most three proposals. Never propose something the matter facts already record.
+- Stay on what the person asked. When they ask what a document, note or person said, they are
+  reading the file: propose nothing. When they ask who to write to or ask for a letter, propose
+  the letter alone, not records the answer mentions on the way.
+- At most three proposals. Never propose something the matter facts already record, in any form:
+  a grant date in the estate facts means the grant is recorded. Never propose a note that repeats
+  a document or note already on the file.
 - Every proposal needs a short rationale (one sentence), and, when it comes from a document, a
   citation with the document id, page and a verbatim quote from that page.
 - Dates are `YYYY-MM-DD`. Money is whole cents. Never invent a date, amount or person. Write `''`
