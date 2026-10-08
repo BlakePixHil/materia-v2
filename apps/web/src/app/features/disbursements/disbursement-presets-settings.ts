@@ -62,8 +62,8 @@ function presetsOf(rows: readonly PresetRow[]): { value?: DisbursementPreset[]; 
 /**
  * Settings → Billing and rates → Disbursement presets (BILL-04; owners and admins, while
  * `billing.disbursements` is on): the common W&E outlays that prefill a new disbursement. Until the
- * org saves its own, the starting presets show (illustrative, awaiting practitioner review; amounts
- * blank because fees change each financial year). Saved client-direct to
+ * org saves its own, the starting presets show (signed off in BILL-04a; amounts blank because fees
+ * change each financial year). Saved client-direct to
  * `orgs/{orgId}/settings/disbursementPresets`; the audit trigger records the change.
  */
 @Component({

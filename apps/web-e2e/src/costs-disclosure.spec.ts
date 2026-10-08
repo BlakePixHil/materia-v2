@@ -78,7 +78,7 @@ test.describe('Costs disclosure', () => {
     await page.goto(OVERVIEW);
     const panel = page.getByRole('region', { name: 'Costs disclosure' });
     await expect(panel).toContainText('Short-form disclosure required (estimate $2,000.00)', FIRST_LOAD);
-    await expect(panel).toContainText('illustrative until a practitioner reviews them');
+    await expect(panel).not.toContainText('illustrative');
     await expectNoA11yViolations(page);
 
     // Generate: the short form is merged into the matter's documents.

@@ -2,7 +2,7 @@
 
 exports[`costs-generateDisclosure > merges the full disclosure for the band, files it under correspondence and keeps its id 1`] = `
 "Costs disclosure
-Illustrative placeholder only. Replace this template with your firm’s own costs disclosure, reviewed by a practitioner, before it is given to a client.
+Add your firm’s statement of the client’s rights under “Your rights” before this is given to a client, then delete this note.
 Client: Catherine Doyle
 Matter: HV-2026-0001  Estate of Margaret Doyle
 Date: 6 October 2026
@@ -22,7 +22,7 @@ Harbour & Vine Legal"
 
 exports[`costs-generateDisclosure > uses the short form below $3,000 1`] = `
 "Costs disclosure (short form)
-Illustrative placeholder only. Replace this template with your firm’s own costs disclosure, reviewed by a practitioner, before it is given to a client.
+Add your firm’s statement of the client’s rights under “Your rights” before this is given to a client, then delete this note.
 Client: Catherine Doyle
 Matter: HV-2026-0001  Estate of Margaret Doyle
 Date: 6 October 2026

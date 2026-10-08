@@ -16,8 +16,8 @@ const WAIVER_REASONS: MtOption<DisclosureWaiverReason>[] = (
 /**
  * Step 5: the fee arrangement (amount, estimate, cap, a rate override, a conditional uplift) and
  * the costs disclosure it implies under the jurisdiction's rules (BILL-06), marked illustrative
- * until a practitioner signs the rules off. Lawyers and above can record that no disclosure is
- * needed, with the reason.
+ * where a practitioner hasn't signed the rules off (VIC's are, BILL-06a). Lawyers and above can
+ * record that no disclosure is needed, with the reason.
  */
 @Component({
   selector: 'mt-intake-fees-step',
@@ -127,8 +127,10 @@ const WAIVER_REASONS: MtOption<DisclosureWaiverReason>[] = (
         }
       }
       <p class="caption t-3">
-        Worked out from the estimate (the top of a range) under the {{ jurisdiction }} disclosure rules. The rules are
-        illustrative until a practitioner reviews them: this is not legal advice.
+        Worked out from the estimate (the top of a range) under the {{ jurisdiction }} disclosure rules.
+        @if (disclosure()?.illustrative) {
+          The rules are illustrative until a practitioner reviews them: this is not legal advice.
+        }
       </p>
     </section>
 

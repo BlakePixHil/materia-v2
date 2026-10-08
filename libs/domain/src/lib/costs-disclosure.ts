@@ -24,8 +24,9 @@ import rulesFile from '../../costs-disclosure/rules.json';
  * practice discloses the basis of its costs and an estimate of the total, and again when anything
  * disclosed changes significantly. Which disclosure an estimate needs comes from versioned rules
  * per jurisdiction (`libs/domain/costs-disclosure/rules.json`); everything here is pure, so intake,
- * the matter screen and the functions agree. The VIC v1 rules and the wording are ILLUSTRATIVE
- * until a practitioner signs them off (BILL-06a): the feature ships behind `billing.costsDisclosure`.
+ * the matter screen and the functions agree. A practitioner signed off the VIC v1 rules and the
+ * wording on 2026-10-08 (BILL-06a); a jurisdiction's rules marked `illustrative` say so on screen.
+ * The feature ships behind `billing.costsDisclosure`.
  */
 
 // ---------- the rules ----------

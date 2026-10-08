@@ -1,11 +1,11 @@
 {
-  "$comment": "Costs disclosure rules (BILL-06, ADR-052), keyed by jurisdiction. ILLUSTRATIVE until a practitioner signs them off (BILL-06a): the thresholds, forms and citations must be verified before billing.costsDisclosure is turned on in production. A change to a jurisdiction's bands is a new version.",
+  "$comment": "Costs disclosure rules (BILL-06, ADR-052), keyed by jurisdiction. The VIC rules were signed off by a practitioner on 2026-10-08 (BILL-06a); a jurisdiction marked illustrative still needs that sign-off before billing.costsDisclosure is turned on in production for it. A change to a jurisdiction's bands is a new version.",
   "schemaVersion": 1,
   "jurisdictions": {
     "VIC": {
       "version": "vic-v1",
       "name": "Victoria (Legal Profession Uniform Law)",
-      "illustrative": true,
+      "illustrative": false,
       "bands": [
         {
           "id": "below-lower-threshold",

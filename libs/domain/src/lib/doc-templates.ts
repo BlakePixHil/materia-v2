@@ -120,7 +120,7 @@ export const SYSTEM_DOC_TEMPLATES: readonly SystemDocTemplate[] = [
     id: 'system-costs-disclosure',
     name: 'Costs disclosure (placeholder)',
     kind: 'costs_disclosure',
-    description: 'An illustrative placeholder until the firm uploads its own disclosure. Not practitioner reviewed.',
+    description: 'A placeholder until the firm uploads its own disclosure: it has no statement of the client’s rights.',
     inputs: [],
   },
   {
@@ -128,7 +128,7 @@ export const SYSTEM_DOC_TEMPLATES: readonly SystemDocTemplate[] = [
     name: 'Costs disclosure, short form (placeholder)',
     kind: 'costs_disclosure',
     description:
-      'An illustrative placeholder for matters whose estimate allows the uniform standard disclosure form (BILL-06). Not practitioner reviewed.',
+      'A placeholder for matters whose estimate allows the uniform standard disclosure form (BILL-06), until the firm uploads its own: it has no statement of the client’s rights.',
     inputs: [],
   },
 ];
