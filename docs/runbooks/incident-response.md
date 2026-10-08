@@ -41,6 +41,23 @@ What to do when an alert fires or something is broken (FND-21). Materia is a sin
 | Deadline calendar data missing | SEV-2 | The log lists the `calendars` and `ruleIds`. Add that year's calendar data to `libs/deadlines` (docs/06-deadline-engine.md) and deploy; the next recompute unblocks the deadlines. |
 | Test alert | none | A delivery test. Nothing is wrong. |
 
+## Capacity: the Clerk reply queue
+
+Clerk's answers are written by the `clerk-runMessage` queue, which every firm shares. It runs at most **80 answers at once, 20 on each instance** (`CHAT_RUN_LIMITS` in `apps/functions/src/clerk/chat/callables.ts`, SEC-07g). That is sized for 10 firms at their busiest minute together, with the model taking up to 20 s an answer (docs/ops/perf-report-2026-10.md, "Load tests").
+
+**The signal.** Each answer logs how long it waited in the queue before it started (`waitedMs`) and how long it then took (`tookMs`): Logs Explorer, `jsonPayload.fn="clerk-runMessage" jsonPayload.message="clerk chat answered"`. A wait of more than a second or two means answers are queuing behind each other. People see it as Clerk taking longer to start answering.
+
+**Raise the limits when** any of these holds:
+
+- `waitedMs` is over 5 s for more than a few answers in a busy hour;
+- more than 8 firms use Clerk (80 answers at once covers 8 firms even with all 10 of each one's chatting people waiting at once);
+- `tookMs` grows well past 20 s, for instance with a slower model, since the same people then need more answers in flight.
+
+**How.** Raise `maxConcurrentDispatches` in `CHAT_RUN_LIMITS` to the answers you need in flight (questions a second at peak × seconds an answer), then deploy as usual. The function's instances times its `concurrency` must stay at least that number (`main.spec.ts` checks it): 10 × 20 = 200 today, under the global cap of 10 instances (`global-options.ts`). Past 200, give `clerk-runMessage` its own higher instance cap. First check two limits the queue can't see:
+
+- **The model provider's rate limits.** Past them, answers retry and then end as "Clerk is unavailable". Check the provider console's limits for the API key's organisation.
+- **The region's Cloud Run CPU quota.** Each instance takes 1 vCPU of it, and deploys need headroom too (deploy.md).
+
 ## Decoding a web stack trace
 
 Web errors arrive minified. Each release's sourcemaps are uploaded privately (never served) to `gs://<project>-sourcemaps/web/<sha>/` by the deploy. To decode:

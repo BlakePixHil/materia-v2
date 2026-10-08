@@ -326,6 +326,16 @@ export const retryMessage = defineCallable(retryMessageDefinition);
 export const setFeedback = defineCallable(setFeedbackDefinition);
 
 /**
+ * How many answers run at once (SEC-07g), sized for 10 firms at their peak together. One firm's
+ * peak is 20 questions a minute (10 people chatting, docs/ops/perf-report-2026-10.md), and a real
+ * model takes 5–20 s to answer, so by Little's law it has up to 0.33 × 20 ≈ 7 answers in flight,
+ * and 10 firms 67. The queue lets 80 run (the default 10 was under two firms' worth). An instance
+ * runs 20, which wait on the model rather than use its CPU and fit its 512 MiB, so 80 take 4 of the
+ * 10 instances every function may use. docs/runbooks/incident-response.md says when to raise them.
+ */
+export const CHAT_RUN_LIMITS = { maxConcurrentDispatches: 80, concurrency: 20 } as const;
+
+/**
  * `clerk-runMessage`: writes one answer (`runChatMessage`). A second attempt only happens when the
  * first died (timeout, lost instance): it ends the answer as an error rather than calling the
  * model again.
@@ -334,6 +344,8 @@ export const runMessage = defineQueue({
   name: CHAT_QUEUE,
   input: ChatRunTaskSchema,
   retry: { maxAttempts: 2, minBackoffSeconds: 30 },
+  rateLimits: { maxConcurrentDispatches: CHAT_RUN_LIMITS.maxConcurrentDispatches },
+  concurrency: CHAT_RUN_LIMITS.concurrency,
   timeoutSeconds: 540,
   memory: '512MiB',
   handler: async (task, { db, ports, log, attempt }) => {
