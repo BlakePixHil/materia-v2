@@ -128,17 +128,18 @@ const FAKE_OUTPUT: Record<string, unknown> = {
 function chatProposalsStep(request: ClerkModelRequest): FakeStep {
   const asked = JSON.stringify(request.messages);
   const typeId = /<letter_types>\\n- ([a-z][a-z0-9-]*):/.exec(asked)?.[1];
-  const proposals = typeId
+  const letters = typeId
     ? [
         {
-          kind: 'letter',
-          payload: { typeId, partyIds: ['p-executor-1'], instructions: 'A letter from the fake provider.' },
+          typeId,
+          partyIds: ['p-executor-1'],
+          instructions: 'A letter from the fake provider.',
           rationale: 'The fake provider proposes a letter.',
           citations: [],
         },
       ]
     : [];
-  return { chunks: [JSON.stringify({ proposals })] };
+  return { chunks: [JSON.stringify({ tasks: [], deadlines: [], events: [], notes: [], keyFacts: [], letters })] };
 }
 
 export function fakeModel(): ClerkModelPort {

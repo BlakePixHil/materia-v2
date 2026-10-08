@@ -113,7 +113,7 @@ describe('Anthropic adapter', () => {
       expect(params.output_config.format.type, name).toBe('json_schema');
       expect(params.output_config.format.schema['type'], name).toBe('object');
     }
-    // Chat proposals (AI-06, AI-10b): a task's due date is a domain date, which transforms what it reads.
+    // Chat proposals (AI-06, AI-10b): the reply the model writes, which becomes the proposals on receipt.
     const params = (await buildParams(
       request({ output: { name: 'chatProposals', schema: OUTPUT_SCHEMAS.chatProposals } }),
     )) as unknown as { output_config: { format: { schema: Record<string, unknown> } } };
@@ -121,6 +121,28 @@ describe('Anthropic adapter', () => {
     expect(text).toContain('"dueDate"');
     expect(text).toContain('"typeId"');
     expect(text).not.toContain('"additionalProperties":true');
+  });
+
+  it('keeps the chat proposals grammar small: no unions, and every field required', async () => {
+    // The API refused the earlier union of six kinds with optional fields: "The compiled grammar is
+    // too large". Optional fields and unions are what grow it.
+    const params = (await buildParams(
+      request({ output: { name: 'chatProposals', schema: OUTPUT_SCHEMAS.chatProposals } }),
+    )) as unknown as { output_config: { format: { schema: Record<string, unknown> } } };
+    const objects: { properties: Record<string, unknown>; required?: string[] }[] = [];
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      expect(record).not.toHaveProperty('anyOf');
+      expect(record).not.toHaveProperty('oneOf');
+      if (record['type'] === 'object' && record['properties'])
+        objects.push(record as { properties: Record<string, unknown>; required?: string[] });
+      Object.values(record).forEach(walk);
+    };
+    walk(params.output_config.format.schema);
+    expect(objects.length).toBeGreaterThan(6);
+    for (const object of objects)
+      expect([...(object.required ?? [])].sort()).toEqual(Object.keys(object.properties).sort());
   });
 
   it('turns citations off with structured output (the API rejects the two together)', async () => {

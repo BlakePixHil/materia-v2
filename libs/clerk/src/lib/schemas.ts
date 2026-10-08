@@ -4,10 +4,14 @@ import {
   BRIEF_ITEM_KINDS,
   DeadlineProposalSchema,
   DocumentCategorySchema,
+  EventKindSchema,
   EventProposalSchema,
+  KEY_FACTS,
+  KeyFactIdSchema,
   KeyFactProposalSchema,
   NARRATIVE_PERIODS,
   NoteProposalSchema,
+  PrioritySchema,
   TaskProposalSchema,
 } from '@materia/domain';
 
@@ -121,27 +125,137 @@ const LetterProposalOutput = z.object({
   instructions: z.string().max(2000).describe('What the letter should cover, in a sentence or two'),
 });
 
+const ChatProposal = z.discriminatedUnion('kind', [
+  chatProposal('task', TaskProposalSchema),
+  chatProposal('deadline', DeadlineProposalSchema),
+  chatProposal('event', EventProposalSchema),
+  chatProposal('note', NoteProposalSchema),
+  chatProposal('key_fact', KeyFactProposalSchema),
+  chatProposal('letter', LetterProposalOutput),
+]);
+
 /**
- * The chat panel's proposals step (AI-06, `chat-proposals@1`): changes the answer points to, each
- * one of the AI-07 kinds with a handler (task, deadline, event, note, key fact) or, from 1.1.0, a
- * letter to draft (AI-10b), validated again by `proposeSuggestions` against the kind's payload
- * schema. Usually empty.
+ * The chat panel's proposals (AI-06): changes the answer points to, each one of the AI-07 kinds
+ * with a handler (task, deadline, event, note, key fact) or a letter to draft (AI-10b), validated
+ * again by `proposeSuggestions` against the kind's payload schema. Usually empty. Built from the
+ * model's `ChatProposalsReply`.
  */
-export const ChatProposalsOutput = z.object({
-  proposals: z
-    .array(
-      z.discriminatedUnion('kind', [
-        chatProposal('task', TaskProposalSchema),
-        chatProposal('deadline', DeadlineProposalSchema),
-        chatProposal('event', EventProposalSchema),
-        chatProposal('note', NoteProposalSchema),
-        chatProposal('key_fact', KeyFactProposalSchema),
-        chatProposal('letter', LetterProposalOutput),
-      ]),
-    )
-    .max(5),
-});
+export const ChatProposalsOutput = z.object({ proposals: z.array(ChatProposal).max(5) });
 export type ChatProposalsOutput = z.infer<typeof ChatProposalsOutput>;
+
+const NONE = "or '' for none";
+const DATE = 'YYYY-MM-DD';
+const TIME = 'HH:MM, 24-hour';
+/** Every proposal's why: one sentence, and its sources when it comes from a document. */
+const why = {
+  rationale: z.string().max(1000).describe('One sentence: why the answer calls for it'),
+  citations: z.array(ProposalCitation).max(5),
+};
+
+/**
+ * What the model writes for the proposals step (`chat-proposals@1.1.0`): one list per kind, every
+ * field required, and `''` for a value it leaves out. A union of six kinds with optional fields
+ * compiles to a structured-output grammar the API refuses as too large, so the reply stays flat
+ * and `chatProposalsFromReply` builds `ChatProposalsOutput` from it.
+ */
+export const ChatProposalsReply = z.object({
+  tasks: z.array(
+    z.object({
+      title: z.string(),
+      details: z.string().describe(`Markdown, ${NONE}`),
+      dueDate: z.string().describe(`${DATE}, ${NONE}`),
+      priority: PrioritySchema,
+      ...why,
+    }),
+  ),
+  deadlines: z.array(
+    z.object({
+      title: z.string(),
+      dueDate: z.string().describe(DATE),
+      dueTime: z.string().describe(`${TIME}, ${NONE}`),
+      kind: DeadlineProposalSchema.shape.kind.unwrap(),
+      critical: z.boolean(),
+      ...why,
+    }),
+  ),
+  events: z.array(
+    z.object({
+      eventId: z.string().describe(`The id of the event to change, from the matter facts, ${NONE} to add one`),
+      kind: EventKindSchema,
+      date: z.string().describe(DATE),
+      time: z.string().describe(`${TIME}, ${NONE}`),
+      label: z.string().describe(`A short label, ${NONE}`),
+      ...why,
+    }),
+  ),
+  notes: z.array(z.object({ bodyMd: z.string().describe('The note, in Markdown'), ...why })),
+  keyFacts: z.array(
+    z.object({
+      field: KeyFactIdSchema,
+      value: z.string().describe(`${DATE} for a date, whole cents in digits for money, otherwise the text`),
+      ...why,
+    }),
+  ),
+  letters: z.array(z.object({ ...LetterProposalOutput.shape, ...why })),
+});
+export type ChatProposalsReply = z.infer<typeof ChatProposalsReply>;
+
+/** The value, or no key at all for `''`. */
+const given = <K extends string>(key: K, value: string) =>
+  (value.trim() ? { [key]: value.trim() } : {}) as Partial<Record<K, string>>;
+
+/**
+ * The proposals in a reply, in the reply's order of kinds. A proposal its kind's schema rejects
+ * (a bad date, an unknown event kind) is left out rather than failing the rest; at most five.
+ */
+export function chatProposalsFromReply(reply: ChatProposalsReply): ChatProposalsOutput {
+  const candidates = [
+    ...reply.tasks.map(({ title, details, dueDate, priority, rationale, citations }) => ({
+      kind: 'task',
+      payload: { title, priority, ...given('descriptionMd', details), ...given('dueDate', dueDate) },
+      rationale,
+      citations,
+    })),
+    ...reply.deadlines.map(({ title, dueDate, dueTime, kind, critical, rationale, citations }) => ({
+      kind: 'deadline',
+      payload: { title, dueDate, kind, critical, ...given('dueTime', dueTime) },
+      rationale,
+      citations,
+    })),
+    ...reply.events.map(({ eventId, kind, date, time, label, rationale, citations }) => ({
+      kind: 'event',
+      payload: { kind, date, ...given('eventId', eventId), ...given('time', time), ...given('label', label) },
+      rationale,
+      citations,
+    })),
+    ...reply.notes.map(({ bodyMd, rationale, citations }) => ({
+      kind: 'note',
+      payload: { bodyMd },
+      rationale,
+      citations,
+    })),
+    ...reply.keyFacts.map(({ field, value, rationale, citations }) => {
+      const money = KEY_FACTS.find((fact) => fact.id === field)?.kind === 'money' && /^\d+$/.test(value.trim());
+      return {
+        kind: 'key_fact',
+        payload: { field, value: money ? Number(value.trim()) : value },
+        rationale,
+        citations,
+      };
+    }),
+    ...reply.letters.map(({ typeId, partyIds, instructions, rationale, citations }) => ({
+      kind: 'letter',
+      payload: { typeId, partyIds, instructions },
+      rationale,
+      citations,
+    })),
+  ];
+  const proposals = candidates.flatMap((candidate) => {
+    const parsed = ChatProposal.safeParse(candidate);
+    return parsed.success ? [parsed.data] : [];
+  });
+  return { proposals: proposals.slice(0, 5) };
+}
 
 /**
  * An Insights narrative (INS-04, `insights-narrative@1`): a few short paragraphs about what changed
@@ -246,7 +360,7 @@ export const OUTPUT_SCHEMAS = {
   citationJudge: CitationJudgeOutput,
   ocrPage: OcrPageOutput,
   documentClassification: DocumentClassificationOutput,
-  chatProposals: ChatProposalsOutput,
+  chatProposals: ChatProposalsReply.transform(chatProposalsFromReply),
   insightsNarrative: InsightsNarrativeOutput,
   eventsFromFile: EventsFromFileOutput,
   matterBrief: MatterBriefOutput,

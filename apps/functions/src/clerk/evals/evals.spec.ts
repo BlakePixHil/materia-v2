@@ -299,12 +299,13 @@ describe('citations and the judge', () => {
     const suite = loadSuite('chat-proposals');
     const evalCase = suite.cases.find((c) => c.id === 'cp-001') as EvalCase;
     const letter = (typeId: string, partyIds: string[], instructions = '') => ({
-      kind: 'letter',
-      payload: { typeId, partyIds, instructions },
+      typeId,
+      partyIds,
+      instructions,
       rationale: 'The grant has issued.',
       citations: [],
     });
-    const proposals = [
+    const letters = [
       letter('grant-notification', ['p-beneficiary-1', 'p-beneficiary-2', 'p-nobody-9'], 'Say the grant issued.'),
       // Not a letter Clerk drafts on a probate matter, and not a letter at all.
       letter('larke-v-nugus', []),
@@ -312,7 +313,8 @@ describe('citations and the judge', () => {
       // The general letter needs instructions.
       letter('letter', []),
     ];
-    const model = new FakeClerkModel([{ chunks: [JSON.stringify({ proposals })] }]);
+    const reply = { tasks: [], deadlines: [], events: [], notes: [], keyFacts: [], letters };
+    const model = new FakeClerkModel([{ chunks: [JSON.stringify(reply)] }]);
     const outcome = await createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' })({
       suite: suite.config,
       evalCase,
