@@ -150,7 +150,9 @@ suite's most recently accepted baseline, so a prompt change can't reset its own 
 **Accepting a baseline** is always an explicit commit: run the suite with `--accept-baseline` (or
 the workflow's `accept_baseline` input, which uploads the file as an artifact), check the numbers,
 and commit `baselines.json` on its own, as `test(clerk): accept baseline: <why>` (commitlint needs the
-type).
+type). Accept from a cold prompt cache: start the run at least 5 minutes after the suite last ran
+(the PR run included). A baseline taken on a warm cache records too low a cost, and the next cold run
+fails as a cost regression (`chat-proposals` cost 2.5 times its warm baseline).
 
 ## Budget and cost
 
