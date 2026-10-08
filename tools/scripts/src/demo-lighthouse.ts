@@ -293,11 +293,23 @@ const SAVED_APP_CHECK_TOKENS = `(async () => {
   }
 })()`;
 
+/** The run with the largest layout shift, which the summary's shift table describes (the median may have none). */
+export function mostShiftedRun(rows: RunRow[]): RunRow | undefined {
+  return rows.filter((row) => !row.error && row.cls > 0).sort((a, b) => b.cls - a.cls)[0];
+}
+
 /**
  * The summary, in Markdown: every run, then the median run's metrics, any `notes`, and where its
- * main thread and requests went.
+ * main thread and requests went. `shifted` is the report of the run with the largest layout shift
+ * (`mostShiftedRun`), whose shifts are listed.
  */
-export function summary(rows: RunRow[], median: Lhr | undefined, heading: string, notes: string[] = []): string {
+export function summary(
+  rows: RunRow[],
+  median: Lhr | undefined,
+  heading: string,
+  notes: string[] = [],
+  shifted?: Lhr,
+): string {
   const lines = [
     `## ${heading}`,
     '',
@@ -316,12 +328,13 @@ export function summary(rows: RunRow[], median: Lhr | undefined, heading: string
     `**Median: ${mid.score}** (run ${mid.run}): FCP ${mid.fcp} ms, LCP ${mid.lcp} ms, TBT ${mid.tbt} ms, SI ${mid.si} ms, CLS ${mid.cls}.`,
   );
   lines.push(...lcpElement(median), ...noted);
+  const worst = mostShiftedRun(rows);
   const sections: [string, string, string[]][] = [
     [
-      'Layout shifts',
+      worst && shifted ? `Layout shifts in run ${worst.run} (CLS ${worst.cls})` : 'Layout shifts',
       '| Element | Score | Likely cause |\n| -- | -- | -- |',
       top(
-        median,
+        worst && shifted ? shifted : median,
         'layout-shifts',
         (i) => [
           cell(`\`${nodeText(i['node']) || 'not attributed'}\``),
@@ -510,7 +523,14 @@ export async function main(argv: string[] = []): Promise<void> {
     }
     const mid = medianRun(rows);
     const heading = `Mobile Lighthouse: ${args.path} on ${origin} (${args.runs} runs, signed in as the demo ${args.account})`;
-    const report = summary(rows, mid ? reports[mid.run - 1] : undefined, heading, notes);
+    const worst = mostShiftedRun(rows);
+    const report = summary(
+      rows,
+      mid ? reports[mid.run - 1] : undefined,
+      heading,
+      notes,
+      worst ? reports[worst.run - 1] : undefined,
+    );
     writeFileSync(path.join(OUT_DIR, 'summary.md'), `${report}\n`);
     if (mid) log(`Median report: dist/lighthouse/run-${mid.run}.report.html`);
     log(report);
