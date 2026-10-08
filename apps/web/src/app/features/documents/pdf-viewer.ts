@@ -60,6 +60,12 @@ export const PDFJS_LOADER = new InjectionToken<() => Promise<PdfLib>>('PDFJS_LOA
 });
 
 /**
+ * How long the viewer waits before it opens a PDF that didn't load once more (ms; tests use 0). A
+ * load can fail for a moment (a phone between networks); a password or a damaged file isn't retried.
+ */
+export const PDF_RETRY_MS = new InjectionToken<number>('PDF_RETRY_MS', { providedIn: 'root', factory: () => 1000 });
+
+/**
  * Where a scanned page's text is kept: the stored text of `pages` (what OCR read from a page with no
  * text of its own), by page. A page left out has none.
  */
@@ -138,6 +144,9 @@ interface PageSlot {
  *
  * Zoom (MOB-02): pinch with two fingers, the − and + buttons, or `-`, `+` and `0` in the pages; the
  * percentage button fits the width again. Pages scale at once and redraw sharp when the zoom settles.
+ *
+ * A load that fails is tried once more after a moment (`PDF_RETRY_MS`) before the viewer says so and
+ * reports `failed`; the caller can then offer a fresh URL.
  */
 @Component({
   selector: 'mt-pdf-viewer',
@@ -385,6 +394,7 @@ export class PdfViewer {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly loadLib = inject(PDFJS_LOADER);
+  private readonly retryMs = inject(PDF_RETRY_MS);
 
   private lib: PdfLib | null = null;
   private task: PDFDocumentLoadingTask | null = null;
@@ -450,6 +460,9 @@ export class PdfViewer {
     });
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.redrawTimer);
+      // Stops a load still in flight: it would otherwise open the PDF after all, and report to a
+      // caller that is gone.
+      this.loadId++;
       this.close();
     });
   }
@@ -547,17 +560,15 @@ export class PdfViewer {
       const lib = await this.loadLib();
       if (id !== this.loadId) return;
       this.lib = lib;
-      this.task = lib.getDocument({
-        url,
-        cMapUrl: pdfAsset('cmaps/'),
-        cMapPacked: true,
-        standardFontDataUrl: pdfAsset('standard_fonts/'),
-        wasmUrl: pdfAsset('wasm/'),
-        // PDF.js 6 never compiles code from the file to draw fonts (CVE-2024-4367), so there is no
-        // `isEvalSupported` to switch off.
-        enableXfa: false,
-      });
-      const pdf = await this.task.promise;
+      let pdf: PDFDocumentProxy;
+      try {
+        pdf = await this.fetchPdf(lib, url);
+      } catch (error) {
+        if (id !== this.loadId || pdfProblem(error) !== 'failed') throw error;
+        await new Promise((resolve) => setTimeout(resolve, this.retryMs));
+        if (id !== this.loadId) return;
+        pdf = await this.fetchPdf(lib, url);
+      }
       if (id !== this.loadId) return void pdf.loadingTask.destroy();
       this.pdf = pdf;
       const first = await pdf.getPage(1);
@@ -582,6 +593,22 @@ export class PdfViewer {
       this.problem.set(problem);
       this.failed.emit(problem);
     }
+  }
+
+  /** Starts PDF.js on `url` (the loading task is kept, so `close` can stop it). */
+  private fetchPdf(lib: PdfLib, url: string): Promise<PDFDocumentProxy> {
+    void this.task?.destroy();
+    this.task = lib.getDocument({
+      url,
+      cMapUrl: pdfAsset('cmaps/'),
+      cMapPacked: true,
+      standardFontDataUrl: pdfAsset('standard_fonts/'),
+      wasmUrl: pdfAsset('wasm/'),
+      // PDF.js 6 never compiles code from the file to draw fonts (CVE-2024-4367), so there is no
+      // `isEvalSupported` to switch off.
+      enableXfa: false,
+    });
+    return this.task.promise;
   }
 
   /** Renders pages as they come within a screen of the viewport. */

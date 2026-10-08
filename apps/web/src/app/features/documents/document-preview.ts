@@ -16,12 +16,38 @@ import { MtButton, MtEmptyState, MtNote } from '@materia/ui';
 import { DocumentActions, downloadErrorCopy, errorReason } from './document-actions';
 import { previewKind } from './documents-view';
 import { MessagePreview } from './message-preview';
-import { PDF_PROBLEM_COPY, PdfViewer, type PdfStoredText } from './pdf-viewer';
+import { PDF_PROBLEM_COPY, PdfViewer, type PdfProblem, type PdfStoredText } from './pdf-viewer';
 
 /** The most plain text shown inline (the whole file is always downloadable). */
 export const TEXT_PREVIEW_MAX = 200_000;
 
 export const PREVIEW_UNAVAILABLE = 'Preview not available yet; download instead.';
+
+/** What a preview is loaded from. */
+interface PreviewSource {
+  docId: string;
+  version: DocumentVersion;
+}
+
+/**
+ * Whether two snapshots show the same preview: the same version of the same document, with the same
+ * file and renditions. The page passes a new version object with every change to the document
+ * (ingestion and the search index update it several times after an upload), and each must not sign
+ * a new URL and open the file again.
+ */
+function samePreview(a: PreviewSource, b: PreviewSource): boolean {
+  const [x, y] = [a.version, b.version];
+  return (
+    a.docId === b.docId &&
+    x.version === y.version &&
+    x.storagePath === y.storagePath &&
+    x.fileName === y.fileName &&
+    x.encrypted === y.encrypted &&
+    x.renditions?.previewPdf === y.renditions?.previewPdf &&
+    x.renditions?.previewImage === y.renditions?.previewImage &&
+    x.renditions?.message === y.renditions?.message
+  );
+}
 
 type PreviewState =
   | { kind: 'loading' }
@@ -55,6 +81,7 @@ type PreviewState =
           [page]="page()"
           [storedText]="storedText()"
           (pageChange)="pageChange.emit($event)"
+          (failed)="pdfFailed($event)"
         />
       }
       @case ('image') {
@@ -138,6 +165,9 @@ export class DocumentPreview {
   readonly canSave = input(false);
   readonly pageChange = output<number>();
 
+  private readonly source = computed<PreviewSource>(() => ({ docId: this.docId(), version: this.version() }), {
+    equal: samePreview,
+  });
   protected readonly state = signal<PreviewState>({ kind: 'loading' });
   protected readonly imageFailed = signal(false);
   private readonly attempt = signal(0);
@@ -154,9 +184,8 @@ export class DocumentPreview {
   protected readonly storedText = computed<PdfStoredText | null>(() => {
     const state = this.state();
     if (state.kind !== 'pdf' || !state.original) return null;
-    const docId = this.docId();
-    const version = this.version().version;
-    return (pages) => this.actions.pageText(docId, version, pages);
+    const { docId, version } = this.source();
+    return (pages) => this.actions.pageText(docId, version.version, pages);
   });
   protected readonly text = computed(() => {
     const state = this.state();
@@ -177,8 +206,7 @@ export class DocumentPreview {
 
   constructor() {
     effect(() => {
-      const docId = this.docId();
-      const version = this.version();
+      const { docId, version } = this.source();
       this.attempt();
       untracked(() => void this.load(docId, version));
     });
@@ -186,6 +214,16 @@ export class DocumentPreview {
 
   protected reload(): void {
     this.attempt.update((n) => n + 1);
+  }
+
+  /**
+   * The PDF didn't load, and the viewer has already tried twice. "Try again" signs a new URL, since
+   * the old one may have expired. A password or a damaged file stays the viewer's note.
+   */
+  protected pdfFailed(problem: PdfProblem): void {
+    if (problem === 'failed' && this.state().kind === 'pdf') {
+      this.state.set({ kind: 'error', text: PDF_PROBLEM_COPY.failed });
+    }
   }
 
   protected async saveAttachment(index: number): Promise<void> {

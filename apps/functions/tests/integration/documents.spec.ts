@@ -315,6 +315,24 @@ describe('versions and downloads', () => {
     expect(sha256(new Uint8Array(await response.arrayBuffer()))).toBe(sha256(v2));
   });
 
+  it('signs a URL that opens when two first signings at once left the file two download tokens', async () => {
+    const original = pdf('two tokens');
+    const docId = await upload('lawyer', original, { fileName: 'Scan.pdf' });
+    const doc = await settled(docId, docId);
+    const path = String(versionsOf(doc)[0]?.['storagePath']);
+    // What two signings at the same moment leave: the emulator keeps both tokens as "a,b".
+    const file = getAdminStorage(admin).bucket(BUCKET).file(path);
+    await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: randomUUID() } });
+    await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: randomUUID() } });
+
+    await signInAs('lawyer');
+    const { url } = await getDownloadUrl({ matterId: MATTER_ID, docId });
+    expect(new URL(url).searchParams.get('token')).not.toContain(',');
+    const response = await fetch(url);
+    expect(response.status).toBe(200);
+    expect(sha256(new Uint8Array(await response.arrayBuffer()))).toBe(sha256(original));
+  });
+
   it('privileged documents are hidden from readonly', async () => {
     const docId = await upload('lawyer', pdf('privileged'), { fileName: 'Advice.pdf' });
     await settled(docId, docId);

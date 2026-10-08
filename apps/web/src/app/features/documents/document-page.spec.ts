@@ -2,7 +2,7 @@ import { DOWNLOAD_NAVIGATOR, FILE_FETCHER, SHARE_MAX_BYTES, WEB_SHARE, type WebS
 import { detailsProblem } from './document-details';
 import { PREVIEW_UNAVAILABLE, TEXT_PREVIEW_MAX } from './document-preview';
 import { DOCUMENT_CATEGORIES } from './documents-view';
-import { PDF_PROBLEM_COPY, PDFJS_LOADER, pdfProblem, SCANNED_PAGE_COPY } from './pdf-viewer';
+import { PDF_PROBLEM_COPY, PDF_RETRY_MS, PDFJS_LOADER, pdfProblem, SCANNED_PAGE_COPY } from './pdf-viewer';
 import { fakePdfJs, FakeUploadPort, InViewObserver, pipelineUpload, storedDocument, storedVersion } from './testing';
 import { UPLOAD_PORT } from './upload-port';
 import type { AuthSession } from '../../core/auth/auth-port';
@@ -125,6 +125,7 @@ async function view(url: string, options: ViewerOptions = {}) {
     callables: documentCallables(options.callables),
     providers: [
       { provide: PDFJS_LOADER, useValue: pdf.load },
+      { provide: PDF_RETRY_MS, useValue: 0 },
       { provide: DOWNLOAD_NAVIGATOR, useValue: (href: string) => downloads.push(href) },
       { provide: UPLOAD_PORT, useValue: uploads },
       { provide: WEB_SHARE, useValue: options.share ?? null },
@@ -251,6 +252,77 @@ describe('document viewer', () => {
   it('says a damaged PDF can’t be previewed', async () => {
     const page = await view(`${BASE}/d-will`, { pdf: fakePdfJs({ error: { name: 'InvalidPDFException' } }) });
     expect(page.text(preview(page))).toContain(PDF_PROBLEM_COPY.corrupt);
+  });
+
+  it('opens a PDF once more by itself when it doesn’t load the first time', async () => {
+    const page = await view(`${BASE}/d-will`, { pdf: fakePdfJs({ pages: 3, failures: 1 }) });
+    const viewer = page.body.querySelector<HTMLElement>('mt-pdf-viewer') as HTMLElement;
+    expect(page.text(viewer.querySelector('[role="toolbar"]'))).toContain('Page 1 of 3');
+    expect(page.pdf.opened).toEqual([
+      'https://files.example.test/d-will/v2/original?X-Goog-Expires=300',
+      'https://files.example.test/d-will/v2/original?X-Goog-Expires=300',
+    ]);
+    expect(getUrlCalls(page)).toHaveLength(1);
+  });
+
+  it('offers to try again with a new link when a PDF still doesn’t load', async () => {
+    const page = await view(`${BASE}/d-will`, { pdf: fakePdfJs({ pages: 3, failures: 2 }) });
+    expect(page.text(preview(page))).toContain(PDF_PROBLEM_COPY.failed);
+    expect(page.pdf.opened).toHaveLength(2);
+    await page.click('Try again', preview(page));
+    await settle(page);
+    expect(getUrlCalls(page)).toHaveLength(2);
+    expect(page.pdf.opened).toHaveLength(3);
+    expect(page.text(preview(page).querySelector('[role="toolbar"]'))).toContain('Page 1 of 3');
+  });
+
+  it('keeps the preview open while the document changes around the same version', async () => {
+    const page = await view(`${BASE}/d-will`);
+    expect(getUrlCalls(page)).toHaveLength(1);
+    // What ingestion and indexing do after an upload: the document changes, its version doesn't.
+    page.firestore.set(`${DOCS}/d-will`, will({ name: 'Signed will.pdf' }));
+    await settle(page);
+    expect(page.text(page.body.querySelector('mt-document-page h2'))).toBe('Signed will.pdf');
+    expect(getUrlCalls(page)).toHaveLength(1);
+    expect(page.pdf.opened).toHaveLength(1);
+
+    const versions = will()['versions'] as Seed[];
+    page.firestore.set(
+      `${DOCS}/d-will`,
+      will({ version: 3, versionSeq: 3, versions: [...versions, storedVersion('d-will', 3, 'Will (signed).pdf')] }),
+    );
+    await settle(page);
+    expect(getUrlCalls(page)).toHaveLength(2);
+    expect(page.pdf.opened.at(-1)).toBe('https://files.example.test/d-will/v3/original?X-Goog-Expires=300');
+  });
+
+  it('shows an Office file’s preview once its PDF rendition lands', async () => {
+    const letter = (renditions?: Seed) =>
+      storedDocument('d-letter', 'Letter.docx', {
+        versions: [storedVersion('d-letter', 1, 'Letter.docx', renditions ? { renditions } : {})],
+      });
+    const page = await view(`${BASE}/d-letter`, {
+      docs: { 'd-letter': letter() },
+      callables: {
+        'documents-getDownloadUrl': (data, fs) => {
+          const [version] = (fs.get(`${DOCS}/d-letter`) as { versions: { renditions?: Seed }[] }).versions;
+          if (data['rendition'] === 'previewPdf' && !version?.renditions?.['previewPdf']) {
+            throw {
+              code: 'functions/failed-precondition',
+              details: { code: 'FAILED_PRECONDITION', reason: 'rendition_unavailable' },
+            };
+          }
+          return { url: signedUrl(data), expiresAt: '2026-10-04T00:05:00Z' };
+        },
+      },
+    });
+    expect(page.text(preview(page))).toContain(PREVIEW_UNAVAILABLE);
+    page.firestore.set(
+      `${DOCS}/d-letter`,
+      letter({ previewPdf: 'orgs/org-harbour-vine/matters/m-whitfield/documents/d-letter/renditions/v1/preview.pdf' }),
+    );
+    await settle(page);
+    expect(page.pdf.opened).toEqual(['https://files.example.test/d-letter/v1/previewPdf?X-Goog-Expires=300']);
   });
 
   it('shows images inline, and says when one can’t be shown', async () => {

@@ -133,10 +133,11 @@ export class FakeUploadPort implements UploadPort {
 
 /**
  * A PDF.js stand-in: `pages` pages whose text is "Fictional page N" (or `texts[N]`, one text item
- * per line at 12pt; `null` is a scanned page with no text layer), or a load failure.
+ * per line at 12pt; `null` is a scanned page with no text layer), or a load failure: `error` on every
+ * open, or only on the first `failures` opens.
  */
 export function fakePdfJs(
-  options: { pages?: number; error?: { name: string }; texts?: Record<number, string | null> } = {},
+  options: { pages?: number; error?: { name: string }; failures?: number; texts?: Record<number, string | null> } = {},
 ) {
   const opened: string[] = [];
   const rendered: number[] = [];
@@ -192,8 +193,10 @@ export function fakePdfJs(
         getPage: (n: number) => Promise.resolve(page(n)),
         loadingTask: { destroy: () => Promise.resolve() },
       };
+      const fails = options.failures === undefined ? !!options.error : opened.length <= options.failures;
+      const error = options.error ?? { name: 'ResponseException', message: 'Unexpected server response (403)' };
       return {
-        promise: options.error ? Promise.reject(options.error) : Promise.resolve(pdf),
+        promise: fails ? Promise.reject(error) : Promise.resolve(pdf),
         destroy: () => Promise.resolve(),
       };
     },
