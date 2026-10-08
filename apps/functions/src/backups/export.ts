@@ -96,7 +96,10 @@ export async function collectionsToExport(
     const found = await walk();
     const unknown = [...new Set(found)].filter((id) => !FIRESTORE_COLLECTION_IDS.includes(id)).sort();
     // Exported all the same; the list in @materia/domain should name it.
-    if (unknown.length) log.warn('collections missing from FIRESTORE_COLLECTION_IDS', { collections: unknown });
+    // The ids go in the message too, so backup-status (which shows messages) names them.
+    if (unknown.length) {
+      log.warn(`collections missing from FIRESTORE_COLLECTION_IDS: ${unknown.join(', ')}`, { collections: unknown });
+    }
     const collectionIds = exportedCollectionIds(found);
     const skipped = [...new Set(found)].filter((id) => !collectionIds.includes(id)).sort();
     return { collectionIds, skipped };

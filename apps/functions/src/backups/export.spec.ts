@@ -117,7 +117,8 @@ describe('what the export takes (SEC-07h)', () => {
     const lines: string[] = [];
     const log = createLog({ fn: 'backups-exportFirestore' }, (_severity, message) => lines.push(message));
     const { collectionIds, skipped } = await collectionsToExport(
-      async () => ['orgs', 'matters', 'documents', 'chunks', 'eventGuards'],
+      // heartbeats, requests and manifest: server-only ones dev's first export warned about.
+      async () => ['orgs', 'matters', 'documents', 'chunks', 'eventGuards', 'heartbeats', 'requests', 'manifest'],
       log,
     );
     expect(skipped).toEqual(['chunks']);
@@ -134,7 +135,7 @@ describe('what the export takes (SEC-07h)', () => {
     );
     const { collectionIds } = await collectionsToExport(async () => ['orgs', 'somethingNew'], log);
     expect(collectionIds).toContain('somethingNew');
-    expect(lines).toEqual(['warn: collections missing from FIRESTORE_COLLECTION_IDS ["somethingNew"]']);
+    expect(lines).toEqual(['warn: collections missing from FIRESTORE_COLLECTION_IDS: somethingNew ["somethingNew"]']);
   });
 
   it('exports everything when the walk fails, so no night is lost', async () => {
