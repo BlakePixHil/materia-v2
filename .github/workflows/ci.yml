@@ -391,9 +391,22 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install chromium webkit
       # Only this leg's browser: WebKit's packages are most of the download, and PRs test Chromium only.
+      # A PR that changes a phone screen (apps/web-e2e/phone-screen-files.txt) also runs the WebKit
+      # phone audit from its Chromium leg (a11y-phone.spec.ts), so that leg needs WebKit's too.
       - name: Install Playwright system dependencies
         timeout-minutes: 11
-        run: .github/scripts/playwright-deps.sh ${{ matrix.browser }}
+        env:
+          BROWSER: ${{ matrix.browser }}
+        run: |
+          browsers=$BROWSER
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$browsers" = chromium ]; then
+            changed=$(git diff --name-only HEAD^1 HEAD || true)
+            if grep -qE -f <(grep -vE '^(#|[[:space:]]*$)' apps/web-e2e/phone-screen-files.txt) <<<"$changed"; then
+              echo "This PR changes a phone screen, so the WebKit phone audit runs: installing WebKit's packages too."
+              browsers="chromium webkit"
+            fi
+          fi
+          .github/scripts/playwright-deps.sh $browsers
       # The Hosting emulator serves the app with the real CSP plus the emulator origins (FND-22).
       - name: Write the e2e Firebase config
         run: pnpm -s materia-scripts csp emulator-config --out firebase.e2e.json
