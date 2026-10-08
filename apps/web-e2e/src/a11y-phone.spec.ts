@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { test, webkit } from '@playwright/test';
 
@@ -13,19 +15,16 @@ import { Audit, MATTER, PHONE, PHONE_AUDIT_ROUTES, signInToAuditPractice, ZONE }
  * anyway. Fictional data only.
  */
 
-/** The files behind the phone screens (MOB-*): a PR that changes one runs the audit. */
-const PHONE_SCREEN_FILES = [
-  // The shell and its TabBar, the phone layout, the PWA's banners and push.
-  /^apps\/web\/src\/app\/shell\//,
-  /^apps\/web\/src\/app\/core\/(layout|pwa|push)\//,
-  // The TabBar's destinations that only a phone has, and the phone versions of the others.
-  /^apps\/web\/src\/app\/features\/(today|record|scan|more)\//,
-  /^apps\/web\/src\/app\/.+\/phone-[\w-]+\.ts$/,
-  // The design system's phone parts.
-  /^libs\/ui\/src\/lib\/(bottom-sheet|pull-refresh|nav)\//,
-  // This audit itself.
-  /^apps\/web-e2e\/src\/a11y-phone\.spec\.ts$/,
-];
+/**
+ * The files behind the phone screens (MOB-*): a PR that changes one runs the audit. The patterns are
+ * in phone-screen-files.txt, which CI also reads to install WebKit's system packages on that PR's
+ * Chromium leg.
+ */
+const PHONE_SCREEN_FILES = readFileSync(path.resolve(__dirname, '../phone-screen-files.txt'), 'utf8')
+  .split('\n')
+  .map((line) => line.trim())
+  .filter((line) => line && !line.startsWith('#'))
+  .map((line) => new RegExp(line));
 
 /**
  * The files a pull request changes. CI checks out the PR's merge commit, whose first parent is the
