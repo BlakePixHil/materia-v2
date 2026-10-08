@@ -2,7 +2,12 @@ import { applicationDefault } from 'firebase-admin/app';
 import type { CollectionReference, Firestore } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
-import { exportedCollectionIds, walkCollectionIds, type WalkCollection } from '@materia/domain';
+import {
+  exportedCollectionIds,
+  FIRESTORE_COLLECTION_IDS,
+  walkCollectionIds,
+  type WalkCollection,
+} from '@materia/domain';
 
 import { REGION } from '../config';
 import { adminDb } from '../core/admin';
@@ -89,6 +94,9 @@ export async function collectionsToExport(
 ): Promise<{ collectionIds?: string[]; skipped: string[] }> {
   try {
     const found = await walk();
+    const unknown = [...new Set(found)].filter((id) => !FIRESTORE_COLLECTION_IDS.includes(id)).sort();
+    // Exported all the same; the list in @materia/domain should name it.
+    if (unknown.length) log.warn('collections missing from FIRESTORE_COLLECTION_IDS', { collections: unknown });
     const collectionIds = exportedCollectionIds(found);
     const skipped = [...new Set(found)].filter((id) => !collectionIds.includes(id)).sort();
     return { collectionIds, skipped };

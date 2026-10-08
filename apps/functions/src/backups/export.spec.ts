@@ -121,10 +121,20 @@ describe('what the export takes (SEC-07h)', () => {
       log,
     );
     expect(skipped).toEqual(['chunks']);
-    expect(collectionIds).toEqual(exportedCollectionIds(['eventGuards']));
+    expect(collectionIds).toEqual(exportedCollectionIds([]));
     expect(collectionIds).toEqual(expect.arrayContaining(['documents', 'eventGuards', 'invoices', 'matters', 'orgs']));
     expect(collectionIds).not.toContain('chunks');
     expect(lines).toEqual([]);
+  });
+
+  it('exports a collection the list doesn’t know, and warns so the list gets it', async () => {
+    const lines: string[] = [];
+    const log = createLog({ fn: 'backups-exportFirestore' }, (severity, message, entry) =>
+      lines.push(`${severity}: ${message} ${JSON.stringify(entry['collections'])}`),
+    );
+    const { collectionIds } = await collectionsToExport(async () => ['orgs', 'somethingNew'], log);
+    expect(collectionIds).toContain('somethingNew');
+    expect(lines).toEqual(['warn: collections missing from FIRESTORE_COLLECTION_IDS ["somethingNew"]']);
   });
 
   it('exports everything when the walk fails, so no night is lost', async () => {

@@ -16,7 +16,7 @@ Everything is in Terraform (`infra/terraform/modules/firebase_env/backups.tf` an
 
 **Alerts** (email, FND-21; `backup-status` below shows why): "Scheduled job backups-exportFirestore not running" when no export has finished for 24.5 hours, and "Backup copy failed" when either Storage Transfer job (files, or exports to the backup region) logs a failed copy or delete. Firestore's managed backups have no alert; the drill checks them.
 
-**Targets.** RPO: ≤ 1 minute for the last 7 days (PITR), ≤ 24 hours after that (backups and exports). RTO: ≤ 4 hours for a full restore. The quarterly drill measures both.
+**Targets.** RPO: ≤ 1 minute for the last 7 days (PITR), ≤ 24 hours after that (backups and exports). RTO: ≤ 4 hours for a full restore; from an export, Clerk's search inside documents then takes longer to rebuild (see [Chunks](#clerks-search-chunks)). The quarterly drill measures both.
 
 All commands below need owner credentials (or `terraform-agent`) and `--project <project>`; examples use dev.
 
@@ -125,14 +125,28 @@ Restores overlapping a migration run: check `orgs/{orgId}/migrations` for runs a
 
 ## Clerk's search chunks
 
-The nightly export leaves out Clerk's search chunks (`documents/{docId}/chunks`, SEC-07h): they hold the documents' text and embeddings, are most of the database's bytes, and are rebuilt from the documents. PITR and the managed backups keep them. A database restored from an export has every document marked as ingested but no chunks, so Clerk can't search it until they are rebuilt:
+The nightly export leaves out Clerk's search chunks (`documents/{docId}/chunks`, SEC-07h): they hold the documents' text and embeddings, are most of the database's bytes, and are rebuilt from the documents. Everything in a chunk comes from the document's file (its text, or OCR of a scanned page) and the document's own fields (version, privileged), so nothing is lost: the files bucket keeps every file, and its nightly copy in the backups bucket keeps them outside the region. PITR and the managed backups keep the chunks, so prefer a managed backup when its restore point will do (daily for 7 days, weekly for 14 weeks); restore from an export for region loss, or for a day between weekly backups.
+
+A database restored from an export has every document marked as ingested but no chunks, so Clerk can't search inside documents until they are rebuilt. Once the functions are running against it:
 
 ```sh
 pnpm materia-scripts backfill-ingest --project materia-v2-dev --rechunk --dry-run   # counts, writes nothing
 pnpm materia-scripts backfill-ingest --project materia-v2-dev --rechunk
 ```
 
-(On dev, through the `dev-script` workflow.) It queues every ingested document that has no chunks for its current version, and the ingest trigger reads, chunks and embeds it again. Scanned documents are OCRed again within each practice's daily OCR budget, so a large practice can take a few days; the dry run says how many OCR pages are involved. Until a document is back, Clerk answers without it and search still finds it by name. A single-matter restore only needs this when it came from an export and the matter's documents changed version since.
+(On dev, through the `dev-script` workflow.) It queues every ingested document that has no chunks for its current version, and the ingest trigger reads, chunks and embeds it again. Until a document is back, Clerk answers without it, and search still finds it by name.
+
+**How long.** Not yet timed: dev's database has its chunks, and a timing needs a database without them, so record the first real figure here. The estimate: `documents-ingest` runs 3 documents at a time per project, at an assumed 2 to 5 seconds a document, so about 2,000 to 5,000 documents an hour. A dev-sized practice of a few hundred documents is back within the hour; a target-scale practice (500,000 documents) takes 4 to 10 days. Two things change that:
+
+- **Scanned pages** are read again by OCR, within each practice's daily OCR limit (200 pages by default; Settings → Clerk and AI, "Scanned pages read per day", up to 10,000). The dry run says how many OCR pages are waiting; divide by the limit for the days it takes. OCR runs on the practice's own Clerk key, so agree a higher limit with its owner.
+- **The queue's concurrency.** To go faster, raise it for the rebuild, watching the Vertex embedding quota and Clerk's rate limits; the next functions deploy puts it back to 3:
+
+  ```sh
+  gcloud tasks queues update documents-ingest --max-concurrent-dispatches=20 \
+    --location=australia-southeast1 --project materia-v2-dev
+  ```
+
+The 4-hour RTO covers the records and the app. After a restore from an export, Clerk's answers about document contents come back over the time above; tell the practice so. A single-matter restore needs the rebuild only when it came from an export and the matter's documents have no chunks for the restored version.
 
 ## Region loss
 

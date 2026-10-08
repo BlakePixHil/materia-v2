@@ -17,7 +17,7 @@ Raw outputs (Lighthouse HTML and JSON, `vitals.json`, `reads.json`, k6 summaries
 | CLS ≤ 0.1 | same | **Met** on Today, Matters and a matter (0–0.04), after fixing a shift on the phone's Matters list. Today is held to 0.1 since SEC-07e: its rows no longer wait for their matters, and its CLS was 0 in seven runs (0–0.225 before, held at 0.25). Deadlines **met** since SEC-07c (0; it was 0.273) |
 | Hot callables, p95 < 1 s at 10× peak, no errors | six flows | **Met** for `matters-createMatter` (512 ms), `deadlines-recompute` (397 ms) and `clerk-sendMessage` (322 ms), with no errors. The notification fan-out (1.45 s, no errors), invoicing and search are exceptions: the emulator can't run them at 10× peak, so they move to the perf-project ticket |
 | Write hot spots | review | Reviewed: 8 unqueried timestamps exempted from indexing; Clerk metering moved to blind increments; the counters measured (one transaction per org stays) |
-| Cost model | published | [cost-model.md](cost-model.md): ≈ US$90 a month for a target-scale firm (≈ US$240 with every document ingested by Clerk), most of it backups, plus Clerk tokens on the firm's own key |
+| Cost model | published | [cost-model.md](cost-model.md): ≈ US$90 a month for a target-scale firm (≈ US$142 with every document ingested by Clerk, since SEC-07h; US$240 before), most of it backups, plus Clerk tokens on the firm's own key |
 
 Every exception in the screens' budgets is held at a ceiling in the specs (`READ_BUDGETS`, `VITALS_EXCEPTIONS`), so the morning `perf` job still catches a regression until its ticket lands. The load tests run by hand (`tools/load/run.sh`).
 

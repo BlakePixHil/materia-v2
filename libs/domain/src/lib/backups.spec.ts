@@ -80,8 +80,8 @@ describe('exportedCollectionIds (SEC-07h)', () => {
   });
 
   it('takes every known collection even when the walk misses it, and any the walk finds that isn’t known', () => {
-    const ids = exportedCollectionIds(['orgs', 'eventGuards']);
-    expect(ids).toEqual(expect.arrayContaining(['eventGuards', 'invoices', 'tasks', 'destructionCertificates']));
-    expect(ids).toHaveLength(FIRESTORE_COLLECTION_IDS.length); // eventGuards in, chunks out
+    const ids = exportedCollectionIds(['orgs', 'somethingNew']);
+    expect(ids).toEqual(expect.arrayContaining(['somethingNew', 'invoices', 'tasks', 'eventGuards']));
+    expect(ids).toHaveLength(FIRESTORE_COLLECTION_IDS.length); // somethingNew in, chunks out
   });
 });

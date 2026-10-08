@@ -12,12 +12,17 @@
  */
 export const EXPORT_SKIPPED_COLLECTIONS: readonly string[] = ['chunks'];
 
+/** Collections only functions use, which firestore.rules leaves to its catch-all deny. */
+export const SERVER_ONLY_COLLECTION_IDS: readonly string[] = ['clientErrorLimits', 'eventGuards', 'ruleSetUpgrades'];
+
 /**
- * Every collection id that has a `match` block in firestore.rules (the rules suite checks the two
- * agree). The export takes these whether or not the walk finds them, since the walk only samples:
- * a subcollection that few documents have could be missed, and an export must never miss one.
+ * Every collection id: each one with a `match` block in firestore.rules (firebase/tests/backups.spec.ts
+ * checks the two agree), and the server-only ones. The export takes these whether or not the walk
+ * finds them, since the walk only samples: a subcollection that few documents have could be missed,
+ * and an export must never miss one. The export logs a warning for any the walk finds that isn't here.
  */
 export const FIRESTORE_COLLECTION_IDS: readonly string[] = [
+  ...SERVER_ONLY_COLLECTION_IDS,
   'activity', 'assets', 'audit', 'briefs', 'byMember', 'calendars', 'checklistTemplates',
   'chronology', 'chunks', 'clerkDrafts', 'clerkThreads', 'conflictChecks', 'connectorConnections',
   'connectorGrants', 'contacts', 'counters', 'courtBooks', 'courtEvents', 'creditNotes',
