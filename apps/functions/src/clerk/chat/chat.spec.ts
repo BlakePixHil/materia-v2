@@ -357,7 +357,7 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
       status: 'proposed',
       privileged: false,
       promptId: 'chat-proposals',
-      promptVersion: '1.0.0',
+      promptVersion: '1.1.0',
     });
     expect(suggestion['citations']).toEqual([
       expect.objectContaining({ kind: 'document', documentId: 'd-will', docVersion: 2, page: 1 }),
@@ -366,6 +366,61 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
     const proposals = w.model.requests.find((request) => request.output?.name === 'chatProposals');
     expect(proposals?.tools).toBeUndefined();
     expect(JSON.stringify(proposals?.messages)).toContain('Certified copies are still needed.');
+  });
+
+  describe('letters (AI-10b)', () => {
+    const letters = (proposals: Data[]): FakeStep[] => [
+      { chunks: ['The grant has issued, so the beneficiaries should be told.'] },
+      { chunks: [JSON.stringify({ proposals })] },
+    ];
+    const letter = (payload: Data) => ({ kind: 'letter', payload, rationale: 'The grant has issued.', citations: [] });
+    const DRAFTING = { ...FLAGS, 'clerk.features.drafting': true };
+
+    it('offers the matter’s letter types and proposes a letter to the parties the facts name', async () => {
+      const w = await world({
+        flags: DRAFTING,
+        script: letters([
+          letter({
+            typeId: 'grant-notification',
+            partyIds: ['p-beneficiary', 'p-invented', 'p-beneficiary'],
+            instructions: ' Tell them the grant issued and what happens next. ',
+          }),
+          // Not a type the matter offers, and a general letter without instructions: both dropped.
+          letter({ typeId: 'fp-letter-of-demand', partyIds: [], instructions: 'Demand.' }),
+          letter({ typeId: 'letter', partyIds: [], instructions: '' }),
+        ]),
+      });
+      const sent = await w.ask('Who needs to hear about the grant?');
+      const ids = w.message(sent.threadId, sent.messageId)['suggestionIds'] as string[];
+      expect(ids).toHaveLength(1);
+      expect(w.store.docs.get(`orgs/${ORG}/matters/${MATTER}/suggestions/${ids[0]}`)).toMatchObject({
+        kind: 'letter',
+        status: 'proposed',
+        payload: {
+          typeId: 'grant-notification',
+          recipients: [{ partyId: 'p-beneficiary', name: 'Quinn Ashdown' }],
+          instructions: 'Tell them the grant issued and what happens next.',
+        },
+      });
+      const asked = JSON.stringify(w.model.requests.find((request) => request.output?.name === 'chatProposals'));
+      expect(asked).toContain('- grant-notification: Grant notification to beneficiaries.');
+      expect(asked).toContain('Usually to: beneficiary.');
+      expect(asked).toContain('- letter: Letter from your instructions.');
+      expect(asked).not.toContain('fp-letter-of-demand');
+    });
+
+    it('offers no letters while Clerk drafting is off for the practice', async () => {
+      for (const options of [{ flags: FLAGS }, { flags: DRAFTING, settings: { features: { drafting: false } } }]) {
+        const w = await world({
+          ...options,
+          script: letters([letter({ typeId: 'client-update', partyIds: ['p-executor'], instructions: 'Update.' })]),
+        });
+        const sent = await w.ask('Should we update the executor?');
+        expect(w.message(sent.threadId, sent.messageId)['suggestionIds']).toEqual([]);
+        const asked = JSON.stringify(w.model.requests.find((request) => request.output?.name === 'chatProposals'));
+        expect(asked).toContain('None: Clerk can’t draft letters on this matter.');
+      }
+    });
   });
 
   it('asks for no proposals when suggestions are switched off', async () => {

@@ -1,0 +1,39 @@
+{
+  "id": "cp-001",
+  "description": "The answer says the beneficiaries need to hear the grant has issued: a grant notification to both of them",
+  "matter": {
+    "matterNumber": "CB-2026-0031",
+    "title": "Estate of Doreen Ivy Ashby",
+    "type": "probate",
+    "status": "active",
+    "deceased": "Doreen Ivy Ashby",
+    "dateOfDeath": "2025-11-20",
+    "executors": ["Colin Ashby"],
+    "parties": [
+      {
+        "name": "Megan Ashby",
+        "role": "beneficiary"
+      },
+      {
+        "name": "Paul Ashby",
+        "role": "beneficiary"
+      }
+    ],
+    "responsibleLawyer": "Jordan Price",
+    "probate": {
+      "applicationFiled": "2026-03-02",
+      "granted": "2026-04-14",
+      "grantType": "probate"
+    }
+  },
+  "documents": [
+    {
+      "id": "d-ashby-grant",
+      "fixture": "matters/ashby/grant-letter.txt",
+      "title": "Letter from the Probate Office, 16 April 2026"
+    }
+  ],
+  "query": "The grant came through last week. Who do we need to tell?",
+  "answer": "The grant of probate was made on 14 April 2026 to Colin Ashby, the executor named in the will. Now that the grant has issued, the beneficiaries, Megan Ashby and Paul Ashby, should be told that it has been made and what happens next with the estate. Colin Ashby, as executor, already knows.",
+  "today": "2026-04-20"
+}

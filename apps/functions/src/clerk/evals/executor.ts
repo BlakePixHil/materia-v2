@@ -5,6 +5,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 
 import {
   CLERK_MODELS,
+  ChatProposalsOutput,
   EventsFromFileOutput,
   citedQuote,
   getPrompt,
@@ -26,6 +27,7 @@ import {
   type DraftedItem,
   type EvalCase,
   type ProposedEvent,
+  type ProposedSuggestion,
   type TextSpan,
 } from '@materia/clerk/evals';
 import {
@@ -33,6 +35,7 @@ import {
   can,
   checkBrief,
   clerkDraftType,
+  clerkDraftTypesFor,
   DomainError,
   missingDraftFacts,
   narrativePeriodInfo,
@@ -43,7 +46,7 @@ import {
 import { createLog } from '../../core/log';
 import { EVENTS_QUERY, toProposals } from '../../migration/events';
 import { ClerkModelError, type ClerkModelPort, type ClerkModelResult } from '../../ports';
-import { CHAT_PROMPT, CHAT_TASKS } from '../chat/run';
+import { CHAT_PROMPT, CHAT_TASKS, chatProposalVars, toChatProposals } from '../chat/run';
 import { createChatToolbox, type ChatDraft } from '../chat/tools';
 import { createContextBuilder } from '../context/build-context';
 import { charEstimateCounter, type DocumentTextPort } from '../context/ports';
@@ -87,6 +90,7 @@ const FEATURES: Record<CaseRequest['feature'], ClerkFeature> = {
   insightsNarrative: 'insightsNarrative',
   eventsExtraction: 'eventsExtraction',
   matterBrief: 'matterBrief',
+  chatProposals: 'chatProposals',
 };
 
 export interface EvalExecutorOptions {
@@ -299,6 +303,65 @@ async function runChat(
     tools,
   });
   return { result, drafts };
+}
+
+/**
+ * One chat proposals case (AI-06, AI-10b) the way `runChatMessage` asks once Clerk has answered:
+ * production's `buildContext` for the question over the case as an in-memory matter (the step
+ * reuses the chat question's context), the case's answer, every letter type the matter fits (Clerk
+ * drafting on), and production's `toChatProposals` checks on the reply. The graders score the
+ * suggestions a person would see.
+ */
+async function runChatProposals(
+  gateway: ClerkGateway,
+  ctx: GatewayContext,
+  evalCase: EvalCase,
+  promptRef: string,
+  root: string,
+): Promise<{ result: ClerkRunResult; proposals: ProposedSuggestion[] }> {
+  if (evalCase.answer === undefined) throw new Error(`${evalCase.id}: a chat proposals case needs the answer`);
+  const context = await createContextBuilder({
+    source: new MemoryContextSource(evalOrg(evalCase, ctx.orgId, ctx.uid)),
+    chunks: evalChunkSearch(evalCase, root),
+    documentText: evalDocumentText(evalCase, root),
+    tokens: charEstimateCounter,
+  }).buildContext({
+    ctx,
+    scope: { matterId: EVAL_MATTER },
+    feature: 'chat',
+    attachments: evalAttachments(evalCase),
+    query: evalCase.query,
+  });
+  const matter = context.facts?.['matter'] as Record<string, unknown> | undefined;
+  const letters = clerkDraftTypesFor(typeof matter?.['type'] === 'string' ? matter['type'] : undefined);
+  const result = await gateway.run({
+    ctx,
+    feature: 'chatProposals',
+    promptId: promptRef,
+    vars: chatProposalVars(evalCase.query, evalCase.answer, letters),
+    context,
+  });
+  const parsed = ChatProposalsOutput.safeParse(result.parsed);
+  if (result.status !== 'done' || !parsed.success) return { result, proposals: [] };
+  const proposals = toChatProposals(parsed.data.proposals, {
+    manifest: result.manifest ?? context.manifest,
+    facts: context.facts,
+    letters,
+  }).map((proposal): ProposedSuggestion => {
+    const payload = proposal.payload as Record<string, unknown>;
+    const text = Object.values(payload)
+      .filter((value): value is string | number => typeof value === 'string' || typeof value === 'number')
+      .join(' · ');
+    if (proposal.kind !== 'letter') return { kind: proposal.kind, text };
+    const recipients = (payload['recipients'] ?? []) as { partyId?: string }[];
+    return {
+      kind: proposal.kind,
+      text,
+      typeId: String(payload['typeId']),
+      partyIds: recipients.flatMap((recipient) => (recipient.partyId ? [recipient.partyId] : [])),
+    };
+  });
+  return { result, proposals };
 }
 
 /** Clerk drafting's prompts (AI-10): a whole letter (`drafting@*`) or one passage of it (`drafting-rewrite@*`). */
@@ -601,6 +664,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
     let result: ClerkRunResult;
     let drafts: DraftedItem[] | undefined;
     let proposedEvents: ProposedEvent[] | undefined;
+    let proposals: ProposedSuggestion[] | undefined;
     let brief: CaseOutcome['brief'];
     try {
       if (request.feature === 'matterBrief')
@@ -613,6 +677,14 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
         ));
       else if (request.feature === 'eventsExtraction')
         ({ result, proposed: proposedEvents } = await runEvents(
+          gateway,
+          { ...ctx, clock: { now: () => caseNow(evalCase) } },
+          evalCase,
+          promptRef,
+          root,
+        ));
+      else if (request.feature === 'chatProposals')
+        ({ result, proposals } = await runChatProposals(
           gateway,
           { ...ctx, clock: { now: () => caseNow(evalCase) } },
           evalCase,
@@ -686,6 +758,7 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
       latencyMs,
       ...(drafts ? { drafts } : {}),
       ...(proposedEvents ? { proposedEvents } : {}),
+      ...(proposals ? { proposals } : {}),
       ...(brief ? { brief } : {}),
     };
 

@@ -289,6 +289,47 @@ describe('citations and the judge', () => {
     expect(outcome.proposedEvents).toEqual([{ kind: 'caveat_lodged', date: '2026-03-03' }]);
   });
 
+  it('offers letters through production’s checks (AI-10b): only this matter’s types, to its parties', async () => {
+    const suite = loadSuite('chat-proposals');
+    const evalCase = suite.cases.find((c) => c.id === 'cp-001') as EvalCase;
+    const letter = (typeId: string, partyIds: string[], instructions = '') => ({
+      kind: 'letter',
+      payload: { typeId, partyIds, instructions },
+      rationale: 'The grant has issued.',
+      citations: [],
+    });
+    const proposals = [
+      letter('grant-notification', ['p-beneficiary-1', 'p-beneficiary-2', 'p-nobody-9'], 'Say the grant issued.'),
+      // Not a letter Clerk drafts on a probate matter, and not a letter at all.
+      letter('larke-v-nugus', []),
+      letter('made-up', []),
+      // The general letter needs instructions.
+      letter('letter', []),
+    ];
+    const model = new FakeClerkModel([{ chunks: [JSON.stringify({ proposals })] }]);
+    const outcome = await createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' })({
+      suite: suite.config,
+      evalCase,
+      promptRef: suite.config.promptId,
+      feature: 'chatProposals',
+      run: 1,
+    });
+    expect(outcome.status).toBe('done');
+    expect(outcome.proposals).toEqual([
+      {
+        kind: 'letter',
+        text: 'grant-notification · Say the grant issued.',
+        typeId: 'grant-notification',
+        partyIds: ['p-beneficiary-1', 'p-beneficiary-2'],
+      },
+    ]);
+    const sent = JSON.stringify(model.requests[0]?.messages);
+    expect(sent).toContain('- grant-notification: ');
+    expect(sent).not.toContain('larke-v-nugus');
+    expect(sent).toContain('Who do we need to tell?');
+    expect(sent).toContain('Megan Ashby and Paul Ashby, should be told');
+  });
+
   it('writes a matter brief from production’s facts and checks, without privileged records (AI-06c)', async () => {
     const briefs = loadSuite('matter-brief');
     const evalCase = briefs.cases.find((c) => c.id === 'mb-003') as EvalCase;

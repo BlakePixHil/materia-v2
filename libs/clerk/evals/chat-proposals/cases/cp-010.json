@@ -1,0 +1,31 @@
+{
+  "id": "cp-010",
+  "description": "A family provision claim: putting the executor's solicitors on notice is a letter of demand to them",
+  "matter": {
+    "matterNumber": "HV-2026-0023",
+    "title": "Tessa Marlowe: Estate of Desmond Marlowe",
+    "type": "fp",
+    "status": "active",
+    "deceased": "Desmond Arthur Marlowe",
+    "dateOfDeath": "2025-11-14",
+    "responsibleLawyer": "Jordan Price",
+    "parties": [
+      {
+        "name": "Tessa Marlowe",
+        "role": "client"
+      },
+      {
+        "name": "Graham Marlowe",
+        "role": "executor"
+      },
+      {
+        "name": "Moorabool Legal",
+        "role": "other_side_solicitor"
+      }
+    ]
+  },
+  "documents": [],
+  "query": "Tessa has signed the costs agreement. Let's put the executor's solicitors on notice of her claim.",
+  "answer": "Moorabool Legal act for the executor, Graham Marlowe. A letter of demand to them would put the estate on notice of Tessa's family provision claim and ask that nothing be distributed while it is outstanding.",
+  "today": "2026-03-20"
+}

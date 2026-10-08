@@ -1,5 +1,6 @@
 import * as z from 'zod';
 
+import { clerkDraftTitle, clerkDraftType } from './clerk-drafts';
 import { KEY_FACTS, keyFactValue, partyDocId, type FactMatter, type KeyFactId } from './matter-detail';
 import { can, type Action } from './permissions';
 import type { SuggestionPayload } from './schemas/clerk';
@@ -53,6 +54,8 @@ export const SUGGESTION_KIND_ACTION: Readonly<Record<SuggestionKind, Action>> = 
   chronology: 'matter.edit',
   order: 'matter.edit',
   evidence: 'matter.edit',
+  // Accepting a letter starts a Clerk draft (AI-10b), which only needs Clerk.
+  letter: 'clerk.use',
 };
 
 /** Whether a role may accept a suggestion of this kind (privileged ones need `privileged.view`). */
@@ -74,6 +77,7 @@ export const SUGGESTION_KIND_LABELS: Readonly<Record<SuggestionKind, string>> = 
   chronology: 'Chronology',
   order: 'Court order',
   evidence: 'Evidence',
+  letter: 'Letter',
 };
 
 /** The card's accept button per kind ("Add task"). */
@@ -89,7 +93,16 @@ export const SUGGESTION_ACCEPT_LABELS: Readonly<Record<SuggestionKind, string>> 
   chronology: 'Add to chronology',
   order: 'Add order',
   evidence: 'Add evidence',
+  letter: 'Draft letter',
 };
+
+/**
+ * Whether a bulk accept takes the kind. A letter (AI-10b) is started one at a time, on the draft
+ * start page, so the person checks who it goes to and what it says first.
+ */
+export function acceptsInBulk(kind: SuggestionKind): boolean {
+  return kind !== 'letter';
+}
 
 const EVENT_LABELS: Partial<Record<EventKind, string>> = {
   date_of_death: 'Date of death',
@@ -148,6 +161,15 @@ export function suggestionSummary(suggestion: { kind: SuggestionKind; payload: u
       return `Order ${text(p['orderNo'])}: ${firstLine(text(p['text']), 100)}`;
     case 'evidence':
       return `Evidence (${text(p['supports'])})${p['documentId'] ? ` from document ${text(p['documentId'])}` : ''}`;
+    case 'letter': {
+      const type = clerkDraftType(text(p['typeId']));
+      const recipients = Array.isArray(p['recipients']) ? (p['recipients'] as { name?: unknown }[]) : [];
+      const named = recipients.flatMap((recipient) => (recipient.name ? [{ name: text(recipient.name) }] : []));
+      // The general letter's title ("Letter from your instructions") says nothing: its instructions do.
+      const title = clerkDraftTitle({ title: !type || type.needsInstructions ? 'Letter' : type.title }, named);
+      const about = firstLine(text(p['instructions']), 80);
+      return about ? `${title} · ${about}` : title;
+    }
   }
 }
 
@@ -184,6 +206,16 @@ export function defaultDedupeKey(suggestion: SuggestionPayload): string {
         return `${n(p['date'])}|${n(p['minutes'])}|${hashString(n(p['narrative']))}`;
       case 'document_meta':
         return `${n(p['documentId'])}|${n(p['category'])}|${n(p['title'])}`;
+      case 'letter': {
+        // The same kind of letter to the same people is the same proposal, however it is worded;
+        // the general letter is only what its instructions say.
+        const to = (Array.isArray(p['recipients']) ? (p['recipients'] as Record<string, unknown>[]) : [])
+          .map((recipient) => n(recipient['partyId'] ?? recipient['name']))
+          .sort()
+          .join(',');
+        const general = clerkDraftType(String(p['typeId'] ?? ''))?.needsInstructions === true;
+        return `${n(p['typeId'])}|${to}${general ? `|${hashString(n(p['instructions']))}` : ''}`;
+      }
       default:
         return hashString(stableJson(p));
     }

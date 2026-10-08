@@ -2,6 +2,7 @@ import type { Transaction } from 'firebase-admin/firestore';
 
 import {
   AcceptManySuggestionsInput,
+  acceptsInBulk,
   AcceptSuggestionInput,
   basisChanges,
   basisPartLabel,
@@ -10,6 +11,7 @@ import {
   isOpenSuggestion,
   PERMISSIONS,
   SUGGESTION_KIND_ACTION,
+  SUGGESTION_KIND_LABELS,
   SUGGESTION_PAYLOADS,
   SuggestionKindSchema,
   type AcceptManyItemResult,
@@ -22,7 +24,7 @@ import {
 } from '@materia/domain';
 
 import './handlers';
-import { suggestionHandler } from './registry';
+import { suggestionHandler, type ApplyContext, type ApplyResult } from './registry';
 import { asDate, countOutcomes, currentBasis, metricOf, suggestionPath, txReader, type Data } from './shared';
 import { audit } from '../audit/audit';
 import { defineCallable, type CallableContext, type CallableDefinition } from '../core/callable';
@@ -87,7 +89,18 @@ export interface AcceptOne {
   suggestionId: string;
   editedPayload?: Record<string, unknown> | undefined;
   expectedBasis?: string | undefined;
+  /** Only a suggestion of this kind: another is INVALID_ARGUMENT (`reason: 'suggestion_kind'`). */
+  kind?: SuggestionKind | undefined;
+  /** Part of a bulk accept: a kind that isn't accepted in bulk is INVALID_ARGUMENT (`reason: 'suggestion_bulk'`). */
+  bulk?: boolean | undefined;
 }
+
+/**
+ * Applies the suggestion instead of its kind's handler, with the same context: the caller's own
+ * domain write, joined to the same re-check and resolution (`clerk-startDraft` starting a letter
+ * suggestion with what the person chose on the start page, AI-10b).
+ */
+export type ApplyOverride = (ctx: ApplyContext<SuggestionKind>) => Promise<ApplyResult>;
 
 /**
  * Accepts one suggestion:
@@ -105,11 +118,14 @@ export interface AcceptOne {
  * 3. Otherwise the suggestion is `accepted` (or `edited`), with `resolvedBy`, `resolvedAt` and
  *    `resultRef`, in the same transaction; then audited as `suggestion.accepted` (the person as the
  *    actor, `via: 'clerk'`) and counted in the org's Clerk metrics.
+ *
+ * `apply` replaces the handler's own apply (the kind still needs a handler).
  */
 export async function acceptSuggestion(
   ctx: CallableContext<unknown>,
   clock: Clock,
   one: AcceptOne,
+  apply?: ApplyOverride,
 ): Promise<AcceptSuggestionResult> {
   const { db, orgId, uid, role, requestId, log } = ctx;
   const { matterId, suggestionId } = one;
@@ -120,6 +136,16 @@ export async function acceptSuggestion(
   const kindParse = SuggestionKindSchema.safeParse(stored['kind']);
   if (!kindParse.success) throw notFound(suggestionId);
   const kind: SuggestionKind = kindParse.data;
+  if (one.kind && one.kind !== kind)
+    throw new DomainError('INVALID_ARGUMENT', `The suggestion is a ${kind}, not a ${one.kind}`, {
+      reason: 'suggestion_kind',
+      kind,
+    });
+  if (one.bulk && !acceptsInBulk(kind))
+    throw new DomainError('INVALID_ARGUMENT', `Accept a ${SUGGESTION_KIND_LABELS[kind].toLowerCase()} on its own`, {
+      reason: 'suggestion_bulk',
+      kind,
+    });
   const handler = suggestionHandler(kind);
   if (!handler) {
     throw new DomainError('SUGGESTION_UNSUPPORTED', `Suggestions of kind ${kind} can't be accepted yet`, { kind });
@@ -181,7 +207,7 @@ export async function acceptSuggestion(
 
   let resultRef: string;
   try {
-    ({ resultRef } = await handler.apply({
+    ({ resultRef } = await (apply ?? handler.apply.bind(handler))({
       db,
       orgId,
       matterId,
@@ -272,7 +298,7 @@ export const acceptDefinition = {
 /**
  * `suggestions-acceptMany` (bulk accept on the Overview): accepts each id in order with the same
  * checks as `suggestions-accept`; one failing doesn't stop the rest, and each has its own result
- * (`ok`, or the error `code` and `details`).
+ * (`ok`, or the error `code` and `details`). A letter (AI-10b) isn't accepted in bulk.
  */
 export const acceptManyDefinition = {
   name: 'suggestions-acceptMany',
@@ -286,7 +312,7 @@ export const acceptManyDefinition = {
     const results: AcceptManyItemResult[] = [];
     for (const suggestionId of [...new Set(ctx.input.suggestionIds)]) {
       try {
-        const result = await acceptSuggestion(ctx, clock, { matterId: ctx.input.matterId, suggestionId });
+        const result = await acceptSuggestion(ctx, clock, { matterId: ctx.input.matterId, suggestionId, bulk: true });
         results.push({ ok: true, ...result });
       } catch (error) {
         if (!(error instanceof DomainError)) throw error;

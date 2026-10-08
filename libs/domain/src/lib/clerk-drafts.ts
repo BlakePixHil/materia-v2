@@ -2,7 +2,7 @@ import * as z from 'zod';
 
 import { CLERK_DRAFT_TYPES } from './clerk-draft-types.generated';
 import { DOC_BODY_MAX } from './doc-templates';
-import { ContextManifestSchema } from './schemas/clerk';
+import { CLERK_DRAFT_INSTRUCTIONS_MAX, CLERK_DRAFT_RECIPIENTS_MAX, ContextManifestSchema } from './schemas/clerk';
 import { CitationSchema, DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './schemas/common';
 import { MatterTypeSchema, PartyRoleSchema, type MatterType } from './schemas/enums';
 
@@ -237,8 +237,6 @@ export const CLERK_DEFAULT_DRAFTING_STYLE = [
 
 // ---------- the draft record ----------
 
-export const CLERK_DRAFT_INSTRUCTIONS_MAX = 2_000;
-export const CLERK_DRAFT_RECIPIENTS_MAX = 10;
 /** The longest passage one rewrite takes: a section, not the whole letter. */
 export const CLERK_DRAFT_REWRITE_MAX = 8_000;
 export const CLERK_DRAFT_TITLE_MAX = 200;
@@ -361,7 +359,11 @@ export type ClerkDraftRecipientInput = z.infer<typeof ClerkDraftRecipientInput>;
 
 /**
  * `clerk-startDraft` (`clerk.use` and `document.upload`): creates the draft (`drafting`) and queues
- * `clerk-runDraft`, which streams Clerk's letter into it. Returns at once.
+ * `clerk-runDraft`, which streams Clerk's letter into it. Returns at once. Started from a `letter`
+ * suggestion (AI-10b), it also accepts the suggestion, in the same transaction: `edited` when the
+ * person changed the type, recipients or instructions. A suggestion that changed since Clerk made
+ * it fails with SUGGESTION_STALE until the person starts it again with `expectedBasis`; one already
+ * resolved (or gone) is left alone, and the letter starts on its own.
  */
 export const StartClerkDraftInput = z.object({
   requestId: RequestId,
@@ -371,6 +373,10 @@ export const StartClerkDraftInput = z.object({
   instructions: z.string().trim().max(CLERK_DRAFT_INSTRUCTIONS_MAX).default(''),
   /** For a letter to a third party: let Clerk draw on privileged material (off by default). */
   includePrivileged: z.boolean().default(false),
+  /** The `letter` suggestion it starts from (AI-10b). */
+  suggestionId: DocIdSchema.optional(),
+  /** After SUGGESTION_STALE: the basis the person reviewed (`details.basis`). */
+  expectedBasis: z.string().min(1).max(100).optional(),
 });
 export type StartClerkDraftInput = z.input<typeof StartClerkDraftInput>;
 export interface StartClerkDraftResult {

@@ -13,8 +13,10 @@ import {
   MATTER_PARTIES_QUERY,
   matterPartiesRepository,
   sortDrafts,
+  suggestionStaleOf,
 } from '@materia/data-access/repository';
 import {
+  basisPartLabel,
   CLERK_DRAFT_INSTRUCTIONS_MAX,
   CLERK_DRAFT_RECIPIENTS_MAX,
   clerkDraftTypesFor,
@@ -34,8 +36,11 @@ import { MatterScreen } from '../matter-detail/matter-screen';
  * Starting a Clerk draft (`/matters/:id/drafts/new`, AI-10, ADR-050): the letter types that fit the
  * matter, who it goes to (the matter's parties, the type's own roles first, or someone typed in),
  * optional instructions, and, for a letter to a third party, whether Clerk may draw on privileged
- * material. `?type=` and `?instructions=` prefill it (⌘J `/draft`). Clerk drafts on the server and
- * the editor opens at once to watch it. The person's earlier drafts on the matter are listed below.
+ * material. `?type=` and `?instructions=` prefill it (⌘J `/draft`), and a letter Clerk suggested
+ * (AI-10b) also its recipients (`?to=` party ids, `?toName=`/`?toAddress=`) and `?suggestion=`, which
+ * starting the draft accepts (against `?basis=` after a re-review; if its sources changed since, the
+ * page lists what changed and the next start accepts it anyway). Clerk drafts on the server and the
+ * editor opens at once to watch it. The person's earlier drafts on the matter are listed below.
  */
 @Component({
   selector: 'mt-clerk-draft-start-page',
@@ -59,6 +64,15 @@ import { MatterScreen } from '../matter-detail/matter-screen';
         <mt-note>Clerk doesn’t draft letters for this kind of matter yet.</mt-note>
       } @else {
         <form class="mt-col form" (submit)="$event.preventDefault(); start()">
+          @if (changes(); as changes) {
+            <mt-note tone="warning" data-suggestion-stale>
+              Since Clerk suggested this letter, these changed: {{ changes }}. Check the letter, then draft it.
+            </mt-note>
+          } @else if (suggestionId()) {
+            <mt-note data-from-suggestion>
+              Clerk suggested this letter. Check who it goes to and what it says; drafting it accepts the suggestion.
+            </mt-note>
+          }
           <mt-radio-group
             name="type"
             label="Letter"
@@ -236,6 +250,10 @@ export class ClerkDraftStartPage {
   protected readonly includePrivileged = signal(false);
   protected readonly starting = signal(false);
   protected readonly error = signal<unknown>(null);
+  /** The letter suggestion this starts (AI-10b), the basis to accept it against, and what changed. */
+  protected readonly suggestionId = signal<string | null>(null);
+  private readonly basis = signal<string | null>(null);
+  protected readonly changes = signal<string | null>(null);
 
   private readonly draftQuery = clerkDraftRepository(this.id).watchQuery(() => {
     const uid = this.context.uid();
@@ -255,6 +273,17 @@ export class ClerkDraftStartPage {
       untracked(() => {
         this.typeId.set(types.find((type) => type.id === asked)?.id ?? types[0]?.id ?? null);
         this.instructions.set((query.get('instructions') ?? '').slice(0, CLERK_DRAFT_INSTRUCTIONS_MAX));
+        // A letter Clerk suggested (AI-10b): who it goes to, and the suggestion it accepts.
+        const to = (query.get('to') ?? '').split(',').filter(Boolean);
+        this.chosen.set([...new Set(to)].slice(0, CLERK_DRAFT_RECIPIENTS_MAX));
+        const toName = query.get('toName')?.trim();
+        if (toName) {
+          this.other.set(true);
+          this.otherName.set(toName);
+          this.otherAddress.set(query.get('toAddress') ?? '');
+        }
+        this.suggestionId.set(query.get('suggestion') || null);
+        this.basis.set(query.get('basis') || null);
       });
     });
     // Contact names, read once per contact.
@@ -325,6 +354,8 @@ export class ClerkDraftStartPage {
     }
     this.starting.set(true);
     this.error.set(null);
+    const suggestionId = this.suggestionId();
+    const basis = this.basis();
     try {
       const { draftId } = await this.api.start({
         matterId,
@@ -332,10 +363,22 @@ export class ClerkDraftStartPage {
         recipients,
         instructions,
         includePrivileged: type.audience === 'third_party' && this.includePrivileged(),
+        ...(suggestionId ? { suggestionId, ...(basis ? { expectedBasis: basis } : {}) } : {}),
       });
       await this.router.navigate(['/matters', matterId, 'drafts', draftId], { replaceUrl: true });
     } catch (error) {
-      this.error.set(error);
+      const stale = suggestionId ? suggestionStaleOf(error) : null;
+      if (stale) {
+        // The matter or a cited document changed since Clerk suggested it: say what, and accept it
+        // against the current data when the person drafts it again.
+        this.basis.set(stale.basis);
+        const labels = [...new Set(stale.changed.map((change) => basisPartLabel(change.key)))].map(
+          (label) => label.charAt(0).toLowerCase() + label.slice(1),
+        );
+        this.changes.set(labels.length ? labels.join(', ') : 'the matter or a cited document');
+      } else {
+        this.error.set(error);
+      }
     } finally {
       this.starting.set(false);
     }

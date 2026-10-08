@@ -107,6 +107,31 @@ export const TimeEntryProposalSchema = z.strictObject({
   billable: z.boolean().default(true),
   taskId: DocIdSchema.optional(),
 });
+/** The longest instructions a Clerk letter takes, and the most people it goes to (AI-10). */
+export const CLERK_DRAFT_INSTRUCTIONS_MAX = 2_000;
+export const CLERK_DRAFT_RECIPIENTS_MAX = 10;
+
+/**
+ * Who a proposed letter goes to: a party on the matter (with the name it had when Clerk proposed
+ * it, for the card; the draft reads the party again), or someone typed in on the start page.
+ */
+export const LetterRecipientProposalSchema = z.union([
+  z.strictObject({ partyId: DocIdSchema, name: z.string().trim().min(1).max(200).optional() }),
+  z.strictObject({ name: NonEmptyString.max(200), address: z.string().trim().max(500).optional() }),
+]);
+export type LetterRecipientProposal = z.infer<typeof LetterRecipientProposalSchema>;
+
+/**
+ * A letter for Clerk to draft (AI-10b): one of the drafting types (`libs/clerk/drafts`), who it goes
+ * to and what it covers. Accepting it starts the draft (`clerk-startDraft`, AI-10): the card opens
+ * the start page with these filled in, and the suggestion is accepted once the person starts it.
+ */
+export const LetterProposalSchema = z.strictObject({
+  typeId: z.string().regex(/^[a-z][a-z0-9-]{1,59}$/),
+  recipients: z.array(LetterRecipientProposalSchema).max(CLERK_DRAFT_RECIPIENTS_MAX).default([]),
+  instructions: z.string().trim().max(CLERK_DRAFT_INSTRUCTIONS_MAX).default(''),
+});
+
 /** A document's category or title (the document's `name`). */
 export const DocumentMetaProposalSchema = z
   .strictObject({
@@ -137,6 +162,7 @@ export const SuggestionPayloadSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('order'), payload: CourtOrder.create }),
   z.object({ kind: z.literal('document_meta'), payload: DocumentMetaProposalSchema }),
   z.object({ kind: z.literal('evidence'), payload: Evidence.create }),
+  z.object({ kind: z.literal('letter'), payload: LetterProposalSchema }),
 ]);
 export type SuggestionPayload = z.infer<typeof SuggestionPayloadSchema>;
 /** The payload of one kind. */

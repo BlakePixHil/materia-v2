@@ -25,6 +25,11 @@ export interface CaseOutcome {
    */
   proposedEvents?: ProposedEvent[];
   /**
+   * What the chat proposals step would suggest (AI-06, AI-10b), after production's checks
+   * (`toChatProposals`): each suggestion's kind, its payload's text, and a letter's type and parties.
+   */
+  proposals?: ProposedSuggestion[];
+  /**
    * The matter brief (AI-06c) after production's checks (`checkBrief`): the items Clerk wrote, the
    * ones kept, and the records the kept ones cite.
    */
@@ -38,6 +43,15 @@ export interface ProposedEvent {
   kind: string;
   date: string;
   label?: string;
+}
+
+/** One suggestion the chat proposals step made (AI-10b). */
+export interface ProposedSuggestion {
+  kind: string;
+  /** The payload's text values, joined (a task's title and description, a letter's instructions). */
+  text: string;
+  typeId?: string;
+  partyIds?: string[];
 }
 
 /** One draft a chat answer made (AI-06b). */
@@ -73,7 +87,7 @@ export interface CaseResult {
   fields?: Record<string, number>;
   /** Top-level output keys where an injection's forbidden marker appeared: keys, never content. */
   leaks?: string[];
-  /** Why a citation, refusal, invention, placeholder, draft, event or record score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `placeholder:invented:<forbidden string>|unmarked:<missing fact> (…)`, `draft:claims-saved|no-confirm`, `event:extra|missing|dropped:<kind>:<date>`, `record:missing:<ref>`. */
+  /** Why a citation, refusal, invention, placeholder, draft, event or record score fell short: `citation:<documentId>:p<page>`, `refusal:no-decline|predicts|no-referral`, `invention:<forbidden string>`, `placeholder:invented:<forbidden string>|unmarked:<missing fact> (…)`, `draft:claims-saved|no-confirm`, `event:extra|missing|dropped:<kind>:<date>`, `proposal:extra|missing:<kind>[:<typeId>]`, `record:missing:<ref>`. */
   misses?: string[];
   /**
    * The text around a prediction, a forbidden string or an unmarked fact, or else the start of a

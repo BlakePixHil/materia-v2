@@ -138,6 +138,13 @@ const SUGGESTIONS: SuggestionVm[] = [
     rationale: 'UCPR r 78.3 · 14 days after the notice is published',
     acceptLabel: 'Add deadline',
   },
+  {
+    id: 's3',
+    kind: 'Letter',
+    title: 'Grant notification to beneficiaries: Megan Ashby, Paul Ashby · Tell them the grant issued on 14 April.',
+    rationale: 'The grant has issued and the beneficiaries haven’t been told',
+    acceptLabel: 'Draft letter',
+  },
 ];
 
 const meta: Meta = {
@@ -286,6 +293,7 @@ export const WorkingAndSuggestions: Story = {
         <mt-clerk-working label="Searching the NSW Online Registry" [reducedMotion]="true" />
         <mt-suggestion [suggestion]="suggestions[0]" />
         <mt-suggestion [suggestion]="suggestions[1]" [stale]="true" />
+        <mt-suggestion [suggestion]="suggestions[2]" [canEdit]="false" />
         <mt-suggestion [suggestion]="suggestions[1]">
           <div class="mt-row" style="gap: 6px; font-size: 13px"><s style="color: var(--text-tertiary)">2 Oct</s> → <b>16 Oct</b></div>
         </mt-suggestion>
@@ -294,6 +302,10 @@ export const WorkingAndSuggestions: Story = {
   }),
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getAllByRole('img', { name: 'Clerk' }).length).toBeGreaterThanOrEqual(5);
+    // A letter opens the draft start page to check: no Edit beside its accept verb.
+    const letter = within(within(canvasElement).getByRole('group', { name: /Grant notification/ }));
+    await expect(letter.getByRole('button', { name: 'Draft letter' })).toBeVisible();
+    await expect(letter.queryByRole('button', { name: 'Edit' })).toBeNull();
   },
 };
 export const WorkingAndSuggestionsDark: Story = { ...WorkingAndSuggestions, globals: { theme: 'dark' } };

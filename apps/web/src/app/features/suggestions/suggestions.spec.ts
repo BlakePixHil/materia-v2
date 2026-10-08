@@ -325,4 +325,70 @@ describe('Clerk suggests… on the Overview', () => {
     ]);
     expect(titles(page)).toEqual(['Will date: 2019-09-30', 'Counsel’s advice on the claim']);
   });
+
+  describe('a letter Clerk suggested (AI-10b)', () => {
+    const LETTER = {
+      typeId: 'grant-notification',
+      recipients: [
+        { partyId: 'p-bram', name: 'Bram Ostler' },
+        { name: 'Fictional Bank', address: '1 Fictional St' },
+      ],
+      instructions: 'Say the grant issued.',
+    };
+    const letters = (fs: InMemoryFirestore) => {
+      fs.set(path('s-letter'), suggestionDoc('letter', LETTER));
+      fs.set(
+        path('s-letter-2'),
+        suggestionDoc('letter', { typeId: 'client-update', recipients: [], instructions: '' }),
+      );
+      fs.set(
+        path('s-letter-stale'),
+        suggestionDoc(
+          'letter',
+          { typeId: 'letter', recipients: [], instructions: 'Ask for the meter reading.' },
+          { status: 'stale', staleReview: { basis: 'b-3', changed: ['matter.status'], at: PAST } },
+        ),
+      );
+    };
+
+    it('opens the draft start page filled in instead of accepting, with no Edit and no bulk accept', async () => {
+      const page = await open({ configure: letters });
+      const letter = () => card(page, 's-letter') ?? undefined;
+      expect(page.text(letter())).toContain(
+        'Grant notification to beneficiaries: Bram Ostler and Fictional Bank · Say the grant issued.',
+      );
+      expect(page.buttons('Edit', letter())).toHaveLength(0);
+      expect(page.buttons('Accept all', section(page) ?? undefined).map((button) => page.text(button))).toEqual([
+        'Accept all 2 tasks',
+      ]);
+      await page.click('Draft letter', letter());
+      await page.stable(10);
+      expect(page.calls('suggestions-accept')).toEqual([]);
+      const url = page.router.parseUrl(page.router.url);
+      expect(page.router.url.split('?')[0]).toBe('/matters/m-whitfield/drafts/new');
+      expect(url.queryParams).toEqual({
+        type: 'grant-notification',
+        instructions: 'Say the grant issued.',
+        to: 'p-bram',
+        toName: 'Fictional Bank',
+        toAddress: '1 Fictional St',
+        suggestion: 's-letter',
+      });
+    });
+
+    it('shows what changed on a stale one, then opens it to accept against the current data', async () => {
+      const page = await open({ configure: letters });
+      const stale = () => card(page, 's-letter-stale') ?? undefined;
+      await page.click('Review', stale());
+      expect(page.text(stale())).toContain('Matter status');
+      await page.click('Draft letter anyway', stale());
+      await page.stable(10);
+      expect(page.router.parseUrl(page.router.url).queryParams).toEqual({
+        type: 'letter',
+        instructions: 'Ask for the meter reading.',
+        suggestion: 's-letter-stale',
+        basis: 'b-3',
+      });
+    });
+  });
 });

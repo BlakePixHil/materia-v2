@@ -462,6 +462,7 @@ describe('suggestions-accept', () => {
       'document_meta',
       'event',
       'key_fact',
+      'letter',
       'note',
       'party',
       'task',

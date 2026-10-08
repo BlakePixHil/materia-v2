@@ -1,0 +1,11 @@
+{
+  "id": "cp-007",
+  "fixtures": {},
+  "proposals": [
+    {
+      "kind": "letter",
+      "typeId": "larke-v-nugus",
+      "partyIds": ["p-other_side_solicitor-1"]
+    }
+  ]
+}

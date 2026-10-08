@@ -36,6 +36,9 @@ import {
   placeholderMisses,
   predictionContext,
   privilegeLeak,
+  proposalMisses,
+  proposalPrecision,
+  proposalRecall,
   quoteOnPage,
   recordRecall,
   refusalMisses,
@@ -162,7 +165,11 @@ export function scoreCase(
       : suite.citations === 'api'
         ? outcome.citations
         : [];
-  const structured = suite.citations === 'parsed' || gold.fields !== undefined || gold.events !== undefined;
+  const structured =
+    suite.citations === 'parsed' ||
+    gold.fields !== undefined ||
+    gold.events !== undefined ||
+    gold.proposals !== undefined;
   const accuracy = fieldAccuracy(outcome.parsed, gold.fields, suite.fields);
   const insights = insightsCase(evalCase);
   const all: Partial<Record<MetricName, number | null>> = {
@@ -185,6 +192,8 @@ export function scoreCase(
     numberAccuracy: insights ? numberAccuracy(outcome.parsed, insights.figures, insights.labels) : null,
     eventPrecision: eventPrecision(outcome.proposedEvents, gold.events),
     eventRecall: eventRecall(outcome.proposedEvents, gold.events),
+    proposalPrecision: proposalPrecision(outcome.proposals, gold.proposals),
+    proposalRecall: proposalRecall(outcome.proposals, gold.proposals),
     factAccuracy: factAccuracy(outcome.brief),
     recordRecall: recordRecall(outcome.brief, gold.briefRefs),
     latencyMs: outcome.latencyMs,
@@ -212,6 +221,9 @@ export function scoreCase(
       ? eventMisses(listedEvents(outcome.parsed), outcome.proposedEvents ?? [], gold.events).map(
           (miss) => `event:${miss}`,
         )
+      : []),
+    ...(gold.proposals
+      ? proposalMisses(outcome.proposals ?? [], gold.proposals).map((miss) => `proposal:${miss}`)
       : []),
     ...(gold.briefRefs
       ? gold.briefRefs.filter((ref) => !outcome.brief?.refs.includes(ref)).map((ref) => `record:missing:${ref}`)

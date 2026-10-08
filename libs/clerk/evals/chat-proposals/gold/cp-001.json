@@ -1,0 +1,13 @@
+{
+  "id": "cp-001",
+  "fixtures": {
+    "matters/ashby/grant-letter.txt": "d7cb36c571823e5f"
+  },
+  "proposals": [
+    {
+      "kind": "letter",
+      "typeId": "grant-notification",
+      "partyIds": ["p-beneficiary-1", "p-beneficiary-2"]
+    }
+  ]
+}

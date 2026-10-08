@@ -1,33 +1,25 @@
-import { createHash } from 'node:crypto';
-
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import * as z from 'zod';
 
 import {
-  can,
   CLERK_DRAFT_CALLABLES,
   CLERK_DRAFT_DOCUMENT_TAG,
-  ClerkDraft,
-  clerkDraftsPath,
-  clerkDraftTitle,
   clerkDraftType,
-  clerkDraftTypesFor,
   DocIdSchema,
   DomainError,
   draftPlaceholders,
   fitProvenance,
   joinNames,
   PERMISSIONS,
-  personFields,
   provenanceTotals,
   RedraftClerkDraftInput,
   RewriteClerkDraftInput,
   RoleSchema,
   SaveClerkDraftInput,
+  LetterProposalSchema,
   StartClerkDraftInput,
   toConfirm,
   type ClerkDraftRecipient,
-  type ClerkDraftRecipientInput,
   type ClerkDraftType,
   type RedraftClerkDraftResult,
   type RewriteClerkDraftResult,
@@ -35,6 +27,7 @@ import {
   type StartClerkDraftResult,
 } from '@materia/domain';
 
+import { sameLetter, startedLetter } from './letter-suggestion';
 import {
   DRAFT_REWRITE_PROMPT,
   draftQuery,
@@ -44,10 +37,11 @@ import {
   runDraft,
   withholdsPrivileged,
   type DraftRunDeps,
-  type DraftRunTask,
 } from './run';
+import { DRAFT_QUEUE, draftPath, enqueueDraft, freshRun, startClerkDraft, type StartDraftRequest } from './start';
 import { audit } from '../../audit/audit';
-import { defineCallable, type CallableDefinition } from '../../core/callable';
+import { defineCallable, type CallableContext, type CallableDefinition } from '../../core/callable';
+import { orgClock } from '../../core/emulator-clock';
 import type { Log } from '../../core/log';
 import { defineQueue } from '../../core/tasks';
 import { generateDocument } from '../../docs/generate';
@@ -55,14 +49,15 @@ import { storageFiles, type FileStore } from '../../documents/files';
 import { matterPath, writableMatter } from '../../matters/shared';
 import type { Clock, Ports } from '../../ports';
 import { systemClock } from '../../ports/container';
+import { acceptSuggestion } from '../../suggestions/accept';
+import { suggestionPath } from '../../suggestions/shared';
 import { checkClerkAvailable } from '../available';
 import { clerkContext } from '../context/service';
 import { clerkGateway } from '../service';
 
-type Data = Record<string, unknown>;
+export { clerkDraftId, DRAFT_QUEUE } from './start';
 
-/** The queue that writes drafts server-side (AI-10): Cloud Tasks, so navigating away doesn't stop one. */
-export const DRAFT_QUEUE = 'clerk-runDraft';
+type Data = Record<string, unknown>;
 
 export const DraftRunTaskSchema = z.object({
   orgId: DocIdSchema,
@@ -72,13 +67,6 @@ export const DraftRunTaskSchema = z.object({
   role: RoleSchema,
   requestId: z.string().min(1).max(100),
 });
-
-/** The draft's id: the same `clerk-startDraft` request always names the same draft. */
-export const clerkDraftId = (orgId: string, requestId: string) =>
-  `cd-${createHash('sha256').update(`${orgId}/${requestId}`).digest('hex').slice(0, 32)}`;
-
-const draftPath = (orgId: string, matterId: string, draftId: string) =>
-  `${clerkDraftsPath(orgId, matterId)}/${draftId}`;
 
 /** A draft the caller owns, live; anything else is NOT_FOUND (another person's draft is never revealed). */
 async function ownDraft(db: Firestore, orgId: string, matterId: string, uid: string, draftId: string): Promise<Data> {
@@ -102,131 +90,80 @@ function draftTypeOf(draft: Data): ClerkDraftType {
   return type;
 }
 
-type ContactData = Parameters<typeof personFields>[0];
-
 /**
- * The recipients as the draft keeps them: a party's name and address from its contact (the postal
- * address first, as the letterhead does), or what the person typed. A party that isn't on the
- * matter is refused.
+ * Starts the draft as the acceptance of the `letter` suggestion it came from (AI-10b): the draft is
+ * created in the transaction that re-checks the suggestion and resolves it (`edited` when the person
+ * changed the type, recipients or instructions), with what they chose on the start page. A changed
+ * basis is SUGGESTION_STALE, as on the card. Returns undefined when there is nothing left to accept
+ * (resolved, expired, deleted, or hidden from them): the letter then starts on its own.
  */
-async function resolveRecipients(
-  db: Firestore,
-  orgId: string,
-  matterId: string,
-  inputs: readonly ClerkDraftRecipientInput[],
-): Promise<ClerkDraftRecipient[]> {
-  const recipients: ClerkDraftRecipient[] = [];
-  const seen = new Set<string>();
-  for (const input of inputs) {
-    if (!('partyId' in input)) {
-      recipients.push({ name: input.name, address: input.address?.trim() || null });
-      continue;
-    }
-    if (seen.has(input.partyId)) continue;
-    seen.add(input.partyId);
-    const party = (await db.doc(`${matterPath(orgId, matterId)}/parties/${input.partyId}`).get()).data();
-    if (!party || (party['deletedAt'] ?? null) !== null)
-      throw new DomainError('INVALID_ARGUMENT', 'That person isn’t on the matter', {
-        reason: 'recipient',
-        partyId: input.partyId,
-      });
-    const contactId = String(party['contactId']);
-    const contact = (await db.doc(`orgs/${orgId}/contacts/${contactId}`).get()).data();
-    const fields =
-      contact && (contact['deletedAt'] ?? null) === null ? personFields(contact as ContactData) : undefined;
-    if (!fields?.['fullName'])
-      throw new DomainError('INVALID_ARGUMENT', 'That person has no contact details', {
-        reason: 'recipient',
-        partyId: input.partyId,
-      });
-    recipients.push({
-      partyId: input.partyId,
-      contactId,
-      role: party['role'] as ClerkDraftRecipient['role'],
-      name: fields['fullName'].slice(0, 200),
-      address: fields['address']?.slice(0, 500) ?? null,
-    });
+async function startFromSuggestion(
+  ctx: CallableContext<unknown>,
+  request: StartDraftRequest,
+  suggestionId: string,
+  expectedBasis: string | undefined,
+): Promise<string | undefined> {
+  const { db, orgId, log } = ctx;
+  const stored = (await db.doc(suggestionPath(orgId, request.matterId, suggestionId)).get()).data();
+  const proposed = stored?.['kind'] === 'letter' ? LetterProposalSchema.safeParse(stored['payload']) : undefined;
+  const started = proposed?.success ? startedLetter(request, proposed.data) : undefined;
+  const clock = await orgClock(db, orgId, ctx.clock);
+  let draftId: string | undefined;
+  try {
+    await acceptSuggestion(
+      ctx,
+      clock,
+      {
+        matterId: request.matterId,
+        suggestionId,
+        kind: 'letter',
+        expectedBasis,
+        ...(started && proposed?.success && !sameLetter(started, proposed.data) ? { editedPayload: started } : {}),
+      },
+      async (apply) => {
+        const draft = await startClerkDraft({ ...ctx, clock }, request, apply.join);
+        draftId = draft.draftId;
+        return { resultRef: draft.path };
+      },
+    );
+    return draftId;
+  } catch (error) {
+    const gone =
+      error instanceof DomainError &&
+      (error.code === 'ALREADY_RESOLVED' ||
+        (error.code === 'NOT_FOUND' && error.details?.['suggestionId'] === suggestionId));
+    if (!gone) throw error;
+    log.info('clerk draft suggestion not accepted', { suggestionId, code: error.code });
+    return undefined;
   }
-  return recipients;
 }
-
-async function enqueueDraft(ports: Ports, task: DraftRunTask): Promise<void> {
-  await ports.tasks.enqueue(
-    DRAFT_QUEUE,
-    { ...task },
-    { dedupeKey: `clerk-draft-${task.orgId}-${task.draftId}-${task.requestId}` },
-  );
-}
-
-/** What a new run starts from: Clerk's text so far cleared, and this request as the current run. */
-const freshRun = (requestId: string) => ({
-  status: 'drafting',
-  stopRequested: false,
-  bodyMd: '',
-  provenance: [],
-  generatedMd: '',
-  citations: [],
-  missingFacts: [],
-  truncated: false,
-  runId: requestId,
-});
 
 /**
  * `clerk-startDraft` (AI-10, ADR-050): starts a letter of one of the registry's types on a matter
- * and returns at once. It checks the type fits the matter and resolves the recipients from the
- * matter's parties, creates the draft (`drafting`, private to the caller) and queues
- * `clerk-runDraft`, which streams Clerk's letter into it while the editor listens. Says at once
- * when Clerk is off, over budget or missing its key.
+ * and returns at once (`startClerkDraft`): Clerk streams it into the draft while the editor
+ * listens. Says at once when Clerk is off, over budget or missing its key. From a `letter`
+ * suggestion (AI-10b) it also accepts the suggestion (`startFromSuggestion`).
  */
 export const startDraftDefinition = {
   name: CLERK_DRAFT_CALLABLES.start,
   input: StartClerkDraftInput,
   roles: PERMISSIONS['clerk.use'],
   idempotent: true,
-  handler: async ({ input, uid, orgId, role, requestId, db, clock, ports, log }): Promise<StartClerkDraftResult> => {
-    await checkClerkAvailable(db, orgId, clock, 'drafting');
-    const matter = writableMatter(await db.doc(matterPath(orgId, input.matterId)).get(), role, input.matterId);
-    const type = clerkDraftType(input.typeId);
-    if (!type || !clerkDraftTypesFor(String(matter['type'])).includes(type))
-      throw new DomainError('INVALID_ARGUMENT', 'Clerk doesn’t draft that letter on this matter', {
-        reason: 'draft_type',
-        typeId: input.typeId,
-      });
-    if (type.needsInstructions && !input.instructions)
-      throw new DomainError('INVALID_ARGUMENT', 'Say what the letter is about', { reason: 'instructions_required' });
-    const recipients = await resolveRecipients(db, orgId, input.matterId, input.recipients);
-
-    const ref = db.doc(draftPath(orgId, input.matterId, clerkDraftId(orgId, requestId)));
-    const at = clock.now();
-    const record = ClerkDraft.schema.parse({
-      typeId: type.id,
-      title: clerkDraftTitle(type, recipients),
-      ownerUid: uid,
-      recipients,
+  handler: async (ctx): Promise<StartClerkDraftResult> => {
+    const { input } = ctx;
+    const request: StartDraftRequest = {
+      matterId: input.matterId,
+      typeId: input.typeId,
+      recipients: input.recipients,
       instructions: input.instructions,
-      // Only a letter to a third party asks, and only a role that may see privileged material can allow it.
-      includePrivileged: input.includePrivileged && type.audience === 'third_party' && can(role, 'privileged.view'),
-      ...freshRun(requestId),
-      privileged: false,
-      rewrites: 0,
-      documentIds: [],
-      deletedAt: null,
-      createdAt: at,
-      createdBy: uid,
-      updatedAt: at,
-      updatedBy: uid,
-      schemaVersion: ClerkDraft.version,
-      _requestId: requestId,
-    });
-    try {
-      await ref.create(record);
-    } catch (error) {
-      // A retry of a request whose first attempt created the draft: it is already there.
-      if ((error as { code?: number }).code !== 6) throw error;
-    }
-    await enqueueDraft(ports, { orgId, matterId: input.matterId, draftId: ref.id, uid, role, requestId });
-    log.info('clerk draft queued', { draftId: ref.id, typeId: type.id, recipients: recipients.length });
-    return { draftId: ref.id };
+      includePrivileged: input.includePrivileged,
+    };
+    const fromSuggestion = input.suggestionId
+      ? await startFromSuggestion(ctx, request, input.suggestionId, input.expectedBasis)
+      : undefined;
+    if (fromSuggestion) return { draftId: fromSuggestion };
+    const { draftId } = await startClerkDraft(ctx, request);
+    return { draftId };
   },
 } satisfies CallableDefinition<typeof StartClerkDraftInput, StartClerkDraftResult>;
 

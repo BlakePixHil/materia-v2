@@ -1,0 +1,11 @@
+{
+  "id": "cp-010",
+  "fixtures": {},
+  "proposals": [
+    {
+      "kind": "letter",
+      "typeId": "fp-letter-of-demand",
+      "partyIds": ["p-other_side_solicitor-3"]
+    }
+  ]
+}

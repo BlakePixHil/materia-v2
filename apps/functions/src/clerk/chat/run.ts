@@ -1,12 +1,16 @@
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
-import { clerkModelFor, type ChatProposalsOutput } from '@materia/clerk';
+import { clerkModelFor, type ChatProposalsOutput, type PromptVariables } from '@materia/clerk';
 import {
   canAcceptSuggestion,
+  CLERK_DRAFT_INSTRUCTIONS_MAX,
+  clerkDraftTypesFor,
   defaultDedupeKey,
   DomainError,
+  orgClerkFeatureOn,
   parseClerkCommand,
   type ClerkChatCommand,
+  type ClerkDraftType,
   type ContextManifest,
   type FlagKey,
   type Role,
@@ -34,7 +38,7 @@ function waitedMs(createdAt: unknown, startedAt: Date): number | undefined {
 
 /** The chat prompt (AI-06) and its follow-on steps. */
 export const CHAT_PROMPT = 'chat@1.1.0';
-export const CHAT_PROPOSALS_PROMPT = 'chat-proposals@1.0.0';
+export const CHAT_PROPOSALS_PROMPT = 'chat-proposals@1.1.0';
 export const CHAT_SUMMARY_PROMPT = 'chat-summary@1.0.0';
 
 /** What the queue carries: one answer to write (`clerk-sendMessage` or `clerk-retryMessage` created it). */
@@ -301,9 +305,98 @@ async function continuation(deps: ChatRunDeps, ctx: GatewayContext, thread: Data
 }
 
 /**
+ * The letters the proposals step may offer (AI-10b): the drafting types that fit the matter, while
+ * Clerk drafting is on for the org (its kill switch and the org's own toggle); none otherwise.
+ */
+async function proposableLetters(deps: ChatRunDeps, orgId: string, matterType: unknown): Promise<ClerkDraftType[]> {
+  if (typeof matterType !== 'string' || !(await deps.flag(orgId, 'clerk.features.drafting'))) return [];
+  const settings = ((await deps.db.doc(`orgs/${orgId}`).get()).get('settings.clerk') ?? {}) as Parameters<
+    typeof orgClerkFeatureOn
+  >[0];
+  return orgClerkFeatureOn(settings, 'drafting') ? clerkDraftTypesFor(matterType) : [];
+}
+
+/** The `<letter_types>` the proposals prompt lists (AI-10b): one line per type, or why there are none. */
+export function letterTypeLines(letters: readonly ClerkDraftType[]): string {
+  if (!letters.length) return 'None: Clerk can’t draft letters on this matter.';
+  return letters
+    .map((type) => {
+      const to = type.recipientRoles.length ? ` Usually to: ${type.recipientRoles.join(', ').replace(/_/g, ' ')}.` : '';
+      return `- ${type.id}: ${type.title}. ${type.description}${to}${type.needsInstructions ? ' Needs instructions.' : ''}`;
+    })
+    .join('\n');
+}
+
+/** The proposals step's prompt variables (`chat-proposals@1.1.0`). */
+export function chatProposalVars(
+  question: string,
+  answer: string,
+  letters: readonly ClerkDraftType[],
+): PromptVariables {
+  return { question, answer, letterTypes: letterTypeLines(letters) };
+}
+
+/** What Clerk was shown when it proposed: the context's documents, the matter facts, the letters offered. */
+export interface ProposalSources {
+  manifest: ContextManifest;
+  facts?: Record<string, unknown> | undefined;
+  letters: readonly ClerkDraftType[];
+}
+
+/**
+ * The step's proposals as suggestions (AI-07). A cited source must be one the context or the tools
+ * showed (never an invented id), and carries the version Clerk read. A letter (AI-10b) must be one
+ * of the types offered (the general one with instructions), to parties the matter facts name (each
+ * with its name there, for the card); a party Clerk made up is dropped.
+ */
+export function toChatProposals(
+  items: readonly ChatProposalsOutput['proposals'][number][],
+  sources: ProposalSources,
+): SuggestionProposal[] {
+  const versions = new Map<string, number>();
+  for (const doc of [...sources.manifest.documents, ...sources.manifest.chunks])
+    versions.set(doc.documentId, doc.version);
+  const parties = new Map(
+    (Array.isArray(sources.facts?.['parties']) ? (sources.facts['parties'] as Record<string, unknown>[]) : []).flatMap(
+      (party) => (typeof party['id'] === 'string' ? [[party['id'], party['name']] as const] : []),
+    ),
+  );
+  return items.flatMap((item): SuggestionProposal[] => {
+    let payload: unknown = item.payload;
+    if (item.kind === 'letter') {
+      const type = sources.letters.find((letter) => letter.id === item.payload.typeId);
+      const instructions = item.payload.instructions.trim().slice(0, CLERK_DRAFT_INSTRUCTIONS_MAX);
+      if (!type || (type.needsInstructions && !instructions)) return [];
+      const recipients = [...new Set(item.payload.partyIds)].flatMap((partyId) => {
+        if (!parties.has(partyId)) return [];
+        const name = parties.get(partyId);
+        return [{ partyId, ...(typeof name === 'string' && name ? { name: name.slice(0, 200) } : {}) }];
+      });
+      payload = { typeId: type.id, recipients, instructions };
+    }
+    return [
+      {
+        kind: item.kind,
+        payload,
+        rationale: item.rationale,
+        citations: item.citations
+          .filter((citation) => versions.has(citation.documentId))
+          .map((citation) => ({
+            kind: 'document' as const,
+            documentId: citation.documentId,
+            docVersion: versions.get(citation.documentId) as number,
+            page: citation.page,
+            quote: citation.quote,
+          })),
+      } as SuggestionProposal,
+    ];
+  });
+}
+
+/**
  * The proposals step: structured output over the same context, then `proposeSuggestions` (AI-07).
- * A cited source must be one the context or the tools showed (never an invented id); it carries the
- * version Clerk read. Off with `clerk.features.suggestions`.
+ * The matter's letter types are offered while Clerk drafting is on (AI-10b). Off with
+ * `clerk.features.suggestions`.
  */
 async function propose(
   deps: ChatRunDeps,
@@ -315,31 +408,18 @@ async function propose(
   if (!(await deps.flag(ctx.orgId, 'clerk.features.suggestions'))) return [];
   const { question, answer, context, manifest } = turn;
   try {
+    const matter = context.facts?.['matter'] as Record<string, unknown> | undefined;
+    const letters = await proposableLetters(deps, ctx.orgId, matter?.['type']);
     const result = await deps.gateway.run<ChatProposalsOutput>({
       ctx,
       feature: 'chatProposals',
       promptId: CHAT_PROPOSALS_PROMPT,
-      vars: { question, answer: answer.text ?? '' },
+      vars: chatProposalVars(question, answer.text ?? '', letters),
       context,
     });
     const items = result.status === 'done' ? (result.parsed?.proposals ?? []) : [];
-    if (!items.length) return [];
-    const versions = new Map<string, number>();
-    for (const doc of [...manifest.documents, ...manifest.chunks]) versions.set(doc.documentId, doc.version);
-    const proposals: SuggestionProposal[] = items.map((item) => ({
-      kind: item.kind,
-      payload: item.payload,
-      rationale: item.rationale,
-      citations: item.citations
-        .filter((citation) => versions.has(citation.documentId))
-        .map((citation) => ({
-          kind: 'document' as const,
-          documentId: citation.documentId,
-          docVersion: versions.get(citation.documentId) as number,
-          page: citation.page,
-          quote: citation.quote,
-        })),
-    })) as SuggestionProposal[];
+    const proposals = toChatProposals(items, { manifest, facts: context.facts, letters });
+    if (!proposals.length) return [];
     const [promptId, promptVersion] = result.promptRef.split('@') as [string, string];
     const created = await proposeSuggestions(
       { db: deps.db, orgId: ctx.orgId, clock: deps.clock, log: ctx.log },

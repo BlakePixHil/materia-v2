@@ -111,9 +111,21 @@ function chatProposal<K extends string, P extends z.ZodType>(kind: K, payload: P
 }
 
 /**
+ * A letter for Clerk to draft (AI-10b, `chat-proposals@1.1.0`): a type the prompt lists, the matter
+ * parties it goes to (their `id`s in the matter facts) and what it covers. The proposals step keeps
+ * only a listed type and parties the facts name (`toChatProposals`), as a `letter` suggestion.
+ */
+const LetterProposalOutput = z.object({
+  typeId: z.string().describe('A letter type id from <letter_types>'),
+  partyIds: z.array(z.string()).max(10).describe('The ids of the matter parties it goes to, from the matter facts'),
+  instructions: z.string().max(2000).describe('What the letter should cover, in a sentence or two'),
+});
+
+/**
  * The chat panel's proposals step (AI-06, `chat-proposals@1`): changes the answer points to, each
- * one of the AI-07 kinds with a handler (task, deadline, event, note, key fact), validated again
- * by `proposeSuggestions` against the kind's payload schema. Usually empty.
+ * one of the AI-07 kinds with a handler (task, deadline, event, note, key fact) or, from 1.1.0, a
+ * letter to draft (AI-10b), validated again by `proposeSuggestions` against the kind's payload
+ * schema. Usually empty.
  */
 export const ChatProposalsOutput = z.object({
   proposals: z
@@ -124,6 +136,7 @@ export const ChatProposalsOutput = z.object({
         chatProposal('event', EventProposalSchema),
         chatProposal('note', NoteProposalSchema),
         chatProposal('key_fact', KeyFactProposalSchema),
+        chatProposal('letter', LetterProposalOutput),
       ]),
     )
     .max(5),

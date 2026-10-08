@@ -35,6 +35,7 @@ import { MtSuggestion } from '@materia/ui/suggestion';
 import {
   draftFrom,
   editFields,
+  letterStartParams,
   payloadFrom,
   staleLines,
   suggestionVm,
@@ -64,7 +65,9 @@ const OTHER = 'Other';
  * server's field errors shown on the fields) and Dismiss with a reason. A refused accept because its
  * sources changed (SUGGESTION_STALE), or a suggestion already marked stale, shows what changed and
  * asks to accept again against the current data. Accepting and dismissing go through the
- * `suggestions-*` callables; the card leaves the list when the suggestion's status changes.
+ * `suggestions-*` callables; the card leaves the list when the suggestion's status changes. A letter
+ * (AI-10b) has no Edit: Draft letter opens the draft start page filled in, and starting the draft
+ * there accepts it.
  *
  * Reusable outside the matter Overview: give it the suggestion, its matter and what the person may do.
  * Where the screen provides `CitationSources` (AI-05), its citations are labelled with the documents'
@@ -83,6 +86,7 @@ const OTHER = 'Other';
       [busy]="saving() || busy()"
       [canAccept]="actionable() && canAccept()"
       [canDismiss]="actionable() && canDismiss()"
+      [canEdit]="!letter()"
       [attr.data-suggestion]="item().id"
       (accept)="accept()"
       (edit)="stale() ? review() : startEdit()"
@@ -194,7 +198,7 @@ const OTHER = 'Other';
                 <button mtButton type="button" variant="ghost" size="sm" (click)="startEdit()">Edit</button>
               }
               <button mtButton type="button" variant="clerk" size="sm" [loading]="saving()" (click)="acceptAnyway()">
-                Accept anyway
+                {{ letter() ? 'Draft letter anyway' : 'Accept anyway' }}
               </button>
             </span>
           </div>
@@ -249,6 +253,8 @@ export class SuggestionCard {
   });
   protected readonly kindLabel = computed(() => SUGGESTION_KIND_LABELS[this.item().kind].toLowerCase());
   protected readonly fields = computed(() => editFields(this.item()));
+  /** A letter (AI-10b) opens the draft start page instead of being accepted here. */
+  protected readonly letter = computed(() => this.item().kind === 'letter');
   protected readonly actionable = computed(
     () => !this.expired() && (this.item().status === 'proposed' || this.item().status === 'stale'),
   );
@@ -325,13 +331,25 @@ export class SuggestionCard {
   }
 
   protected accept(): Promise<void> {
-    return this.run({});
+    return this.letter() ? this.openLetter() : this.run({});
   }
 
   /** Accepts against the current data, after the person has seen what changed. */
   protected acceptAnyway(): Promise<void> {
     const basis = this.staleInfo()?.basis ?? this.item().staleReview?.basis;
+    if (this.letter()) return this.openLetter(basis);
     return this.run(basis ? { expectedBasis: basis } : {});
+  }
+
+  /**
+   * Opens the draft start page with the letter filled in (AI-10b). The person checks who it goes to
+   * and what it says there; starting the draft accepts the suggestion, as they left it.
+   */
+  private async openLetter(basis?: string): Promise<void> {
+    this.mode.set('view');
+    await this.router.navigate(['/matters', this.matterId(), 'drafts', 'new'], {
+      queryParams: letterStartParams(this.item(), basis),
+    });
   }
 
   protected acceptEdited(): Promise<void> {

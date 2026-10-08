@@ -18,6 +18,7 @@ import { insightsCase } from './insights';
 const FEATURE_SUITES = [
   'brief',
   'chat',
+  'chat-proposals',
   'classification',
   'drafting',
   'events-from-file',
