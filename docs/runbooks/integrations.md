@@ -36,11 +36,26 @@ How invoices reach Xero and payments come back: [ADR-053](../adr/053-xero-sync.m
 - **An invoice shows "Not sent to Xero":** its `xero.error` says why.
   - `rejected`: Xero refused it, with Xero's message (a deleted account code, a contact Xero archived). Fix it in Xero or Settings, then press "Try again" on the invoice.
   - `number_taken`: Xero has a different invoice with the number. Check Xero; renumber or delete the one typed in by hand there, then "Try again". Materia never overwrites it.
-  - `not_connected`: Xero needs reconnecting, or no organisation is chosen. Reconnect in Settings, then "Send unsent to Xero".
+  - `not_connected`: Xero needs reconnecting, or no organisation is chosen. Reconnect in Settings → Integrations, then press "Send them to Xero" there.
   - `unavailable`: Xero didn't answer after 5 tries over a few hours. "Try again" once Xero is up ([status.xero.com](https://status.xero.com)).
 - **"Payments in Xero not recorded here":** a payment made in Xero would overpay the invoice in Materia, or the invoice is void here. Usually the same money was recorded in both places. Reverse whichever is wrong; the next hourly run records the Xero payment if it now fits.
 - **Payments aren't coming across:** check the `xero-pullPayments` logs and `integrationStatus/xero.sync.paymentsCheckedAt` (shown in Settings as "Payments last checked"). The job skips an org quietly while its connection needs reconnecting.
 - **Logs:** `xero push failed` (with `kind`, `code`, `retry`), `xero rate limited; rescheduled`, `xero payments skipped`, `xero payments failed`. None carries a token, an amount or a client's name.
+
+### When Xero is down
+
+Nothing is lost and nobody re-enters anything. Billing in Materia carries on; only the copy in Xero waits.
+
+1. Confirm it's Xero: [status.xero.com](https://status.xero.com), and `xero push failed` logs with `retry` set across every org, not one.
+2. Tell the firm that invoices issued now reach Xero once it's back, and that payments made in Xero meanwhile appear in Materia an hour or so after that.
+3. While it's down, each invoice push retries 5 times over a few hours, then shows "Not sent to Xero" with `unavailable`. The hourly payments run fails and tries again next hour. An outage never marks the connection for reconnecting: only Xero refusing the refresh token (`invalid_grant`) does.
+4. Once Xero is up, an owner or admin presses "Send them to Xero" in Settings → Integrations, under the note saying how many invoices aren't in Xero (or "Try again" on each invoice). Check that "Payments last checked" moves after the next hourly run.
+
+`xero rate limited; rescheduled` on its own isn't an outage: the push honours Xero's `Retry-After` by itself.
+
+## Microsoft 365 and calendar sync
+
+Not built yet (INT-01b, INT-02). When they ship, their outage and calendar sync replay steps go here, as SEC-08 requires.
 
 ## Claude connector (INT-07)
 

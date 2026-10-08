@@ -60,12 +60,13 @@ All of these jobs are required checks on `main`. Branch protection requires 1 re
 
 ## Runbooks (`docs/runbooks/`)
 
-These are created by the tickets that introduce them:
-- deploy;
-- rollback;
+These are created by the tickets that introduce them. The launch checklist ([docs/launch/checklist.md](launch/checklist.md), SEC-08) records each one's dry run.
+- deploy ([deploy.md](runbooks/deploy.md)) and hotfix ([hotfix.md](runbooks/hotfix.md));
+- rollback ([rollback.md](runbooks/rollback.md));
 - restore from PITR, a backup or an export ([restore.md](runbooks/restore.md), SEC-03);
 - a practice's export and deletion ([org-deletion.md](runbooks/org-deletion.md), SEC-05);
-- rotate secret;
-- incident response;
+- rotate secret ([rotate-secret.md](runbooks/rotate-secret.md), SEC-08);
+- incident response ([incident-response.md](runbooks/incident-response.md), FND-21) and data breach ([data-breach.md](runbooks/data-breach.md), SEC-01);
+- integrations, including a Xero outage ([integrations.md](runbooks/integrations.md)); Microsoft 365 and calendar sync replay come with INT-01b and INT-02;
 - migration rehearsals and cutover ([migration-cutover.md](runbooks/migration-cutover.md), MIG-07), with a runbook per step (export, transform, copy, auth import, load);
-- disable Clerk (kill switch).
+- disable Clerk, the kill switches ([disable-clerk.md](runbooks/disable-clerk.md), SEC-08).
