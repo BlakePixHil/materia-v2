@@ -109,6 +109,33 @@ describe('demo-lighthouse', () => {
           details: { items: [{ entity: 'Google CDN', mainThreadTime: 210, blockingTime: 120, transferSize: 300_000 }] },
         },
         'long-tasks': { details: { items: [{ url: 'Unattributable', startTime: 1500, duration: 180 }] } },
+        'layout-shifts': {
+          details: {
+            items: [
+              {
+                node: { snippet: '<div class="grid" data-today-loading>', selector: 'main > div.grid' },
+                score: 0.2968,
+                subItems: { items: [{ cause: 'Web font loaded', extra: { type: 'url', value: 'https://x/f.woff2' } }] },
+              },
+              { node: { selector: 'td | x' }, score: 0.0012 },
+              { score: 0.0004 },
+            ],
+          },
+        },
+        'lcp-breakdown-insight': {
+          details: {
+            items: [
+              {
+                type: 'table',
+                items: [
+                  { label: 'Time to first byte', duration: 120.4 },
+                  { label: 'Element render delay', duration: 1700 },
+                ],
+              },
+              { type: 'node', snippet: '<h1 class="display">\n  Good morning, Ava</h1>' },
+            ],
+          },
+        },
         'network-requests': {
           details: {
             items: [
@@ -143,6 +170,13 @@ describe('demo-lighthouse', () => {
     expect(text).toContain('| https://materia-v2-dev.web.app/main-ABC.js | 900 ms | 700 ms | 40 ms |');
     expect(text).toContain('| Google CDN | 210 ms | 120 ms | 293 kB |');
     expect(text).toContain('| Unattributable | 1500 ms | 180 ms |');
+    expect(text).toContain(
+      'LCP element: `<h1 class="display"> Good morning, Ava</h1>` (Time to first byte 120 ms, Element render delay 1700 ms)',
+    );
+    expect(text).toContain('| `<div class="grid" data-today-loading>` | 0.297 | Web font loaded: https://x/f.woff2 |');
+    expect(text).toContain('| `td \\| x` | 0.001 |  |');
+    expect(text).toContain('| `not attributed` | 0.000 |  |');
+    expect(text.indexOf('### Layout shifts')).toBeLessThan(text.indexOf('### Main thread by category'));
     expect(text).toContain(note);
     const sites = text.slice(text.indexOf('### Requests to other sites'));
     expect(sites).not.toContain('chunk-A.js');

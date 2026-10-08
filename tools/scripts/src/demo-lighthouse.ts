@@ -179,6 +179,32 @@ const text = (value: unknown): string => {
 const num = (value: unknown) => (typeof value === 'number' ? Math.round(value) : Number.NaN);
 const short = (url: string) => (url.length > 90 ? `${url.slice(0, 60)}…${url.slice(-28)}` : url);
 
+/** An element in an audit's details: its HTML, else its selector or label, on one line. */
+function nodeText(value: unknown): string {
+  const node = value as { snippet?: string; selector?: string; nodeLabel?: string } | undefined;
+  return (node?.snippet ?? node?.selector ?? node?.nodeLabel ?? '').replace(/\s+/g, ' ').slice(0, 160);
+}
+/** A Markdown table cell: an element's HTML can hold a `|`. */
+const cell = (value: string) => value.replaceAll('|', '\\|');
+
+/** A layout shift's possible causes (web font, unsized media, injected iframe), when Lighthouse found one. */
+function causes(subItems: unknown): string {
+  const items = (subItems as { items?: { cause?: unknown; extra?: { value?: unknown } }[] } | undefined)?.items ?? [];
+  return items
+    .map((i) => [text(i.cause), text(i.extra?.value) || nodeText(i.extra)].filter(Boolean).join(': '))
+    .join('; ');
+}
+
+/** The LCP element and the parts of its time, from Lighthouse 13's LCP breakdown insight. */
+function lcpElement(lhr: Lhr): string[] {
+  const parts = lhr.audits['lcp-breakdown-insight']?.details?.items ?? [];
+  const element = nodeText(parts.find((part) => part['type'] === 'node'));
+  if (!element) return [];
+  const table = parts.find((part) => part['type'] === 'table')?.['items'] as Record<string, unknown>[] | undefined;
+  const times = (table ?? []).map((i) => `${text(i['label'])} ${num(i['duration'])} ms`).join(', ');
+  return ['', `LCP element: \`${element}\`${times ? ` (${times})` : ''}`];
+}
+
 /** The table rows of an audit's details, mapped to cells, largest first. */
 function top(lhr: Lhr, id: string, cells: (item: Record<string, unknown>) => (string | number)[], n: number) {
   return (lhr.audits[id]?.details?.items ?? []).slice(0, n).map((item) => `| ${cells(item).join(' | ')} |`);
@@ -289,11 +315,22 @@ export function summary(rows: RunRow[], median: Lhr | undefined, heading: string
     '',
     `**Median: ${mid.score}** (run ${mid.run}): FCP ${mid.fcp} ms, LCP ${mid.lcp} ms, TBT ${mid.tbt} ms, SI ${mid.si} ms, CLS ${mid.cls}.`,
   );
-  const lcpElement = median.audits['largest-contentful-paint-element']?.details?.items?.[0];
-  const lcpNode = (lcpElement?.['items'] as { node?: { snippet?: string } }[] | undefined)?.[0]?.node?.snippet;
-  if (lcpNode) lines.push('', `LCP element: \`${lcpNode.slice(0, 160)}\``);
-  lines.push(...noted);
+  lines.push(...lcpElement(median), ...noted);
   const sections: [string, string, string[]][] = [
+    [
+      'Layout shifts',
+      '| Element | Score | Likely cause |\n| -- | -- | -- |',
+      top(
+        median,
+        'layout-shifts',
+        (i) => [
+          cell(`\`${nodeText(i['node']) || 'not attributed'}\``),
+          typeof i['score'] === 'number' ? i['score'].toFixed(3) : '',
+          cell(causes(i['subItems'])),
+        ],
+        6,
+      ),
+    ],
     [
       'Main thread by category',
       '| Category | Time |\n| -- | -- |',
