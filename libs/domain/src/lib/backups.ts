@@ -28,7 +28,7 @@ export const FIRESTORE_COLLECTION_IDS: readonly string[] = [
   'connectorGrants', 'contacts', 'counters', 'courtBooks', 'courtEvents', 'creditNotes',
   'deadlineChanges', 'deadlines', 'deletedOrgs', 'destructionCertificates', 'destructionQueue',
   'devices', 'digests', 'disbursements', 'distributions', 'docTemplates', 'documentHashes',
-  'documents', 'drafts', 'events', 'evidence', 'factCitations', 'insightsNarratives',
+  'documents', 'drafts', 'events', 'evidence', 'factCitations', 'feedback', 'insightsNarratives',
   'integrationStates', 'integrationStatus', 'integrations', 'invites', 'invoiceReminders',
   'invoices', 'issues', 'jobs', 'liabilities', 'matterNumbers', 'matters', 'members', 'messages',
   'metrics', 'migrationEnrichments', 'migrations', 'notes', 'notifications', 'offers', 'orders',
