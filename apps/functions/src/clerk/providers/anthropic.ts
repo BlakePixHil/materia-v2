@@ -191,7 +191,20 @@ export function mapError(error: unknown, aborted: boolean): ClerkModelError {
   if (status >= 500) return new ClerkModelError('server', `Provider error ${status}`, status);
   if (status === 401 || status === 403)
     return new ClerkModelError('auth', `Provider rejected the credentials (${status})`, status);
-  return new ClerkModelError('bad_request', `Provider rejected the request (${status})`, status);
+  return new ClerkModelError(
+    'bad_request',
+    `Provider rejected the request (${status})`,
+    status,
+    undefined,
+    providerReason(error),
+  );
+}
+
+/** The API's reason for a rejected request (`error.message` in its body), cut short. */
+function providerReason(error: unknown): string | undefined {
+  const e = error as { error?: { error?: { message?: unknown } }; message?: unknown } | undefined;
+  const reason = e?.error?.error?.message ?? e?.message;
+  return typeof reason === 'string' && reason ? reason.slice(0, 300) : undefined;
 }
 
 /** The slice of the SDK client the adapter uses (so tests can pass a stand-in). */

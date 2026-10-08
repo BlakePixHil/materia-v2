@@ -739,8 +739,12 @@ export function createEvalExecutor(options: EvalExecutorOptions): CaseExecutor {
       const kind = lastError()?.kind;
       if (error instanceof DomainError && (error.code === 'CLERK_BUSY' || (kind && OUTAGE_KINDS.has(kind))))
         throw new EvalOutageError(kind ? `${error.code}:${kind}` : error.code);
+      // A rejected request says why in the report: the API's reason, on the eval's fictional data.
+      const detail = lastError()?.providerDetail;
       if (error instanceof DomainError)
-        throw Object.assign(new Error(error.message), { code: kind ? `${error.code}:${kind}` : error.code });
+        throw Object.assign(new Error(error.message), {
+          code: kind ? `${error.code}:${kind}${detail ? ` (${detail})` : ''}` : error.code,
+        });
       throw error;
     }
     const latencyMs = now() - started;

@@ -161,6 +161,12 @@ describe('the eval executor', () => {
     const model = new FakeClerkModel([{ error: new ClerkModelError('bad_request', 'bad', 400) }]);
     const execute = createEvalExecutor({ model, apiKey: 'k', modelId: 'claude-sonnet-5-5' });
     await expect(execute(request(restricted))).rejects.toMatchObject({ code: 'CLERK_UNAVAILABLE:bad_request' });
+    const explained = new FakeClerkModel([
+      { error: new ClerkModelError('bad_request', 'bad', 400, undefined, 'output_config.format: too complex') },
+    ]);
+    await expect(
+      createEvalExecutor({ model: explained, apiKey: 'k', modelId: 'claude-sonnet-5-5' })(request(restricted)),
+    ).rejects.toMatchObject({ code: 'CLERK_UNAVAILABLE:bad_request (output_config.format: too complex)' });
     const busy = new FakeClerkModel(Array.from({ length: 3 }, () => ({ error: new ClerkModelError('rate_limited') })));
     await expect(
       createEvalExecutor({ model: busy, apiKey: 'k', modelId: 'claude-sonnet-5-5', sleep: async () => undefined })(

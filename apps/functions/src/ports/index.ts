@@ -165,13 +165,18 @@ export interface ClerkModelResult {
 export type ClerkModelErrorKind =
   'rate_limited' | 'overloaded' | 'server' | 'timeout' | 'disconnected' | 'aborted' | 'bad_request' | 'auth';
 
-/** A provider failure, classified so the gateway can retry, fall back or give up. Never carries content. */
+/**
+ * A provider failure, classified so the gateway can retry, fall back or give up. Its message never
+ * carries content. `providerDetail` is the provider's own reason for a rejected request (a 400),
+ * for the eval report only: the gateway never logs or returns it.
+ */
 export class ClerkModelError extends Error {
   constructor(
     readonly kind: ClerkModelErrorKind,
     message: string = kind,
     readonly status?: number,
     readonly retryAfterMs?: number,
+    readonly providerDetail?: string,
   ) {
     super(message);
     this.name = 'ClerkModelError';

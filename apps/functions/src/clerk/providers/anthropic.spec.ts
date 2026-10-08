@@ -249,6 +249,23 @@ describe('Anthropic adapter', () => {
     );
     expect(mapped.retryAfterMs).toBe(3000);
     expect(mapped.message).not.toContain('Avery');
+    expect(mapped.providerDetail).toBeUndefined();
+    // A rejected request keeps the API's reason apart, for the eval report.
+    const rejected = mapError(
+      {
+        name: 'BadRequestError',
+        status: 400,
+        message: '400 {"type":"error"}',
+        error: { type: 'error', error: { type: 'invalid_request_error', message: 'output_config.format: bad schema' } },
+      },
+      false,
+    );
+    expect(rejected).toMatchObject({
+      kind: 'bad_request',
+      status: 400,
+      message: 'Provider rejected the request (400)',
+    });
+    expect(rejected.providerDetail).toBe('output_config.format: bad schema');
     const existing = new ClerkModelError('server');
     expect(mapError(existing, false)).toBe(existing);
   });
