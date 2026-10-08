@@ -67,13 +67,28 @@ function toApiBlock(block: ClerkContentBlock, citable: boolean): ApiBlock {
   }
 }
 
-/** The JSON schema for structured output, via the SDK's zod helper. */
+/**
+ * The JSON schema for structured output, via the SDK's zod helper. The helper describes what the
+ * schema parses to, which it can't for a field the domain transforms as it reads it (a date in the
+ * chat proposals' task, deadline and event payloads): such a schema is described by what it reads,
+ * which is what the model writes, the same way the helper strictens it. The gateway parses the
+ * reply with the schema itself either way.
+ */
 async function outputFormat(
   schema: import('zod').ZodType,
 ): Promise<{ type: 'json_schema'; schema: Record<string, unknown> }> {
   const { zodOutputFormat } = await import('@anthropic-ai/sdk/helpers/zod');
-  const format = zodOutputFormat(schema as never) as unknown as { schema: Record<string, unknown> };
-  return { type: 'json_schema', schema: format.schema };
+  try {
+    const format = zodOutputFormat(schema as never) as unknown as { schema: Record<string, unknown> };
+    return { type: 'json_schema', schema: format.schema };
+  } catch {
+    const [{ transformJSONSchema }, z] = await Promise.all([
+      import('@anthropic-ai/sdk/lib/transform-json-schema'),
+      import('zod'),
+    ]);
+    const input = z.toJSONSchema(schema, { reused: 'ref', io: 'input' }) as Record<string, unknown>;
+    return { type: 'json_schema', schema: transformJSONSchema(input) as Record<string, unknown> };
+  }
 }
 
 /**

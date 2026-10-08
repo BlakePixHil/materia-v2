@@ -1,5 +1,7 @@
 import * as z from 'zod';
 
+import { OUTPUT_SCHEMAS } from '@materia/clerk';
+
 import {
   anthropicModel,
   buildParams,
@@ -101,6 +103,24 @@ describe('Anthropic adapter', () => {
     });
     expect(params).not.toHaveProperty('fallbacks');
     expect(params).not.toHaveProperty('betas');
+  });
+
+  it('describes every Clerk output schema, by what it reads when what it parses to has no JSON schema', async () => {
+    for (const [name, schema] of Object.entries(OUTPUT_SCHEMAS)) {
+      const params = (await buildParams(request({ output: { name, schema } }))) as unknown as {
+        output_config: { format: { type: string; schema: Record<string, unknown> } };
+      };
+      expect(params.output_config.format.type, name).toBe('json_schema');
+      expect(params.output_config.format.schema['type'], name).toBe('object');
+    }
+    // Chat proposals (AI-06, AI-10b): a task's due date is a domain date, which transforms what it reads.
+    const params = (await buildParams(
+      request({ output: { name: 'chatProposals', schema: OUTPUT_SCHEMAS.chatProposals } }),
+    )) as unknown as { output_config: { format: { schema: Record<string, unknown> } } };
+    const text = JSON.stringify(params.output_config.format.schema);
+    expect(text).toContain('"dueDate"');
+    expect(text).toContain('"typeId"');
+    expect(text).not.toContain('"additionalProperties":true');
   });
 
   it('turns citations off with structured output (the API rejects the two together)', async () => {
