@@ -9,6 +9,8 @@ class FakeStore implements IngestStore {
   /** Every `ingest` written, in order, by path. */
   readonly writes: { path: string; ingest: Data }[] = [];
   readonly withEmbeddings = new Set<string>();
+  /** Documents whose chunks are gone (a restore from the export, SEC-07h). */
+  readonly withoutChunks = new Set<string>();
 
   set(path: string, data: Data): void {
     this.docs.set(path, data);
@@ -30,6 +32,10 @@ class FakeStore implements IngestStore {
 
   async embedded(path: string) {
     return this.withEmbeddings.has(path);
+  }
+
+  async chunked(path: string) {
+    return !this.withoutChunks.has(path);
   }
 }
 
@@ -152,12 +158,45 @@ describe('backfill-ingest', () => {
     expect(store.writes).toEqual([]);
   });
 
+  it('with --rechunk, ingests again the documents whose chunks a restore from the export left out (SEC-07h)', async () => {
+    const store = seed();
+    // Restored from the export: d-done's chunks are gone, and so is d-scan's (two OCR pages).
+    store.withEmbeddings.clear();
+    store.withoutChunks.add(doc('d-done'));
+    store.set(doc('d-scan'), { ...clean, ingest: { status: 'done', version: 2, chunks: 3, ocrPages: 2 } });
+    store.withoutChunks.add(doc('d-scan'));
+    const lines: string[] = [];
+    const dry = await backfillIngest(store, { dryRun: true, rechunk: true, log: (line) => lines.push(line) });
+    expect(dry.rechunk).toEqual({ documents: 2, ocrPages: 3 });
+    expect(store.writes).toEqual([]);
+    expect(lines).toContain(
+      'ingested but without chunks (restored from the export): 2 to queue, 3 OCR pages to read again',
+    );
+
+    await backfillIngest(store, { rechunk: true });
+    const queued = store.writes.filter((w) => w.path === doc('d-done') || w.path === doc('d-scan'));
+    expect(queued.map((w) => w.ingest)).toEqual([
+      { status: 'queued', version: 2 },
+      { status: 'pending', version: 2 },
+      { status: 'queued', version: 2 },
+      { status: 'pending', version: 2 },
+    ]);
+    // Without the flag, a document without chunks is left alone and nothing is counted.
+    const plain = seed();
+    plain.withoutChunks.add(doc('d-done'));
+    plain.withEmbeddings.clear();
+    const report = await backfillIngest(plain, { dryRun: true });
+    expect(report.rechunk).toBeUndefined();
+  });
+
   it('parses its arguments', () => {
     expect(parseArgs(['--project', 'materia-v2-dev', '--dry-run'])).toEqual({
       project: 'materia-v2-dev',
       dryRun: true,
+      rechunk: false,
       pageSize: 300,
     });
+    expect(parseArgs(['--project', 'p', '--rechunk']).rechunk).toBe(true);
     expect(() => parseArgs(['--project', 'p', '--page-size', '0'])).toThrow('--page-size is 1 to 500');
   });
 });

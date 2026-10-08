@@ -1,6 +1,6 @@
-import { walkCollectionIds, type WalkCollection } from './firestore.ts';
+import { exportedCollectionIds, FIRESTORE_COLLECTION_IDS, walkCollectionIds, type WalkCollection } from './backups';
 
-/** The drill's collection walk (SEC-03): finds every id while probing a bounded sample. */
+/** The collection walk (SEC-03) the drill and the nightly export share, and what the export takes (SEC-07h). */
 
 interface Tree {
   [collection: string]: { [doc: string]: Tree };
@@ -68,5 +68,20 @@ describe('walkCollectionIds', () => {
       sample: async () => Promise.reject(new Error('denied')),
     };
     await expect(walkCollectionIds([failing])).rejects.toThrow('denied');
+  });
+});
+
+describe('exportedCollectionIds (SEC-07h)', () => {
+  it('leaves out Clerk’s chunks, which a restore rebuilds, and keeps everything else once', () => {
+    const ids = exportedCollectionIds(['orgs', 'matters', 'documents', 'chunks', 'versions', 'matters']);
+    expect(ids).not.toContain('chunks');
+    expect(ids).toEqual([...new Set(ids)].sort());
+    expect(ids).toEqual(expect.arrayContaining(['documents', 'matters', 'orgs', 'versions']));
+  });
+
+  it('takes every known collection even when the walk misses it, and any the walk finds that isn’t known', () => {
+    const ids = exportedCollectionIds(['orgs', 'eventGuards']);
+    expect(ids).toEqual(expect.arrayContaining(['eventGuards', 'invoices', 'tasks', 'destructionCertificates']));
+    expect(ids).toHaveLength(FIRESTORE_COLLECTION_IDS.length); // eventGuards in, chunks out
   });
 });

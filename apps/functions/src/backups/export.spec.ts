@@ -1,4 +1,14 @@
-import { exportsBucket, exportFirestore, exportFolder, exportPlan, type ExportDeps } from './export';
+import { exportedCollectionIds } from '@materia/domain';
+
+import {
+  collectionsToExport,
+  exportDue,
+  exportsBucket,
+  exportFirestore,
+  exportFolder,
+  exportPlan,
+  type ExportDeps,
+} from './export';
 import { createLog, type LogSink } from '../core/log';
 
 const silent: LogSink = () => undefined;
@@ -72,6 +82,16 @@ describe('exportFirestore', () => {
     expect(calls).toHaveLength(3);
   });
 
+  it('names the collections to take when the plan lists them (SEC-07h)', async () => {
+    const { deps, calls } = fakeDeps([{ name: 'ops/op4', done: true }]);
+    await exportFirestore(deps, 'materia-v2-dev', { ...plan, collectionIds: ['matters', 'orgs'] }, log);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      outputUriPrefix: 'gs://materia-v2-dev-exports/daily/2026-10-05T14-59-00Z',
+      snapshotTime: '2026-10-05T14:59:00Z',
+      collectionIds: ['matters', 'orgs'],
+    });
+  });
+
   it('throws when the operation fails', async () => {
     const { deps } = fakeDeps([
       { name: 'ops/op2' },
@@ -89,5 +109,46 @@ describe('exportFirestore', () => {
     const pending = Array.from({ length: 200 }, () => ({ name: 'ops/op3', done: false }));
     const { deps } = fakeDeps(pending);
     await expect(exportFirestore(deps, 'p', plan, log)).rejects.toThrow('still running after 25 minutes');
+  });
+});
+
+describe('what the export takes (SEC-07h)', () => {
+  it('takes every known collection and every one the walk finds, but Clerk’s chunks', async () => {
+    const lines: string[] = [];
+    const log = createLog({ fn: 'backups-exportFirestore' }, (_severity, message) => lines.push(message));
+    const { collectionIds, skipped } = await collectionsToExport(
+      async () => ['orgs', 'matters', 'documents', 'chunks', 'eventGuards'],
+      log,
+    );
+    expect(skipped).toEqual(['chunks']);
+    expect(collectionIds).toEqual(exportedCollectionIds(['eventGuards']));
+    expect(collectionIds).toEqual(expect.arrayContaining(['documents', 'eventGuards', 'invoices', 'matters', 'orgs']));
+    expect(collectionIds).not.toContain('chunks');
+    expect(lines).toEqual([]);
+  });
+
+  it('exports everything when the walk fails, so no night is lost', async () => {
+    const lines: string[] = [];
+    const log = createLog({ fn: 'backups-exportFirestore' }, (severity, message) =>
+      lines.push(`${severity}: ${message}`),
+    );
+    await expect(collectionsToExport(async () => Promise.reject(new Error('denied')), log)).resolves.toEqual({
+      skipped: [],
+    });
+    expect(lines).toEqual(['warn: collection walk failed, exporting everything']);
+  });
+
+  it('runs every night by default, and every few days when the cadence says so, always on the 1st', () => {
+    // 02:00 Melbourne on 6, 7 and 8 October 2026 (AEDT), and on 1 November.
+    const night = (utc: string) => exportPlan('p', new Date(utc));
+    const nights = ['2026-10-05T15:01:00Z', '2026-10-06T15:01:00Z', '2026-10-07T15:01:00Z'].map(night);
+    expect(nights.map((plan) => exportDue(plan))).toEqual([true, true, true]);
+    const everyOther = nights.map((plan) => exportDue(plan, 2));
+    expect(everyOther.filter(Boolean)).toHaveLength(2);
+    expect(everyOther[0]).toBe(everyOther[2]);
+    expect(everyOther[0]).not.toBe(everyOther[1]);
+    const first = night('2026-10-31T15:01:00Z');
+    expect(first.kind).toBe('monthly');
+    expect(exportDue(first, 7)).toBe(true);
   });
 });
