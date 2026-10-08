@@ -181,14 +181,19 @@ describe('legal pages (SEC-01)', () => {
       const link = page.el.querySelector(`a[href="/legal/${doc.key}"]`);
       expect(link?.textContent?.trim(), doc.key).toBe(doc.title);
     }
-    expect(page.text()).toContain('Draft — not yet reviewed.');
+    // The draft notice shows only while a document is a draft (all are final since SEC-01a).
+    const anyDraft = LEGAL_DOCUMENTS.some((doc) => doc.status === 'draft');
+    expect(page.text().includes('Draft — not yet reviewed.')).toBe(anyDraft);
   });
 
-  it('shows a document with its version, effective date and draft notice', async () => {
+  it('shows a document with its version and effective date, and a draft notice only on a draft', async () => {
+    const doc = LEGAL_DOCUMENTS.find((entry) => entry.key === 'subprocessors');
     const page = await open('/legal/subprocessors', null);
     expect(page.headings('h1')).toEqual(['Sub-processor list']);
-    expect(page.text()).toContain(`Version ${TERMS_VERSION} · Effective 7 October 2026`);
-    expect(page.el.querySelector('mt-note[data-tone="warning"]')?.textContent).toContain('Draft — not yet reviewed.');
+    expect(page.text()).toContain(`Version ${doc?.version} · Effective ${longDate(doc?.effectiveDate ?? '')}`);
+    const note = page.el.querySelector('mt-note[data-tone="warning"]');
+    if (doc?.status === 'draft') expect(note?.textContent).toContain('Draft — not yet reviewed.');
+    else expect(note).toBeNull();
     expect(page.headings('h2')).toContain('Engaged by us for every firm');
     // Tables scroll in a region named by their heading, with column headers.
     const region = page.el.querySelector('.mt-legal-table');

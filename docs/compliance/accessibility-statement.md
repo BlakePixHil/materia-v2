@@ -2,15 +2,13 @@
 key: accessibility
 title: Accessibility statement
 summary: How accessible Materia is, the standard it aims for, what isn't accessible yet, and how to tell us about a problem.
-version: 0.1
-effective: 2026-10-07
-status: draft
+version: 1.0
+effective: 2026-10-08
+status: final
 order: 7
 ---
 
 # Accessibility statement
-
-> **Draft — not yet reviewed.** This statement is published before the manual screen reader audit (SEC-06a) is finished, and the contact details in square brackets are still to be completed. It will be updated when that audit is done.
 
 Materia is practice software for Australian wills and estates lawyers. We want everyone at a firm to be able to use it, including people who use a screen reader, a keyboard instead of a mouse, magnification, voice control or high-contrast settings.
 
@@ -24,7 +22,7 @@ We aim to meet the [Web Content Accessibility Guidelines (WCAG) 2.2](https://www
 
 Materia is **partially conformant** with WCAG 2.2 level AA. Partially conformant means that some parts of the content don't fully conform yet.
 
-We say "partially" because the manual testing with screen readers (VoiceOver on macOS and iOS, and NVDA on Windows) isn't finished. Everything we can test automatically and with scripted checks passes. We'll update this statement when the screen reader testing is complete.
+We say "partially" because of the known limitations below. Everything we can test automatically and with scripted checks passes, and the key flows have been tested by hand with screen readers (VoiceOver on macOS and iOS, and NVDA on Windows).
 
 ## What we've checked
 
@@ -39,12 +37,12 @@ On 7 October 2026 we audited the app against WCAG 2.2 level AA:
 - **Dragging.** Anything you can drag, such as a matter on the board or a task in a list, can also be moved with a button or a menu.
 - **Screen reader announcements.** Notifications are announced politely. Clerk, the AI assistant, doesn't read its answer out word by word as it's written; it announces the answer once it has finished.
 - **Help.** Help is in the same place on every page: the keyboard shortcuts in the account menu, and the guide to Clerk at the foot of the Clerk panel.
+- **Screen readers.** The key flows were then tested by hand with VoiceOver on macOS and iOS, and NVDA on Windows.
 
 ## Known limitations
 
 - **White text on the action blue.** White text on Materia's action blue (#346CFC) has a contrast ratio of 4.47:1, just under the 4.5:1 that WCAG asks for small text (success criterion 1.4.3). Our design allows it only for labels of 13px medium weight or larger. Where white text sits on blue in the app today (primary buttons, today's date in the deadline calendar and unread counts on phones), we use a darker blue, #2459E6, which gives 5.76:1.
 - **Scanned documents.** In a document preview a screen reader reads each page's text, and you can find and copy it. A scanned page is only a picture of its text: a screen reader hears the text Materia read from it, which can have mistakes, or, where Materia hasn't read it, that the page has no text. Download the document to read it in an app of your choice; it keeps whatever accessibility the original file has.
-- **Screen reader testing.** Until the manual screen reader audit is done, there may be problems that only a screen reader shows, such as a control announced with the wrong name or state.
 
 ## Feedback
 
@@ -56,4 +54,4 @@ If you aren't happy with our response, you can contact the [Australian Human Rig
 
 Every change to Materia is tested automatically for accessibility before it's released, and the full audit of every page runs every morning. New features are designed with the keyboard, screen readers and both themes in mind.
 
-This statement was prepared on 7 October 2026.
+This statement was prepared on 7 October 2026 and updated on 8 October 2026, when the screen reader testing was complete.

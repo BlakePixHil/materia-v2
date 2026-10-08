@@ -66,6 +66,26 @@ Previews deploy hosting only. The preview app calls the dev project's functions,
    | `backfill-matter-copies` | SEC-07c, SEC-07e | The copy of its matter's name that each live deadline, pending proposal, live matter task and recent matter carries (deadlines also its people and jurisdiction). Until it runs, the Deadlines and Today screens read older records' matters one by one, as they did before. |
    | `backfill-search-tokens` | CORE-15, SEC-07d | Every matter's, contact's, task's and document's search tokens, the `kind` of older recent entries, and each live matter's clients' names (`clientNames`). Until it runs, the Matters list reads older matters' clients one by one, as it did before. |
 
+7. Switch on the signed-off features. On 8 October 2026 Blake signed off every practitioner and lawyer review and chose to switch them all on in prod at the first release. Set each parameter below to `true` in Remote Config on `materia-v2-prod`, on **both** the Client and the Server template: these flags are server-enforced, so one that's on only in the client shows the screen while its callables refuse. This is a person's change in the Firebase console, because the `remote-config` workflow only writes dev. Never switch a prod flag on before the release that carries its feature is live.
+
+   | Parameter | Feature | Sign-off | At the first release |
+   | --- | --- | --- | --- |
+   | `conflicts_enforced` | Conflict checks flag adverse roles | CORE-02a (MAT-128) | On |
+   | `templates_system` | Matter templates: stages, tasks and entry requirements | CORE-07a (MAT-129) | On |
+   | `deadlines_ruleset_vic_v1` | Victorian deadline rules v1 compute deadlines | CORE-09a (MAT-127) | On |
+   | `estate_register` | The Estate tab and the inventory export | CORE-16a (MAT-145) | On |
+   | `matters_destruction` | Retention destruction of closed matters | CORE-19a (MAT-147) | On |
+   | `billing_disbursements` | Disbursements with GST treatment and presets | BILL-04a (MAT-149) | On |
+   | `billing_feeBudgets` | Fee arrangements, budgets and budget alerts | BILL-05a (MAT-148) | On |
+   | `billing_invoicing` | Pre-bills and tax invoices | BILL-07a (MAT-151) | On |
+   | `billing_trustDisplay` | Trust balances copied from the firm's trust records | BILL-10a (MAT-142) | On |
+   | `billing_trustNotice` | The r 42(3) notice on invoices paid from trust | BILL-10a (MAT-142) | On |
+   | `clerk_features_drafting` | Clerk drafts letters (only where Clerk itself is on for the firm) | AI-10a (MAT-161) | On |
+   | `billing_costsDisclosure` | Costs disclosure tracking | BILL-06a (MAT-164) | Off until Tristan has settled the costs disclosures on his imported open matters (MIG-07 cutover), then on |
+   | `integrations_claudeConnector` | The Claude connector | Blake's own call, once the "processed by Anthropic outside Australia" wording is reviewed with the legal pages | Off |
+
+   The legal documents need no flag: the release carries them as `status: final` (SEC-01a), so every prod owner is asked once to accept the terms (`/accept-terms`). Before merging the release PR, fill the square-bracket placeholders still in `docs/compliance` (the operator's name, ABN and address, the privacy, support and accessibility contacts, the accessibility reply time, and terms 1.3, 9.1 and 13.2), or owners accept terms with blanks in them; also fill the privacy officer and legal adviser in `data-breach.md`.
+
 A tag on a commit with no successful `deploy-dev` run, or one whose artifact has expired after 90 days, is refused.
 
 ## When a deploy fails midway
