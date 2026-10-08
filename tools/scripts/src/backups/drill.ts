@@ -1,6 +1,7 @@
-import { EXPORT_SKIPPED_COLLECTIONS } from '@materia/domain';
+import * as D from '@materia/domain';
 
 import type { AdminApi, Operation } from './admin-api.ts';
+import { unwrap } from '../seed/interop.ts';
 
 /**
  * `materia-scripts backup-drill --project <id> [--source backup|export|pitr|all] [--keep]` (SEC-03):
@@ -154,7 +155,8 @@ export async function drill(
       ...new Set([...(await dbs.collectionIds(database)), ...(await dbs.collectionIds('(default)'))]),
     ].sort();
     // The export leaves Clerk's chunks out (SEC-07h): a restore rebuilds them from the documents.
-    const notCompared = source === 'export' ? found.filter((id) => EXPORT_SKIPPED_COLLECTIONS.includes(id)) : [];
+    const notCompared =
+      source === 'export' ? found.filter((id) => unwrap(D).EXPORT_SKIPPED_COLLECTIONS.includes(id)) : [];
     const ids = found.filter((id) => !notCompared.includes(id));
     opts.log(`  comparing ${ids.length} collection groups`);
     if (notCompared.length) opts.log(`  not compared, left out of the export: ${notCompared.join(', ')}`);

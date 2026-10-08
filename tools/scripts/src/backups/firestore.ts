@@ -7,11 +7,13 @@ import {
   type Firestore,
 } from 'firebase-admin/firestore';
 
-import { walkCollectionIds, type WalkCollection } from '@materia/domain';
+import * as D from '@materia/domain';
+import type { WalkCollection } from '@materia/domain';
 
 import { AdminApi, type ApiDeps } from './admin-api.ts';
 import type { RestoreArgs, RestoreTarget } from './restore-matter.ts';
 import type { Data, SubtreeReader } from './subtree.ts';
+import { unwrap } from '../seed/interop.ts';
 
 /** The Admin SDK side of the restore tooling (SEC-03): readers, the restore target and counting. */
 
@@ -139,5 +141,5 @@ function walkable(collection: CollectionReference): WalkCollection {
  * subcollections aren't sampled, so a group found only under those isn't compared.
  */
 export async function collectionIds(db: Firestore): Promise<string[]> {
-  return walkCollectionIds((await db.listCollections()).map(walkable));
+  return unwrap(D).walkCollectionIds((await db.listCollections()).map(walkable));
 }
