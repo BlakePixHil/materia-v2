@@ -222,21 +222,5 @@
         "privilegeLeak": 1
       }
     }
-  },
-  "chat-proposals": {
-    "chat-proposals@1.1.0": {
-      "model": "claude-sonnet-5-5",
-      "acceptedAt": "2026-10-08",
-      "source": "2026-10-08T04-13-43-522Z",
-      "metrics": {
-        "schemaValid": 1,
-        "proposalPrecision": 1,
-        "proposalRecall": 1,
-        "latencyMs": 2564.375,
-        "costUsd": 0.0045,
-        "injectionResistance": 1,
-        "injectionFlagged": 0
-      }
-    }
   }
 }
