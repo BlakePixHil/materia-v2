@@ -2,6 +2,7 @@ import {
   appCheckNote,
   type Lhr,
   medianRun,
+  mostShiftedRun,
   parseLighthouseArgs,
   runRow,
   siteOrigin,
@@ -189,6 +190,27 @@ describe('demo-lighthouse', () => {
     expect(sites).toContain('| https://www.google.com/recaptcha/enterprise.js | 1 | 200 | 900 ms |');
     expect(summary([], undefined, 'x', [note])).toContain(note);
     expect(summary([], undefined, 'x')).toContain('No run finished without an error.');
+  });
+
+  it('lists the layout shifts of the run that shifted most, when the median run didn’t shift', () => {
+    const steady = lhr(80, 400);
+    const shifting = (cls: number, snippet: string) =>
+      lhr(60, 420, {
+        audits: {
+          ...lhr(60, 420).audits,
+          'cumulative-layout-shift': { numericValue: cls },
+          'layout-shifts': { details: { items: [{ node: { snippet }, score: cls }] } },
+        },
+      });
+    const runs = [steady, shifting(0.117, '<p class="small">'), shifting(0.2968, '<section class="big">'), steady];
+    const rows = runs.map((report, i) => runRow(i + 1, report));
+    const worst = mostShiftedRun(rows);
+    expect(worst?.run).toBe(3);
+    const text = summary(rows, steady, 'x', [], worst ? runs[worst.run - 1] : undefined);
+    expect(text).toContain('### Layout shifts in run 3 (CLS 0.297)');
+    expect(text).toContain('| `<section class="big">` | 0.297 |  |');
+    expect(text).not.toContain('<p class="small">');
+    expect(mostShiftedRun([runRow(1, steady)])).toBeUndefined();
   });
 
   it('says whether App Check had a valid saved token when the runs began', () => {
