@@ -37,6 +37,7 @@ import { audit } from '../audit/audit';
 import { REGION } from '../config';
 import { adminApp, adminDb } from '../core/admin';
 import { createLog, errorReportFields, type Log } from '../core/log';
+import { RESEND_API_KEY } from '../core/secrets';
 import { defineQueue } from '../core/tasks';
 import { storageFiles, type FileStore } from '../documents/files';
 import { OAUTH_SECRETS } from '../integrations/providers';
@@ -493,7 +494,8 @@ export const purge = defineQueue({
   input: PurgeTask,
   retry: { maxAttempts: 10, minBackoffSeconds: 60, maxBackoffSeconds: 3600 },
   rateLimits: { maxConcurrentDispatches: 2 },
-  secrets: OAUTH_SECRETS,
+  // The OAuth clients revoke the practice's connections; Resend emails the deletion certificate.
+  secrets: [...OAUTH_SECRETS, RESEND_API_KEY],
   timeoutSeconds: 1800,
   memory: '1GiB',
   handler: async ({ orgId }, ctx) => {
