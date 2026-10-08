@@ -1,0 +1,17 @@
+# The files behind the phone screens (MOB-*), one extended regular expression per line, matched
+# against each path a pull request changes. A PR that changes one runs the WebKit phone audit from
+# its Chromium e2e leg (src/a11y-phone.spec.ts), and that leg installs WebKit's system packages
+# (.github/workflows/ci.yml). Both read this file. Lines starting with # and blank lines are skipped.
+# Write patterns both grep -E and JavaScript read the same way: no \w or \d; use [A-Za-z0-9_-].
+
+# The shell and its TabBar, the phone layout, the PWA's banners and push.
+^apps/web/src/app/shell/
+^apps/web/src/app/core/(layout|pwa|push)/
+# The TabBar's destinations that only a phone has, and the phone versions of the others.
+^apps/web/src/app/features/(today|record|scan|more)/
+^apps/web/src/app/.+/phone-[A-Za-z0-9_-]+\.ts$
+# The design system's phone parts.
+^libs/ui/src/lib/(bottom-sheet|pull-refresh|nav)/
+# This audit and this list.
+^apps/web-e2e/src/a11y-phone\.spec\.ts$
+^apps/web-e2e/phone-screen-files\.txt$
