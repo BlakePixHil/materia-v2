@@ -33,7 +33,7 @@ resource "google_identity_platform_config" "this" {
 
   authorized_domains = concat(
     ["localhost", "${var.project_id}.firebaseapp.com", "${var.project_id}.web.app"],
-    var.auth_authorized_domains,
+    local.app_domains,
   )
 
   # The Firebase CLI registers the blocking functions (auth-beforeCreate, auth-beforeSignIn) when it

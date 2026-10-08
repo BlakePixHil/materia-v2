@@ -53,7 +53,7 @@ resource "google_storage_bucket" "default" {
   cors {
     origin = concat(
       ["https://${var.project_id}.web.app", "https://${var.project_id}.firebaseapp.com"],
-      [for domain in var.auth_authorized_domains : "https://${domain}"],
+      [for domain in local.app_domains : "https://${domain}"],
     )
     method          = ["GET", "HEAD"]
     response_header = ["Content-Type", "Content-Length", "Content-Range", "Content-Disposition", "Accept-Ranges", "Range"]

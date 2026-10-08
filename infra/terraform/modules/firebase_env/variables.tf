@@ -161,3 +161,9 @@ variable "auth_authorized_domains" {
   type        = list(string)
   default     = []
 }
+
+variable "custom_domain" {
+  description = "The app's own address, such as dev.materia.au. Added to Hosting, Auth's authorized domains and the files bucket's CORS. Empty: the Firebase domains only."
+  type        = string
+  default     = ""
+}

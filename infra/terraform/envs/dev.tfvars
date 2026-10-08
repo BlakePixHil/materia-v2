@@ -8,6 +8,10 @@ restrict_deploys_to_releases = false
 enable_migration_runner      = false
 deletion_protection          = false
 
+# The dev site's own address (Blake, 2026-10-08). Hosting serves it once the DNS records in the
+# `custom_domain_dns` output are added; the web.app address keeps working.
+custom_domain = "dev.materia.au"
+
 # Dev deploys push ~150 function images per merge; scanning each one costs more than it tells us.
 container_scanning = false
 

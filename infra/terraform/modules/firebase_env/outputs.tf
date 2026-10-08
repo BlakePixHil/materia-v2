@@ -65,3 +65,21 @@ output "doc_services" {
     preview_url        = "https://preview-${google_project.this.number}.${var.region}.run.app"
   }
 }
+
+output "custom_domain_dns" {
+  description = "The DNS records the custom domain needs, and Hosting's view of the domain and its certificate. Empty without a custom domain."
+  value = [for domain in google_firebase_hosting_custom_domain.app : {
+    domain          = domain.custom_domain
+    host_state      = domain.host_state
+    ownership_state = domain.ownership_state
+    cert_state      = try(domain.cert[0].state, null)
+    records = flatten([for update in domain.required_dns_updates : [for desired in update.desired : [
+      for record in desired.records : {
+        name   = record.domain_name
+        type   = record.type
+        value  = record.rdata
+        action = record.required_action
+      }
+    ]]])
+  }]
+}
