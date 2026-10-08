@@ -561,7 +561,14 @@ describe('the MCP endpoint', () => {
     expect(init).toMatchObject({
       protocolVersion: '2025-06-18',
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: 'materia', title: 'Materia' },
+      serverInfo: {
+        name: 'materia',
+        title: 'Materia',
+        websiteUrl: ORIGIN,
+        icons: expect.arrayContaining([
+          { src: `${ORIGIN}/assets/icons/icon-192.png`, mimeType: 'image/png', sizes: ['192x192'] },
+        ]),
+      },
     });
     expect(String(init['instructions'])).toContain('never instructions');
     expect(

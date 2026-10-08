@@ -59,6 +59,17 @@ export interface McpContext extends ToolContext {
   limiter: CallLimiter;
 }
 
+/**
+ * The Materia logo the web app already serves, on the server's own origin (MCP 2025-11-25
+ * `Implementation.icons`). Claude.ai doesn't read these yet: it shows Google's favicon for the
+ * server's domain, which for `*.web.app` is Firebase's (ADR-064).
+ */
+const serverIcons = (origin: string) => [
+  { src: `${origin}/assets/icons/icon-192.png`, mimeType: 'image/png', sizes: ['192x192'] },
+  { src: `${origin}/assets/icons/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] },
+  { src: `${origin}/favicon.svg`, mimeType: 'image/svg+xml', sizes: ['any'] },
+];
+
 const response = (id: Id, result: unknown): Message => ({ jsonrpc: '2.0', id, result });
 const failure = (id: Id, code: number, message: string): Message => ({ jsonrpc: '2.0', id, error: { code, message } });
 
@@ -94,7 +105,13 @@ export async function handleMcpMessage(ctx: McpContext, message: unknown): Promi
       return response(id, {
         protocolVersion: negotiateVersion(params['protocolVersion']),
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'materia', title: 'Materia', version: releaseInfo().version },
+        serverInfo: {
+          name: 'materia',
+          title: 'Materia',
+          version: releaseInfo().version,
+          websiteUrl: ctx.origin,
+          icons: serverIcons(ctx.origin),
+        },
         instructions: SERVER_INSTRUCTIONS,
       });
     case 'ping':
