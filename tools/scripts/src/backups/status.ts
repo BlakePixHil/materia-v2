@@ -1,11 +1,12 @@
-import type { AdminApi } from './admin-api.ts';
+import type { AdminApi, LogEntry } from './admin-api.ts';
 
 /**
  * `materia-scripts backup-status --project <id>` (SEC-03): what the backups have done lately, as
  * evidence and for diagnosis. Lists the managed backups, the nightly export folders in the exports
  * bucket (and any that never finished) and their off-region copies in the backups bucket, the files
  * copy, the export's Cloud Scheduler job and recent log lines, and the Storage Transfer jobs' latest
- * runs. Read-only. The `backup-drill` workflow runs it with source
+ * runs, and how fast Clerk's ingest worked through documents lately (the chunk rebuild after a restore
+ * from an export runs at that pace, SEC-07h). Read-only. The `backup-drill` workflow runs it with source
  * `status`. Each section reports its own error, so one missing permission doesn't hide the rest.
  * `--run-export` (workflow source `run-export`) then starts the export job now.
  */
@@ -18,6 +19,11 @@ export interface StatusOptions {
 }
 
 const EXPORT_JOB = 'backups-exportFirestore';
+const INGEST_SERVICE = 'documents-ingest';
+/** The Logging API's largest page. */
+const INGEST_PAGE = 1000;
+/** Requests closer together than this belong to one run. */
+const RUN_GAP_MS = 10 * 60 * 1000;
 
 async function section(title: string, body: () => Promise<string[]>): Promise<string[]> {
   try {
@@ -44,6 +50,66 @@ function logMessage(entry: { textPayload?: string; jsonPayload?: Record<string, 
     .filter((key) => json[key] !== undefined)
     .map((key) => `${key}=${typeof json[key] === 'string' ? json[key] : JSON.stringify(json[key])}`);
   return [String(json['message'] ?? ''), ...fields].join(' ').slice(0, 300);
+}
+
+/** Seconds from a Logging duration such as `"3.140s"`. */
+function seconds(latency: string | undefined): number | undefined {
+  const match = /^(\d+(?:\.\d+)?)s$/.exec(latency ?? '');
+  return match ? Number(match[1]) : undefined;
+}
+
+const quantile = (sorted: number[], q: number) => sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)] ?? 0;
+
+const secs = (value: number) => `${value.toFixed(1)} s`;
+
+/**
+ * Clerk ingest's pace from `documents-ingest` request logs (newest first): request count, failures,
+ * latency, and the busiest run (requests less than 10 minutes apart) with its first-to-last span
+ * and requests an hour. A long PDF is several requests, so this slightly understates documents.
+ */
+export function ingestSummary(entries: readonly LogEntry[], capped: boolean): string[] {
+  const requests = entries
+    .map((e) => ({
+      start: Date.parse(e.timestamp),
+      latency: seconds(e.httpRequest?.latency),
+      status: e.httpRequest?.status,
+    }))
+    .filter(
+      (r): r is { start: number; latency: number; status: number | undefined } =>
+        !Number.isNaN(r.start) && r.latency !== undefined,
+    )
+    .sort((a, b) => a.start - b.start);
+  if (!requests.length) return ['None.'];
+  const latencies = requests.map((r) => r.latency).sort((a, b) => a - b);
+  const failed = requests.filter((r) => r.status !== undefined && (r.status < 200 || r.status >= 300)).length;
+  const runs: (typeof requests)[] = [];
+  for (const r of requests) {
+    const run = runs[runs.length - 1];
+    const last = run?.[run.length - 1];
+    if (run && last && r.start - last.start < RUN_GAP_MS) run.push(r);
+    else runs.push([r]);
+  }
+  const busiest = runs.reduce((a, b) => (b.length > a.length ? b : a));
+  const first = busiest[0]?.start ?? 0;
+  const end = Math.max(...busiest.map((r) => r.start + r.latency * 1000));
+  const spanMs = Math.max(end - first, 60 * 1000);
+  const perHour = Math.round((busiest.length * 60 * 60 * 1000) / spanMs);
+  return [
+    ...table(
+      ['Requests', 'Failed', 'p50', 'p95', 'Longest'],
+      [
+        [
+          `${requests.length}${capped ? ' (newest only)' : ''}`,
+          String(failed),
+          secs(quantile(latencies, 0.5)),
+          secs(quantile(latencies, 0.95)),
+          secs(latencies[latencies.length - 1] ?? 0),
+        ],
+      ],
+    ),
+    '',
+    `Busiest run: ${busiest.length} requests from ${new Date(first).toISOString()} to ${new Date(end).toISOString()} (${Math.round(spanMs / 60000)} min), about ${perHour} an hour.`,
+  ];
 }
 
 const cell = (value: string | undefined) => (value ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
@@ -149,6 +215,20 @@ export async function status(api: AdminApi, opts: StatusOptions): Promise<string
         ]);
       }
       return table(['Job', 'Job status', 'Latest run', 'Run status', 'Counts'], rows);
+    })),
+  );
+
+  lines.push(
+    ...(await section('Clerk ingest (last 30 days)', async () => {
+      const from = new Date(opts.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const filter = [
+        `timestamp >= "${from}"`,
+        `resource.type="cloud_run_revision"`,
+        `resource.labels.service_name="${INGEST_SERVICE}"`,
+        `httpRequest.latency:*`,
+      ].join(' AND ');
+      const entries = await api.logEntries(filter, INGEST_PAGE);
+      return ingestSummary(entries, entries.length >= INGEST_PAGE);
     })),
   );
 

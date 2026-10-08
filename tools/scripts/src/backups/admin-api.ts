@@ -65,6 +65,8 @@ export interface LogEntry {
   severity?: string;
   textPayload?: string;
   jsonPayload?: Record<string, unknown>;
+  /** On Cloud Run request logs: `latency` is a duration such as `"3.140s"`. */
+  httpRequest?: { latency?: string; status?: number };
 }
 
 export interface ExportFolder {

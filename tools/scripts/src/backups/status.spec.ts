@@ -1,6 +1,6 @@
 import { AdminApi } from './admin-api.ts';
 import { scripted } from './fake.ts';
-import { parseArgs, runExport, status } from './status.ts';
+import { ingestSummary, parseArgs, runExport, status } from './status.ts';
 
 /** The backup status report (SEC-03) against scripted Google APIs. Everything here is fictional. */
 
@@ -60,6 +60,7 @@ describe('status', () => {
         ],
       },
       { status: 403, error: { message: 'storagetransfer.jobs.list denied' } },
+      { entries: [{ timestamp: '2026-10-07T02:00:00Z', httpRequest: { latency: '4.2s', status: 200 } }] },
     ]);
     const markdown = await status(new AdminApi(deps, 'p'), {
       location: 'australia-southeast1',
@@ -86,6 +87,38 @@ describe('status', () => {
     expect(headers[0]?.['x-goog-user-project']).toBeUndefined();
     expect(logs?.body).toMatchObject({ resourceNames: ['projects/p'], orderBy: 'timestamp desc' });
     expect(JSON.stringify(logs?.body)).toContain('timestamp >= \\"2026-09-29T21:00:00.000Z\\"');
+    expect(markdown).toContain('#### Clerk ingest (last 30 days)');
+    expect(markdown).toContain('| 1 | 0 | 4.2 s | 4.2 s | 4.2 s |');
+    const ingest = calls[calls.length - 1];
+    expect(ingest?.body).toMatchObject({ pageSize: 1000 });
+    expect(JSON.stringify(ingest?.body)).toContain('resource.labels.service_name=\\"documents-ingest\\"');
+    expect(JSON.stringify(ingest?.body)).toContain('timestamp >= \\"2026-09-07T21:00:00.000Z\\"');
+  });
+
+  it('times Clerk ingest from its request logs: latency and the busiest run', () => {
+    const at = (time: string, latency: string, status = 200) => ({
+      timestamp: `2026-10-07T${time}Z`,
+      httpRequest: { latency, status },
+    });
+    const lines = ingestSummary(
+      [
+        // A run of 4 requests between 02:00 and 02:20 (each within 10 minutes of the last).
+        at('02:00:00', '2.0s'),
+        at('02:06:00', '3.0s'),
+        at('02:12:00', '4.0s', 500),
+        at('02:19:50', '10.0s'),
+        // A lone request later, and a log line without a latency.
+        at('05:00:00', '1.0s'),
+        { timestamp: '2026-10-07T06:00:00Z' },
+      ].reverse(),
+      false,
+    );
+    expect(lines).toContain('| 5 | 1 | 3.0 s | 10.0 s | 10.0 s |');
+    expect(lines).toContain(
+      'Busiest run: 4 requests from 2026-10-07T02:00:00.000Z to 2026-10-07T02:20:00.000Z (20 min), about 12 an hour.',
+    );
+    expect(ingestSummary([at('02:00:00', '2.0s')], true)[2]).toBe('| 1 (newest only) | 0 | 2.0 s | 2.0 s | 2.0 s |');
+    expect(ingestSummary([], false)).toEqual(['None.']);
   });
 
   it('runs the export job now', async () => {
