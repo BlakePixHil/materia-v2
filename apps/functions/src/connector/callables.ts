@@ -24,19 +24,24 @@ import { audit } from '../audit/audit';
 import { defineCallable, type CallableDefinition } from '../core/callable';
 import { isEmulator } from '../core/env';
 import { requireFlag } from '../core/flags';
-import { appUrl } from '../orgs/shared';
+import { appOrigins, appUrl } from '../orgs/shared';
 
 /** Local origins the emulator may serve the consent page and MCP endpoint on. */
 const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
 
-/** The issuer and MCP resource's origin: the app's address; only the emulator follows the browser's. */
+/**
+ * The issuer and MCP resource's origin: the consent page's, when it is one of the app's own (so a
+ * connection made on dev.materia.au is that address's), else the app's address. The emulator also
+ * follows a local one.
+ */
 export function connectorIssuer(origin: string | undefined): string {
   if (isEmulator() && origin && LOCAL_ORIGIN.test(origin)) return origin;
+  if (origin && appOrigins().includes(origin)) return origin;
   return appUrl();
 }
 
 const AuthorizeInput = AuthorizeConnectorInput.extend({
-  /** The consent page's origin; only the emulator uses it. */
+  /** The consent page's origin: one of the app's own, or a local one in the emulator. */
   origin: z.string().max(200).optional(),
 });
 

@@ -19,7 +19,7 @@ import {
   suspendMemberDefinition,
   transferOwnershipDefinition,
 } from './members';
-import { appUrl, colourFor, hashToken, initialsOf, invitePath, newInviteToken } from './shared';
+import { appOrigins, appUrl, colourFor, hashToken, initialsOf, invitePath, newInviteToken } from './shared';
 import { switchActiveOrgDefinition } from './switch';
 import { acceptTermsDefinition } from './terms';
 import { memoryAuth, memoryFirestore, type FakeUser } from './testing';
@@ -127,6 +127,9 @@ describe('orgs shared helpers', () => {
       delete process.env['FUNCTIONS_EMULATOR'];
       process.env['GCLOUD_PROJECT'] = 'materia-v2-dev';
       expect(appUrl()).toBe('https://materia-v2-dev.web.app');
+      expect(appOrigins()).toEqual(['https://materia-v2-dev.web.app', 'https://dev.materia.au']);
+      process.env['MATERIA_APP_URL'] = 'https://dev.materia.au';
+      expect(appOrigins()).toEqual(['https://dev.materia.au', 'https://materia-v2-dev.web.app']);
     } finally {
       process.env = env;
     }

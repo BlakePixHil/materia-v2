@@ -4,9 +4,9 @@ import type { HttpsError } from 'firebase-functions/v2/https';
 
 import { can, PERMISSIONS, type ConnectorScope, type Role } from '@materia/domain';
 
-import { authorizeDefinition, disconnectDefinition, setPracticeDefinition } from './callables';
+import { authorizeDefinition, connectorIssuer, disconnectDefinition, setPracticeDefinition } from './callables';
 import { revokeConnections, type TokenSet } from './grants';
-import { handleConnectorRequest, type ConnectorRequest, type ConnectorResponse } from './http';
+import { connectorOrigin, handleConnectorRequest, type ConnectorRequest, type ConnectorResponse } from './http';
 import { CallLimiter, MCP_PROTOCOL_VERSIONS } from './mcp';
 import { connectionPath, grantsPath, newConnectorToken, parseConnectorToken, pkceMatches } from './tokens';
 import { clearRetentionCache } from '../audit/retention';
@@ -1083,6 +1083,32 @@ describe('parity with Materia, for every role', () => {
         if (args['matter'] === canary) continue;
         expect({ name, args, leaked: out.includes(canary) }).toEqual({ name, args, leaked: false });
       }
+    }
+  });
+});
+
+describe('the connector’s own address', () => {
+  it('is the app address Claude used, web.app or the custom domain, else the app’s address', () => {
+    const env = { ...process.env };
+    try {
+      delete process.env['MATERIA_APP_URL'];
+      delete process.env['FUNCTIONS_EMULATOR'];
+      process.env['GCLOUD_PROJECT'] = 'materia-v2-dev';
+      expect(connectorOrigin({ 'x-forwarded-host': 'dev.materia.au' })).toBe('https://dev.materia.au');
+      expect(connectorOrigin({ 'x-forwarded-host': 'DEV.materia.au' })).toBe('https://dev.materia.au');
+      expect(connectorOrigin({ 'x-forwarded-host': 'materia-v2-dev.web.app' })).toBe(ORIGIN);
+      // Another host, or a direct call to the function (no Hosting header), gets the app's address.
+      expect(connectorOrigin({ 'x-forwarded-host': 'materia.example' })).toBe(ORIGIN);
+      expect(connectorOrigin({ host: 'dev.materia.au' })).toBe(ORIGIN);
+      expect(connectorOrigin({})).toBe(ORIGIN);
+      // The consent page's origin is the issuer only when it is one of the app's own.
+      expect(connectorIssuer('https://dev.materia.au')).toBe('https://dev.materia.au');
+      expect(connectorIssuer('https://materia.example')).toBe(ORIGIN);
+      expect(connectorIssuer(undefined)).toBe(ORIGIN);
+      process.env['GCLOUD_PROJECT'] = 'materia-v2-prod';
+      expect(connectorOrigin({ 'x-forwarded-host': 'dev.materia.au' })).toBe('https://materia-v2-prod.web.app');
+    } finally {
+      process.env = env;
     }
   });
 });

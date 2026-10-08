@@ -5,6 +5,7 @@ import type { Firestore, Transaction } from 'firebase-admin/firestore';
 
 import { DomainError, type Role } from '@materia/domain';
 
+import { CUSTOM_DOMAINS } from '../config';
 import { isEmulator } from '../core/env';
 
 /** A 32-byte random invite token, base64url (sent in the link, never stored). */
@@ -23,6 +24,13 @@ export function appUrl(): string {
   if (configured) return configured.replace(/\/$/, '');
   if (isEmulator()) return 'http://localhost:4200';
   return `https://${process.env['GCLOUD_PROJECT'] ?? 'materia-v2-dev'}.web.app`;
+}
+
+/** The deployed app's own origins: `appUrl`, the project's web.app address and its custom domains. */
+export function appOrigins(): string[] {
+  const project = process.env['GCLOUD_PROJECT'] ?? 'materia-v2-dev';
+  const hosts = [`${project}.web.app`, ...(CUSTOM_DOMAINS[project] ?? [])];
+  return [...new Set([appUrl(), ...hosts.map((host) => `https://${host}`)])];
 }
 
 /** The accept-invite path: `/invite/{inviteId}?token=…`. */
