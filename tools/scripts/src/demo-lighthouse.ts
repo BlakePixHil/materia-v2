@@ -490,7 +490,21 @@ export async function signIn(page: Page, origin: string, email: string, password
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.waitForURL(/\/today$/, { timeout: 60_000 });
+  await page.waitForURL(/\/today$|\/accept-terms(\?|$)/, { timeout: 60_000 });
+  if (new URL(page.url()).pathname === '/accept-terms') {
+    await acceptTerms(page);
+    await page.waitForURL(/\/today$/, { timeout: 60_000 });
+  }
+}
+
+/**
+ * The demo owner's first sign-in since the terms changed opens `/accept-terms` (SEC-01): accept
+ * them for the demo practice, as its owner would, so the runs measure the page.
+ */
+async function acceptTerms(page: Page): Promise<void> {
+  log('The terms changed since the demo practice last accepted them: accepting them as its owner.');
+  await page.getByRole('checkbox', { name: /I’ve read the terms of service/ }).click();
+  await page.getByRole('button', { name: 'Accept and continue' }).click();
 }
 
 /** A first sign-in can open the welcome tour (CORE-24): skip it, so the runs measure the page. */
