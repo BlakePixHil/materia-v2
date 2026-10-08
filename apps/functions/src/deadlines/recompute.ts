@@ -25,6 +25,7 @@ import {
   matterStages,
   stageIndex,
   Task,
+  taskMatterCopy,
   today,
   type DateOnly,
   type DeadlineChangeCause,
@@ -245,8 +246,10 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
     // Events, deadlines and proposals carry a copy of the matter's flag (CORE-10b), which the rules
     // read in cross-matter queries.
     const privileged = matter['privileged'] === true;
-    // New deadlines carry a copy of the matter for the Deadlines screen (SEC-07c).
+    // New deadlines and proposals carry a copy of the matter for the Deadlines and Today screens,
+    // and new tasks theirs for Today (SEC-07c, SEC-07e).
     const matterCopy = deadlineMatterCopy(matter);
+    const taskCopy = taskMatterCopy(matter);
 
     // ---- reads ----
     const event = request.event;
@@ -466,6 +469,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
             matterId,
             // Counted below, so tasks-onWrite leaves the count alone (CORE-08).
             countedOpen: true,
+            ...(taskCopy ? { matter: taskCopy } : {}),
             ...created,
             schemaVersion: Task.version,
           }),
@@ -493,6 +497,7 @@ export async function recomputeMatter(db: Firestore, request: RecomputeRequest):
             assigneeUid: responsibleUid,
             recomputeVersion: nextVersion,
             privileged,
+            ...(matterCopy ? { matter: matterCopy } : {}),
             ...created,
             schemaVersion: DeadlineChange.version,
           }),

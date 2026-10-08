@@ -532,7 +532,9 @@ service cloud.firestore {
       // caller's current org, by id only: a matter as `{orgId}_{matterId}` (no `kind` before
       // CORE-15), anything else as `{orgId}_{kind}[_{matterId}]_{entityId}` (`recentEntryId`).
       // `expireAt` is about 90 days on (a day's slack for the client's clock) and Firestore TTL
-      // deletes the entry then.
+      // deletes the entry then. A matter's entry may carry `matter`, its number, title and type as
+      // the person saw them (SEC-07e, `RecentMatterCopySchema`), which matters-denormalise keeps
+      // current; the entry is private to them, so only its shape is checked.
       match /recent/{recentId} {
         function isRecentOwner() {
           return isSignedIn() && uid() == userId;
@@ -554,9 +556,19 @@ service cloud.firestore {
                 && (kind != 'document' || matterId.size() > 0)
                 && recentId == data.orgId + '_' + kind + (matterId.size() > 0 ? '_' + matterId : '') + '_' + entityId);
         }
+        function validCopy(data) {
+          return !('matter' in data)
+            || data.get('kind', 'matter') == 'matter'
+              && data.matter is map
+              && data.matter.keys().hasAll(['number', 'title', 'privileged'])
+              && data.matter.keys().hasOnly(['number', 'title', 'type', 'privileged', 'deleted'])
+              && data.matter.number is string && data.matter.number.size() <= 100
+              && data.matter.title is string && data.matter.title.size() <= 1000
+              && data.matter.privileged is bool;
+        }
         function validRecent(data) {
           return data.orgId == claimOrg() && inOrg(claimOrg())
-            && idOk(data) && validRef(data)
+            && idOk(data) && validRef(data) && validCopy(data)
             && data.expireAt is timestamp
             && data.expireAt > request.time + duration.value(89, 'd')
             && data.expireAt <= request.time + duration.value(91, 'd');
@@ -1329,7 +1341,7 @@ service cloud.firestore {
     function fieldsParty() { return ['share', 'notes']; }
     function fieldsPersonalTask() { return ['title', 'status', 'priority', 'assigneeUid', 'dueDate', 'checklist', 'order', 'group']; }
     function fieldsProceeding() { return ['court', 'list', 'location', 'fileNumber', 'judicialOfficer', 'stage', 'filedOn', 'ourRole']; }
-    function fieldsRecentMatter() { return ['orgId', 'kind', 'matterId', 'entityId', 'expireAt']; }
+    function fieldsRecentMatter() { return ['orgId', 'kind', 'matterId', 'entityId', 'matter', 'expireAt']; }
     function fieldsRuleSetVersion() { return ['ruleSetId', 'version', 'jurisdiction', 'published', 'practitionerReviewed', 'flag', 'disclaimer', 'rules']; }
     function fieldsSafeCustody() { return []; }
     function fieldsSavedView() { return ['orgId', 'list', 'name', 'filters', 'sort', 'groupBy']; }

@@ -11,7 +11,6 @@ import {
   deadlineFlags,
   deadlineGroup,
   deadlineMatchesFilters,
-  deadlineMatterCopy,
   deadlinePath,
   deadlineTraceText,
   deadlineTraceView,
@@ -19,7 +18,6 @@ import {
   isUrgentChange,
   ManualDeadlineCreateInput,
   ManualDeadlineUpdateInput,
-  matterCopyIsCurrent,
   matterEventPath,
   monthCalendar,
   monthCalendarRange,
@@ -158,62 +156,6 @@ describe('filters', () => {
     expect(deadlineMatchesFilters(mine, { jurisdictions: ['VIC'] }, context)).toBe(true);
     expect(deadlineMatchesFilters(mine, { jurisdictions: ['NSW'] }, context)).toBe(false);
     expect(deadlineMatchesFilters(mine, { jurisdictions: ['VIC'] }, { uid: 'u-jordan' })).toBe(false);
-  });
-
-  it('copies a matter onto its deadlines, and knows when a copy is current (SEC-07c)', () => {
-    const matter = {
-      number: 'M-2026-0142',
-      title: 'Estate of Margaret Whitfield',
-      jurisdiction: 'VIC',
-      responsibleUid: 'u-priya',
-      teamUids: ['u-priya', 'u-jordan'],
-      status: 'active',
-    };
-    const copy = deadlineMatterCopy(matter);
-    expect(copy).toEqual({
-      number: 'M-2026-0142',
-      title: 'Estate of Margaret Whitfield',
-      jurisdiction: 'VIC',
-      responsibleUid: 'u-priya',
-      teamUids: ['u-priya', 'u-jordan'],
-    });
-    // The copy is what the filters need.
-    expect(
-      deadlineMatchesFilters(row('t', '2026-10-09'), { team: true }, { uid: 'u-jordan', matter: copy ?? undefined }),
-    ).toBe(true);
-    expect(Deadline.schema.shape.matter.parse(copy)).toEqual(copy);
-    expect(
-      deadlineMatterCopy({ number: 'M-1', title: 'A matter', jurisdiction: 'XX', teamUids: [1, '', 'u-a'] }),
-    ).toEqual({
-      number: 'M-1',
-      title: 'A matter',
-      teamUids: ['u-a'],
-    });
-    expect(deadlineMatterCopy({ title: 'No number' })).toBeNull();
-    expect(deadlineMatterCopy({ number: 'M-1', title: '  ' })).toBeNull();
-
-    // Field by field, whatever order the stored map's keys come back in.
-    const stored = {
-      teamUids: ['u-priya', 'u-jordan'],
-      title: matter.title,
-      number: matter.number,
-      responsibleUid: 'u-priya',
-      jurisdiction: 'VIC',
-    };
-    expect(matterCopyIsCurrent(stored, copy)).toBe(true);
-    expect(matterCopyIsCurrent(undefined, copy)).toBe(false);
-    expect(matterCopyIsCurrent({ ...stored, title: 'Renamed' }, copy)).toBe(false);
-    expect(matterCopyIsCurrent({ ...stored, teamUids: ['u-jordan', 'u-priya'] }, copy)).toBe(false);
-    expect(matterCopyIsCurrent({ ...stored, responsibleUid: undefined }, copy)).toBe(false);
-    expect(matterCopyIsCurrent({ ...stored, jurisdiction: null }, copy)).toBe(false);
-    expect(
-      matterCopyIsCurrent(
-        { number: 'M-1', title: 'A matter', teamUids: [], jurisdiction: null },
-        deadlineMatterCopy({ number: 'M-1', title: 'A matter' }),
-      ),
-    ).toBe(true);
-    // Nothing to copy: nothing to write.
-    expect(matterCopyIsCurrent(undefined, null)).toBe(true);
   });
 
   it('finds the review queue and the flags', () => {

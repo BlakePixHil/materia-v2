@@ -7,7 +7,7 @@ import { type Role } from '@materia/domain';
 
 import { completeDefinition } from './complete';
 import { deleteEventDefinition, recomputeDefinition, upsertEventDefinition } from './events';
-import { matterCopyChanged, refreshDeadlineMatterCopy, syncDeadlineMatterCopies } from './matter-copy';
+import { refreshDeadlineMatterCopy } from './matter-copy';
 import { flagMissedAllOrgs, flagMissedDeadlines } from './missed';
 import { onDeadlineWrite, onWriteDefinition, syncNextDeadline } from './on-write';
 import { overrideDefinition } from './override';
@@ -20,6 +20,7 @@ import { runCallable, type CallableDefinition, type CallableDeps } from '../core
 import { clearFlagCaches, setRemoteFlagLoader } from '../core/flags';
 import { createLog } from '../core/log';
 import type { TriggerChange, TriggerContext } from '../core/trigger';
+import { matterCopiesChanged, syncMatterCopies } from '../matters/copies';
 import { denormaliseDefinition } from '../matters/denormalise';
 import { memoryFirestore } from '../orgs/testing';
 import { FakeClock, fakePorts } from '../ports/fakes';
@@ -385,10 +386,11 @@ describe('privileged copies (CORE-10b)', () => {
   });
 });
 
-describe('matter copies (SEC-07c)', () => {
+describe('matter copies (SEC-07c, SEC-07e)', () => {
   const COPY = {
     number: 'BL-2026-0042',
     title: 'Estate of Fictional Person',
+    type: 'probate',
     jurisdiction: 'VIC',
     responsibleUid: 'user-lawyer',
     teamUids: [],
@@ -411,11 +413,22 @@ describe('matter copies (SEC-07c)', () => {
       }) as unknown as TriggerChange,
   });
 
-  it('every deadline a recompute creates carries a copy of its matter', async () => {
+  it('every deadline, proposal and task a recompute creates carries a copy of its matter', async () => {
     const w = world();
-    await upsert(w, { kind: 'date_of_death', date: '2026-08-01' });
+    const first = await upsert(w, { kind: 'date_of_death', date: '2026-08-01' });
     expect(w.under(D).length).toBeGreaterThan(1);
     expect(copies(w)).toEqual([JSON.stringify(COPY)]);
+    await upsert(w, { kind: 'grant_issued', date: '2026-09-01' });
+    expect((w.doc(`${MATTER}/tasks/dlt-advise-fp-window`) as Data)['matter']).toEqual({
+      number: COPY.number,
+      title: COPY.title,
+      type: 'probate',
+      privileged: false,
+    });
+    await upsert(w, { kind: 'date_of_death', date: '2026-07-01', eventId: first.eventId });
+    const proposals = w.under(`${MATTER}/deadlineChanges`);
+    expect(proposals.length).toBeGreaterThan(0);
+    expect(proposals.map((row) => row['matter'])).toEqual(proposals.map(() => COPY));
   });
 
   it('deadlines-onWrite gives a deadline written without one a copy, then stops', async () => {
@@ -453,6 +466,14 @@ describe('matter copies (SEC-07c)', () => {
     const w = world();
     await upsert(w, { kind: 'date_of_death', date: '2026-08-01' });
     const count = w.under(D).length;
+    const TASK = `${MATTER}/tasks/manual-1`;
+    const RECENT = `users/user-lawyer/recent/${ORG}_m1`;
+    const DOCUMENT = `users/user-lawyer/recent/${ORG}_document_m1_doc-1`;
+    const OTHER_ORG = `users/user-lawyer/recent/org-b_m1`;
+    await w.db.doc(TASK).set({ ...meta, orgId: ORG, matterId: 'm1', title: 'Call the executor', deletedAt: null });
+    await w.db.doc(RECENT).set({ orgId: ORG, kind: 'matter', matterId: 'm1', updatedAt: new Date('2026-10-01') });
+    await w.db.doc(DOCUMENT).set({ orgId: ORG, kind: 'document', matterId: 'm1', entityId: 'doc-1' });
+    await w.db.doc(OTHER_ORG).set({ orgId: 'org-b', kind: 'matter', matterId: 'm1' });
     const run = (before: Data, after: Data) =>
       denormaliseDefinition.handler(
         {
@@ -471,25 +492,67 @@ describe('matter copies (SEC-07c)', () => {
       );
     const before = { ...(w.doc(MATTER) as Data) };
     await w.db.doc(MATTER).update({ priority: 'high' });
-    expect(matterCopyChanged(before, w.doc(MATTER))).toBe(false);
+    expect(matterCopiesChanged(before, w.doc(MATTER))).toBe(false);
     await run(before, w.doc(MATTER) as Data);
     expect(copies(w)).toEqual([JSON.stringify(COPY)]);
+    expect(w.doc(TASK)).not.toHaveProperty('matter');
 
-    await w.db.doc(MATTER).update({ title: 'Estate of Fictional Person (renamed)', teamUids: ['user-paralegal'] });
-    expect(matterCopyChanged(before, w.doc(MATTER))).toBe(true);
+    const renamed = 'Estate of Fictional Person (renamed)';
+    await w.db.doc(MATTER).update({ title: renamed, teamUids: ['user-paralegal'] });
+    expect(matterCopiesChanged(before, w.doc(MATTER))).toBe(true);
     await run(before, w.doc(MATTER) as Data);
-    expect(copies(w)).toEqual([
-      JSON.stringify({ ...COPY, title: 'Estate of Fictional Person (renamed)', teamUids: ['user-paralegal'] }),
-    ]);
-    expect(await syncDeadlineMatterCopies(w.db as never, ORG, 'm1')).toBe(0);
+    expect(copies(w)).toEqual([JSON.stringify({ ...COPY, title: renamed, teamUids: ['user-paralegal'] })]);
+    const named = { number: COPY.number, title: renamed, type: 'probate', privileged: false };
+    expect(w.doc(TASK)?.['matter']).toEqual(named);
+    expect(w.doc(RECENT)?.['matter']).toEqual(named);
+    // A recent entry keeps when it was opened; another kind, or another org's, is left alone.
+    expect((w.doc(RECENT)?.['updatedAt'] as { toMillis(): number }).toMillis()).toBe(Date.parse('2026-10-01'));
+    expect(w.doc(DOCUMENT)).not.toHaveProperty('matter');
+    expect(w.doc(OTHER_ORG)).not.toHaveProperty('matter');
+    expect(await syncMatterCopies(w.db as never, ORG, 'm1')).toEqual({
+      deadlines: 0,
+      proposals: 0,
+      tasks: 0,
+      recents: 0,
+    });
 
-    // Every live deadline, whatever its status; a destroyed matter's tombstone or a missing one is left alone.
+    // Every live deadline, whatever its status; a deleted task is left alone.
     await w.db.doc(MATTER).update({ number: 'BL-2026-0043' });
-    expect(await syncDeadlineMatterCopies(w.db as never, ORG, 'm1')).toBe(count);
+    await w.db.doc(TASK).update({ deletedAt: new Date() });
+    expect(await syncMatterCopies(w.db as never, ORG, 'm1')).toEqual({
+      deadlines: count,
+      proposals: 0,
+      tasks: 0,
+      recents: 1,
+    });
+    await w.db.doc(TASK).update({ deletedAt: null });
+
+    // Deleting the matter marks every copy, so Today leaves the records out; restoring unmarks them.
+    const live = { ...(w.doc(MATTER) as Data) };
+    await w.db.doc(MATTER).update({ deletedAt: new Date('2026-10-05T02:00:00Z') });
+    expect(matterCopiesChanged(live, w.doc(MATTER))).toBe(true);
+    await run(live, w.doc(MATTER) as Data);
+    expect(w.under(D).every((row) => (row['matter'] as Data)['deleted'] === true)).toBe(true);
+    expect(w.doc(TASK)?.['matter']).toMatchObject({ number: 'BL-2026-0043', deleted: true });
+    expect(w.doc(RECENT)?.['matter']).toMatchObject({ number: 'BL-2026-0043', deleted: true });
+    await w.db.doc(MATTER).update({ deletedAt: null });
+    await run({ ...live, deletedAt: new Date() }, w.doc(MATTER) as Data);
+    expect(w.under(D).some((row) => 'deleted' in (row['matter'] as Data))).toBe(false);
+    expect(w.doc(RECENT)?.['matter']).not.toHaveProperty('deleted');
+
+    // Marked privileged: the task's copy loses the name (ADR-026); the recent entry keeps it, flagged.
+    await w.db.doc(MATTER).update({ privileged: true });
+    expect(matterCopiesChanged(live, w.doc(MATTER))).toBe(true);
+    await run(live, w.doc(MATTER) as Data);
+    expect(w.doc(TASK)?.['matter']).toEqual({ privileged: true });
+    expect(w.doc(RECENT)?.['matter']).toMatchObject({ title: renamed, privileged: true });
+
+    // A destroyed matter's tombstone, or a missing one, is left alone.
     await w.db.doc(MATTER).update({ number: 'BL-2026-0044', destroyedAt: new Date() });
-    expect(await syncDeadlineMatterCopies(w.db as never, ORG, 'm1')).toBe(0);
-    expect(await syncDeadlineMatterCopies(w.db as never, ORG, 'nope')).toBe(0);
-    expect(matterCopyChanged(undefined, w.doc(MATTER))).toBe(false);
+    const none = { deadlines: 0, proposals: 0, tasks: 0, recents: 0 };
+    expect(await syncMatterCopies(w.db as never, ORG, 'm1')).toEqual(none);
+    expect(await syncMatterCopies(w.db as never, ORG, 'nope')).toEqual(none);
+    expect(matterCopiesChanged(undefined, w.doc(MATTER))).toBe(false);
   });
 });
 

@@ -432,6 +432,20 @@ describe('destruction', () => {
       [`orgs/${ORG}/trustSnapshots/m1`]: { matterId: 'm1', balanceCents: 0, asAt: '2026-01-31' },
       [`orgs/${ORG}/trustSnapshots/m2`]: { matterId: 'm2', balanceCents: 1_000, asAt: '2026-01-31' },
       [`orgs/${ORG}/audit/a1`]: { action: 'update', entity: { path: `${M}/m1` } },
+      // Recent entries name the matter (SEC-07e): its own, and a document opened on it.
+      [`users/user-lawyer/recent/${ORG}_m1`]: {
+        orgId: ORG,
+        kind: 'matter',
+        matterId: 'm1',
+        matter: { number: 'M-2026-0001', title: 'Estate of Fictional Quill', privileged: false },
+      },
+      [`users/user-lawyer/recent/${ORG}_document_m1_doc1`]: {
+        orgId: ORG,
+        kind: 'document',
+        matterId: 'm1',
+        entityId: 'doc1',
+      },
+      [`users/user-lawyer/recent/${ORG}_m2`]: { orgId: ORG, kind: 'matter', matterId: 'm2' },
       [`${Q}/m1`]: {
         status: 'approved',
         title: 'Estate of Fictional Quill',
@@ -457,6 +471,7 @@ describe('destruction', () => {
     expect(remaining).not.toContain(`orgs/${ORG}/trustSnapshots/m1`);
     expect(remaining).toContain(`orgs/${ORG}/trustSnapshots/m2`);
     expect(remaining).toContain(`orgs/${ORG}/audit/a1`);
+    expect(remaining.filter((path) => path.startsWith('users/'))).toEqual([`users/user-lawyer/recent/${ORG}_m2`]);
     expect([...files.objects.keys()].filter((path) => path.startsWith(`${M}/m1/`))).toEqual([]);
     expect(files.objects.has(`${M}/m2/documents/doc9/v1`)).toBe(true);
 
@@ -483,7 +498,7 @@ describe('destruction', () => {
     );
     expect(tombstone).toMatchObject({ number: 'M-2026-0001', destroyedBy: 'user-admin', certificateId: 'dc-m1' });
 
-    const counts = { files: 2, documents: 1, records: 9 };
+    const counts = { files: 2, documents: 1, records: 11 };
     expect(w.doc(`${Q}/m1`)).toMatchObject({
       status: 'destroyed',
       stage: 'certificate',

@@ -14,7 +14,7 @@ import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from 
 import { filter, map } from 'rxjs';
 
 import { ACCESS_REVOKED_HANDLER, can, OrgContext } from '@materia/data-access';
-import { canRestoreMatter } from '@materia/domain';
+import { canRestoreMatter, recentMatterCopy } from '@materia/domain';
 import {
   formatDateOnly,
   MtButton,
@@ -284,7 +284,7 @@ export class MatterLayout {
     effect(() => {
       const matter = this.screen.value();
       if (!matter || matter.deletedAt) return;
-      untracked(() => record({ kind: 'matter', matterId: matter.id }));
+      untracked(() => record({ kind: 'matter', matterId: matter.id, matter: recentMatterCopy(matter) }));
     });
 
     // ⌘J asks Clerk about this matter while it's open.

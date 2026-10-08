@@ -99,8 +99,8 @@ export const DeadlineItemSchema = /* @__PURE__ */ z.object({
   /** The matter's flag (CORE-10b); absent on deadlines written before it. */
   privileged: deadline.privileged.optional(),
   /**
-   * The matter's number, title, people and jurisdiction (SEC-07c); absent on deadlines from before
-   * it (until `backfill-deadline-matters` runs) and, for a moment, on a manual one just added.
+   * The matter's number, title, type, people and jurisdiction (SEC-07c); absent on deadlines from
+   * before it (until `backfill-matter-copies` runs) and, for a moment, on a manual one just added.
    */
   matter: deadline.matter,
   updatedAt: deadline.updatedAt.optional(),
@@ -256,6 +256,8 @@ export const DeadlineChangeItemSchema = /* @__PURE__ */ z.object({
   resolvedAt: change.resolvedAt,
   /** The matter's flag (CORE-10b); absent on proposals written before it. */
   privileged: change.privileged.optional(),
+  /** A pending proposal's copy of its matter (SEC-07e); absent on older ones until `backfill-matter-copies` runs. */
+  matter: change.matter,
   createdAt: change.createdAt.optional(),
 });
 export type DeadlineChangeItem = z.infer<typeof DeadlineChangeItemSchema>;

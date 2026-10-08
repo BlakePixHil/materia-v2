@@ -2,30 +2,19 @@ import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import { deadlineMatterCopy, matterCopyIsCurrent } from '@materia/domain';
 
-import { deadlinesPath } from './shared';
-import { matterPath } from '../matters/shared';
-
 /**
- * A matter's number, title, people and jurisdiction, copied to its deadlines (`Deadline.matter`,
- * SEC-07c), so the Deadlines screen names and filters its rows without reading each one's matter.
- * Writers that read the matter stamp the copy; `deadlines-onWrite` fills or refreshes it after any
- * other write (`refreshDeadlineMatterCopy`), and `matters-denormalise` rewrites it on the matter's
- * deadlines when these fields change (`syncDeadlineMatterCopies`). Both write only a copy that
- * differs and leave `updatedAt` alone, so they converge and stop.
+ * A matter's number, title, type, people and jurisdiction, copied to its deadlines
+ * (`Deadline.matter`, SEC-07c), so the Deadlines and Today screens name and filter their rows
+ * without reading each one's matter. Writers that read the matter stamp the copy;
+ * `deadlines-onWrite` fills or refreshes it after any other write (`refreshDeadlineMatterCopy`),
+ * and `matters-denormalise` rewrites it with the matter's other copies (`syncMatterCopies` in
+ * matters/copies.ts). Both write only a copy that differs and leave `updatedAt` alone, so they
+ * converge and stop.
  */
 
 type Data = Record<string, unknown>;
 
-/** Writes per batch (Firestore allows 500). */
-const BATCH_SIZE = 400;
-
 const isLive = (data: Data | undefined) => !!data && (data['deletedAt'] ?? null) === null;
-
-/** Whether a matter write changed what its deadlines copy (a create or delete never does here). */
-export function matterCopyChanged(before: Data | undefined, after: Data | undefined): boolean {
-  if (!before || !after) return false;
-  return !matterCopyIsCurrent(deadlineMatterCopy(before), deadlineMatterCopy(after));
-}
 
 /**
  * Brings one deadline's copy in line with `matter` (the matter's data, read just before). `written`
@@ -51,25 +40,4 @@ export async function refreshDeadlineMatterCopy(
     tx.update(ref, { matter: copy });
     return true;
   });
-}
-
-/**
- * Brings the copies on a matter's live deadlines in line with the matter. Reads the matter's current
- * fields, not the triggering event's, so events delivered out of order converge; a repeat writes
- * nothing. Returns how many deadlines it wrote.
- */
-export async function syncDeadlineMatterCopies(db: Firestore, orgId: string, matterId: string): Promise<number> {
-  const matter = await db.doc(matterPath(orgId, matterId)).get();
-  // Gone, or a destroyed matter's tombstone (CORE-19).
-  if (!matter.exists || matter.get('destroyedAt')) return 0;
-  const copy = deadlineMatterCopy(matter.data() ?? {});
-  if (!copy) return 0;
-  const snap = await db.collection(deadlinesPath(orgId, matterId)).get();
-  const stale = snap.docs.filter((doc) => isLive(doc.data()) && !matterCopyIsCurrent(doc.get('matter'), copy));
-  for (let i = 0; i < stale.length; i += BATCH_SIZE) {
-    const batch = db.batch();
-    for (const doc of stale.slice(i, i + BATCH_SIZE)) batch.update(doc.ref, { matter: copy });
-    await batch.commit();
-  }
-  return stale.length;
 }

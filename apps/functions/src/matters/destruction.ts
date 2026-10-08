@@ -51,7 +51,8 @@ import { matterTrustDoc } from '../trust/shared';
  *    matter number typed. That enqueues `matters-destroy`.
  * 3. `matters-destroy` deletes the matter's Storage objects (every generation), replaces the matter
  *    with a tombstone (so triggers leave it alone), deletes every record under it (documents,
- *    chunks, notes, tasks…), its Clerk threads and notifications, then issues the certificate PDF.
+ *    chunks, notes, tasks…), its Clerk threads and notifications and the recent entries naming it,
+ *    then issues the certificate PDF.
  *    Each step records itself on the queue entry, so a retry resumes where it stopped; the
  *    certificate is issued only once everything else is done. Audit entries are kept.
  */
@@ -437,17 +438,20 @@ export async function destroyMatter(
     await mark('records');
   }
   if (!after(stage, 'references')) {
-    // Outside the matter: its Clerk threads (and their messages), its notifications and its trust
-    // record (BILL-11).
-    const [threads, notifications, trust] = await Promise.all([
+    // Outside the matter: its Clerk threads (and their messages), its notifications, its trust
+    // record (BILL-11), and everyone's recent entries for it, which carry its name (SEC-07e).
+    const [threads, notifications, trust, recents] = await Promise.all([
       db.collection(`orgs/${orgId}/clerkThreads`).where('matterId', '==', matterId).get(),
       db.collection(`orgs/${orgId}/notifications`).where('matterId', '==', matterId).get(),
       matterTrustDoc(db, orgId, matterId).get(),
+      db.collectionGroup('recent').where('orgId', '==', orgId).where('matterId', '==', matterId).get(),
     ]);
     for (const thread of threads.docs) {
       for (const sub of await thread.ref.listCollections()) await deleteTree(db, sub, requestRef);
     }
-    const refs = [...threads.docs, ...notifications.docs, ...(trust.exists ? [trust] : [])].map((doc) => doc.ref);
+    const refs = [...threads.docs, ...notifications.docs, ...(trust.exists ? [trust] : []), ...recents.docs].map(
+      (doc) => doc.ref,
+    );
     for (let start = 0; start < refs.length; start += DELETE_BATCH) {
       const batch = db.batch();
       const chunk = refs.slice(start, start + DELETE_BATCH);

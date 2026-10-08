@@ -1,6 +1,6 @@
 import { FieldValue } from 'firebase-admin/firestore';
 
-import { Activity, taskSearchTokens } from '@materia/domain';
+import { Activity, matterCopyIsCurrent, taskMatterCopy, taskSearchTokens } from '@materia/domain';
 
 import {
   activitySummary,
@@ -38,7 +38,8 @@ export interface TaskWriteOutcome {
  *
  * 1. In one transaction on the task, brings `countedOpen`, `completedAt` and the matter's
  *    `openTaskCount` (a server increment) in line with the task's current state (`planTaskSync`),
- *    and `search` with its title (CORE-15, `titleSearch`).
+ *    `search` with its title (CORE-15, `titleSearch`), and a live task's copy of its matter with
+ *    the matter (SEC-07e, `matterCopyPatch`).
  *    The transaction reads the task again, so concurrent and out-of-order events converge on the
  *    exact count; its own write plans nothing next time, so it doesn't loop.
  * 2. Notifies a new assignee (`task_assigned` in-app notification, one per event).
@@ -62,7 +63,16 @@ export async function syncTask(change: TriggerChange, ctx: TriggerContext): Prom
     const current = await tx.get(taskRef);
     const data = current.exists ? (current.data() as Data) : undefined;
     const planned = planTaskSync(data, before, ctx.time);
-    const next = data ? { ...planned, patch: { ...planned.patch, ...titleSearch(data) } } : planned;
+    const next = data
+      ? {
+          ...planned,
+          patch: {
+            ...planned.patch,
+            ...titleSearch(data),
+            ...(live ? matterCopyPatch(data, matter.data() ?? {}) : {}),
+          },
+        }
+      : planned;
     if (next.countDelta && live) tx.update(matterRef, { openTaskCount: FieldValue.increment(next.countDelta) });
     if (current.exists && Object.keys(next.patch).length) tx.update(taskRef, toWrite(next.patch));
     return next;
@@ -123,6 +133,17 @@ export const onWriteDefinition: TriggerDefinition = {
   on: 'written',
   handler: async (change, ctx) => void (await syncTask(change, ctx)),
 };
+
+/**
+ * A live task's copy of its matter when it's missing or out of date (SEC-07e). The matter was read
+ * just before the transaction: a copy written from a matter that changed meanwhile is caught by the
+ * write it causes, which runs this trigger again, and by `matters-denormalise`.
+ */
+export function matterCopyPatch(task: Data, matter: Data): { matter?: object } {
+  if ((task['deletedAt'] ?? null) !== null) return {};
+  const copy = taskMatterCopy(matter);
+  return copy && !matterCopyIsCurrent(task['matter'], copy) ? { matter: copy } : {};
+}
 
 /** `search` from a task's title when it's out of date (CORE-15). */
 export function titleSearch(task: Data): { search?: string[] } {

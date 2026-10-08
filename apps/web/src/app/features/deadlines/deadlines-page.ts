@@ -493,16 +493,13 @@ export class DeadlinesPage {
     () => new Map(this.members.value().map((member) => [member.id, member.displayName] as const)),
   );
   /**
-   * Matters read one by one: only for deadlines without their copy (written before SEC-07c, until
-   * `backfill-deadline-matters` runs) and for the changes waiting on me.
+   * Matters read one by one: only for deadlines and changes waiting on me without their copy
+   * (written before SEC-07c and SEC-07e, until `backfill-matter-copies` runs).
    */
   private readonly matters = matterLookup(() =>
-    [
-      ...[this.deadlines, this.calendarDeadlines, this.review].flatMap((query) =>
-        query.value().flatMap((row) => (row.matterId && !row.matter ? [row.matterId] : [])),
-      ),
-      ...this.changes.value().map((row) => row.matterId),
-    ].filter(Boolean),
+    [this.deadlines, this.calendarDeadlines, this.review, this.changes].flatMap((query) =>
+      query.value().flatMap((row) => (row.matterId && !row.matter ? [row.matterId] : [])),
+    ),
   );
 
   /**
@@ -611,14 +608,16 @@ export class DeadlinesPage {
     ),
   );
   protected readonly changeRows = computed<ChangeRowVm[]>(() => {
-    const matters = this.matters();
+    let lookup: ReadonlyMap<string, DeadlineMatterRef> | undefined;
     return this.changes
       .value()
       .map((change) => ({
         key: `${change.matterId}/${change.id}`,
         matterId: change.matterId,
         change,
-        matter: matters.get(change.matterId),
+        matter: change.matter
+          ? { id: change.matterId, ...change.matter }
+          : (lookup ??= this.matters()).get(change.matterId),
       }))
       .sort((a, b) => Number(b.change.critical) - Number(a.change.critical));
   });

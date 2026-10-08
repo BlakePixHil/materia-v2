@@ -18,6 +18,7 @@ import {
   EventKindSchema,
   GstTreatmentSchema,
   JurisdictionSchema,
+  MatterTypeSchema,
   PartyRoleSchema,
   PrioritySchema,
   TaskStatusSchema,
@@ -125,6 +126,8 @@ export const Task = withMeta(
     templateTaskKey: z.string().optional(),
     duePending: EventKindSchema.optional(),
     countedOpen: z.boolean().optional(),
+    /** The matter's number, title and type, or only that it's privileged (SEC-07e): `TaskMatterCopySchema`. */
+    matter: TaskMatterCopySchema.optional(),
   }),
   {
     path: `${MATTER}/tasks`,
@@ -132,6 +135,7 @@ export const Task = withMeta(
     serverOwned: [
       'orgId',
       'matterId',
+      'matter',
       'completedAt',
       'reminderSentFor',
       'templateTaskKey',
@@ -211,21 +215,57 @@ export const DEADLINE_ESCALATION_RECIPIENTS_MAX = 50;
 export const DEADLINE_REASON_MAX = 1000;
 
 /**
- * A deadline's copy of its matter (SEC-07c): what the Deadlines screen names a row by and filters
- * on (my team's matters, jurisdiction), so the screen doesn't read each deadline's matter. Made by
- * `deadlineMatterCopy`. Writers that read the matter stamp it, `deadlines-onWrite` fills or
- * refreshes it after any other write, and `matters-denormalise` rewrites it on a matter's live
- * deadlines when these fields change. Absent on deadlines from before SEC-07c until
- * `backfill-deadline-matters` runs; the screen reads those deadlines' matters instead.
+ * What a record shows of its matter when a screen lists it away from the matter (SEC-07c, SEC-07e):
+ * the number, title and type, and `deleted` while the matter is soft-deleted, so Today leaves the
+ * record out. Made by the `*MatterCopy` helpers in `matter-copies.ts`.
  */
-export const DeadlineMatterCopySchema = z.object({
+const matterNameCopy = {
   number: NonEmptyString,
   title: NonEmptyString,
+  type: MatterTypeSchema.optional(),
+  deleted: z.literal(true).optional(),
+};
+
+/**
+ * A deadline's (and a pending proposal's) copy of its matter (SEC-07c, SEC-07e): what the
+ * Deadlines and Today screens name a row by, and what Deadlines filters on (my team's matters,
+ * jurisdiction), so neither reads each row's matter. Made by `deadlineMatterCopy`. Deadlines and
+ * proposals are only readable by those who may read the matter (CORE-10b), so a privileged
+ * matter's copy carries its name too. Writers that read the matter stamp it, `deadlines-onWrite`
+ * fills or refreshes it after any other write, and `matters-denormalise` rewrites it on a matter's
+ * live deadlines and pending proposals when these fields change. Absent on records from before
+ * until `backfill-matter-copies` runs; the screens read those records' matters instead.
+ */
+export const DeadlineMatterCopySchema = z.object({
+  ...matterNameCopy,
   jurisdiction: JurisdictionSchema.optional(),
   responsibleUid: DocIdSchema.optional(),
   teamUids: z.array(DocIdSchema).default([]),
 });
 export type DeadlineMatterCopy = z.infer<typeof DeadlineMatterCopySchema>;
+
+/**
+ * A matter task's copy of its matter (SEC-07e), for Today: made by `taskMatterCopy`, filled by
+ * `tasks-onWrite` and rewritten by `matters-denormalise`. Whoever a task is assigned to reads it,
+ * even on a privileged matter they can't read (ADR-026), so a privileged matter's copy says only
+ * that it is privileged: Today leaves the task out for roles without `privileged.view` and reads
+ * the matter for the others.
+ */
+export const TaskMatterCopySchema = z.discriminatedUnion('privileged', [
+  z.object({ ...matterNameCopy, privileged: z.literal(false) }),
+  z.object({ privileged: z.literal(true), deleted: matterNameCopy.deleted }),
+]);
+export type TaskMatterCopy = z.infer<typeof TaskMatterCopySchema>;
+
+/**
+ * A recent matter's copy of it (`RecentMatter.matter`, SEC-07e), for Today's Recent matters and
+ * the phone's: made by `recentMatterCopy`. The person writes it when they open the matter (the
+ * entry is private to them), and `matters-denormalise` rewrites it on everyone's entries when the
+ * matter is renamed, deleted, restored or (un)marked privileged; Today leaves out a privileged one
+ * for roles without `privileged.view`. `matters-destroy` deletes the entries (CORE-19).
+ */
+export const RecentMatterCopySchema = z.object({ ...matterNameCopy, privileged: z.boolean() });
+export type RecentMatterCopy = z.infer<typeof RecentMatterCopySchema>;
 
 /**
  * `matters/{matterId}/deadlines/{deadlineId}`. Every computed deadline records its rule (ADR-009).
@@ -302,7 +342,7 @@ export const Deadline = withMeta(
      * matter's flag changes. No default: a writer that forgets it fails rather than leaks.
      */
     privileged: z.boolean(),
-    /** The matter's number, title, people and jurisdiction, copied (SEC-07c): `DeadlineMatterCopySchema`. */
+    /** The matter's number, title, type, people and jurisdiction, copied (SEC-07c): `DeadlineMatterCopySchema`. */
     matter: DeadlineMatterCopySchema.optional(),
   }),
   {
@@ -375,6 +415,8 @@ export const DeadlineChange = withMeta(
     resolvedAt: InstantSchema.optional(),
     /** The matter's privileged flag, copied (CORE-10b): see `Deadline.privileged`. */
     privileged: z.boolean(),
+    /** The matter's number, title and type while pending (SEC-07e): `DeadlineMatterCopySchema`. */
+    matter: DeadlineMatterCopySchema.optional(),
   }),
   {
     path: `${MATTER}/deadlineChanges`,
@@ -383,6 +425,7 @@ export const DeadlineChange = withMeta(
       'orgId',
       'matterId',
       'privileged',
+      'matter',
       'deadlineId',
       'ruleId',
       'title',

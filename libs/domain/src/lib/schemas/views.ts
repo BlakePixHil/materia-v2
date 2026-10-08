@@ -2,6 +2,7 @@ import * as z from 'zod';
 
 import { DocIdSchema, InstantSchema, NonEmptyString, withMeta } from './common';
 import { JurisdictionSchema, MatterStatusSchema, MatterTypeSchema } from './enums';
+import { RecentMatterCopySchema, type RecentMatterCopy } from './matter-records';
 
 export const MATTER_SORT_FIELDS = [
   'number',
@@ -74,7 +75,12 @@ export const RECENT_ENTRIES_SHOWN = 10;
  *   personal tasks).
  * - `entityId`: the contact, task or document (absent for a matter).
  *
- * Ids only: the palette reads each entry's title (so a rename or a lost permission shows at once).
+ * - `matter`: for a matter, its number, title and type (SEC-07e, `RecentMatterCopySchema`), so
+ *   Today names its Recent matters without reading each one; absent on entries from before it until
+ *   `backfill-matter-copies` runs, and Today reads those matters instead.
+ *
+ * Otherwise ids only: the palette reads each entry's title (so a rename or a lost permission shows
+ * at once).
  */
 export const RecentMatter = withMeta(
   () => ({
@@ -82,17 +88,19 @@ export const RecentMatter = withMeta(
     kind: z.enum(RECENT_KINDS).default('matter'),
     matterId: DocIdSchema.optional(),
     entityId: DocIdSchema.optional(),
+    matter: RecentMatterCopySchema.optional(),
     expireAt: InstantSchema,
   }),
   { path: 'users/{uid}/recent', migratable: false },
 );
 export type RecentMatter = z.infer<typeof RecentMatter.schema>;
 
-/** What a recent entry points at. */
+/** What a recent entry points at, and for a matter, its name as the screen shows it (SEC-07e). */
 export interface RecentRef {
   kind: RecentKind;
   matterId?: string | null | undefined;
   entityId?: string | null | undefined;
+  matter?: RecentMatterCopy | null | undefined;
 }
 
 /** A recent matter's document id: one entry per org and matter (CORE-14). */
