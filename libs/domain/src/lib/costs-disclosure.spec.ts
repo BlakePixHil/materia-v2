@@ -29,10 +29,10 @@ const today = '2026-10-06' as DateOnly;
 const now = new Date('2026-10-06T00:00:00Z');
 const vic = (cents: number | undefined) => assessDisclosure({ jurisdiction: 'VIC', estimateHighCents: cents });
 
-describe('the VIC v1 rules (illustrative)', () => {
-  it('parse, are versioned and say they are illustrative', () => {
+describe('the VIC v1 rules', () => {
+  it('parse, are versioned and are signed off (BILL-06a), so not illustrative', () => {
     const rules = costsDisclosureRules().jurisdictions['VIC'];
-    expect(rules).toMatchObject({ version: 'vic-v1', illustrative: true });
+    expect(rules).toMatchObject({ version: 'vic-v1', illustrative: false });
     expect(rules?.bands.map((band) => band.id)).toEqual(['below-lower-threshold', 'standard-form', 'full']);
   });
 
@@ -45,7 +45,7 @@ describe('the VIC v1 rules (illustrative)', () => {
     expect(vic(5_000_000)).toMatchObject({
       rulesConfigured: true,
       rulesVersion: 'vic-v1',
-      illustrative: true,
+      illustrative: false,
       requirement: 'full',
       formTemplateId: 'system-costs-disclosure',
     });

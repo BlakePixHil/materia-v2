@@ -105,7 +105,7 @@ describe('Settings → Document templates', () => {
     // The built-in letter is replaced while Engagement letter is published.
     expect(page.text(row(page, 'system-letter'))).toContain('Replaced by Engagement letter');
     expect(page.text(row(page, 'system-file-note'))).toContain('Built in');
-    expect(page.text()).toContain('The costs disclosure is an illustrative placeholder');
+    expect(page.text()).toContain('The built-in costs disclosures are placeholders');
   });
 
   it('publishes the latest version', async () => {

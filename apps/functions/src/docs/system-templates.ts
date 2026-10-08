@@ -154,12 +154,15 @@ const signatureBlock = () => [tight('{lawyer.fullName}'), tight('{lawyer.title}'
 /** The signature block every letter ends with. */
 const signature = (closing: string) => [p({ keepNext: true, runs: [closing] }), blank(), blank(), ...signatureBlock()];
 
-/** The costs disclosures' warning that they are placeholders, not reviewed wording. */
-const PLACEHOLDER_NOTE = [
+/**
+ * The costs disclosures' one gap: the wording was signed off (BILL-06a), but the statement of the
+ * client's rights is the firm's to add. Highlighted, for the lawyer to act on and delete.
+ */
+const RIGHTS_NOTE = [
   p({
     runs: [
       {
-        text: 'Illustrative placeholder only. Replace this template with your firm’s own costs disclosure, reviewed by a practitioner, before it is given to a client.',
+        text: 'Add your firm’s statement of the client’s rights under “Your rights” before this is given to a client, then delete this note.',
         italic: true,
         highlight: true,
       },
@@ -226,7 +229,7 @@ const BODIES: Record<string, () => string[]> = {
   ],
   'system-costs-disclosure': () => [
     p({ style: 'Title', runs: ['Costs disclosure'] }),
-    ...PLACEHOLDER_NOTE,
+    ...RIGHTS_NOTE,
     ...UPDATED_NOTE,
     label('Client', '{client.fullName}'),
     label('Matter', '{matter.number}  {matter.title}'),
@@ -247,7 +250,7 @@ const BODIES: Record<string, () => string[]> = {
   // BILL-06: matters whose estimate allows the uniform standard disclosure form.
   'system-costs-disclosure-short': () => [
     p({ style: 'Title', runs: ['Costs disclosure (short form)'] }),
-    ...PLACEHOLDER_NOTE,
+    ...RIGHTS_NOTE,
     ...UPDATED_NOTE,
     label('Client', '{client.fullName}'),
     label('Matter', '{matter.number}  {matter.title}'),

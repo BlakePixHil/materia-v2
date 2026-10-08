@@ -139,7 +139,7 @@ describe('validation and the create input', () => {
     expect(costsDisclosureFor({ ...fees, arrangement: 'capped', cap: '' })).toEqual({
       status: 'required',
       text: 'Required: estimate needed',
-      illustrative: true,
+      illustrative: false,
     });
     expect(costsDisclosureFor({ ...fees, estimate: 'x' })).toBeNull();
     expect(costsDisclosureFor({ ...fees, estimate: '700' })).toMatchObject({

@@ -211,8 +211,8 @@ type Template = WithId<DocTemplateItem>;
       }
       @if (costsPlaceholder) {
         <mt-note tone="warning">
-          The costs disclosure is an illustrative placeholder, not reviewed by a practitioner. Replace it with your own
-          before sending it to a client.
+          The built-in costs disclosures are placeholders: they have no statement of your client’s rights. Replace them
+          with your own before sending one to a client.
         </mt-note>
       }
     </mt-settings-section>

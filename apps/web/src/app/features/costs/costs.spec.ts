@@ -47,14 +47,13 @@ describe('costs disclosure panel', () => {
     expect(panel()).toBeNull();
   });
 
-  it('shows the status, what the estimate needs, the illustrative rules and the history', async () => {
+  it('shows the status, what the estimate needs and the history, without an illustrative note on signed-off rules', async () => {
     const page = await openMatter(undefined, { flags: ON, matter: { fee, costsDisclosure: required } });
     await page.stable(50);
     expect(page.text(part('disclosure-status'))).toBe('Required');
     expect(page.text(part('disclosure-need'))).toBe('Full disclosure required (estimate $4,500.00)');
-    expect(page.text(panel())).toContain(
-      'The VIC disclosure rules are illustrative until a practitioner reviews them.',
-    );
+    // A practitioner signed off the VIC rules (BILL-06a).
+    expect(page.text(panel())).not.toContain('illustrative');
     expect(page.text(part('disclosure-due'))).toContain('Due since');
     expect(page.text(panel()?.querySelector('details'))).toContain(
       'Assessed at intake · full disclosure · estimate $4,500.00',

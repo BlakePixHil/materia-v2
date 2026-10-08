@@ -209,9 +209,9 @@ export const DisbursementPresetsDoc = withMeta(() => ({ presets: DisbursementPre
 export const disbursementPresetsPath = (orgId: string) => `orgs/${orgId}/settings/${DISBURSEMENT_PRESETS_DOC}`;
 
 /**
- * The starting presets, used until the org saves its own (and written by the seed). Illustrative
- * and awaiting practitioner review (BILL-04a): amounts are blank because the fees change each
- * financial year, and the GST treatments need checking against current ATO guidance.
+ * The starting presets, used until the org saves its own (and written by the seed). A practitioner
+ * signed off their labels and GST treatments on 2026-10-08 (BILL-04a). Amounts are blank because
+ * the fees change each financial year.
  */
 export const DEFAULT_DISBURSEMENT_PRESETS: readonly DisbursementPreset[] = [
   {

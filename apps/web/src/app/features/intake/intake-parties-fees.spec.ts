@@ -45,11 +45,12 @@ describe('fees step', () => {
   const disclosure = (page: Awaited<ReturnType<typeof resumeAt>>) =>
     page.text(page.page()?.querySelector('[data-testid="costs-disclosure"]'));
 
-  it('shows the costs disclosure the estimate needs under the illustrative VIC rules', async () => {
+  it('shows the costs disclosure the estimate needs under the signed-off VIC rules', async () => {
     const page = await resumeAt(probateState(), 'fees');
-    expect(disclosure(page)).toContain('Illustrative');
+    expect(disclosure(page)).not.toContain('Illustrative');
     expect(disclosure(page)).toContain('Full disclosure required (estimate $4,500.00)');
-    expect(disclosure(page)).toContain('not legal advice');
+    expect(disclosure(page)).toContain('under the VIC disclosure rules.');
+    expect(disclosure(page)).not.toContain('not legal advice');
     await page.choose('Hourly');
     expect(disclosure(page)).toContain('Required: estimate needed');
     await page.fill('Estimate of total costs', '500');

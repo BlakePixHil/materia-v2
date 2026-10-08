@@ -199,7 +199,8 @@ describe('costs-generateDisclosure', () => {
     );
     const merged = await text(w, result.documentId);
     expect(merged).toContain('Catherine Doyle');
-    expect(merged).toContain('Illustrative placeholder only');
+    expect(merged).toContain('Add your firm’s statement of the client’s rights');
+    expect(merged).not.toContain('Illustrative');
     expect(merged).not.toContain('Updated costs disclosure');
     expect(merged).toMatchSnapshot();
   });
