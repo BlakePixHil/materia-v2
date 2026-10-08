@@ -20,6 +20,7 @@ html, body { background: var(--bg-surface); }
 @keyframes mt-spin { to { transform: rotate(360deg); } }
 @keyframes mt-pulse { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 @keyframes mt-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes mt-sweep { to { transform: translateX(100%); } }
 @keyframes mt-caret { 50% { opacity: 0; } }
 @keyframes mt-fade-in { from { opacity: 0; } }
 @keyframes mt-rise-in { from { opacity: 0; transform: translateY(4px); } }

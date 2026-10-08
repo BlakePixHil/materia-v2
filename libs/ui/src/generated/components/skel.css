@@ -1,6 +1,7 @@
 /* generated — do not edit. Source: design/system/project/components/bundle.css (mt-skel). Regenerate with `pnpm materia-scripts sync-design`. */
-.mt-skel { display: block; height: 10px; border-radius: var(--radius-xs); background: linear-gradient(90deg, var(--bg-hover) 0%, var(--bg-pressed) 50%, var(--bg-hover) 100%); background-size: 200% 100%; animation: mt-shimmer 1.6s linear infinite; }
+.mt-skel { display: block; position: relative; overflow: hidden; height: 10px; border-radius: var(--radius-xs); background: var(--bg-hover); }
+.mt-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--bg-pressed), transparent); transform: translateX(-100%); animation: mt-sweep 1.6s linear infinite; }
 .mt-skel[data-shape="circle"] { border-radius: var(--radius-full); }
 .mt-skel[data-shape="chip"] { height: 20px; }
-.mt-skel[data-static] { animation: none; background: var(--bg-hover); }
-@media (prefers-reduced-motion: reduce) { .mt-skel { animation: none; } }
+.mt-skel[data-static]::after { content: none; }
+@media (prefers-reduced-motion: reduce) { .mt-skel::after { animation: none; } }
