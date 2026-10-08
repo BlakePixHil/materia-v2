@@ -63,7 +63,7 @@ Previews deploy hosting only. The preview app calls the dev project's functions,
 
    | Backfill | From | What it fills |
    | --- | --- | --- |
-   | `backfill-deadline-matters` | SEC-07c | Each deadline's copy of its matter's number, title, people and jurisdiction. Until it runs, the Deadlines screen reads older deadlines' matters one by one, as it did before. |
+   | `backfill-matter-copies` | SEC-07c, SEC-07e | The copy of its matter's name that each live deadline, pending proposal, live matter task and recent matter carries (deadlines also its people and jurisdiction). Until it runs, the Deadlines and Today screens read older records' matters one by one, as they did before. |
 
 A tag on a commit with no successful `deploy-dev` run, or one whose artifact has expired after 90 days, is refused.
 

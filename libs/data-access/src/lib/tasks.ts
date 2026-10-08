@@ -46,6 +46,12 @@ export const TaskItemSchema = /* @__PURE__ */ z.object({
   /** Template tasks (CORE-07): `tpl-{key}` ids, and the event a pending due date waits for. */
   templateTaskKey: task.templateTaskKey,
   duePending: task.duePending,
+  /**
+   * A matter task's copy of its matter's number, title and type, or only that it's privileged
+   * (SEC-07e); absent on tasks from before it until `backfill-matter-copies` runs, and for a moment
+   * on a task just added.
+   */
+  matter: task.matter,
   createdAt: task.createdAt.optional(),
   updatedAt: task.updatedAt.optional(),
   updatedBy: task.updatedBy.optional(),

@@ -42,6 +42,16 @@ describe('planLine and the migration review', () => {
     });
   });
 
+  it('keeps the copy of its matter that a task carries (SEC-07e)', () => {
+    const tasks = PHASES.find((phase) => phase.file === 'tasks');
+    if (!tasks) throw new Error('no tasks phase');
+    const copy = { number: 'AF-2026-0001', title: 'Estate of Fictional Wren', privileged: false };
+    const task = { path: `${PATH}/tasks/t1`, legacyPath: 'workflows/w/cards/c1/checklists/k1/items/i1' };
+    const data = { title: 'Lodge the application', updatedAt: LOADED, updatedBy: 'u1', migration };
+    const planned = planLine(tasks, { ...task, data }, { ...data, matter: copy }, NOW);
+    expect(planned.decision).toBe('unchanged');
+  });
+
   it('leaves review state alone on records nobody reviewed', () => {
     const planned = planLine(MATTERS, line({ needsReview: ['title_missing'] }), existing({}), NOW);
     expect(planned).toMatchObject({ decision: 'update', changed: ['needsReview'] });

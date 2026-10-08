@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 
 import { Connectivity, DATA_CLOCK } from '@materia/data-access';
-import { rollupMetrics, timeEntryMetrics } from '@materia/domain';
+import { deadlineMatterCopy, recentMatterCopy, rollupMetrics, taskMatterCopy, timeEntryMetrics } from '@materia/domain';
 
 import { DEVICE_TIME_ZONE } from './today-data';
 import { PhoneLayout } from '../../core/layout/phone-layout';
@@ -31,6 +31,7 @@ const NOW = Date.parse('2026-10-04T22:00:00Z');
 const OTHER = `orgs/${ORG}/matters/m-ostler`;
 const SECRET = `orgs/${ORG}/matters/m-sealed`;
 const PERSONAL = `orgs/${ORG}/members/${ME}/tasks`;
+const GONE = `orgs/${ORG}/matters/m-lark`;
 
 function deadlineDoc(title: string, data: Seed = {}): Seed {
   return {
@@ -106,6 +107,58 @@ function busyDay(fs: Fs): void {
   fs.set(`users/${ME}/recent/${ORG}_m-ostler`, recentDoc('m-ostler', '2026-10-02T00:00:00Z'));
   fs.set(`users/${ME}/recent/${ORG}_m-whitfield`, recentDoc('m-whitfield', '2026-10-03T00:00:00Z'));
 }
+
+/**
+ * Gives every row in `busyDay` its copy of its matter (SEC-07e), as the triggers and the matter
+ * screen write them: deadlines and proposals `deadlineMatterCopy`, tasks `taskMatterCopy`, recent
+ * matters `recentMatterCopy`.
+ */
+function withCopies(fs: Fs): void {
+  const copies = { deadlines: deadlineMatterCopy, deadlineChanges: deadlineMatterCopy, tasks: taskMatterCopy };
+  for (const [matter, rows] of [
+    [
+      MATTER,
+      [
+        'deadlines/d-inventory',
+        'deadlines/d-notice',
+        'deadlineChanges/c-notice',
+        'tasks/t-call',
+        'tasks/t-late',
+        'tasks/t-next',
+      ],
+    ],
+    [OTHER, ['tasks/t-draft']],
+  ] as const) {
+    for (const row of rows) {
+      const copy = copies[row.split('/')[0] as keyof typeof copies];
+      fs.set(`${matter}/${row}`, { ...(fs.get(`${matter}/${row}`) as Seed), matter: copy(fs.get(matter) as Seed) });
+    }
+  }
+  for (const matter of [MATTER, OTHER]) {
+    const path = `users/${ME}/recent/${ORG}_${matter.split('/').at(-1)}`;
+    fs.set(path, { ...(fs.get(path) as Seed), matter: recentMatterCopy(fs.get(matter) as Seed) });
+  }
+}
+
+/** `busyDay` with copies, the Ostler will marked privileged, and a task on a deleted matter. */
+function privilegedAndDeleted(fs: Fs): void {
+  busyDay(fs);
+  fs.set(OTHER, { ...(fs.get(OTHER) as Seed), privileged: true });
+  withCopies(fs);
+  const gone = matterDoc({
+    number: 'M-2026-0160',
+    title: 'Estate of Fictional Lark',
+    deletedAt: new Date('2026-10-03'),
+  });
+  fs.set(GONE, gone);
+  fs.set(
+    `${GONE}/tasks/t-gone`,
+    taskDoc('Lodge the final return', 'm-lark', { dueDate: '2026-10-06', matter: taskMatterCopy(gone) }),
+  );
+}
+
+/** Matters read one at a time (each row's, before SEC-07e). */
+const matterReads = (fs: Fs) => fs.docReads.filter((path) => /^orgs\/[^/]+\/matters\/[^/]+$/.test(path));
 
 function entryDoc(data: Seed = {}): Seed {
   return {
@@ -366,6 +419,58 @@ describe('today', () => {
     expect(page.text(page.body.querySelector('.mt-today'))).not.toContain('Draft the will');
   });
 
+  it('names its rows from their copies of their matters, reading no matter (SEC-07e)', async () => {
+    const page = await openToday({
+      configure: (fs) => {
+        busyDay(fs);
+        withCopies(fs);
+      },
+    });
+    expect(items(page, 'attention')).toEqual([
+      'Overdue: File the inventory of assets',
+      'Change to review: Advertise notice of intended application',
+    ]);
+    expect(page.text(card(page, 'attention'))).toContain('M-2026-0142 · Estate of Margaret Whitfield');
+    expect(items(page, 'due')).toEqual([
+      'Task: Draft the will',
+      'Task: Call the executor',
+      'Task: Book CPD seminar',
+      'Deadline: Advertise notice of intended application',
+    ]);
+    expect(page.text(card(page, 'due'))).toContain('M-2026-0150 · Will for Bram Ostler');
+    expect([...(card(page, 'recent')?.querySelectorAll('[data-today-focus]') ?? [])].map((a) => page.text(a))).toEqual([
+      'M-2026-0142 Estate of Margaret Whitfield',
+      'M-2026-0150 Will for Bram Ostler',
+    ]);
+    expect(matterReads(page.firestore)).toEqual([]);
+  });
+
+  it('leaves out rows whose copy says their matter is deleted, or privileged for a role that can’t see it (SEC-07e)', async () => {
+    // A paralegal can't see privileged matters: the Ostler will's task and recent entry are left out
+    // without reading the matter, as is the task on a deleted matter.
+    const page = await openToday({ session: PARALEGAL, configure: privilegedAndDeleted });
+    const text = page.text(page.body.querySelector('.mt-today'));
+    expect(text).not.toContain('Draft the will');
+    expect(text).not.toContain('Will for Bram Ostler');
+    expect(text).not.toContain('Lodge the final return');
+    expect(items(page, 'tasks')).toContain('Chase the bank valuation');
+    expect(matterReads(page.firestore)).toEqual([]);
+  });
+
+  it('reads the matter of a privileged matter’s task for a role that sees it, whose copy has no name (SEC-07e)', async () => {
+    const page = await openToday({
+      configure: (fs) => {
+        privilegedAndDeleted(fs);
+        // No other row names it (a recent entry would).
+        fs.delete(`users/${ME}/recent/${ORG}_m-ostler`);
+      },
+    });
+    expect(items(page, 'due')).toContain('Task: Draft the will');
+    expect(items(page, 'due')).not.toContain('Task: Lodge the final return');
+    expect(page.text(card(page, 'due'))).toContain('M-2026-0150 · Will for Bram Ostler');
+    expect(matterReads(page.firestore)).toEqual([OTHER]);
+  });
+
   it('shows a checklist while the practice has no matters', async () => {
     const page = await openToday({ session: ADMIN, matter: { deletedAt: new Date('2026-10-01T00:00:00Z') } });
     const steps = card(page, 'onboarding');
@@ -575,5 +680,12 @@ describe('recent matters', () => {
     expect(recent?.['orgId']).toBe(ORG);
     expect(recent?.['matterId']).toBe('m-whitfield');
     expect((recent?.['expireAt'] as Date).toISOString()).toBe('2027-01-02T22:00:00.000Z');
+    // With its name, for Today (SEC-07e).
+    expect(recent?.['matter']).toEqual({
+      number: 'M-2026-0142',
+      title: 'Estate of Margaret Whitfield',
+      type: expect.any(String),
+      privileged: false,
+    });
   });
 });

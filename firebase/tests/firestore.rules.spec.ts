@@ -1775,6 +1775,30 @@ describe('recent matters (CORE-14)', () => {
     await assertFails(setDoc(doc(firestore, `${recentOf(uid)}/${OTHER_ORG}_matter-1`), entry(uid)));
   });
 
+  it('carries the matter’s name as I saw it, in its shape (SEC-07e)', async () => {
+    const uid = uidFor('paralegal');
+    const firestore = db(env, 'paralegal');
+    const ref = doc(firestore, `${recentOf(uid)}/${ORG}_matter-1`);
+    const copy = { number: 'M-2026-0142', title: 'Estate of Margaret Fictional', type: 'probate', privileged: false };
+    await assertSucceeds(setDoc(ref, entry(uid, { kind: 'matter', matter: copy })));
+    await assertSucceeds(setDoc(ref, entry(uid, { matter: { ...copy, deleted: true } })));
+    for (const bad of [
+      'M-2026-0142',
+      { ...copy, notes: 'Not part of the copy' },
+      { number: copy.number, title: copy.title },
+      { ...copy, number: 42 },
+      { ...copy, title: 'x'.repeat(1001) },
+      { ...copy, privileged: 'no' },
+    ]) {
+      await assertFails(setDoc(ref, entry(uid, { matter: bad })));
+    }
+    // Only a matter's own entry names it.
+    const task = doc(firestore, `${recentOf(uid)}/${ORG}_task_matter-1_task-1`);
+    const taskEntry = entry(uid, { kind: 'task', entityId: 'task-1' });
+    await assertSucceeds(setDoc(task, taskEntry));
+    await assertFails(setDoc(task, { ...taskEntry, matter: copy }));
+  });
+
   it('a partial update keeps the entry valid', async () => {
     const uid = uidFor('lawyer');
     const ref = doc(db(env, 'lawyer'), `${recentOf(uid)}/${ORG}_matter-1`);

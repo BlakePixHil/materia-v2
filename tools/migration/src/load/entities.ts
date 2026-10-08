@@ -90,7 +90,8 @@ export const PHASES: readonly Phase[] = [
     entity: d.Task,
     kind: 'doc',
     group: 'tasks',
-    reconciled: ['countedOpen', 'reminderSentFor', 'search'],
+    // `matter`: the copy of its matter that tasks-onWrite keeps (SEC-07e).
+    reconciled: ['countedOpen', 'reminderSentFor', 'search', 'matter'],
   },
   { file: 'notes', entity: d.Note, kind: 'doc', group: 'notes', reconciled: [] },
   { file: 'activity', entity: d.Activity, kind: 'doc', group: 'activity', reconciled: [] },

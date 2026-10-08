@@ -217,7 +217,9 @@ export const recentEntriesQuery = (orgId: string): QuerySpec<RecentMatterItem> =
 
 /**
  * Records that I opened something: the whole entry is written again, so `updatedAt` moves to now
- * and `expireAt` 90 days on. Not awaited by callers: offline, it's saved when back online.
+ * and `expireAt` 90 days on. A matter's entry carries its number, title and type when the ref has
+ * them (`recentMatterCopy`, SEC-07e), which Today shows. Not awaited by callers: offline, it's saved
+ * when back online.
  */
 export function recordRecent(
   recents: Pick<Repository<RecentMatterItem>, 'create'>,
@@ -231,6 +233,7 @@ export function recordRecent(
       kind: ref.kind,
       ...(ref.matterId ? { matterId: ref.matterId } : {}),
       ...(ref.kind !== 'matter' && ref.entityId ? { entityId: ref.entityId } : {}),
+      ...(ref.kind === 'matter' && ref.matter ? { matter: ref.matter } : {}),
       expireAt: recentMatterExpireAt(now),
     },
     { id: recentEntryId(orgId, ref) },

@@ -301,7 +301,7 @@ describe('firestore.indexes.json', () => {
     expect(ttl?.fieldPath).toBe('expireAt');
   });
 
-  it('recent entries are listed newest first per org (and per kind for Today) and expire through TTL on expireAt (CORE-14, CORE-15)', () => {
+  it('recent entries are listed newest first per org (and per kind for Today), found by matter across people (SEC-07e), and expire through TTL on expireAt (CORE-14, CORE-15)', () => {
     const ttl = (file.fieldOverrides as { collectionGroup: string; fieldPath: string; ttl?: boolean }[]).find(
       (o) => o.collectionGroup === 'recent' && o.ttl,
     );
@@ -310,6 +310,8 @@ describe('firestore.indexes.json', () => {
     expect(recent.map((i) => `${i.queryScope}:${i.fields.map((f) => `${f.fieldPath}:${f.order}`).join(',')}`)).toEqual([
       'COLLECTION:orgId:ASCENDING,updatedAt:DESCENDING',
       'COLLECTION:orgId:ASCENDING,kind:ASCENDING,updatedAt:DESCENDING',
+      // matters-denormalise keeps their copy of the matter current; matters-destroy deletes them.
+      'COLLECTION_GROUP:orgId:ASCENDING,matterId:ASCENDING',
     ]);
   });
 

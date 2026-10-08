@@ -1577,6 +1577,8 @@ export function buildDataset(options: {
         }),
       ),
     );
+    // Each task's copy of its matter (SEC-07e), as tasks-onWrite fills it.
+    const taskCopy = domain.taskMatterCopy(matterData) ?? undefined;
     spec.tasks.forEach(([title, status, priority, due, assignee], i) =>
       add(
         `${base}/tasks/${spec.id}-t-${i + 1}`,
@@ -1584,6 +1586,7 @@ export function buildDataset(options: {
           ...meta,
           orgId: org,
           matterId: spec.id,
+          matter: taskCopy,
           title,
           status,
           priority,
@@ -1608,6 +1611,7 @@ export function buildDataset(options: {
           matterId: spec.id,
           ...(task.done ? { status: 'done' as const, completedAt: closedAt ?? now } : {}),
           countedOpen: !task.done,
+          matter: taskCopy,
         }),
       );
     }
@@ -1669,6 +1673,7 @@ export function buildDataset(options: {
           order: 1_000_000,
           source: 'rule',
           countedOpen: true,
+          matter: taskCopy,
         }),
       );
     }

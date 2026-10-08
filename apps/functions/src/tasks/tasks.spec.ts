@@ -365,12 +365,38 @@ describe('tasks-onWrite', () => {
   it('keeps search in step with the title, writing it only when it changed (CORE-15)', async () => {
     const w = world();
     const first = await w.writeTask('t1', task({ title: 'Lodge the Inventory of Assets' }));
-    expect(first.patched).toEqual(['countedOpen', 'search']);
+    expect(first.patched).toEqual(['countedOpen', 'search', 'matter']);
     expect(w.doc(`${T}/t1`)?.['search']).toEqual(taskSearchTokens('Lodge the Inventory of Assets'));
     expect((await w.writeTask('t1', { status: 'in_progress' })).patched).toEqual([]);
     expect((await w.writeTask('t1', { title: 'Publish the notice' })).patched).toEqual(['search']);
     expect(w.doc(`${T}/t1`)?.['search']).toEqual(expect.arrayContaining(['publish', 'notice']));
     expect(w.doc(`${T}/t1`)?.['search']).not.toContain('inventory');
+  });
+
+  it('copies the matter onto a live task, a privileged one without its name, then stops (SEC-07e)', async () => {
+    const w = world();
+    await w.writeTask('t1', task());
+    expect(w.doc(`${T}/t1`)?.['matter']).toEqual({
+      number: 'M-2026-0042',
+      title: 'Estate of Fictional Quill',
+      privileged: false,
+    });
+    expect((await w.writeTask('t1', { status: 'in_progress' })).patched).toEqual([]);
+    // Renamed meanwhile (matters-denormalise rewrites it too): the next write catches up.
+    await w.db.doc(M).update({ title: 'Estate of Fictional Quill (renamed)' });
+    expect((await w.writeTask('t1', { priority: 'low' })).patched).toEqual(['matter']);
+    // Its assignee may not read a privileged matter (ADR-026): only the flag.
+    const P = 'orgs/org-a/matters/m-priv/tasks';
+    await w.write('t2', task({ matterId: 'm-priv' }), P);
+    expect(w.doc(`${P}/t2`)?.['matter']).toEqual({ privileged: true });
+    // A deleted matter's task is marked; a deleted task is left as it is.
+    const G = 'orgs/org-a/matters/m-gone/tasks';
+    await w.db.doc('orgs/org-a/matters/m-gone').update({ title: 'Will for Fictional Ostler' });
+    await w.write('t3', task({ matterId: 'm-gone' }), G);
+    expect(w.doc(`${G}/t3`)?.['matter']).toMatchObject({ number: 'M-2026-0044', deleted: true });
+    await w.db.doc(`${T}/t1`).update({ matter: { number: 'Old' } });
+    await w.writeTask('t1', { deletedAt: NOW });
+    expect(w.doc(`${T}/t1`)?.['matter']).toEqual({ number: 'Old' });
   });
 
   it('personal tasks: completedAt and search only', async () => {

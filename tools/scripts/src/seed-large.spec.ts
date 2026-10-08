@@ -80,7 +80,7 @@ describe('seed-large', () => {
     expect(problems).toEqual([]);
   });
 
-  it('gives the first lawyer a fee earner’s full load and keeps the denormalised matter fields true', () => {
+  it('gives the first lawyer a fee earner’s full load and keeps the denormalised matter fields and copies true', () => {
     // 500 matters, with a tenth of their documents and time entries (which this test doesn't look at).
     const full = planLargeOrg(0.05);
     const plan = { ...full, documents: full.documents / 10, timeEntries: full.timeEntries / 10 };
@@ -88,6 +88,7 @@ describe('seed-large', () => {
     const deadlines = new Map<string, { dueDate: string; status: string }[]>();
     const openTasks = new Map<string, number>();
     const matters: { id: string; data: Record<string, unknown> }[] = [];
+    const copies: { matterId: string; kind: string; copy: unknown }[] = [];
     let overdue = 0;
     let upcoming = 0;
     for (const { path, data } of largeOrgDocs(plan, { now: NOW, today: TODAY })) {
@@ -105,6 +106,10 @@ describe('seed-large', () => {
           if (String(data['dueDate']) < TODAY) overdue++;
         }
       }
+      // Each deadline's and task's copy of its matter (SEC-07c, SEC-07e).
+      if (parts[4] === 'deadlines' || parts[4] === 'tasks') {
+        copies.push({ matterId: parts[3] as string, kind: parts[4], copy: data['matter'] });
+      }
       if (parts[4] === 'tasks' && data['status'] !== 'done') {
         openTasks.set(parts[3] as string, (openTasks.get(parts[3] as string) ?? 0) + 1);
       }
@@ -121,6 +126,12 @@ describe('seed-large', () => {
       expect((data['nextDeadline'] as { dueDate?: string } | undefined)?.dueDate).toBe(soonest);
       expect(data['openTaskCount']).toBe(openTasks.get(id) ?? 0);
     }
+    const byId = new Map(matters.map(({ id, data }) => [id, data]));
+    for (const { matterId, kind, copy } of copies) {
+      const matter = byId.get(matterId) ?? {};
+      expect(copy).toEqual(kind === 'tasks' ? domain.taskMatterCopy(matter) : domain.deadlineMatterCopy(matter));
+    }
+    expect(copies.some(({ copy }) => (copy as { privileged?: boolean }).privileged === true)).toBe(true);
   });
 
   it('parses its options and refuses anything but the emulators', async () => {

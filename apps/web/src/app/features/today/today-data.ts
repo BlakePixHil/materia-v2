@@ -58,6 +58,7 @@ import {
 import { ToastService } from '@materia/ui';
 
 import {
+  copiedRef,
   lookupEntry,
   visibleRows,
   type AttentionVm,
@@ -123,6 +124,10 @@ const NO_COUNTS: TodayCounts = {
  * - Counts use count aggregation, and aren't asked for while offline. WIP this month (roles that
  *   record time) is one document: my figures for the month from INS-01's rollups (ADR-048), read
  *   with the counts, rather than every entry I recorded this month (SEC-07's read budget).
+ * - Rows are named from their copy of their matter (SEC-07e: deadlines, proposals, tasks and recent
+ *   entries carry its number, title and type), so the screen reads no matters. It looks a matter up
+ *   only for a row without a usable copy: one written before the copies (until
+ *   `backfill-matter-copies` runs), or a privileged matter's task, whose copy has no name.
  * - Rows on matters the person can't read (or that were deleted) are left out silently.
  */
 @Injectable()
@@ -219,20 +224,45 @@ export class TodayData {
 
   // ---------- matters ----------
 
+  /** Every row's matter id and copy of its matter, whatever its section. */
+  private readonly rows = computed(() => [
+    ...this.overdue.value(),
+    ...this.changes.value(),
+    ...(this.escalated.value() ?? []),
+    ...this.dueDeadlines.value(),
+    ...this.dueTasks.value(),
+    ...this.nextTasks.value(),
+    ...this.recents.value(),
+  ]);
+  /**
+   * The matters the rows' copies name (SEC-07e). A copy that leaves its rows out (deleted, or
+   * privileged and not for this person) wins over one that names the matter.
+   */
+  private readonly copied = computed((): MatterLookup => {
+    const privilegedVisible = this.privilegedVisible();
+    const map = new Map<string, TodayMatterRef | null>();
+    for (const row of this.rows()) {
+      if (!row.matterId) continue;
+      const ref = copiedRef(row.matterId, row.matter, privilegedVisible);
+      if (ref === null) map.set(row.matterId, null);
+      else if (ref && !map.has(row.matterId)) map.set(row.matterId, ref);
+    }
+    return map;
+  });
   private readonly matterRepo = todayMatterRepository();
+  /** Matters looked up because no row's copy could name them. */
   private readonly lookup = signal<MatterLookup>(new Map());
-  readonly matters = this.lookup.asReadonly();
+  readonly matters = computed((): MatterLookup => {
+    const matters = new Map(this.copied());
+    for (const [id, ref] of this.lookup()) if (!matters.has(id)) matters.set(id, ref);
+    return matters;
+  });
   private readonly requested = new Set<string>();
+  /** The matters to look up: those no row's copy names. */
   private readonly matterIds = computed(() => {
-    const ids = [
-      ...this.overdue.value().map((row) => row.matterId),
-      ...this.changes.value().map((row) => row.matterId),
-      ...this.dueDeadlines.value().map((row) => row.matterId),
-      ...this.dueTasks.value().map((row) => row.matterId),
-      ...this.nextTasks.value().map((row) => row.matterId),
-      ...this.recents.value().map((row) => row.matterId),
-    ];
-    return [...new Set(ids.filter((id): id is string => !!id))];
+    const copied = this.copied();
+    const ids = this.rows().map((row) => row.matterId);
+    return [...new Set(ids.filter((id): id is string => !!id && !copied.has(id)))];
   });
 
   // ---------- counts ----------
@@ -247,7 +277,7 @@ export class TodayData {
 
   // ---------- the first paint ----------
 
-  /** Every source has its first answer: the rows, their matters, and (online) the counts. */
+  /** Every source has its first answer: the rows, the matters looked up, and (online) the counts. */
   private readonly answered = computed(() => {
     if ([this.overdue, this.changes, ...this.oneShot].some((source) => source.status() === 'loading')) return false;
     const lookup = this.lookup();
@@ -266,7 +296,7 @@ export class TodayData {
 
   /** Overdue deadlines, changes and escalations, in `needsAttention` order. */
   readonly attention = computed(() => {
-    const matters = this.lookup();
+    const matters = this.matters();
     const section = needsAttention(
       {
         overdue: visibleRows(this.overdue.value(), matters),
@@ -299,7 +329,7 @@ export class TodayData {
 
   /** Deadlines and tasks due from today to Sunday, merged (`dueThisWeek`). */
   readonly due = computed(() => {
-    const matters = this.lookup();
+    const matters = this.matters();
     const section = dueThisWeek(
       {
         deadlines: visibleRows(this.dueDeadlines.value(), matters),
@@ -326,7 +356,7 @@ export class TodayData {
 
   /** My next open tasks with a date (most overdue first), for the short My tasks list. */
   readonly myTasks = computed(() => {
-    const matters = this.lookup();
+    const matters = this.matters();
     return [...visibleRows(this.nextTasks.value(), matters)].sort(compareMyTasks).map((task) => ({
       key: todayItemKey('task', task),
       entry: this.taskEntry(task, matters),
@@ -336,7 +366,7 @@ export class TodayData {
 
   /** The matters I opened lately that I can still read. */
   readonly recentMatters = computed(() => {
-    const matters = this.lookup();
+    const matters = this.matters();
     return this.recents
       .value()
       .map((row) => (row.matterId ? matters.get(row.matterId) : undefined))

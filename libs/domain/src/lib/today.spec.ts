@@ -356,9 +356,13 @@ describe('recent matters', () => {
       'entityId',
       'expireAt',
       'kind',
+      'matter',
       'matterId',
       'orgId',
     ]);
+    // A matter's name goes in its copy (SEC-07e), not beside it.
+    const copy = { number: 'M-2026-0142', title: 'Estate of Margaret Doyle', type: 'probate', privileged: false };
+    expect(RecentMatter.schema.parse({ ...valid, matter: copy }).matter).toEqual(copy);
   });
 
   it('names contacts, tasks and documents by kind, matter and id (CORE-15)', () => {

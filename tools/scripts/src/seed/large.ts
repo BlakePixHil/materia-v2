@@ -347,7 +347,7 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
   const paralegals = accounts.filter((a) => a.role === 'paralegal');
   const types = domain.MatterTypeSchema.options;
   const seqByYear = new Map<number, number>();
-  const recentByUid = new Map<string, { matterId: string; at: Date }[]>();
+  const recentByUid = new Map<string, { matterId: string; at: Date; matter: D.RecentMatterCopy | null }[]>();
   const monthEntries: Data[] = [];
 
   const docProto = F.makeMatterDocument({ ...meta(now) });
@@ -432,9 +432,13 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
     }
 
     // Deadlines: upcoming on live matters (a few overdue), done on the rest, each with its copy of
-    // the matter (SEC-07c), as the deadline writers stamp it.
+    // the matter (SEC-07c), as the deadline writers stamp it. Tasks and recent entries carry theirs
+    // too (SEC-07e).
     let next: { id: string; dueDate: D.DateOnly; title: string; critical: boolean } | undefined;
-    const matterCopy = domain.deadlineMatterCopy({ number, title, jurisdiction: 'VIC', responsibleUid: by, teamUids });
+    const matterFields = { number, title, type, privileged, jurisdiction: 'VIC', responsibleUid: by, teamUids };
+    const matterCopy = domain.deadlineMatterCopy(matterFields);
+    const taskCopy = domain.taskMatterCopy(matterFields);
+    const recentCopy = domain.recentMatterCopy(matterFields);
     for (let k = 0; k < share(plan.deadlines, plan.matters, i); k++) {
       const id = `dl-${k + 1}`;
       const critical = k === 0;
@@ -488,6 +492,7 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
         countedOpen: open,
         ...(open ? {} : { completedAt: endAt }),
         search: domain.taskSearchTokens(title),
+        matter: taskCopy,
         deletedAt: null,
       });
     }
@@ -629,7 +634,7 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
     );
     for (const uid of new Set([by, paralegal.uid])) {
       const list = recentByUid.get(uid) ?? [];
-      if (live) list.push({ matterId, at: lastActivityAt });
+      if (live) list.push({ matterId, at: lastActivityAt, matter: recentCopy });
       list.sort((a, b) => b.at.getTime() - a.at.getTime());
       recentByUid.set(uid, list.slice(0, 10));
     }
@@ -650,6 +655,7 @@ export function* largeOrgDocs(plan: LargePlan, options: LargeOptions): Generator
         orgId,
         kind: 'matter',
         matterId: entry.matterId,
+        ...(entry.matter ? { matter: entry.matter } : {}),
         expireAt: domain.recentMatterExpireAt(entry.at),
       });
     }

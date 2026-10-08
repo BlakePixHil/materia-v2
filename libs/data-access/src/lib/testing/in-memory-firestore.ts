@@ -110,6 +110,8 @@ export class InMemoryFirestore {
   offline = false;
   /** Nothing ever arrives: listeners stay attached without a first snapshot (a loading state). */
   stalled = false;
+  /** Every document read by its path (`getDoc`, `watchDoc`), for assertions. */
+  readonly docReads: string[] = [];
   /** Every write, for assertions. */
   readonly writes: {
     op: 'create' | 'update' | 'softDelete' | 'delete';
@@ -310,6 +312,7 @@ export class InMemoryFirestore {
         return this.page(path, request);
       },
       watchDoc: (id, next, error) => {
+        this.docReads.push(`${path}/${id}`);
         const failure =
           this.takeFailure(path) ??
           (this.denied.has(`${path}/${id}`) ? { code: 'permission-denied', message: 'Missing permissions' } : null);
@@ -334,6 +337,7 @@ export class InMemoryFirestore {
         return () => this.listeners.delete(listener);
       },
       getDoc: async (id) => {
+        this.docReads.push(`${path}/${id}`);
         const failure = this.takeFailure(path);
         if (failure) throw failure;
         if (this.denied.has(`${path}/${id}`)) throw { code: 'permission-denied', message: 'Missing permissions' };

@@ -17,8 +17,9 @@ export interface TodayMatterRef {
 }
 
 /**
- * The matters Today's rows are on, each looked up once: a ref when it can be shown, `null` when it
- * can't (no access, deleted, gone). A matter not in the map hasn't answered yet.
+ * The matters Today's rows are on, from the rows' copies of them or looked up once: a ref when it
+ * can be shown, `null` when it can't (no access, deleted, gone). A matter not in the map hasn't
+ * answered yet.
  */
 export type MatterLookup = ReadonlyMap<string, TodayMatterRef | null>;
 
@@ -36,6 +37,37 @@ export function lookupEntry(
   const { matter } = outcome;
   if (!matter || matter.deletedAt) return null;
   return { id, number: matter.number, title: matter.title, type: matter.type };
+}
+
+/** A row's copy of its matter (SEC-07c, SEC-07e): deadlines', proposals', tasks' and recent entries'. */
+export type MatterCopyLike =
+  | {
+      number?: string | undefined;
+      title?: string | undefined;
+      type?: MatterType | undefined;
+      privileged?: boolean | undefined;
+      deleted?: true | undefined;
+    }
+  | null
+  | undefined;
+
+/**
+ * What a row's copy of its matter says Today shows (SEC-07e): a ref; `null` when the row is left
+ * out (the matter is deleted, or privileged and the person can't see privileged matters); or
+ * `undefined` when the copy can't say and the matter must be looked up: there's no copy yet
+ * (written before SEC-07e, until `backfill-matter-copies` runs), or a privileged matter's task,
+ * whose copy carries no name (ADR-026).
+ */
+export function copiedRef(
+  id: string,
+  copy: MatterCopyLike,
+  privilegedVisible: boolean,
+): TodayMatterRef | null | undefined {
+  if (!copy) return undefined;
+  if (copy.deleted) return null;
+  if (copy.privileged && !privilegedVisible) return null;
+  if (!copy.number || !copy.title) return undefined;
+  return { id, number: copy.number, title: copy.title, type: copy.type };
 }
 
 /**
