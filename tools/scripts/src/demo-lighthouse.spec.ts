@@ -3,6 +3,7 @@ import {
   type Lhr,
   medianRun,
   mostShiftedRun,
+  pageMarks,
   parseLighthouseArgs,
   runRow,
   shiftProbeNote,
@@ -212,6 +213,36 @@ describe('demo-lighthouse', () => {
     expect(text).toContain('| `<section class="big">` | 0.297 |  |');
     expect(text).not.toContain('<p class="small">');
     expect(mostShiftedRun([runRow(1, steady)])).toBeUndefined();
+  });
+
+  it('lists each run’s page marks, in the order they happened', () => {
+    const marked = (cls: number, items: Record<string, unknown>[]) =>
+      lhr(70, 500, {
+        audits: {
+          ...lhr(70, 500).audits,
+          'cumulative-layout-shift': { numericValue: cls },
+          'user-timings': { details: { items } },
+        },
+      });
+    const late = marked(0.22, [
+      { name: 'materia:today-drawn', timingType: 'Mark', startTime: 4301.6 },
+      { name: 'materia:today-late:recents,matters', timingType: 'Mark', startTime: 2950.2 },
+      { name: 'materia:today-drawn', timingType: 'Measure', startTime: 0, duration: 5 },
+      { name: 'firebase-something', timingType: 'Mark', startTime: 10 },
+    ]);
+    expect(pageMarks(late)).toEqual(['today-late:recents,matters at 2950 ms', 'today-drawn at 4302 ms']);
+    const runs = [
+      marked(0, [{ name: 'materia:today-answered', timingType: 'Mark', startTime: 2230 }]),
+      lhr(80, 400),
+      late,
+    ];
+    const rows = runs.map((report, i) => runRow(i + 1, report));
+    const text = summary(rows, runs[0], 'x', [], undefined, runs);
+    expect(text).toContain('### Page marks in each run');
+    expect(text).toContain('| 1 | 0 | today-answered at 2230 ms |');
+    expect(text).toContain('| 3 | 0.22 | today-late:recents,matters at 2950 ms; today-drawn at 4302 ms |');
+    expect(text).not.toContain('| 2 | 0 |');
+    expect(summary(rows, runs[0], 'x')).not.toContain('### Page marks');
   });
 
   it('says what the probe visit’s layout shifts moved and which sections were drawn then', () => {

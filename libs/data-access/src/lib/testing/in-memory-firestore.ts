@@ -106,6 +106,7 @@ export class InMemoryFirestore {
   private failure: unknown = null;
   private failureScope: string | null = null;
   private readonly denied = new Set<string>();
+  private readonly holds = new Map<string, Promise<void>>();
   /** Served from "cache": listeners report `fromCache` and writes still apply locally. */
   offline = false;
   /** Nothing ever arrives: listeners stay attached without a first snapshot (a loading state). */
@@ -159,6 +160,19 @@ export class InMemoryFirestore {
   /** Reading this document by its path is refused, as the rules refuse a privileged matter. */
   denyRead(docPath: string): void {
     this.denied.add(docPath);
+  }
+
+  /**
+   * Document reads (`getDoc`) on collections of this name (`matters`) wait until the returned
+   * function is called: a slow read, as from a phone far from the database.
+   */
+  holdReads(collection: string): () => void {
+    let release: () => void = () => undefined;
+    this.holds.set(collection, new Promise<void>((resolve) => (release = resolve)));
+    return () => {
+      this.holds.delete(collection);
+      release();
+    };
   }
 
   /** Every listener on a collection fails, as Firestore does when the rules start refusing. */
@@ -338,6 +352,7 @@ export class InMemoryFirestore {
       },
       getDoc: async (id) => {
         this.docReads.push(`${path}/${id}`);
+        await this.holds.get(path.split('/').pop() ?? '');
         const failure = this.takeFailure(path);
         if (failure) throw failure;
         if (this.denied.has(`${path}/${id}`)) throw { code: 'permission-denied', message: 'Missing permissions' };

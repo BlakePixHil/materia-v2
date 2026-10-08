@@ -352,6 +352,17 @@ export function shiftProbeNote(shifts: ProbeShift[]): string {
   ].join('\n');
 }
 
+/**
+ * The page's own User Timing marks (`materia:…`), in the order they happened: Today marks when its
+ * sections were drawn and what they still waited on (MOB-02b).
+ */
+export function pageMarks(lhr: Lhr): string[] {
+  return (lhr.audits['user-timings']?.details?.items ?? [])
+    .filter((item) => item['timingType'] === 'Mark' && String(item['name']).startsWith('materia:'))
+    .sort((a, b) => num(a['startTime']) - num(b['startTime']))
+    .map((item) => `${String(item['name']).slice('materia:'.length)} at ${num(item['startTime'])} ms`);
+}
+
 /** The run with the largest layout shift, which the summary's shift table describes (the median may have none). */
 export function mostShiftedRun(rows: RunRow[]): RunRow | undefined {
   return rows.filter((row) => !row.error && row.cls > 0).sort((a, b) => b.cls - a.cls)[0];
@@ -360,7 +371,8 @@ export function mostShiftedRun(rows: RunRow[]): RunRow | undefined {
 /**
  * The summary, in Markdown: every run, then the median run's metrics, any `notes`, and where its
  * main thread and requests went. `shifted` is the report of the run with the largest layout shift
- * (`mostShiftedRun`), whose shifts are listed.
+ * (`mostShiftedRun`), whose shifts are listed. `reports` (every run's, in order) adds each run's page
+ * marks (`pageMarks`).
  */
 export function summary(
   rows: RunRow[],
@@ -368,6 +380,7 @@ export function summary(
   heading: string,
   notes: string[] = [],
   shifted?: Lhr,
+  reports: Lhr[] = [],
 ): string {
   const lines = [
     `## ${heading}`,
@@ -402,6 +415,15 @@ export function summary(
         ],
         6,
       ),
+    ],
+    [
+      'Page marks in each run',
+      '| Run | CLS | Marks |\n| -- | -- | -- |',
+      rows.flatMap((r) => {
+        const report = reports[r.run - 1];
+        const marks = report ? pageMarks(report) : [];
+        return marks.length ? [`| ${r.run} | ${r.cls} | ${cell(marks.join('; '))} |`] : [];
+      }),
     ],
     [
       'Main thread by category',
@@ -605,6 +627,7 @@ export async function main(argv: string[] = []): Promise<void> {
       heading,
       notes,
       worst ? reports[worst.run - 1] : undefined,
+      reports,
     );
     writeFileSync(path.join(OUT_DIR, 'summary.md'), `${report}\n`);
     if (mid) log(`Median report: dist/lighthouse/run-${mid.run}.report.html`);

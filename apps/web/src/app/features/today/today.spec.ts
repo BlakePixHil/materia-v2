@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { Connectivity, DATA_CLOCK } from '@materia/data-access';
 import { deadlineMatterCopy, recentMatterCopy, rollupMetrics, taskMatterCopy, timeEntryMetrics } from '@materia/domain';
 
-import { DEVICE_TIME_ZONE } from './today-data';
+import { DEVICE_TIME_ZONE, SETTLE_LOOKUP_MS, SETTLE_MS } from './today-data';
 import { PhoneLayout } from '../../core/layout/phone-layout';
 import {
   ADMIN,
@@ -469,6 +469,66 @@ describe('today', () => {
     expect(items(page, 'due')).not.toContain('Task: Lodge the final return');
     expect(page.text(card(page, 'due'))).toContain('M-2026-0150 · Will for Bram Ostler');
     expect(matterReads(page.firestore)).toEqual([OTHER]);
+  });
+
+  describe('with the matters its rows name slow to arrive (MOB-02b)', () => {
+    const NEXT_TASKS = [
+      'Chase the bank valuation',
+      'Draft the will',
+      'Call the executor',
+      'Book CPD seminar',
+      'Prepare the affidavit',
+    ];
+    const loading = () => document.body.querySelector('[data-today-loading]');
+    let release: () => void = () => undefined;
+    /** Opens Today with its matter reads held, under fake timeouts; `release` lets them through. */
+    function openHeld() {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      let opened = false;
+      const opening = openToday({
+        configure: (fs) => {
+          busyDay(fs);
+          release = fs.holdReads('matters');
+        },
+      });
+      void opening.then(() => (opened = true));
+      return {
+        /** Lets the page finish opening (its helpers wait on timeouts too). */
+        async finish(): Promise<Page> {
+          for (let i = 0; i < 50 && !opened; i++) await vi.advanceTimersByTimeAsync(100);
+          return opening;
+        },
+      };
+    }
+    afterEach(() => {
+      release();
+      vi.useRealTimers();
+    });
+
+    it('waits past its deadline for them, so their rows don’t push the cards down as they land', async () => {
+      const held = openHeld();
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + 500);
+      // Every source has answered; only the matters are missing, so the skeleton stays.
+      expect(loading()).not.toBeNull();
+      release();
+      const page = await held.finish();
+      expect(loading()).toBeNull();
+      expect(items(page, 'tasks')).toEqual(NEXT_TASKS);
+    });
+
+    it('draws without them once they are later still, and adds their rows when they come', async () => {
+      const held = openHeld();
+      await vi.advanceTimersByTimeAsync(SETTLE_MS + SETTLE_LOOKUP_MS + 100);
+      expect(loading()).toBeNull();
+      // Only my personal task names no matter, so it is the one row drawn.
+      const tasks = document.body.querySelector('[data-section="tasks"]')?.textContent ?? '';
+      expect(tasks).toContain('Book CPD seminar');
+      expect(tasks).not.toContain('Chase the bank valuation');
+      release();
+      const page = await held.finish();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(items(page, 'tasks')).toEqual(NEXT_TASKS);
+    });
   });
 
   it('shows a checklist while the practice has no matters', async () => {

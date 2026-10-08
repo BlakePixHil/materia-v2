@@ -90,7 +90,25 @@ const REFRESH_GAP_MS = 10_000;
 /** How often the clock moves on (the greeting, and the day at midnight). */
 const TICK_MS = 60_000;
 /** The longest the sections wait to be drawn together (see `TodayData.settled`). */
-const SETTLE_MS = 2500;
+export const SETTLE_MS = 2500;
+/**
+ * How much longer, past `SETTLE_MS`, they wait for the matters their rows name while those are
+ * being looked up: drawn without them, those rows are left out and then push the page down as they
+ * appear (MOB-02b, a layout shift of 0.22 on a phone).
+ */
+export const SETTLE_LOOKUP_MS = 2500;
+
+/**
+ * A User Timing mark (`materia:…`), which Lighthouse lists and `demo-lighthouse` prints for each
+ * run (MOB-02b), so a lab run shows when Today's sections were drawn and what they waited on.
+ */
+function mark(name: string): void {
+  try {
+    globalThis.performance?.mark?.(`materia:${name}`);
+  } catch {
+    // No User Timing here: nothing to record.
+  }
+}
 
 /** Today's numbers: null while unknown (loading, offline or refused). */
 export interface TodayCounts {
@@ -277,18 +295,25 @@ export class TodayData {
 
   // ---------- the first paint ----------
 
+  /** A matter some row names is still being looked up (its rows are left out until it is). */
+  private readonly lookingUp = computed(() => {
+    const lookup = this.lookup();
+    return this.matterIds().some((id) => !lookup.has(id));
+  });
   /** Every source has its first answer: the rows, the matters looked up, and (online) the counts. */
   private readonly answered = computed(() => {
     if ([this.overdue, this.changes, ...this.oneShot].some((source) => source.status() === 'loading')) return false;
-    const lookup = this.lookup();
-    if (this.matterIds().some((id) => !lookup.has(id))) return false;
+    if (this.lookingUp()) return false;
     return this.countsAnswered() || !this.online();
   });
+  /** `SETTLE_MS` has passed. */
+  private readonly late = signal(false);
   private readonly settledOnce = signal(false);
   /**
    * The sections are drawn together once every source has answered (from this device's cache when
    * it has one), or after `SETTLE_MS` at most, so nothing on the page moves as each answer lands.
-   * Stays true from then on.
+   * A matter being looked up then holds them up to `SETTLE_LOOKUP_MS` longer, as its rows would
+   * otherwise appear later and push the cards below them down. Stays true from then on.
    */
   readonly settled = this.settledOnce.asReadonly();
 
@@ -445,16 +470,33 @@ export class TodayData {
 
     // The app isn't stable until the sections are drawn, so whatever waits for it sees them.
     const firstPaint = inject(PendingTasks).add();
+    let answeredOnce = false;
+    let drawn = false;
     effect(() => {
-      if (!this.settledOnce() && this.answered()) this.settledOnce.set(true);
-      if (this.settledOnce()) firstPaint();
+      const answered = this.answered();
+      if (answered && !answeredOnce) {
+        answeredOnce = true;
+        mark('today-answered');
+      }
+      if (!this.settledOnce() && (answered || (this.late() && !this.lookingUp()))) this.settledOnce.set(true);
+      if (this.settledOnce() && !drawn) {
+        drawn = true;
+        mark('today-drawn');
+        firstPaint();
+      }
     });
     destroyRef.onDestroy(firstPaint);
 
     // Back to the tab: move the clock on and read the one-shot sections again.
     const document = inject(DOCUMENT);
     const view = document.defaultView;
-    const settle = view?.setTimeout(() => this.settledOnce.set(true), SETTLE_MS);
+    const timers = [
+      view?.setTimeout(() => {
+        if (!this.settledOnce()) mark(`today-late:${this.waitingOn().join(',')}`);
+        this.late.set(true);
+      }, SETTLE_MS),
+      view?.setTimeout(() => this.settledOnce.set(true), SETTLE_MS + SETTLE_LOOKUP_MS),
+    ];
     const onFocus = () => {
       if (document.visibilityState !== 'hidden') this.refresh();
     };
@@ -465,8 +507,27 @@ export class TodayData {
       view?.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
       if (tick !== undefined) view?.clearInterval(tick);
-      if (settle !== undefined) view?.clearTimeout(settle);
+      for (const timer of timers) if (timer !== undefined) view?.clearTimeout(timer);
     });
+  }
+
+  /** What the sections still wait on when `SETTLE_MS` passes (for the mark). */
+  private waitingOn(): string[] {
+    const sources = {
+      overdue: this.overdue,
+      changes: this.changes,
+      escalated: this.escalated,
+      dueDeadlines: this.dueDeadlines,
+      dueTasks: this.dueTasks,
+      nextTasks: this.nextTasks,
+      recents: this.recents,
+    };
+    const waiting = Object.entries(sources)
+      .filter(([, source]) => source.status() === 'loading')
+      .map(([name]) => name);
+    if (this.lookingUp()) waiting.push('matters');
+    if (!this.countsAnswered() && this.online()) waiting.push('counts');
+    return waiting;
   }
 
   /** Reads the one-shot sections, the counts and the matters again (on focus, at most every 10 s). */
