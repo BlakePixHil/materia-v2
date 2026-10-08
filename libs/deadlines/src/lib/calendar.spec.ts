@@ -21,10 +21,10 @@ const IDS = ['VIC_SUPREME_COURT', 'VIC_COUNTY_COURT', 'VIC_MELBOURNE', 'VIC_GREA
 const YEARS = [2025, 2026, 2027, 2028];
 
 describe('calendar data', () => {
-  it('has every calendar for 2025–2028, all schema-valid and marked unverified until a person checks them', () => {
+  it('has every calendar for 2025–2028, all schema-valid and verified by a person (CORE-09a)', () => {
     for (const id of IDS) for (const year of YEARS) expect(VIC_CALENDARS[id]?.[year], `${id}-${year}`).toBeDefined();
     expect(CALENDAR_YEARS).toHaveLength(16);
-    expect(CALENDAR_YEARS.every((c) => c.verified === false)).toBe(true);
+    expect(CALENDAR_YEARS.every((c) => c.verified === true)).toBe(true);
   });
 
   it('matches the official Victorian holiday list (Melbourne, and the courts plus closures)', () => {
@@ -164,7 +164,7 @@ describe('storage mappers', () => {
     expect(Calendar.schema.parse({ ...calendarDoc, ...meta })).toMatchObject({
       calendarId: 'VIC_GREATER_GEELONG',
       kind: 'locality',
-      verified: false,
+      verified: true,
     });
     expect(calendarDoc.holidays.some((h) => h.provisional)).toBe(true);
     const court = toCalendarDoc(VIC_CALENDARS['VIC_SUPREME_COURT']?.[2026] as CalendarYear);
