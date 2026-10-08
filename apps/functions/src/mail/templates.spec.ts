@@ -157,3 +157,34 @@ describe('invoice_reminder template (BILL-08)', () => {
     expect(renderMail('invoice_reminder', { ...model, attached: false }).text).not.toContain('A copy is attached');
   });
 });
+
+describe('the feedback template (SEC-08)', () => {
+  const model = {
+    orgName: 'Harbour & Vine Legal',
+    orgId: 'org-a',
+    feedbackId: 'fb-1',
+    senderName: 'Priya Fictional',
+    senderEmail: 'priya@harbourvine.example',
+    role: 'lawyer',
+    kindLabel: 'Something isn’t working',
+    body: 'The <Deadlines> page\nshows nothing.',
+    page: '/deadlines',
+    version: '1.2.0+abc1234',
+  };
+
+  it('names who sent it, from where, and keeps the message out of the subject', () => {
+    const mail = renderMail('feedback', model);
+    expect(mail.subject).toBe('Feedback from Harbour & Vine Legal: Something isn’t working');
+    expect(mail.html).toContain(
+      'from Priya Fictional (priya@harbourvine.example), a lawyer at Harbour &amp; Vine Legal',
+    );
+    expect(mail.html).toContain('The &lt;Deadlines&gt; page\nshows nothing.');
+    expect(mail.text).toContain('The <Deadlines> page\nshows nothing.');
+    expect(mail.text).toContain('Page: /deadlines · Version: 1.2.0+abc1234 · Practice org-a · Feedback fb-1');
+  });
+
+  it('says when the page or version is missing', () => {
+    const mail = renderMail('feedback', { ...model, page: undefined, version: undefined });
+    expect(mail.text).toContain('Page: not given · Version: not given');
+  });
+});

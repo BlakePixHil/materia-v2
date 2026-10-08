@@ -356,6 +356,7 @@ def phone_more():
     me = f'<div class="mt-mrow">{avatar("JP", "lg")}<div class="mt-grow"><div class="tt">Jordan Price</div><div class="ts">Lawyer · Hale &amp; Price Lawyers</div></div>{icon("chevron-right", None, "chev")}</div>'
     body = (f'<div class="mt-mbody" style="gap:0">{me}<span class="mt-mgroup">Workspace</span>'
             + "".join(row(i, t) for i, t in [("check-circle", "My tasks"), ("calendar", "Deadlines"), ("contacts", "Contacts"), ("archive", "Safe custody"), ("billing", "Time &amp; billing"), ("insights", "Insights"), ("settings", "Settings")])
+            + '<span class="mt-mgroup">Help</span>' + row("help", "Help &amp; feedback")
             + '<span class="mt-mgroup">This device</span>' + row("moon", "Dark theme") + row("log-out", "Sign out", "danger") + "</div>")
     return f'<div class="mt-phone">{statusbar()}{top}{body}{tabbar("more")}</div>'
 

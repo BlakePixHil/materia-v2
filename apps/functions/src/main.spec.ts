@@ -53,6 +53,7 @@ describe('functions entry point', () => {
 const MAIL_SENDERS: Record<string, string[]> = {
   'billing/reminders.ts': ['billing.sendReminder'],
   'billing/send.ts': ['billing.sendInvoice'],
+  'feedback/submit.ts': ['feedback.submit'],
   'notifications/deliver.ts': ['notifications.deliver'],
   'notifications/digest.ts': ['notifications.digest'],
   'notifications/weekly-report.ts': ['notifications.weeklyReport'],

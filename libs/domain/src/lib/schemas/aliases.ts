@@ -5,6 +5,7 @@ import { ClerkDraft } from '../clerk-drafts';
 import { ConnectorConnection, ConnectorGrant } from '../connector';
 import { DisbursementPresetsDoc } from '../disbursements';
 import { LetterheadDoc } from '../doc-templates';
+import { Feedback } from '../feedback';
 import { SignIn } from '../security';
 import {
   Proceeding,
@@ -91,6 +92,9 @@ export const DeviceUpdateSchema = Device.update;
 export const SignInSchema = SignIn.schema;
 export const SignInCreateSchema = SignIn.create;
 export const SignInUpdateSchema = SignIn.update;
+export const FeedbackSchema = Feedback.schema;
+export const FeedbackCreateSchema = Feedback.create;
+export const FeedbackUpdateSchema = Feedback.update;
 export const ContactSchema = Contact.schema;
 export const ContactCreateSchema = Contact.create;
 export const ContactUpdateSchema = Contact.update;

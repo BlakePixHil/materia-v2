@@ -1,4 +1,10 @@
-import { DomainError, ORG_DELETION_CALLABLES, ORG_EXPORT_CALLABLE, OFFBOARDING_CALLABLES } from '@materia/domain';
+import {
+  DomainError,
+  FEEDBACK_CALLABLES,
+  ORG_DELETION_CALLABLES,
+  ORG_EXPORT_CALLABLE,
+  OFFBOARDING_CALLABLES,
+} from '@materia/domain';
 
 import type { SessionPolicy } from './sessions';
 
@@ -6,7 +12,7 @@ import type { SessionPolicy } from './sessions';
  * The callables that still run while a practice waits to be deleted (SEC-05, ADR-058): reads,
  * exports and downloads (so the practice can take its data away), cancelling or confirming the
  * deletion, placing a legal hold (which stops it), accepting new terms (without which an owner
- * can't reach the cancel), and taking access away (a member, a connection, a key). Everything else
+ * can't reach the cancel), writing to support, and taking access away (a member, a connection, a key). Everything else
  * is refused with ORG_READ_ONLY by the callable wrapper; the web app shows why.
  */
 export const READ_ONLY_CALLABLES: ReadonlySet<string> = new Set([
@@ -42,6 +48,8 @@ export const READ_ONLY_CALLABLES: ReadonlySet<string> = new Set([
   // An owner accepting new terms of service (SEC-01), which the app asks for before anything else,
   // the cancel included.
   'orgs-acceptTerms',
+  // Reaching support (SEC-08)
+  FEEDBACK_CALLABLES.submit,
   // Taking access away
   'clerk-removeApiKey',
   'connector-disconnect',

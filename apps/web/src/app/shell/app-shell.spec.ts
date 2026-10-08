@@ -213,6 +213,7 @@ describe('AppShellComponent', () => {
         'theme.toggle',
         'sidebar.toggle',
         'shortcuts.open',
+        'help.feedback',
         'clerk.toggle',
         'matters.new',
       ]),

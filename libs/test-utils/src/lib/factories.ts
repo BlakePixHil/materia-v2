@@ -957,6 +957,9 @@ export const makeJob = (o: Partial<D.Job> = {}) =>
 
 export const makeCounter = (o: Partial<D.Counter> = {}) => build(D.Counter, { next: 1 }, o);
 
+export const makeFeedback = (o: Partial<D.Feedback> = {}) =>
+  build(D.Feedback, { uid: TEST_UID, kind: 'idea', body: 'A fictional suggestion.', page: '/today' }, o);
+
 export const makeMatterNumber = (o: Partial<D.MatterNumber> = {}) =>
   build(D.MatterNumber, { number: 'M-2026-0001', matterId: TEST_MATTER_ID, year: 2026 }, o);
 
@@ -1179,6 +1182,7 @@ export const ENTITY_FACTORIES = {
   Calendar: [D.Calendar, makeCalendar],
   Job: [D.Job, makeJob],
   Counter: [D.Counter, makeCounter],
+  Feedback: [D.Feedback, makeFeedback],
   MatterNumber: [D.MatterNumber, makeMatterNumber],
   SavedView: [D.SavedView, makeSavedView],
   ConflictCheck: [D.ConflictCheck, makeConflictCheck],

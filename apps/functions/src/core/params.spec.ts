@@ -1,4 +1,4 @@
-import { clamavScanUrl, previewServiceUrl } from './params';
+import { clamavScanUrl, previewServiceUrl, supportEmail } from './params';
 
 describe('clamavScanUrl', () => {
   it('is empty until the environment sets it, so uploads stay quarantined', () => {
@@ -13,5 +13,12 @@ describe('previewServiceUrl', () => {
     expect(previewServiceUrl({ PREVIEW_SERVICE_URL: 'https://preview.example.run.app\n' })).toBe(
       'https://preview.example.run.app',
     );
+  });
+});
+
+describe('supportEmail', () => {
+  it('is empty until a support mailbox is set, and the environment can set it', () => {
+    expect(supportEmail({})).toBe('');
+    expect(supportEmail({ MATERIA_SUPPORT_EMAIL: ' support@materia.example ' })).toBe('support@materia.example');
   });
 });

@@ -37,6 +37,7 @@ export * from './lib/xero';
 export * from './lib/connector';
 export * from './lib/migration';
 export * from './lib/fees';
+export * from './lib/feedback';
 export * from './lib/costs';
 export * from './lib/disbursements';
 export * from './lib/invoices';

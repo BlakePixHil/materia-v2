@@ -144,7 +144,7 @@ describe('PhoneLayout', () => {
 });
 
 describe('More (MOB-02)', () => {
-  it('lists my account, every page the TabBar has no room for, the theme and Sign out', async () => {
+  it('lists my account, every page the TabBar has no room for, help, the theme and Sign out', async () => {
     const page = await openPhone('/more');
     const more = page.body.querySelector('mt-more-page') as HTMLElement;
     expect([...more.querySelectorAll('[data-more]')].map((row) => row.getAttribute('data-more'))).toEqual([
@@ -156,6 +156,7 @@ describe('More (MOB-02)', () => {
       'billing',
       'insights',
       'settings',
+      'help',
       'theme',
       'sign-out',
     ]);

@@ -17,7 +17,7 @@ const IN_TAB_BAR = new Set(TAB_BAR_ITEMS.map((item) => item.link));
 /**
  * More (`/more`, MOB-02): on a phone, everything the TabBar has no room for. Who I am and in which
  * practice; every other destination (My tasks, Deadlines, Contacts… and Settings); switching practice;
- * the theme and "Install Materia"; and Sign out. Each row is a 56px target.
+ * Help & feedback (SEC-08); the theme and "Install Materia"; and Sign out. Each row is a 56px target.
  */
 @Component({
   selector: 'mt-more-page',
@@ -72,6 +72,16 @@ const IN_TAB_BAR = new Set(TAB_BAR_ITEMS.map((item) => item.link));
         }
       </ul>
     }
+
+    <h2 class="mt-mgroup" id="more-help">Help</h2>
+    <ul class="list" aria-labelledby="more-help">
+      <li>
+        <button type="button" class="mt-mrow" data-more="help" (click)="account.openHelp()">
+          <mt-icon name="help" />
+          <span class="tt mt-grow">Help & feedback</span>
+        </button>
+      </li>
+    </ul>
 
     <h2 class="mt-mgroup" id="more-app">This device</h2>
     <ul class="list" aria-labelledby="more-app">

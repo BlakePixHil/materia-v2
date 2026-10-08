@@ -171,6 +171,25 @@ You get this report each Monday. Change your notification settings: {{settingsLi
 
 {{firmName}}{{#firmAbn}} · ABN {{firmAbn}}{{/firmAbn}}. If you've already paid, thank you, and please disregard this reminder.`,
   },
+
+  // Help & feedback (SEC-08), to the support address. The message may mention a matter, so it stays
+  // out of the subject; replies go to the sender's own address, not to this email's From.
+  feedback: {
+    subject: 'Feedback from {{orgName}}: {{kindLabel}}',
+    html: `<!doctype html>
+<html lang="en-AU">
+  <body style="${BODY}">
+    <p><strong>{{kindLabel}}</strong> from {{senderName}} ({{senderEmail}}), {{roleName}} at {{orgName}}.</p>
+    <p style="white-space: pre-line; padding-left: 12px; border-left: 3px solid #ccc">{{body}}</p>
+    <p style="${FOOTER}">Page: {{#page}}{{page}}{{/page}}{{^page}}not given{{/page}} · Version: {{#version}}{{version}}{{/version}}{{^version}}not given{{/version}} · Practice {{orgId}} · Feedback {{feedbackId}}. Reply to {{senderEmail}}: replying to this email doesn't reach them.</p>
+  </body>
+</html>`,
+    text: `{{kindLabel}} from {{senderName}} ({{senderEmail}}), {{roleName}} at {{orgName}}.
+
+{{body}}
+
+Page: {{#page}}{{page}}{{/page}}{{^page}}not given{{/page}} · Version: {{#version}}{{version}}{{/version}}{{^version}}not given{{/version}} · Practice {{orgId}} · Feedback {{feedbackId}}. Reply to {{senderEmail}}: replying to this email doesn't reach them.`,
+  },
 };
 
 const escapeHtml = (value: string) =>
