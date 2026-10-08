@@ -22,7 +22,7 @@ import { REGION } from '../config';
 import { adminDb } from '../core/admin';
 import { isEmulator } from '../core/env';
 import { createLog, errorReportFields, functionsSink, type Log } from '../core/log';
-import { appUrl } from '../orgs/shared';
+import { appOrigins, appUrl } from '../orgs/shared';
 import type { Clock } from '../ports';
 import { systemClock } from '../ports/container';
 
@@ -274,15 +274,19 @@ export async function handleConnectorRequest(
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
 
 /**
- * The origin Claude reaches Materia on: the app's address (`appUrl`). In the emulator, the
- * Hosting emulator's own address, so Claude Code can connect to a local stack.
+ * The origin Claude reached Materia on: the address Hosting received the request for (its
+ * `X-Forwarded-Host`) when it is one of the app's own, so the connector works on web.app and on a
+ * custom domain alike, else the app's address (`appUrl`). In the emulator, the Hosting emulator's
+ * own address, so Claude Code can connect to a local stack.
  */
 export function connectorOrigin(headers: Readonly<Record<string, string | undefined>>): string {
   if (isEmulator()) {
     const host = headers['x-forwarded-host'] ?? headers['host'];
     if (host && LOCAL_HOST.test(host)) return `http://${host}`;
   }
-  return appUrl();
+  const host = headers['x-forwarded-host']?.split(',')[0]?.trim().toLowerCase();
+  const origin = host ? `https://${host}` : undefined;
+  return origin && appOrigins().includes(origin) ? origin : appUrl();
 }
 
 const limiter = new CallLimiter();
