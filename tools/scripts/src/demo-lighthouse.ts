@@ -35,7 +35,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 
-import type { Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 
 import { addDebugToken, removeDebugToken, webAppId } from './app-check-debug.ts';
 import { apiDeps } from './backups/firestore.ts';
@@ -293,6 +293,65 @@ const SAVED_APP_CHECK_TOKENS = `(async () => {
   }
 })()`;
 
+/** A layout shift on the probe visit: when, how much, what moved and which sections were drawn. */
+export interface ProbeShift {
+  at: number;
+  score: number;
+  moved: { node: string; from: number; to: number }[];
+  sections: string[];
+}
+
+/**
+ * Runs in the page before its own scripts: records each layout shift with the elements it moved
+ * (their top, before and after) and the page's sections at that moment. Lighthouse names only the
+ * element that moved most, not what appeared above it. A string, as this package has no DOM types.
+ */
+const RECORD_SHIFTS = `(() => {
+  const shifts = [];
+  globalThis.__materiaShifts = shifts;
+  const describe = (node) => {
+    if (!node || node.nodeType !== 1) return node ? node.nodeName.toLowerCase() : 'unknown';
+    const section = node.getAttribute('data-section');
+    const classes = typeof node.className === 'string' ? node.className.trim().split(/\\s+/).filter(Boolean) : [];
+    return node.tagName.toLowerCase() + (section ? '[' + section + ']' : '') + classes.slice(0, 2).map((c) => '.' + c).join('');
+  };
+  new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      if (entry.hadRecentInput) continue;
+      shifts.push({
+        at: Math.round(entry.startTime),
+        score: entry.value,
+        moved: (entry.sources || []).map((s) => ({
+          node: describe(s.node),
+          from: Math.round(s.previousRect.y),
+          to: Math.round(s.currentRect.y),
+        })),
+        sections: [...document.querySelectorAll('[data-section], [data-today-loading]')].map(
+          (el) => el.getAttribute('data-section') || 'loading',
+        ),
+      });
+    }
+  }).observe({ type: 'layout-shift', buffered: true });
+})()`;
+
+/** The probe visit's shifts, for the summary. */
+export function shiftProbeNote(shifts: ProbeShift[]): string {
+  if (!shifts.length) return 'One more visit before the runs, in a new tab: no layout shift.';
+  const total = shifts.reduce((sum, shift) => sum + shift.score, 0);
+  return [
+    `One more visit before the runs, in a new tab as Lighthouse opens: layout shifts adding up to ${total.toFixed(3)}.`,
+    '',
+    '| At | Score | Moved (top before → after) | Sections then |',
+    '| -- | -- | -- | -- |',
+    ...shifts
+      .slice(0, 8)
+      .map(
+        (s) =>
+          `| ${s.at} ms | ${s.score.toFixed(3)} | ${cell(s.moved.map((m) => `${m.node} ${m.from} → ${m.to}`).join('; '))} | ${s.sections.join(', ')} |`,
+      ),
+  ].join('\n');
+}
+
 /** The run with the largest layout shift, which the summary's shift table describes (the median may have none). */
 export function mostShiftedRun(rows: RunRow[]): RunRow | undefined {
   return rows.filter((row) => !row.error && row.cls > 0).sort((a, b) => b.cls - a.cls)[0];
@@ -423,6 +482,19 @@ export async function skipTour(page: Page): Promise<void> {
 
 const log = (line: string) => console.log(line);
 
+/** One more visit to the page in a new tab, as Lighthouse opens its own, recording its layout shifts. */
+async function probeShifts(context: BrowserContext, url: string): Promise<ProbeShift[]> {
+  const probe = await context.newPage();
+  try {
+    await probe.addInitScript(RECORD_SHIFTS);
+    await probe.goto(url);
+    await probe.waitForTimeout(8_000);
+    return (await probe.evaluate<ProbeShift[] | undefined>('globalThis.__materiaShifts')) ?? [];
+  } finally {
+    await probe.close();
+  }
+}
+
 /** A debug token for this run's sign-in (`--app-check saved`); never printed. */
 async function debugToken(project: string): Promise<{ project: string; token: string; name: string }> {
   const deps = apiDeps();
@@ -489,6 +561,9 @@ export async function main(argv: string[] = []): Promise<void> {
         ]
       : [appCheck];
     await page.goto('about:blank');
+    const probe = shiftProbeNote(await probeShifts(context, pageUrl));
+    log(probe);
+    notes.push(probe);
     if (args.dryRun) {
       log(`Dry run: signed in and opened ${pageUrl}; Lighthouse would run ${args.runs} times.`);
       return;

@@ -5,6 +5,7 @@ import {
   mostShiftedRun,
   parseLighthouseArgs,
   runRow,
+  shiftProbeNote,
   siteOrigin,
   summary,
 } from './demo-lighthouse.ts';
@@ -211,6 +212,22 @@ describe('demo-lighthouse', () => {
     expect(text).toContain('| `<section class="big">` | 0.297 |  |');
     expect(text).not.toContain('<p class="small">');
     expect(mostShiftedRun([runRow(1, steady)])).toBeUndefined();
+  });
+
+  it('says what the probe visit’s layout shifts moved and which sections were drawn then', () => {
+    expect(shiftProbeNote([])).toBe('One more visit before the runs, in a new tab: no layout shift.');
+    const text = shiftProbeNote([
+      {
+        at: 2612,
+        score: 0.2968,
+        moved: [{ node: 'mt-today-tasks[tasks].mt-card', from: 300, to: 548 }],
+        sections: ['attention', 'tasks'],
+      },
+      { at: 3100, score: 0.01, moved: [{ node: 'td | x', from: 1, to: 2 }], sections: [] },
+    ]);
+    expect(text).toContain('layout shifts adding up to 0.307.');
+    expect(text).toContain('| 2612 ms | 0.297 | mt-today-tasks[tasks].mt-card 300 → 548 | attention, tasks |');
+    expect(text).toContain('| td \\| x 1 → 2 |');
   });
 
   it('says whether App Check had a valid saved token when the runs began', () => {
