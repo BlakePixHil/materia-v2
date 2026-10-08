@@ -41,6 +41,24 @@ describe('functions entry point', () => {
   });
 });
 
+describe('the Clerk reply queue (SEC-07g)', () => {
+  it('runs 80 answers at once, 20 an instance, within the global instance cap', () => {
+    const endpoint = (
+      main.clerk.runMessage as unknown as {
+        __endpoint: {
+          concurrency?: number;
+          maxInstances?: number;
+          taskQueueTrigger: { rateLimits?: { maxConcurrentDispatches?: number } };
+        };
+      }
+    ).__endpoint;
+    expect(endpoint.taskQueueTrigger.rateLimits?.maxConcurrentDispatches).toBe(80);
+    expect(endpoint.concurrency).toBe(20);
+    // Instances are never what holds answers back: the queue's 80 need 4 of them.
+    expect((endpoint.maxInstances ?? 0) * (endpoint.concurrency ?? 0)).toBeGreaterThanOrEqual(80);
+  });
+});
+
 describe('runtimeServiceAccount', () => {
   it('uses the full email once the project is known', () => {
     expect(runtimeServiceAccount('materia-v2-dev')).toBe('fn-runtime@materia-v2-dev.iam.gserviceaccount.com');

@@ -25,6 +25,13 @@ import { createChatToolbox, type ChatDrafter, type ChatToolDeps, type ToolUsage 
 
 type Data = Record<string, unknown>;
 
+/** From the answer's creation, when `clerk-sendMessage` queued it, to the start of its run. */
+function waitedMs(createdAt: unknown, startedAt: Date): number | undefined {
+  const created =
+    createdAt instanceof Date ? createdAt : (createdAt as { toDate?: () => Date } | undefined)?.toDate?.();
+  return created ? Math.max(0, startedAt.getTime() - created.getTime()) : undefined;
+}
+
 /** The chat prompt (AI-06) and its follow-on steps. */
 export const CHAT_PROMPT = 'chat@1.1.0';
 export const CHAT_PROPOSALS_PROMPT = 'chat-proposals@1.0.0';
@@ -85,6 +92,7 @@ export const DRAFT_RATIONALE = 'You asked Clerk for this in the chat.';
  */
 export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attempt = 0): Promise<ChatRunOutcome> {
   const { db, log } = deps;
+  const startedAt = deps.clock.now();
   const threadRef = db.doc(`orgs/${task.orgId}/clerkThreads/${task.threadId}`);
   const messageRef = threadRef.collection('messages').doc(task.messageId);
   const [threadSnap, messageSnap] = await Promise.all([threadRef.get(), messageRef.get()]);
@@ -178,6 +186,10 @@ export async function runChatMessage(deps: ChatRunDeps, task: ChatRunTask, attem
       threadId: task.threadId,
       messageId: task.messageId,
       status: result.status,
+      // How long the answer waited in the reply queue, and how long it took (SEC-07g): the signal
+      // for raising the queue's limits (docs/runbooks/incident-response.md).
+      waitedMs: waitedMs(message['createdAt'], startedAt),
+      tookMs: deps.clock.now().getTime() - startedAt.getTime(),
       exchanges: history.exchanges,
       skippedExchanges: history.skipped,
       tools: toolbox.usage.chunks.length + toolbox.usage.records.length,

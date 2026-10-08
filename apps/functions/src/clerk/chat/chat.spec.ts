@@ -503,6 +503,18 @@ describe('clerk-sendMessage and clerk-runMessage', () => {
     expect(w.model.requests).toHaveLength(0);
   });
 
+  it('logs how long each answer waited in the reply queue and how long it took (SEC-07g)', async () => {
+    const w = await world();
+    const logged: { message: string; entry: Data }[] = [];
+    w.deps.log = createLog({ fn: 'test' }, (_severity, message, entry) => logged.push({ message, entry }));
+    await w.send({ text: 'Who is the executor?' });
+    w.clock.advance(4_000);
+    expect(await w.runNext()).toBe('answered');
+    const answered = logged.find((line) => line.message === 'clerk chat answered');
+    // The answer is stamped 1 ms after its question, so it sorts after it.
+    expect(answered?.entry).toMatchObject({ waitedMs: 3_999, tookMs: 0 });
+  });
+
   it('logs what an unexpected failure was (type, Firestore status, frames), never its message', async () => {
     const w = await world();
     const logged: { severity: string; message: string; entry: Data }[] = [];
