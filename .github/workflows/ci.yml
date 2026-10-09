@@ -348,7 +348,7 @@ jobs:
           retention-days: 3
 
   e2e:
-    name: e2e (${{ matrix.browser }} ${{ matrix.shard }}/2)
+    name: e2e (${{ matrix.browser }} ${{ matrix.shard == 'audit' && 'audit' || format('{0}/2', matrix.shard) }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: [gate, changes, build]
@@ -362,6 +362,9 @@ jobs:
       matrix:
         browser: ${{ fromJSON(github.event_name == 'pull_request' && '["chromium"]' || '["chromium", "webkit"]') }}
         shard: [1, 2]
+        # The morning run and dispatches also run the accessibility audit, in a leg of its own (see
+        # E2E_GREP below).
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[]' || '[{"browser":"chromium","shard":"audit"}]') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -430,18 +433,22 @@ jobs:
           NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
           E2E_CHROMIUM_ONLY: ${{ matrix.browser == 'chromium' && '1' || '' }}
           E2E_PROJECT: ${{ matrix.browser == 'chromium' && 'chromium' || 'webkit-mobile' }}
-          E2E_LOAD: ${{ matrix.browser == 'chromium' && format('&& pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=chromium-load --no-deps --shard={0}/2', matrix.shard) || '' }}
+          E2E_SHARD: ${{ matrix.shard != 'audit' && format('--shard={0}/2', matrix.shard) || '' }}
+          E2E_LOAD: ${{ matrix.browser == 'chromium' && matrix.shard != 'audit' && format('&& pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=chromium-load --no-deps --shard={0}/2', matrix.shard) || '' }}
           # The exhaustive accessibility audit (a11y-audit.spec.ts, tagged @audit: every route in both
-          # themes, 7 to 9 minutes of test time) runs in the morning run and dispatches; PRs run the
-          # faster checks in a11y.spec.ts (SEC-06).
-          E2E_GREP: ${{ github.event_name == 'pull_request' && '--grep-invert @audit' || '' }}
+          # themes, 7 to 9 minutes of test time) runs in the morning run and dispatches, in Chromium's
+          # audit leg; PRs run the faster checks in a11y.spec.ts (SEC-06). Playwright shards by test
+          # count in file order, so in a Chromium shard the audit all landed in shard 1, which then
+          # ran past its limit every morning. WebKit's shards keep it: there only its phone-width
+          # test runs (the others skip on a phone).
+          E2E_GREP: ${{ matrix.shard == 'audit' && '--grep @audit' || matrix.browser == 'chromium' && '--grep-invert @audit' || '' }}
         # The browser projects are named so they shard on their own: with no --project, chromium-load's
         # dependency on them put every test in shard 1 and none in shard 2. The load test then runs
         # after its shard's browser tests (--no-deps; a shard without it exits at once).
         run: >-
           pnpm exec firebase emulators:exec --only auth,firestore,functions,storage,hosting
           --project demo-materia --config firebase.e2e.json
-          "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=$E2E_PROJECT --shard=${{ matrix.shard }}/2
+          "pnpm exec playwright test -c apps/web-e2e/playwright.config.mts --project=$E2E_PROJECT $E2E_SHARD
           $E2E_GREP $E2E_LOAD"
       - name: Upload the Playwright report
         if: failure()

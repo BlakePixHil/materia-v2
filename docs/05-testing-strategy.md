@@ -29,7 +29,7 @@
 - **Accessibility:**
   - Every e2e page visit runs `expectNoA11yViolations(page)` (axe, WCAG 2.2 A and AA tags); `expectNoA11yViolationsInThemes(page)` scans the light and the dark theme.
   - `a11y.spec.ts` runs the scripted WCAG checks on every PR: keyboard walks with visible, unobscured focus (also in forced colours), landmarks and headings, reflow at 320 px and 640 px, reduced motion, paste and autocomplete on sign-in, live regions, dragging alternatives, consistent help and phone target sizes.
-  - `a11y-audit.spec.ts` (tagged `@audit`) scans every route, matter tab, settings page and key dialog in both themes, plus a phone pass. It takes 7 to 9 minutes of test time, so PRs skip it (`--grep-invert @audit`) and the morning run covers it. A new route belongs in its list.
+  - `a11y-audit.spec.ts` (tagged `@audit`) scans every route, matter tab, settings page and key dialog in both themes, plus a phone pass. It takes 7 to 9 minutes of test time, so PRs skip it (`--grep-invert @audit`) and the morning run covers it in a Chromium leg of its own, `e2e (chromium audit)` (Playwright shards by test count in file order, so inside a shard it all landed in shard 1 and ran that shard past its limit). A new route belongs in its list.
   - The audit report and the screen reader checklist are in `docs/accessibility/` (SEC-06).
 - **Rules coverage:** the emulator rules coverage report is uploaded in CI. New `match` blocks need tests.
 

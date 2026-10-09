@@ -27,8 +27,10 @@ import {
  * key flows, each in the light and the dark theme, plus a phone-width pass. Each test lists every
  * violation it found across its pages before failing.
  *
- * Tagged @audit: it is long, so CI runs it in the morning run only (PRs run --grep-invert @audit);
- * the faster checks in a11y.spec.ts run on every PR. Fictional data only.
+ * Tagged @audit: it is long, so CI runs it in the morning run only, in Chromium's "e2e (chromium
+ * audit)" leg (Chromium's shards run --grep-invert @audit) and in WebKit's shards; the faster checks
+ * in a11y.spec.ts run on every PR. Locally: `pnpm e2e -- --project=chromium --grep @audit`.
+ * Fictional data only.
  */
 
 test.use({ timezoneId: ZONE });
