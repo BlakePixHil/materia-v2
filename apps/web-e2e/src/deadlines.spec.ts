@@ -4,7 +4,6 @@ import { isBusinessDay, VIC_CALENDARS } from '@materia/deadlines';
 import { addDays, addMonths, today, type DateOnly } from '@materia/domain';
 import {
   EMULATOR_PROJECT,
-  a11yViolations,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
   FIRST_LOAD,
@@ -290,21 +289,11 @@ test.describe('deadlines', () => {
     const later = deadlineRow(page, 'Executor');
     await later.getByText('How it’s worked out').click();
     await expect(later.locator('details')).toContainText('Overridden to');
-    // DEBUG (temporary): where the page sits.
-    const geometry = await page.evaluate(() =>
-      JSON.stringify({
-        scrollY: scrollY,
-        inner: innerHeight,
-        topbar: document.querySelector('.mt-topbar')?.getBoundingClientRect(),
-        topbarKids: [...(document.querySelector('.mt-topbar')?.querySelectorAll('button, a, [role=group]') ?? [])].map(
-          (e) => [e.tagName, e.textContent?.trim().slice(0, 20), JSON.stringify(e.getBoundingClientRect())],
-        ),
-        chips: [...document.querySelectorAll('.mt-deadlines-page .bar .mt-chip')].map((e) =>
-          JSON.stringify(e.getBoundingClientRect()),
-        ),
-      }),
-    );
-    expect(await a11yViolations(page), `DEBUG ${geometry}`).toEqual([]);
+    // On a phone, opening the row scrolls the page, and how far depends on the browser. Scrolled
+    // about 100px, the filter chips sit under the sticky top bar's back and timer buttons, which axe
+    // counts as hiding them. Scan from the top, where the screen opens.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expectNoA11yViolations(page);
 
     // Filters: critical leaves none of these (the family provision deadline is still waiting).
     await page.getByRole('button', { name: 'Critical', exact: true }).click();

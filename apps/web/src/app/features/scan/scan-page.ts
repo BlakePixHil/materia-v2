@@ -850,7 +850,7 @@ export class ScanPage implements HasUnsavedChanges {
         category: this.category(),
         ...(this.canPrivileged() && this.privileged() ? { privileged: true } : {}),
         pages: pages.length,
-        pdf: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+        pdf: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }),
         savedAt: Date.now(),
       });
       this.saved.set(true);
@@ -865,8 +865,6 @@ export class ScanPage implements HasUnsavedChanges {
         await this.router.navigateByUrl('/record');
       }
     } catch (error) {
-      // DEBUG (temporary)
-      console.error('DEBUG scan save', String(error), (error as Error)?.name, (error as Error)?.stack);
       this.saveError.set(error instanceof ScanError ? error.message : 'The scan couldn’t be saved. Try again.');
     } finally {
       this.saving.set(false);
