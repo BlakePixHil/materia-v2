@@ -58,7 +58,21 @@ export async function a11yViolations(page: Page, options: A11yOptions = {}): Pro
     if (!reduced) await page.emulateMedia({ reducedMotion: null });
   }
   return violations.map(
-    (v) => `${v.id} (${v.impact ?? 'n/a'}): ${v.help} → ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`,
+    (v) =>
+      `${v.id} (${v.impact ?? 'n/a'}): ${v.help} → ${v.nodes
+        .map(
+          (n) =>
+            n.target.join(' ') +
+            ' [DEBUG ' +
+            n.failureSummary +
+            ' related: ' +
+            [...n.any, ...n.all, ...n.none]
+              .flatMap((c) => c.relatedNodes ?? [])
+              .map((r) => r.target.join(' ') + ' ' + r.html.slice(0, 160))
+              .join(' ; ') +
+            ']',
+        )
+        .join(', ')}`,
   );
 }
 

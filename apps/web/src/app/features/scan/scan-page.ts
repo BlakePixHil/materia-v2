@@ -865,6 +865,8 @@ export class ScanPage implements HasUnsavedChanges {
         await this.router.navigateByUrl('/record');
       }
     } catch (error) {
+      // DEBUG (temporary)
+      console.error('DEBUG scan save', String(error), (error as Error)?.name, (error as Error)?.stack);
       this.saveError.set(error instanceof ScanError ? error.message : 'The scan couldn’t be saved. Try again.');
     } finally {
       this.saving.set(false);

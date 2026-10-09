@@ -4,6 +4,7 @@ import { isBusinessDay, VIC_CALENDARS } from '@materia/deadlines';
 import { addDays, addMonths, today, type DateOnly } from '@materia/domain';
 import {
   EMULATOR_PROJECT,
+  a11yViolations,
   expectNoA11yViolations,
   FIRESTORE_EMULATOR,
   FIRST_LOAD,
@@ -289,7 +290,21 @@ test.describe('deadlines', () => {
     const later = deadlineRow(page, 'Executor');
     await later.getByText('How it’s worked out').click();
     await expect(later.locator('details')).toContainText('Overridden to');
-    await expectNoA11yViolations(page);
+    // DEBUG (temporary): where the page sits.
+    const geometry = await page.evaluate(() =>
+      JSON.stringify({
+        scrollY: scrollY,
+        inner: innerHeight,
+        topbar: document.querySelector('.mt-topbar')?.getBoundingClientRect(),
+        topbarKids: [...(document.querySelector('.mt-topbar')?.querySelectorAll('button, a, [role=group]') ?? [])].map(
+          (e) => [e.tagName, e.textContent?.trim().slice(0, 20), JSON.stringify(e.getBoundingClientRect())],
+        ),
+        chips: [...document.querySelectorAll('.mt-deadlines-page .bar .mt-chip')].map((e) =>
+          JSON.stringify(e.getBoundingClientRect()),
+        ),
+      }),
+    );
+    expect(await a11yViolations(page), `DEBUG ${geometry}`).toEqual([]);
 
     // Filters: critical leaves none of these (the family provision deadline is still waiting).
     await page.getByRole('button', { name: 'Critical', exact: true }).click();
