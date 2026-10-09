@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import { expectNoA11yViolations, FIRST_CALL, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { matterTabs } from './support/phone';
 
 /**
  * Closing a matter (CORE-19) against the emulators: the closing checklist through the real
@@ -106,7 +107,7 @@ test.describe('closing a matter', () => {
     await expect(banner).toContainText('read-only apart from notes');
     await expect(page.getByRole('button', { name: 'Status: Closed. Change status' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Edit title' })).toHaveCount(0);
-    const tabs = page.getByRole('navigation', { name: 'Matter sections' });
+    const tabs = matterTabs(page);
     await tabs.getByRole('link', { name: 'Tasks' }).click();
     await expect(page.getByRole('button', { name: /Add task/ })).toHaveCount(0);
     await expectNoA11yViolations(page);

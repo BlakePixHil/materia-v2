@@ -153,7 +153,7 @@ function switchShape(toggle: Locator) {
 }
 
 test.describe('inbox', () => {
-  test('filters, triages from the keyboard and archives', async ({ page, request }) => {
+  test('filters, triages from the keyboard and archives', async ({ page, request, hasTouch }) => {
     test.setTimeout(90_000);
     await signIn(page, request);
     // Arrive from a page with buttons on it, so the button styles load before the Inbox's own.
@@ -184,13 +184,15 @@ test.describe('inbox', () => {
     await page.keyboard.press('x');
     await expect(page.locator('.mt-inbox .bulk')).toContainText('2 selected');
     // A hovered action takes the light hover fill with dark text, like the other bulk bars, not the
-    // bar's white text.
-    const bar = page.locator('.mt-inbox .bulk');
-    const markRead = bar.getByRole('button', { name: /Mark read/ });
-    await markRead.hover();
-    await expect(markRead).toHaveAttribute('data-hover', '');
-    const barColor = await bar.evaluate((el) => getComputedStyle(el).color);
-    await expect(markRead).not.toHaveCSS('color', barColor);
+    // bar's white text. Phones have no hover, so this is checked on a desktop only.
+    if (!hasTouch) {
+      const bar = page.locator('.mt-inbox .bulk');
+      const markRead = bar.getByRole('button', { name: /Mark read/ });
+      await markRead.hover();
+      await expect(markRead).toHaveAttribute('data-hover', '');
+      const barColor = await bar.evaluate((el) => getComputedStyle(el).color);
+      await expect(markRead).not.toHaveCSS('color', barColor);
+    }
     await page.keyboard.press('y');
     await expect(rows(page)).toHaveCount(2);
     await expect(page.locator('.mt-toaster')).toContainText('2 notifications archived');

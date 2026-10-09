@@ -10,6 +10,7 @@ import {
 } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { chooseStage, currentStage, overviewCard } from './support/phone';
 
 /**
  * Matter templates (CORE-07) against the emulators, with `templates.system` on for the org: an
@@ -121,7 +122,7 @@ test.describe('matter templates', () => {
     await upgraded;
     await expect(page.getByText('Upgraded to v2').first()).toBeVisible();
     await expect(page.getByText(/\d+ tasks? added\./).first()).toBeVisible();
-    await expect(page.locator('mt-matter-overview')).toContainText('Check the client’s identity documents');
+    await expect(overviewCard(page, 'Open tasks')).toContainText('Check the client’s identity documents');
     await page.getByRole('button', { name: 'More matter actions' }).click();
     await expect(page.getByRole('menuitem', { name: /Upgrade matter/ })).toHaveCount(0);
   });
@@ -151,10 +152,9 @@ test.describe('matter templates', () => {
       },
     ]);
     await page.goto('/matters/m-stage');
-    const stepper = page.locator('mt-estate-stepper');
-    await expect(stepper.getByRole('button', { name: /^Execution\s*, current$/ })).toBeVisible(FIRST_LOAD);
+    await expect(currentStage(page, 'Execution')).toBeVisible(FIRST_LOAD);
 
-    await stepper.getByRole('button', { name: 'Safe custody', exact: true }).click();
+    await chooseStage(page, 'Safe custody');
     const note = page.locator('mt-matter-stages mt-note');
     await expect(note).toContainText('To move to Safe custody, record:', { timeout: 20_000 });
     await expectNoA11yViolations(page);
@@ -166,6 +166,6 @@ test.describe('matter templates', () => {
     await expect(note).toContainText('Everything Safe custody needs is recorded');
     await note.getByRole('button', { name: 'Move to Safe custody' }).click();
     await expect(page.getByText('Moved to Safe custody').first()).toBeVisible({ timeout: 20_000 });
-    await expect(stepper.getByRole('button', { name: /^Safe custody\s*, current$/ })).toBeVisible();
+    await expect(currentStage(page, 'Safe custody')).toBeVisible();
   });
 });

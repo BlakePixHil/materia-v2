@@ -13,6 +13,7 @@ import {
 } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { matterTabs } from './support/phone';
 
 /**
  * Deadlines (CORE-10) against the emulators, on a probate matter like the seed's Doyle estate with
@@ -133,7 +134,7 @@ const changeRow = (page: Page, title: string) =>
   page.locator('mt-pending-changes li').filter({ has: page.locator('.title', { hasText: title }) });
 
 async function openTab(page: Page, name: string): Promise<void> {
-  await page.getByRole('navigation', { name: 'Matter sections' }).getByRole('link', { name }).click();
+  await matterTabs(page).getByRole('link', { name }).click();
 }
 
 test.describe('deadlines', () => {
@@ -288,6 +289,10 @@ test.describe('deadlines', () => {
     const later = deadlineRow(page, 'Executor');
     await later.getByText('How it’s worked out').click();
     await expect(later.locator('details')).toContainText('Overridden to');
+    // On a phone, opening the row scrolls the page, and how far depends on the browser. Scrolled
+    // about 100px, the filter chips sit under the sticky top bar's back and timer buttons, which axe
+    // counts as hiding them. Scan from the top, where the screen opens.
+    await page.evaluate(() => window.scrollTo(0, 0));
     await expectNoA11yViolations(page);
 
     // Filters: critical leaves none of these (the family provision deadline is still waiting).

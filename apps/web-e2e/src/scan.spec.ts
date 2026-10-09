@@ -190,7 +190,15 @@ test.describe('scan a document on a phone', () => {
 
     await context.setOffline(true);
     await page.getByRole('button', { name: 'Add to matter' }).click();
-    await expect(page.locator('.mt-toaster').getByText('Scan saved on this phone', { exact: true })).toBeVisible();
+    // A save that fails shows its problem under the pages in place of the toast, so a failure here
+    // names it. Fails on Playwright's WebKit: its offline mode refuses even the page's reads of its
+    // own photos (NotReadableError), so the PDF can't be built. Those reads never touch the network,
+    // so a phone that's really offline makes them.
+    const saved = page.locator('.mt-toaster').getByText('Scan saved on this phone', { exact: true });
+    const problem = page.getByTestId('scan-problem');
+    await expect(saved.or(problem)).toBeVisible();
+    await expect(problem).toBeHidden();
+    await expect(saved).toBeVisible();
     await expect(page).toHaveURL(/\/record$/);
     const waiting = page.getByTestId('scans-waiting');
     await expect(waiting).toContainText('Will – Larch.pdf');

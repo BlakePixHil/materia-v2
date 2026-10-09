@@ -12,6 +12,7 @@ import {
 } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { isPhone, matterTabs, overviewCard } from './support/phone';
 
 /**
  * Matter notes (CORE-13) against the emulators: write a note that mentions a colleague through the
@@ -125,14 +126,17 @@ test.describe('notes', () => {
     // Pin it: it's marked Pinned and shows on the Overview.
     await note.getByRole('button', { name: 'Pin note' }).click();
     await expect(note).toContainText('Pinned');
-    const tabs = page.getByRole('navigation', { name: 'Matter sections' });
+    const tabs = matterTabs(page);
     await tabs.getByRole('link', { name: 'Overview' }).click();
-    const pinned = page.getByRole('region', { name: 'Pinned notes' });
+    const pinned = overviewCard(page, 'Pinned notes');
+    // A phone's Overview lists the latest notes in a folded section, the pinned ones marked.
+    if (isPhone(page)) await pinned.locator('summary').click();
     await expect(pinned).toContainText('Original will is in the safe.');
+    if (isPhone(page)) await expect(pinned.getByRole('img', { name: 'Pinned' })).toBeVisible();
     await expectNoA11yViolations(page);
 
     // Edit it: it reads "edited", and its history has the earlier version.
-    await pinned.getByRole('link', { name: 'All notes' }).click();
+    await pinned.getByRole('link', { name: isPhone(page) ? 'See all notes' : 'All notes' }).click();
     await expect(page).toHaveURL(/\/matters\/m-quill\/notes$/);
     await noteCards(page).first().getByRole('button', { name: 'Edit note' }).click();
     const editor = page.getByRole('textbox', { name: 'Edit note' });

@@ -7,6 +7,7 @@ import { suggestionBasis, suggestionBasisParts } from '@materia/domain';
 import { expectNoA11yViolations, setEmulatorDocuments, setOrgFlags, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { overviewCard } from './support/phone';
 
 /**
  * Citations (AI-05) against the emulators: a Clerk suggestion on the matter Overview cites the
@@ -224,7 +225,7 @@ test.describe('Citations', () => {
     await setUp(page, request, 'lawyer');
     await page.goto(OVERVIEW);
 
-    const facts = page.getByRole('region', { name: 'Key facts' });
+    const facts = overviewCard(page, 'Key facts');
     const suggestion = page
       .getByRole('region', { name: 'Clerk suggests…' })
       .getByRole('group', { name: 'Clerk suggestion: Will date: 2019-05-03' });

@@ -12,6 +12,7 @@ import {
 } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { isPhone } from './support/phone';
 
 /**
  * Guided tours (CORE-24) against the emulators, with `tours.enabled` on for a fresh fictional
@@ -87,9 +88,11 @@ test.describe('guided tours', () => {
     await expect(tour(page)).toHaveCount(0);
     await expect.poll(() => seenTours(request, uid), FIRST_CALL).toContain('welcome');
 
-    // Page tours are on now: Matters plays its tour the first time it opens.
+    // Page tours are on now: Matters plays its tour the first time it opens. A phone's Matters has
+    // no layout switch or filter bar (MOB-02), so its tour starts at the list.
+    const first = isPhone(page) ? 'Every matter' : 'List or board';
     await page.goto('/matters');
-    await expect(title(page)).toHaveText('List or board', FIRST_LOAD);
+    await expect(title(page)).toHaveText(first, FIRST_LOAD);
     await expect(tour(page)).toContainText('Matters · 1 of');
     for (let step = 0; step < 6 && (await tour(page).count()); step++) {
       await page.getByRole('button', { name: /^(Next|Done)$/ }).click();
@@ -103,7 +106,7 @@ test.describe('guided tours', () => {
     await page.waitForTimeout(1500);
     await expect(tour(page)).toHaveCount(0);
     await page.keyboard.press('Shift+H');
-    await expect(title(page)).toHaveText('List or board', FIRST_LOAD);
+    await expect(title(page)).toHaveText(first, FIRST_LOAD);
     await page.getByRole('button', { name: 'End tour' }).click();
     await expect(tour(page)).toHaveCount(0);
   });

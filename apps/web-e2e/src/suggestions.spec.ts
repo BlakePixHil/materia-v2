@@ -4,6 +4,7 @@ import { suggestionBasis, suggestionBasisParts, type SuggestionKind } from '@mat
 import { expectNoA11yViolations, setEmulatorDocuments, setOrgFlags, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { overviewCard } from './support/phone';
 
 /**
  * Clerk suggestions on the matter Overview (AI-07) against the emulators: accept a suggested task
@@ -129,10 +130,7 @@ test.describe('Clerk suggestions', () => {
     await valuation.getByRole('button', { name: 'Add task' }).click();
     await expect(valuation).toBeHidden(SERVER);
     await expect(page.locator('.mt-toaster')).toContainText('Suggestion accepted');
-    await expect(page.getByRole('region', { name: 'Open tasks' })).toContainText(
-      'Order a valuation of 9 Fictional Lane',
-      SERVER,
-    );
+    await expect(overviewCard(page, 'Open tasks')).toContainText('Order a valuation of 9 Fictional Lane', SERVER);
 
     // Edit, then accept: the edited text is what's pinned.
     const note = card(page, 'The house goes to the residuary beneficiaries.');
@@ -147,7 +145,7 @@ test.describe('Clerk suggestions', () => {
     await editor.getByRole('button', { name: 'Accept edited' }).click();
     await expect(note).toBeHidden(SERVER);
     await expect(page.locator('.mt-toaster')).toContainText('Accepted with your changes');
-    await expect(page.getByRole('region', { name: 'Pinned notes' })).toContainText('confirm the title.', SERVER);
+    await expect(overviewCard(page, 'Pinned notes')).toContainText('confirm the title.', SERVER);
 
     // Dismiss with a reason.
     const bank = card(page, 'Write to the bank');
