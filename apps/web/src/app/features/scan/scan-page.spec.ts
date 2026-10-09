@@ -322,6 +322,8 @@ describe('Scan a document (MOB-05)', () => {
     expect(page.router.url).toBe('/record');
     expect(page.text(page.body.querySelector('.mt-toaster'))).toContain('Scan saved on this phone');
     expect(await page.waitingCount()).toBe(1);
+    // Its bytes, not a Blob: WebKit won't store a Blob in IndexedDB in a private session.
+    expect((await page.store.list())[0]?.pdf).toBeInstanceOf(ArrayBuffer);
     expect(page.uploads.transfers).toHaveLength(0);
     const waiting = await vi.waitFor(
       () =>

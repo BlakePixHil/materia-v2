@@ -19,7 +19,11 @@ export interface QueuedScan {
   category?: DocumentCategory;
   privileged?: boolean;
   pages: number;
-  pdf: Blob;
+  /**
+   * The PDF's bytes, as an ArrayBuffer: WebKit won't store a Blob in IndexedDB in a private
+   * session (Playwright's WebKit runs one). Scans saved by earlier versions hold a Blob.
+   */
+  pdf: ArrayBuffer | Blob;
   /** When it was saved (ms). */
   savedAt: number;
 }

@@ -10,6 +10,7 @@ import {
 } from '@materia/test-utils/e2e';
 
 import { seedClient, uniqueOrg } from './support/matters';
+import { currentStage, matterTabs, overviewCard } from './support/phone';
 
 /**
  * New matter intake (CORE-05) against the emulators: a probate with a new client and the deceased
@@ -143,11 +144,10 @@ test.describe('new matter intake', () => {
     // The new matter: on the probate template's first stage, with that stage's tasks.
     await expect(page).toHaveURL(/\/matters\/[^/]+\/overview$/, { timeout: 20_000 });
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Estate of Rosamund Thistlewood');
-    const stepper = page.locator('mt-estate-stepper');
-    await expect(stepper.getByRole('button', { name: /^Instructions\s*, current$/ })).toBeVisible();
-    const overview = page.locator('mt-matter-overview');
-    await expect(overview).toContainText('Take the executor’s instructions');
-    await expect(overview).toContainText('Obtain the death certificate');
+    await expect(currentStage(page, 'Instructions')).toBeVisible();
+    const tasks = overviewCard(page, 'Open tasks');
+    await expect(tasks).toContainText('Take the executor’s instructions');
+    await expect(tasks).toContainText('Obtain the death certificate');
   });
 
   test('a family provision claim with the other side', async ({ page, request, isMobile }) => {
@@ -199,7 +199,7 @@ test.describe('new matter intake', () => {
     await page.getByRole('button', { name: 'Create matter' }).click();
     await expect(page).toHaveURL(/\/matters\/[^/]+\/overview$/, { timeout: 20_000 });
 
-    const tabs = page.getByRole('navigation', { name: 'Matter sections' });
+    const tabs = matterTabs(page);
     await tabs.getByRole('link', { name: 'Parties' }).click();
     const parties = page.locator('mt-matter-parties');
     await expect(parties).toContainText('Bram Fictional');

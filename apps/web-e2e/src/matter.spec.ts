@@ -4,6 +4,7 @@ import { contactSearchTokens, partyDocId } from '@materia/domain';
 import { expectNoA11yViolations, FIRST_LOAD, setEmulatorDocuments, signInAsTestUser } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { matterTabs } from './support/phone';
 
 /**
  * The matter screen (CORE-06) against the emulators: open a matter, record a key fact, add a party
@@ -86,7 +87,7 @@ test.describe('matter screen', () => {
     await expect(page.locator('mt-key-facts')).toContainText('SP-2026-04417', FIRST_LOAD);
 
     // Switch to Parties from the tabs.
-    const tabs = page.getByRole('navigation', { name: 'Matter sections' });
+    const tabs = matterTabs(page);
     await tabs.getByRole('link', { name: 'Parties' }).click();
     await expect(page).toHaveURL(/\/matters\/m-quill\/parties$/);
     const parties = page.locator('mt-matter-parties');

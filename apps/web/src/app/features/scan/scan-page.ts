@@ -850,7 +850,7 @@ export class ScanPage implements HasUnsavedChanges {
         category: this.category(),
         ...(this.canPrivileged() && this.privileged() ? { privileged: true } : {}),
         pages: pages.length,
-        pdf: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }),
+        pdf: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
         savedAt: Date.now(),
       });
       this.saved.set(true);

@@ -13,6 +13,7 @@ import {
 } from '@materia/test-utils/e2e';
 
 import { matterDoc, seedClient, uniqueOrg } from './support/matters';
+import { matterTabs } from './support/phone';
 
 /**
  * Deadlines (CORE-10) against the emulators, on a probate matter like the seed's Doyle estate with
@@ -133,7 +134,7 @@ const changeRow = (page: Page, title: string) =>
   page.locator('mt-pending-changes li').filter({ has: page.locator('.title', { hasText: title }) });
 
 async function openTab(page: Page, name: string): Promise<void> {
-  await page.getByRole('navigation', { name: 'Matter sections' }).getByRole('link', { name }).click();
+  await matterTabs(page).getByRole('link', { name }).click();
 }
 
 test.describe('deadlines', () => {

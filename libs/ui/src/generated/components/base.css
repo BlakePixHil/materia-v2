@@ -13,6 +13,7 @@ html, body { background: var(--bg-surface); }
 :where(a) { color: var(--text-brand); text-decoration-thickness: 1px; text-underline-offset: 2px; transition: text-decoration-color var(--motion-fast) var(--ease-out); }
 :where(a):hover { text-decoration-thickness: 2px; }
 @media (max-width: 767px) { :root { --control-sm: 44px; --control-md: 44px; --control-lg: 48px; } }
+@media (max-width: 767px) { html { scroll-padding-top: calc(52px + env(safe-area-inset-top, 0px)); scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); } }
 @keyframes mt-toast-out { to { opacity: 0; transform: scale(.96); } }
 @keyframes mt-toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes mt-toast-in-top { from { opacity: 0; transform: translateY(-8px); } }

@@ -190,7 +190,12 @@ test.describe('scan a document on a phone', () => {
 
     await context.setOffline(true);
     await page.getByRole('button', { name: 'Add to matter' }).click();
-    await expect(page.locator('.mt-toaster').getByText('Scan saved on this phone', { exact: true })).toBeVisible();
+    // If the phone can't keep it, the problem under the pages says why, in place of the toast.
+    const saved = page.locator('.mt-toaster').getByText('Scan saved on this phone', { exact: true });
+    const problem = page.getByTestId('scan-problem');
+    await expect(saved.or(problem)).toBeVisible();
+    await expect(problem).toBeHidden();
+    await expect(saved).toBeVisible();
     await expect(page).toHaveURL(/\/record$/);
     const waiting = page.getByTestId('scans-waiting');
     await expect(waiting).toContainText('Will – Larch.pdf');

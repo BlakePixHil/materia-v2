@@ -27,6 +27,8 @@ html, body { background: var(--bg-surface); }
 :where(a):hover { text-decoration-thickness: 2px; }
 /* Phones (MOB-02): every button, icon button and field is at least 44px tall, a fingertip. */
 @media (max-width: 767px) { :root { --control-sm: 44px; --control-md: 44px; --control-lg: 48px; } }
+/* Phones: the top bar sticks and the TabBar is fixed, so scrolling to a control (focus, a #link) stops clear of both. */
+@media (max-width: 767px) { html { scroll-padding-top: calc(52px + env(safe-area-inset-top, 0px)); scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); } }
 
 /* ---------- layout helpers ---------- */
 .mt-row { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
