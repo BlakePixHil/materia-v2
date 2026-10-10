@@ -215,11 +215,13 @@ describe('uploads to pending/ (CORE-12)', () => {
     await assertFails(upload('lawyer', { metadata: { documentId: 'no-such-document' } }));
   });
 
+  // The limit needs real bytes: two 50 MB uploads, 1.1 to 2.3 s each on the emulator locally, so a
+  // busy CI runner passes the 5 s test default (CI: timed out at 5 s).
   it('accepts exactly 50 MB, and rejects empty files and anything larger', async () => {
     await assertSucceeds(upload('lawyer', { size: 50 * MB }));
     await assertFails(upload('lawyer', { size: 50 * MB + 1 }));
     await assertFails(upload('lawyer', { size: 0 }));
-  });
+  }, 30_000);
 
   it('upload ids are 8 to 64 URL-safe characters, one object each (no sub-paths)', async () => {
     const at = (id: string) => `${MATTER}/pending/${id}`;
