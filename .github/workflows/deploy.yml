@@ -80,7 +80,7 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Download the release artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-${{ inputs.sha }}
           path: dist/release
@@ -283,7 +283,7 @@ jobs:
 
       - name: Upload the Playwright report
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-report-${{ inputs.environment }}
           path: dist/.playwright/apps/web-e2e

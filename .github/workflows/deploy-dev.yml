@@ -165,7 +165,7 @@ jobs:
 
       # Kept for 90 days so a tag can be promoted to prod and older releases redeployed.
       - name: Upload the release
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ steps.release.outputs.sha }}
           path: dist/release

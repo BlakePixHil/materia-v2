@@ -174,7 +174,7 @@ jobs:
       # Reports hold ids, scores and token counts only (no prompt or output text).
       - name: Upload the reports
         if: steps.plan.outputs.live == 'true'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: clerk-evals-${{ github.run_id }}
           path: |

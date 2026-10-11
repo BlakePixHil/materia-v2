@@ -61,7 +61,7 @@ runs:
 
     - name: Upload the reports
       if: always()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.report-name }}
         path: trivy-reports
