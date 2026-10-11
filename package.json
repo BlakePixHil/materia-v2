@@ -58,7 +58,7 @@
     "@nx/workspace": "23.2.1",
     "@oxc-project/runtime": "^0.152.0",
     "@playwright/test": "^1.37.0",
-    "@schematics/angular": "~22.2.1",
+    "@schematics/angular": "~22.2.2",
     "@storybook/addon-a11y": "~10.6.1",
     "@storybook/angular": "^10.5.0",
     "@storybook/test-runner": "^0.26.0",
