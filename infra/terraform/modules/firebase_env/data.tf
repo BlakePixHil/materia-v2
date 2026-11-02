@@ -227,5 +227,24 @@ resource "google_artifact_registry_repository" "jobs" {
   description   = "Cloud Run job images (ADR-014)"
   labels        = local.labels
 
+  # Every deploy pushes a ~370 MB pdf image. Without a cleanup policy dev held 93 versions
+  # (~29 GiB, the largest storage line on the bill). Keep the last few for rollback, drop the rest.
+  cleanup_policy_dry_run = false
+  cleanup_policies {
+    id     = "keep-recent"
+    action = "KEEP"
+    most_recent_versions {
+      keep_count = 5
+    }
+  }
+  cleanup_policies {
+    id     = "delete-old"
+    action = "DELETE"
+    condition {
+      tag_state  = "ANY"
+      older_than = "1209600s" # 14 days
+    }
+  }
+
   depends_on = [time_sleep.services_ready]
 }
