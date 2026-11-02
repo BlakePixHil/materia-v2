@@ -3,7 +3,7 @@
 env                          = "dev"
 project_id                   = "materia-v2-dev"
 admin_project_id             = "materia-v2-admin"
-budget_amount                = 100
+budget_amount                = 10
 restrict_deploys_to_releases = false
 enable_migration_runner      = false
 deletion_protection          = false

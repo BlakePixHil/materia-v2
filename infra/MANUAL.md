@@ -99,7 +99,7 @@ Applied state (2026-10-04, Terraform 1.16.5, google/google-beta 8.5.0, applied b
 - Admin project and state bucket: `materia-v2-admin`, `gs://materia-tfstate-blakepixhil` (prefixes `env/dev`, `env/prod`)
 - dev project id and number: `materia-v2-dev`, `1087034936575`
 - prod project id and number: `materia-v2-prod`, `664690513020`
-- Billing: both on the same AUD billing account (id not recorded here; pass it as `TF_VAR_billing_account`). Budgets "Materia v2 dev monthly" (AUD 100) and "Materia v2 prod monthly" (AUD 1000), alerts at 50/90/100% to the owner's email
+- Billing: both on the same AUD billing account (id not recorded here; pass it as `TF_VAR_billing_account`). Budgets "Materia v2 dev monthly" (AUD 10) and "Materia v2 prod monthly" (AUD 10), alerts at 50/90/100% to the owner's email
 - `gcloud firestore databases describe --project <id>` location (must be `australia-southeast1`): dev `australia-southeast1` (Native, PITR on, delete protection off); prod `australia-southeast1` (Native, PITR on, delete protection on)
 - Buckets: `materia-v2-<env>-files` and `-migration` in `AUSTRALIA-SOUTHEAST1`, `-backups` in `AUSTRALIA-SOUTHEAST2`
 - WIF providers: dev `projects/1087034936575/locations/global/workloadIdentityPools/github/providers/github`, prod `projects/664690513020/locations/global/workloadIdentityPools/github/providers/github`

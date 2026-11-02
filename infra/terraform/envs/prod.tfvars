@@ -2,7 +2,7 @@
 env                          = "prod"
 project_id                   = "materia-v2-prod"
 admin_project_id             = "materia-v2-admin"
-budget_amount                = 1000
+budget_amount                = 10
 restrict_deploys_to_releases = true
 enable_migration_runner      = true
 deletion_protection          = true
